@@ -1,0 +1,46 @@
+{
+    "version": 1,
+    "disable_existing_loggers": true,
+    "formatters": {
+        "console": {
+            "format": "%(asctime)s.%(msecs)03d|%(levelname)s|%(name)s|%(message)s", 
+            "datefmt": "%H:%M:%S"
+            },
+        "file": {
+            "format": "%(asctime)s|%(levelname)s|%(name)s|%(message)s", 
+            "datefmt": null
+        }
+    },
+    "handlers": {
+        "console": {
+            "level": "DEBUG",
+            "class": "logging.StreamHandler",
+            "formatter": "console",
+            "stream": "ext://sys.stdout"
+        },
+        "file": {
+            "level": "DEBUG",
+            "class": "logging.handlers.RotatingFileHandler",
+            "formatter": "file",
+            "filename": "blabla",
+            "maxBytes": 1024,
+            "backupCount": 3
+        }
+    },
+    "loggers": {
+        "geofile_ops": {
+            "level": "INFO",
+            "handlers": ["console"],
+            "propagate": false
+        },
+        "geofile_ops.geofile_ops": {
+            "level": "DEBUG",
+            "handlers": ["console"],
+            "propagate": false
+        }        
+    },
+    "root": {
+        "level": "INFO",
+        "handlers": ["console"]
+    }
+}
