@@ -1,3 +1,6 @@
 
 *.pyc
 .vscode/
+build/
+geofile_ops.egg-info/
+dist/
