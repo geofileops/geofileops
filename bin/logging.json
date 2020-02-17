@@ -22,20 +22,20 @@
             "level": "DEBUG",
             "class": "logging.handlers.RotatingFileHandler",
             "formatter": "file",
-            "filename": "blabla",
-            "maxBytes": 1024,
+            "filename": "logfile.log",
+            "maxBytes": 1024000,
             "backupCount": 3
         }
     },
     "loggers": {
         "geofile_ops": {
             "level": "INFO",
-            "handlers": ["console"],
+            "handlers": ["console", "file"],
             "propagate": false
         },
         "geofile_ops.geofile_ops": {
             "level": "DEBUG",
-            "handlers": ["console"],
+            "handlers": ["console", "file"],
             "propagate": false
         }        
     },
