@@ -10,17 +10,6 @@ Uses mainly ogr2ogr under the hood.
 
 1. Create and activate a new conda environment
 ```
-conda create --name geofile_ops python=3.6
-conda activate geofile_ops
-```
-
-2. Install the dependencies for the crop classification scripts:
-```
-conda install --channel conda-forge geopandas
-```
-Possibly you need to install your computer now, especially if it was the first time you installed anaconda/geopandas
-
-3. Start the anaconda terminal window again and activate the environment
-```
+conda create --name geofile_ops python=3.6 geopandas
 conda activate geofile_ops
 ```

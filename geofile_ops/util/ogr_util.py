@@ -11,6 +11,8 @@ import pprint
 import subprocess
 from threading import Lock
 import time
+from io import StringIO
+import re
 
 from geofile_ops.util import io_util
 #import _winreg as winreg
@@ -160,7 +162,7 @@ def vector_translate(
         force_output_geometrytype: str = None,
         priority_class: str = 'VERY_LOW',
         sqlite_journal_mode: str = 'WAL',
-        verbose: bool = False):
+        verbose: bool = False) -> bool:
     """
     Run a command
     """
@@ -246,6 +248,8 @@ def vector_translate(
     # Geopackage/sqlite files are very sensitive for being locked, so retry till 
     # file is not locked anymore... 
     # TODO: ideally, the child processes would die when the parent is killed!
+    returncode = None
+    err = None
     for retry_count in range(10):
 
         # Unsuccessfull test to print output constantly instead of only when the 
@@ -270,9 +274,9 @@ def vector_translate(
         '''
         if translate_description is not None:
             if verbose is True:
-                logger.info(f"Start '{translate_description}'")
+                logger.info(f"Start '{translate_description}' with retry_count: {retry_count}")
             else:
-                logger.debug(f"Start '{translate_description}'")
+                logger.debug(f"Start '{translate_description}' with retry_count: {retry_count}")
         process = subprocess.Popen(args, 
                 creationflags=priority_class_windows,
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1, encoding='utf-8')
@@ -281,7 +285,7 @@ def vector_translate(
 
         # If an error occured
         if returncode > 0:
-            if err.startswith("ERROR 1: database is locked"):
+            if str(err).startswith("ERROR 1: database is locked"):
                 logger.warn(f"'ERROR 1: database is locked' occured during {translate_description}, retry nb: {retry_count}")
                 time.sleep(1)
                 continue
@@ -292,21 +296,53 @@ def vector_translate(
                     os.remove(output_path)
                 raise Exception(f"Error executing {pprint.pformat(args)}\n\t-> Return code: {returncode}\n\t-> Error: {err}\n\t->Output: {output}")
         elif(err is not None and err != ""
-             and not err.startswith("Warning 1: Layer creation options ignored since an existing layer is")):
+             and not str(err).startswith(r"Warning 1: Layer creation options ignored since an existing layer is")):
             # No error, but data (warnings) in stderr
-            # Remark: the warning about layer creating options is common and not intesting: ignore!
+            # Remark: the warning about layer creating options is common and not interesting: ignore!
             logger.warn(f"Finished executing {pprint.pformat(args)}")
             logger.warn(f"\t-> Returncode ok, but stderr contains: {err}")
-        elif translate_description is not None:
-            if verbose is True:
-                logger.info(f"Finished '{translate_description}'")
-            else:
-                logger.debug(f"Finished '{translate_description}'")
 
-        return output
+        # Check if the output file contains data
+        fileinfo = getfileinfo(output_path, readonly=False)
+        if len(fileinfo['layers']) == 0:
+            os.remove(output_path)
+            logger.warn(f"Finished, but empty result for '{translate_description}'")
+        elif verbose is True:
+            logger.info(f"Finished '{translate_description}'")
+        else:
+            logger.debug(f"Finished '{translate_description}'")
+
+        return True
 
     # If we get here, the retries didn't suffice to get it executed properly
     raise Exception(f"Error executing {pprint.pformat(args)}\n\t-> Return code: {returncode}\n\t-> Error: {err}")
+
+def getfileinfo(
+        path: str,
+        readonly: bool = True,
+        verbose: bool = False) -> dict:
+            
+    # Get info
+    info_str = vector_info(
+            path=path, 
+            readonly=readonly,
+            verbose=verbose)
+
+    # Prepare result
+    result_dict = {}
+    result_dict['info_str'] = info_str
+    result_dict['layers'] = []
+    info_strio = StringIO(str(info_str))
+    for line in info_strio.readlines():
+        line = line.strip()
+        if re.match(r"\A\d: ", line):
+            # It is a layer, now extract only the layer name
+            logger.debug(f"This is a layer: {line}")
+            layername_with_geomtype = re.sub(r"\A\d: ", "", line)
+            layername = re.sub(r" [(][a-zA-Z ]+[)]\Z", "", layername_with_geomtype)
+            result_dict['layers'].append(layername)
+
+    return result_dict
 
 def vector_info(
         path: str, 
@@ -323,7 +359,7 @@ def vector_info(
 
     # Add all parameters to args list
     args = [ogrinfo_exe]
-    args.extend(['--config', 'OGR_SQLITE_PRAGMA', 'journal_mode=DELETE'])  
+    args.extend(['--config', 'OGR_SQLITE_PRAGMA', 'journal_mode=WAL'])  
     if readonly is True:
         args.append('-ro')
     if report_summary is True:
@@ -345,7 +381,9 @@ def vector_info(
 
     ##### Run ogrinfo #####
     # Geopackage/sqlite files are very sensitive for being locked, so retry till 
-    # file is not locked anymore... 
+    # file is not locked anymore...
+    sleep_time = 1
+    returncode = None 
     for retry_count in range(10):
         process = subprocess.Popen(args, 
                 creationflags=IDLE_PRIORITY_CLASS,
@@ -355,9 +393,10 @@ def vector_info(
 
         # If an error occured
         if returncode > 0:
-            if err.startswith("ERROR 1: database is locked"):
+            if str(err).startswith("ERROR 1: database is locked"):
                 logger.warn(f"'ERROR 1: database is locked' occured during {task_description}, retry nb: {retry_count}")
-                time.sleep(1)
+                time.sleep(sleep_time)
+                sleep_time += 1
                 continue
             else:
                 raise Exception(f"Error executing {pprint.pformat(args)}\n\t-> Return code: {returncode}\n\t-> Error: {err}\n\t->Output: {output}")  

@@ -874,6 +874,11 @@ def _two_layer_vector_operation(
                     translate_id = future_to_translate_id[future]
                     if translate_jobs[translate_id]['task_type'] == 'CALCULATE':
                         tmp_partial_output_path = translate_jobs[translate_id]['tmp_partial_output_path']
+
+                        # If there wasn't an exception, but the output file doesn't exist, the result was empty, so just skip.
+                        if not os.path.exists(tmp_partial_output_path):
+                            continue
+                        
                         sqlite_stmt = f'SELECT * FROM "{output_layer}"'                   
                         translate_description = f"Copy result {translate_id} of {nb_batches} to {output_layer}"
                         
@@ -904,10 +909,10 @@ def _two_layer_vector_operation(
         # Now create spatial index and move to output location
         create_spatial_index(path=tmp_output_path, layer=output_layer)
         shutil.move(tmp_output_path, output_path, copy_function=io_util.copyfile)
-    finally:
-        # Clean tmp dir
         shutil.rmtree(tempdir)
         logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
+    except Exception as ex:
+        logger.exception(f"Processing ready with ERROR, took {datetime.datetime.now()-start_time}!")
 
 def dissolve(
         input_path: str,
@@ -1006,24 +1011,13 @@ def dissolve_cardsheets(
             return
         else:
             os.remove(output_path)
-
-    if input_layer is None:
-        input_layer = get_only_layer(input_path)
-    if output_layer is None:
-        output_layer = get_default_layer(output_path)
-
-    # Prepare tmp layer/file names
-    tempdir = create_tempdir("dissolve_cardsheets")
-    input_tmp_path = os.path.join(tempdir, f"input_layers.gpkg")
-    _, output_filename = os.path.split(output_path)
-    output_tmp_path = os.path.join(tempdir, output_filename)
-    if(nb_parallel == -1):
+    if nb_parallel == -1:
         nb_parallel = multiprocessing.cpu_count()
-
-    ##### Prepare tmp files #####
-    logger.info(f"Start preparation of the temp files to calculate on in {tempdir}")
+        logger.info(f"Nb cpus found: {nb_parallel}")
 
     # Get input data to temp gpkg file
+    tempdir = create_tempdir("dissolve_cardsheets")
+    input_tmp_path = os.path.join(tempdir, f"input_layers.gpkg")
     _, input_ext = os.path.splitext(input_path)
     if(input_ext == '.gpkg'):
         logger.info(f"Copy {input_path} to {input_tmp_path}")
@@ -1039,6 +1033,14 @@ def dissolve_cardsheets(
                 output_layer=input_layer,
                 verbose=verbose)
         logger.debug("Copy ready")
+
+    if input_layer is None:
+        input_layer = get_only_layer(input_tmp_path)
+    if output_layer is None:
+        output_layer = get_default_layer(output_path)
+
+    ##### Prepare tmp files #####
+    logger.info(f"Start preparation of the temp files to calculate on in {tempdir}")
 
     # Prepare the strings to use in the select statement
     if groupby_columns is not None:
@@ -1056,77 +1058,108 @@ def dissolve_cardsheets(
     # Load the cardsheets we want the dissolve to be bound on
     cardsheets_gdf = geofile_util.read_file(input_cardsheets_path)
 
-    # Start calculation of intersections in parallel
-    logger.info(f"Start calculation of dissolves in file {input_tmp_path} to partial files")
-    _, output_filename = os.path.split(output_path) 
-    output_filename_noext, output_ext = os.path.splitext(output_filename)
+    try:
+        # Start calculation of intersections in parallel
+        logger.info(f"Start calculation of dissolves in file {input_tmp_path} to partial files")
+        _, output_filename = os.path.split(output_path) 
+        output_filename_noext, output_ext = os.path.splitext(output_filename)
+        tmp_output_path = os.path.join(tempdir, output_filename)
 
-    translate_jobs = []    
-    for translate_id, cardsheet in enumerate(cardsheets_gdf.itertuples()):
+        with futures.ThreadPoolExecutor(nb_parallel) as calculate_pool, \
+             futures.ThreadPoolExecutor(1) as write_result_pool:
+
+            translate_jobs = {}    
+            future_to_translate_id = {}    
+            nb_batches = len(cardsheets_gdf)
+            for translate_id, cardsheet in enumerate(cardsheets_gdf.itertuples()):
         
-        translate_description = f"Dissolve cardsheet id: {translate_id}, bounds: {cardsheet.geometry.bounds}"
-        output_tmp_partial_path = os.path.join(tempdir, f"{output_filename_noext}_{translate_id}{output_ext}")
+                translate_jobs[translate_id] = {}
+                translate_jobs[translate_id]['layer'] = output_layer
 
-        # Remarks: 
-        #   - calculating the area in the enclosing selects halves the processing time
-        #   - ST_union() gives same performance as ST_unaryunion(ST_collect())!
-        bbox_xmin, bbox_ymin, bbox_xmax, bbox_ymax = cardsheet.geometry.bounds  
-        bbox_wkt = f"POLYGON (({bbox_xmin} {bbox_ymin}, {bbox_xmax} {bbox_ymin}, {bbox_xmax} {bbox_ymax}, {bbox_xmin} {bbox_ymax}, {bbox_xmin} {bbox_ymin}))"
-        sqlite_stmt = f"""
-                SELECT ST_union(ST_intersection(t.geom, ST_GeomFromText('{bbox_wkt}'))) AS geom{groupby_columns_for_select_str}
-                    FROM {input_layer} t
-                    JOIN rtree_{input_layer}_geom t_tree ON t.fid = t_tree.id
-                    WHERE t_tree.minx <= {bbox_xmax} AND t_tree.maxx >= {bbox_xmin}
-                    AND t_tree.miny <= {bbox_ymax} AND t_tree.maxy >= {bbox_ymin}
-                    AND ST_Intersects(t.geom, ST_GeomFromText('{bbox_wkt}')) = 1
-                    AND ST_Touches(t.geom, ST_GeomFromText('{bbox_wkt}')) = 0
-                    GROUP BY {groupby_columns_for_groupby_str}"""
-        if explodecollections is True:
-            force_output_geometrytype = 'POLYGON'
-        else:
-            force_output_geometrytype = 'MULTIPOLYGON'
+                output_tmp_partial_path = os.path.join(tempdir, f"{output_filename_noext}_{translate_id}{output_ext}")
+                translate_jobs[translate_id]['tmp_partial_output_path'] = output_tmp_partial_path
 
-        translate_info = ogr_util.VectorTranslateInfo(
-                input_path=input_path,
-                output_path=output_tmp_partial_path,
-                translate_description=translate_description,
-                output_layer=output_layer,
-                #clip_bounds=cardsheet.geometry.bounds,
-                sqlite_stmt=sqlite_stmt,
-                append=True,
-                update=True,
-                explodecollections=True,
-                force_output_geometrytype=force_output_geometrytype,
-                verbose=verbose)
-        translate_jobs.append(translate_info)
+                # Remarks: 
+                #   - calculating the area in the enclosing selects halves the processing time
+                #   - ST_union() gives same performance as ST_unaryunion(ST_collect())!
+                bbox_xmin, bbox_ymin, bbox_xmax, bbox_ymax = cardsheet.geometry.bounds  
+                bbox_wkt = f"POLYGON (({bbox_xmin} {bbox_ymin}, {bbox_xmax} {bbox_ymin}, {bbox_xmax} {bbox_ymax}, {bbox_xmin} {bbox_ymax}, {bbox_xmin} {bbox_ymin}))"
+                sqlite_stmt = f"""
+                        SELECT ST_union(ST_intersection(t.geom, ST_GeomFromText('{bbox_wkt}'))) AS geom{groupby_columns_for_select_str}
+                            FROM {input_layer} t
+                            JOIN rtree_{input_layer}_geom t_tree ON t.fid = t_tree.id
+                            WHERE t_tree.minx <= {bbox_xmax} AND t_tree.maxx >= {bbox_xmin}
+                            AND t_tree.miny <= {bbox_ymax} AND t_tree.maxy >= {bbox_ymin}
+                            AND ST_Intersects(t.geom, ST_GeomFromText('{bbox_wkt}')) = 1
+                            AND ST_Touches(t.geom, ST_GeomFromText('{bbox_wkt}')) = 0
+                            GROUP BY {groupby_columns_for_groupby_str}"""
+                if explodecollections is True:
+                    force_output_geometrytype = 'POLYGON'
+                else:
+                    force_output_geometrytype = 'MULTIPOLYGON'
 
-    ogr_util.vector_translate_parallel(translate_jobs)
+                translate_jobs[translate_id]['sqlite_stmt'] = sqlite_stmt
+                translate_jobs[translate_id]['task_type'] = 'CALCULATE'
+                translate_description = f"Async dissolve {translate_id} of {nb_batches}, bounds: {cardsheet.geometry.bounds}"
+                # Remark: this temp file doesn't need spatial index
+                translate_info = ogr_util.VectorTranslateInfo(
+                        input_path=input_tmp_path,
+                        output_path=output_tmp_partial_path,
+                        translate_description=translate_description,
+                        output_layer=output_layer,
+                        #clip_bounds=cardsheet.geometry.bounds,
+                        sqlite_stmt=sqlite_stmt,
+                        append=True,
+                        update=True,
+                        explodecollections=True,
+                        force_output_geometrytype=force_output_geometrytype,
+                        verbose=verbose)
+                future = ogr_util.vector_translate_async(
+                        concurrent_pool=calculate_pool, info=translate_info)
+                future_to_translate_id[future] = translate_id
+            
+            # Loop till all parallel processes are ready, but process each one that is ready already
+            for future in futures.as_completed(future_to_translate_id):
+                try:
+                    _ = future.result()
 
-    ##### Round up and clean up ##### 
-    # Combine all partial results
-    logger.info(f"Start copy from partial temp files to one temp output file")
-    tmp_output_path = os.path.join(tempdir, output_filename)
-    for translate_id in translate_jobs:
-        tmp_partial_output_path = translate_jobs[translate_id].output_path
-        sqlite_stmt = f"SELECT * FROM {output_layer}"
-        logger.debug(f"Copy data from {tmp_partial_output_path} to {tmp_output_path}.{output_layer}")
-        # First create without index, this add the index once all data is there
-        ogr_util.vector_translate(
-                input_path=tmp_partial_output_path,
-                output_path=tmp_output_path,
-                output_layer=output_layer,
-                sqlite_stmt=sqlite_stmt,
-                append=True,
-                update=True,
-                #force_output_geometrytype='MULTIPOLYGON'
-                verbose=verbose)
+                    # Start copy of the result to a common file
+                    # Remark: give higher priority, because this is the slowest factor
+                    translate_id = future_to_translate_id[future]
+                    if translate_jobs[translate_id]['task_type'] == 'CALCULATE':
+                        # If the calculate gave results, copy to output
+                        tmp_partial_output_path = translate_jobs[translate_id]['tmp_partial_output_path']
+                        if os.path.exists(tmp_partial_output_path):
+                            sqlite_stmt = f'SELECT * FROM "{output_layer}"'                   
+                            translate_description = f"Copy result {translate_id} of {nb_batches} to {output_layer}"
+                            translate_info = ogr_util.VectorTranslateInfo(
+                                    input_path=tmp_partial_output_path,
+                                    output_path=tmp_output_path,
+                                    translate_description=translate_description,
+                                    output_layer=output_layer,
+                                    sqlite_stmt=sqlite_stmt,
+                                    transaction_size=200000,
+                                    append=True,
+                                    update=True,
+                                    create_spatial_index=False,
+                                    force_output_geometrytype='MULTIPOLYGON',
+                                    priority_class='NORMAL',
+                                    verbose=verbose)
+                            ogr_util.vector_translate_by_info(info=translate_info)
+                            os.remove(tmp_partial_output_path)
+                except Exception as ex:
+                    translate_id = future_to_translate_id[future]
+                    #calculate_pool.shutdown()
+                    logger.error(f"Error executing {translate_jobs[translate_id]}: {ex}")
 
-    # Now create spatial index and move to output location
-    shutil.move(tmp_output_path, output_path, copy_function=io_util.copyfile)
-
-    # Clean tmp dir
-    shutil.rmtree(tempdir)
-    logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
+        ##### Round up and clean up ##### 
+        # Now create spatial index and move to output location
+        create_spatial_index(path=tmp_output_path, layer=output_layer)
+        shutil.move(tmp_output_path, output_path, copy_function=io_util.copyfile)
+    finally:
+        # Clean tmp dir
+        shutil.rmtree(tempdir)
+        logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
 
 def create_tempdir(base_dirname: str) -> str:
     #base_tempdir = os.path.join(tempfile.gettempdir(), base_dirname)
@@ -1183,6 +1216,7 @@ def split_layer_features(
         output_layer_curr = f"{output_baselayer_stripped}_{split_job_id}"
         split_jobs[split_job_id]['layer'] = output_layer_curr
         
+        '''
         # For the last batch, don't limit anymore
         if split_job_id >= nb_parts-1:
             row_limit = -1       
@@ -1191,7 +1225,21 @@ def split_layer_features(
                 SELECT {geometry_column_for_select}{columns_to_select_str} FROM \"{input_layer}\"
                  LIMIT {row_limit}
                 OFFSET {row_offset}"""
-        
+        '''
+
+        # For the last translate_id, take all rowid's left...
+        if split_job_id < nb_parts-1:
+            sqlite_stmt = f'''
+                    SELECT {geometry_column_for_select}{columns_to_select_str}  
+                        FROM "{input_layer}"
+                        WHERE rowid >= {row_offset}
+                        AND rowid < {row_offset + row_limit}'''
+        else:
+            sqlite_stmt = f'''
+                    SELECT {geometry_column_for_select}{columns_to_select_str}  
+                        FROM "{input_layer}"
+                        WHERE rowid >= {row_offset}'''
+                        
         translate_description=f"Copy data from {input_path}.{input_layer} to {output_path}.{output_layer_curr}"
         ogr_util.vector_translate(
                 input_path=input_path,
