@@ -8,7 +8,7 @@ setuptools.setup(
     version="0.0.1",
     author="Pieter Roggemans",
     author_email="pieter.roggemans@gmail.com",
-    description="Package to do gis operation on a file.",
+    description="Package to do spatial operations on data in a geofile.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/theroggy/geofile_ops",
