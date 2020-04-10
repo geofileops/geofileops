@@ -15,11 +15,11 @@ def main():
     logger = logging.getLogger()
     
     # Go!
-    input_path = r"X:\GIS\GIS DATA\GRB\GRB2019 (toestand 2019-05-20)\gbg.gpkg"
+    input_path = r"X:\Monitoring\OrthoSeg\christmastrees\input_labels\christmastrees_labellocations.gpkg"
     geofile_ops.rename_layer(
             path=input_path,
-            layer='gbg_repaired',
-            new_layer='gbg')
+            layer='topobuildings_labellocations',
+            new_layer='christmastrees_labellocations')
 
 if __name__ == '__main__':
     main()

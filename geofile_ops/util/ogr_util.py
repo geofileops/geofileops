@@ -24,8 +24,12 @@ from geofile_ops.util import io_util
 # Get a logger...
 logger = logging.getLogger(__name__)
 
-ogr2ogr_exe = r"X:\GIS\Software\_Progs\OSGeo4W64_2019-01-04\bin\ogr2ogr.exe"
-ogrinfo_exe = r"X:\GIS\Software\_Progs\OSGeo4W64_2019-01-04\bin\ogrinfo.exe"
+
+#ogr2ogr_exe = r"X:\GIS\Software\_Progs\OSGeo4W64_2019-01-04\bin\ogr2ogr.exe"
+#ogrinfo_exe = r"X:\GIS\Software\_Progs\OSGeo4W64_2019-01-04\bin\ogrinfo.exe"
+
+ogr2ogr_exe = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-01-14\bin\ogr2ogr.exe"
+ogrinfo_exe = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-01-14\bin\ogrinfo.exe"
 
 lock = Lock()
 

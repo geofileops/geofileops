@@ -4,3 +4,4 @@
 build/
 geofile_ops.egg-info/
 dist/
+*.log

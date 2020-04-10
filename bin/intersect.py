@@ -18,17 +18,21 @@ if __name__ == '__main__':
     logger = logging.getLogger()
 
     # sealedsurfaces 2018
-    input1_path = r"X:\Monitoring\OrthoSeg\sealedsurfaces\output_vector\sealedsurfaces_BEFL_2018_16\sealedsurfaces_BEFL_2018_16_orig.gpkg"
-    input2_path = r"X:\Monitoring\OrthoSeg\sealedsurfaces\output_vector\sealedsurfaces_13\Prc_2018_bufm1.gpkg"
+    #input1_path = r"X:\Monitoring\OrthoSeg\sealedsurfaces\output_vector\sealedsurfaces_BEFL_2018_16\sealedsurfaces_BEFL_2018_16_orig.gpkg"
+    #input2_path = r"X:\Monitoring\OrthoSeg\sealedsurfaces\output_vector\sealedsurfaces_13\Prc_2018_bufm1.gpkg"
     
     # greenhouses 2019
-    input1_path = r"X:\Monitoring\OrthoSeg\greenhouses\output_vector\greenhouses_BEFL_2019_ofw_36\greenhouses_BEFL_2019_ofw_36_simpl_shap.gpkg"
-    input2_path = r"X:/__IT_TEAM_ANG_GIS/Taken/2019/2019-08-28_QA_Serres/Prc_2019_2019-08-27_bufm1.gpkg"
+    #input1_path = r"X:\Monitoring\OrthoSeg\greenhouses\output_vector\greenhouses_BEFL_2019_ofw_36\greenhouses_BEFL_2019_ofw_36_simpl_shap.gpkg"
+    #input2_path = r"X:/__IT_TEAM_ANG_GIS/Taken/2019/2019-08-28_QA_Serres/Prc_2019_2019-08-27_bufm1.gpkg"
 
     # sealedsurfaces 2019
-    input1_path = r"X:\Monitoring\OrthoSeg\sealedsurfaces\output_vector\sealedsurfaces_BEFL_2019_ofw_20\sealedsurfaces_BEFL_2019_ofw_20.gpkg"
-    input2_path = r"X:\__IT_TEAM_ANG_GIS\Taken\2019\2019-08-28_QA_Serres\1-Tussentijdse_files\Prc_2019_2019-08-27_bufm1.gpkg"
+    #input1_path = r"X:\Monitoring\OrthoSeg\sealedsurfaces\output_vector\sealedsurfaces_BEFL_2019_ofw_20\sealedsurfaces_BEFL_2019_ofw_20.gpkg"
+    #input2_path = r"X:\__IT_TEAM_ANG_GIS\Taken\2019\2019-08-28_QA_Serres\1-Tussentijdse_files\Prc_2019_2019-08-27_bufm1.gpkg"
 
+    # sealedsurfaces 2019 stallen en gebouwen
+    input1_path = r"X:\Monitoring\OrthoSeg\sealedsurfaces\output_vector\BEFL_2019\sealedsurfaces_23_inceptionresnetv2+unet_523_BEFL_2019.gpkg"
+    input2_path = r"X:\PerPersoon\PIEROG\Taken\2020\2020-01-21_Sealedsurfaces_in_stallen\2019-11-21_Prc_stallen_gebouwen.gpkg"
+    
     input1_dir, input1_filename = os.path.split(input1_path)
     input2_dir, input2_filename = os.path.split(input2_path)
     input1_filename_noext, _ = os.path.splitext(input1_filename)

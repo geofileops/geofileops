@@ -1,14 +1,13 @@
 from concurrent import futures
 import datetime
+from io import StringIO
 import logging
 import logging.config
 import multiprocessing
 import os
-import shutil
-from io import StringIO
 import re
-import tempfile
-import time
+import shutil
+from typing import List, Tuple
 
 # TODO: on windows, the init of this doensn't seem to work properly... should be solved somewhere else?
 if os.name == 'nt':
@@ -18,6 +17,7 @@ if os.name == 'nt':
 import fiona
 import geopandas as gpd
 from osgeo import gdal
+import shapely.geometry as sh_geom
 
 from .util import io_util
 from .util import geofile_util
@@ -1065,8 +1065,7 @@ def dissolve_cardsheets(
         output_filename_noext, output_ext = os.path.splitext(output_filename)
         tmp_output_path = os.path.join(tempdir, output_filename)
 
-        with futures.ThreadPoolExecutor(nb_parallel) as calculate_pool, \
-             futures.ThreadPoolExecutor(1) as write_result_pool:
+        with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
             translate_jobs = {}    
             future_to_translate_id = {}    
@@ -1160,6 +1159,227 @@ def dissolve_cardsheets(
         # Clean tmp dir
         shutil.rmtree(tempdir)
         logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
+
+
+def dissolve_cardsheets_gpd(
+        input_path: str,
+        input_cardsheets_path: str,
+        output_path: str,
+        groupby_columns: List[str] = None,
+        explodecollections: bool = False,
+        input_layer: str = None,        
+        output_layer: str = None,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+
+    ##### Init #####
+    start_time = datetime.datetime.now()
+    if os.path.exists(output_path):
+        if force is False:
+            logger.info(f"Stop dissolve_cardsheets: output exists already {output_path}, so stop")
+            return
+        else:
+            os.remove(output_path)
+    if nb_parallel == -1:
+        nb_parallel = multiprocessing.cpu_count()
+        logger.info(f"Nb cpus found: {nb_parallel}")
+
+    # Get input data to temp gpkg file
+    tempdir = create_tempdir("dissolve_cardsheets_gpd")
+    input_tmp_path = os.path.join(tempdir, f"input_layers.gpkg")
+    _, input_ext = os.path.splitext(input_path)
+    if(input_ext == '.gpkg'):
+        logger.info(f"Copy {input_path} to {input_tmp_path}")
+        io_util.copyfile(input_path, input_tmp_path)
+        logger.debug("Copy ready")
+    else:
+        # Remark: this temp file doesn't need spatial index
+        logger.info(f"Copy {input_path} to {input_tmp_path} using ogr2ogr")
+        ogr_util.vector_translate(
+                input_path=input_path,
+                output_path=input_tmp_path,
+                create_spatial_index=False,
+                output_layer=input_layer,
+                verbose=verbose)
+        logger.debug("Copy ready")
+
+    if input_layer is None:
+        input_layer = get_only_layer(input_tmp_path)
+    if output_layer is None:
+        output_layer = get_default_layer(output_path)
+
+    ##### Prepare tmp files #####
+    logger.info(f"Start preparation of the temp files to calculate on in {tempdir}")
+
+    # Prepare the strings to use in the select statement
+    if groupby_columns is not None:
+        # Because the query uses a subselect, the groupby columns need to be prefixed
+        columns_with_prefix = [f"t.{column}" for column in groupby_columns]
+        groupby_columns_str = ", ".join(columns_with_prefix)
+        groupby_columns_for_groupby_str = groupby_columns_str
+        groupby_columns_for_select_str = ", " + groupby_columns_str
+    else:
+        # Even if no groupby is provided, we still need to use a groupby clause, otherwise 
+        # ST_union doesn't seem to work
+        groupby_columns_for_groupby_str = "'1'"
+        groupby_columns_for_select_str = ""
+
+    # Load the cardsheets we want the dissolve to be bound on
+    cardsheets_gdf = geofile_util.read_file(input_cardsheets_path)
+
+    try:
+        # Start calculation of intersections in parallel
+        logger.info(f"Start calculation of dissolves in file {input_tmp_path} to partial files")
+        _, output_filename = os.path.split(output_path) 
+        output_filename_noext, output_ext = os.path.splitext(output_filename)
+        tmp_output_path = os.path.join(tempdir, output_filename)
+        nb_parallel *= 1
+
+        with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
+
+            translate_jobs = {}    
+            future_to_translate_id = {}    
+            nb_batches = len(cardsheets_gdf)
+            for translate_id, cardsheet in enumerate(cardsheets_gdf.itertuples()):
+        
+                translate_jobs[translate_id] = {}
+                translate_jobs[translate_id]['layer'] = output_layer
+
+                output_tmp_partial_path = os.path.join(tempdir, f"{output_filename_noext}_{translate_id}{output_ext}")
+                translate_jobs[translate_id]['tmp_partial_output_path'] = output_tmp_partial_path
+
+                # Remarks: 
+                #   - calculating the area in the enclosing selects halves the processing time
+                #   - ST_union() gives same performance as ST_unaryunion(ST_collect())!
+                #bbox_xmin, bbox_ymin, bbox_xmax, bbox_ymax = cardsheet.geometry.bounds  
+                
+                translate_jobs[translate_id]['sqlite_stmt'] = 'blabla'
+                translate_jobs[translate_id]['task_type'] = 'CALCULATE'
+                
+                future = calculate_pool.submit(
+                        dissolve_gpd,
+                        input_path=input_path,
+                        output_path=output_tmp_partial_path,
+                        groupby_columns=groupby_columns,
+                        explodecollections=explodecollections,
+                        input_layer=input_layer,        
+                        output_layer=output_layer,
+                        bbox=cardsheet.geometry.bounds,
+                        verbose=verbose,
+                        force=force)
+                future_to_translate_id[future] = translate_id
+            
+            # Loop till all parallel processes are ready, but process each one that is ready already
+            for future in futures.as_completed(future_to_translate_id):
+                try:
+                    _ = future.result()
+
+                    # Start copy of the result to a common file
+                    # Remark: give higher priority, because this is the slowest factor
+                    translate_id = future_to_translate_id[future]
+                    if translate_jobs[translate_id]['task_type'] == 'CALCULATE':
+                        # If the calculate gave results, copy to output
+                        tmp_partial_output_path = translate_jobs[translate_id]['tmp_partial_output_path']
+                        if os.path.exists(tmp_partial_output_path):
+                            sqlite_stmt = f'SELECT * FROM "{output_layer}"'                   
+                            translate_description = f"Copy result {translate_id} of {nb_batches} to {output_layer}"
+                            translate_info = ogr_util.VectorTranslateInfo(
+                                    input_path=tmp_partial_output_path,
+                                    output_path=tmp_output_path,
+                                    translate_description=translate_description,
+                                    output_layer=output_layer,
+                                    sqlite_stmt=sqlite_stmt,
+                                    transaction_size=200000,
+                                    append=True,
+                                    update=True,
+                                    create_spatial_index=False,
+                                    force_output_geometrytype='MULTIPOLYGON',
+                                    priority_class='NORMAL',
+                                    verbose=verbose)
+                            ogr_util.vector_translate_by_info(info=translate_info)
+                            os.remove(tmp_partial_output_path)
+                except Exception as ex:
+                    translate_id = future_to_translate_id[future]
+                    #calculate_pool.shutdown()
+                    logger.error(f"Error executing {translate_jobs[translate_id]}: {ex}")
+
+        ##### Round up and clean up ##### 
+        # Now create spatial index and move to output location
+        create_spatial_index(path=tmp_output_path, layer=output_layer)
+        shutil.move(tmp_output_path, output_path, copy_function=io_util.copyfile)
+    finally:
+        # Clean tmp dir
+        shutil.rmtree(tempdir)
+        logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
+
+def dissolve_gpd(
+        input_path: str,
+        output_path: str,
+        groupby_columns: [] = None,
+        explodecollections: bool = False,
+        input_layer: str = None,        
+        output_layer: str = None,
+        bbox: Tuple[float, float, float, float] = None,
+        verbose: bool = False,
+        force: bool = False):
+
+    ##### Init #####
+    start_time = datetime.datetime.now()
+    if os.path.exists(output_path):
+        if force is False:
+            logger.info(f"Stop dissolve: Output exists already {output_path}")
+            return
+        else:
+            os.remove(output_path)
+
+    if input_layer is None:
+        input_layer = get_only_layer(input_path)
+    if output_layer is None:
+        output_layer = get_default_layer(output_path)
+
+    input_gdf = geofile_util.read_file(filepath=input_path, layer=input_layer, bbox=bbox)
+    if len(input_gdf) == 0:
+        logger.info("No input geometries found")
+        return 
+
+    if groupby_columns is None:
+        union_geom = input_gdf['geometry'].unary_union
+        union_polygons = extract_polygons(union_geom)
+        diss_gdf = gpd.GeoDataFrame(geometry=union_polygons)
+    else:
+        raise Exception("Not implemented")
+
+    if explodecollections:
+        diss_gdf = diss_gdf.explode()
+    if bbox is not None:
+        polygon = sh_geom.Polygon([(bbox[0], bbox[1]), (bbox[0], bbox[3]), (bbox[2], bbox[3]), (bbox[2], bbox[1]), (bbox[0], bbox[1])])
+        bbox_gdf = gpd.GeoDataFrame([1], geometry=[polygon])
+        diss_gdf = gpd.clip(diss_gdf, bbox_gdf)
+
+    geofile_util.to_file(gdf=diss_gdf, filepath=output_path, layer=output_layer)
+            
+def extract_polygons(in_geom) -> list:
+    """
+    Extracts all polygons from the input geom and returns them as a list.
+    """
+    
+    # Extract the polygons from the multipolygon
+    geoms = []
+    if in_geom.geom_type == 'MultiPolygon':
+        geoms = list(in_geom)
+    elif in_geom.geom_type == 'Polygon':
+        geoms.append(in_geom)
+    elif in_geom.geom_type == 'GeometryCollection':
+        for geom in in_geom:
+            if geom.geom_type in ('MultiPolygon', 'Polygon'):
+                geoms.append(geom)
+            else:
+                logger.debug(f"Found {geom.geom_type}, ignore!")
+    else:
+        raise IOError(f"in_geom is of an unsupported type: {in_geom.geom_type}")
+    
+    return geoms
 
 def create_tempdir(base_dirname: str) -> str:
     #base_tempdir = os.path.join(tempfile.gettempdir(), base_dirname)

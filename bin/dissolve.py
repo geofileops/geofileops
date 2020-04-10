@@ -29,21 +29,20 @@ if __name__ == '__main__':
     groupby_columns = None
     output_layer = None
 
-    '''    
-    input_path = r"c:\temp\BRUGIS01.gpkg"
-    input_layer = "GEBOUWENREPAIRED"    
-    output_path = r"c:\temp\BRUGIS01_collect_pierog.gpkg"
-    '''
-    input_path = r"c:\temp\BRUGIS01_collect_pierog.gpkg"
-    output_path = r"c:\temp\BRUGIS01_collect_union_pierog.gpkg"
+    #input_path = r"c:\temp\BRUGIS01_collect_pierog.gpkg"
+    #output_path = r"c:\temp\BRUGIS01_collect_union_pierog.gpkg"
+    
+    input_path=r"X:\__IT_TEAM_ANG_GIS\Taken\2020\2020-04-09_FasterDissolve\GBG_woningen03_50m_buffer_diss_card_gpd_clip.gpkg"
+    output_path=r"X:\__IT_TEAM_ANG_GIS\Taken\2020\2020-04-09_FasterDissolve\GBG_woningen03_50m_buffer_diss_card_gpd_clip_diss_gpd.gpkg"
 
     # Go!
     logger.info("Start")
-    geofile_ops.dissolve(
+    geofile_ops.dissolve_gpd(
             input_path=input_path,
             output_path=output_path,
             groupby_columns=groupby_columns,
             input_layer=input_layer,
             output_layer=output_layer,
+            #bbox=(100000, 200000, 105000, 205000),
             force=True)
     logger.info("Ready")
