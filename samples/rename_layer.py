@@ -1,5 +1,7 @@
 import json
 import logging
+import logging.config
+from pathlib import Path
 import sys
 [sys.path.append(i) for i in ['.', '..']]
 
@@ -8,11 +10,11 @@ import geofile_ops.geofile_ops as geofile_ops
 def main():
     
     # Init logging
-    #logging.config.fileConfig('bin/logging.ini')
-    with open('bin/logging.json', 'r') as log_config_file:
+    script_dir = Path(__file__).resolve().parent
+    with open(script_dir / 'logging.json', 'r') as log_config_file:
         log_config_dict = json.load(log_config_file)
     logging.config.dictConfig(log_config_dict)
-    logger = logging.getLogger()
+    #logger = logging.getLogger()
     
     # Go!
     input_path = r"X:\Monitoring\OrthoSeg\christmastrees\input_labels\christmastrees_labellocations.gpkg"

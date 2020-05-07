@@ -1,7 +1,9 @@
 
 import json
 import logging
+import logging.config
 import os
+from pathlib import Path
 import sys
 [sys.path.append(i) for i in ['.', '..']]
 
@@ -13,6 +15,8 @@ if __name__ == '__main__':
     # Input files
     fruit_path = r"X:\Monitoring\OrthoSeg\fruit\output_vector\fruit_07\fruit_07_simpl_shap.gpkg"
     prc_path = r"X:\GIS\GIS DATA\Percelen_ALP\Vlaanderen\Perc_VL_2019_2019-08-27\perc_2019_met_k_2019-08-27.shp"
+    gbg_path = r""
+    adp_path = r""
 
     # Dir with intemediary files
     working_dir = r"X:\__IT_TEAM_ANG_GIS\Taken\2019\2019-05-20_QA Ingesloten tuin 2019 met nieuw algoritme\1-Tussentijdsefiles"
@@ -21,8 +25,8 @@ if __name__ == '__main__':
         os.makedirs(log_dir)
 
     # Init logging
-    #logging.config.fileConfig('bin/logging.ini')
-    with open('bin/logging.json', 'r') as log_config_file:
+    script_dir = Path(__file__).resolve().parent
+    with open(script_dir / 'logging.json', 'r') as log_config_file:
         log_config_dict = json.load(log_config_file)
     # TODO: seperate log file per run/date/???
     log_config_dict['handlers']['file']['filename'] = os.path.join(log_dir, 'logfile.log')

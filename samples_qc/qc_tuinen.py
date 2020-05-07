@@ -1,7 +1,9 @@
 
 import json
 import logging
+import logging.config
 import os
+from pathlib import Path
 import sys
 [sys.path.append(i) for i in ['.', '..']]
 
@@ -22,8 +24,8 @@ if __name__ == '__main__':
         os.makedirs(log_dir)
 
     # Init logging
-    #logging.config.fileConfig('bin/logging.ini')
-    with open('bin/logging.json', 'r') as log_config_file:
+    script_dir = Path(__file__).resolve().parent
+    with open(script_dir / 'logging.json', 'r') as log_config_file:
         log_config_dict = json.load(log_config_file)
     # TODO: seperate log file per run/date/???
     log_config_dict['handlers']['file']['filename'] = os.path.join(log_dir, 'logfile.log')
