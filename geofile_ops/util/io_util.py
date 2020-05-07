@@ -19,8 +19,8 @@ def copyfile(src, dst):
     Raises:
         Exception: [description]
     """
-    if sys.platform == 'win32':
-        # This is a lot faster than all shutil alternatives
+    if os.name == 'nt':
+        # On windows, this is a lot faster than all shutil alternatives
         #command = f'copy "{src}" "{dst}"'
         command = f'xcopy /j "{src}" "{dst}*"'
         returncode = os.system(command)
@@ -28,8 +28,7 @@ def copyfile(src, dst):
             raise Exception(f"Error executing {command}")
         
     else:
-        if buffer_size is None:
-            buffer_size = 1024*1024*5
+        buffer_size = 1024*1024*5
         with open(src, 'rb') as fsrc:
             with open(dst, 'wb') as fdest:
                 shutil.copyfileobj(fsrc, fdest, buffer_size)
