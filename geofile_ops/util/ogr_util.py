@@ -2,19 +2,18 @@
 # Import/init needed modules
 #-------------------------------------
 from concurrent import futures
-import datetime
-import errno
 import logging
 import multiprocessing
 import os
+from pathlib import Path
 import pprint
 import subprocess
 from threading import Lock
 import time
+from typing import List, Tuple
 from io import StringIO
 import re
 
-from geofile_ops.util import io_util
 #import _winreg as winreg
 
 #-------------------------------------------------------------
@@ -24,12 +23,14 @@ from geofile_ops.util import io_util
 # Get a logger...
 logger = logging.getLogger(__name__)
 
-
-#ogr2ogr_exe = r"X:\GIS\Software\_Progs\OSGeo4W64_2019-01-04\bin\ogr2ogr.exe"
-#ogrinfo_exe = r"X:\GIS\Software\_Progs\OSGeo4W64_2019-01-04\bin\ogrinfo.exe"
-
-ogr2ogr_exe = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-01-14\bin\ogr2ogr.exe"
-ogrinfo_exe = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-01-14\bin\ogrinfo.exe"
+# Initialize the location of the GDAL binaries
+ogr2ogr_exe = 'ogr2ogr.exe'
+ogrinfo_exe = 'ogrinfo.exe'
+gdal_bin_dir = os.getenv('GDAL_BIN')
+if gdal_bin_dir is not None:
+    gdal_bin_dir = Path(gdal_bin_dir)
+    ogr2ogr_exe = gdal_bin_dir / ogr2ogr_exe
+    ogrinfo_exe = gdal_bin_dir / ogrinfo_exe
 
 lock = Lock()
 
@@ -44,8 +45,8 @@ class VectorTranslateInfo:
             output_path: str,
             translate_description: str = None,
             output_layer: str = None,
-            spatial_filter: () = None,
-            clip_bounds: () = None, 
+            spatial_filter: Tuple[float, float, float, float] = None,
+            clip_bounds: Tuple[float, float, float, float] = None, 
             sqlite_stmt: str = None,
             transaction_size: int = 65536,
             append: bool = False,
@@ -102,13 +103,13 @@ def vector_translate_async(
             info)
 
 def vector_translate_seq(
-        vector_translate_infos: [VectorTranslateInfo]):
+        vector_translate_infos: List[VectorTranslateInfo]):
 
     for vector_translate_info in vector_translate_infos:
         vector_translate_by_info(vector_translate_info)
 
 def vector_translate_parallel(
-        vector_translate_infos: [VectorTranslateInfo],
+        vector_translate_infos: List[VectorTranslateInfo],
         nb_parallel: int = -1):
 
     if nb_parallel == -1:
@@ -155,8 +156,8 @@ def vector_translate(
         output_path: str,
         translate_description: str = None,
         output_layer: str = None,
-        spatial_filter: () = None,
-        clip_bounds: () = None, 
+        spatial_filter: Tuple[float, float, float, float] = None,
+        clip_bounds: Tuple[float, float, float, float] = None, 
         sqlite_stmt: str = None,
         transaction_size: int = 65536,
         append: bool = False,
@@ -177,7 +178,7 @@ def vector_translate(
         output_layer, _ = os.path.splitext(filename)
 
     # Add all parameters to args list
-    args = [ogr2ogr_exe]
+    args = [str(ogr2ogr_exe)]
     #if verbose:
     #    args.append('-progress')
 
@@ -362,7 +363,7 @@ def vector_info(
         raise Exception(f"File does not exist: {path}")
 
     # Add all parameters to args list
-    args = [ogrinfo_exe]
+    args = [str(ogrinfo_exe)]
     args.extend(['--config', 'OGR_SQLITE_PRAGMA', 'journal_mode=WAL'])  
     if readonly is True:
         args.append('-ro')
