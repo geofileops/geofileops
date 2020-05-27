@@ -1290,7 +1290,7 @@ def report_progress(
         processed_per_hour = (nb_done/time_passed) * 3600
         hours_to_go = (int)((nb_todo - nb_done)/processed_per_hour)
         min_to_go = (int)((((nb_todo - nb_done)/processed_per_hour)%1)*60)
-        print(f"\r{hours_to_go:3d}:{min_to_go:2d} left to do {operation} on {nb_todo-nb_done} of {nb_todo}", 
+        print(f"\r{hours_to_go:3d}:{min_to_go:2d} left to do {operation} on {(nb_todo-nb_done):6d} of {nb_todo}", 
               end="", flush=True)
 
 def _dissolve(
