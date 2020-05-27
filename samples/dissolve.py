@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 [sys.path.append(i) for i in ['.', '..']]
 
-import geofile_ops.geofile_ops as geofile_ops
+import geofileops.geofileops as geofileops
 
 if __name__ == '__main__':
 
@@ -37,7 +37,7 @@ if __name__ == '__main__':
 
     # Go!
     logger.info("Start")
-    geofile_ops.dissolve(
+    geofileops.dissolve(
             input_path=input_path,
             output_path=output_path,
             groupby_columns=groupby_columns,

@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 [sys.path.append(i) for i in ['.', '..']]
 
-import geofile_ops.geofile_ops as geofile_ops
+import geofileops.geofileops as geofileops
 
 def main():
     
@@ -26,7 +26,7 @@ def main():
     
     ##### Go! #####
     logger.info("Start")
-    geofile_ops.simplify(
+    geofileops.simplify(
             input_path=input_path,
             output_path=output_path,
             tolerance=tolerance,

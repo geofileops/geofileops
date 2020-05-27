@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 [sys.path.append(i) for i in ['.', '..']]
 
-import geofile_ops.geofile_ops as geofile_ops
+import geofileops.geofileops as geofileops
 
 if __name__ == '__main__':
 
@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
     # Go!
     logger.info("Start")
-    geofile_ops.dissolve_cardsheets(
+    geofileops.dissolve_cardsheets(
             input_path=input_path,
             input_cardsheets_path=input_cardsheets_path,
             output_path=output_path,

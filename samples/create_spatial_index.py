@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 [sys.path.append(i) for i in ['.', '..']]
 
-import geofile_ops.geofile_ops as geofile_ops
+import geofileops.geofileops as geofileops
 
 def main():
     
@@ -18,7 +18,7 @@ def main():
     
     # Go!
     path=r"X:\Monitoring\OrthoSeg\sealedsurfaces\output_vector\sealedsurfaces_BEFL_2019_ofw_18\sealedsurfaces_BEFL_2019_ofw_18.gpkg"
-    geofile_ops.create_spatial_index(path=path, layer=None)
+    geofileops.create_spatial_index(path=path, layer=None)
 
 if __name__ == '__main__':
     main()

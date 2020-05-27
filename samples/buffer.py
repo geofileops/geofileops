@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 [sys.path.append(i) for i in ['.', '..']]
 
-import geofile_ops.geofile_ops as geofile_ops
+import geofileops.geofileops as geofileops
 
 def main():
     
@@ -21,7 +21,7 @@ def main():
 
     # Go!
     logger.info("Start buffer")
-    geofile_ops.buffer(
+    geofileops.buffer(
             input_path=str(input_path),
             output_path=str(output_path),
             buffer=1,

@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 [sys.path.append(i) for i in ['.', '..']]
 
-import geofile_ops.geofile_ops as geofile_ops
+import geofileops.geofileops as geofileops
 
 if __name__ == '__main__':
 
@@ -34,10 +34,10 @@ if __name__ == '__main__':
     force = True
 
     # Go!
-    logger.info(geofile_ops.getlayerinfo(input_path))
+    logger.info(geofileops.getlayerinfo(input_path))
     logger.info("Start dissolve buildings")
     buildings_diss_path = str(tempdir / f"{output_basename}_diss.gpkg")
-    geofile_ops.dissolve_cardsheets(
+    geofileops.dissolve_cardsheets(
             input_path=input_path,
             input_cardsheets_path=input_cardsheets_path,
             output_path=buildings_diss_path,
@@ -46,7 +46,7 @@ if __name__ == '__main__':
 
     logger.info("Start buffer 50m")
     buildings_diss_buf50m_path = str(tempdir / f"{output_basename}_diss_buf50m.gpkg")
-    geofile_ops.buffer(
+    geofileops.buffer(
             input_path=buildings_diss_path,
             output_path=buildings_diss_buf50m_path,
             buffer=50)
@@ -54,7 +54,7 @@ if __name__ == '__main__':
 
     logger.info("Start dissolve buffer 50m")
     buildings_diss_buf50m_diss_path = str(output_dir / f"{output_basename}_diss_buf50m_diss.gpkg")
-    geofile_ops.dissolve_cardsheets(
+    geofileops.dissolve_cardsheets(
             input_path=buildings_diss_buf50m_path,
             input_cardsheets_path=input_cardsheets_path,
             output_path=buildings_diss_buf50m_diss_path,
@@ -63,7 +63,7 @@ if __name__ == '__main__':
 
     logger.info("Start buffer 100m")
     buildings_diss_buf100m_path = str(tempdir / f"{output_basename}_diss_buf100m.gpkg")
-    geofile_ops.buffer(
+    geofileops.buffer(
             input_path=buildings_diss_path,
             output_path=buildings_diss_buf100m_path,
             buffer=100)
@@ -71,7 +71,7 @@ if __name__ == '__main__':
 
     logger.info("Start dissolve buffer 100m")
     buildings_diss_buf100m_diss_path = str(output_dir / f"{output_basename}_diss_buf100m_diss.gpkg")
-    geofile_ops.dissolve_cardsheets(
+    geofileops.dissolve_cardsheets(
             input_path=buildings_diss_buf100m_path,
             input_cardsheets_path=input_cardsheets_path,
             output_path=buildings_diss_buf100m_diss_path,

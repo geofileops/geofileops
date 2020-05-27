@@ -6,7 +6,7 @@ import pprint
 import sys
 [sys.path.append(i) for i in ['.', '..']]
 
-import geofile_ops.geofile_ops as geofile_ops
+import geofileops.geofileops as geofileops
 
 def main():
     
@@ -19,7 +19,7 @@ def main():
     
     # Go!
     path = r"X:\__IT_TEAM_ANG_GIS\Taken\2019\2019-08-28_QA_Serres\1-Tussentijdse_files\Prc_2019_2019-08-27_bufm1.gpkg"
-    result = geofile_ops.getfileinfo(path=path, verbose=False)  
+    result = geofileops.getfileinfo(path=path, verbose=False)  
     logger.info(f"Result: {pprint.pformat(result)}")
 
 if __name__ == '__main__':

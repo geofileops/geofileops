@@ -28,12 +28,12 @@
         }
     },
     "loggers": {
-        "geofile_ops": {
+        "geofileops": {
             "level": "INFO",
             "handlers": ["console"],
             "propagate": false
         },
-        "geofile_ops.geofile_ops": {
+        "geofileops.geofileops": {
             "level": "DEBUG",
             "handlers": ["console"],
             "propagate": false

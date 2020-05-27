@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 [sys.path.append(i) for i in ['.', '..']]
 
-import geofile_ops.geofile_ops as geofile_ops
+import geofileops.geofileops as geofileops
 
 def main():
     
@@ -18,7 +18,7 @@ def main():
     
     # Go!
     input_path = r"X:\Monitoring\OrthoSeg\christmastrees\input_labels\christmastrees_labellocations.gpkg"
-    geofile_ops.rename_layer(
+    geofileops.rename_layer(
             path=input_path,
             layer='topobuildings_labellocations',
             new_layer='christmastrees_labellocations')

@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 [sys.path.append(i) for i in ['.', '..']]
 
-import geofile_ops.geofile_ops as geofile_ops
+import geofileops.geofileops as geofileops
 
 if __name__ == '__main__':
 
@@ -40,7 +40,7 @@ if __name__ == '__main__':
     ### Voorbereiding basislagen ###
     # -1 buffer op percelen
     prc_bufm1 = os.path.join(working_dir, '010_prc_2019_2019-08-27_bufm1.gpkg')
-    geofile_ops.buffer(
+    geofileops.buffer(
             input_path=prc_path,
             output_path=prc_bufm1,
             buffer=-1,
@@ -64,7 +64,7 @@ if __name__ == '__main__':
              """
 
     prc_bufm1_filtered = os.path.join(working_dir, '020_prc_2019_bufm1_filtered.gpkg')
-    geofile_ops.select(
+    geofileops.select(
             input_path=prc_bufm1,
             output_path=prc_bufm1_filtered,
             sqlite_stmt=sqlite_stmt,
@@ -77,7 +77,7 @@ if __name__ == '__main__':
                       WHERE oppervl > 50
                         AND lbltype <> 'bijgebouw' """
     gbg_filtered_path = os.path.join(working_dir, '040_gbg_filtered.gpkg')
-    geofile_ops.select(
+    geofileops.select(
             input_path=gbg_path,
             output_path=gbg_filtered_path,
             sqlite_stmt=sqlite_stmt,
@@ -86,7 +86,7 @@ if __name__ == '__main__':
     ### Voorbereiding adp ###
     # Alleen adp in de buurt van percelen
     adp_bijprc_path = os.path.join(working_dir, '050_adp_bijprc.gpkg')
-    geofile_ops.export_by_location(
+    geofileops.export_by_location(
         input_to_select_from_path=adp_path,
         input_to_compare_with_path=prc_bufm1_filtered,
         output_path=adp_bijprc_path,
@@ -94,7 +94,7 @@ if __name__ == '__main__':
     
     # Alleen adp percelen die gebouw in zich hebben
     adp_bijprc_bijgbg_path = os.path.join(working_dir, '060_adp_bijprc_bijgbg.gpkg')
-    geofile_ops.export_by_location(
+    geofileops.export_by_location(
             input_to_select_from_path=adp_bijprc_path,
             input_to_compare_with_path=gbg_filtered_path,
             output_path=adp_bijprc_bijgbg_path,
@@ -106,7 +106,7 @@ if __name__ == '__main__':
                       WHERE l1_l1_oppervl < 3000
                         AND area_inters > 20"""
     adp_pot_tuin_path = os.path.join(working_dir, '070_pot_tuin.gpkg')
-    geofile_ops.select(
+    geofileops.select(
             input_path=adp_bijprc_bijgbg_path,
             output_path=adp_pot_tuin_path,
             sqlite_stmt=sqlite_stmt,
@@ -115,7 +115,7 @@ if __name__ == '__main__':
     # Bepalen stukken tuin in percelen
     prc_bufm1_filtered_INTERS_pot_tuin = os.path.join(
             working_dir, '080_prc_2019_bufm1_filtered_INTERS_pot_tuin.gpkg')
-    geofile_ops.intersect(
+    geofileops.intersect(
             input1_path=prc_bufm1_filtered,
             input2_path=adp_pot_tuin_path,
             output_path=prc_bufm1_filtered_INTERS_pot_tuin,
@@ -124,12 +124,12 @@ if __name__ == '__main__':
     # Aggregeren per perceel
     prc_bufm1_tuin_path = os.path.join(
             working_dir, '090_prc_2019_bufm1_tuin.gpkg')
-    geofile_ops.dissolve(
+    geofileops.dissolve(
             input_path=prc_bufm1_filtered_INTERS_pot_tuin,
             output_path=prc_bufm1_tuin_path,
             groupby_columns=["l1_CODE_OBJ"],
             verbose=verbose)
-    geofile_ops.add_column(
+    geofileops.add_column(
             path=prc_bufm1_tuin_path,
             column_name='area')
 
@@ -138,7 +138,7 @@ if __name__ == '__main__':
                        FROM \"090_prc_2019_bufm1_tuin\"
                       WHERE area > 25"""
     prc_bufm1_tuin_filtered_path = os.path.join(working_dir, '100_prc_2019_bufm1_tuin_filtered.gpkg')
-    geofile_ops.select(
+    geofileops.select(
             input_path=prc_bufm1_tuin_path,
             output_path=prc_bufm1_tuin_filtered_path,
             sqlite_stmt=sqlite_stmt,
@@ -146,7 +146,7 @@ if __name__ == '__main__':
 
     # Alleen overlappingen die dicht genoeg bij gebouw liggen
     prc_bufm1_tuin_filtered_bijgbg_path = os.path.join(working_dir, '110_prc_2019_bufm1_tuin_fil_bijgbg.gpkg')
-    geofile_ops.export_by_distance(
+    geofileops.export_by_distance(
             input_to_select_from_path=prc_bufm1_tuin_filtered_path,
             input_to_compare_with_path=gbg_filtered_path,
             output_path=prc_bufm1_tuin_filtered_bijgbg_path,
@@ -155,7 +155,7 @@ if __name__ == '__main__':
 
     # Adp percelen die met de stukken tuin overlappen
     adp_bijtuin_path = os.path.join(working_dir, '120_adp_bijtuin.gpkg')
-    geofile_ops.export_by_location(
+    geofileops.export_by_location(
             input_to_select_from_path=adp_pot_tuin_path,
             input_to_compare_with_path=prc_bufm1_tuin_filtered_bijgbg_path,
             output_path=adp_bijtuin_path,

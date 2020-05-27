@@ -12,8 +12,8 @@ from typing import Any, AnyStr, List, Tuple, Union
 
 # TODO: on windows, the init of this doensn't seem to work properly... should be solved somewhere else?
 #if os.name == 'nt':
-#    os.environ['GDAL_DATA'] = r'C:\Tools\anaconda3\envs\geofile_ops\Library\share\gdal'
-#    os.environ['PATH'] += os.pathsep + r'C:\tools\anaconda3\envs\geofile_ops\Library\bin'
+#    os.environ['GDAL_DATA'] = r'C:\Tools\anaconda3\envs\geofileops\Library\share\gdal'
+#    os.environ['PATH'] += os.pathsep + r'C:\tools\anaconda3\envs\geofileops\Library\bin'
 
 import fiona
 import geopandas as gpd
