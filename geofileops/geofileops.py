@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import time
 from typing import Any, AnyStr, List, Tuple, Union
 
 # TODO: on windows, the init of this doensn't seem to work properly... should be solved somewhere else?
@@ -18,6 +19,7 @@ from typing import Any, AnyStr, List, Tuple, Union
 import fiona
 import geopandas as gpd
 from osgeo import gdal
+import pandas as pd
 import shapely.geometry as sh_geom
 
 from .util import io_util
@@ -527,7 +529,7 @@ def _single_layer_vector_operation(
         if(nb_parallel == -1):
             nb_parallel = multiprocessing.cpu_count()
         nb_batches = nb_parallel*4
-        with futures.ThreadPoolExecutor(nb_parallel) as calculate_pool:
+        with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
             # Prepare columns to select
             layerinfo = getlayerinfo(input_path, input_layer)        
@@ -1027,8 +1029,8 @@ def _two_layer_vector_operation(
         logger.info(f"Start {geom_operation_description} on file {input_tmp_path} to partial files")
         # Calculating can be done in parallel, but only one process can write to 
         # the same file at the time... 
-        with futures.ThreadPoolExecutor(nb_parallel) as calculate_pool: #, \
-             #futures.ThreadPoolExecutor(1) as write_result_pool:
+        with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool: #, \
+             #futures.ProcessPoolExecutor(1) as write_result_pool:
 
             # Start looping
             translate_jobs = {}    
@@ -1116,11 +1118,236 @@ def _two_layer_vector_operation(
         logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
     except Exception as ex:
         logger.exception(f"Processing ready with ERROR, took {datetime.datetime.now()-start_time}!")
-
+   
 def dissolve(
+        input_path: Union[str, 'os.PathLike[Any]'],  
+        output_path: Union[str, 'os.PathLike[Any]'],
+        groupby_columns: List[str],
+        aggfunc: str = None,
+        explodecollections: bool = False,
+        keep_cardsheets: bool = False,
+        input_layer: str = None,        
+        output_layer: str = None,
+        input_cardsheets_path: Union[str, 'os.PathLike[Any]'] = None,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+    """
+    Function that applies a dissolve on the input file.
+
+    Args:
+        input_path (PathLike): path to the input file
+        output_path (PathLike): path to the output file
+        groupby_columns (List[str]): columns to group on
+        aggfunc (str, optional): aggregation function to apply to columns not 
+                grouped on. Defaults to None.
+        explodecollections (bool, optional): after dissolving, evade having 
+                multiparts in the output. Defaults to False.
+        keep_cardsheets (bool, optional): if True, the result will only be 
+                dissolved on the cardsheet level and not on the entire 
+                dataset. Only available if no groupby_columns specified. 
+                Defaults to False.
+        input_layer (str, optional): input layername. If not specified, 
+                there should be only one layer in the input file.
+        output_layer (str, optional): output layername. If not specified, 
+                then the filename is used as layer name.
+        input_cardsheets_path (PathLike, optional): a file with the tiles/
+                cardsheets to be used. If not specified, a tiling scheme 
+                will be generated.
+        nb_parallel (int, optional): number of parallel threads to use. If not
+                specified, all available CPU's will be maximally used.
+        verbose (bool, optional): output more detailed logging. Defaults to 
+                False.
+        force (bool, optional): overwrite result file if it exists already. 
+                Defaults to False.
+    """
+
+    ##### Init #####
+    input_path = str(input_path)
+    output_path = str(output_path)
+    operation = 'dissolve'
+    start_time = datetime.datetime.now()
+    if os.path.exists(output_path):
+        if force is False:
+            logger.info(f"Stop {operation}: output exists already {output_path} and force is false")
+            return
+        else:
+            os.remove(output_path)
+    if nb_parallel == -1:
+        nb_cpu = multiprocessing.cpu_count()
+        nb_parallel = int(1.25 * nb_cpu)
+        logger.debug(f"Nb cpus found: {nb_cpu}, nb_parallel: {nb_parallel}")
+
+    # Get input data to temp gpkg file
+    # TODO: still necessary to copy locally?
+    tempdir = create_tempdir(operation)
+
+    input_tmp_path = input_path
+    '''
+    input_tmp_path = os.path.join(tempdir, "input_layers.gpkg")
+    _, input_ext = os.path.splitext(input_path)
+    if(input_ext == '.gpkg'):
+        logger.debug(f"Copy {input_path} to {input_tmp_path}")
+        io_util.copyfile(input_path, input_tmp_path)
+        logger.debug("Copy ready")
+    else:
+        # Remark: this temp file doesn't need spatial index
+        logger.info(f"Copy {input_path} to {input_tmp_path} using ogr2ogr")
+        ogr_util.vector_translate(
+                input_path=input_path,
+                output_path=input_tmp_path,
+                create_spatial_index=False,
+                output_layer=input_layer,
+                verbose=verbose)
+        logger.debug("Copy ready")
+    '''
+
+    # Get the cardsheets we want the dissolve to be bound on to be able to parallelize
+    if input_cardsheets_path is not None:
+        input_cardsheets_path = str(input_cardsheets_path)
+        cardsheets_gdf = geofile_util.read_file(input_cardsheets_path)
+    else:
+        # TODO: implement heuristic to choose a grid in a smart way
+        cardsheets_gdf = None
+        raise Exception("Not implemented!")
+
+    try:
+        # Start calculation in parallel
+        logger.info(f"Start {operation} on file {input_tmp_path}")
+        _, output_filename = os.path.split(output_path) 
+        output_filename_noext, output_ext = os.path.splitext(output_filename)
+        tmp_output_path = os.path.join(tempdir, output_filename)
+        if output_layer is None:
+            output_layer = get_default_layer(output_path)
+        
+        with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
+
+            jobs = {}    
+            future_to_job_id = {}    
+            nb_todo = len(cardsheets_gdf)
+            nb_done = 0
+            for job_id, cardsheet in enumerate(cardsheets_gdf.itertuples()):
+        
+                jobs[job_id] = {}
+                jobs[job_id]['layer'] = output_layer
+
+                output_tmp_partial_path = os.path.join(tempdir, f"{output_filename_noext}_{job_id}{output_ext}")
+                jobs[job_id]['tmp_partial_output_path'] = output_tmp_partial_path
+                future = calculate_pool.submit(
+                        _dissolve,
+                        input_path=input_path,
+                        output_path=output_tmp_partial_path,
+                        groupby_columns=groupby_columns,
+                        aggfunc=aggfunc,
+                        explodecollections=explodecollections,
+                        input_layer=input_layer,        
+                        output_layer=output_layer,
+                        bbox=cardsheet.geometry.bounds,
+                        verbose=verbose,
+                        force=force)
+                future_to_job_id[future] = job_id
+            
+            # Loop till all parallel processes are ready, but process each one that is ready already
+            for future in futures.as_completed(future_to_job_id):
+                try:
+                    _ = future.result()
+
+                    # Start copy of the result to a common file
+                    job_id = future_to_job_id[future]
+
+                    # If the calculate gave results, copy to output
+                    tmp_partial_output_path = jobs[job_id]['tmp_partial_output_path']
+                    if os.path.exists(tmp_partial_output_path):
+
+                        # TODO: append not yet supported in geopandas 0.7, but will be supported in next version
+                        """
+                        partial_output_gdf = geofile_util.read_file(tmp_partial_output_path)
+                        geofile_util.to_file(partial_output_gdf, tmp_output_path, mode='a')
+                        """
+                        sqlite_stmt = None #f'SELECT * FROM "{output_layer}"'                   
+                        translate_description = f"Copy result {job_id} of {nb_todo} to {output_layer}"
+                        translate_info = ogr_util_direct.VectorTranslateInfo(
+                                input_path=tmp_partial_output_path,
+                                output_path=tmp_output_path,
+                                translate_description=translate_description,
+                                output_layer=output_layer,
+                                sqlite_stmt=sqlite_stmt,
+                                transaction_size=200000,
+                                append=True,
+                                update=True,
+                                create_spatial_index=False,
+                                force_output_geometrytype='MULTIPOLYGON',
+                                priority_class='NORMAL',
+                                verbose=verbose)
+                        ogr_util_direct.vector_translate_by_info(info=translate_info)
+                        os.remove(tmp_partial_output_path)
+
+                except Exception as ex:
+                    job_id = future_to_job_id[future]
+                    #calculate_pool.shutdown()
+                    logger.exception(f"Error executing {jobs[job_id]}: {ex}")
+
+                # Log the progress and prediction speed
+                nb_done += 1
+                report_progress(start_time, nb_done, nb_todo, operation)
+
+        # Now dissolve a second time to find elements on the border of the tiles that should 
+        # still be dissolved
+        if not keep_cardsheets:
+            if groupby_columns is not None:
+                logger.info("Now dissolve the entire file to get final result")
+            
+                _dissolve(
+                        input_path=tmp_output_path,
+                        output_path=output_path,
+                        groupby_columns=groupby_columns,
+                        aggfunc=aggfunc,
+                        explodecollections=explodecollections,
+                        input_layer=input_layer,        
+                        output_layer=output_layer,
+                        verbose=verbose,
+                        force=force)
+                # Now create spatial index
+                create_spatial_index(path=tmp_output_path, layer=output_layer)
+            else:
+                logger.info("Now dissolve the elements on the borders as well to get final result")
+
+                # First copy all elements that don't overlap with the borders of the tiles
+                input_gdf = geofile_util.read_file(tmp_output_path)
+
+                import shapely
+                from shapely.geometry import MultiPolygon, Point
+
+                cardsheets_lines = []
+                for cardsheet_poly in cardsheets_gdf.itertuples():
+                    cardsheet_boundary = cardsheet_poly.geometry.boundary
+                    if cardsheet_boundary.type == 'MultiLineString':
+                        for line in cardsheet_boundary:
+                            cardsheets_lines.append(line)
+                    else:
+                        cardsheets_lines.append(cardsheet_boundary)
+                
+                cardsheets_lines_gdf = gpd.GeoDataFrame(geometry=cardsheets_lines)
+                logger.info(f"Number of lines in cardsheets_lines_gdf: {len(cardsheets_lines_gdf)}")
+                intersecting_gdf = gpd.sjoin(input_gdf, cardsheets_lines_gdf, op='intersects')
+                logger.info(intersecting_gdf)
+                geofile_util.to_file(intersecting_gdf, tmp_output_path + '_inters.gpkg')
+
+        else:
+            # Now create spatial index and move to output location
+            create_spatial_index(path=tmp_output_path, layer=output_layer)
+            shutil.move(tmp_output_path, output_path, copy_function=io_util.copyfile)
+
+    finally:
+        # Clean tmp dir
+        #shutil.rmtree(tempdir)
+        logger.info(f"{operation} ready, took {datetime.datetime.now()-start_time}!")
+
+def _dissolve(
         input_path: str,
         output_path: str,
         groupby_columns: List[str] = None,
+        aggfunc: str = None,
         explodecollections: bool = False,
         input_layer: str = None,        
         output_layer: str = None,
@@ -1128,33 +1355,120 @@ def dissolve(
         verbose: bool = False,
         force: bool = False):
 
-    _dissolve(
-            input_path=input_path,
-            output_path=output_path,
-            groupby_columns=groupby_columns,
-            explodecollections=explodecollections,
-            input_layer=input_layer,        
-            output_layer=output_layer,
-            verbose=verbose,
-            force=force)
-    
-def dissolve_cardsheets(
+    ##### Init #####
+    start_time = datetime.datetime.now()
+    operation = 'dissolve'
+    if os.path.exists(output_path):
+        if force is False:
+            logger.info(f"Stop {operation}: output exists already {output_path}")
+            return
+        else:
+            os.remove(output_path)
+
+    # Read all records that are in the bbox
+    retry_count = 0
+    while True:
+        try:
+            input_gdf = geofile_util.read_file(filepath=input_path, layer=input_layer, bbox=bbox)
+            if len(input_gdf) == 0:
+                logger.info("No input geometries found")
+                return 
+            break
+        except Exception as ex:
+            if str(ex) == 'database is locked':
+                if retry_count < 10:
+                    retry_count += 1
+                    time.sleep(1)
+                else:
+                    raise Exception("retried 10 times, database still locked") from ex
+            else:
+                raise ex
+
+    # Now the real processing
+    # If no groupby is filled out, perform unary_union 
+    if groupby_columns is None:
+        
+        # unary union...
+        union_geom = input_gdf['geometry'].unary_union
+        # TODO: also support other geometry types (points and lines) 
+        union_polygons = extract_polygons_from_list(union_geom)
+        diss_gdf = gpd.GeoDataFrame(geometry=union_polygons)
+
+        # Clip the result on the borders of the bbox not to have overlaps
+        # between the different cards
+        if bbox is not None:
+            polygon = sh_geom.Polygon([(bbox[0], bbox[1]), (bbox[0], bbox[3]), (bbox[2], bbox[3]), (bbox[2], bbox[1]), (bbox[0], bbox[1])])
+            bbox_gdf = gpd.GeoDataFrame([1], geometry=[polygon])
+            # keep_geom_type=True gives errors, so replace by own implementation
+            diss_gdf = gpd.clip(diss_gdf, bbox_gdf)
+            diss_gdf = extract_polygons_from_gdf(diss_gdf)
+    else:
+        
+        # For a dissolve with a groupby it is important to only process every geometry once 
+        # to evade duplicated rows. Because it is possible that a 
+        # geometry intersects with multiple cardsheets, retain only geometries 
+        # where the first point of the geometry is in the bbox.
+        # Geometries that don't comply now will be treated in another tile.
+        representative_point_gs = input_gdf.geometry.representative_point()
+        input_gdf['representative_point_x'] = representative_point_gs.x
+        input_gdf['representative_point_y'] = representative_point_gs.y
+        input_gdf = input_gdf.loc[
+                (input_gdf['representative_point_x'] >= bbox[0]) &
+                (input_gdf['representative_point_y'] >= bbox[1]) &
+                (input_gdf['representative_point_x'] < bbox[2]) &
+                (input_gdf['representative_point_y'] < bbox[3])].copy() 
+        input_gdf.drop(['representative_point_x', 'representative_point_y'], axis=1, inplace=True)
+
+        diss_gdf = input_gdf.dissolve(by=groupby_columns, aggfunc=aggfunc)
+        diss_gdf.geometry = [sh_geom.MultiPolygon([feature]) 
+                                if type(feature) == sh_geom.Polygon 
+                                else feature for feature in diss_gdf.geometry]
+
+        if explodecollections:
+            diss_gdf = diss_gdf.explode().reset_index()
+            # TODO: reset_index???
+
+    # TODO: Cleanup!
+    nonpoly_gdf = diss_gdf.copy().reset_index()
+    nonpoly_gdf['geomtype'] = nonpoly_gdf.geometry.geom_type
+    nonpoly_gdf = nonpoly_gdf.loc[~nonpoly_gdf['geomtype'].isin(['Polygon', 'MultiPolygon'])]
+    if len(nonpoly_gdf) > 0:
+       raise Exception(f"3_Found {len(nonpoly_gdf)} non-(multi)polygons, eg.: {nonpoly_gdf}")
+
+    if len(diss_gdf) > 0:
+        geofile_util.to_file(gdf=diss_gdf, filepath=output_path, layer=output_layer)
+    logger.info(f"{operation} ready, took {datetime.datetime.now()-start_time}!")
+
+def unaryunion_cardsheets(
         input_path: Union[str, 'os.PathLike[Any]'],  
-        input_cardsheets_path: Union[str, 'os.PathLike[Any]'],
         output_path: Union[str, 'os.PathLike[Any]'],
-        groupby_columns: List[str] = None,
-        explodecollections: bool = False,
+        input_cardsheets_path: Union[str, 'os.PathLike[Any]'] = None,
         input_layer: str = None,        
         output_layer: str = None,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
+    """
+    Function that applies a unaryunion on all geometries in the input a file
+    and outputs the unary union clipped on the geographic tiles (card sheets)
+    as specified by the input_cardsheets_path.
+
+    Args:
+        input_path (PathLike): path to the input file
+        output_path (PathLike): path to the output file
+        input_cardsheets_path (PathLike, optional): [description]
+        input_layer (str, optional): [description]. Defaults to None.
+        output_layer (str, optional): [description]. Defaults to None.
+        nb_parallel (int, optional): [description]. Defaults to -1.
+        verbose (bool, optional): [description]. Defaults to False.
+        force (bool, optional): [description]. Defaults to False.
+    """
 
     ##### Init #####
     input_path = str(input_path)
     input_cardsheets_path = str(input_cardsheets_path)
     output_path = str(output_path)
-    operation = 'dissolve_cardsheets'
+    operation = 'unaryunion_cardsheets'
     start_time = datetime.datetime.now()
     if os.path.exists(output_path):
         if force is False:
@@ -1186,7 +1500,7 @@ def dissolve_cardsheets(
                 verbose=verbose)
         logger.debug("Copy ready")
 
-    # Load the cardsheets we want the dissolve to be bound on
+    # Load the cardsheets we want the unaryunion to be bound on
     cardsheets_gdf = geofile_util.read_file(input_cardsheets_path)
 
     try:
@@ -1212,11 +1526,9 @@ def dissolve_cardsheets(
                 output_tmp_partial_path = os.path.join(tempdir, f"{output_filename_noext}_{job_id}{output_ext}")
                 jobs[job_id]['tmp_partial_output_path'] = output_tmp_partial_path
                 future = calculate_pool.submit(
-                        _dissolve,
+                        _unaryunion,
                         input_path=input_path,
                         output_path=output_tmp_partial_path,
-                        groupby_columns=groupby_columns,
-                        explodecollections=explodecollections,
                         input_layer=input_layer,        
                         output_layer=output_layer,
                         bbox=cardsheet.geometry.bounds,
@@ -1293,7 +1605,7 @@ def report_progress(
         print(f"\r{hours_to_go:3d}:{min_to_go:2d} left to do {operation} on {(nb_todo-nb_done):6d} of {nb_todo}", 
               end="", flush=True)
 
-def _dissolve(
+def _unaryunion(
         input_path: str,
         output_path: str,
         groupby_columns: List[str] = None,
@@ -1337,7 +1649,8 @@ def _dissolve(
         geofile_util.to_file(gdf=diss_gdf, filepath=output_path, layer=output_layer)
     logger.info(f"{operation} ready, took {datetime.datetime.now()-start_time}!")
             
-def extract_polygons(in_geom) -> list:
+def extract_polygons_from_list(
+        in_geom: list) -> list:
     """
     Extracts all polygons from the input geom and returns them as a list.
     """
@@ -1358,6 +1671,31 @@ def extract_polygons(in_geom) -> list:
         raise IOError(f"in_geom is of an unsupported type: {in_geom.geom_type}")
     
     return geoms
+
+def extract_polygons_from_gdf(
+        in_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+
+    # Extract only polygons
+    poly_gdf = in_gdf.loc[(in_gdf.geometry.geom_type == 'Polygon')].copy()
+    multipoly_gdf = in_gdf.loc[(in_gdf.geometry.geom_type == 'MultiPolygon')].copy()
+    collection_gdf = in_gdf.loc[(in_gdf.geometry.geom_type == 'GeometryCollection')].copy()
+    collection_polys_gdf = None
+    
+    if len(collection_gdf) > 0:
+        collection_polygons = []
+        for collection_geom in collection_gdf.geometry:
+            collection_polygons.extend(extract_polygons_from_list(collection_geom))
+        if len(collection_polygons) > 0:
+            collection_polys_gdf = gpd.GeoDataFrame(geometry=collection_polygons)
+
+    # Only keep the polygons...
+    ret_gdf = poly_gdf
+    if len(multipoly_gdf) > 0:
+        ret_gdf = ret_gdf.append(multipoly_gdf.explode(), ignore_index=True)
+    if collection_polys_gdf is not None:
+        ret_gdf = ret_gdf.append(collection_polys_gdf, ignore_index=True)
+    
+    return ret_gdf
 
 def create_tempdir(base_dirname: str) -> str:
     #base_tempdir = os.path.join(tempfile.gettempdir(), base_dirname)
