@@ -21,7 +21,7 @@ def main():
 
     # Go!
     logger.info("Start buffer")
-    geofileops.buffer(
+    geofileops.buffer_gpd(
             input_path=str(input_path),
             output_path=str(output_path),
             buffer=1,

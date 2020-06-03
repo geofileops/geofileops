@@ -9,7 +9,7 @@ from pathlib import Path
 import re
 import shutil
 import time
-from typing import Any, AnyStr, List, Tuple, Union
+from typing import Any, AnyStr, List, Optional, Tuple, Union
 
 # TODO: on windows, the init of this doensn't seem to work properly... should be solved somewhere else?
 #if os.name == 'nt':
@@ -20,6 +20,7 @@ import fiona
 import geopandas as gpd
 from osgeo import gdal
 import pandas as pd
+import psutil
 import shapely.geometry as sh_geom
 
 from .util import io_util
@@ -308,27 +309,59 @@ def buffer_gpd(
 
     try:
         ##### Calculate #####
-        # Calculating can be done in parallel, but only one process can write to 
-        # the same file at the time... 
+        # Remark: calculating can be done in parallel, but only one process 
+        # can write to the same output file at the time...
+        
+        # Calculate the best number of parallel processes and batches for 
+        # the available resources
         if(nb_parallel == -1):
             nb_parallel = multiprocessing.cpu_count()
-        nb_batches = nb_parallel*4
+
+        memory_basefootprint = 50*1024*1024
+        memory_per_row = 100*1024*1024/30000   # Memory usage per row
+        min_rows_per_batch = 5000
+        memory_min_per_process = memory_basefootprint + memory_per_row * min_rows_per_batch
+        memory_usable = psutil.virtual_memory().available * 0.9
+        
+        # If the available memory is very small, check if we can use more swap 
+        if memory_usable < 1024*1024:
+            memory_usable = min(psutil.swap_memory().free, 1024*1024)
+        logger.info(f"memory_usable: {formatbytes(memory_usable)} with mem.available: {formatbytes(psutil.virtual_memory().available)} and swap.free: {formatbytes(psutil.swap_memory().free)}") 
+
+        # If not enough memory for the amount of parallellism asked, reduce
+        if (nb_parallel * memory_min_per_process) > memory_usable:
+            nb_parallel = int(memory_usable/memory_min_per_process)
+            logger.info(f"Nb_parallel reduced to {nb_parallel} to evade excessive memory usage")
+
+        # Calculate the number of rows per batch
+        layerinfo = getlayerinfo(input_path, input_layer)
+        nb_rows_input_layer = layerinfo['featurecount']
+
+        # Optimal number of batches and rows per batch 
+        nb_batches = int((nb_rows_input_layer*memory_per_row*nb_parallel)/(memory_usable-memory_basefootprint*nb_parallel))
+        if nb_batches < nb_parallel:
+            nb_batches = nb_parallel
+        
+        rows_per_batch = int(nb_rows_input_layer/nb_batches)
+        mem_predicted = (memory_basefootprint + rows_per_batch*memory_per_row)*nb_batches
+
+        logger.info(f"nb_batches: {nb_batches}, rows_per_batch: {rows_per_batch} for nb_rows_input_layer: {nb_rows_input_layer} will result in mem_predicted: {formatbytes(mem_predicted)}")   
+
         with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
-            # Calculate the number of features per thread
-            layerinfo = getlayerinfo(input_path, input_layer)                    
-            nb_rows_input_layer = layerinfo['featurecount']
-            row_limit = int(nb_rows_input_layer/nb_batches)
-            row_offset = 0
             # Prepare output filename
             _, output_filename = os.path.split(output_path) 
             output_filename_noext, output_ext = os.path.splitext(output_filename) 
             tmp_output_path = os.path.join(tempdir, output_filename)
 
+            row_limit = rows_per_batch
+            row_offset = 0
             jobs = {}    
             future_to_job_id = {}
             nb_todo = nb_batches
             nb_done = 0
+            if verbose:
+                logger.info(f"Start calculation on {nb_rows_input_layer} rows in {nb_batches} batches, so {row_limit} per batch")
 
             for job_id in range(nb_batches):
 
@@ -342,7 +375,7 @@ def buffer_gpd(
                 if job_id < nb_batches-1:
                     rows = slice(row_offset, row_offset + row_limit)
                 else:
-                    rows = row_offset
+                    rows = slice(row_offset, nb_rows_input_layer)
                 jobs[job_id]['task_type'] = 'CALCULATE'
                 # Remark: this temp file doesn't need spatial index
                 future = calculate_pool.submit(
@@ -362,7 +395,10 @@ def buffer_gpd(
             # Loop till all parallel processes are ready, but process each one that is ready already
             for future in futures.as_completed(future_to_job_id):
                 try:
-                    _ = future.result()
+                    result = future.result()
+
+                    if result is not None and verbose is True:
+                        logger.info(result)
 
                     # Start copy of the result to a common file
                     job_id = future_to_job_id[future]
@@ -424,7 +460,7 @@ def _buffer_gpd(
         output_layer: str = None,
         rows = None,
         verbose: bool = False,
-        force: bool = False):
+        force: bool = False) -> Optional[str]:
     
     ##### Init #####
     start_time = datetime.datetime.now()
@@ -432,20 +468,24 @@ def _buffer_gpd(
     if os.path.exists(output_path):
         if force is False:
             logger.info(f"Stop {operation}: output exists already {output_path}")
-            return
+            return None
         else:
             os.remove(output_path)
 
-    input_gdf = geofile_util.read_file(filepath=input_path, layer=input_layer, rows=rows)
-    if len(input_gdf) == 0:
+    data_gdf = geofile_util.read_file(filepath=input_path, layer=input_layer, rows=rows)
+    if len(data_gdf) == 0:
         logger.info(f"No input geometries found for rows: {rows} in layer: {input_layer} in input_path: {input_path}")
-        return 
+        return None
 
-    result_gdf = input_gdf.buffer(distance=buffer, resolution=quadrantsegments)
+    data_gdf.geometry = data_gdf.geometry.buffer(distance=buffer, resolution=quadrantsegments)
 
-    if len(result_gdf) > 0:
-        geofile_util.to_file(gdf=result_gdf, filepath=output_path, layer=output_layer)
-    logger.info(f"{operation} ready, took {datetime.datetime.now()-start_time}!")
+    if len(data_gdf) > 0:
+        geofile_util.to_file(gdf=data_gdf, filepath=output_path, layer=output_layer)
+
+    message = f"Took {datetime.datetime.now()-start_time} for {len(data_gdf)} rows ({rows})!"
+    logger.info(message)
+
+    return message
 
 def simplify(
         input_path: str,
@@ -1633,7 +1673,7 @@ def _unaryunion(
 
     if groupby_columns is None:
         union_geom = input_gdf['geometry'].unary_union
-        union_polygons = extract_polygons(union_geom)
+        union_polygons = extract_polygons_from_list(union_geom)
         diss_gdf = gpd.GeoDataFrame(geometry=union_polygons)
     else:
         raise Exception("Not implemented")
@@ -2051,5 +2091,27 @@ def dissolve_cardsheets_ogr(
         logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
 '''
 
+def formatbytes(bytes: float):
+    """
+    Return the given bytes as a human friendly KB, MB, GB, or TB string
+    """
+
+    bytes_float = float(bytes)
+    KB = float(1024)
+    MB = float(KB ** 2) # 1,048,576
+    GB = float(KB ** 3) # 1,073,741,824
+    TB = float(KB ** 4) # 1,099,511,627,776
+
+    if bytes_float < KB:
+        return '{0} {1}'.format(bytes_float,'Bytes' if 0 == bytes_float > 1 else 'Byte')
+    elif KB <= bytes_float < MB:
+        return '{0:.2f} KB'.format(bytes_float/KB)
+    elif MB <= bytes_float < GB:
+        return '{0:.2f} MB'.format(bytes_float/MB)
+    elif GB <= bytes_float < TB:
+        return '{0:.2f} GB'.format(bytes_float/GB)
+    elif TB <= bytes_float:
+        return '{0:.2f} TB'.format(bytes_float/TB)
+      
 if __name__ == '__main__':
     raise Exception("Not implemented!")

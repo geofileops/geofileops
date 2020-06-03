@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="geofileops", 
-    version="0.0.1",
+    version="0.0.2",
     author="Pieter Roggemans",
     author_email="pieter.roggemans@gmail.com",
     description="Package to do spatial operations on geo files.",
@@ -13,7 +13,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/theroggy/geofileops",
     packages=setuptools.find_packages(),
-    install_requires=["geopandas>=0.7"],
+    install_requires=["geopandas>=0.7", "psutil"],
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",
