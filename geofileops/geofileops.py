@@ -23,8 +23,8 @@ import pandas as pd
 import psutil
 import shapely.geometry as sh_geom
 
+from . import geofile
 from .util import io_util
-from .util import geofile_util
 from .util import ogr_util as ogr_util
 from .util import ogr_util_direct as ogr_util_direct
 
@@ -409,8 +409,8 @@ def buffer_gpd(
 
                         # TODO: append not yet supported in geopandas 0.7, but will be supported in next version
                         """
-                        partial_output_gdf = geofile_util.read_file(tmp_partial_output_path)
-                        geofile_util.to_file(partial_output_gdf, tmp_output_path, mode='a')
+                        partial_output_gdf = geofile.read_file(tmp_partial_output_path)
+                        geofile.to_file(partial_output_gdf, tmp_output_path, mode='a')
                         """
                         sqlite_stmt = None                  
                         translate_description = f"Copy result {job_id} of {nb_todo} to {output_layer}"
@@ -472,7 +472,7 @@ def _buffer_gpd(
         else:
             os.remove(output_path)
 
-    data_gdf = geofile_util.read_file(filepath=input_path, layer=input_layer, rows=rows)
+    data_gdf = geofile.read_file(filepath=input_path, layer=input_layer, rows=rows)
     if len(data_gdf) == 0:
         logger.info(f"No input geometries found for rows: {rows} in layer: {input_layer} in input_path: {input_path}")
         return None
@@ -480,7 +480,7 @@ def _buffer_gpd(
     data_gdf.geometry = data_gdf.geometry.buffer(distance=buffer, resolution=quadrantsegments)
 
     if len(data_gdf) > 0:
-        geofile_util.to_file(gdf=data_gdf, filepath=output_path, layer=output_layer)
+        geofile.to_file(gdf=data_gdf, filepath=output_path, layer=output_layer)
 
     message = f"Took {datetime.datetime.now()-start_time} for {len(data_gdf)} rows ({rows})!"
     logger.info(message)
@@ -1245,7 +1245,7 @@ def dissolve(
     # Get the cardsheets we want the dissolve to be bound on to be able to parallelize
     if input_cardsheets_path is not None:
         input_cardsheets_path = str(input_cardsheets_path)
-        cardsheets_gdf = geofile_util.read_file(input_cardsheets_path)
+        cardsheets_gdf = geofile.read_file(input_cardsheets_path)
     else:
         # TODO: implement heuristic to choose a grid in a smart way
         cardsheets_gdf = None
@@ -1301,8 +1301,8 @@ def dissolve(
 
                         # TODO: append not yet supported in geopandas 0.7, but will be supported in next version
                         """
-                        partial_output_gdf = geofile_util.read_file(tmp_partial_output_path)
-                        geofile_util.to_file(partial_output_gdf, tmp_output_path, mode='a')
+                        partial_output_gdf = geofile.read_file(tmp_partial_output_path)
+                        geofile.to_file(partial_output_gdf, tmp_output_path, mode='a')
                         """
                         sqlite_stmt = None #f'SELECT * FROM "{output_layer}"'                   
                         translate_description = f"Copy result {job_id} of {nb_todo} to {output_layer}"
@@ -1353,7 +1353,7 @@ def dissolve(
                 logger.info("Now dissolve the elements on the borders as well to get final result")
 
                 # First copy all elements that don't overlap with the borders of the tiles
-                input_gdf = geofile_util.read_file(tmp_output_path)
+                input_gdf = geofile.read_file(tmp_output_path)
 
                 import shapely
                 from shapely.geometry import MultiPolygon, Point
@@ -1371,7 +1371,7 @@ def dissolve(
                 logger.info(f"Number of lines in cardsheets_lines_gdf: {len(cardsheets_lines_gdf)}")
                 intersecting_gdf = gpd.sjoin(input_gdf, cardsheets_lines_gdf, op='intersects')
                 logger.info(intersecting_gdf)
-                geofile_util.to_file(intersecting_gdf, tmp_output_path + '_inters.gpkg')
+                geofile.to_file(intersecting_gdf, tmp_output_path + '_inters.gpkg')
 
         else:
             # Now create spatial index and move to output location
@@ -1409,7 +1409,7 @@ def _dissolve(
     retry_count = 0
     while True:
         try:
-            input_gdf = geofile_util.read_file(filepath=input_path, layer=input_layer, bbox=bbox)
+            input_gdf = geofile.read_file(filepath=input_path, layer=input_layer, bbox=bbox)
             if len(input_gdf) == 0:
                 logger.info("No input geometries found")
                 return 
@@ -1476,7 +1476,7 @@ def _dissolve(
        raise Exception(f"3_Found {len(nonpoly_gdf)} non-(multi)polygons, eg.: {nonpoly_gdf}")
 
     if len(diss_gdf) > 0:
-        geofile_util.to_file(gdf=diss_gdf, filepath=output_path, layer=output_layer)
+        geofile.to_file(gdf=diss_gdf, filepath=output_path, layer=output_layer)
     logger.info(f"{operation} ready, took {datetime.datetime.now()-start_time}!")
 
 def unaryunion_cardsheets(
@@ -1541,7 +1541,7 @@ def unaryunion_cardsheets(
         logger.debug("Copy ready")
 
     # Load the cardsheets we want the unaryunion to be bound on
-    cardsheets_gdf = geofile_util.read_file(input_cardsheets_path)
+    cardsheets_gdf = geofile.read_file(input_cardsheets_path)
 
     try:
         # Start calculation in parallel
@@ -1590,8 +1590,8 @@ def unaryunion_cardsheets(
 
                         # TODO: append not yet supported in geopandas 0.7, but will be supported in next version
                         """
-                        partial_output_gdf = geofile_util.read_file(tmp_partial_output_path)
-                        geofile_util.to_file(partial_output_gdf, tmp_output_path, mode='a')
+                        partial_output_gdf = geofile.read_file(tmp_partial_output_path)
+                        geofile.to_file(partial_output_gdf, tmp_output_path, mode='a')
                         """
                         sqlite_stmt = None #f'SELECT * FROM "{output_layer}"'                   
                         translate_description = f"Copy result {job_id} of {nb_todo} to {output_layer}"
@@ -1666,7 +1666,7 @@ def _unaryunion(
         else:
             os.remove(output_path)
 
-    input_gdf = geofile_util.read_file(filepath=input_path, layer=input_layer, bbox=bbox)
+    input_gdf = geofile.read_file(filepath=input_path, layer=input_layer, bbox=bbox)
     if len(input_gdf) == 0:
         logger.info("No input geometries found")
         return 
@@ -1686,7 +1686,7 @@ def _unaryunion(
         diss_gdf = gpd.clip(diss_gdf, bbox_gdf)
 
     if len(diss_gdf) > 0:
-        geofile_util.to_file(gdf=diss_gdf, filepath=output_path, layer=output_layer)
+        geofile.to_file(gdf=diss_gdf, filepath=output_path, layer=output_layer)
     logger.info(f"{operation} ready, took {datetime.datetime.now()-start_time}!")
             
 def extract_polygons_from_list(
@@ -1986,7 +1986,7 @@ def dissolve_cardsheets_ogr(
         groupby_columns_for_select_str = ""
 
     # Load the cardsheets we want the dissolve to be bound on
-    cardsheets_gdf = geofile_util.read_file(input_cardsheets_path)
+    cardsheets_gdf = geofile.read_file(input_cardsheets_path)
 
     try:
         # Start calculation of intersections in parallel
