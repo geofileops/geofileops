@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 [sys.path.append(i) for i in ['.', '..']]
 
-import geofileops.geofileops as geofileops
+from geofileops import geofileops
 
 if __name__ == '__main__':
 
@@ -33,13 +33,14 @@ if __name__ == '__main__':
 
     # Go!
     logger.info("Start")
-    geofileops.dissolve_cardsheets(
+    geofileops.dissolve(
             input_path=input_path,
-            input_cardsheets_path=input_cardsheets_path,
             output_path=output_path,
             groupby_columns=None,
-            explodecollections=True,
             #groupby_columns=['l2_CODE_OBJ', 'l2_GWSCOD_H', 'l2_GESP_PM'],
+            explodecollections=True,
+            input_cardsheets_path=input_cardsheets_path,
+            keep_cardsheets=True,
             verbose=False,
             force=True)
     logger.info("Ready")
