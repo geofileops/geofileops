@@ -32,163 +32,11 @@ from .util import ogr_util_direct as ogr_util_direct
 # Some init
 ################################################################################
 
-gdal.UseExceptions()        # Enable exceptions
 logger = logging.getLogger(__name__)
 
 ################################################################################
 # The real work
 ################################################################################
-
-def getfileinfo(
-        path: str,
-        verbose: bool = False) -> dict:
-            
-    # Get info
-    info_str = ogr_util.vector_info(
-            path=path, 
-            readonly=True,
-            verbose=verbose)
-
-    # Prepare result
-    result_dict = {}
-    result_dict['info_str'] = info_str
-    result_dict['layers'] = []
-    info_strio = StringIO(info_str)
-    for line in info_strio.readlines():
-        line = line.strip()
-        if re.match(r"\A\d: ", line):
-            # It is a layer, now extract only the layer name
-            logger.debug(f"This is a layer: {line}")
-            layername_with_geomtype = re.sub(r"\A\d: ", "", line)
-            layername = re.sub(r" [(][a-zA-Z ]+[)]\Z", "", layername_with_geomtype)
-            result_dict['layers'].append(layername)
-
-    return result_dict
-
-def getlayerinfo(
-        path: str,
-        layer: str = None,
-        verbose: bool = False) -> dict:
-        
-    ##### Init #####
-    datasource = gdal.OpenEx(path)
-    if layer is not None:
-        datasource_layer = datasource.GetLayer(layer)
-    elif datasource.GetLayerCount() == 1:
-        datasource_layer = datasource.GetLayerByIndex(0)
-    else:
-        raise Exception(f"No layer specified, and file has <> 1 layer: {path}")
-    
-    # Prepare result
-    result_dict = {}
-    result_dict['featurecount'] = datasource_layer.GetFeatureCount()
-    result_dict['geometry_column'] = datasource_layer.GetGeometryColumn()
-
-    # Get column names
-    columns = []
-    layer_defn = datasource_layer.GetLayerDefn()
-    for i in range(layer_defn.GetFieldCount()):
-        columns.append(layer_defn.GetFieldDefn(i).GetName())
-    result_dict['columns'] = columns
-    '''
-    ##### Get summary info #####
-    info_str = ogr_util.vector_info(
-            path=path, 
-            layer=layer,
-            readonly=True,
-            report_summary=True,
-            verbose=verbose)
-
-    # Prepare result
-    result_dict = {}
-    result_dict['info_str'] = info_str
-    info_strio = StringIO(info_str)
-    for line in info_strio.readlines():
-        if line.startswith("Feature Count: "):
-            line_value = line.strip().replace("Feature Count: ", "")
-            result_dict['featurecount'] = int(line_value)
-        elif line.startswith("Geometry Column = "):
-            line_value = line.strip().replace("Geometry Column = ", "")
-            result_dict['geometry_column'] = line_value
-
-    # If no geometry_column info found, check if specific type of file
-    if 'geometry_column' not in result_dict:
-        _, ext = os.path.splitext(path)
-        ext_lower = ext.lower()
-        if ext_lower == '.shp':
-            result_dict['geometry_column'] = 'geometry'
-    
-    ##### Get (non geometry) columns #####
-    with fiona.open(path) as fio_layer:
-        result_dict['columns'] = fio_layer.schema['properties'].keys()
-    '''
-
-    return result_dict
-
-def create_spatial_index(
-        path: str,
-        layer: str = None,
-        geometry_column: str = 'geom',
-        verbose: bool = False):
-
-    if layer is None:
-        layer = get_only_layer(path)
-
-    '''
-    sqlite_stmt = f"SELECT CreateSpatialIndex('{layer}', '{geometry_column}')"
-    ogr_util.vector_info(path=path, sqlite_stmt=sqlite_stmt)
-    '''
-    #driver = ogr.GetDriverByName('SQLite')    
-    #data_source = driver.CreateDataSource('db.sqlite', ['SPATIALITE=YES'])    
-    data_source = gdal.OpenEx(path, nOpenFlags=gdal.OF_UPDATE)
-    #layer = data_source.CreateLayer('the_table', None, ogr.wkbLineString25D, ['SPATIAL_INDEX=NO'])
-    #geometry_column = layer.GetGeometryColumn()
-    data_source.ExecuteSQL(f"SELECT CreateSpatialIndex('{layer}', '{geometry_column}')") 
-
-def rename_layer(
-        path: str,
-        layer: str,
-        new_layer: str,
-        verbose: bool = False):
-
-    if layer is None:
-        layer = get_only_layer(path)
-    sqlite_stmt = f'ALTER TABLE "{layer}" RENAME TO "{new_layer}"'
-    ogr_util.vector_info(path=path, sqlite_stmt=sqlite_stmt)
-
-def add_column(
-        path: str,
-        column_name: str,
-        column_type: str = None,
-        layer: str = None):
-
-    ##### Init #####
-    column_name = column_name.lower()
-    if layer is None:
-        layer = get_only_layer(path)
-    if column_name not in ('area'):
-        raise Exception(f"Unsupported column type: {column_type}")
-    if column_type is None:
-        if column_name == 'area':
-            column_type = 'real'
-        else:
-            raise Exception(f"Columns type should be specified for colum name: {column_name}")
-
-    ##### Go! #####
-    sqlite_stmt = f'ALTER TABLE "{layer}" ADD COLUMN "{column_name}" {column_type}'
-
-    try:
-        ogr_util.vector_info(path=path, sqlite_stmt=sqlite_stmt, readonly=False)
-
-        if column_name == 'area':
-            sqlite_stmt = f'UPDATE "{layer}" SET "{column_name}" = ST_area(geom)'
-            ogr_util.vector_info(path=path, sqlite_stmt=sqlite_stmt)
-    except Exception as ex:
-        # If the column exists already, just print warning
-        if 'duplicate column name:' in str(ex):
-            logger.warning(f"Column {column_name} existed already in {path}")
-        else:
-            raise ex
 
 def select(
         input_path: str,
@@ -209,9 +57,9 @@ def select(
             os.remove(output_path)
 
     if input_layer is None:
-        input_layer = get_only_layer(input_path)
+        input_layer = geofile.get_only_layer(input_path)
     if output_layer is None:
-        output_layer = get_default_layer(output_path)
+        output_layer = geofile.get_default_layer(output_path)
 
     ##### Exec #####
     translate_description = f"Select on {input_path}"
@@ -287,7 +135,7 @@ def buffer_gpd(
 
     operation = "buffer"
     if input_layer is None:
-        input_layer = get_only_layer(input_path)
+        input_layer = geofile.get_only_layer(input_path)
 
     ##### Init #####
     start_time = datetime.datetime.now()
@@ -299,9 +147,9 @@ def buffer_gpd(
             os.remove(output_path)
 
     if input_layer is None:
-        input_layer = get_only_layer(input_path)
+        input_layer = geofile.get_only_layer(input_path)
     if output_layer is None:
-        output_layer = get_default_layer(output_path)
+        output_layer = geofile.get_default_layer(output_path)
 
     ##### Prepare tmp files #####
     tempdir = create_tempdir(operation.replace(' ', '_'))
@@ -334,7 +182,7 @@ def buffer_gpd(
             logger.info(f"Nb_parallel reduced to {nb_parallel} to evade excessive memory usage")
 
         # Calculate the number of rows per batch
-        layerinfo = getlayerinfo(input_path, input_layer)
+        layerinfo = geofile.getlayerinfo(input_path, input_layer)
         nb_rows_input_layer = layerinfo['featurecount']
 
         # Optimal number of batches and rows per batch 
@@ -443,7 +291,7 @@ def buffer_gpd(
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
-        create_spatial_index(path=tmp_output_path, layer=output_layer)
+        geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
         shutil.move(tmp_output_path, output_path, copy_function=io_util.copyfile)
 
     finally:
@@ -532,9 +380,9 @@ def _single_layer_vector_operation(
             os.remove(output_path)
 
     if input_layer is None:
-        input_layer = get_only_layer(input_path)
+        input_layer = geofile.get_only_layer(input_path)
     if output_layer is None:
-        output_layer = get_default_layer(output_path)
+        output_layer = geofile.get_default_layer(output_path)
 
     ##### Prepare tmp files #####
     tempdir = create_tempdir(geom_operation_description.replace(' ', '_'))
@@ -572,7 +420,7 @@ def _single_layer_vector_operation(
         with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
             # Prepare columns to select
-            layerinfo = getlayerinfo(input_path, input_layer)        
+            layerinfo = geofile.getlayerinfo(input_path, input_layer)        
             columns_to_select_str = ''
             if len(layerinfo['columns']) > 0:
                 columns_to_select_str = f", {','.join(layerinfo['columns'])}"
@@ -666,7 +514,7 @@ def _single_layer_vector_operation(
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
-        create_spatial_index(path=tmp_output_path, layer=output_layer)
+        geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
         shutil.move(tmp_output_path, output_path, copy_function=io_util.copyfile)
     finally:
         # Clean tmp dir
@@ -711,11 +559,11 @@ def intersect(
 
     start_time = datetime.datetime.now()
     if input1_layer is None:
-        input1_layer = get_only_layer(input1_path)
+        input1_layer = geofile.get_only_layer(input1_path)
     if input2_layer is None:
-        input2_layer = get_only_layer(input2_path)
+        input2_layer = geofile.get_only_layer(input2_path)
     if output_layer is None:
-        output_layer = get_default_layer(output_path)
+        output_layer = geofile.get_default_layer(output_path)
     if(nb_parallel == -1):
         nb_parallel = multiprocessing.cpu_count()
 
@@ -780,7 +628,7 @@ def intersect(
         for split_id in split_jobs:
 
             tmp_partial_output_path = os.path.join(tempdir, f"{output_filename_noext}_{split_id}{output_ext}")
-            tmp_partial_output_layer = get_default_layer(tmp_partial_output_path)
+            tmp_partial_output_layer = geofile.get_default_layer(tmp_partial_output_path)
             input2_tmp_curr_layer = split_jobs[split_id]['layer']
             sqlite_stmt = f"""
                     SELECT sub.geom, ST_area(sub.geom) area_inter
@@ -987,11 +835,11 @@ def _two_layer_vector_operation(
 
     start_time = datetime.datetime.now()
     if input1_layer is None:
-        input1_layer = get_only_layer(input1_path)
+        input1_layer = geofile.get_only_layer(input1_path)
     if input2_layer is None:
-        input2_layer = get_only_layer(input2_path)
+        input2_layer = geofile.get_only_layer(input2_path)
     if output_layer is None:
-        output_layer = get_default_layer(output_path)
+        output_layer = geofile.get_default_layer(output_path)
 
     # Prepare tmp layer/file names
     tempdir = create_tempdir("export_by_location")
@@ -1152,7 +1000,7 @@ def _two_layer_vector_operation(
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
-        create_spatial_index(path=tmp_output_path, layer=output_layer)
+        geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
         shutil.move(tmp_output_path, output_path, copy_function=io_util.copyfile)
         shutil.rmtree(tempdir)
         logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
@@ -1258,7 +1106,7 @@ def dissolve(
         output_filename_noext, output_ext = os.path.splitext(output_filename)
         tmp_output_path = os.path.join(tempdir, output_filename)
         if output_layer is None:
-            output_layer = get_default_layer(output_path)
+            output_layer = geofile.get_default_layer(output_path)
         
         with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
@@ -1348,7 +1196,7 @@ def dissolve(
                         verbose=verbose,
                         force=force)
                 # Now create spatial index
-                create_spatial_index(path=tmp_output_path, layer=output_layer)
+                geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
             else:
                 logger.info("Now dissolve the elements on the borders as well to get final result")
 
@@ -1375,7 +1223,7 @@ def dissolve(
 
         else:
             # Now create spatial index and move to output location
-            create_spatial_index(path=tmp_output_path, layer=output_layer)
+            geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
             shutil.move(tmp_output_path, output_path, copy_function=io_util.copyfile)
 
     finally:
@@ -1550,7 +1398,7 @@ def unaryunion_cardsheets(
         output_filename_noext, output_ext = os.path.splitext(output_filename)
         tmp_output_path = os.path.join(tempdir, output_filename)
         if output_layer is None:
-            output_layer = get_default_layer(output_path)
+            output_layer = geofile.get_default_layer(output_path)
         
         with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
@@ -1622,7 +1470,7 @@ def unaryunion_cardsheets(
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
-        create_spatial_index(path=tmp_output_path, layer=output_layer)
+        geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
         shutil.move(tmp_output_path, output_path, copy_function=io_util.copyfile)
 
     finally:
@@ -1770,7 +1618,7 @@ def split_layer_features(
     # Remark: adding data to a file in parallel using ogr2ogr gives locking 
     # issues on the sqlite file, so needs to be done sequential!
     split_jobs = {}
-    layerinfo = getlayerinfo(input_path, input_layer)
+    layerinfo = geofile.getlayerinfo(input_path, input_layer)
     nb_rows_input_layer = layerinfo['featurecount']
     row_limit = int(nb_rows_input_layer/nb_parts)
     row_offset = 0
@@ -1824,23 +1672,6 @@ def split_layer_features(
         row_offset += row_limit
 
     return split_jobs
-
-def get_only_layer(path: str):
-    
-    #layers = getfileinfo(path)['layers']
-    layers = fiona.listlayers(path)
-    nb_layers = len(layers)
-    if nb_layers == 1:
-        return layers[0]
-    elif nb_layers == 0:
-        raise Exception(f"Error: No layers found in {path}")
-    else:
-        raise Exception(f"Error: More than 1 layer found in {path}: {layers}")
-
-def get_default_layer(path: str):
-    _, filename = os.path.split(path)
-    layername, _ = os.path.splitext(filename)
-    return layername
 
 '''
 OLD CODE
