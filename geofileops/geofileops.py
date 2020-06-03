@@ -26,6 +26,20 @@ def select(
         output_layer: str = None,
         verbose: bool = False,
         force: bool = False):
+    """
+    Execute an sqlite style SQL query on the file. 
+
+    The result is written to the output file specified.
+
+    Args:
+        input_path (str): the input file
+        output_path (str): the file to write the result to
+        sqlite_stmt (str): the statement to execute
+        input_layer (str, optional): input layer name. Optional if the input file only contains one layer.
+        output_layer (str, optional): input layer name. Optional if the input file only contains one layer.
+        verbose (bool, optional): write more info to the output. Defaults to False.
+        force (bool, optional): overwrite existing output file(s). Defaults to False.
+    """
 
     return geofileops_ogr.select(
             input_path=input_path,
@@ -44,6 +58,25 @@ def convexhull(
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
+    """
+    Applies a convexhull operation on the input file.
+    
+    The result is written to the output file specified. 
+
+    Args:
+        input_path (str): the input file
+        output_path (str): the file to write the result to
+        input_layer (str, optional): input layer name. Optional if the input 
+                file only contains one layer.
+        output_layer (str, optional): input layer name. Optional if the input 
+                file only contains one layer.
+        nb_parallel (int, optional): the number of parallel processes to use. 
+                If not specified, all available processors will be used.
+        verbose (bool, optional): write more info to the output. 
+                Defaults to False.
+        force (bool, optional): overwrite existing output file(s). 
+                Defaults to False.
+    """
 
     return geofileops_ogr.convexhull(
             input_path=input_path,
@@ -64,6 +97,28 @@ def buffer(
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
+    """
+    Applies a buffer operation on geometry column of the input file.
+    
+    The result is written to the output file specified. 
+
+    Args:
+        input_path (str): the input file
+        output_path (str): the file to write the result to
+        buffer (float): the buffer size to apply
+        quadrantsegments (int): the number of points an arc needs to be 
+                approximated with. Defaults to 5.
+        input_layer (str, optional): input layer name. Optional if the input 
+                file only contains one layer.
+        output_layer (str, optional): input layer name. Optional if the input 
+                file only contains one layer.
+        nb_parallel (int, optional): the number of parallel processes to use. 
+                If not specified, all available processors will be used.
+        verbose (bool, optional): write more info to the output. 
+                Defaults to False.
+        force (bool, optional): overwrite existing output file(s). 
+                Defaults to False.
+    """
 
     return geofileops_gpd.buffer(
             input_path=input_path,
@@ -85,6 +140,26 @@ def simplify(
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
+    """
+    Applies a simplify operation on geometry column of the input file.
+    
+    The result is written to the output file specified. 
+
+    Args:
+        input_path (str): the input file
+        output_path (str): the file to write the result to
+        tolerance (float): the tolerancy to use when simplifying
+        input_layer (str, optional): input layer name. Optional if the input 
+                file only contains one layer.
+        output_layer (str, optional): input layer name. Optional if the input 
+                file only contains one layer.
+        nb_parallel (int, optional): the number of parallel processes to use. 
+                If not specified, all available processors will be used.
+        verbose (bool, optional): write more info to the output. 
+                Defaults to False.
+        force (bool, optional): overwrite existing output file(s). 
+                Defaults to False.
+    """
 
     return geofileops_ogr.simplify(
             input_path=input_path,
@@ -111,17 +186,21 @@ def intersect(
     features in input2.
     
     Args:
-        input1_path (str): [description]
-        input2_path (str): [description]
-        output_path (str): [description]
-        input1_layer (str, optional): [description]. Defaults to None.
-        input2_layer (str, optional): [description]. Defaults to None.
-        output_layer (str, optional): [description]. Defaults to None.
-        nb_parallel (int, optional): [description]. Defaults to -1.
-        force (bool, optional): [description]. Defaults to False.
-    
-    Raises:
-        Exception: [description]
+        input1_path (str): the 1st input file
+        input2_path (str): the 2nd input file
+        output_path (str): the file to write the result to
+        input1_layer (str, optional): input layer name. Optional if the  
+                file only contains one layer.
+        input2_layer (str, optional): input layer name. Optional if the  
+                file only contains one layer.
+        output_layer (str, optional): output layer name. Optional if the  
+                file only contains one layer.
+        nb_parallel (int, optional): the number of parallel processes to use. 
+                If not specified, all available processors will be used.
+        verbose (bool, optional): write more info to the output. 
+                Defaults to False.
+        force (bool, optional): overwrite existing output file(s). 
+                Defaults to False.
     """
 
     return geofileops_ogr.intersect(
@@ -145,6 +224,27 @@ def export_by_location(
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
+    """
+    Exports all features in input_to_select_from_path that intersect with any 
+    features in input_to_compare_with_path.
+    
+    Args:
+        input_to_select_from_path (str): the 1st input file
+        input_to_compare_with_path (str): the 2nd input file
+        output_path (str): the file to write the result to
+        input1_layer (str, optional): input layer name. Optional if the  
+                file only contains one layer.
+        input2_layer (str, optional): input layer name. Optional if the  
+                file only contains one layer.
+        output_layer (str, optional): output layer name. Optional if the  
+                file only contains one layer.
+        nb_parallel (int, optional): the number of parallel processes to use. 
+                If not specified, all available processors will be used.
+        verbose (bool, optional): write more info to the output. 
+                Defaults to False.
+        force (bool, optional): overwrite existing output file(s). 
+                Defaults to False.
+    """
 
     return geofileops_ogr.export_by_location(
             input_to_select_from_path=input_to_select_from_path,
@@ -168,6 +268,28 @@ def export_by_distance(
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
+    """
+    Exports all features in input_to_select_from_path that are within the 
+    distance specified of any features in input_to_compare_with_path.
+    
+    Args:
+        input_to_select_from_path (str): the 1st input file
+        input_to_compare_with_path (str): the 2nd input file
+        output_path (str): the file to write the result to
+        max_distance (float): maximum distance
+        input1_layer (str, optional): input layer name. Optional if the  
+                file only contains one layer.
+        input2_layer (str, optional): input layer name. Optional if the  
+                file only contains one layer.
+        output_layer (str, optional): output layer name. Optional if the  
+                file only contains one layer.
+        nb_parallel (int, optional): the number of parallel processes to use. 
+                If not specified, all available processors will be used.
+        verbose (bool, optional): write more info to the output. 
+                Defaults to False.
+        force (bool, optional): overwrite existing output file(s). 
+                Defaults to False.
+    """
 
     return geofileops_ogr.export_by_distance(
             input_to_select_from_path=input_to_select_from_path,
@@ -194,7 +316,29 @@ def dissolve(
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
+    """
+    Applies a dissolve operation on geometry column of the input file.
+    
+    The result is written to the output file specified. 
 
+    Args:
+        input_path (str): the input file
+        output_path (str): the file to write the result to
+        groupby_columns: (List[str]): list of columns to group on before applying the union.
+        explodecollections (bool): True to convert all multi-geometries to 
+                singular ones after the dissolve. Defaults to False.
+        input_layer (str, optional): input layer name. Optional if the  
+                file only contains one layer.
+        output_layer (str, optional): input layer name. Optional if the  
+                file only contains one layer.
+        nb_parallel (int, optional): the number of parallel processes to use. 
+                If not specified, all available processors will be used.
+        verbose (bool, optional): write more info to the output. 
+                Defaults to False.
+        force (bool, optional): overwrite existing output file(s). 
+                Defaults to False.
+    """
+    
     return geofileops_gpd.dissolve(
             input_path=input_path,
             output_path=output_path,
