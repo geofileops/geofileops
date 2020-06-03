@@ -7,7 +7,8 @@ from pathlib import Path
 import sys
 [sys.path.append(i) for i in ['.', '..']]
 
-import geofileops.geofileops as geofileops
+from geofileops import geofileops
+from geofileops import geofile
 
 if __name__ == '__main__':
 
@@ -129,7 +130,7 @@ if __name__ == '__main__':
             output_path=prc_bufm1_tuin_path,
             groupby_columns=["l1_CODE_OBJ"],
             verbose=verbose)
-    geofileops.add_column(
+    geofile.add_column(
             path=prc_bufm1_tuin_path,
             column_name='area')
 

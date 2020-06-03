@@ -7,7 +7,8 @@ from pathlib import Path
 import sys
 [sys.path.append(i) for i in ['.', '..']]
 
-import geofileops.geofileops as geofileops
+from geofileops import geofileops
+from geofileops import geofile
 
 if __name__ == '__main__':
 
@@ -34,7 +35,7 @@ if __name__ == '__main__':
     force = True
 
     # Go!
-    logger.info(geofileops.getlayerinfo(input_path))
+    logger.info(geofile.getlayerinfo(input_path))
     logger.info("Start dissolve buildings")
     buildings_diss_path = str(tempdir / f"{output_basename}_diss.gpkg")
     geofileops.dissolve_cardsheets(
