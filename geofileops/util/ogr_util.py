@@ -14,6 +14,11 @@ from typing import List, Tuple
 from io import StringIO
 import re
 
+# TODO: on windows, the init of this doensn't seem to work properly... should be solved somewhere else?
+if os.name == 'nt':
+    os.environ["GDAL_DATA"] = r"C:\Tools\miniconda3\envs\orthoseg\Library\share\gdal"
+    os.environ["PROJ_LIB"] = r"C:\Tools\miniconda3\envs\orthoseg\Library\share\proj"
+
 #import _winreg as winreg
 
 #-------------------------------------------------------------

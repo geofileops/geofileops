@@ -7,6 +7,11 @@ from typing import Tuple
 
 from osgeo import gdal
 
+# TODO: on windows, the init of this doensn't seem to work properly... should be solved somewhere else?
+if os.name == 'nt':
+    os.environ["GDAL_DATA"] = r"C:\Tools\miniconda3\envs\orthoseg\Library\share\gdal"
+    os.environ["PROJ_LIB"] = r"C:\Tools\miniconda3\envs\orthoseg\Library\share\proj"
+
 #-------------------------------------------------------------
 # First define/init some general variables/constants
 #-------------------------------------------------------------
@@ -222,7 +227,7 @@ def vector_translate_async(
         concurrent_pool,
         info: VectorTranslateInfo) -> bool:
 
-    return vector_translate_by_info(info)
+    #return vector_translate_by_info(info)
     return concurrent_pool.submit(
             vector_translate_by_info,
             info)
