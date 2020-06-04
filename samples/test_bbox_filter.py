@@ -13,7 +13,7 @@ def main():
     # Read all records that intersect the bbox
     bbox = (180000, 180000, 185000, 185000)
     bbox = (0, 0, 300000, 300000)
-    input_gdf = geofile.read_file(filepath=input_path, bbox=bbox)
+    input_gdf = geofile.read_file(path=input_path, bbox=bbox)
 
     # Get representative_point of each polygon
     '''

@@ -10,7 +10,7 @@ import pprint
 import subprocess
 from threading import Lock
 import time
-from typing import List, Tuple
+from typing import Any, List, Tuple, Union
 from io import StringIO
 import re
 
@@ -355,7 +355,7 @@ def getfileinfo(
     return result_dict
 
 def vector_info(
-        path: str, 
+        path: Union[str, 'os.PathLike[Any]'], 
         task_description = None,
         layer: str = None,
         readonly: bool = False,
@@ -363,9 +363,11 @@ def vector_info(
         sqlite_stmt: str = None,        
         verbose: bool = False):
     """"Run a command"""
+
     ##### Init #####
-    if not os.path.exists(path):
-        raise Exception(f"File does not exist: {path}")
+    path_p = Path(path)
+    if not path_p.exists():
+        raise Exception(f"File does not exist: {path_p}")
 
     # Add all parameters to args list
     args = [str(ogrinfo_exe)]
@@ -378,7 +380,7 @@ def vector_info(
         args.extend(['-dialect', 'sqlite', '-sql', sqlite_stmt])
 
     # File and optionally the layer
-    args.append(path)
+    args.append(str(path_p))
     if layer is not None:
         # ogrinfo doesn't like + need quoted layer names, so remove single and double quotes
         layer_stripped = layer.strip("'\"")

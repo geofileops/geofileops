@@ -230,7 +230,7 @@ def _buffer_gpd(
         else:
             os.remove(output_path)
 
-    data_gdf = geofile.read_file(filepath=input_path, layer=input_layer, rows=rows)
+    data_gdf = geofile.read_file(path=input_path, layer=input_layer, rows=rows)
     if len(data_gdf) == 0:
         logger.info(f"No input geometries found for rows: {rows} in layer: {input_layer} in input_path: {input_path}")
         return None
@@ -238,7 +238,7 @@ def _buffer_gpd(
     data_gdf.geometry = data_gdf.geometry.buffer(distance=buffer, resolution=quadrantsegments)
 
     if len(data_gdf) > 0:
-        geofile.to_file(gdf=data_gdf, filepath=output_path, layer=output_layer)
+        geofile.to_file(gdf=data_gdf, path=output_path, layer=output_layer)
 
     message = f"Took {datetime.datetime.now()-start_time} for {len(data_gdf)} rows ({rows})!"
     logger.info(message)
@@ -495,7 +495,7 @@ def _dissolve(
     retry_count = 0
     while True:
         try:
-            input_gdf = geofile.read_file(filepath=input_path, layer=input_layer, bbox=bbox)
+            input_gdf = geofile.read_file(path=input_path, layer=input_layer, bbox=bbox)
             if len(input_gdf) == 0:
                 logger.info("No input geometries found")
                 return 
@@ -562,7 +562,7 @@ def _dissolve(
        raise Exception(f"3_Found {len(nonpoly_gdf)} non-(multi)polygons, eg.: {nonpoly_gdf}")
 
     if len(diss_gdf) > 0:
-        geofile.to_file(gdf=diss_gdf, filepath=output_path, layer=output_layer)
+        geofile.to_file(gdf=diss_gdf, path=output_path, layer=output_layer)
     logger.info(f"{operation} ready, took {datetime.datetime.now()-start_time}!")
 
 def unaryunion_cardsheets(
@@ -752,7 +752,7 @@ def _unaryunion(
         else:
             os.remove(output_path)
 
-    input_gdf = geofile.read_file(filepath=input_path, layer=input_layer, bbox=bbox)
+    input_gdf = geofile.read_file(path=input_path, layer=input_layer, bbox=bbox)
     if len(input_gdf) == 0:
         logger.info("No input geometries found")
         return 
@@ -772,7 +772,7 @@ def _unaryunion(
         diss_gdf = gpd.clip(diss_gdf, bbox_gdf)
 
     if len(diss_gdf) > 0:
-        geofile.to_file(gdf=diss_gdf, filepath=output_path, layer=output_layer)
+        geofile.to_file(gdf=diss_gdf, path=output_path, layer=output_layer)
     logger.info(f"{operation} ready, took {datetime.datetime.now()-start_time}!")
             
 def extract_polygons_from_list(
