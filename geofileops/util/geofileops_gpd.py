@@ -1,25 +1,18 @@
 from concurrent import futures
 import datetime
-from io import StringIO
 import logging
 import logging.config
 import multiprocessing
 import os
 from pathlib import Path
-import re
-import shutil
 import time
-from typing import Any, AnyStr, List, Optional, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 
-import fiona
 import geopandas as gpd
-from osgeo import gdal
-import pandas as pd
 import psutil
 import shapely.geometry as sh_geom
 
 from geofileops import geofile
-from . import io_util
 from . import ogr_util_direct
 
 ################################################################################
@@ -169,15 +162,13 @@ def buffer(
                         """
                         partial_output_gdf = geofile.read_file(tmp_partial_output_path)
                         geofile.to_file(partial_output_gdf, tmp_output_path, mode='a')
-                        """
-                        sqlite_stmt = None                  
+                        """              
                         translate_description = f"Copy result {job_id} of {nb_todo} to {output_layer}"
                         translate_info = ogr_util_direct.VectorTranslateInfo(
                                 input_path=tmp_partial_output_path,
                                 output_path=tmp_output_path,
                                 translate_description=translate_description,
                                 output_layer=output_layer,
-                                sqlite_stmt=sqlite_stmt,
                                 transaction_size=200000,
                                 append=True,
                                 update=True,
@@ -202,7 +193,7 @@ def buffer(
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
         geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
-        shutil.move(tmp_output_path, output_path, copy_function=io_util.copyfile)
+        geofile.move(tmp_output_path, output_path)
 
     finally:
         # Clean tmp dir
@@ -314,7 +305,7 @@ def dissolve(
     _, input_ext = os.path.splitext(input_path)
     if(input_ext == '.gpkg'):
         logger.debug(f"Copy {input_path} to {input_tmp_path}")
-        io_util.copyfile(input_path, input_tmp_path)
+        geofile.copy(input_path, input_tmp_path)
         logger.debug("Copy ready")
     else:
         # Remark: this temp file doesn't need spatial index
@@ -462,7 +453,7 @@ def dissolve(
         else:
             # Now create spatial index and move to output location
             geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
-            shutil.move(tmp_output_path, output_path, copy_function=io_util.copyfile)
+            geofile.move(tmp_output_path, output_path)
 
     finally:
         # Clean tmp dir
@@ -613,7 +604,7 @@ def unaryunion_cardsheets(
     _, input_ext = os.path.splitext(input_path)
     if(input_ext == '.gpkg'):
         logger.debug(f"Copy {input_path} to {input_tmp_path}")
-        io_util.copyfile(input_path, input_tmp_path)
+        geofile.copy(input_path, input_tmp_path)
         logger.debug("Copy ready")
     else:
         # Remark: this temp file doesn't need spatial index
@@ -709,7 +700,7 @@ def unaryunion_cardsheets(
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
         geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
-        shutil.move(tmp_output_path, output_path, copy_function=io_util.copyfile)
+        geofile.move(tmp_output_path, output_path)
 
     finally:
         # Clean tmp dir
