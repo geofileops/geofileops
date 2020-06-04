@@ -13,6 +13,7 @@ import psutil
 import shapely.geometry as sh_geom
 
 from geofileops import geofile
+from . import io_util
 from . import ogr_util_direct
 
 ################################################################################
@@ -26,8 +27,8 @@ logger = logging.getLogger(__name__)
 ################################################################################
 
 def buffer(
-        input_path: str,
-        output_path: str,
+        input_path: Path,
+        output_path: Path,
         buffer: float,
         quadrantsegments: int = 5,
         input_layer: str = None,
@@ -42,12 +43,12 @@ def buffer(
 
     ##### Init #####
     start_time = datetime.datetime.now()
-    if os.path.exists(output_path):
+    if output_path.exists():
         if force is False:
             logger.info(f"Stop {operation}: output exists already {output_path}")
             return
         else:
-            os.remove(output_path)
+            geofile.remove(output_path)
 
     if input_layer is None:
         input_layer = geofile.get_only_layer(input_path)
@@ -55,7 +56,7 @@ def buffer(
         output_layer = geofile.get_default_layer(output_path)
 
     ##### Prepare tmp files #####
-    tempdir = create_tempdir(operation.replace(' ', '_'))
+    tempdir = io_util.create_tempdir(operation.replace(' ', '_'))
     logger.info(f"Start calculation to temp files in {tempdir}")
 
     try:
@@ -86,7 +87,7 @@ def buffer(
 
         # Calculate the number of rows per batch
         layerinfo = geofile.getlayerinfo(input_path, input_layer)
-        nb_rows_input_layer = layerinfo['featurecount']
+        nb_rows_input_layer = layerinfo.featurecount
 
         # Optimal number of batches and rows per batch 
         nb_batches = int((nb_rows_input_layer*memory_per_row*nb_parallel)/(memory_usable-memory_basefootprint*nb_parallel))
@@ -101,9 +102,7 @@ def buffer(
         with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
             # Prepare output filename
-            _, output_filename = os.path.split(output_path) 
-            output_filename_noext, output_ext = os.path.splitext(output_filename) 
-            tmp_output_path = os.path.join(tempdir, output_filename)
+            tmp_output_path = tempdir / output_path.name
 
             row_limit = rows_per_batch
             row_offset = 0
@@ -119,7 +118,7 @@ def buffer(
                 jobs[job_id] = {}
                 jobs[job_id]['layer'] = output_layer
 
-                output_tmp_partial_path = os.path.join(tempdir, f"{output_filename_noext}_{job_id}{output_ext}")
+                output_tmp_partial_path = tempdir / f"{output_path.stem}_{job_id}{output_path.suffix}"
                 jobs[job_id]['tmp_partial_output_path'] = output_tmp_partial_path
 
                 # For the last translate_id, take all rowid's left...
@@ -156,7 +155,7 @@ def buffer(
 
                     # If the calculate gave results, copy to output
                     tmp_partial_output_path = jobs[job_id]['tmp_partial_output_path']
-                    if os.path.exists(tmp_partial_output_path):
+                    if tmp_partial_output_path.exists():
 
                         # TODO: append not yet supported in geopandas 0.7, but will be supported in next version
                         """
@@ -177,7 +176,7 @@ def buffer(
                                 priority_class='NORMAL',
                                 verbose=verbose)
                         ogr_util_direct.vector_translate_by_info(info=translate_info)
-                        os.remove(tmp_partial_output_path)
+                        geofile.remove(tmp_partial_output_path)
                     else:
                         logger.info(f"Result file {tmp_partial_output_path} was empty")
 
@@ -201,8 +200,8 @@ def buffer(
         logger.info(f"{operation} ready, took {datetime.datetime.now()-start_time}!")
 
 def _buffer_gpd(
-        input_path: str,
-        output_path: str,
+        input_path: Path,
+        output_path: Path,
         buffer: float,
         quadrantsegments: int = 5,
         input_layer: str = None,
@@ -214,12 +213,12 @@ def _buffer_gpd(
     ##### Init #####
     start_time = datetime.datetime.now()
     operation = 'buffer'
-    if os.path.exists(output_path):
+    if output_path.exists():
         if force is False:
             logger.info(f"Stop {operation}: output exists already {output_path}")
             return None
         else:
-            os.remove(output_path)
+            geofile.remove(output_path)
 
     data_gdf = geofile.read_file(path=input_path, layer=input_layer, rows=rows)
     if len(data_gdf) == 0:
@@ -237,15 +236,15 @@ def _buffer_gpd(
     return message
 
 def dissolve(
-        input_path: Union[str, 'os.PathLike[Any]'],  
-        output_path: Union[str, 'os.PathLike[Any]'],
+        input_path: Path,  
+        output_path: Path,
         groupby_columns: Optional[List[str]],
         aggfunc: str = None,
         explodecollections: bool = False,
         keep_cardsheets: bool = False,
         input_layer: str = None,        
         output_layer: str = None,
-        input_cardsheets_path: Union[str, 'os.PathLike[Any]'] = None,
+        input_cardsheets_path: Path = None,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -280,16 +279,14 @@ def dissolve(
     """
 
     ##### Init #####
-    input_path = str(input_path)
-    output_path = str(output_path)
     operation = 'dissolve'
     start_time = datetime.datetime.now()
-    if os.path.exists(output_path):
+    if output_path.exists():
         if force is False:
             logger.info(f"Stop {operation}: output exists already {output_path} and force is false")
             return
         else:
-            os.remove(output_path)
+            geofile.remove(output_path)
     if nb_parallel == -1:
         nb_cpu = multiprocessing.cpu_count()
         nb_parallel = int(1.25 * nb_cpu)
@@ -297,7 +294,7 @@ def dissolve(
 
     # Get input data to temp gpkg file
     # TODO: still necessary to copy locally?
-    tempdir = create_tempdir(operation)
+    tempdir = io_util.create_tempdir(operation)
 
     input_tmp_path = input_path
     '''
@@ -321,7 +318,6 @@ def dissolve(
 
     # Get the cardsheets we want the dissolve to be bound on to be able to parallelize
     if input_cardsheets_path is not None:
-        input_cardsheets_path = str(input_cardsheets_path)
         cardsheets_gdf = geofile.read_file(input_cardsheets_path)
     else:
         # TODO: implement heuristic to choose a grid in a smart way
@@ -331,9 +327,7 @@ def dissolve(
     try:
         # Start calculation in parallel
         logger.info(f"Start {operation} on file {input_tmp_path}")
-        _, output_filename = os.path.split(output_path) 
-        output_filename_noext, output_ext = os.path.splitext(output_filename)
-        tmp_output_path = os.path.join(tempdir, output_filename)
+        tmp_output_path = tempdir / output_path.name
         if output_layer is None:
             output_layer = geofile.get_default_layer(output_path)
         
@@ -348,7 +342,7 @@ def dissolve(
                 jobs[job_id] = {}
                 jobs[job_id]['layer'] = output_layer
 
-                output_tmp_partial_path = os.path.join(tempdir, f"{output_filename_noext}_{job_id}{output_ext}")
+                output_tmp_partial_path =tempdir / f"{output_path.stem}_{job_id}{output_path.suffix}"
                 jobs[job_id]['tmp_partial_output_path'] = output_tmp_partial_path
                 future = calculate_pool.submit(
                         _dissolve,
@@ -374,7 +368,7 @@ def dissolve(
 
                     # If the calculate gave results, copy to output
                     tmp_partial_output_path = jobs[job_id]['tmp_partial_output_path']
-                    if os.path.exists(tmp_partial_output_path):
+                    if tmp_partial_output_path.exists():
 
                         # TODO: append not yet supported in geopandas 0.7, but will be supported in next version
                         """
@@ -397,7 +391,7 @@ def dissolve(
                                 priority_class='NORMAL',
                                 verbose=verbose)
                         ogr_util_direct.vector_translate_by_info(info=translate_info)
-                        os.remove(tmp_partial_output_path)
+                        geofile.remove(tmp_partial_output_path)
 
                 except Exception as ex:
                     job_id = future_to_job_id[future]
@@ -432,9 +426,6 @@ def dissolve(
                 # First copy all elements that don't overlap with the borders of the tiles
                 input_gdf = geofile.read_file(tmp_output_path)
 
-                import shapely
-                from shapely.geometry import MultiPolygon, Point
-
                 cardsheets_lines = []
                 for cardsheet_poly in cardsheets_gdf.itertuples():
                     cardsheet_boundary = cardsheet_poly.geometry.boundary
@@ -448,7 +439,7 @@ def dissolve(
                 logger.info(f"Number of lines in cardsheets_lines_gdf: {len(cardsheets_lines_gdf)}")
                 intersecting_gdf = gpd.sjoin(input_gdf, cardsheets_lines_gdf, op='intersects')
                 logger.info(intersecting_gdf)
-                geofile.to_file(intersecting_gdf, tmp_output_path + '_inters.gpkg')
+                geofile.to_file(intersecting_gdf, str(tmp_output_path) + '_inters.gpkg')
 
         else:
             # Now create spatial index and move to output location
@@ -461,8 +452,8 @@ def dissolve(
         logger.info(f"{operation} ready, took {datetime.datetime.now()-start_time}!")
 
 def _dissolve(
-        input_path: str,
-        output_path: str,
+        input_path: Path,
+        output_path: Path,
         groupby_columns: List[str] = None,
         aggfunc: str = None,
         explodecollections: bool = False,
@@ -475,12 +466,12 @@ def _dissolve(
     ##### Init #####
     start_time = datetime.datetime.now()
     operation = 'dissolve'
-    if os.path.exists(output_path):
+    if output_path.exists():
         if force is False:
             logger.info(f"Stop {operation}: output exists already {output_path}")
             return
         else:
-            os.remove(output_path)
+            geofile.remove(output_path)
 
     # Read all records that are in the bbox
     retry_count = 0
@@ -557,9 +548,9 @@ def _dissolve(
     logger.info(f"{operation} ready, took {datetime.datetime.now()-start_time}!")
 
 def unaryunion_cardsheets(
-        input_path: Union[str, 'os.PathLike[Any]'],  
-        output_path: Union[str, 'os.PathLike[Any]'],
-        input_cardsheets_path: Union[str, 'os.PathLike[Any]'] = None,
+        input_path: Path,  
+        output_path: Path,
+        input_cardsheets_path: Path = None,
         input_layer: str = None,        
         output_layer: str = None,
         nb_parallel: int = -1,
@@ -580,29 +571,24 @@ def unaryunion_cardsheets(
         verbose (bool, optional): [description]. Defaults to False.
         force (bool, optional): [description]. Defaults to False.
     """
-
     ##### Init #####
-    input_path = str(input_path)
-    input_cardsheets_path = str(input_cardsheets_path)
-    output_path = str(output_path)
     operation = 'unaryunion_cardsheets'
     start_time = datetime.datetime.now()
-    if os.path.exists(output_path):
+    if output_path.exists():
         if force is False:
             logger.info(f"Stop {operation}: output exists already {output_path} and force is false")
             return
         else:
-            os.remove(output_path)
+            geofile.remove(output_path)
     if nb_parallel == -1:
         nb_cpu = multiprocessing.cpu_count()
         nb_parallel = int(1.25 * nb_cpu)
         logger.debug(f"Nb cpus found: {nb_cpu}, nb_parallel: {nb_parallel}")
 
     # Get input data to temp gpkg file
-    tempdir = create_tempdir(operation)
-    input_tmp_path = os.path.join(tempdir, "input_layers.gpkg")
-    _, input_ext = os.path.splitext(input_path)
-    if(input_ext == '.gpkg'):
+    tempdir = io_util.create_tempdir(operation)
+    input_tmp_path = tempdir / "input_layers.gpkg"
+    if(input_path.suffix.lower() == '.gpkg'):
         logger.debug(f"Copy {input_path} to {input_tmp_path}")
         geofile.copy(input_path, input_tmp_path)
         logger.debug("Copy ready")
@@ -618,14 +604,15 @@ def unaryunion_cardsheets(
         logger.debug("Copy ready")
 
     # Load the cardsheets we want the unaryunion to be bound on
-    cardsheets_gdf = geofile.read_file(input_cardsheets_path)
+    if input_cardsheets_path is not None:
+        cardsheets_gdf = geofile.read_file(input_cardsheets_path)
+    else:
+        raise Exception("Not implemented")
 
     try:
         # Start calculation in parallel
         logger.info(f"Start {operation} on file {input_tmp_path}")
-        _, output_filename = os.path.split(output_path) 
-        output_filename_noext, output_ext = os.path.splitext(output_filename)
-        tmp_output_path = os.path.join(tempdir, output_filename)
+        tmp_output_path = tempdir / output_path.name
         if output_layer is None:
             output_layer = geofile.get_default_layer(output_path)
         
@@ -640,7 +627,7 @@ def unaryunion_cardsheets(
                 jobs[job_id] = {}
                 jobs[job_id]['layer'] = output_layer
 
-                output_tmp_partial_path = os.path.join(tempdir, f"{output_filename_noext}_{job_id}{output_ext}")
+                output_tmp_partial_path = tempdir / f"{output_path.stem}_{job_id}{output_path.suffix}"
                 jobs[job_id]['tmp_partial_output_path'] = output_tmp_partial_path
                 future = calculate_pool.submit(
                         _unaryunion,
@@ -663,7 +650,7 @@ def unaryunion_cardsheets(
 
                     # If the calculate gave results, copy to output
                     tmp_partial_output_path = jobs[job_id]['tmp_partial_output_path']
-                    if os.path.exists(tmp_partial_output_path):
+                    if tmp_partial_output_path.exists():
 
                         # TODO: append not yet supported in geopandas 0.7, but will be supported in next version
                         """
@@ -686,7 +673,7 @@ def unaryunion_cardsheets(
                                 priority_class='NORMAL',
                                 verbose=verbose)
                         ogr_util_direct.vector_translate_by_info(info=translate_info)
-                        os.remove(tmp_partial_output_path)
+                        geofile.remove(tmp_partial_output_path)
 
                 except Exception as ex:
                     job_id = future_to_job_id[future]
@@ -723,8 +710,8 @@ def report_progress(
               end="", flush=True)
 
 def _unaryunion(
-        input_path: str,
-        output_path: str,
+        input_path: Path,
+        output_path: Path,
         groupby_columns: List[str] = None,
         explodecollections: bool = False,
         input_layer: str = None,        
@@ -736,12 +723,12 @@ def _unaryunion(
     ##### Init #####
     start_time = datetime.datetime.now()
     operation = 'dissolve'
-    if os.path.exists(output_path):
+    if output_path.exists():
         if force is False:
             logger.info(f"Stop {operation}: output exists already {output_path}")
             return
         else:
-            os.remove(output_path)
+            geofile.remove(output_path)
 
     input_gdf = geofile.read_file(path=input_path, layer=input_layer, bbox=bbox)
     if len(input_gdf) == 0:
@@ -813,20 +800,6 @@ def extract_polygons_from_gdf(
         ret_gdf = ret_gdf.append(collection_polys_gdf, ignore_index=True)
     
     return ret_gdf
-
-def create_tempdir(base_dirname: str) -> str:
-    #base_tempdir = os.path.join(tempfile.gettempdir(), base_dirname)
-    base_tempdir = os.path.join(r"C:\temp", base_dirname)
-
-    for i in range(1, 9999):
-        try:
-            tempdir = f"{base_tempdir}_{i:04d}"
-            os.mkdir(tempdir)
-            return tempdir
-        except FileExistsError:
-            continue
-
-    raise Exception(f"Wasn't able to create a temporary dir with basedir: {base_tempdir}")
 
 def formatbytes(bytes: float):
     """

@@ -3,6 +3,7 @@ import logging
 import logging.config
 from pathlib import Path
 import sys
+
 [sys.path.append(i) for i in ['.', '..']]
 
 from geofileops import geofileops

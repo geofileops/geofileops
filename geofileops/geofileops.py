@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 ################################################################################
 
 def select(
-        input_path: str,
-        output_path: str,
+        input_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
         sqlite_stmt: str,
         input_layer: str = None,        
         output_layer: str = None,
@@ -32,8 +32,8 @@ def select(
     The result is written to the output file specified.
 
     Args:
-        input_path (str): the input file
-        output_path (str): the file to write the result to
+        input_path (PathLike): the input file
+        output_path (PathLike): the file to write the result to
         sqlite_stmt (str): the statement to execute
         input_layer (str, optional): input layer name. Optional if the input file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input file only contains one layer.
@@ -42,8 +42,8 @@ def select(
     """
 
     return geofileops_ogr.select(
-            input_path=input_path,
-            output_path=output_path,
+            input_path=Path(input_path),
+            output_path=Path(output_path),
             sqlite_stmt=sqlite_stmt,
             input_layer=input_layer,        
             output_layer=output_layer,
@@ -51,8 +51,8 @@ def select(
             force=force)
 
 def convexhull(
-        input_path: str,
-        output_path: str,
+        input_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
         input_layer: str = None,
         output_layer: str = None,
         nb_parallel: int = -1,
@@ -64,8 +64,8 @@ def convexhull(
     The result is written to the output file specified. 
 
     Args:
-        input_path (str): the input file
-        output_path (str): the file to write the result to
+        input_path (PathLike): the input file
+        output_path (PathLike): the file to write the result to
         input_layer (str, optional): input layer name. Optional if the input 
                 file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input 
@@ -79,8 +79,8 @@ def convexhull(
     """
 
     return geofileops_ogr.convexhull(
-            input_path=input_path,
-            output_path=output_path,
+            input_path=Path(input_path),
+            output_path=Path(output_path),
             input_layer=input_layer,
             output_layer=output_layer,
             nb_parallel=nb_parallel,
@@ -88,8 +88,8 @@ def convexhull(
             force=force)
 
 def buffer(
-        input_path: str,
-        output_path: str,
+        input_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
         buffer: float,
         quadrantsegments: int = 5,
         input_layer: str = None,
@@ -103,8 +103,8 @@ def buffer(
     The result is written to the output file specified. 
 
     Args:
-        input_path (str): the input file
-        output_path (str): the file to write the result to
+        input_path (PathLike): the input file
+        output_path (PathLike): the file to write the result to
         buffer (float): the buffer size to apply
         quadrantsegments (int): the number of points an arc needs to be 
                 approximated with. Defaults to 5.
@@ -121,8 +121,8 @@ def buffer(
     """
 
     return geofileops_gpd.buffer(
-            input_path=input_path,
-            output_path=output_path,
+            input_path=Path(input_path),
+            output_path=Path(output_path),
             buffer=buffer,
             quadrantsegments=quadrantsegments,
             input_layer=input_layer,
@@ -132,8 +132,8 @@ def buffer(
             force=force)
 
 def simplify(
-        input_path: str,
-        output_path: str,
+        input_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
         tolerance: float,        
         input_layer: str = None,        
         output_layer: str = None,
@@ -146,8 +146,8 @@ def simplify(
     The result is written to the output file specified. 
 
     Args:
-        input_path (str): the input file
-        output_path (str): the file to write the result to
+        input_path (PathLike): the input file
+        output_path (PathLike): the file to write the result to
         tolerance (float): the tolerancy to use when simplifying
         input_layer (str, optional): input layer name. Optional if the input 
                 file only contains one layer.
@@ -162,8 +162,8 @@ def simplify(
     """
 
     return geofileops_ogr.simplify(
-            input_path=input_path,
-            output_path=output_path,
+            input_path=Path(input_path),
+            output_path=Path(output_path),
             tolerance=tolerance,
             input_layer=input_layer,
             output_layer=output_layer,
@@ -172,9 +172,9 @@ def simplify(
             force=force)
 
 def intersect(
-        input1_path: str,
-        input2_path: str,
-        output_path: str,
+        input1_path: Union[str, 'os.PathLike[Any]'],
+        input2_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
         input1_layer: str = None,
         input2_layer: str = None,
         output_layer: str = None,
@@ -186,9 +186,9 @@ def intersect(
     features in input2.
     
     Args:
-        input1_path (str): the 1st input file
-        input2_path (str): the 2nd input file
-        output_path (str): the file to write the result to
+        input1_path (PathLike): the 1st input file
+        input2_path (PathLike): the 2nd input file
+        output_path (PathLike): the file to write the result to
         input1_layer (str, optional): input layer name. Optional if the  
                 file only contains one layer.
         input2_layer (str, optional): input layer name. Optional if the  
@@ -204,9 +204,9 @@ def intersect(
     """
 
     return geofileops_ogr.intersect(
-            input1_path=input1_path,
-            input2_path=input2_path,
-            output_path=output_path,
+            input1_path=Path(input1_path),
+            input2_path=Path(input2_path),
+            output_path=Path(output_path),
             input1_layer=input1_layer,
             input2_layer=input2_layer,
             output_layer=output_layer,
@@ -215,8 +215,8 @@ def intersect(
             force=force)
 
 def export_by_location(
-        input_to_select_from_path: str,
-        input_to_compare_with_path: str,
+        input_to_select_from_path: Union[str, 'os.PathLike[Any]'],
+        input_to_compare_with_path: Union[str, 'os.PathLike[Any]'],
         output_path: str,
         input1_layer: str = None,
         input2_layer: str = None,
@@ -229,9 +229,9 @@ def export_by_location(
     features in input_to_compare_with_path.
     
     Args:
-        input_to_select_from_path (str): the 1st input file
-        input_to_compare_with_path (str): the 2nd input file
-        output_path (str): the file to write the result to
+        input_to_select_from_path (PathLike): the 1st input file
+        input_to_compare_with_path (PathLike): the 2nd input file
+        output_path (PathLike): the file to write the result to
         input1_layer (str, optional): input layer name. Optional if the  
                 file only contains one layer.
         input2_layer (str, optional): input layer name. Optional if the  
@@ -245,11 +245,10 @@ def export_by_location(
         force (bool, optional): overwrite existing output file(s). 
                 Defaults to False.
     """
-
     return geofileops_ogr.export_by_location(
-            input_to_select_from_path=input_to_select_from_path,
-            input_to_compare_with_path=input_to_compare_with_path,
-            output_path=output_path,
+            input_to_select_from_path=Path(input_to_select_from_path),
+            input_to_compare_with_path=Path(input_to_compare_with_path),
+            output_path=Path(output_path),
             input1_layer=input1_layer,
             input2_layer=input2_layer,
             output_layer=output_layer,
@@ -258,9 +257,9 @@ def export_by_location(
             force=force)
 
 def export_by_distance(
-        input_to_select_from_path: str,
-        input_to_compare_with_path: str,
-        output_path: str,
+        input_to_select_from_path: Union[str, 'os.PathLike[Any]'],
+        input_to_compare_with_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
         max_distance: float,
         input1_layer: str = None,
         input2_layer: str = None,
@@ -273,9 +272,9 @@ def export_by_distance(
     distance specified of any features in input_to_compare_with_path.
     
     Args:
-        input_to_select_from_path (str): the 1st input file
-        input_to_compare_with_path (str): the 2nd input file
-        output_path (str): the file to write the result to
+        input_to_select_from_path (PathLike): the 1st input file
+        input_to_compare_with_path (PathLike): the 2nd input file
+        output_path (PathLike): the file to write the result to
         max_distance (float): maximum distance
         input1_layer (str, optional): input layer name. Optional if the  
                 file only contains one layer.
@@ -290,11 +289,10 @@ def export_by_distance(
         force (bool, optional): overwrite existing output file(s). 
                 Defaults to False.
     """
-
     return geofileops_ogr.export_by_distance(
-            input_to_select_from_path=input_to_select_from_path,
-            input_to_compare_with_path=input_to_compare_with_path,
-            output_path=output_path,
+            input_to_select_from_path=Path(input_to_select_from_path),
+            input_to_compare_with_path=Path(input_to_compare_with_path),
+            output_path=Path(output_path),
             max_distance=max_distance,
             input1_layer=input1_layer,
             input2_layer=input2_layer,
@@ -322,8 +320,8 @@ def dissolve(
     The result is written to the output file specified. 
 
     Args:
-        input_path (str): the input file
-        output_path (str): the file to write the result to
+        input_path (PathLike): the input file
+        output_path (PathLike): the file to write the result to
         groupby_columns: (List[str]): list of columns to group on before applying the union.
         explodecollections (bool): True to convert all multi-geometries to 
                 singular ones after the dissolve. Defaults to False.
@@ -338,17 +336,21 @@ def dissolve(
         force (bool, optional): overwrite existing output file(s). 
                 Defaults to False.
     """
-    
+    # Init
+    input_cardsheets_path_p = None
+    if input_cardsheets_path is not None:
+        input_cardsheets_path_p = Path(input_cardsheets_path)
+        
     return geofileops_gpd.dissolve(
-            input_path=input_path,
-            output_path=output_path,
+            input_path=Path(input_path),
+            output_path=Path(output_path),
             groupby_columns=groupby_columns,
             aggfunc=aggfunc,
             explodecollections=explodecollections,
             keep_cardsheets=keep_cardsheets,
             input_layer=input_layer,        
             output_layer=output_layer,
-            input_cardsheets_path=input_cardsheets_path,
+            input_cardsheets_path=input_cardsheets_path_p,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)

@@ -6,6 +6,7 @@ import multiprocessing
 import os
 from pathlib import Path
 import shutil
+import tempfile
 from typing import Any, AnyStr, List, Optional, Tuple, Union
 
 import fiona
@@ -26,8 +27,8 @@ logger = logging.getLogger(__name__)
 ################################################################################
 
 def select(
-        input_path: str,
-        output_path: str,
+        input_path: Path,
+        output_path: Path,
         sqlite_stmt: str,
         input_layer: str = None,        
         output_layer: str = None,
@@ -36,12 +37,12 @@ def select(
 
     ##### Init #####
     start_time = datetime.datetime.now()
-    if os.path.exists(output_path):
+    if output_path.exists():
         if force is False:
             logger.info(f"Stop select: output exists already {output_path}")
             return
         else:
-            os.remove(output_path)
+            geofile.remove(output_path)
 
     if input_layer is None:
         input_layer = geofile.get_only_layer(input_path)
@@ -61,8 +62,8 @@ def select(
     logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
 
 def convexhull(
-        input_path: str,
-        output_path: str,
+        input_path: Path,
+        output_path: Path,
         input_layer: str = None,
         output_layer: str = None,
         nb_parallel: int = -1,
@@ -84,8 +85,8 @@ def convexhull(
             force=force)
 
 def buffer(
-        input_path: str,
-        output_path: str,
+        input_path: Path,
+        output_path: Path,
         buffer: float,
         quadrantsegments: int = 5,
         input_layer: str = None,
@@ -110,8 +111,8 @@ def buffer(
             force=force)
 
 def simplify(
-        input_path: str,
-        output_path: str,
+        input_path: Path,
+        output_path: Path,
         tolerance: float,        
         input_layer: str = None,        
         output_layer: str = None,
@@ -134,8 +135,8 @@ def simplify(
             force=force)
 
 def _single_layer_vector_operation(
-        input_path: str,
-        output_path: str,
+        input_path: Path,
+        output_path: Path,
         geom_operation_sqlite: str,
         geom_operation_description: str,
         input_layer: str = None,        
@@ -146,12 +147,12 @@ def _single_layer_vector_operation(
 
     ##### Init #####
     start_time = datetime.datetime.now()
-    if os.path.exists(output_path):
+    if output_path.exists():
         if force is False:
             logger.info(f"Stop {geom_operation_description}: output exists already {output_path}")
             return
         else:
-            os.remove(output_path)
+            geofile.remove(output_path)
 
     if input_layer is None:
         input_layer = geofile.get_only_layer(input_path)
@@ -159,7 +160,7 @@ def _single_layer_vector_operation(
         output_layer = geofile.get_default_layer(output_path)
 
     ##### Prepare tmp files #####
-    tempdir = create_tempdir(geom_operation_description.replace(' ', '_'))
+    tempdir = io_util.create_tempdir(geom_operation_description.replace(' ', '_'))
     logger.info(f"Start preparation of the temp files to calculate on in {tempdir}")
 
     try:
@@ -191,24 +192,22 @@ def _single_layer_vector_operation(
         if(nb_parallel == -1):
             nb_parallel = multiprocessing.cpu_count()
         nb_batches = nb_parallel*4
-        with futures.ThreadPoolExecutor(nb_parallel) as calculate_pool:
+        with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
             # Prepare columns to select
             layerinfo = geofile.getlayerinfo(input_path, input_layer)        
             columns_to_select_str = ''
-            if len(layerinfo['columns']) > 0:
-                columns_to_select_str = f", {','.join(layerinfo['columns'])}"
+            if len(layerinfo.columns) > 0:
+                columns_to_select_str = f", {','.join(layerinfo.columns)}"
             # Fill out the geometry column name in geom_operation_sqlite
             geom_operation_sqlite = geom_operation_sqlite.format(
-                    geom_column=layerinfo['geometry_column'])
+                    geom_column=layerinfo.geometrycolumn)
             # Calculate the number of features per thread
-            nb_rows_input_layer = layerinfo['featurecount']
+            nb_rows_input_layer = layerinfo.featurecount
             row_limit = int(nb_rows_input_layer/nb_batches)
             row_offset = 0
             # Prepare output filename
-            _, output_filename = os.path.split(output_path) 
-            output_filename_noext, output_ext = os.path.splitext(output_filename) 
-            tmp_output_path = os.path.join(tempdir, output_filename)
+            tmp_output_path = tempdir / output_path.name
 
             translate_jobs = {}    
             future_to_translate_id = {}
@@ -217,7 +216,7 @@ def _single_layer_vector_operation(
                 translate_jobs[translate_id] = {}
                 translate_jobs[translate_id]['layer'] = output_layer
 
-                output_tmp_partial_path = os.path.join(tempdir, f"{output_filename_noext}_{translate_id}{output_ext}")
+                output_tmp_partial_path = tempdir / f"{output_path.stem}_{translate_id}{output_path.suffix}"
                 translate_jobs[translate_id]['tmp_partial_output_path'] = output_tmp_partial_path
 
                 # For the last translate_id, take all rowid's left...
@@ -281,7 +280,7 @@ def _single_layer_vector_operation(
                         future_to_translate_id[future] = translate_id
                     elif translate_jobs[translate_id]['task_type'] == 'WRITE_RESULTS':
                         tmp_partial_output_path = translate_jobs[translate_id]['tmp_partial_output_path']
-                        os.remove(tmp_partial_output_path)
+                        geofile.remove(tmp_partial_output_path)
                 except Exception as ex:
                     translate_id = future_to_translate_id[future]
                     raise Exception(f"Error executing {translate_jobs[translate_id]}") from ex
@@ -289,47 +288,30 @@ def _single_layer_vector_operation(
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
         geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
-        shutil.move(tmp_output_path, output_path, copy_function=io_util.copyfile)
+        geofile.move(tmp_output_path, output_path)
     finally:
         # Clean tmp dir
         shutil.rmtree(tempdir)
         logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
     
 def intersect(
-        input1_path: str,
-        input2_path: str,
-        output_path: str,
+        input1_path: Path,
+        input2_path: Path,
+        output_path: Path,
         input1_layer: str = None,
         input2_layer: str = None,
         output_layer: str = None,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
-    """
-    Calculate the pairwise intersection of alle features in input1 with all 
-    features in input2.
-    
-    Args:
-        input1_path (str): [description]
-        input2_path (str): [description]
-        output_path (str): [description]
-        input1_layer (str, optional): [description]. Defaults to None.
-        input2_layer (str, optional): [description]. Defaults to None.
-        output_layer (str, optional): [description]. Defaults to None.
-        nb_parallel (int, optional): [description]. Defaults to -1.
-        force (bool, optional): [description]. Defaults to False.
-    
-    Raises:
-        Exception: [description]
-    """
 
     ##### Init #####
-    if os.path.exists(output_path):
+    if output_path.exists():
         if force is False:
             logger.info(f"Stop intersect: output file exists already {output_path}, so stop")
             return
         else:
-            os.remove(output_path)
+            geofile.remove(output_path)
 
     start_time = datetime.datetime.now()
     if input1_layer is None:
@@ -342,24 +324,23 @@ def intersect(
         nb_parallel = multiprocessing.cpu_count()
 
     # Prepare tmp layer/file names
-    tempdir = create_tempdir("intersect")
+    tempdir = io_util.create_tempdir("intersect")
     if(input1_layer != input2_layer):
         input1_tmp_layer = input1_layer
         input2_tmp_layer = input2_layer
     else:
         input1_tmp_layer = 'l1_' + input1_layer
         input2_tmp_layer = 'l2_' + input2_layer
-    input_tmp_path = os.path.join(tempdir, f"input_layers.gpkg")  
+    input_tmp_path = tempdir / "input_layers.gpkg"  
 
     ##### Prepare tmp files #####
     logger.info(f"Start preparation of the temp files to calculate on in {tempdir}")
 
     try:
         # Get input1 data to temp gpkg file
-        _, input1_ext = os.path.splitext(input1_path)
-        if(input1_ext == '.gpkg'):
+        if(input1_path.suffix.lower() == '.gpkg'):
             logger.debug(f"Copy {input1_path} to {input_tmp_path}")
-            io_util.copyfile(input1_path, input_tmp_path)
+            geofile.copy(input1_path, input_tmp_path)
         else:
             ogr_util.vector_translate(
                     input_path=input1_path,
@@ -395,13 +376,11 @@ def intersect(
 
         # Start calculation of intersections in parallel
         logger.info(f"Start calculation of intersections in file {input_tmp_path} to partial files")
-        _, output_filename = os.path.split(output_path) 
-        output_filename_noext, output_ext = os.path.splitext(output_filename) 
         
         intersect_jobs = []
         for split_id in split_jobs:
 
-            tmp_partial_output_path = os.path.join(tempdir, f"{output_filename_noext}_{split_id}{output_ext}")
+            tmp_partial_output_path = tempdir / f"{output_path.stem}_{split_id}{output_path.suffix}"
             tmp_partial_output_layer = geofile.get_default_layer(tmp_partial_output_path)
             input2_tmp_curr_layer = split_jobs[split_id]['layer']
             sqlite_stmt = f"""
@@ -442,7 +421,7 @@ def intersect(
         ##### Round up and clean up ##### 
         # Combine all partial results
         logger.info(f"Start copy from partial temp files to one temp output file")
-        tmp_output_path = os.path.join(tempdir, output_filename)
+        tmp_output_path = tempdir / output_path.name
         for intersect_job in intersect_jobs:
             tmp_partial_output_path = intersect_job.output_path
             tmp_partial_output_layer = intersect_job.output_layer
@@ -458,7 +437,7 @@ def intersect(
                     update=True,
                     force_output_geometrytype='MULTIPOLYGON',
                     verbose=verbose)
-        shutil.move(tmp_output_path, output_path, copy_function=io_util.copyfile)
+        geofile.move(tmp_output_path, output_path)
 
     finally:
         # Clean tmp dir
@@ -466,9 +445,9 @@ def intersect(
         logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
 
 def export_by_location(
-        input_to_select_from_path: str,
-        input_to_compare_with_path: str,
-        output_path: str,
+        input_to_select_from_path: Path,
+        input_to_compare_with_path: Path,
+        output_path: Path,
         input1_layer: str = None,
         input2_layer: str = None,
         output_layer: str = None,
@@ -521,9 +500,9 @@ def export_by_location(
             force=force)
 
 def export_by_distance(
-        input_to_select_from_path: str,
-        input_to_compare_with_path: str,
-        output_path: str,
+        input_to_select_from_path: Path,
+        input_to_compare_with_path: Path,
+        output_path: Path,
         max_distance: float,
         input1_layer: str = None,
         input2_layer: str = None,
@@ -563,9 +542,9 @@ def export_by_distance(
             force=force)
 
 def _two_layer_vector_operation(
-        input1_path: str,
-        input2_path: str,
-        output_path: str,
+        input1_path: Path,
+        input2_path: Path,
+        output_path: Path,
         sql_template: str,
         geom_operation_description: str,
         input1_layer: str = None,
@@ -600,12 +579,12 @@ def _two_layer_vector_operation(
     #            FROM file1 a LEFT JOIN 'file2.shp'.file2 b USING (id) WHERE a.Geometry != b.Geometry"
 
     ##### Init #####
-    if os.path.exists(output_path):
+    if output_path.exists():
         if force is False:
             logger.info(f"Stop _two_layer_vector_operation: output exists already {output_path}")
             return
         else:
-            os.remove(output_path)
+            geofile.remove(output_path)
 
     start_time = datetime.datetime.now()
     if input1_layer is None:
@@ -616,24 +595,23 @@ def _two_layer_vector_operation(
         output_layer = geofile.get_default_layer(output_path)
 
     # Prepare tmp layer/file names
-    tempdir = create_tempdir("export_by_location")
+    tempdir = io_util.create_tempdir("export_by_location")
     if(input1_layer != input2_layer):
         input1_tmp_layer = input1_layer
         input2_tmp_layer = input2_layer
     else:
         input1_tmp_layer = 'l1_' + input1_layer
         input2_tmp_layer = 'l2_' + input2_layer
-    input_tmp_path = os.path.join(tempdir, f"input_layers.gpkg") 
+    input_tmp_path = tempdir / "input_layers.gpkg" 
 
     ##### Prepare tmp files #####
     logger.info(f"Start preparation of the temp files to calculate on in {tempdir}")
 
     try:
         # Get input2 data to temp gpkg file
-        _, input2_ext = os.path.splitext(input2_path)
-        if(input2_ext == '.gpkg'):
+        if(input2_path.suffix.lower() == '.gpkg'):
             logger.debug(f"Copy {input2_path} to {input_tmp_path}")
-            io_util.copyfile(input2_path, input_tmp_path)
+            geofile.copy(input2_path, input_tmp_path)
         else:
             ogr_util.vector_translate(
                     input_path=input2_path,
@@ -655,7 +633,7 @@ def _two_layer_vector_operation(
         
         ##### Calculate! #####
         # We need the input1 column names to format the select
-        with fiona.open(input1_path) as layer:
+        with fiona.open(str(input1_path)) as layer:
             layer1_columns = layer.schema['properties'].keys()
         layer1_columns_in_subselect = [f"layer1.{column} l1_{column}" for column in layer1_columns]
         layer1_columns_in_subselect_str = ", ".join(layer1_columns_in_subselect)
@@ -665,7 +643,7 @@ def _two_layer_vector_operation(
         layer1_columns_in_groupby_str = ", ".join(layer1_columns_in_groupby)
 
         # We need the input2 column names to format the select
-        with fiona.open(input2_path) as layer:
+        with fiona.open(str(input2_path)) as layer:
             layer2_columns = layer.schema['properties'].keys()
         layer2_columns_in_subselect = [f"layer2.{column} l2_{column}" for column in layer2_columns]
         layer2_columns_in_subselect_str = ", ".join(layer2_columns_in_subselect)
@@ -682,28 +660,25 @@ def _two_layer_vector_operation(
         #nb_rows_input_layer = layerinfo['featurecount']
         #row_limit = int(nb_rows_input_layer/nb_batches)
         #row_offset = 0
+
         # Prepare output filename
-        _, output_filename = os.path.split(output_path) 
-        output_filename_noext, output_ext = os.path.splitext(output_filename) 
-        tmp_output_path = os.path.join(tempdir, output_filename)
+        tmp_output_path = tempdir / output_path.name
         
         ##### Calculate #####
         logger.info(f"Start {geom_operation_description} on file {input_tmp_path} to partial files")
         # Calculating can be done in parallel, but only one process can write to 
         # the same file at the time... 
-        with futures.ThreadPoolExecutor(nb_parallel) as calculate_pool: #, \
-             #futures.ThreadPoolExecutor(1) as write_result_pool:
+        with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
             # Start looping
             translate_jobs = {}    
             future_to_translate_id = {}
-            #for translate_id in range(nb_batches):
             for translate_id in split_jobs:
 
                 translate_jobs[translate_id] = {}
                 translate_jobs[translate_id]['layer'] = output_layer
 
-                tmp_output_partial_path = os.path.join(tempdir, f"{output_filename_noext}_{translate_id}{output_ext}")
+                tmp_output_partial_path = tempdir / f"{output_path.stem}_{translate_id}{output_path.suffix}"
                 translate_jobs[translate_id]['tmp_partial_output_path'] = tmp_output_partial_path
 
                 input1_tmp_curr_layer = split_jobs[translate_id]['layer']
@@ -743,7 +718,7 @@ def _two_layer_vector_operation(
                         tmp_partial_output_path = translate_jobs[translate_id]['tmp_partial_output_path']
 
                         # If there wasn't an exception, but the output file doesn't exist, the result was empty, so just skip.
-                        if not os.path.exists(tmp_partial_output_path):
+                        if not tmp_partial_output_path.exists():
                             continue
                         
                         sqlite_stmt = f'SELECT * FROM "{output_layer}"'                   
@@ -767,7 +742,7 @@ def _two_layer_vector_operation(
                         future_to_translate_id[future] = translate_id
                     elif translate_jobs[translate_id]['task_type'] == 'WRITE_RESULTS':
                         tmp_partial_output_path = translate_jobs[translate_id]['tmp_partial_output_path']
-                        os.remove(tmp_partial_output_path)
+                        geofile.remove(tmp_partial_output_path)
                 except Exception as ex:
                     translate_id = future_to_translate_id[future]
                     raise Exception(f"Error executing {translate_jobs[translate_id]}") from ex
@@ -775,30 +750,16 @@ def _two_layer_vector_operation(
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
         geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
-        shutil.move(tmp_output_path, output_path, copy_function=io_util.copyfile)
+        geofile.move(tmp_output_path, output_path)
         shutil.rmtree(tempdir)
         logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
     except Exception as ex:
         logger.exception(f"Processing ready with ERROR, took {datetime.datetime.now()-start_time}!")
 
-def create_tempdir(base_dirname: str) -> str:
-    #base_tempdir = os.path.join(tempfile.gettempdir(), base_dirname)
-    base_tempdir = os.path.join(r"C:\temp", base_dirname)
-
-    for i in range(1, 9999):
-        try:
-            tempdir = f"{base_tempdir}_{i:04d}"
-            os.mkdir(tempdir)
-            return tempdir
-        except FileExistsError:
-            continue
-
-    raise Exception(f"Wasn't able to create a temporary dir with basedir: {base_tempdir}")
-
 def split_layer_features(
-        input_path: str,
+        input_path: Path,
         input_layer: str,
-        output_path: str,
+        output_path: Path,
         output_baselayer: str,
         nb_parts: int,
         verbose: bool = False) -> dict:
@@ -815,14 +776,14 @@ def split_layer_features(
     # issues on the sqlite file, so needs to be done sequential!
     split_jobs = {}
     layerinfo = geofile.getlayerinfo(input_path, input_layer)
-    nb_rows_input_layer = layerinfo['featurecount']
+    nb_rows_input_layer = layerinfo.featurecount
     row_limit = int(nb_rows_input_layer/nb_parts)
     row_offset = 0
 
-    if layerinfo['geometry_column'] == 'geom':
+    if layerinfo.geometrycolumn == 'geom':
         geometry_column_for_select = 'geom'
     else:
-        geometry_column_for_select = f"{layerinfo['geometry_column']} geom"
+        geometry_column_for_select = f"{layerinfo.geometrycolumn} geom"
 
     for split_job_id in range(nb_parts):
         # Prepare destination layer name
@@ -870,8 +831,8 @@ def split_layer_features(
     return split_jobs
 
 def dissolve(
-        input_path: str,
-        output_path: str,
+        input_path: Path,
+        output_path: Path,
         groupby_columns: List[str] = None,
         explodecollections: bool = False,
         input_layer: str = None,        
@@ -881,12 +842,12 @@ def dissolve(
 
     ##### Init #####
     start_time = datetime.datetime.now()
-    if os.path.exists(output_path):
+    if output_path.exists():
         if force is False:
             logger.info(f"Stop dissolve: Output exists already {output_path}")
             return
         else:
-            os.remove(output_path)
+            geofile.remove(output_path)
 
     if input_layer is None:
         input_layer = geofile.get_only_layer(input_path)
@@ -947,9 +908,9 @@ def dissolve(
     logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
 
 def dissolve_cardsheets(
-        input_path: str,
-        input_cardsheets_path: str,
-        output_path: str,
+        input_path: Path,
+        input_cardsheets_path: Path,
+        output_path: Path,
         groupby_columns: List[str] = None,
         explodecollections: bool = False,
         input_layer: str = None,        
@@ -960,23 +921,22 @@ def dissolve_cardsheets(
 
     ##### Init #####
     start_time = datetime.datetime.now()
-    if os.path.exists(output_path):
+    if output_path.exists():
         if force is False:
             logger.info(f"Stop dissolve_cardsheets: output exists already {output_path}, so stop")
             return
         else:
-            os.remove(output_path)
+            geofile.remove(output_path)
     if nb_parallel == -1:
         nb_parallel = multiprocessing.cpu_count()
         logger.info(f"Nb cpus found: {nb_parallel}")
 
     # Get input data to temp gpkg file
-    tempdir = create_tempdir("dissolve_cardsheets")
-    input_tmp_path = os.path.join(tempdir, f"input_layers.gpkg")
-    _, input_ext = os.path.splitext(input_path)
-    if(input_ext == '.gpkg'):
+    tempdir = io_util.create_tempdir("dissolve_cardsheets")
+    input_tmp_path = tempdir / "input_layers.gpkg"
+    if(input_path.suffix.lower() == '.gpkg'):
         logger.info(f"Copy {input_path} to {input_tmp_path}")
-        io_util.copyfile(input_path, input_tmp_path)
+        geofile.copy(input_path, input_tmp_path)
         logger.debug("Copy ready")
     else:
         # Remark: this temp file doesn't need spatial index
@@ -1015,9 +975,7 @@ def dissolve_cardsheets(
     try:
         # Start calculation of intersections in parallel
         logger.info(f"Start calculation of dissolves in file {input_tmp_path} to partial files")
-        _, output_filename = os.path.split(output_path) 
-        output_filename_noext, output_ext = os.path.splitext(output_filename)
-        tmp_output_path = os.path.join(tempdir, output_filename)
+        tmp_output_path = tempdir / output_path.name
 
         with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
@@ -1029,7 +987,7 @@ def dissolve_cardsheets(
                 translate_jobs[translate_id] = {}
                 translate_jobs[translate_id]['layer'] = output_layer
 
-                output_tmp_partial_path = os.path.join(tempdir, f"{output_filename_noext}_{translate_id}{output_ext}")
+                output_tmp_partial_path = tempdir / f"{output_path.stem}_{translate_id}{output_path.suffix}"
                 translate_jobs[translate_id]['tmp_partial_output_path'] = output_tmp_partial_path
 
                 # Remarks: 
@@ -1082,7 +1040,7 @@ def dissolve_cardsheets(
                     if translate_jobs[translate_id]['task_type'] == 'CALCULATE':
                         # If the calculate gave results, copy to output
                         tmp_partial_output_path = translate_jobs[translate_id]['tmp_partial_output_path']
-                        if os.path.exists(tmp_partial_output_path):
+                        if tmp_partial_output_path.exists():
                             sqlite_stmt = f'SELECT * FROM "{output_layer}"'                   
                             translate_description = f"Copy result {translate_id} of {nb_batches} to {output_layer}"
                             translate_info = ogr_util.VectorTranslateInfo(
@@ -1099,7 +1057,7 @@ def dissolve_cardsheets(
                                     priority_class='NORMAL',
                                     verbose=verbose)
                             ogr_util.vector_translate_by_info(info=translate_info)
-                            os.remove(tmp_partial_output_path)
+                            geofile.remove(tmp_partial_output_path)
                 except Exception as ex:
                     translate_id = future_to_translate_id[future]
                     #calculate_pool.shutdown()
@@ -1108,7 +1066,7 @@ def dissolve_cardsheets(
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
         geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
-        shutil.move(tmp_output_path, output_path, copy_function=io_util.copyfile)
+        geofile.move(tmp_output_path, output_path)
     finally:
         # Clean tmp dir
         shutil.rmtree(tempdir)

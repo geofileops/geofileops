@@ -1,12 +1,27 @@
 
 import os
+from pathlib import Path
 import shutil
-import sys
-import time
+import tempfile
 
 class CTError(Exception):
     def __init__(self, errors):
         self.errors = errors
+
+def create_tempdir(base_dirname: str) -> Path:
+    
+    defaulttempdir = Path(tempfile.gettempdir())
+    base_tempdir = defaulttempdir / base_dirname
+
+    for i in range(1, 9999):
+        try:
+            tempdir = f"{str(base_tempdir)}_{i:04d}"
+            os.mkdir(tempdir)
+            return Path(tempdir)
+        except FileExistsError:
+            continue
+
+    raise Exception(f"Wasn't able to create a temporary dir with basedir: {base_tempdir}")
 
 def copyfile(src, dst):
     """

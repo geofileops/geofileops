@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Module with helper functions to expand on some features of geopandas.
+Module with helper functions for geo files.
 """
 
 import filecmp
@@ -34,50 +34,43 @@ gdal.UseExceptions()        # Enable exceptions
 logger = logging.getLogger(__name__)
 #logger.setLevel(logging.DEBUG)
 
+shapefile_suffixes = ['.shp', '.dbf', '.shx', '.prj', '.qix', '.sbn', '.sbx']
+
 #-------------------------------------------------------------
 # The real work
 #-------------------------------------------------------------
 
-def getfileinfo(
+def listlayers(
         path: Union[str, 'os.PathLike[Any]'],
-        verbose: bool = False) -> dict:
+        verbose: bool = False) -> List[str]:
+
     """
-    Get information about the geofile.
+    Get the layers in a geofile.
 
     Args:
         path (PathLike): path to the file to get info about
         verbose (bool, optional): True to enable verbose logging. Defaults to False.
 
     Returns:
-        dict: the information about the file
+        List[str]: the list of layers
     """
-    # Get info
-    path_p = Path(path)
-    info_str = ogr_util.vector_info(
-            path=path_p, 
-            readonly=True,
-            verbose=verbose)
+    return fiona.listlayers(str(path))
 
-    # Prepare result
-    result_dict = {}
-    result_dict['info_str'] = info_str
-    result_dict['layers'] = []
-    info_strio = io.StringIO(info_str)
-    for line in info_strio.readlines():
-        line = line.strip()
-        if re.match(r"\A\d: ", line):
-            # It is a layer, now extract only the layer name
-            logger.debug(f"This is a layer: {line}")
-            layername_with_geomtype = re.sub(r"\A\d: ", "", line)
-            layername = re.sub(r" [(][a-zA-Z ]+[)]\Z", "", layername_with_geomtype)
-            result_dict['layers'].append(layername)
-
-    return result_dict
-
+class LayerInfo:
+    def __init__(self, 
+            name: str,
+            featurecount: int, 
+            geometrycolumn: str, 
+            columns: List[str]):
+        self.name = name
+        self.featurecount = featurecount
+        self.geometrycolumn = geometrycolumn
+        self.columns = columns
+    
 def getlayerinfo(
         path: Union[str, 'os.PathLike[Any]'],
         layer: str = None,
-        verbose: bool = False) -> dict:
+        verbose: bool = False) -> LayerInfo:
     """
     Get information about a layer in the geofile.
 
@@ -88,107 +81,126 @@ def getlayerinfo(
         verbose (bool, optional): True to enable verbose logging. Defaults to False.
 
     Returns:
-        dict: the information about the layer
+        LayerInfo: the information about the layer
     """        
     ##### Init #####
-    path_p = Path(path)
-    datasource = gdal.OpenEx(path_p)
+    datasource = gdal.OpenEx(str(path))
     if layer is not None:
         datasource_layer = datasource.GetLayer(layer)
     elif datasource.GetLayerCount() == 1:
         datasource_layer = datasource.GetLayerByIndex(0)
     else:
-        raise Exception(f"No layer specified, and file has <> 1 layer: {path_p}")
-    
-    # Prepare result
-    result_dict = {}
-    result_dict['featurecount'] = datasource_layer.GetFeatureCount()
-    result_dict['geometry_column'] = datasource_layer.GetGeometryColumn()
+        raise Exception(f"No layer specified, and file has <> 1 layer: {path}")
 
     # Get column names
     columns = []
     layer_defn = datasource_layer.GetLayerDefn()
     for i in range(layer_defn.GetFieldCount()):
         columns.append(layer_defn.GetFieldDefn(i).GetName())
-    result_dict['columns'] = columns
-    '''
-    ##### Get summary info #####
-    info_str = ogr_util.vector_info(
-            path=path, 
-            layer=layer,
-            readonly=True,
-            report_summary=True,
-            verbose=verbose)
+    geometrycolumn=datasource_layer.GetGeometryColumn()
+    if geometrycolumn == '':
+        geometrycolumn = 'geom'
+            
+    return LayerInfo(
+            name=datasource_layer.GetName(),
+            featurecount=datasource_layer.GetFeatureCount(),
+            geometrycolumn=geometrycolumn, 
+            columns=columns)
 
-    # Prepare result
-    result_dict = {}
-    result_dict['info_str'] = info_str
-    info_strio = StringIO(info_str)
-    for line in info_strio.readlines():
-        if line.startswith("Feature Count: "):
-            line_value = line.strip().replace("Feature Count: ", "")
-            result_dict['featurecount'] = int(line_value)
-        elif line.startswith("Geometry Column = "):
-            line_value = line.strip().replace("Geometry Column = ", "")
-            result_dict['geometry_column'] = line_value
+def get_only_layer(path: Union[str, 'os.PathLike[Any]']) -> str:
+    """
+    Get the layername for a file that only contains one layer.
 
-    # If no geometry_column info found, check if specific type of file
-    if 'geometry_column' not in result_dict:
-        _, ext = os.path.splitext(path)
-        ext_lower = ext.lower()
-        if ext_lower == '.shp':
-            result_dict['geometry_column'] = 'geometry'
-    
-    ##### Get (non geometry) columns #####
-    with fiona.open(path) as fio_layer:
-        result_dict['columns'] = fio_layer.schema['properties'].keys()
-    '''
+    If the file contains multiple layers, an exception is thrown.
 
-    return result_dict
+    Args:
+        path (PathLike): the file
 
-def get_only_layer(path: Union[str, 'os.PathLike[Any]']):
-    
-    path_p = Path(path)
-    layers = fiona.listlayers(path_p)
+    Raises:
+        Exception: [description]
+        Exception: [description]
+
+    Returns:
+        str: the layer name
+    """
+    layers = fiona.listlayers(Path(path))
     nb_layers = len(layers)
     if nb_layers == 1:
         return layers[0]
     elif nb_layers == 0:
-        raise Exception(f"Error: No layers found in {path_p}")
+        raise Exception(f"Error: No layers found in {path}")
     else:
-        raise Exception(f"Error: More than 1 layer found in {path_p}: {layers}")
+        raise Exception(f"Error: More than 1 layer found in {path}: {layers}")
 
 def get_default_layer(path: Union[str, 'os.PathLike[Any]']):
+    return Path(path).stem
+
+def has_spatial_index(
+        path: Union[str, 'os.PathLike[Any]'],
+        layer: str = None,
+        geometrycolumn: str = None) -> bool:
+    # Init
     path_p = Path(path)
-    return path_p.stem
+
+    # Now check the index
+    driver = get_driver(path_p)    
+    if driver == 'GPKG':
+        layerinfo = getlayerinfo(path_p, layer)
+        data_source = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_READONLY)
+        result = data_source.ExecuteSQL(
+                f"SELECT HasSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",
+                dialect='SQLITE')
+        row = result.GetNextFeature()
+        has_spatial_index = row.GetField(0)
+        return (has_spatial_index == 1)
+    elif driver == 'ESRI Shapefile':
+        index_path = path_p.parent / f"{path_p.stem}.qix" 
+        return index_path.exists()
+    else:
+        raise Exception(f"has_spatial_index not supported for {path_p}")
 
 def create_spatial_index(
         path: Union[str, 'os.PathLike[Any]'],
-        layer: str = None,
-        geometry_column: str = 'geom',
-        verbose: bool = False):
-
-    # Check input parameters
+        layer: str = None):
+    # Init
     path_p = Path(path)
-    if layer is None:
-        layer = get_only_layer(path_p)
+    layerinfo = getlayerinfo(path_p, layer)
 
-    '''
-    sqlite_stmt = f"SELECT CreateSpatialIndex('{layer}', '{geometry_column}')"
-    ogr_util.vector_info(path=path, sqlite_stmt=sqlite_stmt)
-    '''
-    #driver = ogr.GetDriverByName('SQLite')    
-    #data_source = driver.CreateDataSource('db.sqlite', ['SPATIALITE=YES'])    
-    data_source = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
-    #layer = data_source.CreateLayer('the_table', None, ogr.wkbLineString25D, ['SPATIAL_INDEX=NO'])
-    #geometry_column = layer.GetGeometryColumn()
-    data_source.ExecuteSQL(f"SELECT CreateSpatialIndex('{layer}', '{geometry_column}')") 
+    # Now really add index
+    datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
+    driver = get_driver(path_p)    
+    if driver == 'GPKG':
+        datasource.ExecuteSQL(
+                f"SELECT CreateSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",
+                dialect='SQLITE') 
+    else:
+        datasource.ExecuteSQL(f'CREATE SPATIAL INDEX ON "{layerinfo.name}"')
+
+def remove_spatial_index(
+        path: Union[str, 'os.PathLike[Any]'],
+        layer: str = None):
+    # Init
+    path_p = Path(path)
+    layerinfo = getlayerinfo(path_p, layer)
+
+    # Now really remove index
+    datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
+    driver = get_driver(path_p)    
+    if driver == 'GPKG':
+        datasource.ExecuteSQL(
+                f"SELECT DisableSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",
+                dialect='SQLITE') 
+    elif driver == 'ESRI Shapefile':
+        # DROP SPATIAL INDEX ON ... command gives an error, so just remove .qix
+        index_path = path_p.parent / f"{path_p.stem}.qix" 
+        index_path.unlink()
+    else:
+        datasource.ExecuteSQL(f'DROP SPATIAL INDEX ON "{layerinfo.name}"')
 
 def rename_layer(
         path: Union[str, 'os.PathLike[Any]'],
         layer: str,
-        new_layer: str,
-        verbose: bool = False):
+        new_layer: str):
 
     # Check input parameters
     path_p = Path(path)
@@ -345,11 +357,11 @@ def cmp(
     # For a shapefile, multiple files need to be compared
     if path1_p.suffix.lower() == '.shp':
         path2_noext, _ = os.path.splitext(path2_p)
-        shapefile_extentions = [".shp", ".dbf", ".shx"]
+        shapefile_base_suffixes = [".shp", ".dbf", ".shx"]
         path1_noext = path1_p.parent / path1_p.stem
         path2_noext = path2_p.parent / path2_p.stem
-        for ext in shapefile_extentions:
-            if not filecmp.cmp(str(path1_noext) + ext, str(path2_noext) + ext):
+        for ext in shapefile_base_suffixes:
+            if not filecmp.cmp(f"{str(path1_noext)}{ext}", f"{str(path2_noext)}{ext}"):
                 logger.info(f"File {path1_noext}{ext} is different from {path2_noext}{ext}")
                 return False
         return True
@@ -373,19 +385,20 @@ def copy(
 
     # For a shapefile, multiple files need to be copied
     if src_p.suffix.lower() == '.shp':
-        shapefile_extentions = [".shp", ".dbf", ".shx", ".prj"]
-
-        # If dest is a dir, just use copy. Otherwise concat dest filepaths
-        src_noext = src_p.parent / src_p.stem
+        # If dest is a dir, just use move. Otherwise concat dest filepaths
         if dst_p.is_dir():
-            for ext in shapefile_extentions:
-                shutil.copy(str(src_noext) + ext, dst_p)
+            for ext in shapefile_suffixes:
+                srcfile = src_p.parent / f"{src_p.stem}{ext}"
+                if srcfile.exists():
+                    shutil.copy(str(srcfile), dst_p)
         else:
-            dst_noext = dst_p.parent / dst_p.stem
-            for ext in shapefile_extentions:
-                shutil.copy(str(src_noext) + ext, str(dst_noext) + ext)                
+            for ext in shapefile_suffixes:
+                srcfile = src_p.parent / f"{src_p.stem}{ext}"
+                dstfile = dst_p.parent / f"{dst_p.stem}{ext}"
+                if srcfile.exists():
+                    shutil.copy(str(srcfile), dstfile)                
     else:
-        return shutil.copy(src_p, dst_p)
+        return shutil.copy(str(src_p), dst_p)
 
 def move(
         src: Union[str, 'os.PathLike[Any]'], 
@@ -404,26 +417,45 @@ def move(
 
     # For a shapefile, multiple files need to be copied
     if src_p.suffix.lower() == '.shp':
-        shapefile_extentions = [".shp", ".dbf", ".shx", ".prj"]
-
         # If dest is a dir, just use move. Otherwise concat dest filepaths
-        src_noext = src_p.parent / src_p.stem
         if dst_p.is_dir():
-            for ext in shapefile_extentions:
-                shutil.move(str(src_noext) + ext, dst_p)
+            for ext in shapefile_suffixes:
+                srcfile = src_p.parent / f"{src_p.stem}{ext}"
+                if srcfile.exists():
+                    shutil.move(str(srcfile), dst_p, copy_function=io_util.copyfile)
         else:
-            dst_noext = dst_p.parent / dst_p.stem
-            for ext in shapefile_extentions:
-                shutil.move(str(src_noext) + ext, str(dst_noext) + ext)                
+            for ext in shapefile_suffixes:
+                srcfile = src_p.parent / f"{src_p.stem}{ext}"
+                dstfile = dst_p.parent / f"{dst_p.stem}{ext}"
+                shutil.move(str(srcfile), dstfile, copy_function=io_util.copyfile)                
     else:
         return shutil.move(str(src_p), dst_p, copy_function=io_util.copyfile)
+
+def remove(path: Union[str, 'os.PathLike[Any]']):
+    """
+    Removes the geofile. Is it is a geofile composed of multiple files 
+    (eg. .shp) all files are removed.
+
+    Args:
+        path (PathLike): the file to remove
+    """
+    # Check input parameters
+    path_p = Path(path)
+
+    # For a shapefile, multiple files need to be copied
+    if path_p.suffix.lower() == '.shp':
+        for ext in shapefile_suffixes:
+            curr_path = path_p.parent / f"{path_p.stem}{ext}"
+            if curr_path.exists():
+                curr_path.unlink()
+    else:
+        path_p.unlink()
 
 def get_driver(path: Union[str, 'os.PathLike[Any]']) -> str:
     """
     Get the driver to use for the file extension of this filepath.
     """
-    path_p = Path(path)
-    return get_driver_for_ext(path_p.suffix)
+    return get_driver_for_ext(Path(path).suffix)
 
 def get_driver_for_ext(file_ext: str) -> str:
     """

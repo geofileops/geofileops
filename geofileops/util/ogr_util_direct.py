@@ -3,6 +3,7 @@
 #-------------------------------------
 import logging
 import os
+from pathlib import Path
 from typing import Tuple
 
 from osgeo import gdal
@@ -26,8 +27,8 @@ logger = logging.getLogger(__name__)
 class VectorTranslateInfo:
     def __init__(
             self,
-            input_path: str, 
-            output_path: str,
+            input_path: Path, 
+            output_path: Path,
             translate_description: str = None,
             output_layer: str = None,
             spatial_filter: Tuple[float, float, float, float] = None,
@@ -80,8 +81,8 @@ def vector_translate_by_info(info: VectorTranslateInfo):
             verbose=info.verbose)
 
 def vector_translate(
-        input_path: str, 
-        output_path: str,
+        input_path: Path, 
+        output_path: Path,
         translate_description: str = None,
         output_layer: str = None,
         spatial_filter: Tuple[float, float, float, float] = None,
@@ -139,7 +140,7 @@ def vector_translate(
     # Output layer creation options
     layerCreationOptions = []
     # TODO: should check if the layer exists instead of the file
-    if not os.path.exists(output_path):
+    if not output_path.exists():
         if create_spatial_index is not None:
             if create_spatial_index is True:
                 layerCreationOptions.extend(['SPATIAL_INDEX=YES'])
@@ -208,7 +209,7 @@ def vector_translate(
 
         # TODO: memory output support might be interesting to support
         ret_val = gdal.VectorTranslate(
-                destNameOrDestDS=output_path,
+                destNameOrDestDS=str(output_path),
                 srcDS=input_ds,
                 options=options)
         if ret_val is None:
@@ -227,13 +228,12 @@ def vector_translate_async(
         concurrent_pool,
         info: VectorTranslateInfo) -> bool:
 
-    #return vector_translate_by_info(info)
     return concurrent_pool.submit(
             vector_translate_by_info,
             info)
 
 def vector_info(
-        path: str, 
+        path: Path, 
         task_description = None,
         layer: str = None,
         readonly: bool = False,

@@ -46,8 +46,8 @@ lock = Lock()
 class VectorTranslateInfo:
     def __init__(
             self,
-            input_path: str, 
-            output_path: str,
+            input_path: Path, 
+            output_path: Path,
             translate_description: str = None,
             output_layer: str = None,
             spatial_filter: Tuple[float, float, float, float] = None,
@@ -157,8 +157,8 @@ return command_process
 '''
 
 def vector_translate(
-        input_path: str, 
-        output_path: str,
+        input_path: Path, 
+        output_path: Path,
         translate_description: str = None,
         output_layer: str = None,
         spatial_filter: Tuple[float, float, float, float] = None,
@@ -179,8 +179,7 @@ def vector_translate(
 
     ##### Init #####
     if output_layer is None:
-        _, filename = os.path.split(output_path)
-        output_layer, _ = os.path.splitext(filename)
+        output_layer = output_path.stem
 
     # Add all parameters to args list
     args = [str(ogr2ogr_exe)]
@@ -204,8 +203,8 @@ def vector_translate(
         args.append('-update')
 
     # Files
-    args.append(output_path)
-    args.append(input_path)
+    args.append(str(output_path))
+    args.append(str(input_path))
 
     # Output layer options
     if explodecollections is True:
@@ -243,7 +242,7 @@ def vector_translate(
 
     ##### Now start ogr2ogr #####
     # Save whether the output file exists already prior to the operation
-    output_path_exists_already = os.path.exists(output_path)
+    output_path_exists_already = output_path.exists()
 
     # Set priority of the process, so computer stays responsive
     if priority_class is None or priority_class == 'NORMAL':
@@ -303,7 +302,7 @@ def vector_translate(
                 # If output_path didn't exist yet before, clean it up
                 if not output_path_exists_already:
                     # TODO: for shape files maybe all files need to be cleaned up?
-                    os.remove(output_path)
+                    output_path.unlink()
                 raise Exception(f"Error executing {pprint.pformat(args)}\n\t-> Return code: {returncode}\n\t-> Error: {err}\n\t->Output: {output}")
         elif(err is not None and err != ""
              and not str(err).startswith(r"Warning 1: Layer creation options ignored since an existing layer is")):
@@ -315,7 +314,7 @@ def vector_translate(
         # Check if the output file contains data
         fileinfo = getfileinfo(output_path, readonly=False)
         if len(fileinfo['layers']) == 0:
-            os.remove(output_path)
+            output_path.unlink()
             logger.warn(f"Finished, but empty result for '{translate_description}'")
         elif verbose is True:
             logger.info(f"Finished '{translate_description}'")
@@ -328,7 +327,7 @@ def vector_translate(
     raise Exception(f"Error executing {pprint.pformat(args)}\n\t-> Return code: {returncode}\n\t-> Error: {err}")
 
 def getfileinfo(
-        path: str,
+        path: Path,
         readonly: bool = True,
         verbose: bool = False) -> dict:
             
@@ -355,7 +354,7 @@ def getfileinfo(
     return result_dict
 
 def vector_info(
-        path: Union[str, 'os.PathLike[Any]'], 
+        path: Path, 
         task_description = None,
         layer: str = None,
         readonly: bool = False,
@@ -365,9 +364,8 @@ def vector_info(
     """"Run a command"""
 
     ##### Init #####
-    path_p = Path(path)
-    if not path_p.exists():
-        raise Exception(f"File does not exist: {path_p}")
+    if not path.exists():
+        raise Exception(f"File does not exist: {path}")
 
     # Add all parameters to args list
     args = [str(ogrinfo_exe)]
@@ -380,7 +378,7 @@ def vector_info(
         args.extend(['-dialect', 'sqlite', '-sql', sqlite_stmt])
 
     # File and optionally the layer
-    args.append(str(path_p))
+    args.append(str(path))
     if layer is not None:
         # ogrinfo doesn't like + need quoted layer names, so remove single and double quotes
         layer_stripped = layer.strip("'\"")
@@ -422,7 +420,7 @@ def vector_info(
         return output
 
     # If we get here, the retries didn't suffice to get it executed properly
-    raise Exception(f"Error executing {pprint.pformat(args)}\n\t-> Return code: {returncode}\n\t-> Error: {err}")
+    raise Exception(f"Error executing {pprint.pformat(args)}\n\t-> Return code: {returncode}")
 
 if __name__ == '__main__':
     None
