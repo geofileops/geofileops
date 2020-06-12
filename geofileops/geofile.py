@@ -7,6 +7,7 @@ import filecmp
 import logging
 import os
 from pathlib import Path
+import pyproj
 import shutil
 from typing import Any, List, Tuple, Union
 
@@ -20,8 +21,6 @@ import geopandas as gpd
 from osgeo import gdal
 
 from .util import io_util
-from .util import ogr_util
-from .util import ogr_util_direct
 
 #-------------------------------------------------------------
 # First define/init some general variables/constants
@@ -204,8 +203,10 @@ def rename_layer(
     if layer is None:
         layer = get_only_layer(path_p)
 
-    sqlite_stmt = f'ALTER TABLE "{layer}" RENAME TO "{new_layer}"'
-    ogr_util.vector_info(path=path_p, sqlite_stmt=sqlite_stmt)
+    # Now really rename
+    datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
+    sql_stmt = f'ALTER TABLE "{layer}" RENAME TO "{new_layer}"'
+    datasource.ExecuteSQL(sql_stmt)
 
 def add_column(
         path: Union[str, 'os.PathLike[Any]'],
@@ -227,20 +228,23 @@ def add_column(
             raise Exception(f"Columns type should be specified for colum name: {column_name}")
 
     ##### Go! #####
-    sqlite_stmt = f'ALTER TABLE "{layer}" ADD COLUMN "{column_name}" {column_type}'
-
+    datasource = None
     try:
-        ogr_util.vector_info(path=path_p, sqlite_stmt=sqlite_stmt, readonly=False)
-
+        datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
+        sqlite_stmt = f'ALTER TABLE "{layer}" ADD COLUMN "{column_name}" {column_type}'
+        datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
         if column_name == 'area':
             sqlite_stmt = f'UPDATE "{layer}" SET "{column_name}" = ST_area(geom)'
-            ogr_util.vector_info(path=path_p, sqlite_stmt=sqlite_stmt)
+            datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
     except Exception as ex:
         # If the column exists already, just print warning
         if 'duplicate column name:' in str(ex):
             logger.warning(f"Column {column_name} existed already in {path_p}")
         else:
             raise ex
+    finally:
+        if datasource is not None:
+            del datasource
 
 def read_file(
         path: Union[str, 'os.PathLike[Any]'],
