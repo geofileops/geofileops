@@ -2,16 +2,16 @@ from concurrent import futures
 import datetime
 import logging
 import logging.config
+import math
 import multiprocessing
-import os
 from pathlib import Path
 import time
 from typing import Any, List, Optional, Tuple, Union
 
 import geopandas as gpd
-import psutil
 import shapely.geometry as sh_geom
 
+from . import general_util
 from geofileops import geofile
 from . import io_util
 from . import ogr_util
@@ -63,51 +63,23 @@ def buffer(
         ##### Calculate #####
         # Remark: calculating can be done in parallel, but only one process 
         # can write to the same output file at the time...
-        
+
         # Calculate the best number of parallel processes and batches for 
         # the available resources
-        if(nb_parallel == -1):
-            nb_parallel = multiprocessing.cpu_count()
-
-        memory_basefootprint = 50*1024*1024
-        memory_per_row = 100*1024*1024/30000   # Memory usage per row
-        min_rows_per_batch = 5000
-        memory_min_per_process = memory_basefootprint + memory_per_row * min_rows_per_batch
-        memory_usable = psutil.virtual_memory().available * 0.9
-        
-        # If the available memory is very small, check if we can use more swap 
-        if memory_usable < 1024*1024:
-            memory_usable = min(psutil.swap_memory().free, 1024*1024)
-        logger.info(f"memory_usable: {formatbytes(memory_usable)} with mem.available: {formatbytes(psutil.virtual_memory().available)} and swap.free: {formatbytes(psutil.swap_memory().free)}") 
-
-        # If not enough memory for the amount of parallellism asked, reduce
-        if (nb_parallel * memory_min_per_process) > memory_usable:
-            nb_parallel = int(memory_usable/memory_min_per_process)
-            logger.info(f"Nb_parallel reduced to {nb_parallel} to evade excessive memory usage")
-
-        # Calculate the number of rows per batch
         layerinfo = geofile.getlayerinfo(input_path, input_layer)
-        nb_rows_input_layer = layerinfo.featurecount
-
-        # Optimal number of batches and rows per batch 
-        nb_batches = int((nb_rows_input_layer*memory_per_row*nb_parallel)/(memory_usable-memory_basefootprint*nb_parallel))
-        if nb_batches < nb_parallel:
-            nb_batches = nb_parallel
-        
-        rows_per_batch = int(nb_rows_input_layer/nb_batches)
-        mem_predicted = (memory_basefootprint + rows_per_batch*memory_per_row)*nb_batches
-
-        logger.info(f"nb_batches: {nb_batches}, rows_per_batch: {rows_per_batch} for nb_rows_input_layer: {nb_rows_input_layer} will result in mem_predicted: {formatbytes(mem_predicted)}")   
         nb_rows_total = layerinfo.featurecount
+        nb_parallel, nb_batches, batch_size = general_util.get_parallellisation_params(
+                nb_rows_total=nb_rows_total,
+                nb_parallel=nb_parallel,
+                verbose=verbose)
 
         with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
             # Prepare output filename
             tmp_output_path = tempdir / output_path.name
 
-            row_limit = rows_per_batch
+            row_limit = batch_size
             row_offset = 0
-            nb_todo = nb_batches
             batches = {}    
             future_to_batch_id = {}
             nb_done = 0
@@ -189,7 +161,7 @@ def buffer(
 
                 # Log the progress and prediction speed
                 nb_done += 1
-                report_progress(start_time, nb_done, nb_todo, operation)
+                general_util.report_progress(start_time, nb_done, nb_batches, operation)
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
@@ -401,7 +373,7 @@ def dissolve(
 
                 # Log the progress and prediction speed
                 nb_done += 1
-                report_progress(start_time, nb_done, nb_todo, operation)
+                general_util.report_progress(start_time, nb_done, nb_todo, operation)
 
         # Now dissolve a second time to find elements on the border of the tiles that should 
         # still be dissolved
@@ -683,7 +655,7 @@ def unaryunion_cardsheets(
 
                 # Log the progress and prediction speed
                 nb_done += 1
-                report_progress(start_time, nb_done, nb_todo, operation)
+                general_util.report_progress(start_time, nb_done, nb_todo, operation)
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
@@ -694,21 +666,6 @@ def unaryunion_cardsheets(
         # Clean tmp dir
         #shutil.rmtree(tempdir)
         logger.info(f"{operation} ready, took {datetime.datetime.now()-start_time}!")
-
-def report_progress(
-        start_time: datetime.datetime,
-        nb_done: int,
-        nb_todo: int,
-        operation: str):
-
-    # 
-    time_passed = (datetime.datetime.now()-start_time).total_seconds()
-    if time_passed > 0 and nb_done > 0:
-        processed_per_hour = (nb_done/time_passed) * 3600
-        hours_to_go = (int)((nb_todo - nb_done)/processed_per_hour)
-        min_to_go = (int)((((nb_todo - nb_done)/processed_per_hour)%1)*60)
-        print(f"\r{hours_to_go:3d}:{min_to_go:2d} left to do {operation} on {(nb_todo-nb_done):6d} of {nb_todo}", 
-              end="", flush=True)
 
 def _unaryunion(
         input_path: Path,
@@ -802,27 +759,5 @@ def extract_polygons_from_gdf(
     
     return ret_gdf
 
-def formatbytes(bytes: float):
-    """
-    Return the given bytes as a human friendly KB, MB, GB, or TB string
-    """
-
-    bytes_float = float(bytes)
-    KB = float(1024)
-    MB = float(KB ** 2) # 1,048,576
-    GB = float(KB ** 3) # 1,073,741,824
-    TB = float(KB ** 4) # 1,099,511,627,776
-
-    if bytes_float < KB:
-        return '{0} {1}'.format(bytes_float,'Bytes' if 0 == bytes_float > 1 else 'Byte')
-    elif KB <= bytes_float < MB:
-        return '{0:.2f} KB'.format(bytes_float/KB)
-    elif MB <= bytes_float < GB:
-        return '{0:.2f} MB'.format(bytes_float/MB)
-    elif GB <= bytes_float < TB:
-        return '{0:.2f} GB'.format(bytes_float/GB)
-    elif TB <= bytes_float:
-        return '{0:.2f} TB'.format(bytes_float/TB)
-      
 if __name__ == '__main__':
     raise Exception("Not implemented!")
