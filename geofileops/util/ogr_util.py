@@ -14,12 +14,15 @@ from typing import Any, List, Tuple, Union
 from io import StringIO
 import re
 
+from osgeo import gdal
+gdal.UseExceptions() 
+
+from geofileops import geofile
+
 # TODO: on windows, the init of this doensn't seem to work properly... should be solved somewhere else?
 if os.name == 'nt':
-    os.environ["GDAL_DATA"] = r"C:\Tools\miniconda3\envs\orthoseg\Library\share\gdal"
-    os.environ["PROJ_LIB"] = r"C:\Tools\miniconda3\envs\orthoseg\Library\share\proj"
-
-#import _winreg as winreg
+    os.environ["GDAL_DATA"] = r"C:\Tools\miniconda3\envs\geofileops\Library\share\gdal"
+    os.environ["PROJ_LIB"] = r"C:\Tools\miniconda3\envs\geofileops\Library\share\proj"
 
 #-------------------------------------------------------------
 # First define/init some general variables/constants
@@ -62,6 +65,7 @@ class VectorTranslateInfo:
             force_output_geometrytype: str = None,
             priority_class: str = 'VERY_LOW',
             sqlite_journal_mode: str = 'WAL',
+            force_py: bool = False,
             verbose: bool = False):
         self.input_path = input_path
         self.output_path = output_path
@@ -79,6 +83,7 @@ class VectorTranslateInfo:
         self.force_output_geometrytype = force_output_geometrytype
         self.priority_class = priority_class
         self.sqlite_journal_mode = sqlite_journal_mode
+        self.force_py = force_py
         self.verbose = verbose
 
 def vector_translate_by_info(info: VectorTranslateInfo):
@@ -100,6 +105,7 @@ def vector_translate_by_info(info: VectorTranslateInfo):
             force_output_geometrytype=info.force_output_geometrytype,
             priority_class=info.priority_class,    
             sqlite_journal_mode=info.sqlite_journal_mode,
+            force_py=info.force_py,
             verbose=info.verbose)
 
 def vector_translate_async(
@@ -176,10 +182,68 @@ def vector_translate(
         force_output_geometrytype: str = None,
         priority_class: str = 'VERY_LOW',
         sqlite_journal_mode: str = 'WAL',
+        force_py: bool = False,
         verbose: bool = False) -> bool:
     """
     Run a command
     """
+    if os.getenv('GDAL_BIN') is None or force_py == True:
+        return vector_translate_py( 
+            input_path=input_path,
+            output_path=output_path,
+            translate_description=translate_description,
+            output_layer=output_layer,
+            spatial_filter=spatial_filter,
+            clip_bounds=clip_bounds,
+            sql_stmt=sql_stmt,
+            sql_dialect=sql_dialect,
+            transaction_size=transaction_size,
+            append=append,
+            update=update,
+            create_spatial_index=create_spatial_index,
+            explodecollections=explodecollections,
+            force_output_geometrytype=force_output_geometrytype,
+            priority_class=priority_class,    
+            sqlite_journal_mode=sqlite_journal_mode,
+            verbose=verbose)
+    else:
+        return vector_translate_exe( 
+            input_path=input_path,
+            output_path=output_path,
+            translate_description=translate_description,
+            output_layer=output_layer,
+            spatial_filter=spatial_filter,
+            clip_bounds=clip_bounds,
+            sql_stmt=sql_stmt,
+            sql_dialect=sql_dialect,
+            transaction_size=transaction_size,
+            append=append,
+            update=update,
+            create_spatial_index=create_spatial_index,
+            explodecollections=explodecollections,
+            force_output_geometrytype=force_output_geometrytype,
+            priority_class=priority_class,    
+            sqlite_journal_mode=sqlite_journal_mode,
+            verbose=verbose)
+
+def vector_translate_exe(
+        input_path: Path, 
+        output_path: Path,
+        translate_description: str = None,
+        output_layer: str = None,
+        spatial_filter: Tuple[float, float, float, float] = None,
+        clip_bounds: Tuple[float, float, float, float] = None, 
+        sql_stmt: str = None,
+        sql_dialect: str = None,
+        transaction_size: int = 65536,
+        append: bool = False,
+        update: bool = False,
+        create_spatial_index: bool = None,
+        explodecollections: bool = False,
+        force_output_geometrytype: str = None,
+        priority_class: str = 'VERY_LOW',
+        sqlite_journal_mode: str = 'WAL',
+        verbose: bool = False) -> bool:
 
     ##### Init #####
     if output_layer is None:
@@ -318,7 +382,7 @@ def vector_translate(
             logger.warn(f"\t-> Returncode ok, but stderr contains: {err}")
 
         # Check if the output file contains data
-        fileinfo = getfileinfo(output_path, readonly=False)
+        fileinfo = _getfileinfo(output_path, readonly=False)
         if len(fileinfo['layers']) == 0:
             output_path.unlink()
             logger.warn(f"Finished, but empty result for '{translate_description}'")
@@ -332,13 +396,167 @@ def vector_translate(
     # If we get here, the retries didn't suffice to get it executed properly
     raise Exception(f"Error executing {pprint.pformat(args)}\n\t-> Return code: {returncode}\n\t-> Error: {err}")
 
-def getfileinfo(
+def vector_translate_py(
+        input_path: Path, 
+        output_path: Path,
+        translate_description: str = None,
+        output_layer: str = None,
+        spatial_filter: Tuple[float, float, float, float] = None,
+        clip_bounds: Tuple[float, float, float, float] = None, 
+        sql_stmt: str = None,
+        sql_dialect: str = None,
+        transaction_size: int = 65536,
+        append: bool = False,
+        update: bool = False,
+        create_spatial_index: bool = None,
+        explodecollections: bool = False,
+        force_output_geometrytype: str = None,
+        priority_class: str = 'VERY_LOW',
+        sqlite_journal_mode: str = None,
+        verbose: bool = False) -> bool:
+
+    # Remark: when executing a select statement, I keep getting error that 
+    # there are two columns named "geom" as he doesnt see the "geom" column  
+    # in the select as a geometry column. Probably a version issue. Maybe 
+    # try again later.
+
+    args = []
+
+    # Sql'ing, Filtering, clipping  
+    if spatial_filter is not None:
+        args.extend(['-spat', str(spatial_filter[0]), str(spatial_filter[1]), 
+                    str(spatial_filter[2]), str(spatial_filter[3])])
+    if clip_bounds is not None:
+        args.extend(['-clipsrc', str(clip_bounds[0]), str(clip_bounds[1]), 
+                    str(clip_bounds[2]), str(clip_bounds[3])])
+    '''
+    if sqlite_stmt is not None:
+        args.extend(['-sql', sqlite_stmt, '-dialect', 'sqlite'])
+    '''
+
+    # Output file options
+    if append is True:
+        args.append('-append')
+    if update is True:
+        args.append('-update')
+
+    # Files
+    #args.append(output_path)
+    #args.append(input_path)
+
+    # Output layer options
+    if explodecollections is True:
+        args.append('-explodecollections')
+    if output_layer is not None:
+        args.extend(['-nln', output_layer])
+    if force_output_geometrytype is not None:
+        args.extend(['-nlt', force_output_geometrytype])
+    if transaction_size is not None:
+        args.extend(['-gt', str(transaction_size)])
+
+    # Output layer creation options
+    layerCreationOptions = []
+    # TODO: should check if the layer exists instead of the file
+    if not output_path.exists():
+        if create_spatial_index is not None:
+            if create_spatial_index is True:
+                layerCreationOptions.extend(['SPATIAL_INDEX=YES'])
+            else:
+                layerCreationOptions.extend(['SPATIAL_INDEX=NO'])
+    # Get output format from the filename
+    # TODO: better te remove if not needed
+    output_format = geofile.get_driver(output_path)
+
+    # Sqlite specific options
+    datasetCreationOptions = []
+
+    '''
+    # Try if the busy_timeout isn't giving problems rather than solving them...
+    if sqlite_journal_mode is not None:
+        datasetCreationOptions.extend(['--config', 'OGR_SQLITE_PRAGMA', f"journal_mode={sqlite_journal_mode},busy_timeout=5000"])  
+    else:
+        datasetCreationOptions.extend(['--config OGR_SQLITE_PRAGMA busy_timeout=5000'])  
+    '''
+    if sqlite_journal_mode is not None:
+        gdal.SetConfigOption('OGR_SQLITE_PRAGMA', f"journal_mode={sqlite_journal_mode}")
+
+    #if append is False:
+    #    args.extend(['--config', 'OGR_SQLITE_PRAGMA', '"journal_mode=WAL"'])
+    #    args.extend(['-dsco', 'ADD_GPKG_OGR_CONTENTS=NO'])
+    #else:
+    #    args.extend(['--config', 'OGR_SQLITE_PRAGMA', 'busy_timeout=-1'])  
+    #args.extend(['--config', 'OGR_SQLITE_SYNCHRONOUS', 'OFF'])  
+    gdal.SetConfigOption('OGR_SQLITE_CACHE', '512')
+
+    options = gdal.VectorTranslateOptions(
+            options=args, 
+            format=output_format, 
+            accessMode=None, 
+            srcSRS=None, 
+            dstSRS=None, 
+            reproject=False, 
+            SQLStatement=sql_stmt,
+            SQLDialect=sql_dialect,
+            where=None, 
+            selectFields=None, 
+            addFields=False, 
+            forceNullable=False, 
+            spatFilter=spatial_filter, 
+            spatSRS=None,
+            datasetCreationOptions=datasetCreationOptions, 
+            layerCreationOptions=layerCreationOptions, 
+            layers=None, # TODO: implement! [output_layer]
+            layerName=output_layer,
+            geometryType=None, 
+            dim=None, 
+            segmentizeMaxDist=None, 
+            zField=None, 
+            skipFailures=False, 
+            limit=None, 
+            callback=None, 
+            callback_data=None)
+
+    input_ds = None
+    try: 
+        # In some cases gdal only raises the last exception instead of the stack in VectorTranslate, 
+        # so you lose necessary details! -> uncomment gdal.DontUseExceptions() when debugging!
+        #gdal.DontUseExceptions()
+        if verbose:
+            logger.info(f"Execute {sql_stmt} on {input_path}")
+        input_ds = gdal.OpenEx(str(input_path))
+
+        # TODO: memory output support might be interesting to support
+        result_ds = gdal.VectorTranslate(
+                destNameOrDestDS=str(output_path),
+                srcDS=input_ds,
+                #SQLStatement=sql_stmt,
+                #SQLDialect=sql_dialect,
+                #layerName=output_layer
+                options=options
+                )
+        if result_ds is None:
+            raise Exception("BOEM")
+        else:
+            if result_ds.GetLayerCount() == 0:
+                del result_ds
+                geofile.remove(output_path)
+    except Exception as ex:
+        message = f"Error executing {sql_stmt}"
+        logger.exception(message)
+        raise Exception(message) from ex
+    finally:
+        if input_ds is not None:
+            del input_ds
+        
+    return True
+
+def _getfileinfo(
         path: Path,
         readonly: bool = True,
         verbose: bool = False) -> dict:
             
     # Get info
-    info_str = vector_info(
+    info_str = _vector_info(
             path=path, 
             readonly=readonly,
             verbose=verbose)
@@ -359,7 +577,7 @@ def getfileinfo(
 
     return result_dict
 
-def vector_info(
+def _vector_info(
         path: Path, 
         task_description = None,
         layer: str = None,
