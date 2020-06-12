@@ -123,7 +123,7 @@ def get_only_layer(path: Union[str, 'os.PathLike[Any]']) -> str:
     Returns:
         str: the layer name
     """
-    layers = fiona.listlayers(Path(path))
+    layers = fiona.listlayers(str(path))
     nb_layers = len(layers)
     if nb_layers == 1:
         return layers[0]
@@ -263,7 +263,7 @@ def read_file(
     # For file multilayer types, if no layer name specified, check if there is only one layer in the file.
     if(ext_lower in ['.gpkg'] 
        and layer is None):
-        listlayers = fiona.listlayers(path_p)
+        listlayers = fiona.listlayers(str(path_p))
         if len(listlayers) == 1:
             layer = listlayers[0]
         else:
@@ -311,9 +311,9 @@ def to_file(
     else:
         raise Exception(f"Not implemented for extension {ext_lower}")
         
-def get_crs(path: Union[str, 'os.PathLike[Any]']):
-    with fiona.open(path, 'r') as geofile:
-        return geofile.crs
+def get_crs(path: Union[str, 'os.PathLike[Any]']) -> pyproj.CRS:
+    with fiona.open(str(path), 'r') as geofile:
+        return pyproj.CRS(geofile.crs)
 
 def is_geofile(path: Union[str, 'os.PathLike[Any]']) -> bool:
     """
