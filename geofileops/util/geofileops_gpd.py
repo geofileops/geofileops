@@ -229,7 +229,7 @@ def _buffer_gpd(
     data_gdf.geometry = data_gdf.geometry.buffer(distance=buffer, resolution=quadrantsegments)
 
     if len(data_gdf) > 0:
-        geofile.to_file(gdf=data_gdf, path=output_path, layer=output_layer)
+        geofile.to_file(gdf=data_gdf, path=output_path, layer=output_layer, index=False)
 
     message = f"Took {datetime.datetime.now()-start_time} for {len(data_gdf)} rows ({rows})!"
     logger.info(message)
