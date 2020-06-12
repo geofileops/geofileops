@@ -51,7 +51,7 @@ if __name__ == '__main__':
     geofileops.buffer(
             input_path=buildings_diss_path,
             output_path=buildings_diss_buf50m_path,
-            buffer=50)
+            distance=50)
     logger.info("Ready buffer 50m")
 
     logger.info("Start dissolve buffer 50m")
@@ -69,7 +69,7 @@ if __name__ == '__main__':
     geofileops.buffer(
             input_path=buildings_diss_path,
             output_path=buildings_diss_buf100m_path,
-            buffer=100)
+            distance=100)
     logger.info("Ready buffer 100m")
 
     logger.info("Start dissolve buffer 100m")

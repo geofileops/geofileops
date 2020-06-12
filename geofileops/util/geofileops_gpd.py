@@ -29,27 +29,127 @@ logger = logging.getLogger(__name__)
 def buffer(
         input_path: Path,
         output_path: Path,
-        buffer: float,
+        distance: float,
         quadrantsegments: int = 5,
         input_layer: str = None,
         output_layer: str = None,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
+    # Init
+    operation = 'buffer'
+    operation_params = {
+            'distance': distance,
+            'quadrantsegments': quadrantsegments
+        }
+    
+    # Go!
+    return _apply_geooperation_to_layer(
+            input_path=input_path,
+            output_path=output_path,
+            operation=operation,
+            operation_params=operation_params,
+            input_layer=input_layer,
+            output_layer=output_layer,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
 
-    operation = "buffer"
-    if input_layer is None:
-        input_layer = geofile.get_only_layer(input_path)
+def convexhull(
+        input_path: Path,
+        output_path: Path,
+        input_layer: str = None,
+        output_layer: str = None,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+    # Init
+    operation = 'convexhull'
+    operation_params = {}
+    
+    # Go!
+    return _apply_geooperation_to_layer(
+            input_path=input_path,
+            output_path=output_path,
+            operation=operation,
+            operation_params=operation_params,
+            input_layer=input_layer,
+            output_layer=output_layer,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
 
+def simplify(
+        input_path: Path,
+        output_path: Path,
+        tolerance: float,
+        input_layer: str = None,
+        output_layer: str = None,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+    # Init
+    operation = 'simplify'
+    operation_params = {
+            'tolerance': tolerance
+        }
+    
+    # Go!
+    return _apply_geooperation_to_layer(
+            input_path=input_path,
+            output_path=output_path,
+            operation=operation,
+            operation_params=operation_params,
+            input_layer=input_layer,
+            output_layer=output_layer,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
+
+def _apply_geooperation_to_layer(
+        input_path: Path,
+        output_path: Path,
+        operation: str,
+        operation_params: dict,
+        input_layer: str = None,
+        output_layer: str = None,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+    """
+    Applies a geo operation on a layer.
+
+    The operation to apply can be the following:
+      - buffer: apply a buffer. Operation parameters:
+          - distance: distance to buffer
+          - quadrantsegments: number of points used to represent 1/4 of a circle
+      - convexhull: appy a convex hull.
+      - simplify: simplify the geometry using Douglas-Peukert algorythm. 
+          Operation parameters:
+          - tolerance: maximum distance to simplify.  
+
+    Args:
+        input_path (Path): [description]
+        output_path (Path): [description]
+        operation (str): the geo operation to apply.
+        operation_params (dict, optional): the parameters for the geo operation. 
+                Defaults to None 
+        input_layer (str, optional): [description]. Defaults to None.
+        output_layer (str, optional): [description]. Defaults to None.
+        nb_parallel (int, optional): [description]. Defaults to -1.
+        verbose (bool, optional): [description]. Defaults to False.
+        force (bool, optional): [description]. Defaults to False.
+    """
     ##### Init #####
     start_time = datetime.datetime.now()
+    if input_layer is None:
+        input_layer = geofile.get_only_layer(input_path)
     if output_path.exists():
         if force is False:
             logger.info(f"Stop {operation}: output exists already {output_path}")
             return
         else:
             geofile.remove(output_path)
-
     if input_layer is None:
         input_layer = geofile.get_only_layer(input_path)
     if output_layer is None:
@@ -102,11 +202,11 @@ def buffer(
 
                 # Remark: this temp file doesn't need spatial index
                 future = calculate_pool.submit(
-                        _buffer_gpd,
+                        _apply_geooperation,
                         input_path=input_path,
                         output_path=output_tmp_partial_path,
-                        buffer=buffer,
-                        quadrantsegments=quadrantsegments,
+                        operation=operation,
+                        operation_params=operation_params,
                         input_layer=input_layer,        
                         output_layer=output_layer,
                         rows=rows,
@@ -173,11 +273,11 @@ def buffer(
         #shutil.rmtree(tempdir)
         logger.info(f"{operation} ready, took {datetime.datetime.now()-start_time}!")
 
-def _buffer_gpd(
+def _apply_geooperation(
         input_path: Path,
         output_path: Path,
-        buffer: float,
-        quadrantsegments: int = 5,
+        operation: str,
+        operation_params: dict,
         input_layer: str = None,
         output_layer: str = None,
         rows = None,
@@ -185,8 +285,6 @@ def _buffer_gpd(
         force: bool = False) -> Optional[str]:
     
     ##### Init #####
-    start_time = datetime.datetime.now()
-    operation = 'buffer'
     if output_path.exists():
         if force is False:
             logger.info(f"Stop {operation}: output exists already {output_path}")
@@ -194,12 +292,24 @@ def _buffer_gpd(
         else:
             geofile.remove(output_path)
 
+    ##### Now go! #####
+    start_time = datetime.datetime.now()
     data_gdf = geofile.read_file(path=input_path, layer=input_layer, rows=rows)
     if len(data_gdf) == 0:
         logger.info(f"No input geometries found for rows: {rows} in layer: {input_layer} in input_path: {input_path}")
         return None
 
-    data_gdf.geometry = data_gdf.geometry.buffer(distance=buffer, resolution=quadrantsegments)
+    if operation == 'buffer':
+        data_gdf.geometry = data_gdf.geometry.buffer(
+                distance=operation_params['distance'], 
+                resolution=operation_params['quadrantsegments'])
+    elif operation == 'convexhull':
+        data_gdf.geometry = data_gdf.geometry.convex_hull
+    elif operation == 'simplify':
+        data_gdf.geometry = data_gdf.geometry.simplify(
+                tolerance=operation_params['tolerance'])
+    else:
+        raise Exception(f"Operation not supported: {operation}")     
 
     if len(data_gdf) > 0:
         geofile.to_file(gdf=data_gdf, path=output_path, layer=output_layer, index=False)

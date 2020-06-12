@@ -43,7 +43,7 @@ if __name__ == '__main__':
     geofileops.buffer(
             input_path=prc_path,
             output_path=prc_bufm1,
-            buffer=-1,
+            distance=-1,
             verbose=verbose)
 
     # alleen percelen waarin geen tuin mag voorkomen: filter:

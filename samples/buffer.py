@@ -25,7 +25,7 @@ def main():
     geofileops.buffer(
             input_path=str(input_path),
             output_path=str(output_path),
-            buffer=1,
+            distance=1,
             force=True)
     logger.info("Ready buffer")
 

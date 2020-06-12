@@ -88,7 +88,7 @@ def convexhull(
 def buffer(
         input_path: Path,
         output_path: Path,
-        buffer: float,
+        distance: float,
         quadrantsegments: int = 5,
         input_layer: str = None,
         output_layer: str = None,
@@ -97,7 +97,7 @@ def buffer(
         force: bool = False):
 
     #geom_operation_sqlite = f"ST_Buffer({{geom_column}}, {buffer}, {quadrantsegments})"
-    geom_operation_sqlite = f"ST_Buffer({{geom_column}}, {buffer})"
+    geom_operation_sqlite = f"ST_Buffer({{geom_column}}, {distance}, {quadrantsegments})"
     geom_operation_description = "buffer"
 
     return _single_layer_vector_operation(

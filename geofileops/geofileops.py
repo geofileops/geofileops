@@ -46,7 +46,6 @@ def select(
         verbose (bool, optional): write more info to the output. Defaults to False.
         force (bool, optional): overwrite existing output file(s). Defaults to False.
     """
-
     return geofileops_ogr.select(
             input_path=Path(input_path),
             output_path=Path(output_path),
@@ -85,7 +84,7 @@ def convexhull(
                 Defaults to False.
     """
 
-    return geofileops_ogr.convexhull(
+    return geofileops_gpd.convexhull(
             input_path=Path(input_path),
             output_path=Path(output_path),
             input_layer=input_layer,
@@ -97,7 +96,7 @@ def convexhull(
 def buffer(
         input_path: Union[str, 'os.PathLike[Any]'],
         output_path: Union[str, 'os.PathLike[Any]'],
-        buffer: float,
+        distance: float,
         quadrantsegments: int = 5,
         input_layer: str = None,
         output_layer: str = None,
@@ -112,7 +111,7 @@ def buffer(
     Args:
         input_path (PathLike): the input file
         output_path (PathLike): the file to write the result to
-        buffer (float): the buffer size to apply
+        distance (float): the buffer size to apply
         quadrantsegments (int): the number of points an arc needs to be 
                 approximated with. Defaults to 5.
         input_layer (str, optional): input layer name. Optional if the input 
@@ -130,7 +129,7 @@ def buffer(
     return geofileops_gpd.buffer(
             input_path=Path(input_path),
             output_path=Path(output_path),
-            buffer=buffer,
+            distance=distance,
             quadrantsegments=quadrantsegments,
             input_layer=input_layer,
             output_layer=output_layer,
@@ -168,7 +167,7 @@ def simplify(
                 Defaults to False.
     """
 
-    return geofileops_ogr.simplify(
+    return geofileops_gpd.simplify(
             input_path=Path(input_path),
             output_path=Path(output_path),
             tolerance=tolerance,
