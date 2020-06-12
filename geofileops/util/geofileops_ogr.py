@@ -425,14 +425,12 @@ def intersect(
         for intersect_job in intersect_jobs:
             tmp_partial_output_path = intersect_job.output_path
             tmp_partial_output_layer = intersect_job.output_layer
-            sqlite_stmt = f"SELECT * FROM \"{tmp_partial_output_layer}\""
             translate_description = f"Copy data from {tmp_partial_output_path} to file {tmp_output_path}"
             ogr_util.vector_translate(
                     input_path=tmp_partial_output_path,
                     output_path=tmp_output_path,
                     translate_description=translate_description,
                     output_layer=output_layer,
-                    sqlite_stmt=sqlite_stmt,
                     append=True,
                     update=True,
                     force_output_geometrytype='MULTIPOLYGON',
@@ -689,7 +687,6 @@ def _two_layer_vector_operation(
                         layer1_columns_in_groupby_str=layer1_columns_in_groupby_str)
 
                 translate_jobs[translate_id]['sqlite_stmt'] = sqlite_stmt
-                translate_jobs[translate_id]['task_type'] = 'CALCULATE'
                 translate_description = f"Calculate export_by_location between {input_tmp_path} and {tmp_output_partial_path}"
                 # Remark: this temp file doesn't need spatial index
                 translate_info = ogr_util.VectorTranslateInfo(
@@ -714,35 +711,30 @@ def _two_layer_vector_operation(
                     # Start copy of the result to a common file
                     # Remark: give higher priority, because this is the slowest factor
                     translate_id = future_to_translate_id[future]
-                    if translate_jobs[translate_id]['task_type'] == 'CALCULATE':
-                        tmp_partial_output_path = translate_jobs[translate_id]['tmp_partial_output_path']
+                    tmp_partial_output_path = translate_jobs[translate_id]['tmp_partial_output_path']
 
-                        # If there wasn't an exception, but the output file doesn't exist, the result was empty, so just skip.
-                        if not tmp_partial_output_path.exists():
-                            continue
-                        
-                        sqlite_stmt = f'SELECT * FROM "{output_layer}"'                   
-                        translate_description = f"Copy result {translate_id} of {nb_batches} to {output_layer}"
-                        
-                        translate_info = ogr_util.VectorTranslateInfo(
-                                input_path=tmp_partial_output_path,
-                                output_path=tmp_output_path,
-                                translate_description=translate_description,
-                                output_layer=output_layer,
-                                sqlite_stmt=sqlite_stmt,
-                                transaction_size=200000,
-                                append=True,
-                                update=True,
-                                create_spatial_index=False,
-                                force_output_geometrytype='MULTIPOLYGON',
-                                priority_class='NORMAL',
-                                verbose=verbose)
-                        translate_jobs[translate_id]['task_type'] = 'WRITE_RESULTS'
-                        ogr_util.vector_translate_by_info(info=translate_info)
-                        future_to_translate_id[future] = translate_id
-                    elif translate_jobs[translate_id]['task_type'] == 'WRITE_RESULTS':
-                        tmp_partial_output_path = translate_jobs[translate_id]['tmp_partial_output_path']
-                        geofile.remove(tmp_partial_output_path)
+                    # If there wasn't an exception, but the output file doesn't exist, the result was empty, so just skip.
+                    if not tmp_partial_output_path.exists():
+                        continue
+                    
+                    translate_description = f"Copy result {translate_id} of {nb_batches} to {output_layer}"
+                    
+                    translate_info = ogr_util.VectorTranslateInfo(
+                            input_path=tmp_partial_output_path,
+                            output_path=tmp_output_path,
+                            translate_description=translate_description,
+                            output_layer=output_layer,
+                            transaction_size=200000,
+                            append=True,
+                            update=True,
+                            create_spatial_index=False,
+                            force_output_geometrytype='MULTIPOLYGON',
+                            priority_class='NORMAL',
+                            verbose=verbose)
+                    ogr_util.vector_translate_by_info(info=translate_info)
+                    future_to_translate_id[future] = translate_id
+                    tmp_partial_output_path = translate_jobs[translate_id]['tmp_partial_output_path']
+                    geofile.remove(tmp_partial_output_path)
                 except Exception as ex:
                     translate_id = future_to_translate_id[future]
                     raise Exception(f"Error executing {translate_jobs[translate_id]}") from ex
@@ -1010,7 +1002,6 @@ def dissolve_cardsheets(
                     force_output_geometrytype = 'MULTIPOLYGON'
 
                 translate_jobs[translate_id]['sqlite_stmt'] = sqlite_stmt
-                translate_jobs[translate_id]['task_type'] = 'CALCULATE'
                 translate_description = f"Async dissolve {translate_id} of {nb_batches}, bounds: {cardsheet.geometry.bounds}"
                 # Remark: this temp file doesn't need spatial index
                 translate_info = ogr_util.VectorTranslateInfo(
@@ -1037,27 +1028,24 @@ def dissolve_cardsheets(
                     # Start copy of the result to a common file
                     # Remark: give higher priority, because this is the slowest factor
                     translate_id = future_to_translate_id[future]
-                    if translate_jobs[translate_id]['task_type'] == 'CALCULATE':
-                        # If the calculate gave results, copy to output
-                        tmp_partial_output_path = translate_jobs[translate_id]['tmp_partial_output_path']
-                        if tmp_partial_output_path.exists():
-                            sqlite_stmt = f'SELECT * FROM "{output_layer}"'                   
-                            translate_description = f"Copy result {translate_id} of {nb_batches} to {output_layer}"
-                            translate_info = ogr_util.VectorTranslateInfo(
-                                    input_path=tmp_partial_output_path,
-                                    output_path=tmp_output_path,
-                                    translate_description=translate_description,
-                                    output_layer=output_layer,
-                                    sqlite_stmt=sqlite_stmt,
-                                    transaction_size=200000,
-                                    append=True,
-                                    update=True,
-                                    create_spatial_index=False,
-                                    force_output_geometrytype='MULTIPOLYGON',
-                                    priority_class='NORMAL',
-                                    verbose=verbose)
-                            ogr_util.vector_translate_by_info(info=translate_info)
-                            geofile.remove(tmp_partial_output_path)
+                    # If the calculate gave results, copy to output
+                    tmp_partial_output_path = translate_jobs[translate_id]['tmp_partial_output_path']
+                    if tmp_partial_output_path.exists():
+                        translate_description = f"Copy result {translate_id} of {nb_batches} to {output_layer}"
+                        translate_info = ogr_util.VectorTranslateInfo(
+                                input_path=tmp_partial_output_path,
+                                output_path=tmp_output_path,
+                                translate_description=translate_description,
+                                output_layer=output_layer,
+                                transaction_size=200000,
+                                append=True,
+                                update=True,
+                                create_spatial_index=False,
+                                force_output_geometrytype='MULTIPOLYGON',
+                                priority_class='NORMAL',
+                                verbose=verbose)
+                        ogr_util.vector_translate_by_info(info=translate_info)
+                        geofile.remove(tmp_partial_output_path)
                 except Exception as ex:
                     translate_id = future_to_translate_id[future]
                     #calculate_pool.shutdown()
