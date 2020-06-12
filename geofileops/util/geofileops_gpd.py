@@ -271,24 +271,6 @@ def dissolve(
     tempdir = io_util.create_tempdir(operation)
 
     input_tmp_path = input_path
-    '''
-    input_tmp_path = os.path.join(tempdir, "input_layers.gpkg")
-    _, input_ext = os.path.splitext(input_path)
-    if(input_ext == '.gpkg'):
-        logger.debug(f"Copy {input_path} to {input_tmp_path}")
-        geofile.copy(input_path, input_tmp_path)
-        logger.debug("Copy ready")
-    else:
-        # Remark: this temp file doesn't need spatial index
-        logger.info(f"Copy {input_path} to {input_tmp_path} using ogr2ogr")
-        ogr_util.vector_translate(
-                input_path=input_path,
-                output_path=input_tmp_path,
-                create_spatial_index=False,
-                output_layer=input_layer,
-                verbose=verbose)
-        logger.debug("Copy ready")
-    '''
 
     # Get the cardsheets we want the dissolve to be bound on to be able to parallelize
     if input_cardsheets_path is not None:
