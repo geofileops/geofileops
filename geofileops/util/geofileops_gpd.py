@@ -506,10 +506,9 @@ def dissolve(
                 logger.info(intersecting_gdf)
                 geofile.to_file(intersecting_gdf, str(tmp_output_path) + '_inters.gpkg')
 
-        else:
-            # Now create spatial index and move to output location
-            geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
-            geofile.move(tmp_output_path, output_path)
+        # Now create spatial index and move to output location
+        geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
+        geofile.move(tmp_output_path, output_path)
 
     finally:
         # Clean tmp dir
