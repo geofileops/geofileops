@@ -322,7 +322,7 @@ def _apply_geooperation(
 def dissolve(
         input_path: Path,  
         output_path: Path,
-        groupby_columns: Optional[List[str]],
+        groupby_columns: Optional[List[str]] = None,
         aggfunc: str = None,
         explodecollections: bool = False,
         keep_cardsheets: bool = False,
@@ -371,28 +371,54 @@ def dissolve(
             return
         else:
             geofile.remove(output_path)
-    if nb_parallel == -1:
-        nb_cpu = multiprocessing.cpu_count()
-        nb_parallel = int(1.25 * nb_cpu)
-        logger.debug(f"Nb cpus found: {nb_cpu}, nb_parallel: {nb_parallel}")
-
-    # Get input data to temp gpkg file
-    # TODO: still necessary to copy locally?
-    tempdir = io_util.create_tempdir(operation)
-
-    input_tmp_path = input_path
+    
 
     # Get the cardsheets we want the dissolve to be bound on to be able to parallelize
     if input_cardsheets_path is not None:
         cardsheets_gdf = geofile.read_file(input_cardsheets_path)
+        if nb_parallel == -1:
+            nb_cpu = multiprocessing.cpu_count()
+            nb_parallel = int(1.25 * nb_cpu)
+            logger.debug(f"Nb cpus found: {nb_cpu}, nb_parallel: {nb_parallel}")
     else:
-        # TODO: implement heuristic to choose a grid in a smart way
-        cardsheets_gdf = None
-        raise Exception("Not implemented!")
+        # Calculate the best number of parallel processes and batches for 
+        # the available resources
+        layerinfo = geofile.getlayerinfo(input_path, input_layer)
+        nb_rows_total = layerinfo.featurecount
+        nb_parallel, nb_batches, _ = general_util.get_parallellisation_params(
+                nb_rows_total=nb_rows_total,
+                nb_parallel=nb_parallel,
+                verbose=verbose)
+        nb_rows = int(math.sqrt(nb_batches))
+        nb_columns = nb_rows
+
+        # Now create a grid based on the number of rows and columns
+        xmin,ymin,xmax,ymax = layerinfo.total_bounds
+        width = (xmax-xmin)/nb_columns
+        height = (ymax-ymin)/nb_rows
+
+        rows = int(math.ceil((ymax-ymin) /  height))
+        cols = int(math.ceil((xmax-xmin) / width))
+        XleftOrigin = xmin
+        XrightOrigin = xmin + width
+        YtopOrigin = ymax
+        YbottomOrigin = ymax- height
+        polygons = []
+        for _ in range(cols):
+            Ytop = YtopOrigin
+            Ybottom =YbottomOrigin
+            for _ in range(rows):
+                polygons.append(sh_geom.Polygon([(XleftOrigin, Ytop), (XrightOrigin, Ytop), (XrightOrigin, Ybottom), (XleftOrigin, Ybottom)])) 
+                Ytop = Ytop - height
+                Ybottom = Ybottom - height
+            XleftOrigin = XleftOrigin + width
+            XrightOrigin = XrightOrigin + width     
+        cardsheets_gdf = gpd.GeoDataFrame({'geometry':polygons})
 
     try:
         # Start calculation in parallel
-        logger.info(f"Start {operation} on file {input_tmp_path}")
+        logger.info(f"Start {operation} on file {input_path}")
+        tempdir = io_util.create_tempdir(operation)
         tmp_output_path = tempdir / output_path.name
         if output_layer is None:
             output_layer = geofile.get_default_layer(output_path)
