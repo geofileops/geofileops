@@ -99,7 +99,7 @@ def getlayerinfo(
         columns.append(layer_defn.GetFieldDefn(i).GetName())
     geometrycolumn=datasource_layer.GetGeometryColumn()
     if geometrycolumn == '':
-        geometrycolumn = 'geom'
+        geometrycolumn = 'geometry'
             
     return LayerInfo(
             name=datasource_layer.GetName(),
