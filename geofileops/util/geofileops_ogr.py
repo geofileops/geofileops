@@ -349,7 +349,7 @@ def intersect(
                     verbose=verbose)
         
         # Spread input2 data over different layers to be able to calculate in parallel
-        split_jobs = split_layer_features(
+        split_jobs = _split_layer_features(
                 input_path=input2_path,
                 input_layer=input2_layer,
                 output_path=input_tmp_path,
@@ -622,7 +622,7 @@ def _two_layer_vector_operation(
         if(nb_parallel == -1):
             nb_parallel = multiprocessing.cpu_count()
         nb_batches = nb_parallel*4
-        split_jobs = split_layer_features(
+        split_jobs = _split_layer_features(
                 input_path=input1_path,
                 input_layer=input1_layer,
                 output_path=input_tmp_path,
@@ -750,7 +750,7 @@ def _two_layer_vector_operation(
     except Exception as ex:
         logger.exception(f"Processing ready with ERROR, took {datetime.datetime.now()-start_time}!")
 
-def split_layer_features(
+def _split_layer_features(
         input_path: Path,
         input_layer: str,
         output_path: Path,
