@@ -57,10 +57,12 @@ class LayerInfo:
     def __init__(self, 
             name: str,
             featurecount: int, 
+            total_bounds: Tuple[float, float, float, float],
             geometrycolumn: str, 
             columns: List[str]):
         self.name = name
         self.featurecount = featurecount
+        self.total_bounds = total_bounds
         self.geometrycolumn = geometrycolumn
         self.columns = columns
     
@@ -101,6 +103,7 @@ def getlayerinfo(
     return LayerInfo(
             name=datasource_layer.GetName(),
             featurecount=datasource_layer.GetFeatureCount(),
+            total_bounds=datasource_layer.GetExtent(),
             geometrycolumn=geometrycolumn, 
             columns=columns)
 
