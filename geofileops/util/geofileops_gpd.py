@@ -6,6 +6,7 @@ import math
 import multiprocessing
 from pathlib import Path
 import time
+import shutil
 from typing import Any, List, Optional, Tuple, Union
 
 import geopandas as gpd
@@ -270,7 +271,7 @@ def _apply_geooperation_to_layer(
 
     finally:
         # Clean tmp dir
-        #shutil.rmtree(tempdir)
+        shutil.rmtree(tempdir)
         logger.info(f"{operation} ready, took {datetime.datetime.now()-start_time}!")
 
 def _apply_geooperation(
@@ -427,7 +428,7 @@ def dissolve(
 
             batches = {}    
             future_to_batch_id = {}    
-            nb_todo = len(cardsheets_gdf)
+            nb_batches = len(cardsheets_gdf)
             nb_done = 0
             for batch_id, cardsheet in enumerate(cardsheets_gdf.itertuples()):
         
@@ -467,7 +468,7 @@ def dissolve(
                         partial_output_gdf = geofile.read_file(tmp_partial_output_path)
                         geofile.to_file(partial_output_gdf, tmp_output_path, mode='a')
                         """                  
-                        translate_description = f"Copy result {batch_id} of {nb_todo} to {output_layer}"
+                        translate_description = f"Copy result {batch_id} of {nb_batches} to {output_layer}"
                         translate_info = ogr_util.VectorTranslateInfo(
                                 input_path=tmp_partial_output_path,
                                 output_path=tmp_output_path,
@@ -491,11 +492,11 @@ def dissolve(
 
                 # Log the progress and prediction speed
                 nb_done += 1
-                general_util.report_progress(start_time, nb_done, nb_todo, operation)
+                general_util.report_progress(start_time, nb_done, nb_batches, operation)
 
         # Now dissolve a second time to find elements on the border of the tiles that should 
         # still be dissolved
-        if not keep_cardsheets:
+        if not keep_cardsheets and nb_batches > 1:
             if groupby_columns is not None:
                 logger.info("Now dissolve the entire file to get final result")
             
@@ -511,6 +512,9 @@ def dissolve(
                         force=force)
                 # Now create spatial index
                 geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
+
+                # TODO: results from dissolve operation with groubpy are not always reliable -> fix!
+                logger.warning("The results of the aggfunc columns could be wrong!")
             else:
                 logger.info("Now dissolve the elements on the borders as well to get final result")
 
@@ -532,13 +536,16 @@ def dissolve(
                 logger.info(intersecting_gdf)
                 geofile.to_file(intersecting_gdf, str(tmp_output_path) + '_inters.gpkg')
 
-        # Now create spatial index and move to output location
+                # TODO: keep_cardsheets == False + groupby_columns == None -> Not implemented
+                raise Exception("keep_cardsheets == False + groupby_columns == None -> Not implemented")
+
+        # Ready! Create spatial index and move to output location
         geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
         geofile.move(tmp_output_path, output_path)
 
     finally:
         # Clean tmp dir
-        #shutil.rmtree(tempdir)
+        shutil.rmtree(tempdir)
         logger.info(f"{operation} ready, took {datetime.datetime.now()-start_time}!")
 
 def _dissolve(
@@ -781,7 +788,7 @@ def unaryunion_cardsheets(
 
     finally:
         # Clean tmp dir
-        #shutil.rmtree(tempdir)
+        shutil.rmtree(tempdir)
         logger.info(f"{operation} ready, took {datetime.datetime.now()-start_time}!")
 
 def _unaryunion(
