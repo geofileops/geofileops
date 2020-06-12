@@ -4,13 +4,11 @@ Module with helper functions for geo files.
 """
 
 import filecmp
-import io
 import logging
 import os
 from pathlib import Path
-import re
 import shutil
-from typing import Any, List, Union
+from typing import Any, List, Tuple, Union
 
 # TODO: on windows, the init of this doensn't seem to work properly... should be solved somewhere else?
 if os.name == 'nt':
@@ -171,7 +169,7 @@ def create_spatial_index(
     driver = get_driver(path_p)    
     if driver == 'GPKG':
         datasource.ExecuteSQL(
-                f"SELECT CreateSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",
+                f"SELECT CreateSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",                
                 dialect='SQLITE') 
     else:
         datasource.ExecuteSQL(f'CREATE SPATIAL INDEX ON "{layerinfo.name}"')
@@ -201,7 +199,6 @@ def rename_layer(
         path: Union[str, 'os.PathLike[Any]'],
         layer: str,
         new_layer: str):
-
     # Check input parameters
     path_p = Path(path)
     if layer is None:
@@ -319,10 +316,7 @@ def is_geofile(path: Union[str, 'os.PathLike[Any]']) -> bool:
     """
     Determines based on the filepath if this is a geofile.
     """
-    # Check input parameters
-    path_p = Path(path)
-
-    return is_geofile_ext(path_p.suffix)
+    return is_geofile_ext(Path(path).suffix)
 
 def is_geofile_ext(file_ext: str) -> bool:
     """
