@@ -427,7 +427,8 @@ def move(
             for ext in shapefile_suffixes:
                 srcfile = src_p.parent / f"{src_p.stem}{ext}"
                 dstfile = dst_p.parent / f"{dst_p.stem}{ext}"
-                shutil.move(str(srcfile), dstfile, copy_function=io_util.copyfile)                
+                if srcfile.exists():
+                    shutil.move(str(srcfile), dstfile, copy_function=io_util.copyfile)                
     else:
         return shutil.move(str(src_p), dst_p, copy_function=io_util.copyfile)
 
