@@ -29,7 +29,8 @@ logger = logging.getLogger(__name__)
 def select(
         input_path: Path,
         output_path: Path,
-        sqlite_stmt: str,
+        sql_stmt: str,
+        sql_dialect: str = None,
         input_layer: str = None,        
         output_layer: str = None,
         verbose: bool = False,
@@ -56,7 +57,8 @@ def select(
             output_path=output_path,
             translate_description=translate_description,
             output_layer=output_layer,
-            sqlite_stmt=sqlite_stmt,
+            sql_stmt=sql_stmt,
+            sql_dialect=sql_dialect,
             verbose=verbose)
 
     logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
@@ -221,18 +223,19 @@ def _single_layer_vector_operation(
 
                 # For the last translate_id, take all rowid's left...
                 if translate_id < nb_batches-1:
-                    sqlite_stmt = f'''
+                    sql_stmt = f'''
                             SELECT {geom_operation_sqlite} AS geom{columns_to_select_str} 
                               FROM "{input_layer}"
                              WHERE rowid >= {row_offset}
                                AND rowid < {row_offset + row_limit}'''
                 else:
-                    sqlite_stmt = f'''
+                    sql_stmt = f'''
                             SELECT {geom_operation_sqlite} AS geom{columns_to_select_str} 
                               FROM "{input_layer}"
                              WHERE rowid >= {row_offset}'''
                 translate_jobs[translate_id]['sqlite_stmt'] = sqlite_stmt
                 translate_jobs[translate_id]['task_type'] = 'CALCULATE'
+                translate_jobs[translate_id]['sql_stmt'] = sql_stmt
                 translate_description = f"Async {geom_operation_description} {translate_id} of {nb_batches}"
                 # Remark: this temp file doesn't need spatial index
                 translate_info = ogr_util.VectorTranslateInfo(
@@ -240,7 +243,8 @@ def _single_layer_vector_operation(
                         output_path=output_tmp_partial_path,
                         translate_description=translate_description,
                         output_layer=output_layer,
-                        sqlite_stmt=sqlite_stmt,
+                        sql_stmt=sql_stmt,
+                        sql_dialect='SQLITE',
                         create_spatial_index=False,
                         force_output_geometrytype='MULTIPOLYGON',
                         verbose=verbose)
@@ -383,7 +387,7 @@ def intersect(
             tmp_partial_output_path = tempdir / f"{output_path.stem}_{split_id}{output_path.suffix}"
             tmp_partial_output_layer = geofile.get_default_layer(tmp_partial_output_path)
             input2_tmp_curr_layer = split_jobs[split_id]['layer']
-            sqlite_stmt = f"""
+            sql_stmt = f"""
                     SELECT sub.geom, ST_area(sub.geom) area_inter
                           ,{layer1_columns_in_select_str}
                           ,{layer2_columns_in_select_str}
@@ -408,7 +412,8 @@ def intersect(
                     output_path=tmp_partial_output_path,
                     translate_description=translate_description,
                     output_layer=tmp_partial_output_layer,
-                    sqlite_stmt=sqlite_stmt,
+                    sql_stmt=sql_stmt,
+                    sql_dialect='SQLITE',
                     #append=True,
                     force_output_geometrytype='MULTIPOLYGON',
                     transaction_size=5000,
@@ -680,13 +685,13 @@ def _two_layer_vector_operation(
                 translate_jobs[translate_id]['tmp_partial_output_path'] = tmp_output_partial_path
 
                 input1_tmp_curr_layer = split_jobs[translate_id]['layer']
-                sqlite_stmt = sql_template.format(
+                sql_stmt = sql_template.format(
                         layer1_columns_in_subselect_str=layer1_columns_in_subselect_str,
                         input1_tmp_layer=input1_tmp_curr_layer,
                         input2_tmp_layer=input2_tmp_layer,
                         layer1_columns_in_groupby_str=layer1_columns_in_groupby_str)
 
-                translate_jobs[translate_id]['sqlite_stmt'] = sqlite_stmt
+                translate_jobs[translate_id]['sqlite_stmt'] = sql_stmt
                 translate_description = f"Calculate export_by_location between {input_tmp_path} and {tmp_output_partial_path}"
                 # Remark: this temp file doesn't need spatial index
                 translate_info = ogr_util.VectorTranslateInfo(
@@ -694,7 +699,8 @@ def _two_layer_vector_operation(
                         output_path=tmp_output_partial_path,
                         translate_description=translate_description,
                         output_layer=output_layer,
-                        sqlite_stmt=sqlite_stmt,
+                        sql_stmt=sql_stmt,
+                        sql_dialect='SQLITE',
                         create_spatial_index=False,
                         force_output_geometrytype='MULTIPOLYGON',
                         verbose=verbose)
@@ -797,13 +803,13 @@ def split_layer_features(
 
         # For the last translate_id, take all rowid's left...
         if split_job_id < nb_parts-1:
-            sqlite_stmt = f'''
+            sql_stmt = f'''
                     SELECT {geometry_column_for_select}{columns_to_select_str}  
                         FROM "{input_layer}"
                         WHERE rowid >= {row_offset}
                         AND rowid < {row_offset + row_limit}'''
         else:
-            sqlite_stmt = f'''
+            sql_stmt = f'''
                     SELECT {geometry_column_for_select}{columns_to_select_str}  
                         FROM "{input_layer}"
                         WHERE rowid >= {row_offset}'''
@@ -814,7 +820,8 @@ def split_layer_features(
                 output_path=output_path,
                 translate_description=translate_description,
                 output_layer=output_layer_curr,
-                sqlite_stmt=sqlite_stmt,
+                sql_stmt=sql_stmt,
+                sql_dialect='SQLITE',
                 append=True,
                 force_output_geometrytype='MULTIPOLYGON',
                 verbose=verbose)
@@ -861,27 +868,27 @@ def dissolve(
 
     # Remark: calculating the area in the enclosing selects halves the processing time
 
-    sqlite_stmt = f"""
+    sql_stmt = f"""
             SELECT sub.*, ST_area(sub.geom) AS area 
               FROM (SELECT ST_union(t.geom) AS geom{groupby_columns_for_select_str}
                       FROM {input_layer} t
                      GROUP BY {groupby_columns_for_groupby_str}) sub"""
-    sqlite_stmt = f"""
+    sql_stmt = f"""
             SELECT ST_union(t.geom) AS geom{groupby_columns_for_select_str}
               FROM {input_layer} t
              GROUP BY {groupby_columns_for_groupby_str}) sub"""
-    sqlite_stmt = f"""
+    sql_stmt = f"""
             SELECT ST_UnaryUnion(ST_Collect(t.geom)) AS geom{groupby_columns_for_select_str}
               FROM \"{input_layer}\" t
              GROUP BY {groupby_columns_for_groupby_str}"""
-    sqlite_stmt = f"""
+    sql_stmt = f"""
             SELECT ST_Collect(t.geom) AS geom{groupby_columns_for_select_str}
               FROM \"{input_layer}\" t"""
-    sqlite_stmt = f"""
+    sql_stmt = f"""
             SELECT ST_union(t.geom) AS geom{groupby_columns_for_select_str}
               FROM \"{input_layer}\" t"""
 
-    sqlite_stmt = f"""
+    sql_stmt = f"""
         SELECT ST_union(t.geom) AS geom{groupby_columns_for_select_str}
             FROM \"{input_layer}\" t
             GROUP BY {groupby_columns_for_groupby_str}"""
@@ -892,7 +899,8 @@ def dissolve(
             output_path=output_path,
             translate_description=translate_description,
             output_layer=output_layer,
-            sqlite_stmt=sqlite_stmt,
+            sql_stmt=sql_stmt,
+            sql_dialect='SQLITE',
             force_output_geometrytype='MULTIPOLYGON',
             explodecollections=explodecollections,
             verbose=verbose)
@@ -987,7 +995,7 @@ def dissolve_cardsheets(
                 #   - ST_union() gives same performance as ST_unaryunion(ST_collect())!
                 bbox_xmin, bbox_ymin, bbox_xmax, bbox_ymax = cardsheet.geometry.bounds  
                 bbox_wkt = f"POLYGON (({bbox_xmin} {bbox_ymin}, {bbox_xmax} {bbox_ymin}, {bbox_xmax} {bbox_ymax}, {bbox_xmin} {bbox_ymax}, {bbox_xmin} {bbox_ymin}))"
-                sqlite_stmt = f"""
+                sql_stmt = f"""
                         SELECT ST_union(ST_intersection(t.geom, ST_GeomFromText('{bbox_wkt}'))) AS geom{groupby_columns_for_select_str}
                             FROM {input_layer} t
                             JOIN rtree_{input_layer}_geom t_tree ON t.fid = t_tree.id
@@ -1001,7 +1009,7 @@ def dissolve_cardsheets(
                 else:
                     force_output_geometrytype = 'MULTIPOLYGON'
 
-                translate_jobs[translate_id]['sqlite_stmt'] = sqlite_stmt
+                translate_jobs[translate_id]['sqlite_stmt'] = sql_stmt
                 translate_description = f"Async dissolve {translate_id} of {nb_batches}, bounds: {cardsheet.geometry.bounds}"
                 # Remark: this temp file doesn't need spatial index
                 translate_info = ogr_util.VectorTranslateInfo(
@@ -1010,7 +1018,8 @@ def dissolve_cardsheets(
                         translate_description=translate_description,
                         output_layer=output_layer,
                         #clip_bounds=cardsheet.geometry.bounds,
-                        sqlite_stmt=sqlite_stmt,
+                        sql_stmt=sql_stmt,
+                        sql_dialect='SQLITE',
                         append=True,
                         update=True,
                         explodecollections=True,

@@ -67,7 +67,7 @@ if __name__ == '__main__':
     geofileops.select(
             input_path=prc_bufm1,
             output_path=prc_bufm1_filtered,
-            sqlite_stmt=sqlite_stmt,
+            sql_stmt=sqlite_stmt,
             verbose=verbose)
 
     ### Voorbereiding gbg ###
@@ -80,7 +80,7 @@ if __name__ == '__main__':
     geofileops.select(
             input_path=gbg_path,
             output_path=gbg_filtered_path,
-            sqlite_stmt=sqlite_stmt,
+            sql_stmt=sqlite_stmt,
             verbose=verbose)
 
     ### Voorbereiding adp ###
@@ -109,7 +109,7 @@ if __name__ == '__main__':
     geofileops.select(
             input_path=adp_bijprc_bijgbg_path,
             output_path=adp_pot_tuin_path,
-            sqlite_stmt=sqlite_stmt,
+            sql_stmt=sqlite_stmt,
             verbose=verbose)
 
     # Bepalen stukken tuin in percelen
@@ -141,7 +141,7 @@ if __name__ == '__main__':
     geofileops.select(
             input_path=prc_bufm1_tuin_path,
             output_path=prc_bufm1_tuin_filtered_path,
-            sqlite_stmt=sqlite_stmt,
+            sql_stmt=sqlite_stmt,
             verbose=verbose)
 
     # Alleen overlappingen die dicht genoeg bij gebouw liggen

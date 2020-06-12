@@ -52,7 +52,8 @@ class VectorTranslateInfo:
             output_layer: str = None,
             spatial_filter: Tuple[float, float, float, float] = None,
             clip_bounds: Tuple[float, float, float, float] = None, 
-            sqlite_stmt: str = None,
+            sql_stmt: str = None,
+            sql_dialect: str = None,
             transaction_size: int = 65536,
             append: bool = False,
             update: bool = False,
@@ -68,7 +69,8 @@ class VectorTranslateInfo:
         self.output_layer = output_layer
         self.spatial_filter = spatial_filter
         self.clip_bounds = clip_bounds
-        self.sqlite_stmt = sqlite_stmt
+        self.sql_stmt = sql_stmt
+        self.sql_dialect = sql_dialect
         self.transaction_size = transaction_size
         self.append = append
         self.update = update
@@ -88,7 +90,8 @@ def vector_translate_by_info(info: VectorTranslateInfo):
             output_layer=info.output_layer,
             spatial_filter=info.spatial_filter,
             clip_bounds=info.clip_bounds,
-            sqlite_stmt=info.sqlite_stmt,
+            sql_stmt=info.sql_stmt,
+            sql_dialect=info.sql_dialect,
             transaction_size=info.transaction_size,
             append=info.append,
             update=info.update,
@@ -163,7 +166,8 @@ def vector_translate(
         output_layer: str = None,
         spatial_filter: Tuple[float, float, float, float] = None,
         clip_bounds: Tuple[float, float, float, float] = None, 
-        sqlite_stmt: str = None,
+        sql_stmt: str = None,
+        sql_dialect: str = None,
         transaction_size: int = 65536,
         append: bool = False,
         update: bool = False,
@@ -193,8 +197,10 @@ def vector_translate(
     if clip_bounds is not None:
         args.extend(['-clipsrc', str(clip_bounds[0]), str(clip_bounds[1]), 
                     str(clip_bounds[2]), str(clip_bounds[3])])
-    if sqlite_stmt is not None:
-        args.extend(['-sql', sqlite_stmt, '-dialect', 'sqlite'])
+    if sql_stmt is not None:
+        args.extend(['-sql', sql_stmt])
+    if sql_dialect is not None:
+        args.extend(['-dialect', sql_dialect])
 
     # Output file options
     if append is True:
@@ -359,7 +365,8 @@ def vector_info(
         layer: str = None,
         readonly: bool = False,
         report_summary: bool = False,
-        sqlite_stmt: str = None,        
+        sql_stmt: str = None,
+        sql_dialect: str = None,        
         verbose: bool = False):
     """"Run a command"""
 
@@ -374,8 +381,10 @@ def vector_info(
         args.append('-ro')
     if report_summary is True:
         args.append('-so')
-    if sqlite_stmt is not None:
-        args.extend(['-dialect', 'sqlite', '-sql', sqlite_stmt])
+    if sql_stmt is not None:
+        args.extend(['-sql', sql_stmt])
+    if sql_dialect is not None:
+        args.extend(['-dialect', sql_dialect])
 
     # File and optionally the layer
     args.append(str(path))

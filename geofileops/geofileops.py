@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 def select(
         input_path: Union[str, 'os.PathLike[Any]'],
         output_path: Union[str, 'os.PathLike[Any]'],
-        sqlite_stmt: str,
+        sql_stmt: str,
+        sql_dialect: str = None,
         input_layer: str = None,        
         output_layer: str = None,
         verbose: bool = False,
@@ -34,9 +35,14 @@ def select(
     Args:
         input_path (PathLike): the input file
         output_path (PathLike): the file to write the result to
-        sqlite_stmt (str): the statement to execute
-        input_layer (str, optional): input layer name. Optional if the input file only contains one layer.
-        output_layer (str, optional): input layer name. Optional if the input file only contains one layer.
+        sql_stmt (str): the statement to execute
+        sql_dialect (str, optional): the sql dialect to force. By default no 
+                sql dialect is used, and then the default dialect of the 
+                underlying source is used.
+        input_layer (str, optional): input layer name. Optional if the input 
+                file only contains one layer.
+        output_layer (str, optional): input layer name. Optional if the input
+                file only contains one layer.
         verbose (bool, optional): write more info to the output. Defaults to False.
         force (bool, optional): overwrite existing output file(s). Defaults to False.
     """
@@ -44,7 +50,8 @@ def select(
     return geofileops_ogr.select(
             input_path=Path(input_path),
             output_path=Path(output_path),
-            sqlite_stmt=sqlite_stmt,
+            sql_stmt=sql_stmt,
+            sql_dialect=sql_dialect,
             input_layer=input_layer,        
             output_layer=output_layer,
             verbose=verbose,
