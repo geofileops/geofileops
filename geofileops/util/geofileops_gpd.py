@@ -14,7 +14,7 @@ import shapely.geometry as sh_geom
 
 from geofileops import geofile
 from . import io_util
-from . import ogr_util_direct
+from . import ogr_util
 
 ################################################################################
 # Some init
@@ -163,7 +163,7 @@ def buffer(
                         geofile.to_file(partial_output_gdf, tmp_output_path, mode='a')
                         """              
                         translate_description = f"Copy result {job_id} of {nb_todo} to {output_layer}"
-                        translate_info = ogr_util_direct.VectorTranslateInfo(
+                        translate_info = ogr_util.VectorTranslateInfo(
                                 input_path=tmp_partial_output_path,
                                 output_path=tmp_output_path,
                                 translate_description=translate_description,
@@ -174,8 +174,9 @@ def buffer(
                                 create_spatial_index=False,
                                 force_output_geometrytype='MULTIPOLYGON',
                                 priority_class='NORMAL',
+                                force_py=True,
                                 verbose=verbose)
-                        ogr_util_direct.vector_translate_by_info(info=translate_info)
+                        ogr_util.vector_translate_by_info(info=translate_info)
                         geofile.remove(tmp_partial_output_path)
                     else:
                         logger.info(f"Result file {tmp_partial_output_path} was empty")
@@ -375,22 +376,21 @@ def dissolve(
                         partial_output_gdf = geofile.read_file(tmp_partial_output_path)
                         geofile.to_file(partial_output_gdf, tmp_output_path, mode='a')
                         """
-                        sqlite_stmt = None #f'SELECT * FROM "{output_layer}"'                   
                         translate_description = f"Copy result {job_id} of {nb_todo} to {output_layer}"
-                        translate_info = ogr_util_direct.VectorTranslateInfo(
+                        translate_info = ogr_util.VectorTranslateInfo(
                                 input_path=tmp_partial_output_path,
                                 output_path=tmp_output_path,
                                 translate_description=translate_description,
                                 output_layer=output_layer,
-                                sqlite_stmt=sqlite_stmt,
                                 transaction_size=200000,
                                 append=True,
                                 update=True,
                                 create_spatial_index=False,
                                 force_output_geometrytype='MULTIPOLYGON',
                                 priority_class='NORMAL',
+                                force_py=True,
                                 verbose=verbose)
-                        ogr_util_direct.vector_translate_by_info(info=translate_info)
+                        ogr_util.vector_translate_by_info(info=translate_info)
                         geofile.remove(tmp_partial_output_path)
 
                 except Exception as ex:
@@ -595,11 +595,12 @@ def unaryunion_cardsheets(
     else:
         # Remark: this temp file doesn't need spatial index
         logger.info(f"Copy {input_path} to {input_tmp_path} using ogr2ogr")
-        ogr_util_direct.vector_translate(
+        ogr_util.vector_translate(
                 input_path=input_path,
                 output_path=input_tmp_path,
                 create_spatial_index=False,
                 output_layer=input_layer,
+                force_py=True,
                 verbose=verbose)
         logger.debug("Copy ready")
 
@@ -657,22 +658,21 @@ def unaryunion_cardsheets(
                         partial_output_gdf = geofile.read_file(tmp_partial_output_path)
                         geofile.to_file(partial_output_gdf, tmp_output_path, mode='a')
                         """
-                        sqlite_stmt = None #f'SELECT * FROM "{output_layer}"'                   
                         translate_description = f"Copy result {job_id} of {nb_todo} to {output_layer}"
-                        translate_info = ogr_util_direct.VectorTranslateInfo(
+                        translate_info = ogr_util.VectorTranslateInfo(
                                 input_path=tmp_partial_output_path,
                                 output_path=tmp_output_path,
                                 translate_description=translate_description,
                                 output_layer=output_layer,
-                                sqlite_stmt=sqlite_stmt,
                                 transaction_size=200000,
                                 append=True,
                                 update=True,
                                 create_spatial_index=False,
                                 force_output_geometrytype='MULTIPOLYGON',
                                 priority_class='NORMAL',
+                                force_py=True,
                                 verbose=verbose)
-                        ogr_util_direct.vector_translate_by_info(info=translate_info)
+                        ogr_util.vector_translate_by_info(info=translate_info)
                         geofile.remove(tmp_partial_output_path)
 
                 except Exception as ex:
