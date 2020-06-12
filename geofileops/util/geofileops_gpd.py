@@ -98,6 +98,7 @@ def buffer(
         mem_predicted = (memory_basefootprint + rows_per_batch*memory_per_row)*nb_batches
 
         logger.info(f"nb_batches: {nb_batches}, rows_per_batch: {rows_per_batch} for nb_rows_input_layer: {nb_rows_input_layer} will result in mem_predicted: {formatbytes(mem_predicted)}")   
+        nb_rows_total = layerinfo.featurecount
 
         with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
@@ -106,27 +107,27 @@ def buffer(
 
             row_limit = rows_per_batch
             row_offset = 0
-            jobs = {}    
-            future_to_job_id = {}
             nb_todo = nb_batches
+            batches = {}    
+            future_to_batch_id = {}
             nb_done = 0
             if verbose:
-                logger.info(f"Start calculation on {nb_rows_input_layer} rows in {nb_batches} batches, so {row_limit} per batch")
+                logger.info(f"Start calculation on {nb_rows_total} rows in {nb_batches} batches, so {row_limit} per batch")
 
-            for job_id in range(nb_batches):
+            for batch_id in range(nb_batches):
 
-                jobs[job_id] = {}
-                jobs[job_id]['layer'] = output_layer
+                batches[batch_id] = {}
+                batches[batch_id]['layer'] = output_layer
 
-                output_tmp_partial_path = tempdir / f"{output_path.stem}_{job_id}{output_path.suffix}"
-                jobs[job_id]['tmp_partial_output_path'] = output_tmp_partial_path
+                output_tmp_partial_path = tempdir / f"{output_path.stem}_{batch_id}{output_path.suffix}"
+                batches[batch_id]['tmp_partial_output_path'] = output_tmp_partial_path
 
                 # For the last translate_id, take all rowid's left...
-                if job_id < nb_batches-1:
+                if batch_id < nb_batches-1:
                     rows = slice(row_offset, row_offset + row_limit)
                 else:
-                    rows = slice(row_offset, nb_rows_input_layer)
-                jobs[job_id]['task_type'] = 'CALCULATE'
+                    rows = slice(row_offset, nb_rows_total)
+
                 # Remark: this temp file doesn't need spatial index
                 future = calculate_pool.submit(
                         _buffer_gpd,
@@ -139,11 +140,11 @@ def buffer(
                         rows=rows,
                         verbose=verbose,
                         force=force)
-                future_to_job_id[future] = job_id
+                future_to_batch_id[future] = batch_id
                 row_offset += row_limit
             
             # Loop till all parallel processes are ready, but process each one that is ready already
-            for future in futures.as_completed(future_to_job_id):
+            for future in futures.as_completed(future_to_batch_id):
                 try:
                     result = future.result()
 
@@ -151,10 +152,10 @@ def buffer(
                         logger.info(result)
 
                     # Start copy of the result to a common file
-                    job_id = future_to_job_id[future]
+                    batch_id = future_to_batch_id[future]
 
                     # If the calculate gave results, copy to output
-                    tmp_partial_output_path = jobs[job_id]['tmp_partial_output_path']
+                    tmp_partial_output_path = batches[batch_id]['tmp_partial_output_path']
                     if tmp_partial_output_path.exists():
 
                         # TODO: append not yet supported in geopandas 0.7, but will be supported in next version
@@ -162,7 +163,7 @@ def buffer(
                         partial_output_gdf = geofile.read_file(tmp_partial_output_path)
                         geofile.to_file(partial_output_gdf, tmp_output_path, mode='a')
                         """              
-                        translate_description = f"Copy result {job_id} of {nb_todo} to {output_layer}"
+                        translate_description = f"Copy result {batch_id} of {nb_batches} to {output_layer}"
                         translate_info = ogr_util.VectorTranslateInfo(
                                 input_path=tmp_partial_output_path,
                                 output_path=tmp_output_path,
@@ -182,9 +183,9 @@ def buffer(
                         logger.info(f"Result file {tmp_partial_output_path} was empty")
 
                 except Exception as ex:
-                    job_id = future_to_job_id[future]
+                    batch_id = future_to_batch_id[future]
                     #calculate_pool.shutdown()
-                    logger.error(f"Error executing {jobs[job_id]}: {ex}")
+                    logger.error(f"Error executing {batches[batch_id]}: {ex}")
 
                 # Log the progress and prediction speed
                 nb_done += 1
@@ -334,17 +335,17 @@ def dissolve(
         
         with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
-            jobs = {}    
-            future_to_job_id = {}    
+            batches = {}    
+            future_to_batch_id = {}    
             nb_todo = len(cardsheets_gdf)
             nb_done = 0
-            for job_id, cardsheet in enumerate(cardsheets_gdf.itertuples()):
+            for batch_id, cardsheet in enumerate(cardsheets_gdf.itertuples()):
         
-                jobs[job_id] = {}
-                jobs[job_id]['layer'] = output_layer
-
-                output_tmp_partial_path =tempdir / f"{output_path.stem}_{job_id}{output_path.suffix}"
-                jobs[job_id]['tmp_partial_output_path'] = output_tmp_partial_path
+                batches[batch_id] = {}
+                batches[batch_id]['layer'] = output_layer
+                output_tmp_partial_path = tempdir / f"{output_path.stem}_{batch_id}{output_path.suffix}"
+                batches[batch_id]['tmp_partial_output_path'] = output_tmp_partial_path
+                
                 future = calculate_pool.submit(
                         _dissolve,
                         input_path=input_path,
@@ -357,26 +358,26 @@ def dissolve(
                         bbox=cardsheet.geometry.bounds,
                         verbose=verbose,
                         force=force)
-                future_to_job_id[future] = job_id
+                future_to_batch_id[future] = batch_id
             
             # Loop till all parallel processes are ready, but process each one that is ready already
-            for future in futures.as_completed(future_to_job_id):
+            for future in futures.as_completed(future_to_batch_id):
                 try:
                     _ = future.result()
 
                     # Start copy of the result to a common file
-                    job_id = future_to_job_id[future]
+                    batch_id = future_to_batch_id[future]
 
                     # If the calculate gave results, copy to output
-                    tmp_partial_output_path = jobs[job_id]['tmp_partial_output_path']
+                    tmp_partial_output_path = batches[batch_id]['tmp_partial_output_path']
                     if tmp_partial_output_path.exists():
 
                         # TODO: append not yet supported in geopandas 0.7, but will be supported in next version
                         """
                         partial_output_gdf = geofile.read_file(tmp_partial_output_path)
                         geofile.to_file(partial_output_gdf, tmp_output_path, mode='a')
-                        """
-                        translate_description = f"Copy result {job_id} of {nb_todo} to {output_layer}"
+                        """                  
+                        translate_description = f"Copy result {batch_id} of {nb_todo} to {output_layer}"
                         translate_info = ogr_util.VectorTranslateInfo(
                                 input_path=tmp_partial_output_path,
                                 output_path=tmp_output_path,
@@ -394,9 +395,9 @@ def dissolve(
                         geofile.remove(tmp_partial_output_path)
 
                 except Exception as ex:
-                    job_id = future_to_job_id[future]
+                    batch_id = future_to_batch_id[future]
                     #calculate_pool.shutdown()
-                    logger.exception(f"Error executing {jobs[job_id]}: {ex}")
+                    logger.exception(f"Error executing {batches[batch_id]}: {ex}")
 
                 # Log the progress and prediction speed
                 nb_done += 1
