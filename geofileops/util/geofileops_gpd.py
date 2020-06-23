@@ -325,7 +325,7 @@ def dissolve(
         input_path: Path,  
         output_path: Path,
         groupby_columns: Optional[List[str]] = None,
-        aggfunc: str = None,
+        aggfunc: str = 'first',
         explodecollections: bool = False,
         keep_tiles: bool = False,
         input_layer: str = None,        
@@ -374,12 +374,10 @@ def dissolve(
             geofile.remove(output_path)
 
     # Check input parameters
-    if groupby_columns is not None:
-       raise Exception(f"groupby_columns != None is not supported")
-    if aggfunc is not None:
-        raise Exception(f"aggfunc != None is not supported")
-    if explodecollections == False:
-        raise Exception(f"explodecollections == False is not supported")
+    if aggfunc != 'first':
+        raise Exception(f"aggfunc != 'first' is not supported")
+    if(groupby_columns is None and explodecollections == False):
+        raise Exception(f"The combination of groupby_columns is None AND explodecollections == False is not supported")
     
     # Get the tiles we want the dissolve to be bound on to be able to parallelize
     if tiles_path is not None:
@@ -413,7 +411,7 @@ def dissolve(
         # Prepare the tmp output names
         tempdir = io_util.create_tempdir(operation)
         output_tmp_path = tempdir / output_path.name
-        if keep_tiles is True or nb_batches == 1:
+        if keep_tiles is True or nb_batches == 1 or groupby_columns is not None:
             output_tmp_all_path = output_tmp_path
             output_tmp_onborder_path = None
             output_tmp_notonborder_path = None
@@ -467,10 +465,10 @@ def dissolve(
         # If we don't want to keep the tiled version or nb_batches > 1, extra processing needed.
         if keep_tiles is False and nb_batches > 1:
             if groupby_columns is not None:
-                raise Exception("Not implemented!")
-                            
+                if output_tmp_all_path is None:
+                    raise Exception("In this code path, output_tmp_all_path should never be None!")            
                 _dissolve(
-                        input_path=output_tmp_onborder_path,
+                        input_path=output_tmp_all_path,
                         output_all_path=output_tmp_path,
                         groupby_columns=groupby_columns,
                         aggfunc=aggfunc,
@@ -513,7 +511,7 @@ def _dissolve(
         output_onborder_path: Path = None,
         output_notonborder_path: Path = None,
         groupby_columns: Optional[List[str]] = None,
-        aggfunc: str = None,
+        aggfunc: str = 'first',
         explodecollections: bool = False,
         input_layer: str = None,        
         output_layer: str = None,
@@ -589,7 +587,7 @@ def _dissolve(
                                 else feature for feature in diss_gdf.geometry]
 
         if explodecollections:
-            diss_gdf = diss_gdf.explode().reset_index()
+            diss_gdf = diss_gdf.explode() #.reset_index()
             # TODO: reset_index necessary???
 
     # TODO: Cleanup!

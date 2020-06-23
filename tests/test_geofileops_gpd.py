@@ -104,9 +104,35 @@ def basetest_dissolve_nogroupby(input_path, output_path):
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
-    layerinfo_select = geofile.getlayerinfo(input_path)
-    assert layerinfo_orig.featurecount == layerinfo_select.featurecount
-    assert len(layerinfo_orig.columns) == len(layerinfo_select.columns)
+    layerinfo_output = geofile.getlayerinfo(output_path)
+    assert layerinfo_output.featurecount == 21
+    assert len(layerinfo_output.columns) == 0
+
+def test_dissolve_groupby_gpkg(tmpdir):
+    # Buffer to test dir
+    input_path = get_testdata_dir() / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels.gpkg'
+    basetest_dissolve_groupby(input_path, output_path)
+
+def test_dissolve_groupby_shp(tmpdir):
+    # Buffer to test dir
+    input_path = get_testdata_dir() / 'parcels.shp'
+    output_path = Path(tmpdir) / 'parcels.shp'
+    basetest_dissolve_groupby(input_path, output_path)
+
+def basetest_dissolve_groupby(input_path, output_path):
+    layerinfo_orig = geofile.getlayerinfo(input_path)
+    geofileops_gpd.dissolve(
+            input_path=input_path,
+            output_path=output_path,
+            groupby_columns=['GEWASGROEP'],
+            explodecollections=False)
+
+    # Now check if the tmp file is correctly created
+    assert output_path.exists() == True
+    layerinfo_output = geofile.getlayerinfo(output_path)
+    assert layerinfo_output.featurecount == 6
+    assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
 if __name__ == '__main__':
     import tempfile
@@ -114,4 +140,4 @@ if __name__ == '__main__':
     tmpdir = Path(tempfile.gettempdir()) / 'test_geofileops_gpd'
     if tmpdir.exists():
         shutil.rmtree(tmpdir)
-    test_dissolve_nogroupby_shp(tmpdir)
+    test_dissolve_groupby_shp(tmpdir)

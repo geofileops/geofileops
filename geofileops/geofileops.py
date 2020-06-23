@@ -312,7 +312,7 @@ def dissolve(
         input_path: Union[str, 'os.PathLike[Any]'],  
         output_path: Union[str, 'os.PathLike[Any]'],
         groupby_columns: Optional[List[str]] = None,
-        aggfunc: str = None,
+        aggfunc: str = 'first',
         explodecollections: bool = False,
         keep_cardsheets: bool = False,
         input_layer: str = None,        
