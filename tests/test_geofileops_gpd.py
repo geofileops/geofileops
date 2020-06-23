@@ -99,7 +99,8 @@ def basetest_dissolve_nogroupby(input_path, output_path):
     layerinfo_orig = geofile.getlayerinfo(input_path)
     geofileops_gpd.dissolve(
             input_path=input_path,
-            output_path=output_path)
+            output_path=output_path,
+            explodecollections=True)
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
@@ -110,7 +111,7 @@ def basetest_dissolve_nogroupby(input_path, output_path):
 if __name__ == '__main__':
     import tempfile
     import shutil
-    tmpdir = Path(tempfile.gettempdir()) / 'test_geofileops_ogr'
+    tmpdir = Path(tempfile.gettempdir()) / 'test_geofileops_gpd'
     if tmpdir.exists():
         shutil.rmtree(tmpdir)
-    test_dissolve_nogroupby_gpkg(tmpdir)
+    test_dissolve_nogroupby_shp(tmpdir)
