@@ -2,6 +2,7 @@
 import datetime
 import logging
 import multiprocessing
+import os
 
 import psutil
 
@@ -14,6 +15,16 @@ logger = logging.getLogger(__name__)
 ################################################################################
 # The real work
 ################################################################################
+
+def initgdal():
+    # At least on windows, the init of this doensn't seem to work properly... 
+    # TODO: should be solved somewhere else?
+    if os.environ['PROJ_LIB'] is None:
+        os.environ['PROJ_LIB'] = r"C:\Tools\miniconda3\envs\orthoseg\Library\share\proj"
+        logger.warn(f"PROJ_LIB environment variable was not set, set to {os.environ['PROJ_LIB']}")
+    if os.environ['GDAL_DATA'] is None:
+        os.environ['GDAL_DATA'] = r"C:\Tools\miniconda3\envs\orthoseg\Library\share\gdal"
+        logger.warn(f"GDAL_DATA environment variable was not set, set to {os.environ['GDAL_DATA']}")
 
 def report_progress(
         start_time: datetime.datetime,

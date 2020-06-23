@@ -10,7 +10,7 @@ import pprint
 import subprocess
 from threading import Lock
 import time
-from typing import Any, List, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 from io import StringIO
 import re
 
@@ -52,6 +52,7 @@ class VectorTranslateInfo:
             input_path: Path, 
             output_path: Path,
             translate_description: str = None,
+            input_layers: Union[Optional[List[str]], str] = None,
             output_layer: str = None,
             spatial_filter: Tuple[float, float, float, float] = None,
             clip_bounds: Tuple[float, float, float, float] = None, 
@@ -70,6 +71,7 @@ class VectorTranslateInfo:
         self.input_path = input_path
         self.output_path = output_path
         self.translate_description = translate_description
+        self.input_layers = input_layers
         self.output_layer = output_layer
         self.spatial_filter = spatial_filter
         self.clip_bounds = clip_bounds
@@ -92,6 +94,7 @@ def vector_translate_by_info(info: VectorTranslateInfo):
             input_path=info.input_path,
             output_path=info.output_path,
             translate_description=info.translate_description,
+            input_layers=info.input_layers,
             output_layer=info.output_layer,
             spatial_filter=info.spatial_filter,
             clip_bounds=info.clip_bounds,
@@ -169,6 +172,7 @@ def vector_translate(
         input_path: Path, 
         output_path: Path,
         translate_description: str = None,
+        input_layers: Union[Optional[List[str]], str] = None,
         output_layer: str = None,
         spatial_filter: Tuple[float, float, float, float] = None,
         clip_bounds: Tuple[float, float, float, float] = None, 
@@ -192,6 +196,7 @@ def vector_translate(
             input_path=input_path,
             output_path=output_path,
             translate_description=translate_description,
+            input_layers=input_layers,
             output_layer=output_layer,
             spatial_filter=spatial_filter,
             clip_bounds=clip_bounds,
@@ -211,6 +216,7 @@ def vector_translate(
             input_path=input_path,
             output_path=output_path,
             translate_description=translate_description,
+            input_layers=input_layers,
             output_layer=output_layer,
             spatial_filter=spatial_filter,
             clip_bounds=clip_bounds,
@@ -230,6 +236,7 @@ def vector_translate_exe(
         input_path: Path, 
         output_path: Path,
         translate_description: str = None,
+        input_layers: Union[Optional[List[str]], str] = None,
         output_layer: str = None,
         spatial_filter: Tuple[float, float, float, float] = None,
         clip_bounds: Tuple[float, float, float, float] = None, 
@@ -248,7 +255,9 @@ def vector_translate_exe(
     ##### Init #####
     if output_layer is None:
         output_layer = output_path.stem
-
+    if input_layers is not None:
+        logger.warn(f"input_layers is not None, but isn't used in vector_translate_exe: {input_layers}")
+        
     # Add all parameters to args list
     args = [str(ogr2ogr_exe)]
     #if verbose:
@@ -400,6 +409,7 @@ def vector_translate_py(
         input_path: Path, 
         output_path: Path,
         translate_description: str = None,
+        input_layers: Union[Optional[List[str]], str] = None,
         output_layer: str = None,
         spatial_filter: Tuple[float, float, float, float] = None,
         clip_bounds: Tuple[float, float, float, float] = None, 
@@ -505,7 +515,7 @@ def vector_translate_py(
             spatSRS=None,
             datasetCreationOptions=datasetCreationOptions, 
             layerCreationOptions=layerCreationOptions, 
-            layers=None, # TODO: implement! [output_layer]
+            layers=input_layers,
             layerName=output_layer,
             geometryType=None, 
             dim=None, 

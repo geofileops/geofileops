@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import shutil
 import tempfile
+from typing import Optional
 
 class CTError(Exception):
     def __init__(self, errors):
@@ -44,9 +45,9 @@ def copyfile(src, dst):
         
     else:
         buffer_size = 1024*1024*5
-        with open(src, 'rb') as fsrc:
-            with open(dst, 'wb') as fdest:
-                shutil.copyfileobj(fsrc, fdest, buffer_size)
+        with open(src, 'rb') as fsrc, \
+             open(dst, 'wb') as fdest:
+            shutil.copyfileobj(fsrc, fdest, buffer_size)
     
 def copytree(src, dst, symlinks=False, ignore=[]):
     names = os.listdir(src)
@@ -94,3 +95,17 @@ def is_locked(filepath):
     except (OSError, IOError):
         os.close(fd)
         return True
+
+def create_file_atomic(filename) -> bool:
+    """
+    Create a lock file in an atomic way, so it is threadsafe.
+
+    Returns True if the file was created by this thread, False if the file existed already.
+    """
+    try:
+        fd = os.open(filename,  os.O_CREAT | os.O_EXCL)
+        os.close(fd)
+        return True
+    except FileExistsError:
+        return False
+        

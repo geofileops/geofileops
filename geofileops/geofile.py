@@ -3,35 +3,34 @@
 Module with helper functions for geo files.
 """
 
+import datetime
 import filecmp
 import logging
 import os
 from pathlib import Path
 import pyproj
 import shutil
+import time
 from typing import Any, List, Tuple, Union
-
-# TODO: on windows, the init of this doensn't seem to work properly... should be solved somewhere else?
-if os.name == 'nt':
-    os.environ["GDAL_DATA"] = r"C:\Tools\miniconda3\envs\orthoseg\Library\share\gdal"
-    os.environ["PROJ_LIB"] = r"C:\Tools\miniconda3\envs\orthoseg\Library\share\proj"
 
 import fiona
 import geopandas as gpd
 from osgeo import gdal
 
 from .util import io_util
+from .util import general_util
+from .util import ogr_util
 
 #-------------------------------------------------------------
 # First define/init some general variables/constants
 #-------------------------------------------------------------
-gdal.UseExceptions()        # Enable exceptions
-
 # Get a logger...
 logger = logging.getLogger(__name__)
 #logger.setLevel(logging.DEBUG)
 
 shapefile_suffixes = ['.shp', '.dbf', '.shx', '.prj', '.qix', '.sbn', '.sbx']
+gdal.UseExceptions()        # Enable exceptions
+general_util.initgdal()
 
 #-------------------------------------------------------------
 # The real work
@@ -287,13 +286,15 @@ def to_file(
         gdf: gpd.GeoDataFrame,
         path: Union[str, 'os.PathLike[Any]'],
         layer: str = None,
+        append: bool = False,
+        append_timeout_s: int = 100,
         index: bool = True):
     """
     Reads a pandas dataframe to file. The fileformat is detected based on the filepath extension.
-
+    """
     # TODO: think about if possible/how to support adding optional parameter and pass them to next 
     # function, example encoding, float_format,...
-    """
+
     # Check input parameters
     path_p = Path(path)
 
@@ -305,15 +306,49 @@ def to_file(
         #logger.warn(f"Cannot write an empty dataframe to {filepath}.{layer}")
         return
 
-    ext_lower = path_p.suffix.lower()
-    if ext_lower == '.shp':
-        if index is True:
-            gdf = gdf.reset_index(inplace=False)
-        gdf.to_file(str(path_p))
-    elif ext_lower == '.gpkg':
-        gdf.to_file(str(path_p), layer=layer, driver="GPKG")
+    def write_to_file(
+            gdf: gpd.GeoDataFrame,
+            path: Path, 
+            layer: str, 
+            index: bool):
+        ext_lower = path.suffix.lower()
+        if ext_lower == '.shp':
+            if index is True:
+                gdf = gdf.reset_index(inplace=False)
+            gdf.to_file(str(path))
+        elif ext_lower == '.gpkg':
+            gdf.to_file(str(path), layer=layer, driver="GPKG")
+        else:
+            raise Exception(f"Not implemented for extension {ext_lower}")
+        
+    if append is True:
+        """
+        # TODO: append not yet supported in geopandas 0.7, but will be supported in next version
+        # Remark: will need to be locked as well!!!
+        partial_output_gdf = geofile.read_file(tmp_partial_output_path)
+        geofile.to_file(partial_output_gdf, tmp_output_path, mode='a')
+        """
+        lockfile = Path(f"{str(path_p)}.lock")
+        start_time = datetime.datetime.now()
+        while(True):
+            if io_util.create_file_atomic(lockfile) is True:
+                try:
+                    tmppath = path_p.parent / f"{path_p.stem}_tmp{path_p.suffix}"
+                    write_to_file(gdf=gdf, path=tmppath, layer=layer, index=index)
+                    _append_ogr(tmppath, path_p, layer, layer, append_timeout_s)
+                    remove(tmppath)
+                finally:
+                    lockfile.unlink()
+                    return
+            else:
+                time_waiting = (datetime.datetime.now()-start_time).total_seconds()
+                if time_waiting > append_timeout_s:
+                    raise Exception(f"append_to_layer timeout of {append_timeout_s} reached, so stop trying!")
+            
+            # Sleep for a second before trying again
+            time.sleep(1)
     else:
-        raise Exception(f"Not implemented for extension {ext_lower}")
+        write_to_file(gdf=gdf, path=path_p, layer=layer, index=index)
         
 def get_crs(path: Union[str, 'os.PathLike[Any]']) -> pyproj.CRS:
     with fiona.open(str(path), 'r') as geofile:
@@ -453,6 +488,34 @@ def remove(path: Union[str, 'os.PathLike[Any]']):
     else:
         path_p.unlink()
 
+def _append_ogr(
+        src: Union[str, 'os.PathLike[Any]'], 
+        dst: Union[str, 'os.PathLike[Any]'],
+        src_layer: str = None,
+        dst_layer: str = None,
+        append_timeout_s: int = 100,
+        verbose: bool = False):
+
+    """
+    # TODO: append not yet supported in geopandas 0.7, but will be supported in next version
+    partial_output_gdf = geofile.read_file(tmp_partial_output_path)
+    geofile.to_file(partial_output_gdf, tmp_output_path, mode='a')
+    """
+    translate_info = ogr_util.VectorTranslateInfo(
+            input_path=Path(src),
+            output_path=Path(dst),
+            translate_description=None,
+            input_layers=src_layer,
+            output_layer=dst_layer,
+            transaction_size=200000,
+            append=True,
+            update=True,
+            #force_output_geometrytype='MULTIPOLYGON',
+            priority_class='NORMAL',
+            force_py=True,
+            verbose=verbose)
+    ogr_util.vector_translate_by_info(info=translate_info)
+        
 def get_driver(path: Union[str, 'os.PathLike[Any]']) -> str:
     """
     Get the driver to use for the file extension of this filepath.
