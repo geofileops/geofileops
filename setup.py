@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="geofileops", 
-    version="0.0.3",
+    version="0.0.4",
     author="Pieter Roggemans",
     author_email="pieter.roggemans@gmail.com",
     description="Package to do spatial operations on geo files.",
