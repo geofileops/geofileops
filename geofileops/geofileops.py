@@ -7,12 +7,14 @@ from typing import Any, AnyStr, List, Optional, Tuple, Union
 
 from .util import geofileops_ogr
 from .util import geofileops_gpd
+from .util import general_util
 
 ################################################################################
 # Some init
 ################################################################################
 
 logger = logging.getLogger(__name__)
+general_util.initgdal()
 
 ################################################################################
 # The real work
@@ -353,10 +355,10 @@ def dissolve(
             groupby_columns=groupby_columns,
             aggfunc=aggfunc,
             explodecollections=explodecollections,
-            keep_cardsheets=keep_cardsheets,
+            keep_tiles=keep_cardsheets,
             input_layer=input_layer,        
             output_layer=output_layer,
-            input_cardsheets_path=input_cardsheets_path_p,
+            tiles_path=input_cardsheets_path_p,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)

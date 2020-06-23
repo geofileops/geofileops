@@ -16,6 +16,7 @@ from . import general_util
 from geofileops import geofile
 from . import io_util
 from . import ogr_util
+from . import vector_util
 
 ################################################################################
 # Some init
@@ -177,7 +178,7 @@ def _apply_geooperation_to_layer(
         with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
             # Prepare output filename
-            tmp_output_path = tempdir / output_path.name
+            output_tmp_path = tempdir / output_path.name
 
             row_limit = batch_size
             row_offset = 0
@@ -239,7 +240,7 @@ def _apply_geooperation_to_layer(
                         translate_description = f"Copy result {batch_id} of {nb_batches} to {output_layer}"
                         translate_info = ogr_util.VectorTranslateInfo(
                                 input_path=tmp_partial_output_path,
-                                output_path=tmp_output_path,
+                                output_path=output_tmp_path,
                                 translate_description=translate_description,
                                 output_layer=output_layer,
                                 transaction_size=200000,
@@ -266,8 +267,8 @@ def _apply_geooperation_to_layer(
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
-        geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
-        geofile.move(tmp_output_path, output_path)
+        geofile.create_spatial_index(path=output_tmp_path, layer=output_layer)
+        geofile.move(output_tmp_path, output_path)
 
     finally:
         # Clean tmp dir
@@ -326,10 +327,10 @@ def dissolve(
         groupby_columns: Optional[List[str]] = None,
         aggfunc: str = None,
         explodecollections: bool = False,
-        keep_cardsheets: bool = False,
+        keep_tiles: bool = False,
         input_layer: str = None,        
         output_layer: str = None,
-        input_cardsheets_path: Path = None,
+        tiles_path: Path = None,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -344,17 +345,16 @@ def dissolve(
                 grouped on. Defaults to None.
         explodecollections (bool, optional): after dissolving, evade having 
                 multiparts in the output. Defaults to False.
-        keep_cardsheets (bool, optional): if True, the result will only be 
-                dissolved on the cardsheet level and not on the entire 
+        keep_tiles (bool, optional): if True, the result will only be 
+                dissolved on the tile level and not on the entire 
                 dataset. Only available if no groupby_columns specified. 
                 Defaults to False.
         input_layer (str, optional): input layername. If not specified, 
                 there should be only one layer in the input file.
         output_layer (str, optional): output layername. If not specified, 
                 then the filename is used as layer name.
-        input_cardsheets_path (PathLike, optional): a file with the tiles/
-                cardsheets to be used. If not specified, a tiling scheme 
-                will be generated.
+        tiles_path (PathLike, optional): a file with the tiles to be used. 
+                If not specified, a tiling scheme will be generated.
         nb_parallel (int, optional): number of parallel threads to use. If not
                 specified, all available CPU's will be maximally used.
         verbose (bool, optional): output more detailed logging. Defaults to 
@@ -372,11 +372,18 @@ def dissolve(
             return
         else:
             geofile.remove(output_path)
-    
 
-    # Get the cardsheets we want the dissolve to be bound on to be able to parallelize
-    if input_cardsheets_path is not None:
-        cardsheets_gdf = geofile.read_file(input_cardsheets_path)
+    # Check input parameters
+    if groupby_columns is not None:
+       raise Exception(f"groupby_columns != None is not supported")
+    if aggfunc is not None:
+        raise Exception(f"aggfunc != None is not supported")
+    if explodecollections == False:
+        raise Exception(f"explodecollections == False is not supported")
+    
+    # Get the tiles we want the dissolve to be bound on to be able to parallelize
+    if tiles_path is not None:
+        tiles_gdf = geofile.read_file(tiles_path)
         if nb_parallel == -1:
             nb_cpu = multiprocessing.cpu_count()
             nb_parallel = int(1.25 * nb_cpu)
@@ -394,96 +401,57 @@ def dissolve(
         nb_columns = nb_rows
 
         # Now create a grid based on the number of rows and columns
-        xmin,ymin,xmax,ymax = layerinfo.total_bounds
-        width = (xmax-xmin)/nb_columns
-        height = (ymax-ymin)/nb_rows
-
-        rows = int(math.ceil((ymax-ymin) /  height))
-        cols = int(math.ceil((xmax-xmin) / width))
-        XleftOrigin = xmin
-        XrightOrigin = xmin + width
-        YtopOrigin = ymax
-        YbottomOrigin = ymax- height
-        polygons = []
-        for _ in range(cols):
-            Ytop = YtopOrigin
-            Ybottom =YbottomOrigin
-            for _ in range(rows):
-                polygons.append(sh_geom.Polygon([(XleftOrigin, Ytop), (XrightOrigin, Ytop), (XrightOrigin, Ybottom), (XleftOrigin, Ybottom)])) 
-                Ytop = Ytop - height
-                Ybottom = Ybottom - height
-            XleftOrigin = XleftOrigin + width
-            XrightOrigin = XrightOrigin + width     
-        cardsheets_gdf = gpd.GeoDataFrame({'geometry':polygons})
+        tiles_gdf = vector_util.create_grid(layerinfo.total_bounds, nb_columns, nb_rows)
 
     try:
         # Start calculation in parallel
         logger.info(f"Start {operation} on file {input_path}")
-        tempdir = io_util.create_tempdir(operation)
-        tmp_output_path = tempdir / output_path.name
+        nb_batches = len(tiles_gdf)
         if output_layer is None:
             output_layer = geofile.get_default_layer(output_path)
-        
+
+        # Prepare the tmp output names
+        tempdir = io_util.create_tempdir(operation)
+        output_tmp_path = tempdir / output_path.name
+        if keep_tiles is True or nb_batches == 1:
+            output_tmp_all_path = output_tmp_path
+            output_tmp_onborder_path = None
+            output_tmp_notonborder_path = None
+        else: 
+            output_tmp_all_path = None
+            output_tmp_onborder_path = tempdir / f"{output_path.stem}_onborder{output_path.suffix}"
+            output_tmp_notonborder_path = tempdir / f"{output_path.stem}_notonborder{output_path.suffix}"
+                    
         with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
             batches = {}    
             future_to_batch_id = {}    
-            nb_batches = len(cardsheets_gdf)
             nb_done = 0
-            for batch_id, cardsheet in enumerate(cardsheets_gdf.itertuples()):
+            for batch_id, tile in enumerate(tiles_gdf.itertuples()):
         
                 batches[batch_id] = {}
                 batches[batch_id]['layer'] = output_layer
-                output_tmp_partial_path = tempdir / f"{output_path.stem}_{batch_id}{output_path.suffix}"
-                batches[batch_id]['tmp_partial_output_path'] = output_tmp_partial_path
                 
                 future = calculate_pool.submit(
                         _dissolve,
                         input_path=input_path,
-                        output_path=output_tmp_partial_path,
+                        output_all_path=output_tmp_all_path,
+                        output_onborder_path=output_tmp_onborder_path,
+                        output_notonborder_path=output_tmp_notonborder_path,
                         groupby_columns=groupby_columns,
                         aggfunc=aggfunc,
                         explodecollections=explodecollections,
                         input_layer=input_layer,        
                         output_layer=output_layer,
-                        bbox=cardsheet.geometry.bounds,
-                        verbose=verbose,
-                        force=force)
+                        bbox=tile.geometry.bounds,
+                        verbose=verbose)
                 future_to_batch_id[future] = batch_id
             
             # Loop till all parallel processes are ready, but process each one that is ready already
             for future in futures.as_completed(future_to_batch_id):
                 try:
+                    # If the calculate gave results
                     _ = future.result()
-
-                    # Start copy of the result to a common file
-                    batch_id = future_to_batch_id[future]
-
-                    # If the calculate gave results, copy to output
-                    tmp_partial_output_path = batches[batch_id]['tmp_partial_output_path']
-                    if tmp_partial_output_path.exists():
-
-                        # TODO: append not yet supported in geopandas 0.7, but will be supported in next version
-                        """
-                        partial_output_gdf = geofile.read_file(tmp_partial_output_path)
-                        geofile.to_file(partial_output_gdf, tmp_output_path, mode='a')
-                        """                  
-                        translate_description = f"Copy result {batch_id} of {nb_batches} to {output_layer}"
-                        translate_info = ogr_util.VectorTranslateInfo(
-                                input_path=tmp_partial_output_path,
-                                output_path=tmp_output_path,
-                                translate_description=translate_description,
-                                output_layer=output_layer,
-                                transaction_size=200000,
-                                append=True,
-                                update=True,
-                                create_spatial_index=False,
-                                force_output_geometrytype='MULTIPOLYGON',
-                                priority_class='NORMAL',
-                                force_py=True,
-                                verbose=verbose)
-                        ogr_util.vector_translate_by_info(info=translate_info)
-                        geofile.remove(tmp_partial_output_path)
 
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
@@ -494,81 +462,67 @@ def dissolve(
                 nb_done += 1
                 general_util.report_progress(start_time, nb_done, nb_batches, operation)
 
-        # Now dissolve a second time to find elements on the border of the tiles that should 
-        # still be dissolved
-        if not keep_cardsheets and nb_batches > 1:
+        logger.info("The parallel dissolve per tile is ready, now start processing the final result")
+        
+        # If we don't want to keep the tiled version or nb_batches > 1, extra processing needed.
+        if keep_tiles is False and nb_batches > 1:
             if groupby_columns is not None:
-                logger.info("Now dissolve the entire file to get final result")
-            
+                raise Exception("Not implemented!")
+                            
                 _dissolve(
-                        input_path=tmp_output_path,
-                        output_path=output_path,
+                        input_path=output_tmp_onborder_path,
+                        output_all_path=output_tmp_path,
                         groupby_columns=groupby_columns,
                         aggfunc=aggfunc,
                         explodecollections=explodecollections,
                         input_layer=input_layer,        
                         output_layer=output_layer,
-                        verbose=verbose,
-                        force=force)
-                # Now create spatial index
-                geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
-
+                        verbose=verbose)
+                
                 # TODO: results from dissolve operation with groubpy are not always reliable -> fix!
                 logger.warning("The results of the aggfunc columns could be wrong!")
             else:
                 logger.info("Now dissolve the elements on the borders as well to get final result")
 
-                # First copy all elements that don't overlap with the borders of the tiles
-                input_gdf = geofile.read_file(tmp_output_path)
+                # If there is a result not on border, it can be renamed to the output file
+                if(output_tmp_notonborder_path is not None
+                   and output_tmp_notonborder_path.exists()):
+                    geofile.move(output_tmp_notonborder_path, output_tmp_path)
+                    geofile.rename_layer(output_tmp_path, output_tmp_notonborder_path.stem, output_tmp_path.stem)
+                if(output_tmp_onborder_path is not None
+                   and output_tmp_onborder_path.exists()):
+                    # If there is a result on the border, union + append to the output file
+                    onborder_gdf = geofile.read_file(output_tmp_onborder_path)
+                    union_geom = onborder_gdf.geometry.unary_union
+                    # TODO: also support other geometry types (points and lines) 
+                    onborder_diss_gdf = gpd.GeoDataFrame(
+                            geometry=vector_util.extract_polygons_from_list(union_geom))
+                    geofile.to_file(onborder_diss_gdf, output_tmp_path, append=True)            
 
-                cardsheets_lines = []
-                for cardsheet_poly in cardsheets_gdf.itertuples():
-                    cardsheet_boundary = cardsheet_poly.geometry.boundary
-                    if cardsheet_boundary.type == 'MultiLineString':
-                        for line in cardsheet_boundary:
-                            cardsheets_lines.append(line)
-                    else:
-                        cardsheets_lines.append(cardsheet_boundary)
-                
-                cardsheets_lines_gdf = gpd.GeoDataFrame(geometry=cardsheets_lines)
-                logger.info(f"Number of lines in cardsheets_lines_gdf: {len(cardsheets_lines_gdf)}")
-                intersecting_gdf = gpd.sjoin(input_gdf, cardsheets_lines_gdf, op='intersects')
-                logger.info(intersecting_gdf)
-                geofile.to_file(intersecting_gdf, str(tmp_output_path) + '_inters.gpkg')
-
-                # TODO: keep_cardsheets == False + groupby_columns == None -> Not implemented
-                raise Exception("keep_cardsheets == False + groupby_columns == None -> Not implemented")
-
-        # Ready! Create spatial index and move to output location
-        geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
-        geofile.move(tmp_output_path, output_path)
+        # Ready! Move tmp file to output location
+        geofile.move(output_tmp_path, output_path)
 
     finally:
         # Clean tmp dir
-        shutil.rmtree(tempdir)
+        #shutil.rmtree(tempdir)
+        tempdir.rename(tempdir.parent / f"ready_{tempdir.name}")
         logger.info(f"{operation} ready, took {datetime.datetime.now()-start_time}!")
 
 def _dissolve(
         input_path: Path,
-        output_path: Path,
-        groupby_columns: List[str] = None,
+        output_all_path: Path,
+        output_onborder_path: Path = None,
+        output_notonborder_path: Path = None,
+        groupby_columns: Optional[List[str]] = None,
         aggfunc: str = None,
         explodecollections: bool = False,
         input_layer: str = None,        
         output_layer: str = None,
         bbox: Tuple[float, float, float, float] = None,
-        verbose: bool = False,
-        force: bool = False):
+        verbose: bool = False):
 
     ##### Init #####
     start_time = datetime.datetime.now()
-    operation = 'dissolve'
-    if output_path.exists():
-        if force is False:
-            logger.info(f"Stop {operation}: output exists already {output_path}")
-            return
-        else:
-            geofile.remove(output_path)
 
     # Read all records that are in the bbox
     retry_count = 0
@@ -594,24 +548,30 @@ def _dissolve(
     if groupby_columns is None:
         
         # unary union...
-        union_geom = input_gdf['geometry'].unary_union
+        try:
+            union_geom = input_gdf.geometry.unary_union
+        except Exception as ex:
+            message = f"Exception processing bbox {bbox}"
+            logger.exception(message)
+            raise Exception(message) from ex
+
         # TODO: also support other geometry types (points and lines) 
-        union_polygons = extract_polygons_from_list(union_geom)
+        union_polygons = vector_util.extract_polygons_from_list(union_geom)
         diss_gdf = gpd.GeoDataFrame(geometry=union_polygons)
 
         # Clip the result on the borders of the bbox not to have overlaps
-        # between the different cards
+        # between the different tiles
         if bbox is not None:
             polygon = sh_geom.Polygon([(bbox[0], bbox[1]), (bbox[0], bbox[3]), (bbox[2], bbox[3]), (bbox[2], bbox[1]), (bbox[0], bbox[1])])
             bbox_gdf = gpd.GeoDataFrame([1], geometry=[polygon])
             # keep_geom_type=True gives errors, so replace by own implementation
             diss_gdf = gpd.clip(diss_gdf, bbox_gdf)
-            diss_gdf = extract_polygons_from_gdf(diss_gdf)
+            diss_gdf = vector_util.extract_polygons_from_gdf(diss_gdf)
     else:
         
         # For a dissolve with a groupby it is important to only process every geometry once 
         # to evade duplicated rows. Because it is possible that a 
-        # geometry intersects with multiple cardsheets, retain only geometries 
+        # geometry intersects with multiple tiles, retain only geometries 
         # where the first point of the geometry is in the bbox.
         # Geometries that don't comply now will be treated in another tile.
         representative_point_gs = input_gdf.geometry.representative_point()
@@ -631,19 +591,40 @@ def _dissolve(
 
         if explodecollections:
             diss_gdf = diss_gdf.explode().reset_index()
-            # TODO: reset_index???
+            # TODO: reset_index necessary???
 
     # TODO: Cleanup!
+    """
     nonpoly_gdf = diss_gdf.copy().reset_index()
     nonpoly_gdf['geomtype'] = nonpoly_gdf.geometry.geom_type
     nonpoly_gdf = nonpoly_gdf.loc[~nonpoly_gdf['geomtype'].isin(['Polygon', 'MultiPolygon'])]
     if len(nonpoly_gdf) > 0:
        raise Exception(f"3_Found {len(nonpoly_gdf)} non-(multi)polygons, eg.: {nonpoly_gdf}")
+    """
 
     if len(diss_gdf) > 0:
-        geofile.to_file(gdf=diss_gdf, path=output_path, layer=output_layer)
-    logger.info(f"{operation} ready, took {datetime.datetime.now()-start_time}!")
+        # If the tiles don't need to be merged afterwards, we can just save the result as it is 
+        if output_all_path is not None:
+            geofile.to_file(gdf=diss_gdf, path=output_all_path, layer=output_layer, append=True)
+        if(output_onborder_path is not None 
+           or output_notonborder_path is not None):
+            # If not, save the polygons on the border seperately
+            bbox_lines_gdf = vector_util.polygons_to_lines(
+                    gpd.GeoDataFrame(geometry=[sh_geom.box(bbox[0], bbox[1], bbox[2], bbox[3])]))
+            onborder_gdf = gpd.sjoin(diss_gdf, bbox_lines_gdf, op='intersects')
+            if(output_onborder_path is not None 
+               and len(onborder_gdf) > 0):                
+                geofile.to_file(onborder_gdf, output_onborder_path, append=True)
+            
+            if output_notonborder_path is not None:
+                notonborder_gdf = diss_gdf[~diss_gdf.index.isin(onborder_gdf.index)].dropna()
+                if len(notonborder_gdf) > 0:
+                    geofile.to_file(notonborder_gdf, output_notonborder_path, append=True)
 
+    if verbose:
+        logger.info(f"dissolve ready, took {datetime.datetime.now()-start_time}!")
+
+'''
 def unaryunion_cardsheets(
         input_path: Path,  
         output_path: Path,
@@ -834,54 +815,7 @@ def _unaryunion(
     if len(diss_gdf) > 0:
         geofile.to_file(gdf=diss_gdf, path=output_path, layer=output_layer)
     logger.info(f"{operation} ready, took {datetime.datetime.now()-start_time}!")
-            
-def extract_polygons_from_list(
-        in_geom: sh_geom.base.BaseGeometry) -> list:
-    """
-    Extracts all polygons from the input geom and returns them as a list.
-    """
-    
-    # Extract the polygons from the multipolygon
-    geoms = []
-    if in_geom.geom_type == 'MultiPolygon':
-        geoms = list(in_geom)
-    elif in_geom.geom_type == 'Polygon':
-        geoms.append(in_geom)
-    elif in_geom.geom_type == 'GeometryCollection':
-        for geom in in_geom:
-            if geom.geom_type in ('MultiPolygon', 'Polygon'):
-                geoms.append(geom)
-            else:
-                logger.debug(f"Found {geom.geom_type}, ignore!")
-    else:
-        raise IOError(f"in_geom is of an unsupported type: {in_geom.geom_type}")
-    
-    return geoms
-
-def extract_polygons_from_gdf(
-        in_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-
-    # Extract only polygons
-    poly_gdf = in_gdf.loc[(in_gdf.geometry.geom_type == 'Polygon')].copy()
-    multipoly_gdf = in_gdf.loc[(in_gdf.geometry.geom_type == 'MultiPolygon')].copy()
-    collection_gdf = in_gdf.loc[(in_gdf.geometry.geom_type == 'GeometryCollection')].copy()
-    collection_polys_gdf = None
-    
-    if len(collection_gdf) > 0:
-        collection_polygons = []
-        for collection_geom in collection_gdf.geometry:
-            collection_polygons.extend(extract_polygons_from_list(collection_geom))
-        if len(collection_polygons) > 0:
-            collection_polys_gdf = gpd.GeoDataFrame(geometry=collection_polygons)
-
-    # Only keep the polygons...
-    ret_gdf = poly_gdf
-    if len(multipoly_gdf) > 0:
-        ret_gdf = ret_gdf.append(multipoly_gdf.explode(), ignore_index=True)
-    if collection_polys_gdf is not None:
-        ret_gdf = ret_gdf.append(collection_polys_gdf, ignore_index=True)
-    
-    return ret_gdf
+'''
 
 if __name__ == '__main__':
     raise Exception("Not implemented!")
