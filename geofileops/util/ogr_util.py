@@ -19,11 +19,6 @@ gdal.UseExceptions()
 
 from geofileops import geofile
 
-# TODO: on windows, the init of this doensn't seem to work properly... should be solved somewhere else?
-if os.name == 'nt':
-    os.environ["GDAL_DATA"] = r"C:\Tools\miniconda3\envs\geofileops\Library\share\gdal"
-    os.environ["PROJ_LIB"] = r"C:\Tools\miniconda3\envs\geofileops\Library\share\proj"
-
 #-------------------------------------------------------------
 # First define/init some general variables/constants
 #-------------------------------------------------------------

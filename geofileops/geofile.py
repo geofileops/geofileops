@@ -30,7 +30,6 @@ logger = logging.getLogger(__name__)
 
 shapefile_suffixes = ['.shp', '.dbf', '.shx', '.prj', '.qix', '.sbn', '.sbx']
 gdal.UseExceptions()        # Enable exceptions
-general_util.initgdal()
 
 #-------------------------------------------------------------
 # The real work
