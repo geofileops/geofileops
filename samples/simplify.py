@@ -4,7 +4,7 @@ import logging.config
 import os
 from pathlib import Path
 import sys
-[sys.path.append(i) for i in ['.', '..']]
+sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
 
 import geofileops.geofileops as geofileops
 
