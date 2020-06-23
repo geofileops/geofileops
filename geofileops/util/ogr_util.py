@@ -427,6 +427,10 @@ def vector_translate_py(
 
     args = []
 
+    # Apparently, for shapefiles, having input_layers not None gives issues...
+    if input_path.suffix == '.shp':
+        input_layers = None
+
     # Sql'ing, Filtering, clipping  
     if spatial_filter is not None:
         args.extend(['-spat', str(spatial_filter[0]), str(spatial_filter[1]), 
