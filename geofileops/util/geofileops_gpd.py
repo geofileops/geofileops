@@ -504,8 +504,7 @@ def dissolve(
 
     finally:
         # Clean tmp dir
-        #shutil.rmtree(tempdir)
-        tempdir.rename(tempdir.parent / f"ready_{tempdir.name}")
+        shutil.rmtree(tempdir)
         logger.info(f"{operation} ready, took {datetime.datetime.now()-start_time}!")
 
 def _dissolve(
