@@ -314,10 +314,10 @@ def dissolve(
         groupby_columns: Optional[List[str]] = None,
         aggfunc: str = 'first',
         explodecollections: bool = False,
-        keep_cardsheets: bool = False,
+        clip_on_tiles: bool = False,
+        tiles_path: Union[str, 'os.PathLike[Any]'] = None,
         input_layer: str = None,        
         output_layer: str = None,
-        input_cardsheets_path: Union[str, 'os.PathLike[Any]'] = None,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -330,8 +330,9 @@ def dissolve(
         input_path (PathLike): the input file
         output_path (PathLike): the file to write the result to
         groupby_columns: (List[str]): list of columns to group on before applying the union.
-        explodecollections (bool): True to convert all multi-geometries to 
+        explodecollections (bool, optional): True to convert all multi-geometries to 
                 singular ones after the dissolve. Defaults to False.
+        clip_on_tiles (bool, optional): True to clip the result on the tiles used.
         input_layer (str, optional): input layer name. Optional if the  
                 file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the  
@@ -344,9 +345,9 @@ def dissolve(
                 Defaults to False.
     """
     # Init
-    input_cardsheets_path_p = None
-    if input_cardsheets_path is not None:
-        input_cardsheets_path_p = Path(input_cardsheets_path)
+    tiles_path_p = None
+    if tiles_path is not None:
+        tiles_path_p = Path(tiles_path)
         
     return geofileops_gpd.dissolve(
             input_path=Path(input_path),
@@ -354,10 +355,10 @@ def dissolve(
             groupby_columns=groupby_columns,
             aggfunc=aggfunc,
             explodecollections=explodecollections,
-            keep_tiles=keep_cardsheets,
+            clip_on_tiles=clip_on_tiles,
             input_layer=input_layer,        
             output_layer=output_layer,
-            tiles_path=input_cardsheets_path_p,
+            tiles_path=tiles_path_p,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)

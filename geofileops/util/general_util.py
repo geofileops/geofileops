@@ -1,8 +1,10 @@
 
 import datetime
 import logging
+import math
 import multiprocessing
 import os
+from typing import Tuple
 
 import psutil
 
@@ -38,7 +40,8 @@ def report_progress(
         processed_per_hour = (nb_done/time_passed) * 3600
         hours_to_go = (int)((nb_todo - nb_done)/processed_per_hour)
         min_to_go = (int)((((nb_todo - nb_done)/processed_per_hour)%1)*60)
-        print(f"\r{hours_to_go:3d}:{min_to_go:2d} left to do {operation} on {(nb_todo-nb_done):6d} of {nb_todo}", 
+        pct_progress = 100.0-(nb_todo-nb_done)*100/nb_todo
+        print(f"\r{hours_to_go:3d}:{min_to_go:2d} left to do {operation} on {(nb_todo-nb_done):8d} of {nb_todo:8d} ({pct_progress:3.2f}%)    ", 
               end="", flush=True)
 
 def formatbytes(bytes: float):
@@ -66,41 +69,55 @@ def formatbytes(bytes: float):
 def get_parallellisation_params(
         nb_rows_total: int,
         nb_parallel: int = -1,
-        verbose: bool = False):
+        prev_nb_batches: int = -1,
+        verbose: bool = False) -> Tuple[int, int, int]:
     # Some initialisations
-    memory_basefootprint = 50*1024*1024
-    memory_per_row = 100*1024*1024/30000   # Memory usage per row
-    min_rows_per_batch = 5000
-    memory_min_per_process = memory_basefootprint + memory_per_row * min_rows_per_batch
-    memory_usable = psutil.virtual_memory().available * 0.9
+    bytes_basefootprint = 50*1024*1024   # Base footprint of a python process
+    bytes_per_row = 100                  # Average memory needed per row in bytes. Remark: when running from VS code, 3 times higher!
+    min_avg_rows_per_batch = 1000
+    max_avg_rows_per_batch = 7500       # 60.000 on small test, but seems slow in larger
+    bytes_min_per_process = bytes_basefootprint + bytes_per_row * min_avg_rows_per_batch
+    bytes_usable = psutil.virtual_memory().available * 0.9
     
+    # If the number of rows is really low, just use one batch
+    # TODO: for very complex features, possibly this limit is not a good idea
+    if nb_rows_total < min_avg_rows_per_batch:
+        return (1, 1, nb_rows_total)
 
     if(nb_parallel == -1):
-        if nb_rows_total < min_rows_per_batch:
-            nb_parallel = 1
-        else:
-            nb_parallel = multiprocessing.cpu_count()
+        nb_parallel = multiprocessing.cpu_count()
 
     # If the available memory is very small, check if we can use more swap 
-    if memory_usable < 1024*1024:
-        memory_usable = min(psutil.swap_memory().free, 1024*1024)
-    logger.info(f"memory_usable: {formatbytes(memory_usable)} with mem.available: {formatbytes(psutil.virtual_memory().available)} and swap.free: {formatbytes(psutil.swap_memory().free)}") 
+    if bytes_usable < 1024*1024:
+        bytes_usable = min(psutil.swap_memory().free, 1024*1024)
+    logger.info(f"memory_usable: {formatbytes(bytes_usable)} with mem.available: {formatbytes(psutil.virtual_memory().available)} and swap.free: {formatbytes(psutil.swap_memory().free)}") 
 
     # If not enough memory for the amount of parallellism asked, reduce
-    if (nb_parallel * memory_min_per_process) > memory_usable:
-        nb_parallel = int(memory_usable/memory_min_per_process)
+    if (nb_parallel * bytes_min_per_process) > bytes_usable:
+        nb_parallel = int(bytes_usable/bytes_min_per_process)
         logger.info(f"Nb_parallel reduced to {nb_parallel} to evade excessive memory usage")
 
-    # Optimal number of batches and rows per batch 
-    nb_batches = int((nb_rows_total*memory_per_row*nb_parallel)/(memory_usable-memory_basefootprint*nb_parallel))
-    if nb_batches < nb_parallel:
-        nb_batches = nb_parallel
+    # Optimal number of batches and rows per batch based on memory usage
+    nb_batches = math.ceil((nb_rows_total*bytes_per_row*nb_parallel)/(bytes_usable-bytes_basefootprint*nb_parallel))
     
-    batch_size = int(nb_rows_total/nb_batches)
-    mem_predicted = (memory_basefootprint + batch_size*memory_per_row)*nb_batches
+    # Make sure the average batch doesn't contain > max_avg_rows_per_batch
+    batch_size = math.ceil(nb_rows_total/nb_batches)
+    if batch_size > max_avg_rows_per_batch:
+        batch_size = max_avg_rows_per_batch
+        nb_batches = math.ceil(nb_rows_total/batch_size)
+    mem_predicted = (bytes_basefootprint + batch_size*bytes_per_row)*nb_batches
 
+    # Make sure there are enough batches to use as much parallelism as possible
+    if nb_batches > 1 and nb_batches < nb_parallel:
+        if prev_nb_batches == -1:
+            nb_batches = round(nb_parallel*1.25)
+        elif nb_batches < prev_nb_batches/4:
+            nb_batches = round(nb_parallel*1.25)
+    
+    batch_size = math.ceil(nb_rows_total/nb_batches)
+
+    # Log result
     if verbose:
         logger.info(f"nb_batches: {nb_batches}, rows_per_batch: {batch_size} for nb_rows_input_layer: {nb_rows_total} will result in mem_predicted: {formatbytes(mem_predicted)}")   
 
     return (nb_parallel, nb_batches, batch_size)
-      

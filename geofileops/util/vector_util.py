@@ -16,15 +16,49 @@ logger = logging.getLogger(__name__)
 # The real work
 #-------------------------------------------------------------
 
+def create_grid2(
+        total_bounds: Tuple[float, float, float, float], 
+        nb_squarish_cells: int) -> gpd.GeoDataFrame:
+    """
+    Creates a grid and tries to approximate the number of cells asked as
+    good as possible with grid cells that as close to square as possible.
+
+    Args:
+        total_bounds (Tuple[float, float, float, float]): bounds of the grid to be created
+        nb_squarish_cells (int): about the number of cells wanted
+
+    Returns:
+        gpd.GeoDataFrame: geodataframe with the grid
+    """
+    # If more cells asked, calculate optimal number
+    xmin, ymin, xmax, ymax = total_bounds
+    total_width = xmax-xmin
+    total_height = ymax-ymin
+
+    columns_vs_rows = total_width/total_height
+    nb_rows = round(math.sqrt(nb_squarish_cells/columns_vs_rows))
+
+    # Evade having too many cells if few cells are asked...
+    if nb_rows > nb_squarish_cells:
+        nb_rows = nb_squarish_cells
+    nb_columns = round(nb_squarish_cells/nb_rows)
+    
+    # Now we know everything to create the grid
+    return create_grid(
+        total_bounds=total_bounds,
+        nb_columns=nb_columns,
+        nb_rows=nb_rows)
+
 def create_grid(
-        bounds: Tuple[float, float, float, float],
+        total_bounds: Tuple[float, float, float, float],
         nb_columns: int,
         nb_rows: int) -> gpd.GeoDataFrame:
-    xmin,ymin,xmax,ymax = bounds
+
+    xmin, ymin, xmax, ymax = total_bounds
     width = (xmax-xmin)/nb_columns
     height = (ymax-ymin)/nb_rows
 
-    rows = int(math.ceil((ymax-ymin) /  height))
+    rows = int(math.ceil((ymax-ymin) / height))
     cols = int(math.ceil((xmax-xmin) / width))
     XleftOrigin = xmin
     XrightOrigin = xmin + width
@@ -35,7 +69,7 @@ def create_grid(
         Ytop = YtopOrigin
         Ybottom =YbottomOrigin
         for _ in range(rows):
-            polygons.append(sh_geom.Polygon([(XleftOrigin, Ytop), (XrightOrigin, Ytop), (XrightOrigin, Ybottom), (XleftOrigin, Ybottom)])) 
+            polygons.append(sh_geom.box(XleftOrigin, Ybottom, XrightOrigin, Ytop)) 
             Ytop = Ytop - height
             Ybottom = Ybottom - height
         XleftOrigin = XleftOrigin + width

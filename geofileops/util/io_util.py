@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import shutil
 import tempfile
-from typing import Optional
+from typing import Optional, Tuple
 
 class CTError(Exception):
     def __init__(self, errors):
@@ -12,18 +12,46 @@ class CTError(Exception):
 def create_tempdir(base_dirname: str) -> Path:
     
     defaulttempdir = Path(tempfile.gettempdir())
-    base_tempdir = defaulttempdir / base_dirname
 
-    for i in range(1, 9999):
+    for i in range(1, 999999):
         try:
-            tempdir = f"{str(base_tempdir)}_{i:04d}"
+            tempdir = defaulttempdir / f"{base_dirname}_{i:06d}"
             os.mkdir(tempdir)
             return Path(tempdir)
         except FileExistsError:
             continue
 
-    raise Exception(f"Wasn't able to create a temporary dir with basedir: {base_tempdir}")
+    raise Exception(f"Wasn't able to create a temporary dir with basedir: {defaulttempdir / base_dirname}") 
 
+def get_tempfile_locked(
+        base_filename: str,
+        suffix: str = None,
+        dirname: str = None,
+        tempdir: Path = None) -> Tuple[Path, Path]:
+    # If no dir specified, use default temp dir
+    if tempdir is None:
+        tempdir = Path(tempfile.gettempdir())
+    if dirname is not None:
+        tempdir = tempdir / dirname
+        if not tempdir.exists():
+            os.makedirs(tempdir)
+
+    # Now look for a unique filename based on the base_filename and put a lock file
+    for i in range(1, 999999):
+        tempfile_path = tempdir / f"{base_filename}_{i:06d}{suffix}"
+        tempfilelock_path = tempdir / f"{base_filename}_{i:06d}{suffix}.lock"
+        result = create_file_atomic(tempfilelock_path)
+        if result is True:
+            if not tempfile_path.exists():
+                # OK!
+                return (tempfile_path, tempfilelock_path)
+            else:
+                # Apparently the lock file didn't exist, but the file did... so 
+                # delete lock file and try again
+                tempfilelock_path.unlink()
+
+    raise Exception(f"Wasn't able to create a temporary file with base_filename: {base_filename}, dir: {dir}") 
+ 
 def copyfile(src, dst):
     """
     standard shutil.copyfile is very slow on windows for large files.
@@ -108,4 +136,9 @@ def create_file_atomic(filename) -> bool:
         return True
     except FileExistsError:
         return False
-        
+    except IOError as ex:
+        if ex.errno == 13:
+            return False
+
+    # If we get here, return False anyway       
+    return False
