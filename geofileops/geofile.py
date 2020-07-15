@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import pyproj
 import shutil
+import tempfile
 import time
 from typing import Any, List, Tuple, Union
 
@@ -290,7 +291,7 @@ def to_file(
         path: Union[str, 'os.PathLike[Any]'],
         layer: str = None,
         append: bool = False,
-        append_timeout_s: int = 100,
+        append_timeout_s: int = 600,
         index: bool = True):
     """
     Reads a pandas dataframe to file. The fileformat is detected based on the filepath extension.
@@ -313,32 +314,61 @@ def to_file(
             gdf: gpd.GeoDataFrame,
             path: Path, 
             layer: str, 
-            index: bool):
+            index: bool = True,
+            append: bool = False):
+
+        if append is True:
+            if path.exists():
+                mode = 'a'
+            else:
+                mode = 'w'
+        else:
+            mode = 'w'
+
         ext_lower = path.suffix.lower()
         if ext_lower == '.shp':
             if index is True:
                 gdf = gdf.reset_index(inplace=False)
-            gdf.to_file(str(path))
+            gdf.to_file(str(path), mode=mode)
         elif ext_lower == '.gpkg':
-            gdf.to_file(str(path), layer=layer, driver="GPKG")
+            gdf.to_file(str(path), layer=layer, driver="GPKG", mode=mode)
         else:
             raise Exception(f"Not implemented for extension {ext_lower}")
+
+    # If no append, just write to output path
+    if append is False:
+        write_to_file(gdf=gdf, path=path_p, layer=layer, index=index, append=False)
+    else:
+        # If append is asked, check if the fiona driver supports appending. If
+        # not, write to temporary output file 
+        driver = get_driver(path_p)
+        gdftemp_path = None
+        gdftemp_lockpath = None
+        if 'a' not in fiona.supported_drivers[driver]:
+            # Get a unique temp file path. The file cannot be created yet, so 
+            # only create a lock file to evade other processes using the same 
+            # temp file name 
+            gdftemp_path, gdftemp_lockpath = io_util.get_tempfile_locked(
+                    base_filename='gdftemp',
+                    suffix=path_p.suffix,
+                    dirname='geofile_to_file')
+            write_to_file(gdf, path=gdftemp_path, layer=layer, index=index)  
         
-    if append is True:
-        """
-        # TODO: append not yet supported in geopandas 0.7, but will be supported in next version
-        # Remark: will need to be locked as well!!!
-        partial_output_gdf = geofile.read_file(tmp_partial_output_path)
-        geofile.to_file(partial_output_gdf, tmp_output_path, mode='a')
-        """
+        # Files don't typically support having multiple processes writing 
+        # simultanously to them, so use lock file to synchronize access.
         lockfile = Path(f"{str(path_p)}.lock")
         start_time = datetime.datetime.now()
         while(True):
             if io_util.create_file_atomic(lockfile) is True:
                 try:
-                    tmppath = path_p.parent / f"{path_p.stem}_tmp{path_p.suffix}"
-                    write_to_file(gdf=gdf, path=tmppath, layer=layer, index=index)
-                    remove(tmppath)
+                    # If gdf wasn't written to temp file, use standard write-to-file
+                    if gdftemp_path is None:
+                        write_to_file(gdf=gdf, path=path_p, layer=layer, index=index, append=True)
+                    else:
+                        # If gdf was written to temp file, use append_to_nolock + cleanup
+                        _append_to_nolock(src=gdftemp_path, dst=path_p, dst_layer=layer)
+                        remove(gdftemp_path)
+                        gdftemp_lockpath.unlink()
                 finally:
                     lockfile.unlink()
                     return
@@ -349,8 +379,6 @@ def to_file(
             
             # Sleep for a second before trying again
             time.sleep(1)
-    else:
-        write_to_file(gdf=gdf, path=path_p, layer=layer, index=index)
         
 def get_crs(path: Union[str, 'os.PathLike[Any]']) -> pyproj.CRS:
     with fiona.open(str(path), 'r') as geofile:
@@ -490,7 +518,7 @@ def remove(path: Union[str, 'os.PathLike[Any]']):
     else:
         path_p.unlink()
 
-def _append_ogr(
+def append_to(
         src: Union[str, 'os.PathLike[Any]'], 
         dst: Union[str, 'os.PathLike[Any]'],
         src_layer: str = None,
