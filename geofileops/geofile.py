@@ -338,7 +338,6 @@ def to_file(
                 try:
                     tmppath = path_p.parent / f"{path_p.stem}_tmp{path_p.suffix}"
                     write_to_file(gdf=gdf, path=tmppath, layer=layer, index=index)
-                    _append_ogr(tmppath, path_p, layer, layer, append_timeout_s)
                     remove(tmppath)
                 finally:
                     lockfile.unlink()
@@ -496,17 +495,50 @@ def _append_ogr(
         dst: Union[str, 'os.PathLike[Any]'],
         src_layer: str = None,
         dst_layer: str = None,
-        append_timeout_s: int = 100,
+        append_timeout_s: int = 600,
         verbose: bool = False):
+    """
+    Append is not supported for all filetypes in fiona/geopandas (0.8)... so 
+    workaround via gdal needed.
+    """
+    src_p = Path(src)
+    dst_p = Path(dst)
+    
+    # Files don't typically support having multiple processes writing 
+    # simultanously to them, so use lock file to synchronize access.
+    lockfile = Path(f"{str(src_p)}.lock")
+    start_time = datetime.datetime.now()
+    while(True):
+        if io_util.create_file_atomic(lockfile) is True:
+            try:
+                # append
+                _append_to_nolock(
+                        src=src_p, 
+                        dst=dst_p,
+                        src_layer=src_layer,
+                        dst_layer=dst_layer,
+                        verbose=verbose)
+            finally:
+                lockfile.unlink()
+                return
+        else:
+            time_waiting = (datetime.datetime.now()-start_time).total_seconds()
+            if time_waiting > append_timeout_s:
+                raise Exception(f"append_to_layer timeout of {append_timeout_s} reached, so stop trying!")
+        
+        # Sleep for a second before trying again
+        time.sleep(1)
 
-    """
-    # TODO: append not yet supported in geopandas 0.7, but will be supported in next version
-    partial_output_gdf = geofile.read_file(tmp_partial_output_path)
-    geofile.to_file(partial_output_gdf, tmp_output_path, mode='a')
-    """
+def _append_to_nolock(
+        src: Path, 
+        dst: Path,
+        src_layer: str = None,
+        dst_layer: str = None,
+        verbose: bool = False):
+    # append
     translate_info = ogr_util.VectorTranslateInfo(
-            input_path=Path(src),
-            output_path=Path(dst),
+            input_path=src,
+            output_path=dst,
             translate_description=None,
             input_layers=src_layer,
             output_layer=dst_layer,
@@ -518,7 +550,7 @@ def _append_ogr(
             force_py=True,
             verbose=verbose)
     ogr_util.vector_translate_by_info(info=translate_info)
-        
+
 def get_driver(path: Union[str, 'os.PathLike[Any]']) -> str:
     """
     Get the driver to use for the file extension of this filepath.
