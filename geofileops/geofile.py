@@ -97,11 +97,15 @@ def getlayerinfo(
     geometrycolumn=datasource_layer.GetGeometryColumn()
     if geometrycolumn == '':
         geometrycolumn = 'geometry'
-            
+    
+    # Convert gdal extent (xmin, xmax, ymin, ymax) to bounds (xmin, ymin, xmax, ymax)
+    extent = datasource_layer.GetExtent()
+    total_bounds = (extent[0], extent[2], extent[1], extent[3])
+
     return LayerInfo(
             name=datasource_layer.GetName(),
             featurecount=datasource_layer.GetFeatureCount(),
-            total_bounds=datasource_layer.GetExtent(),
+            total_bounds=total_bounds,
             geometrycolumn=geometrycolumn, 
             columns=columns)
 
