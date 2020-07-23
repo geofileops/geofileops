@@ -23,7 +23,7 @@ def select(
         input_path: Union[str, 'os.PathLike[Any]'],
         output_path: Union[str, 'os.PathLike[Any]'],
         sql_stmt: str,
-        sql_dialect: str = None,
+        sql_dialect: str = 'SQLITE',
         input_layer: str = None,        
         output_layer: str = None,
         verbose: bool = False,
@@ -37,13 +37,13 @@ def select(
         input_path (PathLike): the input file
         output_path (PathLike): the file to write the result to
         sql_stmt (str): the statement to execute
-        sql_dialect (str, optional): the sql dialect to force. By default no 
-                sql dialect is used, and then the default dialect of the 
-                underlying source is used.
+        sql_dialect (str, optional): the sql dialect to use. If None is passed,
+            the default sql dialect of the underlying source is used. The 
+            default is 'SQLITE'.
         input_layer (str, optional): input layer name. Optional if the input 
-                file only contains one layer.
+            file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input
-                file only contains one layer.
+            file only contains one layer.
         verbose (bool, optional): write more info to the output. Defaults to False.
         force (bool, optional): overwrite existing output file(s). Defaults to False.
     """
