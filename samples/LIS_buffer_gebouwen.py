@@ -43,7 +43,7 @@ if __name__ == '__main__':
             tiles_path=tiles_path,
             output_path=buildings_diss_path,
             explodecollections=True,
-            keep_tiles=True)
+            clip_on_tiles=True)
     logger.info("Ready dissolve buildings")
 
     logger.info("Start buffer 50m")
@@ -61,7 +61,7 @@ if __name__ == '__main__':
             tiles_path=tiles_path,
             output_path=buildings_diss_buf50m_diss_path,
             explodecollections=True,
-            keep_tiles=True)
+            clip_on_tiles=True)
     logger.info("Ready dissolve buffer 50m")
 
     logger.info("Start buffer 100m")
@@ -79,7 +79,7 @@ if __name__ == '__main__':
             tiles_path=tiles_path,
             output_path=buildings_diss_buf100m_diss_path,
             explodecollections=True,
-            keep_tiles=True)
+            clip_on_tiles=True)
     logger.info("Ready dissolve buffer 100m")
 
     logger.info(f"Processing ready, total time was {datetime.datetime.now()-start_time}!")
