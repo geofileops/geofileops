@@ -278,13 +278,19 @@ def read_file(
 
     # Depending on the extension... different implementations
     if ext_lower == '.shp':
-        return gpd.read_file(str(path_p), bbox=bbox, rows=rows)
+        result_gdf = gpd.read_file(str(path_p), bbox=bbox, rows=rows)
     elif ext_lower == '.geojson':
-        return gpd.read_file(str(path_p), bbox=bbox, rows=rows)
+        result_gdf = gpd.read_file(str(path_p), bbox=bbox, rows=rows)
     elif ext_lower == '.gpkg':
-        return gpd.read_file(str(path_p), layer=layer, bbox=bbox, rows=rows)
+        result_gdf = gpd.read_file(str(path_p), layer=layer, bbox=bbox, rows=rows)
     else:
         raise Exception(f"Not implemented for extension {ext_lower}")
+
+    # If columns to read are specified... filter 
+    if columns is not None:
+        result_gdf = result_gdf[columns]
+        
+    return result_gdf
 
 def to_file(
         gdf: gpd.GeoDataFrame,
