@@ -642,6 +642,9 @@ def _dissolve(
                 (input_gdf['representative_point_x'] < bbox[2]) &
                 (input_gdf['representative_point_y'] < bbox[3])].copy() 
         input_gdf.drop(['representative_point_x', 'representative_point_y'], axis=1, inplace=True)
+
+        # Nb. rows that will be processed is reduced...
+        return_info['nb_rows_done'] = len(input_gdf)
         perfinfo['time_filter_repr_point'] = (datetime.datetime.now()-start_filter).total_seconds()
             
     # Now the real processing
