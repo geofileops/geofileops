@@ -408,7 +408,7 @@ def dissolve(
     else:
         # Else, create a grid based on the number of tiles wanted as result
         layerinfo = geofile.getlayerinfo(input_path, input_layer)
-        result_tiles_gdf = vector_util.create_grid2(layerinfo.total_bounds, nb_squarish_tiles)
+        result_tiles_gdf = vector_util.create_grid2(layerinfo.total_bounds, nb_squarish_tiles, layerinfo.crs)
         geofile.to_file(result_tiles_gdf, output_path.parent / f"{output_path.stem}_tiles{output_path.suffix}")
 
     # Now start dissolving...
@@ -446,7 +446,7 @@ def dissolve(
             last_pass = True
         elif nb_tiles_result == 1:
             # Now create a grid based on the ideal number of batches
-            tiles_gdf = vector_util.create_grid2(layerinfo.total_bounds, nb_batches_ideal)
+            tiles_gdf = vector_util.create_grid2(layerinfo.total_bounds, nb_batches_ideal, layerinfo.crs)
         else:
             # If a grid is specified already, add extra columns/rows instead of 
             # creating new one...
@@ -658,7 +658,7 @@ def _dissolve(
 
         # TODO: also support other geometry types (points and lines) 
         union_polygons = vector_util.extract_polygons_from_list(union_geom)
-        diss_gdf = gpd.GeoDataFrame(geometry=union_polygons)
+        diss_gdf = gpd.GeoDataFrame(geometry=union_polygons, crs=input_gdf.crs)
         perfinfo['time_unary_union'] = (datetime.datetime.now()-start_unary_union).total_seconds()
 
         # If we want to keep the tiles, clip the result on the borders of the 
@@ -666,7 +666,7 @@ def _dissolve(
         if clip_on_tiles is True and bbox is not None:
             start_clip = datetime.datetime.now()
             polygon = sh_geom.Polygon([(bbox[0], bbox[1]), (bbox[0], bbox[3]), (bbox[2], bbox[3]), (bbox[2], bbox[1]), (bbox[0], bbox[1])])
-            bbox_gdf = gpd.GeoDataFrame([1], geometry=[polygon])
+            bbox_gdf = gpd.GeoDataFrame([1], geometry=[polygon], crs=input_gdf.crs)
             # keep_geom_type=True gives errors, so replace by own implementation
             diss_gdf = gpd.clip(diss_gdf, bbox_gdf)
             diss_gdf = vector_util.extract_polygons_from_gdf(diss_gdf)
@@ -702,7 +702,7 @@ def _dissolve(
     else:
         # If not, save the polygons on the border seperately
         bbox_lines_gdf = vector_util.polygons_to_lines(
-                gpd.GeoDataFrame(geometry=[sh_geom.box(bbox[0], bbox[1], bbox[2], bbox[3])]))
+                gpd.GeoDataFrame(geometry=[sh_geom.box(bbox[0], bbox[1], bbox[2], bbox[3])], crs=input_gdf.crs))
         onborder_gdf = gpd.sjoin(diss_gdf, bbox_lines_gdf, op='intersects')
         if len(onborder_gdf) > 0:                
             geofile.to_file(onborder_gdf, output_onborder_path, append=True)

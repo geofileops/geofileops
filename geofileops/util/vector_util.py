@@ -3,6 +3,7 @@ import math
 from typing import Tuple
 
 import geopandas as gpd
+import pyproj
 import shapely.geometry as sh_geom
 
 #-------------------------------------------------------------
@@ -18,7 +19,8 @@ logger = logging.getLogger(__name__)
 
 def create_grid2(
         total_bounds: Tuple[float, float, float, float], 
-        nb_squarish_cells: int) -> gpd.GeoDataFrame:
+        nb_squarish_cells: int,
+        crs: pyproj.CRS) -> gpd.GeoDataFrame:
     """
     Creates a grid and tries to approximate the number of cells asked as
     good as possible with grid cells that as close to square as possible.
@@ -47,12 +49,14 @@ def create_grid2(
     return create_grid(
         total_bounds=total_bounds,
         nb_columns=nb_columns,
-        nb_rows=nb_rows)
+        nb_rows=nb_rows,
+        crs=crs)
 
 def create_grid(
         total_bounds: Tuple[float, float, float, float],
         nb_columns: int,
-        nb_rows: int) -> gpd.GeoDataFrame:
+        nb_rows: int,
+        crs: pyproj.CRS) -> gpd.GeoDataFrame:
 
     xmin, ymin, xmax, ymax = total_bounds
     width = (xmax-xmin)/nb_columns
@@ -74,7 +78,7 @@ def create_grid(
             Ybottom = Ybottom - height
         XleftOrigin = XleftOrigin + width
         XrightOrigin = XrightOrigin + width     
-    return gpd.GeoDataFrame({'geometry':polygons})
+    return gpd.GeoDataFrame({'geometry':polygons}, crs=crs)
 
 def extract_polygons_from_list(
         in_geom: sh_geom.base.BaseGeometry) -> list:
@@ -114,7 +118,7 @@ def extract_polygons_from_gdf(
         for collection_geom in collection_gdf.geometry:
             collection_polygons.extend(extract_polygons_from_list(collection_geom))
         if len(collection_polygons) > 0:
-            collection_polys_gdf = gpd.GeoDataFrame(geometry=collection_polygons)
+            collection_polys_gdf = gpd.GeoDataFrame(geometry=collection_polygons, crs=in_gdf.crs)
 
     # Only keep the polygons...
     ret_gdf = poly_gdf
@@ -135,6 +139,6 @@ def polygons_to_lines(input_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         else:
             cardsheets_lines.append(cardsheet_boundary)
 
-    cardsheets_lines_gdf = gpd.GeoDataFrame(geometry=cardsheets_lines)
+    cardsheets_lines_gdf = gpd.GeoDataFrame(geometry=cardsheets_lines, crs=input_gdf.crs)
 
     return cardsheets_lines_gdf

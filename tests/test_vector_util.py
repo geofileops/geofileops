@@ -21,7 +21,8 @@ def test_create_grid2():
     # Test for larger number of cells
     grid_gdf = vector_util.create_grid2(
             total_bounds=(40000.0, 160000.0, 45000.0, 210000.0), 
-            nb_squarish_cells=100)
+            nb_squarish_cells=100,
+            crs=None)
     assert len(grid_gdf) == 100
 
 if __name__ == '__main__':
