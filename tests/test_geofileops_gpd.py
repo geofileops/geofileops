@@ -96,17 +96,24 @@ def test_dissolve_nogroupby_shp(tmpdir):
     basetest_dissolve_nogroupby(input_path, output_path)
 
 def basetest_dissolve_nogroupby(input_path, output_path):
-    layerinfo_orig = geofile.getlayerinfo(input_path)
     geofileops_gpd.dissolve(
             input_path=input_path,
             output_path=output_path,
             explodecollections=True)
 
-    # Now check if the tmp file is correctly created
+    # Now check if the result file is correctly created
     assert output_path.exists() == True
+    layerinfo_orig = geofile.getlayerinfo(input_path)
     layerinfo_output = geofile.getlayerinfo(output_path)
     assert layerinfo_output.featurecount == 21
     assert len(layerinfo_output.columns) == 0
+
+    # Now check the contents of the result file
+    input_gdf = geofile.read_file(input_path)
+    output_gdf = geofile.read_file(output_path)
+    assert input_gdf.crs == output_gdf.crs
+    assert len(output_gdf) == layerinfo_output.featurecount
+    
 
 def test_dissolve_groupby_gpkg(tmpdir):
     # Buffer to test dir
@@ -135,9 +142,14 @@ def basetest_dissolve_groupby(input_path, output_path):
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
 if __name__ == '__main__':
+    #Prepare tempdir
     import tempfile
     import shutil
     tmpdir = Path(tempfile.gettempdir()) / 'test_geofileops_gpd'
     if tmpdir.exists():
         shutil.rmtree(tmpdir)
-    test_dissolve_groupby_shp(tmpdir)
+    if not tmpdir.exists():
+        tmpdir.mkdir()
+
+    # Run
+    test_dissolve_nogroupby_gpkg(tmpdir)
