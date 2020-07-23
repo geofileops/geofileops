@@ -6,7 +6,6 @@ import multiprocessing
 import os
 from pathlib import Path
 import shutil
-import tempfile
 from typing import Any, AnyStr, List, Optional, Tuple, Union
 
 import fiona
@@ -362,17 +361,24 @@ def intersect(
         with fiona.open(input1_path) as layer:
             layer1_columns = layer.schema['properties'].keys()
         layer1_columns_in_subselect = [f"layer1.{column} l1_{column}" for column in layer1_columns]
-        layer1_columns_in_subselect_str = ", ".join(layer1_columns_in_subselect)
-        layer1_columns_in_select = [f"sub.l1_{column}" for column in layer1_columns]
-        layer1_columns_in_select_str = ", ".join(layer1_columns_in_select)
+        layer1_columns_in_subselect_str = ''
+        layer1_columns_in_select_str = ''
+        if len(layer1_columns) > 0:
+            layer1_columns_in_subselect = [f"layer1.{column} l1_{column}" for column in layer1_columns]
+            layer1_columns_in_subselect_str = ", ".join(layer1_columns_in_subselect)
+            layer1_columns_in_select = [f"sub.l1_{column}" for column in layer1_columns]
+            layer1_columns_in_select_str = ", ".join(layer1_columns_in_select)
 
         # We need the input2 column names to format the select
         with fiona.open(input2_path) as layer:
             layer2_columns = layer.schema['properties'].keys()
-        layer2_columns_in_subselect = [f"layer2.{column} l2_{column}" for column in layer2_columns]
-        layer2_columns_in_subselect_str = ", ".join(layer2_columns_in_subselect)
-        layer2_columns_in_select = [f"sub.l2_{column}" for column in layer2_columns]
-        layer2_columns_in_select_str = ", ".join(layer2_columns_in_select)
+        layer2_columns_in_subselect_str = ''
+        layer2_columns_in_select_str = ''
+        if len(layer2_columns) > 0:
+            layer2_columns_in_subselect = [f"layer2.{column} l2_{column}" for column in layer2_columns]
+            layer2_columns_in_subselect_str = ", ".join(layer2_columns_in_subselect)
+            layer2_columns_in_select = [f"sub.l2_{column}" for column in layer2_columns]
+            layer2_columns_in_select_str = ", ".join(layer2_columns_in_select)
 
         # Start calculation of intersections in parallel
         logger.info(f"Start calculation of intersections in file {input_tmp_path} to partial files")
@@ -385,11 +391,11 @@ def intersect(
             input2_tmp_curr_layer = split_jobs[split_id]['layer']
             sql_stmt = f"""
                     SELECT sub.geom, ST_area(sub.geom) area_inter
-                          ,{layer1_columns_in_select_str}
-                          ,{layer2_columns_in_select_str}
+                          {layer1_columns_in_select_str}
+                          {layer2_columns_in_select_str}
                         FROM (SELECT ST_Multi(ST_Intersection(layer1.geom, layer2.geom)) AS geom
-                                    ,{layer1_columns_in_subselect_str}
-                                    ,{layer2_columns_in_subselect_str}
+                                    {layer1_columns_in_subselect_str}
+                                    {layer2_columns_in_subselect_str}
                                 FROM \"{input1_tmp_layer}\" layer1
                                 JOIN \"rtree_{input1_tmp_layer}_geom\" layer1tree ON layer1.fid = layer1tree.id
                                 JOIN \"{input2_tmp_curr_layer}\" layer2
@@ -448,19 +454,22 @@ def export_by_location(
         input_to_compare_with_path: Path,
         output_path: Path,
         input1_layer: str = None,
+        input1_columns: List[str] = None,
         input2_layer: str = None,
+        input2_columns: List[str] = None,
         output_layer: str = None,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
-
+    
     sql_template = f'''
-            SELECT geom, {{layer1_columns_in_subselect_str}}
+            SELECT geom 
+                  {{layer1_columns_in_subselect_str}}
                 FROM "{{input1_tmp_layer}}" layer1
                 JOIN "rtree_{{input1_tmp_layer}}_geom" layer1tree ON layer1.fid = layer1tree.id
                 WHERE 1=1
-                AND EXISTS (
-                    SELECT 1 
+                  AND EXISTS (
+                      SELECT 1 
                         FROM "{{input2_tmp_layer}}" layer2
                         JOIN "rtree_{{input2_tmp_layer}}_geom" layer2tree ON layer2.fid = layer2tree.id
                         WHERE layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
@@ -468,9 +477,10 @@ def export_by_location(
                         AND ST_Intersects(layer1.geom, layer2.geom) = 1
                         AND ST_Touches(layer1.geom, layer2.geom) = 0)
             '''
+    
     sql_template = f'''
         SELECT ST_union(layer1.geom) as geom
-              ,{{layer1_columns_in_subselect_str}}
+              {{layer1_columns_in_subselect_str}}
               ,ST_area(ST_intersection(ST_union(layer1.geom), ST_union(layer2.geom))) as area_inters
             FROM "{{input1_tmp_layer}}" layer1
             JOIN "rtree_{{input1_tmp_layer}}_geom" layer1tree ON layer1.fid = layer1tree.id
@@ -481,7 +491,7 @@ def export_by_location(
              AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
              AND ST_Intersects(layer1.geom, layer2.geom) = 1
              AND ST_Touches(layer1.geom, layer2.geom) = 0
-           GROUP BY {{layer1_columns_in_groupby_str}}
+           GROUP BY layer1.rowid {{layer1_columns_in_groupby_str}}
         '''
     geom_operation_description = "export_by_location"
 
@@ -492,7 +502,9 @@ def export_by_location(
             sql_template=sql_template,
             geom_operation_description=geom_operation_description,
             input1_layer=input1_layer,
+            input1_columns=input1_columns,
             input2_layer=input2_layer,
+            input2_columns=input2_columns,
             output_layer=output_layer,
             nb_parallel=nb_parallel,
             verbose=verbose,
@@ -511,12 +523,13 @@ def export_by_distance(
         force: bool = False):
 
     sql_template = f'''
-            SELECT geom, {{layer1_columns_in_subselect_str}}
+            SELECT geom
+                  {{layer1_columns_in_subselect_str}}
                 FROM "{{input1_tmp_layer}}" layer1
                 JOIN "rtree_{{input1_tmp_layer}}_geom" layer1tree ON layer1.fid = layer1tree.id
                 WHERE 1=1
-                AND EXISTS (
-                    SELECT 1 
+                  AND EXISTS (
+                      SELECT 1 
                         FROM "{{input2_tmp_layer}}" layer2
                         JOIN "rtree_{{input2_tmp_layer}}_geom" layer2tree ON layer2.fid = layer2tree.id
                         WHERE (layer1tree.minx-{max_distance}) <= layer2tree.maxx 
@@ -547,7 +560,9 @@ def _two_layer_vector_operation(
         sql_template: str,
         geom_operation_description: str,
         input1_layer: str = None,
+        input1_columns: List[str] = None,
         input2_layer: str = None,
+        input2_columns: List[str] = None,
         output_layer: str = None,
         nb_parallel: int = -1,
         verbose: bool = False,
@@ -621,7 +636,7 @@ def _two_layer_vector_operation(
         # Spread input1 data over different layers to be able to calculate in parallel
         if(nb_parallel == -1):
             nb_parallel = multiprocessing.cpu_count()
-        nb_batches = nb_parallel*4
+        nb_batches = nb_parallel
         split_jobs = _split_layer_features(
                 input_path=input1_path,
                 input_layer=input1_layer,
@@ -632,24 +647,38 @@ def _two_layer_vector_operation(
         
         ##### Calculate! #####
         # We need the input1 column names to format the select
-        with fiona.open(str(input1_path)) as layer:
-            layer1_columns = layer.schema['properties'].keys()
-        layer1_columns_in_subselect = [f"layer1.{column} l1_{column}" for column in layer1_columns]
-        layer1_columns_in_subselect_str = ", ".join(layer1_columns_in_subselect)
-        layer1_columns_in_select = [f"sub.l1_{column}" for column in layer1_columns]
-        layer1_columns_in_select_str = ", ".join(layer1_columns_in_select)
-        layer1_columns_in_groupby = [f"layer1.{column}" for column in layer1_columns]
-        layer1_columns_in_groupby_str = ", ".join(layer1_columns_in_groupby)
+        if input1_columns is not None:
+            layer1_columns = input1_columns
+        else:
+            with fiona.open(str(input1_path)) as layer:
+                layer1_columns = layer.schema['properties'].keys()
+        layer1_columns_in_subselect_str = ''
+        layer1_columns_in_select_str = ''
+        layer1_columns_in_groupby_str = ''
+        if len(layer1_columns) > 0:
+            layer1_columns_in_subselect = [f"layer1.{column} l1_{column}" for column in layer1_columns]
+            layer1_columns_in_subselect_str = ',' + ", ".join(layer1_columns_in_subselect)
+            layer1_columns_in_select = [f"sub.l1_{column}" for column in layer1_columns]
+            layer1_columns_in_select_str = ',' + ", ".join(layer1_columns_in_select)
+            layer1_columns_in_groupby = [f"layer1.{column}" for column in layer1_columns]
+            layer1_columns_in_groupby_str = ',' + ", ".join(layer1_columns_in_groupby)
 
         # We need the input2 column names to format the select
-        with fiona.open(str(input2_path)) as layer:
-            layer2_columns = layer.schema['properties'].keys()
-        layer2_columns_in_subselect = [f"layer2.{column} l2_{column}" for column in layer2_columns]
-        layer2_columns_in_subselect_str = ", ".join(layer2_columns_in_subselect)
-        layer2_columns_in_select = [f"sub.l2_{column}" for column in layer2_columns]
-        layer2_columns_in_select_str = ", ".join(layer2_columns_in_select)
-        layer2_columns_in_groupby = [f"layer2.{column}" for column in layer2_columns]
-        layer2_columns_in_groupby_str = ", ".join(layer2_columns_in_groupby)        
+        if input2_columns is not None:
+            layer2_columns = input2_columns
+        else:
+            with fiona.open(str(input2_path)) as layer:
+                layer2_columns = layer.schema['properties'].keys()
+        layer2_columns_in_subselect_str = ''
+        layer2_columns_in_select_str = ''
+        layer2_columns_in_groupby_str = ''
+        if len(layer2_columns) > 0:
+            layer2_columns_in_subselect = [f"layer2.{column} l2_{column}" for column in layer2_columns]
+            layer2_columns_in_subselect_str = ',' + ", ".join(layer2_columns_in_subselect)
+            layer2_columns_in_select = [f"sub.l2_{column}" for column in layer2_columns]
+            layer2_columns_in_select_str = ',' + ", ".join(layer2_columns_in_select)
+            layer2_columns_in_groupby = [f"layer2.{column}" for column in layer2_columns]
+            layer2_columns_in_groupby_str = ',' + ", ".join(layer2_columns_in_groupby)        
 
         # Fill out the geometry column name in geom_operation_sqlite
         # TODO: check if geom column is always geom
@@ -717,6 +746,8 @@ def _two_layer_vector_operation(
 
                     # If there wasn't an exception, but the output file doesn't exist, the result was empty, so just skip.
                     if not tmp_partial_output_path.exists():
+                        if verbose:
+                            logger.info(f"Temporary partial file was empty: {translate_jobs[translate_id]}")
                         continue
                     
                     translate_description = f"Copy result {translate_id} of {nb_batches} to {output_layer}"
@@ -726,12 +757,12 @@ def _two_layer_vector_operation(
                             output_path=tmp_output_path,
                             translate_description=translate_description,
                             output_layer=output_layer,
-                            transaction_size=200000,
                             append=True,
                             update=True,
                             create_spatial_index=False,
                             force_output_geometrytype='MULTIPOLYGON',
                             priority_class='NORMAL',
+                            force_py=True,
                             verbose=verbose)
                     ogr_util.vector_translate_by_info(info=translate_info)
                     future_to_translate_id[future] = translate_id
@@ -762,7 +793,9 @@ def _split_layer_features(
     # Get column names
     with fiona.open(input_path) as layer:
         columns = layer.schema['properties'].keys()
-    columns_to_select_str = f", {','.join(columns)}"
+    columns_to_select_str = ''
+    if len(columns) > 0:
+        columns_to_select_str = f", {','.join(columns)}"
 
     ##### Split to x files/layers #####
     # Get input2 data to temp file, but divide it over several parts
@@ -779,36 +812,27 @@ def _split_layer_features(
     else:
         geometry_column_for_select = f"{layerinfo.geometrycolumn} geom"
 
+    if verbose:
+        logger.info(f"Split the input file to {nb_parts} batches")
     for split_job_id in range(nb_parts):
         # Prepare destination layer name
         split_jobs[split_job_id] = {}
         output_baselayer_stripped = output_baselayer.strip("'\"")
         output_layer_curr = f"{output_baselayer_stripped}_{split_job_id}"
         split_jobs[split_job_id]['layer'] = output_layer_curr
-        
-        '''
-        # For the last batch, don't limit anymore
-        if split_job_id >= nb_parts-1:
-            row_limit = -1       
-
-        sqlite_stmt = f"""
-                SELECT {geometry_column_for_select}{columns_to_select_str} FROM \"{input_layer}\"
-                 LIMIT {row_limit}
-                OFFSET {row_offset}"""
-        '''
-
+    
         # For the last translate_id, take all rowid's left...
         if split_job_id < nb_parts-1:
             sql_stmt = f'''
                     SELECT {geometry_column_for_select}{columns_to_select_str}  
-                        FROM "{input_layer}"
-                        WHERE rowid >= {row_offset}
-                        AND rowid < {row_offset + row_limit}'''
+                      FROM "{input_layer}"
+                     WHERE rowid >= {row_offset}
+                       AND rowid < {row_offset + row_limit}'''
         else:
             sql_stmt = f'''
                     SELECT {geometry_column_for_select}{columns_to_select_str}  
-                        FROM "{input_layer}"
-                        WHERE rowid >= {row_offset}'''
+                      FROM "{input_layer}"
+                     WHERE rowid >= {row_offset}'''
                         
         translate_description=f"Copy data from {input_path}.{input_layer} to {output_path}.{output_layer_curr}"
         ogr_util.vector_translate(
@@ -820,6 +844,7 @@ def _split_layer_features(
                 sql_dialect='SQLITE',
                 append=True,
                 force_output_geometrytype='MULTIPOLYGON',
+                force_py=True,
                 verbose=verbose)
         row_offset += row_limit
 

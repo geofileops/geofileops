@@ -7,7 +7,6 @@ from typing import Any, AnyStr, List, Optional, Tuple, Union
 
 from .util import geofileops_ogr
 from .util import geofileops_gpd
-from .util import general_util
 
 ################################################################################
 # Some init
@@ -57,43 +56,6 @@ def select(
             verbose=verbose,
             force=force)
 
-def convexhull(
-        input_path: Union[str, 'os.PathLike[Any]'],
-        output_path: Union[str, 'os.PathLike[Any]'],
-        input_layer: str = None,
-        output_layer: str = None,
-        nb_parallel: int = -1,
-        verbose: bool = False,
-        force: bool = False):
-    """
-    Applies a convexhull operation on the input file.
-    
-    The result is written to the output file specified. 
-
-    Args:
-        input_path (PathLike): the input file
-        output_path (PathLike): the file to write the result to
-        input_layer (str, optional): input layer name. Optional if the input 
-                file only contains one layer.
-        output_layer (str, optional): input layer name. Optional if the input 
-                file only contains one layer.
-        nb_parallel (int, optional): the number of parallel processes to use. 
-                If not specified, all available processors will be used.
-        verbose (bool, optional): write more info to the output. 
-                Defaults to False.
-        force (bool, optional): overwrite existing output file(s). 
-                Defaults to False.
-    """
-
-    return geofileops_gpd.convexhull(
-            input_path=Path(input_path),
-            output_path=Path(output_path),
-            input_layer=input_layer,
-            output_layer=output_layer,
-            nb_parallel=nb_parallel,
-            verbose=verbose,
-            force=force)
-
 def buffer(
         input_path: Union[str, 'os.PathLike[Any]'],
         output_path: Union[str, 'os.PathLike[Any]'],
@@ -101,6 +63,7 @@ def buffer(
         quadrantsegments: int = 5,
         input_layer: str = None,
         output_layer: str = None,
+        columns: List[str] = None,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -119,6 +82,8 @@ def buffer(
                 file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input 
                 file only contains one layer.
+        columns (List[str], optional): list of columns to return. If None,
+                all columns are returned.
         nb_parallel (int, optional): the number of parallel processes to use. 
                 If not specified, all available processors will be used.
         verbose (bool, optional): write more info to the output. 
@@ -134,6 +99,48 @@ def buffer(
             quadrantsegments=quadrantsegments,
             input_layer=input_layer,
             output_layer=output_layer,
+            columns=columns,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
+
+def convexhull(
+        input_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
+        input_layer: str = None,
+        output_layer: str = None,
+        columns: List[str] = None,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+    """
+    Applies a convexhull operation on the input file.
+    
+    The result is written to the output file specified. 
+
+    Args:
+        input_path (PathLike): the input file
+        output_path (PathLike): the file to write the result to
+        input_layer (str, optional): input layer name. Optional if the input 
+            file only contains one layer.
+        output_layer (str, optional): input layer name. Optional if the input 
+            file only contains one layer.
+        nb_parallel (int, optional): the number of parallel processes to use. 
+            If not specified, all available processors will be used.
+        columns (List[str], optional): If not None, only output the columns 
+            specified. Defaults to None.
+        verbose (bool, optional): write more info to the output. 
+            Defaults to False.
+        force (bool, optional): overwrite existing output file(s). 
+            Defaults to False.
+    """
+
+    return geofileops_gpd.convexhull(
+            input_path=Path(input_path),
+            output_path=Path(output_path),
+            input_layer=input_layer,
+            output_layer=output_layer,
+            columns=columns,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
@@ -144,6 +151,7 @@ def simplify(
         tolerance: float,        
         input_layer: str = None,        
         output_layer: str = None,
+        columns: List[str] = None,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -157,15 +165,17 @@ def simplify(
         output_path (PathLike): the file to write the result to
         tolerance (float): the tolerancy to use when simplifying
         input_layer (str, optional): input layer name. Optional if the input 
-                file only contains one layer.
+            file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input 
-                file only contains one layer.
+            file only contains one layer.
+        columns (List[str], optional): If not None, only output the columns 
+            specified. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use. 
-                If not specified, all available processors will be used.
+            If not specified, all available processors will be used.
         verbose (bool, optional): write more info to the output. 
-                Defaults to False.
+            Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
-                Defaults to False.
+            Defaults to False.
     """
 
     return geofileops_gpd.simplify(
@@ -174,6 +184,7 @@ def simplify(
             tolerance=tolerance,
             input_layer=input_layer,
             output_layer=output_layer,
+            columns=columns,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
@@ -224,9 +235,11 @@ def intersect(
 def export_by_location(
         input_to_select_from_path: Union[str, 'os.PathLike[Any]'],
         input_to_compare_with_path: Union[str, 'os.PathLike[Any]'],
-        output_path: str,
+        output_path: Union[str, 'os.PathLike[Any]'],
         input1_layer: str = None,
+        input1_columns: List[str] = None,
         input2_layer: str = None,
+        input2_columns: List[str] = None,
         output_layer: str = None,
         nb_parallel: int = -1,
         verbose: bool = False,
@@ -241,8 +254,12 @@ def export_by_location(
         output_path (PathLike): the file to write the result to
         input1_layer (str, optional): input layer name. Optional if the  
                 file only contains one layer.
+        input1_columns (List[str], optional): columns to select. If no columns
+                specified, all columns are selected.
         input2_layer (str, optional): input layer name. Optional if the  
                 file only contains one layer.
+        input2_columns (List[str], optional): columns to select. If no columns
+                specified, all columns are selected.
         output_layer (str, optional): output layer name. Optional if the  
                 file only contains one layer.
         nb_parallel (int, optional): the number of parallel processes to use. 
@@ -257,7 +274,9 @@ def export_by_location(
             input_to_compare_with_path=Path(input_to_compare_with_path),
             output_path=Path(output_path),
             input1_layer=input1_layer,
+            input1_columns=input1_columns,
             input2_layer=input2_layer,
+            input2_columns=input2_columns,
             output_layer=output_layer,
             nb_parallel=nb_parallel,
             verbose=verbose,

@@ -35,6 +35,7 @@ def buffer(
         quadrantsegments: int = 5,
         input_layer: str = None,
         output_layer: str = None,
+        columns: List[str] = None,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -53,6 +54,7 @@ def buffer(
             operation_params=operation_params,
             input_layer=input_layer,
             output_layer=output_layer,
+            columns=columns,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
@@ -62,6 +64,7 @@ def convexhull(
         output_path: Path,
         input_layer: str = None,
         output_layer: str = None,
+        columns: List[str] = None,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -77,6 +80,7 @@ def convexhull(
             operation_params=operation_params,
             input_layer=input_layer,
             output_layer=output_layer,
+            columns=columns,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
@@ -87,6 +91,7 @@ def simplify(
         tolerance: float,
         input_layer: str = None,
         output_layer: str = None,
+        columns: List[str] = None,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -104,6 +109,7 @@ def simplify(
             operation_params=operation_params,
             input_layer=input_layer,
             output_layer=output_layer,
+            columns=columns,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
@@ -114,6 +120,7 @@ def _apply_geooperation_to_layer(
         operation: str,
         operation_params: dict,
         input_layer: str = None,
+        columns: List[str] = None,
         output_layer: str = None,
         nb_parallel: int = -1,
         verbose: bool = False,
@@ -135,9 +142,11 @@ def _apply_geooperation_to_layer(
         output_path (Path): [description]
         operation (str): the geo operation to apply.
         operation_params (dict, optional): the parameters for the geo operation. 
-                Defaults to None 
+            Defaults to None. 
         input_layer (str, optional): [description]. Defaults to None.
         output_layer (str, optional): [description]. Defaults to None.
+        columns (List[str], optional): If not None, only output the columns 
+            specified. Defaults to None.
         nb_parallel (int, optional): [description]. Defaults to -1.
         verbose (bool, optional): [description]. Defaults to False.
         force (bool, optional): [description]. Defaults to False.
@@ -209,7 +218,8 @@ def _apply_geooperation_to_layer(
                         output_path=output_tmp_partial_path,
                         operation=operation,
                         operation_params=operation_params,
-                        input_layer=input_layer,        
+                        input_layer=input_layer,
+                        columns=columns,     
                         output_layer=output_layer,
                         rows=rows,
                         verbose=verbose,
@@ -282,6 +292,7 @@ def _apply_geooperation(
         operation_params: dict,
         input_layer: str = None,
         output_layer: str = None,
+        columns: List[str] = None,
         rows = None,
         verbose: bool = False,
         force: bool = False) -> Optional[str]:
@@ -296,7 +307,7 @@ def _apply_geooperation(
 
     ##### Now go! #####
     start_time = datetime.datetime.now()
-    data_gdf = geofile.read_file(path=input_path, layer=input_layer, rows=rows)
+    data_gdf = geofile.read_file(path=input_path, layer=input_layer, columns=columns, rows=rows)
     if len(data_gdf) == 0:
         logger.info(f"No input geometries found for rows: {rows} in layer: {input_layer} in input_path: {input_path}")
         return None

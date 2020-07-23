@@ -34,19 +34,14 @@ if __name__ == '__main__':
     #output_filename = f"{input1_filename_noext}_INTERSECTING_pot_tuin.gpkg"
 
     # Prc Denemarken
-    input_to_select_from_path = r"X:\Monitoring\OrthoSeg\sealedsurfaces\prc_DK2019.gpkg"
-    input_to_compare_with_path = r"X:\Monitoring\OrthoSeg\sealedsurfaces\output_vector\DK_2019\sealedsurfaces_23_0_523_DK_2019.gpkg"
+    input_to_select_from_path = Path(r"X:\GIS\GIS DATA\Percelen_ALP\Vlaanderen\Perc_VL_2020_2020-05-25\perc_2020_met_k_2020-05-25.gpkg")
+    input_to_compare_with_path = Path(r"X:\Monitoring\OrthoSeg\sealedsurfaces\output_vector\BEFL-2020-ofw\sealedsurfaces_27_136_BEFL-2020-ofw.gpkg")
 
-    input1_dir, input1_filename = os.path.split(input_to_select_from_path)
-    input2_dir, input2_filename = os.path.split(input_to_compare_with_path)
-    input1_filename_noext, _ = os.path.splitext(input1_filename)
-    input2_filename_noext, _ = os.path.splitext(input2_filename)
-
-    output_dir = input1_dir
+    # Prepare output path
     if output_path is None:
         if output_filename is None:
-            output_filename = f"{input1_filename_noext}_INTERSECTING_{input2_filename_noext}.gpkg"
-        output_path = os.path.join(output_dir, output_filename)
+            output_filename = f"{input_to_select_from_path.stem}_INTERSECTING_{input_to_compare_with_path.stem}.gpkg"
+        output_path = input_to_select_from_path.parent / output_filename
 
     ##### Go! #####
     logger.info("Start")
@@ -54,6 +49,7 @@ if __name__ == '__main__':
             input_to_select_from_path=input_to_select_from_path,
             input_to_compare_with_path=input_to_compare_with_path,
             output_path=output_path,
+            input1_columns=['CODE_OBJ'],
             force=True,
-            verbose=False)
+            verbose=True)
     logger.info("Ready")
