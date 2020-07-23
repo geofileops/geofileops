@@ -207,6 +207,8 @@ def vector_translate(
             sqlite_journal_mode=sqlite_journal_mode,
             verbose=verbose)
     else:
+        if verbose:
+            logger.info("Use ogr2ogr.exe instead of python version")
         return vector_translate_exe( 
             input_path=input_path,
             output_path=output_path,
@@ -237,7 +239,7 @@ def vector_translate_exe(
         clip_bounds: Tuple[float, float, float, float] = None, 
         sql_stmt: str = None,
         sql_dialect: str = None,
-        transaction_size: int = 65536,
+        transaction_size: int = 10000,
         append: bool = False,
         update: bool = False,
         create_spatial_index: bool = None,
@@ -312,7 +314,7 @@ def vector_translate_exe(
     #else:
     #    args.extend(['--config', 'OGR_SQLITE_PRAGMA', 'busy_timeout=-1'])  
     #args.extend(['--config', 'OGR_SQLITE_SYNCHRONOUS', 'OFF'])  
-    args.extend(['--config', 'OGR_SQLITE_CACHE', '512'])
+    args.extend(['--config', 'OGR_SQLITE_CACHE', '128'])
 
     ##### Now start ogr2ogr #####
     # Save whether the output file exists already prior to the operation
