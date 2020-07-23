@@ -19,7 +19,6 @@ import geopandas as gpd
 from osgeo import gdal
 
 from .util import io_util
-from .util import general_util
 from .util import ogr_util
 
 #-------------------------------------------------------------
@@ -58,12 +57,14 @@ class LayerInfo:
             featurecount: int, 
             total_bounds: Tuple[float, float, float, float],
             geometrycolumn: str, 
-            columns: List[str]):
+            columns: List[str],
+            crs: pyproj.CRS):
         self.name = name
         self.featurecount = featurecount
         self.total_bounds = total_bounds
         self.geometrycolumn = geometrycolumn
         self.columns = columns
+        self.crs = crs
     
 def getlayerinfo(
         path: Union[str, 'os.PathLike[Any]'],
@@ -103,12 +104,16 @@ def getlayerinfo(
     extent = datasource_layer.GetExtent()
     total_bounds = (extent[0], extent[2], extent[1], extent[3])
 
+    # Get projection
+    crs = pyproj.CRS(datasource_layer.GetSpatialRef().ExportToWkt())
+
     return LayerInfo(
             name=datasource_layer.GetName(),
             featurecount=datasource_layer.GetFeatureCount(),
             total_bounds=total_bounds,
             geometrycolumn=geometrycolumn, 
-            columns=columns)
+            columns=columns,
+            crs=crs)
 
 def get_only_layer(path: Union[str, 'os.PathLike[Any]']) -> str:
     """
