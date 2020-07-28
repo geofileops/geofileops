@@ -4,7 +4,7 @@ import logging
 import math
 import multiprocessing
 import os
-from typing import Tuple
+from typing import Tuple, NamedTuple
 
 import psutil
 
@@ -66,11 +66,26 @@ def formatbytes(bytes: float):
     elif TB <= bytes_float:
         return '{0:.2f} TB'.format(bytes_float/TB)
 
+ParallellisationParams = NamedTuple('result', [('nb_parallel', int), ('nb_batches_recommended', int), ('nb_rows_per_batch', int)])
 def get_parallellisation_params(
         nb_rows_total: int,
         nb_parallel: int = -1,
-        prev_nb_batches: int = -1,
-        verbose: bool = False) -> Tuple[int, int, int]:
+        prev_nb_batches: int = None,
+        verbose: bool = False) -> ParallellisationParams:
+    """
+    Determines recommended parallellisation params.
+
+    Args:
+        nb_rows_total (int): The total number of rows that will be processed
+        nb_parallel (int, optional): The level of parallellisation requested. 
+            If -1, tries to use all resources available. Defaults to -1.
+        prev_nb_batches (int, optional): If applicable, the number of batches 
+            used in a previous pass of the calculation. Defaults to None.
+        verbose (bool, optional): [description]. Defaults to False.
+
+    Returns:
+        ParallellisationParams (NamedTuple('result', [('nb_parallel', int), ('nb_batches_recommended', int), ('nb_rows_per_batch', int)])): The recommended parameters.
+    """
     # Some initialisations
     bytes_basefootprint = 50*1024*1024   # Base footprint of a python process
     bytes_per_row = 100                  # Average memory needed per row in bytes. Remark: when running from VS code, 3 times higher!
@@ -82,7 +97,7 @@ def get_parallellisation_params(
     # If the number of rows is really low, just use one batch
     # TODO: for very complex features, possibly this limit is not a good idea
     if nb_rows_total < min_avg_rows_per_batch:
-        return (1, 1, nb_rows_total)
+        return ParallellisationParams(1, 1, nb_rows_total)
 
     if(nb_parallel == -1):
         nb_parallel = multiprocessing.cpu_count()
@@ -109,7 +124,7 @@ def get_parallellisation_params(
 
     # Make sure there are enough batches to use as much parallelism as possible
     if nb_batches > 1 and nb_batches < nb_parallel:
-        if prev_nb_batches == -1:
+        if prev_nb_batches is None:
             nb_batches = round(nb_parallel*1.25)
         elif nb_batches < prev_nb_batches/4:
             nb_batches = round(nb_parallel*1.25)
@@ -118,6 +133,6 @@ def get_parallellisation_params(
 
     # Log result
     if verbose:
-        logger.info(f"nb_batches: {nb_batches}, rows_per_batch: {batch_size} for nb_rows_input_layer: {nb_rows_total} will result in mem_predicted: {formatbytes(mem_predicted)}")   
+        logger.info(f"nb_batches_recommended: {nb_batches}, rows_per_batch: {batch_size} for nb_rows_input_layer: {nb_rows_total} will result in mem_predicted: {formatbytes(mem_predicted)}")   
 
-    return (nb_parallel, nb_batches, batch_size)
+    return ParallellisationParams(nb_parallel, nb_batches, batch_size)

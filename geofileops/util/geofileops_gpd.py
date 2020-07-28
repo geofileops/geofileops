@@ -179,11 +179,15 @@ def _apply_geooperation_to_layer(
         # the available resources
         layerinfo = geofile.getlayerinfo(input_path, input_layer)
         nb_rows_total = layerinfo.featurecount
-        nb_parallel, nb_batches, batch_size = general_util.get_parallellisation_params(
-                nb_rows_total=nb_rows_total,
-                nb_parallel=nb_parallel,
-                verbose=verbose)
         force_output_geometrytype = layerinfo.geometrytypename
+        if(nb_parallel == -1):
+            nb_parallel = multiprocessing.cpu_count()
+        nb_batches = nb_parallel
+        batch_size = int(nb_rows_total/nb_batches)
+        #nb_parallel, nb_batches, batch_size = general_util.get_parallellisation_params(
+        #        nb_rows_total=nb_rows_total,
+        #        nb_parallel=nb_parallel,
+        #        verbose=verbose)
 
         with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
@@ -394,7 +398,8 @@ def dissolve(
         # Else, create a grid based on the number of tiles wanted as result
         layerinfo = geofile.getlayerinfo(input_path, input_layer)
         result_tiles_gdf = vector_util.create_grid2(layerinfo.total_bounds, nb_squarish_tiles, layerinfo.crs)
-        geofile.to_file(result_tiles_gdf, output_path.parent / f"{output_path.stem}_tiles{output_path.suffix}")
+        if len(result_tiles_gdf) > 1:
+            geofile.to_file(result_tiles_gdf, output_path.parent / f"{output_path.stem}_tiles{output_path.suffix}")
 
     # Now start dissolving...
     # The dissolve is done in several passes, and after the first pass, only the 
@@ -405,43 +410,47 @@ def dissolve(
         output_layer = geofile.get_default_layer(output_path)
     tempdir = io_util.create_tempdir(operation)
     output_tmp_path = tempdir / output_path.name
-    prev_nb_batches = -1
+    prev_nb_batches = None
     last_pass = False
     pass_id = 0
+    current_clip_on_tiles = False
+    logger.info(f"Start dissolve on file {input_path}")
+    start_time = datetime.datetime.now()
     while True:
-        start_time = datetime.datetime.now()
-    
+        
         # Get some info of the file that needs to be dissolved
         layerinfo = geofile.getlayerinfo(pass_input_path, input_layer)
         nb_rows_total = layerinfo.featurecount
 
         # Calculate the best number of parallel processes and batches for 
         # the available resources
-        nb_parallel, nb_batches_ideal, _ = general_util.get_parallellisation_params(
+        nb_parallel, nb_batches_recommended, _ = general_util.get_parallellisation_params(
                 nb_rows_total=nb_rows_total,
                 nb_parallel=nb_parallel,
                 prev_nb_batches=prev_nb_batches,
                 verbose=verbose)
 
-        # If the ideal number of batches is smaller than the nb. result tiles asked,  
-        # dissolve with grid with smaller tiles! 
-        nb_tiles_result = len(result_tiles_gdf)
-        if nb_batches_ideal < nb_tiles_result*1.1:
+        # If the ideal number of batches is close to the nb. result tiles asked,  
+        # dissolve towards the asked result!
+        # If not, a temporary result is created using smaller tiles 
+        if nb_batches_recommended <= len(result_tiles_gdf)*1.1:
             tiles_gdf = result_tiles_gdf
+            current_clip_on_tiles = clip_on_tiles
             last_pass = True
-        elif nb_tiles_result == 1:
-            # Now create a grid based on the ideal number of batches
-            tiles_gdf = vector_util.create_grid2(layerinfo.total_bounds, nb_batches_ideal, layerinfo.crs)
+        elif len(result_tiles_gdf) == 1:
+            # Create a grid based on the ideal number of batches
+            tiles_gdf = vector_util.create_grid2(layerinfo.total_bounds, nb_batches_recommended, layerinfo.crs)
         else:
             # If a grid is specified already, add extra columns/rows instead of 
             # creating new one...
-            raise Exception("Not supported yet!")
-        
+            tiles_gdf = vector_util.split_tiles(
+                result_tiles_gdf, nb_batches_recommended)
+        geofile.to_file(tiles_gdf, tempdir / f"{output_path.stem}_{pass_id}_tiles{output_path.suffix}")
+
         # The notonborder rows are final immediately
         # The onborder parcels will need extra processing still... 
         output_tmp_onborder_path = tempdir / f"{output_path.stem}_{pass_id}_onborder{output_path.suffix}"
         
-        prev_nb_batches = len(tiles_gdf)
         result = dissolve_pass(
                 input_path=pass_input_path,
                 output_notonborder_path=output_tmp_path,
@@ -450,14 +459,12 @@ def dissolve(
                 groupby_columns=groupby_columns,
                 aggfunc=aggfunc,
                 explodecollections=explodecollections,
-                clip_on_tiles=clip_on_tiles,
+                clip_on_tiles=current_clip_on_tiles,
                 input_layer=input_layer,        
                 output_layer=output_layer,
                 nb_parallel=nb_parallel,
                 verbose=verbose,
                 force=force)
-
-        logger.info(f"Dissolve pass {pass_id} ready, took {datetime.datetime.now()-start_time}!")
 
         # If we are ready...
         if last_pass is True:
@@ -465,6 +472,7 @@ def dissolve(
         
         # Prepare the next pass...
         # The input path are the onborder rows...
+        prev_nb_batches = len(tiles_gdf)
         pass_input_path = output_tmp_onborder_path
         pass_id += 1
 
@@ -478,7 +486,7 @@ def dissolve(
     # Clean tmp dir
     shutil.rmtree(tempdir)
 
-    logger.info(f"Dissolve ready, took {datetime.datetime.now()-start_time}!")
+    logger.info(f"Dissolve completely ready, took {datetime.datetime.now()-start_time}!")
 
 def dissolve_pass(
         input_path: Path,  
@@ -496,13 +504,13 @@ def dissolve_pass(
         force: bool = False) -> dict:
 
     # Start calculation in parallel
+    start_time = datetime.datetime.now()
     result_info = {}
     start_time = datetime.datetime.now()
     layerinfo = geofile.getlayerinfo(input_path, input_layer)
     nb_rows_total = layerinfo.featurecount
     
-    logger.info(f"Start dissolve on file {input_path}")
-    logger.info(f"First step: dissolve on {len(tiles_gdf)} tiles (nb_parallel: {nb_parallel})")       
+    logger.info(f"Start dissolve pass to {len(tiles_gdf)} tiles (nb_parallel: {nb_parallel})")       
     with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
         batches = {}    
@@ -550,7 +558,9 @@ def dissolve_pass(
 
             # Log the progress and prediction speed
             general_util.report_progress(start_time, nb_rows_done, nb_rows_total, 'dissolve')
-                        
+
+    logger.info(f"Dissolve pass ready, took {datetime.datetime.now()-start_time}!")
+                
     return result_info
 
 def _dissolve(
