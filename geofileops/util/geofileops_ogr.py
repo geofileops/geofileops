@@ -159,39 +159,18 @@ def _single_layer_vector_operation(
     if output_layer is None:
         output_layer = geofile.get_default_layer(output_path)
 
-    ##### Prepare tmp files #####
+    ##### Calculate #####
     tempdir = io_util.create_tempdir(geom_operation_description.replace(' ', '_'))
-    logger.info(f"Start preparation of the temp files to calculate on in {tempdir}")
-
+    
     try:
         input_tmp_path = input_path
-        '''
-        # Get input data to temp gpkg file
-        input_tmp_path = os.path.join(tempdir, f"input_layers.gpkg")        
-        _, input_ext = os.path.splitext(input_path)
-        if(input_ext == '.gpkg'):
-            logger.info("Input is already gpkg, just use it")
-            input_tmp_path = input_path
-            #logger.info(f"Copy {input_path} to {input_tmp_path}")
-            #io_util.copyfile(input_path, input_tmp_path)
-            #logger.debug("Copy ready")
-        else:
-            # Remark: this temp file doesn't need spatial index
-            logger.info(f"Copy {input_path} to {input_tmp_path} using ogr2ogr")
-            ogr_util.vector_translate(
-                    input_path=input_path,
-                    output_path=input_tmp_path,
-                    create_spatial_index=False,
-                    output_layer=input_layer)
-            logger.debug("Copy ready")
-        '''
 
         ##### Calculate #####
         # Calculating can be done in parallel, but only one process can write to 
         # the same file at the time... 
         if(nb_parallel == -1):
             nb_parallel = multiprocessing.cpu_count()
-        nb_batches = nb_parallel*4
+        nb_batches = int(nb_parallel*1.25)
         with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
             # Prepare columns to select
