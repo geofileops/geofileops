@@ -1,4 +1,5 @@
 
+import os
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
@@ -45,6 +46,22 @@ def test_select_gpkg(tmpdir):
     assert 'OIDN' in layerinfo_select.columns
     assert 'UIDN' in layerinfo_select.columns
     assert len(layerinfo_select.columns) == 2
+
+def test_select_geos_verion(tmpdir):
+    # Get some version info from spatialite...
+    input_path = get_testdata_dir() / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels.gpkg'
+    sql_stmt = f'select spatialite_version(), geos_version(), lwgeom_version() from "parcels" limit 1'
+    geofileops_ogr.select(
+            input_path=input_path,
+            output_path=output_path,
+            sql_stmt=sql_stmt)
+    result_gdf = geofile.read_file(output_path)
+
+    assert 'GDAL_BIN' not in os.environ    
+    assert result_gdf['spatialite_version()'][0] == '4.3.0-RC1'
+    assert result_gdf['geos_version()'][0] >= '3.8.1'
+    assert result_gdf['lwgeom_version()'][0] is not None
 
 def test_convexhull_gpkg(tmpdir):
     # Select some data from src to tmp file
