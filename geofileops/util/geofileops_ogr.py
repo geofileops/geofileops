@@ -289,6 +289,7 @@ def intersect(
         input1_layer: str = None,
         input2_layer: str = None,
         output_layer: str = None,
+        explodecollections: bool = False,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -317,7 +318,7 @@ def intersect(
         input1_tmp_layer = input1_layer
         input2_tmp_layer = input2_layer
     else:
-        input1_tmp_layer = 'l1_' + input1_layer
+        input1_tmp_layer = input1_layer #'l1_' + input1_layer
         input2_tmp_layer = 'l2_' + input2_layer
     input_tmp_path = tempdir / "input_layers.gpkg"  
 
@@ -354,9 +355,9 @@ def intersect(
         layer1_columns_in_select_str = ''
         if len(layer1_columns) > 0:
             layer1_columns_in_subselect = [f"layer1.{column} l1_{column}" for column in layer1_columns]
-            layer1_columns_in_subselect_str = ", ".join(layer1_columns_in_subselect)
+            layer1_columns_in_subselect_str = "," + ", ".join(layer1_columns_in_subselect)
             layer1_columns_in_select = [f"sub.l1_{column}" for column in layer1_columns]
-            layer1_columns_in_select_str = ", ".join(layer1_columns_in_select)
+            layer1_columns_in_select_str = "," + ", ".join(layer1_columns_in_select)
 
         # We need the input2 column names to format the select
         with fiona.open(input2_path) as layer:
@@ -365,9 +366,9 @@ def intersect(
         layer2_columns_in_select_str = ''
         if len(layer2_columns) > 0:
             layer2_columns_in_subselect = [f"layer2.{column} l2_{column}" for column in layer2_columns]
-            layer2_columns_in_subselect_str = ", ".join(layer2_columns_in_subselect)
+            layer2_columns_in_subselect_str = "," + ", ".join(layer2_columns_in_subselect)
             layer2_columns_in_select = [f"sub.l2_{column}" for column in layer2_columns]
-            layer2_columns_in_select_str = ", ".join(layer2_columns_in_select)
+            layer2_columns_in_select_str = "," + ", ".join(layer2_columns_in_select)
 
         # Start calculation of intersections in parallel
         logger.info(f"Start calculation of intersections in file {input_tmp_path} to partial files")
@@ -407,6 +408,7 @@ def intersect(
                     sql_dialect='SQLITE',
                     #append=True,
                     force_output_geometrytype='MULTIPOLYGON',
+                    explodecollections=explodecollections,
                     transaction_size=5000,
                     verbose=verbose)
             intersect_jobs.append(intersect_info)
@@ -434,9 +436,11 @@ def intersect(
         geofile.move(tmp_output_path, output_path)
 
     finally:
-        # Clean tmp dir
-        shutil.rmtree(tempdir)
-        logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
+        None
+
+    # Clean tmp dir
+    shutil.rmtree(tempdir)
+    logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
 
 def export_by_location(
         input_to_select_from_path: Path,

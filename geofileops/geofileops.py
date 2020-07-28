@@ -196,6 +196,7 @@ def intersect(
         input1_layer: str = None,
         input2_layer: str = None,
         output_layer: str = None,
+        explodecollections: bool = False,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -228,6 +229,7 @@ def intersect(
             input1_layer=input1_layer,
             input2_layer=input2_layer,
             output_layer=output_layer,
+            explodecollections=explodecollections,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
