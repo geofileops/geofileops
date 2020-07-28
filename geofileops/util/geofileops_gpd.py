@@ -183,6 +183,7 @@ def _apply_geooperation_to_layer(
                 nb_rows_total=nb_rows_total,
                 nb_parallel=nb_parallel,
                 verbose=verbose)
+        force_output_geometrytype = layerinfo.geometrytypename
 
         with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
@@ -241,27 +242,11 @@ def _apply_geooperation_to_layer(
                     # If the calculate gave results, copy to output
                     tmp_partial_output_path = batches[batch_id]['tmp_partial_output_path']
                     if tmp_partial_output_path.exists():
-
-                        # TODO: append not yet supported in geopandas 0.7, but will be supported in next version
-                        """
-                        partial_output_gdf = geofile.read_file(tmp_partial_output_path)
-                        geofile.to_file(partial_output_gdf, tmp_output_path, mode='a')
-                        """              
-                        translate_description = f"Copy result {batch_id} of {nb_batches} to {output_layer}"
-                        translate_info = ogr_util.VectorTranslateInfo(
-                                input_path=tmp_partial_output_path,
-                                output_path=output_tmp_path,
-                                translate_description=translate_description,
-                                output_layer=output_layer,
-                                transaction_size=200000,
-                                append=True,
-                                update=True,
-                                create_spatial_index=False,
-                                force_output_geometrytype='MULTIPOLYGON',
-                                priority_class='NORMAL',
-                                force_py=True,
-                                verbose=verbose)
-                        ogr_util.vector_translate_by_info(info=translate_info)
+                        geofile.append_to(
+                                src=tmp_partial_output_path, 
+                                dst=output_tmp_path, 
+                                force_output_geometrytype=force_output_geometrytype,
+                                create_spatial_index=False)
                         geofile.remove(tmp_partial_output_path)
                     else:
                         logger.info(f"Result file {tmp_partial_output_path} was empty")

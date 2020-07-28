@@ -199,6 +199,8 @@ def _single_layer_vector_operation(
             columns_to_select_str = ''
             if len(layerinfo.columns) > 0:
                 columns_to_select_str = f", {','.join(layerinfo.columns)}"
+            force_output_geometrytype = layerinfo.geometrytypename
+
             # Fill out the geometry column name in geom_operation_sqlite
             geom_operation_sqlite = geom_operation_sqlite.format(
                     geom_column=layerinfo.geometrycolumn)
@@ -242,7 +244,7 @@ def _single_layer_vector_operation(
                         sql_stmt=sql_stmt,
                         sql_dialect='SQLITE',
                         create_spatial_index=False,
-                        #force_output_geometrytype='MULTIPOLYGON',
+                        force_output_geometrytype=force_output_geometrytype,
                         verbose=verbose)
                 future = ogr_util.vector_translate_async(
                         concurrent_pool=calculate_pool, info=translate_info)
@@ -263,26 +265,13 @@ def _single_layer_vector_operation(
                 tmp_partial_output_path = translate_jobs[translate_id]['tmp_partial_output_path']
                 
                 if tmp_partial_output_path.exists():
-                    translate_description = f"Copy result {translate_id} of {nb_batches} to {output_layer}"
-                    try:
-                        translate_info = ogr_util.VectorTranslateInfo(
-                                input_path=tmp_partial_output_path,
-                                output_path=tmp_output_path,
-                                translate_description=translate_description,
-                                output_layer=output_layer,
-                                transaction_size=200000,
-                                append=True,
-                                update=True,
-                                create_spatial_index=False,
-                                #force_output_geometrytype='MULTIPOLYGON',
-                                priority_class='NORMAL',
-                                force_py=True,
-                                verbose=verbose)
-
-                        ogr_util.vector_translate_by_info(info=translate_info)
-                        #geofile.remove(tmp_partial_output_path)
-                    except Exception as ex:
-                        raise Exception(f"Error executing {translate_description}") from ex
+                    geofile.append_to(
+                            src=tmp_partial_output_path, 
+                            dst=tmp_output_path, 
+                            create_spatial_index=False)
+                    geofile.remove(tmp_partial_output_path)
+                else:
+                    logger.info(f"Result file {tmp_partial_output_path} was empty")
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location

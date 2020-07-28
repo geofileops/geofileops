@@ -57,12 +57,14 @@ class LayerInfo:
             featurecount: int, 
             total_bounds: Tuple[float, float, float, float],
             geometrycolumn: str, 
+            geometrytypename: str,
             columns: List[str],
             crs: pyproj.CRS):
         self.name = name
         self.featurecount = featurecount
         self.total_bounds = total_bounds
         self.geometrycolumn = geometrycolumn
+        self.geometrytypename = geometrytypename
         self.columns = columns
         self.crs = crs
     
@@ -91,27 +93,34 @@ def getlayerinfo(
     else:
         raise Exception(f"No layer specified, and file has <> 1 layer: {path}")
 
-    # Get column names
+    # Get column info
     columns = []
     layer_defn = datasource_layer.GetLayerDefn()
     for i in range(layer_defn.GetFieldCount()):
         columns.append(layer_defn.GetFieldDefn(i).GetName())
-    geometrycolumn=datasource_layer.GetGeometryColumn()
+    geometrycolumn = datasource_layer.GetGeometryColumn()
     if geometrycolumn == '':
         geometrycolumn = 'geometry'
+    geometrytypename = gdal.ogr.GeometryTypeToName(datasource_layer.GetGeomType())
+    geometrytypename = geometrytypename.replace(' ', '').upper()
     
     # Convert gdal extent (xmin, xmax, ymin, ymax) to bounds (xmin, ymin, xmax, ymax)
     extent = datasource_layer.GetExtent()
     total_bounds = (extent[0], extent[2], extent[1], extent[3])
 
     # Get projection
-    crs = pyproj.CRS(datasource_layer.GetSpatialRef().ExportToWkt())
+    crs = None
+    spatialref = datasource_layer.GetSpatialRef()
+    if spatialref is not None:
+        crs = pyproj.CRS(spatialref.ExportToWkt())
+
 
     return LayerInfo(
             name=datasource_layer.GetName(),
             featurecount=datasource_layer.GetFeatureCount(),
             total_bounds=total_bounds,
             geometrycolumn=geometrycolumn, 
+            geometrytypename=geometrytypename,
             columns=columns,
             crs=crs)
 
@@ -305,7 +314,7 @@ def to_file(
         append_timeout_s: int = 600,
         index: bool = True):
     """
-    Reads a pandas dataframe to file. The fileformat is detected based on the filepath extension.
+    Writes a pandas dataframe to file. The fileformat is detected based on the filepath extension.
     """
     # TODO: think about if possible/how to support adding optional parameter and pass them to next 
     # function, example encoding, float_format,...
@@ -534,6 +543,8 @@ def append_to(
         dst: Union[str, 'os.PathLike[Any]'],
         src_layer: str = None,
         dst_layer: str = None,
+        force_output_geometrytype: str = None,
+        create_spatial_index: bool = True,
         append_timeout_s: int = 600,
         verbose: bool = False):
     """
@@ -556,6 +567,8 @@ def append_to(
                         dst=dst_p,
                         src_layer=src_layer,
                         dst_layer=dst_layer,
+                        force_output_geometrytype=force_output_geometrytype,
+                        create_spatial_index=create_spatial_index,
                         verbose=verbose)
             finally:
                 lockfile.unlink()
@@ -573,6 +586,8 @@ def _append_to_nolock(
         dst: Path,
         src_layer: str = None,
         dst_layer: str = None,
+        force_output_geometrytype: str = None,
+        create_spatial_index: bool = True,
         verbose: bool = False):
     # append
     translate_info = ogr_util.VectorTranslateInfo(
@@ -584,7 +599,8 @@ def _append_to_nolock(
             transaction_size=200000,
             append=True,
             update=True,
-            #force_output_geometrytype='MULTIPOLYGON',
+            force_output_geometrytype=force_output_geometrytype,
+            create_spatial_index=create_spatial_index,
             priority_class='NORMAL',
             force_py=True,
             verbose=verbose)
