@@ -4,7 +4,7 @@ import logging
 import math
 import multiprocessing
 import os
-from typing import Tuple, NamedTuple
+from typing import NamedTuple, Optional
 
 import psutil
 
@@ -32,7 +32,7 @@ def report_progress(
         start_time: datetime.datetime,
         nb_done: int,
         nb_todo: int,
-        operation: str):
+        operation: Optional[str]):
 
     # 
     time_passed = (datetime.datetime.now()-start_time).total_seconds()

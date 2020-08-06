@@ -2,6 +2,7 @@
 # Import/init needed modules
 #-------------------------------------
 from concurrent import futures
+from datetime import datetime
 import logging
 import multiprocessing
 import os
@@ -18,6 +19,7 @@ from osgeo import gdal
 gdal.UseExceptions() 
 
 from geofileops import geofile
+from geofileops.util import general_util
 
 #-------------------------------------------------------------
 # First define/init some general variables/constants
@@ -122,8 +124,13 @@ def vector_translate_seq(
 
 def vector_translate_parallel(
         vector_translate_infos: List[VectorTranslateInfo],
+        operation_description: str,
         nb_parallel: int = -1):
 
+    # Init
+    if len(vector_translate_infos) == 0:
+        return
+    start_time = datetime.now()
     if nb_parallel == -1:
         nb_parallel = multiprocessing.cpu_count()
     
@@ -137,13 +144,18 @@ def vector_translate_parallel(
             future_to_calc_id[future] = calc_id
         
         # Wait till all parallel processes are ready
+        nb_done = 0
         for future in futures.as_completed(future_to_calc_id):
             calc_id = future_to_calc_id[future]
             try:
                 _ = future.result()
             except Exception as ex:
                 message = f"Async translate {calc_id} ERROR: {vector_translate_infos[calc_id].translate_description}\n{pprint.pformat(vector_translate_infos[calc_id])}"
-                raise Exception(message) from ex        
+                raise Exception(message) from ex
+
+            # Log the progress and prediction speed
+            nb_done += 1
+            general_util.report_progress(start_time, nb_done, len(vector_translate_infos), operation_description)      
 
 '''
 def run_command_async(
@@ -207,8 +219,7 @@ def vector_translate(
             sqlite_journal_mode=sqlite_journal_mode,
             verbose=verbose)
     else:
-        if verbose:
-            logger.info("Use ogr2ogr.exe instead of python version")
+        logger.debug("Use ogr2ogr.exe instead of python version")
         return vector_translate_exe( 
             input_path=input_path,
             output_path=output_path,
@@ -320,6 +331,9 @@ def vector_translate_exe(
     # Save whether the output file exists already prior to the operation
     output_path_exists_already = output_path.exists()
 
+    # Make sure the output dir exists
+    os.makedirs(output_path.parent, exist_ok=True)
+
     # Set priority of the process, so computer stays responsive
     if priority_class is None or priority_class == 'NORMAL':
         priority_class_windows = 0x00000020 # = NORMAL_PRIORITY_CLASS
@@ -358,10 +372,7 @@ def vector_translate_exe(
             returncode = process.wait()
         '''
         if translate_description is not None:
-            if verbose is True:
-                logger.info(f"Start '{translate_description}' with retry_count: {retry_count}")
-            else:
-                logger.debug(f"Start '{translate_description}' with retry_count: {retry_count}")
+            logger.debug(f"Start '{translate_description}' with retry_count: {retry_count}")
         process = subprocess.Popen(args, 
                 creationflags=priority_class_windows,
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1, encoding='utf-8')
@@ -375,10 +386,10 @@ def vector_translate_exe(
                 time.sleep(1)
                 continue
             else:
-                # If output_path didn't exist yet before, clean it up
+                # If output_path didn't exist yet before, clean it up... if it exists
                 if not output_path_exists_already:
-                    # TODO: for shape files maybe all files need to be cleaned up?
-                    output_path.unlink()
+                    if output_path.exists():
+                        geofile.remove(output_path)
                 raise Exception(f"Error executing {pprint.pformat(args)}\n\t-> Return code: {returncode}\n\t-> Error: {err}\n\t->Output: {output}")
         elif(err is not None and err != ""
              and not str(err).startswith(r"Warning 1: Layer creation options ignored since an existing layer is")):
@@ -532,8 +543,7 @@ def vector_translate_py(
         # In some cases gdal only raises the last exception instead of the stack in VectorTranslate, 
         # so you lose necessary details! -> uncomment gdal.DontUseExceptions() when debugging!
         #gdal.DontUseExceptions()
-        if verbose:
-            logger.info(f"Execute {sql_stmt} on {input_path}")
+        logger.debug(f"Execute {sql_stmt} on {input_path}")
         input_ds = gdal.OpenEx(str(input_path))
 
         # TODO: memory output support might be interesting to support

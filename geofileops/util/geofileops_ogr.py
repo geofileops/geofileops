@@ -1,5 +1,6 @@
 from concurrent import futures
 import datetime
+from geofileops.util import general_util
 import logging
 import logging.config
 import multiprocessing
@@ -170,7 +171,11 @@ def _single_layer_vector_operation(
         # the same file at the time... 
         if(nb_parallel == -1):
             nb_parallel = multiprocessing.cpu_count()
-        nb_batches = int(nb_parallel*1.25)
+            if nb_parallel > 4:
+                nb_parallel -= 1
+
+        nb_batches = nb_parallel*2
+        nb_done = 0
         with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
             # Prepare columns to select
@@ -252,6 +257,10 @@ def _single_layer_vector_operation(
                 else:
                     logger.info(f"Result file {tmp_partial_output_path} was empty")
 
+                # Log the progress and prediction speed
+                nb_done += 1
+                general_util.report_progress(start_time, nb_done, nb_batches, geom_operation_description)
+
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
         geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
@@ -288,8 +297,10 @@ def intersect(
         input2_layer = geofile.get_only_layer(input2_path)
     if output_layer is None:
         output_layer = geofile.get_default_layer(output_path)
-    if(nb_parallel == -1):
+    if nb_parallel == -1:
         nb_parallel = multiprocessing.cpu_count()
+        if nb_parallel > 4:
+            nb_parallel -= 1
 
     # Prepare tmp layer/file names
     tempdir = io_util.create_tempdir("intersect")
@@ -302,7 +313,7 @@ def intersect(
     input_tmp_path = tempdir / "input_layers.gpkg"  
 
     ##### Prepare tmp files #####
-    logger.info(f"Start preparation of the temp files to calculate on in {tempdir}")
+    logger.info(f"Start preparation of the temp files to calculate intersect on in {tempdir}")
 
     try:
         # Get input1 data to temp gpkg file
@@ -434,6 +445,7 @@ def export_by_location(
         verbose: bool = False,
         force: bool = False):
     
+    # TODO: test performance difference between the following two queries
     sql_template = f'''
             SELECT geom 
                   {{layer1_columns_in_subselect_str}}
@@ -606,8 +618,11 @@ def _two_layer_vector_operation(
                     verbose=verbose)
         
         # Spread input1 data over different layers to be able to calculate in parallel
-        if(nb_parallel == -1):
+        if nb_parallel == -1:
             nb_parallel = multiprocessing.cpu_count()
+            if nb_parallel > 4:
+                nb_parallel -= 1
+
         nb_batches = nb_parallel
         split_jobs = _split_layer_features(
                 input_path=input1_path,
@@ -922,7 +937,8 @@ def dissolve_cardsheets(
             geofile.remove(output_path)
     if nb_parallel == -1:
         nb_parallel = multiprocessing.cpu_count()
-        logger.info(f"Nb cpus found: {nb_parallel}")
+        if nb_parallel > 4:
+            nb_parallel -= 1
 
     # Get input data to temp gpkg file
     tempdir = io_util.create_tempdir("dissolve_cardsheets")

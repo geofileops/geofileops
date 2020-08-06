@@ -238,7 +238,7 @@ def _apply_geooperation_to_layer(
                     result = future.result()
 
                     if result is not None and verbose is True:
-                        logger.info(result)
+                        logger.debug(result)
 
                     # Start copy of the result to a common file
                     batch_id = future_to_batch_id[future]
@@ -317,7 +317,7 @@ def _apply_geooperation(
         geofile.to_file(gdf=data_gdf, path=output_path, layer=output_layer, index=False)
 
     message = f"Took {datetime.datetime.now()-start_time} for {len(data_gdf)} rows ({rows})!"
-    logger.info(message)
+    #logger.info(message)
 
     return message
 
