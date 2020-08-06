@@ -107,7 +107,7 @@ def test_add_column(tmpdir):
     assert 'area' not in layerinfo.columns
 
     # Now add area column
-    geofile.add_column(tmppath, layer='parcels', column_name='area')
+    geofile.add_column(tmppath, layer='parcels', name='area', type='real')
     layerinfo = geofile.getlayerinfo(path=tmppath, layer='parcels')
     assert 'area' in layerinfo.columns
 

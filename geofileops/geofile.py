@@ -230,36 +230,45 @@ def rename_layer(
 
 def add_column(
         path: Union[str, 'os.PathLike[Any]'],
-        column_name: str,
-        column_type: str = None,
+        name: str,
+        type: str,
+        expression: str = None, 
         layer: str = None):
+    """
+    Add a column to a layer of the geofile.
+
+    Args:
+        path (PathLike): Path to the geofile
+        name (str): Name for the new column
+        type (str): Column type.
+        expression (str, optional): SQLite expression to use to update 
+            the value. Defaults to None.
+        layer (str, optional): The layer name. If None and the geofile
+            has only one layer, that layer is used. Defaults to None.
+
+    Raises:
+        ex: [description]
+    """
 
     ##### Init #####
     path_p = Path(path)
-    column_name = column_name.lower()
+    name = name.lower()
     if layer is None:
         layer = get_only_layer(path_p)
-    if column_name not in ('area'):
-        raise Exception(f"Unsupported column type: {column_type}")
-    if column_type is None:
-        if column_name == 'area':
-            column_type = 'real'
-        else:
-            raise Exception(f"Columns type should be specified for colum name: {column_name}")
 
     ##### Go! #####
     datasource = None
     try:
         datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
-        sqlite_stmt = f'ALTER TABLE "{layer}" ADD COLUMN "{column_name}" {column_type}'
+        sqlite_stmt = f'ALTER TABLE "{layer}" ADD COLUMN "{name}" {type}'
         datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
-        if column_name == 'area':
-            sqlite_stmt = f'UPDATE "{layer}" SET "{column_name}" = ST_area(geom)'
+        if expression is not None:
+            sqlite_stmt = f'UPDATE "{layer}" SET "{name}" = {expression}'
             datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
     except Exception as ex:
         # If the column exists already, just print warning
         if 'duplicate column name:' in str(ex):
-            logger.warning(f"Column {column_name} existed already in {path_p}")
+            logger.warning(f"Column {name} existed already in {path_p}, layer {layer}")
         else:
             raise ex
     finally:
