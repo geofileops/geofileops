@@ -349,13 +349,13 @@ def intersect(
         # We need the input1 column names to format the select
         with fiona.open(input1_path) as layer:
             layer1_columns = layer.schema['properties'].keys()
-        layer1_columns_in_subselect = [f"layer1.{column} l1_{column}" for column in layer1_columns]
+        layer1_columns_in_subselect = [f"layer1.\"{column}\" l1_{column}" for column in layer1_columns]
         layer1_columns_in_subselect_str = ''
         layer1_columns_in_select_str = ''
         if len(layer1_columns) > 0:
-            layer1_columns_in_subselect = [f"layer1.{column} l1_{column}" for column in layer1_columns]
+            layer1_columns_in_subselect = [f"layer1.\"{column}\" l1_{column}" for column in layer1_columns]
             layer1_columns_in_subselect_str = "," + ", ".join(layer1_columns_in_subselect)
-            layer1_columns_in_select = [f"sub.l1_{column}" for column in layer1_columns]
+            layer1_columns_in_select = [f"sub.\"l1_{column}\"" for column in layer1_columns]
             layer1_columns_in_select_str = "," + ", ".join(layer1_columns_in_select)
 
         # We need the input2 column names to format the select
@@ -364,9 +364,9 @@ def intersect(
         layer2_columns_in_subselect_str = ''
         layer2_columns_in_select_str = ''
         if len(layer2_columns) > 0:
-            layer2_columns_in_subselect = [f"layer2.{column} l2_{column}" for column in layer2_columns]
+            layer2_columns_in_subselect = [f"layer2.\"{column}\" l2_{column}" for column in layer2_columns]
             layer2_columns_in_subselect_str = "," + ", ".join(layer2_columns_in_subselect)
-            layer2_columns_in_select = [f"sub.l2_{column}" for column in layer2_columns]
+            layer2_columns_in_select = [f"sub.\"l2_{column}\"" for column in layer2_columns]
             layer2_columns_in_select_str = "," + ", ".join(layer2_columns_in_select)
 
         # Start calculation of intersections in parallel
