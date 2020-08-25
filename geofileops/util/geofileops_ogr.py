@@ -326,24 +326,15 @@ def intersect(
                     output_path=input_tmp_path,
                     output_layer=input1_tmp_layer,
                     verbose=verbose)
-        
-        # If both input paths are not the same, append  2nd file to first file
-        if input1_path != input2_path:
-            geofile.append_to(src=input2_path, dst=input_tmp_path, src_layer=input2_layer, dst_layer=input2_tmp_layer)
 
-        # Randomly determine the batch to be used for calculation in parallel...
-        nb_batches = nb_parallel * 2
-        geofile.add_column(path=input_tmp_path, layer=input2_tmp_layer, 
-                name='batch_id', type='INT', expression=f"ABS(RANDOM() % {nb_batches})")
-        '''
+        # Spread input2 data over different layers to be able to calculate in parallel
         split_jobs = _split_layer_features(
                 input_path=input2_path,
                 input_layer=input2_layer,
                 output_path=input_tmp_path,
                 output_baselayer=input2_tmp_layer,
-                nb_parts=nb_batches,
+                nb_parts=nb_parallel,
                 verbose=verbose)
-        '''
 
         ##### Calculate intersections! #####
         # We need the input1 column names to format the select
@@ -373,13 +364,118 @@ def intersect(
         logger.info(f"Start calculation of intersections in file {input_tmp_path} to partial files")
         
         intersect_jobs = []
+        for split_id in split_jobs:
+
+            tmp_partial_output_path = tempdir / f"{output_path.stem}_{split_id}{output_path.suffix}"
+            tmp_partial_output_layer = geofile.get_default_layer(tmp_partial_output_path)
+            input2_tmp_curr_layer = split_jobs[split_id]['layer']
+            sql_stmt = f"""
+                    SELECT sub.geom, ST_area(sub.geom) area_inter
+                          {layer1_columns_in_select_str}
+                          {layer2_columns_in_select_str}
+                        FROM (SELECT ST_Multi(ST_Intersection(layer1.geom, layer2.geom)) AS geom
+                                    {layer1_columns_in_subselect_str}
+                                    {layer2_columns_in_subselect_str}
+                                FROM \"{input1_tmp_layer}\" layer1
+                                JOIN \"rtree_{input1_tmp_layer}_geom\" layer1tree ON layer1.fid = layer1tree.id
+                                JOIN \"{input2_tmp_curr_layer}\" layer2
+                                JOIN \"rtree_{input2_tmp_curr_layer}_geom\" layer2tree ON layer2.fid = layer2tree.id
+                               WHERE 1=1
+                                 AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
+                                 AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
+                                 AND ST_Intersects(layer1.geom, layer2.geom) = 1
+                                 AND ST_Touches(layer1.geom, layer2.geom) = 0
+                            ) sub
+                        WHERE GeometryType(sub.geom) IN ('POLYGON', 'MULTIPOLYGON')"""
+
+            translate_description = f"Calculate intersect between {input_tmp_path} and {tmp_partial_output_path}"
+            intersect_info = ogr_util.VectorTranslateInfo(
+                    input_path=input_tmp_path,
+                    output_path=tmp_partial_output_path,
+                    translate_description=translate_description,
+                    output_layer=tmp_partial_output_layer,
+                    sql_stmt=sql_stmt,
+                    sql_dialect='SQLITE',
+                    #append=True,
+                    force_output_geometrytype='MULTIPOLYGON',
+                    transaction_size=5000,
+                    verbose=verbose)
+            intersect_jobs.append(intersect_info)
+
+        # Start calculation in parallel!
+        ogr_util.vector_translate_parallel(intersect_jobs, 'intersect', nb_parallel)
+
+        ##### Round up and clean up ##### 
+        # Combine all partial results
+        logger.info(f"Start copy from partial temp files to one temp output file")
+        tmp_output_path = tempdir / output_path.name
+        for intersect_job in intersect_jobs:
+            tmp_partial_output_path = intersect_job.output_path
+            tmp_partial_output_layer = intersect_job.output_layer
+            translate_description = f"Copy data from {tmp_partial_output_path} to file {tmp_output_path}"
+            ogr_util.vector_translate(
+                    input_path=tmp_partial_output_path,
+                    output_path=tmp_output_path,
+                    translate_description=translate_description,
+                    output_layer=output_layer,
+                    append=True,
+                    update=True,
+                    force_output_geometrytype='MULTIPOLYGON',
+                    verbose=verbose)
+        geofile.move(tmp_output_path, output_path)
+
+    finally:
+        # Clean tmp dir
+        shutil.rmtree(tempdir)
+        logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
+'''
+        # If both input paths are not the same, append  2nd file to first file
+        if input1_path != input2_path:
+            geofile.append_to(src=input2_path, dst=input_tmp_path, src_layer=input2_layer, dst_layer=input2_tmp_layer)
+
+        # Randomly determine the batch to be used for calculation in parallel...
+        nb_batches = nb_parallel * 2
+        geofile.add_column(path=input_tmp_path, layer=input2_tmp_layer, 
+                name='batch_id', type='INT', expression=f"ABS(RANDOM() % {nb_batches})")
+        
+        #split_jobs = _split_layer_features(
+        #      input_path=input2_path,
+        #       input_layer=input2_layer,
+        #       output_path=input_tmp_path,
+        #       output_baselayer=input2_tmp_layer,
+        #       nb_parts=nb_batches,
+        #       verbose=verbose)
+
+        ##### Calculate intersections! #####
+        # We need the input1 column names to format the select
+        with fiona.open(input1_path) as layer:
+            layer1_columns = layer.schema['properties'].keys()
+
+        layer1_columns_in_select_str = ''
+        if len(layer1_columns) > 0:
+            layer1_columns_in_select = [f"layer1.\"{column}\" l1_{column}" for column in layer1_columns]
+            layer1_columns_in_select_str = "," + ", ".join(layer1_columns_in_select)
+            
+        # We need the input2 column names to format the select
+        with fiona.open(input2_path) as layer:
+            layer2_columns = layer.schema['properties'].keys()
+
+        layer2_columns_in_select_str = ''
+        if len(layer2_columns) > 0:
+            layer2_columns_in_select = [f"layer2.\"{column}\" l2_{column}" for column in layer2_columns]
+            layer2_columns_in_select_str = "," + ", ".join(layer2_columns_in_select)            
+
+        # Start calculation of intersections in parallel
+        logger.info(f"Start calculation of intersections in file {input_tmp_path} to partial files")
+        
+        intersect_jobs = []
         for batch_id in range(nb_batches):
 
             tmp_partial_output_path = tempdir / f"{output_path.stem}_{batch_id}{output_path.suffix}"
             sql_stmt = f"""
                     SELECT ST_Multi(ST_Intersection(layer1.geom, layer2.geom)) AS geom
-                          {layer1_columns_in_subselect_str}
-                          {layer2_columns_in_subselect_str}
+                          {layer1_columns_in_select_str}
+                          {layer2_columns_in_select_str}
                       FROM \"{input1_tmp_layer}\" layer1
                       JOIN \"rtree_{input1_tmp_layer}_geom\" layer1tree ON layer1.fid = layer1tree.id
                       JOIN \"{input2_tmp_layer}\" layer2
@@ -426,7 +522,7 @@ def intersect(
     # Clean tmp dir
     shutil.rmtree(tempdir)
     logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
-
+'''
 def export_by_location(
         input_to_select_from_path: Path,
         input_to_compare_with_path: Path,
@@ -777,7 +873,8 @@ def _split_layer_features(
         columns = layer.schema['properties'].keys()
     columns_to_select_str = ''
     if len(columns) > 0:
-        columns_to_select_str = f", {','.join(columns)}"
+        columns_to_select = [f"\"{column}\"" for column in columns]
+        columns_to_select_str = "," + ", ".join(columns_to_select)
 
     ##### Split to x files/layers #####
     # Get input2 data to temp file, but divide it over several parts
