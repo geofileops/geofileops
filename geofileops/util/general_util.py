@@ -105,12 +105,12 @@ def get_parallellisation_params(
     # If the available memory is very small, check if we can use more swap 
     if bytes_usable < 1024*1024:
         bytes_usable = min(psutil.swap_memory().free, 1024*1024)
-    logger.info(f"memory_usable: {formatbytes(bytes_usable)} with mem.available: {formatbytes(psutil.virtual_memory().available)} and swap.free: {formatbytes(psutil.swap_memory().free)}") 
+    logger.debug(f"memory_usable: {formatbytes(bytes_usable)} with mem.available: {formatbytes(psutil.virtual_memory().available)} and swap.free: {formatbytes(psutil.swap_memory().free)}") 
 
     # If not enough memory for the amount of parallellism asked, reduce
     if (nb_parallel * bytes_min_per_process) > bytes_usable:
         nb_parallel = int(bytes_usable/bytes_min_per_process)
-        logger.info(f"Nb_parallel reduced to {nb_parallel} to evade excessive memory usage")
+        logger.debug(f"Nb_parallel reduced to {nb_parallel} to evade excessive memory usage")
 
     # Optimal number of batches and rows per batch based on memory usage
     nb_batches = math.ceil((nb_rows_total*bytes_per_row*nb_parallel)/(bytes_usable-bytes_basefootprint*nb_parallel))
