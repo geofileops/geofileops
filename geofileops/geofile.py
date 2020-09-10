@@ -266,12 +266,16 @@ def add_column(
     ##### Go! #####
     datasource = None
     try:
-        datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
+        # If column doesn't exist yet, create it
+        #if name not in getlayerinfo(path_p, layer=layer).columns:
         sqlite_stmt = f'ALTER TABLE "{layer}" ADD COLUMN "{name}" {type}'
-        datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
+        ogr_util._vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
+        #datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
+        #datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
         if expression is not None:
             sqlite_stmt = f'UPDATE "{layer}" SET "{name}" = {expression}'
-            datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
+            ogr_util._vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
+            #datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
     except Exception as ex:
         # If the column exists already, just print warning
         if 'duplicate column name:' in str(ex):
