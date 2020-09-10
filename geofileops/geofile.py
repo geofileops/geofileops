@@ -646,3 +646,25 @@ def get_driver_for_ext(file_ext: str) -> str:
         return 'GPKG'
     else:
         raise Exception(f"Not implemented for extension {file_ext_lower}")        
+
+def to_multi_type(geometrytype: str) -> str:
+    """
+    Map the input geometry type to the corresponding 'MULTI' geometry type...
+
+    Args:
+        geometrytype (str): Input geometry type
+
+    Raises:
+        Exception: If input geometrytype is not known.
+
+    Returns:
+        str: Corresponding 'MULTI' geometry type
+    """
+    if geometrytype in ['MULTIPOINT', 'MULTILINESTRING', 'MULTIPOLYGON', 'GEOMETRYCOLLECTION']:
+        return geometrytype
+    elif geometrytype in ['POINT', 'LINESTRING', 'POLYGON']:
+        return f"MULTI{geometrytype}"
+    elif geometrytype == 'GEOMETRY':
+        return geometrytype
+    else:
+        raise Exception(f"Unknown geometrytype: {geometrytype}")
