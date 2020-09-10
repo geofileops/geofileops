@@ -692,9 +692,7 @@ def _two_layer_vector_operation(
         force: bool = False):
 
     """
-    Export the features that intersect with elements of another layer.
-
-    Similar to the typical "select by location" tool.
+    ...
     
     Args:
         input1_path (str): the file to export features from
@@ -718,7 +716,7 @@ def _two_layer_vector_operation(
     ##### Init #####
     if output_path.exists():
         if force is False:
-            logger.info(f"Stop _two_layer_vector_operation: output exists already {output_path}")
+            logger.info(f"Stop {geom_operation_description}: output exists already {output_path}")
             return
         else:
             geofile.remove(output_path)
@@ -732,7 +730,7 @@ def _two_layer_vector_operation(
         output_layer = geofile.get_default_layer(output_path)
 
     # Prepare tmp layer/file names
-    tempdir = io_util.create_tempdir("export_by_location")
+    tempdir = io_util.create_tempdir(geom_operation_description)
     if(input1_layer != input2_layer):
         input1_tmp_layer = input1_layer
         input2_tmp_layer = input2_layer
@@ -742,7 +740,7 @@ def _two_layer_vector_operation(
     input_tmp_path = tempdir / "input_layers.gpkg" 
 
     ##### Prepare tmp files #####
-    logger.info(f"Start preparation of the temp files to calculate on in {tempdir}")
+    logger.info(f"Prepare temp input files for {geom_operation_description} in {tempdir}")
 
     try:
         # Get input2 data to temp gpkg file
@@ -819,7 +817,8 @@ def _two_layer_vector_operation(
         tmp_output_path = tempdir / output_path.name
         
         ##### Calculate #####
-        logger.info(f"Start {geom_operation_description} on file {input_tmp_path} to partial files")
+        logger.info(f"Start {geom_operation_description} in {nb_parallel} parallel processes")
+
         # Calculating can be done in parallel, but only one process can write to 
         # the same file at the time... 
         with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
@@ -903,9 +902,9 @@ def _two_layer_vector_operation(
         geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
         geofile.move(tmp_output_path, output_path)
         shutil.rmtree(tempdir)
-        logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
+        logger.info(f"{geom_operation_description} ready, took {datetime.datetime.now()-start_time}!")
     except Exception as ex:
-        logger.exception(f"Processing ready with ERROR, took {datetime.datetime.now()-start_time}!")
+        logger.exception(f"{geom_operation_description} ready with ERROR, took {datetime.datetime.now()-start_time}!")
 
 def _split_layer_features(
         input_path: Path,
