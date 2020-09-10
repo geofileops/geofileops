@@ -18,44 +18,6 @@ logger = logging.getLogger(__name__)
 # The real work
 ################################################################################
 
-def select(
-        input_path: Union[str, 'os.PathLike[Any]'],
-        output_path: Union[str, 'os.PathLike[Any]'],
-        sql_stmt: str,
-        sql_dialect: str = 'SQLITE',
-        input_layer: str = None,        
-        output_layer: str = None,
-        verbose: bool = False,
-        force: bool = False):
-    """
-    Execute an sqlite style SQL query on the file. 
-
-    The result is written to the output file specified.
-
-    Args:
-        input_path (PathLike): the input file
-        output_path (PathLike): the file to write the result to
-        sql_stmt (str): the statement to execute
-        sql_dialect (str, optional): the sql dialect to use. If None is passed,
-            the default sql dialect of the underlying source is used. The 
-            default is 'SQLITE'.
-        input_layer (str, optional): input layer name. Optional if the input 
-            file only contains one layer.
-        output_layer (str, optional): input layer name. Optional if the input
-            file only contains one layer.
-        verbose (bool, optional): write more info to the output. Defaults to False.
-        force (bool, optional): overwrite existing output file(s). Defaults to False.
-    """
-    return geofileops_ogr.select(
-            input_path=Path(input_path),
-            output_path=Path(output_path),
-            sql_stmt=sql_stmt,
-            sql_dialect=sql_dialect,
-            input_layer=input_layer,        
-            output_layer=output_layer,
-            verbose=verbose,
-            force=force)
-
 def buffer(
         input_path: Union[str, 'os.PathLike[Any]'],
         output_path: Union[str, 'os.PathLike[Any]'],
@@ -178,6 +140,44 @@ def make_valid(
             input_layer=input_layer,        
             output_layer=output_layer,
             nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
+
+def select(
+        input_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
+        sql_stmt: str,
+        sql_dialect: str = 'SQLITE',
+        input_layer: str = None,        
+        output_layer: str = None,
+        verbose: bool = False,
+        force: bool = False):
+    """
+    Execute an sqlite style SQL query on the file. 
+
+    The result is written to the output file specified.
+
+    Args:
+        input_path (PathLike): the input file
+        output_path (PathLike): the file to write the result to
+        sql_stmt (str): the statement to execute
+        sql_dialect (str, optional): the sql dialect to use. If None is passed,
+            the default sql dialect of the underlying source is used. The 
+            default is 'SQLITE'.
+        input_layer (str, optional): input layer name. Optional if the input 
+            file only contains one layer.
+        output_layer (str, optional): input layer name. Optional if the input
+            file only contains one layer.
+        verbose (bool, optional): write more info to the output. Defaults to False.
+        force (bool, optional): overwrite existing output file(s). Defaults to False.
+    """
+    return geofileops_ogr.select(
+            input_path=Path(input_path),
+            output_path=Path(output_path),
+            sql_stmt=sql_stmt,
+            sql_dialect=sql_dialect,
+            input_layer=input_layer,        
+            output_layer=output_layer,
             verbose=verbose,
             force=force)
 
