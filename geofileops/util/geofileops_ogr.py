@@ -768,6 +768,8 @@ def _two_layer_vector_operation(
                 output_baselayer=input1_tmp_layer,
                 nb_batches=nb_batches,
                 verbose=verbose)
+        if len(batches) < nb_parallel:
+            nb_parallel = len(batches)
         
         ##### Calculate! #####
         # We need the input1 column names to format the select
