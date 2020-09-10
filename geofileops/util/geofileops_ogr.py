@@ -376,12 +376,12 @@ def intersect(
                     verbose=verbose)
 
         # Spread input2 data over different layers to be able to calculate in parallel
-        split_jobs = _split_layer_features(
+        batches = _split_layer_features(
                 input_path=input2_path,
                 input_layer=input2_layer,
                 output_path=input_tmp_path,
                 output_baselayer=input2_tmp_layer,
-                nb_parts=nb_parallel,
+                nb_batches=nb_parallel,
                 verbose=verbose)
 
         ##### Calculate intersections! #####
@@ -412,11 +412,11 @@ def intersect(
         logger.info(f"Start calculation of intersections in file {input_tmp_path} to partial files")
         
         intersect_jobs = []
-        for split_id in split_jobs:
+        for split_id in batches:
 
             tmp_partial_output_path = tempdir / f"{output_path.stem}_{split_id}{output_path.suffix}"
             tmp_partial_output_layer = geofile.get_default_layer(tmp_partial_output_path)
-            input2_tmp_curr_layer = split_jobs[split_id]['layer']
+            input2_tmp_curr_layer = batches[split_id]['layer']
             sql_stmt = f"""
                     SELECT sub.geom, ST_area(sub.geom) area_inter
                           {layer1_columns_in_select_str}
@@ -486,12 +486,12 @@ def intersect(
         geofile.add_column(path=input_tmp_path, layer=input2_tmp_layer, 
                 name='batch_id', type='INT', expression=f"ABS(RANDOM() % {nb_batches})")
         
-        #split_jobs = _split_layer_features(
+        #batches = _split_layer_features(
         #      input_path=input2_path,
         #       input_layer=input2_layer,
         #       output_path=input_tmp_path,
         #       output_baselayer=input2_tmp_layer,
-        #       nb_parts=nb_batches,
+        #       nb_batches=nb_batches,
         #       verbose=verbose)
 
         ##### Calculate intersections! #####
@@ -763,12 +763,12 @@ def _two_layer_vector_operation(
                 nb_parallel -= 1
 
         nb_batches = nb_parallel
-        split_jobs = _split_layer_features(
+        batches = _split_layer_features(
                 input_path=input1_path,
                 input_layer=input1_layer,
                 output_path=input_tmp_path,
                 output_baselayer=input1_tmp_layer,
-                nb_parts=nb_batches,
+                nb_batches=nb_batches,
                 verbose=verbose)
         
         ##### Calculate! #####
@@ -827,7 +827,7 @@ def _two_layer_vector_operation(
             # Start looping
             translate_jobs = {}    
             future_to_translate_id = {}
-            for translate_id in split_jobs:
+            for translate_id in batches:
 
                 translate_jobs[translate_id] = {}
                 translate_jobs[translate_id]['layer'] = output_layer
@@ -835,7 +835,7 @@ def _two_layer_vector_operation(
                 tmp_output_partial_path = tempdir / f"{output_path.stem}_{translate_id}{output_path.suffix}"
                 translate_jobs[translate_id]['tmp_partial_output_path'] = tmp_output_partial_path
 
-                input1_tmp_curr_layer = split_jobs[translate_id]['layer']
+                input1_tmp_curr_layer = batches[translate_id]['layer']
                 sql_stmt = sql_template.format(
                         layer1_columns_in_subselect_str=layer1_columns_in_subselect_str,
                         input1_tmp_layer=input1_tmp_curr_layer,
@@ -912,70 +912,80 @@ def _split_layer_features(
         input_layer: str,
         output_path: Path,
         output_baselayer: str,
-        nb_parts: int,
+        nb_batches: int,
         verbose: bool = False) -> dict:
 
     ##### Init #####
-    # Get column names
-    with fiona.open(input_path) as layer:
-        columns = layer.schema['properties'].keys()
-    columns_to_select_str = ''
-    if len(columns) > 0:
-        columns_to_select = [f"\"{column}\"" for column in columns]
-        columns_to_select_str = "," + ", ".join(columns_to_select)
-
-    ##### Split to x files/layers #####
-    # Get input2 data to temp file, but divide it over several parts
-    # Remark: adding data to a file in parallel using ogr2ogr gives locking 
-    # issues on the sqlite file, so needs to be done sequential!
-    split_jobs = {}
-    layerinfo = geofile.getlayerinfo(input_path, input_layer)
-    nb_rows_input_layer = layerinfo.featurecount
-    row_limit = int(nb_rows_input_layer/nb_parts)
-    row_offset = 0
-
-    if layerinfo.geometrycolumn == 'geom':
-        geometry_column_for_select = 'geom'
+    # Make a temp copy of the input file
+    temp_path = output_path.parent / f"{input_path.stem}.gpkg"
+    if input_path.suffix.lower() == '.gpkg':
+        geofile.copy(input_path, temp_path)
     else:
-        geometry_column_for_select = f"{layerinfo.geometrycolumn} geom"
-
-    if verbose:
-        logger.info(f"Split the input file to {nb_parts} batches")
-    for split_job_id in range(nb_parts):
-        # Prepare destination layer name
-        split_jobs[split_job_id] = {}
-        output_baselayer_stripped = output_baselayer.strip("'\"")
-        output_layer_curr = f"{output_baselayer_stripped}_{split_job_id}"
-        split_jobs[split_job_id]['layer'] = output_layer_curr
+        ogr_util.vector_translate(input_path=input_path, output_path=temp_path)
     
-        # For the last translate_id, take all rowid's left...
-        if split_job_id < nb_parts-1:
-            sql_stmt = f'''
-                    SELECT {geometry_column_for_select}{columns_to_select_str}  
-                      FROM "{input_layer}"
-                     WHERE rowid >= {row_offset}
-                       AND rowid < {row_offset + row_limit}'''
-        else:
-            sql_stmt = f'''
-                    SELECT {geometry_column_for_select}{columns_to_select_str}  
-                      FROM "{input_layer}"
-                     WHERE rowid >= {row_offset}'''
-                        
-        translate_description=f"Copy data from {input_path}.{input_layer} to {output_path}.{output_layer_curr}"
-        ogr_util.vector_translate(
-                input_path=input_path,
-                output_path=output_path,
-                translate_description=translate_description,
-                output_layer=output_layer_curr,
-                sql_stmt=sql_stmt,
-                sql_dialect='SQLITE',
-                append=True,
-                force_output_geometrytype='MULTIPOLYGON',
-                force_py=True,
-                verbose=verbose)
-        row_offset += row_limit
+    ##### Split to x files/layers #####
+    try:
+        # Get column names
+        layerinfo = geofile.getlayerinfo(temp_path, input_layer)
+        columns_to_select_str = ''
+        if len(layerinfo.columns) > 0:
+            columns_to_select = [f"\"{column}\"" for column in layerinfo.columns]
+            columns_to_select_str = "," + ", ".join(columns_to_select)
 
-    return split_jobs
+        # Randomly determine the batch to be used for calculation in parallel...
+        geofile.add_column(path=temp_path, layer=input_layer, 
+                name='batch_id', type='INTEGER', expression=f"ABS(RANDOM() % {nb_batches})")
+        
+        # Remark: adding data to a file in parallel using ogr2ogr gives locking 
+        # issues on the sqlite file, so needs to be done sequential!
+        batches = {}
+        nb_rows_input_layer = layerinfo.featurecount
+        if nb_batches > nb_rows_input_layer:
+            nb_batches = nb_rows_input_layer
+
+        if layerinfo.geometrycolumn == 'geom':
+            geometry_column_for_select = 'geom'
+        else:
+            geometry_column_for_select = f"{layerinfo.geometrycolumn} geom"
+
+        if verbose:
+            logger.info(f"Split the input file to {nb_batches} batches")
+        for batch_id in range(nb_batches):
+            # Prepare destination layer name
+            output_baselayer_stripped = output_baselayer.strip("'\"")
+            output_layer_curr = f"{output_baselayer_stripped}_{batch_id}"
+            
+            sql_stmt = f'''
+                    SELECT {geometry_column_for_select}{columns_to_select_str}  
+                    FROM "{input_layer}"
+                    WHERE batch_id = {batch_id}'''
+                        
+            translate_description=f"Copy data from {input_path}.{input_layer} to {output_path}.{output_layer_curr}"
+            ogr_util.vector_translate(
+                    input_path=temp_path,
+                    output_path=output_path,
+                    translate_description=translate_description,
+                    output_layer=output_layer_curr,
+                    sql_stmt=sql_stmt,
+                    sql_dialect='SQLITE',
+                    transaction_size=200000,
+                    append=True,
+                    force_py=True,
+                    force_output_geometrytype=layerinfo.geometrytypename,
+                    verbose=verbose)
+
+            # If items were actually added to the layer, add it to the list of jobs
+            if output_layer_curr in geofile.listlayers(output_path):
+                batches[batch_id] = {}
+                batches[batch_id]['layer'] = output_layer_curr
+            else:
+                logger.warn(f"Layer {output_layer_curr} is empty in geofile {output_path}")
+    
+    finally:
+        # Cleanup
+        geofile.remove(temp_path) 
+        
+    return batches
 
 def dissolve(
         input_path: Path,
