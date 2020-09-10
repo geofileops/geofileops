@@ -291,7 +291,8 @@ def read_file(
         layer: str = None,
         columns: List[str] = None,
         bbox = None,
-        rows = None) -> gpd.GeoDataFrame:
+        rows = None,
+        ignore_geometry: bool = False) -> gpd.GeoDataFrame:
     """
     Reads a file to a pandas dataframe. The fileformat is detected based on the filepath extension.
 
@@ -312,11 +313,11 @@ def read_file(
 
     # Depending on the extension... different implementations
     if ext_lower == '.shp':
-        result_gdf = gpd.read_file(str(path_p), bbox=bbox, rows=rows)
+        result_gdf = gpd.read_file(str(path_p), bbox=bbox, rows=rows, ignore_geometry=ignore_geometry)
     elif ext_lower == '.geojson':
-        result_gdf = gpd.read_file(str(path_p), bbox=bbox, rows=rows)
+        result_gdf = gpd.read_file(str(path_p), bbox=bbox, rows=rows, ignore_geometry=ignore_geometry)
     elif ext_lower == '.gpkg':
-        result_gdf = gpd.read_file(str(path_p), layer=layer, bbox=bbox, rows=rows)
+        result_gdf = gpd.read_file(str(path_p), layer=layer, bbox=bbox, rows=rows, ignore_geometry=ignore_geometry)
     else:
         raise Exception(f"Not implemented for extension {ext_lower}")
 
