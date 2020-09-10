@@ -225,6 +225,32 @@ def simplify(
             verbose=verbose,
             force=force)
 
+def erase(
+        input_path: Union[str, 'os.PathLike[Any]'],
+        erase_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
+        input_layer: str = None,
+        input_columns: List[str] = None,
+        erase_layer: str = None,
+        output_layer: str = None,
+        explodecollections: bool = False,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+
+    return geofileops_ogr.erase(
+        input_path=Path(input_path),
+        erase_path=Path(erase_path),
+        output_path=Path(output_path),
+        input_layer=input_layer,
+        input_columns=input_columns,
+        erase_layer=erase_layer,
+        output_layer=output_layer,
+        explodecollections=explodecollections,
+        nb_parallel=nb_parallel,
+        verbose=verbose,
+        force=force)
+
 def intersect(
         input1_path: Union[str, 'os.PathLike[Any]'],
         input2_path: Union[str, 'os.PathLike[Any]'],

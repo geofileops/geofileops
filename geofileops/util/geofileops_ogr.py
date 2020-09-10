@@ -571,6 +571,75 @@ def intersect(
     shutil.rmtree(tempdir)
     logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
 '''
+
+def erase(
+        input_path: Path,
+        erase_path: Path,
+        output_path: Path,
+        input_layer: str = None,
+        input_columns: List[str] = None,
+        erase_layer: str = None,
+        output_layer: str = None,
+        explodecollections: bool = False,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+        
+    # Remarks:
+    #   - ST_difference(geometry , NULL) gives NULL as result! -> hence the CASE 
+    #   - use of the with instead of an inline view is a lot faster
+    sql_template = f'''
+            WITH layer2_unioned AS (
+              SELECT layer1.rowid AS layer1_rowid
+                    ,ST_union(layer2.geom) AS geom
+                FROM "{{input1_tmp_layer}}" layer1
+                JOIN "rtree_{{input1_tmp_layer}}_geom" layer1tree ON layer1.fid = layer1tree.id
+                JOIN "{{input2_tmp_layer}}" layer2
+                JOIN "rtree_{{input2_tmp_layer}}_geom" layer2tree ON layer2.fid = layer2tree.id
+               WHERE layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
+                 AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
+                 AND ST_Intersects(layer1.geom, layer2.geom) = 1
+                 AND ST_Touches(layer1.geom, layer2.geom) = 0
+               GROUP BY layer1.rowid
+            )
+            SELECT CASE WHEN layer2_unioned.geom IS NULL THEN layer1.geom
+                        ELSE ST_difference(layer1.geom, layer2_unioned.geom)
+                   END as geom
+                 {{layer1_columns_in_subselect_str}}
+              FROM "{{input1_tmp_layer}}" layer1
+              LEFT JOIN layer2_unioned ON layer1.rowid = layer2_unioned.layer1_rowid
+            '''
+    geom_operation_description = "erase"
+
+    logger.info(f"Start {geom_operation_description} on {input_path} with {erase_path} to {output_path}")
+    
+    # To be safe, if explodecollections is False, force the MULTI version of 
+    # the input layer as output type, because erase can cause eg. polygons to 
+    # be split to multipolygons...
+    input_layer_info = geofile.getlayerinfo(input_path, input_layer)
+    if explodecollections is True:
+        force_output_geometrytype = input_layer_info.geometrytypename
+    else:
+        force_output_geometrytype = geofile.to_multi_type(input_layer_info.geometrytypename)
+
+    # Go!
+    return _two_layer_vector_operation(
+            input1_path=input_path,
+            input2_path=erase_path,
+            output_path=output_path,
+            sql_template=sql_template,
+            geom_operation_description=geom_operation_description,
+            input1_layer=input_layer,
+            input1_columns=input_columns,
+            input2_layer=erase_layer,
+            input2_columns=None,
+            output_layer=output_layer,
+            nb_parallel=nb_parallel,
+            explodecollections=explodecollections,
+            force_output_geometrytype=force_output_geometrytype,
+            verbose=verbose,
+            force=force)
+
 def export_by_location(
         input_to_select_from_path: Path,
         input_to_compare_with_path: Path,
@@ -687,10 +756,13 @@ def _two_layer_vector_operation(
         input2_layer: str = None,
         input2_columns: List[str] = None,
         output_layer: str = None,
+        explodecollections: bool = False,
+        force_output_geometrytype: str = 'MULTIPOLYGON',
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
 
+    # TODO: think about whether MULTIPOLYGON is a good default value for force_output_geometrytype!
     """
     ...
     
@@ -701,6 +773,8 @@ def _two_layer_vector_operation(
         input1_layer (str, optional): [description]. Defaults to None.
         input2_layer (str, optional): [description]. Defaults to None.
         output_layer (str, optional): [description]. Defaults to None.
+        explodecollections (bool, optional): Explode collecions in output. Defaults to False.
+        force_output_geometrytype (str, optional): Defaults to 'MULTIPOLYGON'.
         nb_parallel (int, optional): [description]. Defaults to -1.
         force (bool, optional): [description]. Defaults to False.
     
@@ -854,7 +928,8 @@ def _two_layer_vector_operation(
                         sql_stmt=sql_stmt,
                         sql_dialect='SQLITE',
                         create_spatial_index=False,
-                        force_output_geometrytype='MULTIPOLYGON',
+                        explodecollections=explodecollections,
+                        force_output_geometrytype=force_output_geometrytype,
                         verbose=verbose)
                 future = ogr_util.vector_translate_async(
                         concurrent_pool=calculate_pool, info=translate_info)
@@ -887,7 +962,8 @@ def _two_layer_vector_operation(
                             append=True,
                             update=True,
                             create_spatial_index=False,
-                            force_output_geometrytype='MULTIPOLYGON',
+                            explodecollections=explodecollections,
+                            force_output_geometrytype=force_output_geometrytype,
                             priority_class='NORMAL',
                             force_py=True,
                             verbose=verbose)
