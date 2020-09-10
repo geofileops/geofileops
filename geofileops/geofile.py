@@ -10,7 +10,6 @@ import os
 from pathlib import Path
 import pyproj
 import shutil
-import tempfile
 import time
 from typing import Any, List, Tuple, Union
 
@@ -67,6 +66,9 @@ class LayerInfo:
         self.geometrytypename = geometrytypename
         self.columns = columns
         self.crs = crs
+
+    def __repr__(self):
+        return f"{self.__class__}({self.__dict__})"
     
 def getlayerinfo(
         path: Union[str, 'os.PathLike[Any]'],
@@ -93,6 +95,10 @@ def getlayerinfo(
     else:
         raise Exception(f"No layer specified, and file has <> 1 layer: {path}")
 
+    # If the layer doesn't exist, return 
+    if datasource_layer is None:
+        raise Exception(f"Layer {layer} not found in file: {path}")
+
     # Get column info
     columns = []
     layer_defn = datasource_layer.GetLayerDefn()
@@ -113,7 +119,6 @@ def getlayerinfo(
     spatialref = datasource_layer.GetSpatialRef()
     if spatialref is not None:
         crs = pyproj.CRS(spatialref.ExportToWkt())
-
 
     return LayerInfo(
             name=datasource_layer.GetName(),
@@ -251,6 +256,8 @@ def add_column(
     """
 
     ##### Init #####
+    if type not in ['TEXT', 'NUMERIC', 'INTEGER', 'REAL', 'BLOB']:
+        raise Exception(f"Type specified is not supported: {type}")
     path_p = Path(path)
     name = name.lower()
     if layer is None:
@@ -565,7 +572,7 @@ def append_to(
     
     # Files don't typically support having multiple processes writing 
     # simultanously to them, so use lock file to synchronize access.
-    lockfile = Path(f"{str(src_p)}.lock")
+    lockfile = Path(f"{str(dst_p)}.lock")
     start_time = datetime.datetime.now()
     while(True):
         if io_util.create_file_atomic(lockfile) is True:
