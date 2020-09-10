@@ -2,6 +2,7 @@
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import tempfile
 from typing import Optional, Tuple
 
@@ -67,9 +68,11 @@ def copyfile(src, dst):
         # On windows, this is a lot faster than all shutil alternatives
         #command = f'copy "{src}" "{dst}"'
         command = f'xcopy /j "{src}" "{dst}*"'
-        returncode = os.system(command)
-        if returncode != 0:
-            raise Exception(f"Error executing {command}")
+        output = ''
+        try:
+            output = subprocess.check_output(command, shell=True)
+        except Exception as ex:
+            raise Exception(f"Error executing {command}, with output {output}") from ex
         
     else:
         buffer_size = 1024*1024*5
