@@ -62,6 +62,32 @@ def select(
 
     logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
 
+def check_valid(
+        input_path: Path,
+        output_path: Path,
+        input_layer: str = None,        
+        output_layer: str = None,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False) -> bool:
+
+    geom_operation_sqlite = f"ST_IsValid({{geom_column}}) AS isvalid, ST_IsValidReason({{geom_column}}) AS isvalidreason, ST_IsValidDetail({{geom_column}}) AS geom"
+    geom_operation_description = "check_valid"
+
+    _single_layer_vector_operation(
+            input_path=input_path,
+            output_path=output_path,
+            geom_operation_sqlite=geom_operation_sqlite,
+            geom_operation_description=geom_operation_description,
+            input_layer=input_layer,
+            output_layer=output_layer,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
+    
+    # TODO: implement this properly
+    return True
+            
 def convexhull(
         input_path: Path,
         output_path: Path,
@@ -71,7 +97,7 @@ def convexhull(
         verbose: bool = False,
         force: bool = False):
 
-    geom_operation_sqlite = f"ST_ConvexHull({{geom_column}})"
+    geom_operation_sqlite = f"ST_ConvexHull({{geom_column}}) AS geom"
     geom_operation_description = "convexhull"
 
     return _single_layer_vector_operation(
@@ -96,8 +122,7 @@ def buffer(
         verbose: bool = False,
         force: bool = False):
 
-    #geom_operation_sqlite = f"ST_Buffer({{geom_column}}, {buffer}, {quadrantsegments})"
-    geom_operation_sqlite = f"ST_Buffer({{geom_column}}, {distance}, {quadrantsegments})"
+    geom_operation_sqlite = f"ST_Buffer({{geom_column}}, {distance}, {quadrantsegments}) AS geom"
     geom_operation_description = "buffer"
 
     return _single_layer_vector_operation(
@@ -121,7 +146,7 @@ def simplify(
         verbose: bool = False,
         force: bool = False):
 
-    geom_operation_sqlite = f"ST_Simplify({{geom_column}}, {tolerance})"
+    geom_operation_sqlite = f"ST_Simplify({{geom_column}}, {tolerance}) AS geom"
     geom_operation_description = "simplify"
 
     return _single_layer_vector_operation(
@@ -208,13 +233,13 @@ def _single_layer_vector_operation(
                 # For the last translate_id, take all rowid's left...
                 if translate_id < nb_batches-1:
                     sql_stmt = f'''
-                            SELECT {geom_operation_sqlite} AS geom{columns_to_select_str} 
+                            SELECT {geom_operation_sqlite}{columns_to_select_str} 
                               FROM "{input_layer}"
                              WHERE rowid >= {row_offset}
                                AND rowid < {row_offset + row_limit}'''
                 else:
                     sql_stmt = f'''
-                            SELECT {geom_operation_sqlite} AS geom{columns_to_select_str} 
+                            SELECT {geom_operation_sqlite}{columns_to_select_str} 
                               FROM "{input_layer}"
                              WHERE rowid >= {row_offset}'''
                 translate_jobs[translate_id]['sql_stmt'] = sql_stmt
@@ -270,6 +295,29 @@ def _single_layer_vector_operation(
         shutil.rmtree(tempdir)
         logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
     
+def make_valid(
+        input_path: Path,
+        output_path: Path,
+        input_layer: str = None,        
+        output_layer: str = None,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+
+    geom_operation_sqlite = f"ST_MakeValid({{geom_column}}) AS geom"
+    geom_operation_description = "make_valid"
+
+    return _single_layer_vector_operation(
+            input_path=input_path,
+            output_path=output_path,
+            geom_operation_sqlite=geom_operation_sqlite,
+            geom_operation_description=geom_operation_description,
+            input_layer=input_layer,
+            output_layer=output_layer,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
+
 def intersect(
         input1_path: Path,
         input2_path: Path,

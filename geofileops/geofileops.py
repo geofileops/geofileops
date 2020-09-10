@@ -104,6 +104,24 @@ def buffer(
             verbose=verbose,
             force=force)
 
+def check_valid(
+        input_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
+        input_layer: str = None,        
+        output_layer: str = None,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False) -> bool:
+
+    return geofileops_ogr.check_valid(
+            input_path=Path(input_path),
+            output_path=Path(output_path),
+            input_layer=input_layer,        
+            output_layer=output_layer,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
+
 def convexhull(
         input_path: Union[str, 'os.PathLike[Any]'],
         output_path: Union[str, 'os.PathLike[Any]'],
@@ -141,6 +159,24 @@ def convexhull(
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
+
+def make_valid(
+        input_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
+        input_layer: str = None,        
+        output_layer: str = None,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+
+    return geofileops_ogr.make_valid(
+            input_path=Path(input_path),
+            output_path=Path(output_path),
+            input_layer=input_layer,        
+            output_layer=output_layer,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
