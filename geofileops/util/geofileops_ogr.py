@@ -71,7 +71,7 @@ def check_valid(
         verbose: bool = False,
         force: bool = False) -> bool:
 
-    geom_operation_sqlite = f"ST_IsValid({{geom_column}}) AS isvalid, ST_IsValidReason({{geom_column}}) AS isvalidreason, ST_IsValidDetail({{geom_column}}) AS geom"
+    geom_operation_sqlite = f"ST_IsValid({{geometrycolumn}}) AS isvalid, ST_IsValidReason({{geometrycolumn}}) AS isvalidreason, ST_IsValidDetail({{geometrycolumn}}) AS isvaliddetail"
     geom_operation_description = "check_valid"
 
     _single_layer_vector_operation(
@@ -97,7 +97,7 @@ def convexhull(
         verbose: bool = False,
         force: bool = False):
 
-    geom_operation_sqlite = f"ST_ConvexHull({{geom_column}}) AS geom"
+    geom_operation_sqlite = f"ST_ConvexHull({{geometrycolumn}}) AS geom"
     geom_operation_description = "convexhull"
 
     return _single_layer_vector_operation(
@@ -122,7 +122,7 @@ def buffer(
         verbose: bool = False,
         force: bool = False):
 
-    geom_operation_sqlite = f"ST_Buffer({{geom_column}}, {distance}, {quadrantsegments}) AS geom"
+    geom_operation_sqlite = f"ST_Buffer({{geometrycolumn}}, {distance}, {quadrantsegments}) AS geom"
     geom_operation_description = "buffer"
 
     return _single_layer_vector_operation(
@@ -146,7 +146,7 @@ def simplify(
         verbose: bool = False,
         force: bool = False):
 
-    geom_operation_sqlite = f"ST_Simplify({{geom_column}}, {tolerance}) AS geom"
+    geom_operation_sqlite = f"ST_Simplify({{geometrycolumn}}, {tolerance}) AS geom"
     geom_operation_description = "simplify"
 
     return _single_layer_vector_operation(
@@ -212,7 +212,7 @@ def _single_layer_vector_operation(
 
             # Fill out the geometry column name in geom_operation_sqlite
             geom_operation_sqlite = geom_operation_sqlite.format(
-                    geom_column=layerinfo.geometrycolumn)
+                    geometrycolumn=layerinfo.geometrycolumn)
             # Calculate the number of features per thread
             nb_rows_input_layer = layerinfo.featurecount
             row_limit = int(nb_rows_input_layer/nb_batches)
@@ -304,7 +304,7 @@ def make_valid(
         verbose: bool = False,
         force: bool = False):
 
-    geom_operation_sqlite = f"ST_MakeValid({{geom_column}}) AS geom"
+    geom_operation_sqlite = f"ST_MakeValid({{geometrycolumn}}) AS geom"
     geom_operation_description = "make_valid"
 
     return _single_layer_vector_operation(
@@ -591,19 +591,19 @@ def erase(
     sql_template = f'''
             WITH layer2_unioned AS (
               SELECT layer1.rowid AS layer1_rowid
-                    ,ST_union(layer2.geom) AS geom
+                    ,ST_union(layer2.{{input2_geometrycolumn}}) AS geom
                 FROM "{{input1_tmp_layer}}" layer1
-                JOIN "rtree_{{input1_tmp_layer}}_geom" layer1tree ON layer1.fid = layer1tree.id
+                JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
                 JOIN "{{input2_tmp_layer}}" layer2
-                JOIN "rtree_{{input2_tmp_layer}}_geom" layer2tree ON layer2.fid = layer2tree.id
+                JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
                WHERE layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
                  AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
-                 AND ST_Intersects(layer1.geom, layer2.geom) = 1
-                 AND ST_Touches(layer1.geom, layer2.geom) = 0
+                 AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
+                 AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
                GROUP BY layer1.rowid
             )
-            SELECT CASE WHEN layer2_unioned.geom IS NULL THEN layer1.geom
-                        ELSE ST_difference(layer1.geom, layer2_unioned.geom)
+            SELECT CASE WHEN layer2_unioned.geom IS NULL THEN layer1.{{input1_geometrycolumn}}
+                        ELSE ST_difference(layer1.{{input1_geometrycolumn}}, layer2_unioned.geom)
                    END as geom
                  {{layer1_columns_in_subselect_str}}
               FROM "{{input1_tmp_layer}}" layer1
@@ -658,12 +658,12 @@ def export_by_location(
             SELECT geom 
                   {{layer1_columns_in_subselect_str}}
                 FROM "{{input1_tmp_layer}}" layer1
-                JOIN "rtree_{{input1_tmp_layer}}_geom" layer1tree ON layer1.fid = layer1tree.id
+                JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
                 WHERE 1=1
                   AND EXISTS (
                       SELECT 1 
                         FROM "{{input2_tmp_layer}}" layer2
-                        JOIN "rtree_{{input2_tmp_layer}}_geom" layer2tree ON layer2.fid = layer2tree.id
+                        JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
                         WHERE layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
                         AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
                         AND ST_Intersects(layer1.geom, layer2.geom) = 1
@@ -671,18 +671,18 @@ def export_by_location(
             '''
     
     sql_template = f'''
-        SELECT ST_union(layer1.geom) as geom
+        SELECT ST_union(layer1.{{input1_geometrycolumn}}) as geom
               {{layer1_columns_in_subselect_str}}
-              ,ST_area(ST_intersection(ST_union(layer1.geom), ST_union(layer2.geom))) as area_inters
+              ,ST_area(ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}), ST_union(layer2.{{input2_geometrycolumn}}))) as area_inters
             FROM "{{input1_tmp_layer}}" layer1
-            JOIN "rtree_{{input1_tmp_layer}}_geom" layer1tree ON layer1.fid = layer1tree.id
+            JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
             JOIN "{{input2_tmp_layer}}" layer2
-            JOIN "rtree_{{input2_tmp_layer}}_geom" layer2tree ON layer2.fid = layer2tree.id
+            JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
            WHERE 1=1
              AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
              AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
-             AND ST_Intersects(layer1.geom, layer2.geom) = 1
-             AND ST_Touches(layer1.geom, layer2.geom) = 0
+             AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
+             AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
            GROUP BY layer1.rowid {{layer1_columns_in_groupby_str}}
         '''
     geom_operation_description = "export_by_location"
@@ -718,12 +718,12 @@ def export_by_distance(
             SELECT geom
                   {{layer1_columns_in_subselect_str}}
                 FROM "{{input1_tmp_layer}}" layer1
-                JOIN "rtree_{{input1_tmp_layer}}_geom" layer1tree ON layer1.fid = layer1tree.id
+                JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
                 WHERE 1=1
                   AND EXISTS (
                       SELECT 1 
                         FROM "{{input2_tmp_layer}}" layer2
-                        JOIN "rtree_{{input2_tmp_layer}}_geom" layer2tree ON layer2.fid = layer2tree.id
+                        JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
                         WHERE (layer1tree.minx-{max_distance}) <= layer2tree.maxx 
                           AND (layer1tree.maxx+{max_distance}) >= layer2tree.minx
                           AND (layer1tree.miny-{max_distance}) <= layer2tree.maxy 
@@ -847,11 +847,11 @@ def _two_layer_vector_operation(
         
         ##### Calculate! #####
         # We need the input1 column names to format the select
+        input1_tmp_layerinfo = geofile.getlayerinfo(input_tmp_path, batches[0]['layer'])
         if input1_columns is not None:
             layer1_columns = input1_columns
         else:
-            with fiona.open(str(input1_path)) as layer:
-                layer1_columns = layer.schema['properties'].keys()
+            layer1_columns = input1_tmp_layerinfo.columns
         layer1_columns_in_subselect_str = ''
         layer1_columns_in_select_str = ''
         layer1_columns_in_groupby_str = ''
@@ -864,11 +864,11 @@ def _two_layer_vector_operation(
             layer1_columns_in_groupby_str = ',' + ", ".join(layer1_columns_in_groupby)
 
         # We need the input2 column names to format the select
+        input2_tmp_layerinfo = geofile.getlayerinfo(input_tmp_path, input2_tmp_layer)
         if input2_columns is not None:
             layer2_columns = input2_columns
         else:
-            with fiona.open(str(input2_path)) as layer:
-                layer2_columns = layer.schema['properties'].keys()
+            layer2_columns = input2_tmp_layerinfo.columns
         layer2_columns_in_subselect_str = ''
         layer2_columns_in_select_str = ''
         layer2_columns_in_groupby_str = ''
@@ -883,7 +883,7 @@ def _two_layer_vector_operation(
         # Fill out the geometry column name in geom_operation_sqlite
         # TODO: check if geom column is always geom
         #geom_operation_sqlite = geom_operation_sqlite.format(
-        #        geom_column=layerinfo['geometry_column'])
+        #        geometrycolumn=layerinfo['geometry_column'])
         # Calculate the number of features per thread
         #nb_rows_input_layer = layerinfo['featurecount']
         #row_limit = int(nb_rows_input_layer/nb_batches)
@@ -914,7 +914,9 @@ def _two_layer_vector_operation(
                 sql_stmt = sql_template.format(
                         layer1_columns_in_subselect_str=layer1_columns_in_subselect_str,
                         input1_tmp_layer=input1_tmp_curr_layer,
+                        input1_geometrycolumn=input1_tmp_layerinfo.geometrycolumn,
                         input2_tmp_layer=input2_tmp_layer,
+                        input2_geometrycolumn=input2_tmp_layerinfo.geometrycolumn,
                         layer1_columns_in_groupby_str=layer1_columns_in_groupby_str)
 
                 translate_jobs[translate_id]['sqlite_stmt'] = sql_stmt
@@ -1034,8 +1036,8 @@ def _split_layer_features(
             
             sql_stmt = f'''
                     SELECT {geometry_column_for_select}{columns_to_select_str}  
-                    FROM "{input_layer}"
-                    WHERE batch_id = {batch_id}'''
+                      FROM "{input_layer}"
+                     WHERE batch_id = {batch_id}'''
                         
             translate_description=f"Copy data from {input_path}.{input_layer} to {output_path}.{output_layer_curr}"
             ogr_util.vector_translate(
