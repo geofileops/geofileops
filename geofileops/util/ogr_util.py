@@ -578,7 +578,7 @@ def _getfileinfo(
         verbose: bool = False) -> dict:
             
     # Get info
-    info_str = _vector_info(
+    info_str = vector_info(
             path=path, 
             readonly=readonly,
             verbose=verbose)
@@ -599,7 +599,7 @@ def _getfileinfo(
 
     return result_dict
 
-def _vector_info(
+def vector_info(
         path: Path, 
         task_description = None,
         layer: str = None,

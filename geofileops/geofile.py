@@ -269,12 +269,13 @@ def add_column(
         # If column doesn't exist yet, create it
         #if name not in getlayerinfo(path_p, layer=layer).columns:
         sqlite_stmt = f'ALTER TABLE "{layer}" ADD COLUMN "{name}" {type}'
-        ogr_util._vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
+
+        ogr_util.vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
         #datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
         #datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
         if expression is not None:
             sqlite_stmt = f'UPDATE "{layer}" SET "{name}" = {expression}'
-            ogr_util._vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
+            ogr_util.vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
             #datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
     except Exception as ex:
         # If the column exists already, just print warning
@@ -479,12 +480,12 @@ def copy(
         src: Union[str, 'os.PathLike[Any]'], 
         dst: Union[str, 'os.PathLike[Any]']):
     """
-    Moves the geofile from src to dst. Is the source file is a geofile containing
-    of multiple files (eg. .shp) all files are moved.
+    Copies the geofile from src to dst. Is the source file is a geofile containing
+    of multiple files (eg. .shp) all files are copied.
 
     Args:
-        src (PathLike): the file to move
-        dst (PathLike): the location to move the file(s) to
+        src (PathLike): the file to copy
+        dst (PathLike): the location to copy the file(s) to
     """
     # Check input parameters
     src_p = Path(src)
