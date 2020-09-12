@@ -33,6 +33,9 @@ def basetest_convexhull(input_path, output_path):
     assert layerinfo_orig.featurecount == layerinfo_select.featurecount
     assert len(layerinfo_orig.columns) == len(layerinfo_select.columns)
 
+    output_gdf = geofile.read_file(output_path)
+    assert output_gdf['geometry'][0] is not None
+
 def test_buffer_gpkg(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.gpkg'
@@ -57,6 +60,9 @@ def basetest_buffer(input_path, output_path):
     layerinfo_select = geofile.getlayerinfo(input_path)
     assert layerinfo_orig.featurecount == layerinfo_select.featurecount
     assert len(layerinfo_orig.columns) == len(layerinfo_select.columns)
+
+    output_gdf = geofile.read_file(output_path)
+    assert output_gdf['geometry'][0] is not None
 
 def test_simplify_gpkg(tmpdir):
     # Buffer to test dir
@@ -106,14 +112,14 @@ def basetest_dissolve_nogroupby(input_path, output_path):
     layerinfo_orig = geofile.getlayerinfo(input_path)
     layerinfo_output = geofile.getlayerinfo(output_path)
     assert layerinfo_output.featurecount == 21
-    assert len(layerinfo_output.columns) == 0
+    assert len(layerinfo_output.columns) >= 0
 
     # Now check the contents of the result file
     input_gdf = geofile.read_file(input_path)
     output_gdf = geofile.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == layerinfo_output.featurecount
-    
+    assert output_gdf['geometry'][0] is not None
 
 def test_dissolve_groupby_gpkg(tmpdir):
     # Buffer to test dir
@@ -138,8 +144,15 @@ def basetest_dissolve_groupby(input_path, output_path):
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
     layerinfo_output = geofile.getlayerinfo(output_path)
-    assert layerinfo_output.featurecount == 6
+    assert layerinfo_output.featurecount == 3
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
+
+    # Now check the contents of the result file
+    input_gdf = geofile.read_file(input_path)
+    output_gdf = geofile.read_file(output_path)
+    assert input_gdf.crs == output_gdf.crs
+    assert len(output_gdf) == layerinfo_output.featurecount
+    assert output_gdf['geometry'][0] is not None
 
 if __name__ == '__main__':
     #Prepare tempdir
@@ -152,4 +165,5 @@ if __name__ == '__main__':
         tmpdir.mkdir()
 
     # Run
-    test_dissolve_nogroupby_gpkg(tmpdir)
+    test_dissolve_nogroupby_shp(tmpdir)
+    #test_dissolve_nogroupby_gpkg(tmpdir)
