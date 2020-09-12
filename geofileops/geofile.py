@@ -256,7 +256,7 @@ def add_column(
     """
 
     ##### Init #####
-    if type not in ['TEXT', 'NUMERIC', 'INTEGER', 'REAL', 'BLOB']:
+    if type.upper() not in ['TEXT', 'NUMERIC', 'INTEGER', 'REAL', 'BLOB']:
         raise Exception(f"Type specified is not supported: {type}")
     path_p = Path(path)
     name = name.lower()

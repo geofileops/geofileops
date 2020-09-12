@@ -51,19 +51,19 @@ def test_spatial_index_gpkg(tmpdir):
     # Check if spatial index present
     has_spatial_index = geofile.has_spatial_index(
         path=tmppath, layer='parcels')
-    assert has_spatial_index == True
+    assert has_spatial_index is True
 
     # Remove spatial index
     geofile.remove_spatial_index(path=tmppath, layer='parcels')
     has_spatial_index = geofile.has_spatial_index(
         path=tmppath, layer='parcels')
-    assert has_spatial_index == False
+    assert has_spatial_index is False
 
     # Create spatial index
     geofile.create_spatial_index(path=tmppath, layer='parcels')
     has_spatial_index = geofile.has_spatial_index(
         path=tmppath, layer='parcels')
-    assert has_spatial_index == True
+    assert has_spatial_index is True
 
 def test_spatial_index_shp(tmpdir):
     # First copy test file to tmpdir
@@ -73,17 +73,17 @@ def test_spatial_index_shp(tmpdir):
 
     # Check if spatial index present
     has_spatial_index = geofile.has_spatial_index(path=tmppath)
-    assert has_spatial_index == True
+    assert has_spatial_index is True
 
     # Remove spatial index
     geofile.remove_spatial_index(path=tmppath)
     has_spatial_index = geofile.has_spatial_index(path=tmppath)
-    assert has_spatial_index == False
+    assert has_spatial_index is False
 
     # Create spatial index
     geofile.create_spatial_index(path=tmppath)
     has_spatial_index = geofile.has_spatial_index(path=tmppath)
-    assert has_spatial_index == True
+    assert has_spatial_index is True
 
 def test_rename_layer(tmpdir):
     # First copy test file to tmpdir
@@ -98,6 +98,7 @@ def test_rename_layer(tmpdir):
 
 def test_add_column(tmpdir):
     # First copy test file to tmpdir
+    # Now add area column
     src = get_testdata_dir() / 'parcels.gpkg'
     tmppath = Path(tmpdir) / 'parcels.gpkg'
     geofile.copy(src, tmppath)
@@ -105,11 +106,20 @@ def test_add_column(tmpdir):
     # The area column shouldn't be in the test file yet
     layerinfo = geofile.getlayerinfo(path=tmppath, layer='parcels')
     assert 'area' not in layerinfo.columns
-
-    # Now add area column
-    geofile.add_column(tmppath, layer='parcels', name='area', type='real')
+        
+    # Add area column
+    try: 
+        import os
+        os.environ['GDAL_BIN'] = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
+        geofile.add_column(tmppath, layer='parcels', name='area', type='real', expression='ST_area(geom)')
+    finally:
+        del os.environ['GDAL_BIN']
+        
     layerinfo = geofile.getlayerinfo(path=tmppath, layer='parcels')
     assert 'area' in layerinfo.columns
+    
+    gdf = geofile.read_file(tmppath)
+    assert round(gdf['area'][0], 1) == round(gdf['OPPERVL'][0], 1)
 
 def test_read_file():
     # Test shapefile
@@ -213,5 +223,6 @@ def test_get_driver():
 
 if __name__ == '__main__':
     import tempfile
+    
     tmpdir = tempfile.gettempdir()
-    test_spatial_index_shp(tmpdir)
+    test_add_column(tmpdir)
