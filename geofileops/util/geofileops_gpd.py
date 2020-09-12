@@ -486,7 +486,9 @@ def dissolve(
     # Clean tmp dir
     shutil.rmtree(tempdir)
 
-    logger.info(f"Dissolve completely ready, took {datetime.datetime.now()-start_time}!")
+    result_info['message'] = f"Dissolve completely ready, took {datetime.datetime.now()-start_time}!"
+    logger.info(result_info['message'])
+    return result_info
 
 def dissolve_pass(
         input_path: Path,  
