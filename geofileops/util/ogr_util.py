@@ -154,24 +154,6 @@ def vector_translate_parallel(
             nb_done += 1
             general_util.report_progress(start_time, nb_done, len(vector_translate_infos), operation_description)      
 
-'''
-def run_command_async(
-    command: str, 
-    ignorecrash: bool = False,
-    verbose: bool = False):
-""""Run a command"""
-# Run the command
-if verbose:
-    logger.info(f"Command to execute: {command}")
-    print(f"Command to execute: {command}")
-
-command_process = subprocess.Popen(
-        command, shell=True, stdout=subprocess.PIPE, stdin=open(os.devnull), 
-        stderr=subprocess.STDOUT, universal_newlines=True)
-    
-return command_process
-'''
-
 def vector_translate(
         input_path: Path, 
         output_path: Path,
