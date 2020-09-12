@@ -817,14 +817,22 @@ def _two_layer_vector_operation(
     logger.info(f"Prepare temp input files for {geom_operation_description} in {tempdir}")
 
     try:
-        # Get input2 data to temp gpkg file
-        if(input2_path.suffix.lower() == '.gpkg'):
+        # Get input2 data to temp gpkg file. 
+        # If it is the only layer in the input file, just copy file
+        if(input2_path.suffix.lower() == '.gpkg' 
+           and len(geofile.listlayers(input2_path)) > 1):
             logger.debug(f"Copy {input2_path} to {input_tmp_path}")
             geofile.copy(input2_path, input_tmp_path)
+
+            # If needed, rename layer
+            if input2_layer != input2_tmp_layer:
+                geofile.rename_layer(input_tmp_path, input2_layer, input2_tmp_layer)           
         else:
+            # Copy the layer needed to a new gpkg
             ogr_util.vector_translate(
                     input_path=input2_path,
                     output_path=input_tmp_path,
+                    input_layers=input2_layer,
                     output_layer=input2_tmp_layer,
                     verbose=verbose)
         
