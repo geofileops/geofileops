@@ -25,19 +25,16 @@ from geofileops.util import general_util
 # First define/init some general variables/constants
 #-------------------------------------------------------------
 
+# Make sure only one instance per process is running
+lock = Lock()
+
 # Get a logger...
 logger = logging.getLogger(__name__)
 
-# Initialize the location of the GDAL binaries
-ogr2ogr_exe = 'ogr2ogr.exe'
-ogrinfo_exe = 'ogrinfo.exe'
-gdal_bin_dir = os.getenv('GDAL_BIN')
-if gdal_bin_dir is not None:
-    gdal_bin_dir = Path(gdal_bin_dir)
-    ogr2ogr_exe = gdal_bin_dir / ogr2ogr_exe
-    ogrinfo_exe = gdal_bin_dir / ogrinfo_exe
-
-lock = Lock()
+# Cache the result of the check because it is quite expensive
+global_check_gdal_spatialite_install_ok: Optional[bool] = None
+global_check_gdal_spatialite_install_gdal_bin_defined: Optional[bool] = None
+global_check_gdal_spatialite_install_gdal_bin_value: Optional[str] = None
 
 #-------------------------------------------------------------
 # The real work
@@ -198,7 +195,15 @@ def vector_translate(
     """
     Run a command
     """
-    if os.getenv('GDAL_BIN') is None or force_py == True:
+    # If running a sqlite statement on a gpkg file, check first if spatialite works properly
+    # Remark: if force_py is True, the user should know what he is doing 
+    if(sql_stmt is not None 
+       and sql_dialect is not None
+       and sql_dialect.upper() == 'SQLITE' 
+       and input_path.suffix.lower() == '.gpkg'):
+        check_gdal_spatialite_install(sql_stmt)
+
+    if os.getenv('GDAL_BIN') is None or force_py is True:
         return vector_translate_py( 
             input_path=input_path,
             output_path=output_path,
@@ -265,9 +270,18 @@ def vector_translate_exe(
         output_layer = output_path.stem
     if input_layers is not None:
         logger.warn(f"input_layers is not None, but isn't used in vector_translate_exe: {input_layers}")
-        
+    
+    # If GDAL_BIN is set, use ogr2ogr.exe located there
+    ogr2ogr_exe = 'ogr2ogr.exe'
+    gdal_bin_dir = os.getenv('GDAL_BIN')
+    if gdal_bin_dir is not None:
+        gdal_bin_dir = Path(gdal_bin_dir)
+        ogr2ogr_path = gdal_bin_dir / ogr2ogr_exe
+    else:
+        ogr2ogr_path = ogr2ogr_exe
+
     # Add all parameters to args list
-    args = [str(ogr2ogr_exe)]
+    args = [str(ogr2ogr_path)]
     #if verbose:
     #    args.append('-progress')
 
@@ -599,6 +613,84 @@ def _getfileinfo(
 
     return result_dict
 
+def check_gdal_spatialite_install(sqlite_stmt: str):
+    """
+    Run a health check for the installation of spatialite. 
+
+    Raises:
+        Exception: [description]
+        Exception: [description]
+    """
+
+    # Check if there is a geom function is het sqlite statement
+    geom_functions = [
+            'buffer', 'st_buffer', 'convexhull', 'st_convexhull', 'simplify', 'st_simplify', 
+            'simplifypreservetopology', 'st_simplifypreservetopology', 
+            'isvalid', 'st_isvalid', 'isvalidreason', 'st_isvalidreason', 'isvaliddetail', 'st_isvaliddetail'
+            'st_area', 'area']
+    sqlite_stmt_lower = sqlite_stmt.lower()
+    geom_function_found = False 
+    for geom_function in geom_functions:
+        if(f"{geom_function}(" in sqlite_stmt_lower
+           or f"{geom_function} (" in sqlite_stmt_lower):
+            geom_function_found = True
+            break
+
+    # If no geom function found, just return
+    if geom_function_found is False:
+        return
+
+    # Check if the test has run already (in the same circumstances)
+    global global_check_gdal_spatialite_install_ok
+    global global_check_gdal_spatialite_install_gdal_bin_defined
+    global global_check_gdal_spatialite_install_gdal_bin_value
+
+    gdal_bin_dir = os.getenv('GDAL_BIN')
+    if global_check_gdal_spatialite_install_ok is not None:
+        
+        # If gdal_bin_dir is not defined and during the previous check is wasn't either, reuse result 
+        if gdal_bin_dir is None: 
+            if global_check_gdal_spatialite_install_gdal_bin_defined is False:
+                return global_check_gdal_spatialite_install_ok
+        else:
+            if(global_check_gdal_spatialite_install_gdal_bin_defined is True
+               and global_check_gdal_spatialite_install_gdal_bin_value == gdal_bin_dir):
+                return global_check_gdal_spatialite_install_ok
+    
+    # Previous check cannot be reused, so save the circumstances for this check...
+    global_check_gdal_spatialite_install_ok = None
+    if gdal_bin_dir is None:
+        global_check_gdal_spatialite_install_gdal_bin_defined = False
+    else:
+        global_check_gdal_spatialite_install_gdal_bin_defined = True
+        global_check_gdal_spatialite_install_gdal_bin_value = gdal_bin_dir
+
+    # Now run the check
+    test_path = Path(__file__).resolve().parent / "test.gpkg"
+    sqlite_stmt = 'SELECT round(ST_area(geom), 2) as area FROM "test"'
+    #sqlite_stmt = "SELECT ST_area(GeomFromText('POLYGON ((0 0, 0 10, 10 10, 10 0, 0 0))'))"
+    
+    output = vector_info(
+            path=test_path, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=True, skip_health_check=True)
+    output_lines = StringIO(str(output)).readlines()
+
+    # Check if the area is calculated properly
+    output_ok = 'area (Real) = 4816.51'
+    error_message_template = f"Error: probably lwgeom/geos is not activated in spatialite, install OSGEO4W and set the GDAL_BIN environment variable to the bin dir: sqlite_stmt <{sqlite_stmt}> should output <{output_ok}> but the result was <{{line}}>"
+    for line in reversed(output_lines): 
+        if line.strip() == '':
+            continue
+        elif line.strip() == output_ok:
+            global_check_gdal_spatialite_install_ok = True
+            return
+        else:
+            global_check_gdal_spatialite_install_ok = False
+            raise Exception(error_message_template.format(line=line.strip()))
+
+    # If no result, probebly something wrong as well...
+    global_check_gdal_spatialite_install_ok = False
+    raise Exception(error_message_template.format(line=None))
+
 def vector_info(
         path: Path, 
         task_description = None,
@@ -606,7 +698,8 @@ def vector_info(
         readonly: bool = False,
         report_summary: bool = False,
         sql_stmt: str = None,
-        sql_dialect: str = None,        
+        sql_dialect: str = None, 
+        skip_health_check: bool = False,      
         verbose: bool = False):
     """"Run a command"""
 
@@ -614,8 +707,25 @@ def vector_info(
     if not path.exists():
         raise Exception(f"File does not exist: {path}")
 
+    # If GDAL_BIN is set, use ogrinfo.exe located there
+    ogrinfo_exe = 'ogrinfo.exe'
+    gdal_bin_dir = os.getenv('GDAL_BIN')
+    if gdal_bin_dir is not None:
+        gdal_bin_dir = Path(gdal_bin_dir)
+        ogrinfo_path = gdal_bin_dir / ogrinfo_exe
+    else:
+        ogrinfo_path = ogrinfo_exe
+
+    # If running a sqlite statement on a gpkg file, check first if spatialite works properly
+    if(skip_health_check is False
+       and sql_stmt is not None 
+       and sql_dialect is not None
+       and sql_dialect.upper() == 'SQLITE' 
+       and path.suffix.lower() == '.gpkg'):
+        check_gdal_spatialite_install(sql_stmt)
+
     # Add all parameters to args list
-    args = [str(ogrinfo_exe)]
+    args = [str(ogrinfo_path)]
     args.extend(['--config', 'OGR_SQLITE_PRAGMA', 'journal_mode=WAL'])  
     if readonly is True:
         args.append('-ro')
