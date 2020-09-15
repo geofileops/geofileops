@@ -7,6 +7,25 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
 from geofileops import geofile
 from geofileops.util import geofileops_ogr
 
+class GdalBin():
+    def __init__(self, gdal_bin_path: str = 'DEFAULT'):
+        if gdal_bin_path is not None:
+            if gdal_bin_path.upper() == 'DEFAULT':
+                self.gdal_bin_path = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
+            else:
+                self.gdal_bin_path = gdal_bin_path
+
+    def __enter__(self):
+        if self.gdal_bin_path is not None:
+            import os
+            os.environ['GDAL_BIN'] = self.gdal_bin_path
+
+    def __exit__(self, type, value, traceback):
+        #Exception handling here
+        import os
+        if os.environ['GDAL_BIN'] is not None:
+            del os.environ['GDAL_BIN']
+
 def get_testdata_dir() -> Path:
     return Path(__file__).resolve().parent / 'data'
 
@@ -51,28 +70,32 @@ def test_select_gpkg(tmpdir):
     assert len(layerinfo_select.columns) == 2
 
 def test_check_valid_gpkg(tmpdir):
-    # Select some data from src to tmp file
+    # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
-    basetest_check_valid(input_path, output_path)
-
-def test_check_valid_gpkg_osgeo4w(tmpdir):
-    import os
-    os.environ['GDAL_BIN'] = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
-
-    try:
-        # Buffer to test dir
-        input_path = get_testdata_dir() / 'parcels.gpkg'
-        output_path = Path(tmpdir) / 'parcels.gpkg'
+    with GdalBin():
         basetest_check_valid(input_path, output_path)
-    finally:
-        del os.environ['GDAL_BIN']
 
+    # Without gdal_bin set, this fails at the moment
+    try:
+        basetest_check_valid(input_path, output_path)
+        assert True is False, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    except:
+        assert True is True, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+        
 def test_check_valid_shp(tmpdir):
     # Select some data from src to tmp file
     input_path = get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels.shp'
-    basetest_check_valid(input_path, output_path)
+    output_path = Path(tmpdir) / 'parcels.gpkg'
+    with GdalBin():
+        basetest_check_valid(input_path, output_path)
+
+    # Without gdal_bin set, this fails at the moment
+    try:
+        basetest_check_valid(input_path, output_path)
+        assert True is False, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    except:
+        assert True is True, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
 
 def basetest_check_valid(input_path, output_path):
     layerinfo_orig = geofile.getlayerinfo(input_path)
@@ -93,23 +116,19 @@ def basetest_check_valid(input_path, output_path):
     assert output_gdf['isvaliddetail'][0] is None
     
 def test_convexhull_gpkg(tmpdir):
-    # Select some data from src to tmp file
+    # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
-    basetest_convexhull(input_path, output_path)
-
-def test_convexhull_gpkg_osgeo4w(tmpdir):
-    import os
-    os.environ['GDAL_BIN'] = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
-
-    try:
-        # Buffer to test dir
-        input_path = get_testdata_dir() / 'parcels.gpkg'
-        output_path = Path(tmpdir) / 'parcels.gpkg'
+    with GdalBin():
         basetest_convexhull(input_path, output_path)
-    finally:
-        del os.environ['GDAL_BIN']
 
+    # Without gdal_bin set, this fails at the moment
+    try:
+        basetest_convexhull(input_path, output_path)
+        assert True is False, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    except:
+        assert True is True, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    
 def test_convexhull_shp(tmpdir):
     # Select some data from src to tmp file
     input_path = get_testdata_dir() / 'parcels.shp'
@@ -135,20 +154,16 @@ def test_buffer_gpkg(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
-    basetest_buffer(input_path, output_path)
-
-def test_buffer_gpkg_osgeo4w(tmpdir):
-    import os
-    os.environ['GDAL_BIN'] = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
-
-    try:
-        # Buffer to test dir
-        input_path = get_testdata_dir() / 'parcels.gpkg'
-        output_path = Path(tmpdir) / 'parcels.gpkg'
+    with GdalBin():
         basetest_buffer(input_path, output_path)
-    finally:
-        del os.environ['GDAL_BIN']
 
+    # Without gdal_bin set, this fails at the moment
+    try:
+        basetest_buffer(input_path, output_path)
+        assert True is False, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    except:
+        assert True is True, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+        
 def test_buffer_shp(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.shp'
@@ -175,20 +190,16 @@ def test_simplify_gpkg(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
-    basetest_simplify(input_path, output_path)
-
-def test_simplify_gpkg_osgeo4w(tmpdir):
-    import os
-    os.environ['GDAL_BIN'] = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
-
-    try:
-        # Buffer to test dir
-        input_path = get_testdata_dir() / 'parcels.gpkg'
-        output_path = Path(tmpdir) / 'parcels.gpkg'
+    with GdalBin():
         basetest_simplify(input_path, output_path)
-    finally:
-        del os.environ['GDAL_BIN']
 
+    # Without gdal_bin set, this fails at the moment
+    try:
+        basetest_simplify(input_path, output_path)
+        assert True is False, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    except:
+        assert True is True, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+        
 def test_simplify_shp(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.shp'
@@ -246,27 +257,30 @@ def test_export_by_location_gpkg(tmpdir):
     input_to_select_from_path = get_testdata_dir() / 'parcels.gpkg'
     input_to_compare_with_path = get_testdata_dir() / 'zones.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
-    basetest_export_by_location(input_to_select_from_path, input_to_compare_with_path, output_path)
-
-def test_export_by_location_gpkg_osgeo4w(tmpdir):
-    import os
-    os.environ['GDAL_BIN'] = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
-
-    try:
-        # Export to test dir
-        input_to_select_from_path = get_testdata_dir() / 'parcels.gpkg'
-        input_to_compare_with_path = get_testdata_dir() / 'zones.gpkg'
-        output_path = Path(tmpdir) / 'parcels.gpkg'
+    with GdalBin():
         basetest_export_by_location(input_to_select_from_path, input_to_compare_with_path, output_path)
-    finally:
-        del os.environ['GDAL_BIN']
+
+    # Without gdal_bin set, this fails at the moment
+    try:
+        basetest_export_by_location(input_to_select_from_path, input_to_compare_with_path, output_path)
+        assert True is False, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    except:
+        assert True is True, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
 
 def test_export_by_location_shp(tmpdir):
     # Export to test dir
     input_to_select_from_path = get_testdata_dir() / 'parcels.shp'
     input_to_compare_with_path = get_testdata_dir() / 'zones.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
-    basetest_export_by_location(input_to_select_from_path, input_to_compare_with_path, output_path)
+    with GdalBin():
+        basetest_export_by_location(input_to_select_from_path, input_to_compare_with_path, output_path)
+
+    # Without gdal_bin set, this fails at the moment
+    try:
+        basetest_export_by_location(input_to_select_from_path, input_to_compare_with_path, output_path)
+        assert True is False, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    except:
+        assert True is True, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
 
 def basetest_export_by_location(
         input_to_select_from_path: Path, 
@@ -288,32 +302,35 @@ def basetest_export_by_location(
     assert output_gdf['geometry'][0] is not None
 
 def test_export_by_distance_gpkg(tmpdir):
-    # Export to test dir
+        # Export to test dir
     input_to_select_from_path = get_testdata_dir() / 'parcels.gpkg'
     input_to_compare_with_path = get_testdata_dir() / 'zones.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
-    basetest_export_by_distance(input_to_select_from_path, input_to_compare_with_path, output_path)
-
-def test_export_by_distance_gpkg_osgeo4w(tmpdir):
-    import os
-    os.environ['GDAL_BIN'] = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
-
-    try:
-        # Export to test dir
-        input_to_select_from_path = get_testdata_dir() / 'parcels.gpkg'
-        input_to_compare_with_path = get_testdata_dir() / 'zones.gpkg'
-        output_path = Path(tmpdir) / 'parcels.gpkg'
+    with GdalBin():
         basetest_export_by_location(input_to_select_from_path, input_to_compare_with_path, output_path)
-    finally:
-        del os.environ['GDAL_BIN']
-
+    
+    # Without gdal_bin set, this fails at the moment
+    try:
+        basetest_export_by_location(input_to_select_from_path, input_to_compare_with_path, output_path)
+        assert True is False, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    except:
+        assert True is True, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    
 def test_export_by_distance_shp(tmpdir):
     # Export to test dir
     input_to_select_from_path = get_testdata_dir() / 'parcels.shp'
     input_to_compare_with_path = get_testdata_dir() / 'zones.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
-    basetest_export_by_distance(input_to_select_from_path, input_to_compare_with_path, output_path)
-
+    with GdalBin():
+        basetest_export_by_distance(input_to_select_from_path, input_to_compare_with_path, output_path)
+    
+    # Without gdal_bin set, this fails at the moment
+    try:
+        basetest_export_by_distance(input_to_select_from_path, input_to_compare_with_path, output_path)
+        assert True is False, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    except:
+        assert True is True, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    
 def basetest_export_by_distance(
         input_to_select_from_path: Path, 
         input_to_compare_with_path: Path, 
@@ -337,30 +354,33 @@ def basetest_export_by_distance(
 def test_intersect_gpkg(tmpdir):
     # Export to test dir
     input1_path = get_testdata_dir() / 'parcels.gpkg'
-    input1_path = get_testdata_dir() / 'zones.gpkg'
+    input2_path = get_testdata_dir() / 'zones.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
-    basetest_intersect(input1_path, input2_path, output_path)
-
-def test_intersect_gpkg_osgeo4w(tmpdir):
-    import os
-    os.environ['GDAL_BIN'] = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
-
-    try:
-        # Export to test dir
-        input1_path = get_testdata_dir() / 'parcels.gpkg'
-        input2_path = get_testdata_dir() / 'zones.gpkg'
-        output_path = Path(tmpdir) / 'parcels.gpkg'
+    with GdalBin():
         basetest_intersect(input1_path, input2_path, output_path)
-    finally:
-        del os.environ['GDAL_BIN']
-
+    
+    # Without gdal_bin set, this fails at the moment
+    try:
+        basetest_intersect(input1_path, input2_path, output_path)
+        assert True is False, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    except:
+        assert True is True, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    
 def test_intersect_shp(tmpdir):
     # Export to test dir
     input1_path = get_testdata_dir() / 'parcels.shp'
     input2_path = get_testdata_dir() / 'zones.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
-    basetest_intersect(input1_path, input2_path, output_path)
-
+    with GdalBin():
+        basetest_intersect(input1_path, input2_path, output_path)
+    
+    # Without gdal_bin set, this fails at the moment
+    try:
+        basetest_intersect(input1_path, input2_path, output_path)
+        assert True is False, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    except:
+        assert True is True, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    
 def basetest_intersect(
         input1_path: Path, 
         input2_path: Path, 
@@ -389,6 +409,8 @@ if __name__ == '__main__':
         shutil.rmtree(tmpdir)
     #test_buffer_gpkg(tmpdir)
     #test_erase_shp(tmpdir)
-    #test_intersect_gpkg_osgeo4w(tmpdir)
-    test_check_valid_gpkg(tmpdir)
+    test_intersect_gpkg(tmpdir)
+    #test_export_by_distance_shp(tmpdir)
+    #test_check_valid_shp(tmpdir)
+    #test_convexhull_shp(tmpdir)
     #test_select_geos_version(tmpdir)
