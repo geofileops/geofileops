@@ -250,8 +250,6 @@ def vector_translate_exe(
     ##### Init #####
     if output_layer is None:
         output_layer = output_path.stem
-    if input_layers is not None:
-        logger.warn(f"input_layers is not None, but isn't used in vector_translate_exe: {input_layers}")
     
     # If GDAL_BIN is set, use ogr2ogr.exe located there
     ogr2ogr_exe = 'ogr2ogr.exe'
@@ -285,10 +283,16 @@ def vector_translate_exe(
     if update is True:
         args.append('-update')
 
-    # Files
+    # Files and input layer(s)
     args.append(str(output_path))
     args.append(str(input_path))
-
+    if input_layers is not None:
+        if isinstance(input_layers, str):
+            args.append(input_layers)
+        else:
+            for input_layer in input_layers:
+                args.append(input_layer)
+            
     # Output layer options
     if explodecollections is True:
         args.append('-explodecollections')
