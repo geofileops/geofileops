@@ -179,7 +179,12 @@ def _single_layer_vector_operation(
             return
         else:
             geofile.remove(output_path)
+    
+    # Check if spatialite is properly installed to execute this query
+    if input_path.suffix.lower() == '.gpkg':
+        ogr_util.check_gdal_spatialite_install(geom_operation_sqlite)
 
+    # Get layer info
     if input_layer is None:
         input_layer = geofile.get_only_layer(input_path)
     if output_layer is None:
