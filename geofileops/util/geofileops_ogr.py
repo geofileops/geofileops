@@ -728,7 +728,7 @@ def export_by_distance(
                           AND (layer1tree.maxx+{max_distance}) >= layer2tree.minx
                           AND (layer1tree.miny-{max_distance}) <= layer2tree.maxy 
                           AND (layer1tree.maxy+{max_distance}) >= layer2tree.miny
-                          AND ST_distance(layer1.geom, layer2.geom) <= {max_distance})
+                          AND ST_distance(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) <= {max_distance})
             '''
     geom_operation_description = "export_by_distance"
 
