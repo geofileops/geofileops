@@ -795,6 +795,10 @@ def _two_layer_vector_operation(
         else:
             geofile.remove(output_path)
 
+    # Check if spatialite is properly installed to execute this query
+    ogr_util.check_gdal_spatialite_install(sql_template)
+
+    # Init layer info
     start_time = datetime.datetime.now()
     if input1_layer is None:
         input1_layer = geofile.get_only_layer(input1_path)
@@ -820,7 +824,7 @@ def _two_layer_vector_operation(
         # Get input2 data to temp gpkg file. 
         # If it is the only layer in the input file, just copy file
         if(input2_path.suffix.lower() == '.gpkg' 
-           and len(geofile.listlayers(input2_path)) > 1):
+           and len(geofile.listlayers(input2_path)) == 1):
             logger.debug(f"Copy {input2_path} to {input_tmp_path}")
             geofile.copy(input2_path, input_tmp_path)
 
