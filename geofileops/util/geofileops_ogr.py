@@ -322,6 +322,9 @@ def make_valid(
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
+################################################################################
+# Operations on two layers
+################################################################################
 
 def intersect(
         input1_path: Path,
@@ -337,12 +340,18 @@ def intersect(
         verbose: bool = False,
         force: bool = False):
 
+    # In the query, important to only extract the geometry types that are expected 
+    input1_layer_info = geofile.getlayerinfo(input1_path, input1_layer)
+    input2_layer_info = geofile.getlayerinfo(input2_path, input2_layer)
+    collection_extract_typeid = min(geofile.to_generaltypeid(input1_layer_info.geometrytypename), 
+                                    geofile.to_generaltypeid(input2_layer_info.geometrytypename))
+
     sql_template = f'''
         SELECT sub.geom
              {{layer1_columns_in_select_str}}
              {{layer2_columns_in_select_str}} 
           FROM
-            ( SELECT ST_Multi(ST_Intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}})) as geom
+            ( SELECT ST_Multi(Collectionextract(ST_Intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}), {collection_extract_typeid})) as geom
                     {{layer1_columns_in_subselect_str}}
                     {{layer2_columns_in_subselect_str}}
                 FROM "{{input1_tmp_layer}}" layer1
@@ -355,7 +364,7 @@ def intersect(
                  AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
                  AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
             ) sub
-         WHERE GeometryType(sub.geom) IN ('POLYGON', 'MULTIPOLYGON')
+         WHERE sub.geom IS NOT NULL
         '''
     geom_operation_description = "intersect"
 
@@ -387,11 +396,26 @@ def erase(
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
-        
+
+    # Init
+    # In the query, important to only extract the geometry types that are expected 
+    input_layer_info = geofile.getlayerinfo(input_path, input_layer)
+    collection_extract_typeid = geofile.to_generaltypeid(input_layer_info.geometrytypename)
+
+    # To be safe, if explodecollections is False, force the MULTI version of 
+    # the input layer as output type, because erase can cause eg. polygons to 
+    # be split to multipolygons...
+    if explodecollections is True:
+        force_output_geometrytype = input_layer_info.geometrytypename
+    else:
+        force_output_geometrytype = geofile.to_multi_type(input_layer_info.geometrytypename)
+
     # Remarks:
     #   - ST_difference(geometry , NULL) gives NULL as result! -> hence the CASE 
     #   - use of the with instead of an inline view is a lot faster
+    #   - WHERE geom IS NOT NULL to evade rows with a NULL geom, they give issues in later operations
     sql_template = f'''
+          SELECT * FROM (
             WITH layer2_unioned AS (
               SELECT layer1.rowid AS layer1_rowid
                     ,ST_union(layer2.{{input2_geometrycolumn}}) AS geom
@@ -406,25 +430,17 @@ def erase(
                GROUP BY layer1.rowid
             )
             SELECT CASE WHEN layer2_unioned.geom IS NULL THEN layer1.{{input1_geometrycolumn}}
-                        ELSE ST_difference(layer1.{{input1_geometrycolumn}}, layer2_unioned.geom)
+                        ELSE CollectionExtract(ST_difference(layer1.{{input1_geometrycolumn}}, layer2_unioned.geom), {collection_extract_typeid})
                    END as geom
                  {{layer1_columns_in_subselect_str}}
               FROM "{{input1_tmp_layer}}" layer1
               LEFT JOIN layer2_unioned ON layer1.rowid = layer2_unioned.layer1_rowid
+          )
+          WHERE geom IS NOT NULL
             '''
     geom_operation_description = "erase"
-
     logger.info(f"Start {geom_operation_description} on {input_path} with {erase_path} to {output_path}")
     
-    # To be safe, if explodecollections is False, force the MULTI version of 
-    # the input layer as output type, because erase can cause eg. polygons to 
-    # be split to multipolygons...
-    input_layer_info = geofile.getlayerinfo(input_path, input_layer)
-    if explodecollections is True:
-        force_output_geometrytype = input_layer_info.geometrytypename
-    else:
-        force_output_geometrytype = geofile.to_multi_type(input_layer_info.geometrytypename)
-
     # Go!
     return _two_layer_vector_operation(
             input1_path=input_path,
@@ -456,22 +472,23 @@ def export_by_location(
         verbose: bool = False,
         force: bool = False):
     
+    # Init
     # TODO: test performance difference between the following two queries
     sql_template = f'''
-            SELECT geom 
+            SELECT layer1.{{input1_geometrycolumn}} AS geom 
                   {{layer1_columns_in_subselect_str}}
-                FROM "{{input1_tmp_layer}}" layer1
-                JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                WHERE 1=1
-                  AND EXISTS (
-                      SELECT 1 
-                        FROM "{{input2_tmp_layer}}" layer2
-                        JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
-                        WHERE layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
-                        AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
-                        AND ST_Intersects(layer1.geom, layer2.geom) = 1
-                        AND ST_Touches(layer1.geom, layer2.geom) = 0)
-            '''
+              FROM "{{input1_tmp_layer}}" layer1
+              JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+             WHERE 1=1
+               AND EXISTS (
+                  SELECT 1 
+                    FROM "{{input2_tmp_layer}}" layer2
+                    JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                   WHERE layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
+                     AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
+                     AND ST_intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
+                     AND ST_touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0)
+        '''
     
     sql_template = f'''
         SELECT ST_union(layer1.{{input1_geometrycolumn}}) as geom
@@ -489,7 +506,9 @@ def export_by_location(
            GROUP BY layer1.rowid {{layer1_columns_in_groupby_str}}
         '''
     geom_operation_description = "export_by_location"
+    input_layer_info = geofile.getlayerinfo(input_to_select_from_path, input1_layer)
 
+    # Go!
     return _two_layer_vector_operation(
             input1_path=input_to_select_from_path,
             input2_path=input_to_compare_with_path,
@@ -501,6 +520,7 @@ def export_by_location(
             input2_layer=input2_layer,
             input2_columns=input2_columns,
             output_layer=output_layer,
+            force_output_geometrytype=input_layer_info.geometrytypename,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
@@ -517,6 +537,7 @@ def export_by_distance(
         verbose: bool = False,
         force: bool = False):
 
+    # Init
     sql_template = f'''
             SELECT geom
                   {{layer1_columns_in_subselect_str}}
@@ -534,7 +555,9 @@ def export_by_distance(
                           AND ST_distance(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) <= {max_distance})
             '''
     geom_operation_description = "export_by_distance"
+    input_layer_info = geofile.getlayerinfo(input_to_select_from_path, input1_layer)
 
+    # Go!
     return _two_layer_vector_operation(
             input1_path=input_to_select_from_path,
             input2_path=input_to_compare_with_path,
@@ -544,6 +567,7 @@ def export_by_distance(
             input1_layer=input1_layer,
             input2_layer=input2_layer,
             output_layer=output_layer,
+            force_output_geometrytype=input_layer_info.geometrytypename,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
