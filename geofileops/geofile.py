@@ -238,7 +238,8 @@ def add_column(
         name: str,
         type: str,
         expression: str = None, 
-        layer: str = None):
+        layer: str = None,
+        force_update: bool = False):
     """
     Add a column to a layer of the geofile.
 
@@ -250,6 +251,8 @@ def add_column(
             the value. Defaults to None.
         layer (str, optional): The layer name. If None and the geofile
             has only one layer, that layer is used. Defaults to None.
+        force_update (bool, optional): If the column already exists, execute 
+            the update anyway. Defaults to False. 
 
     Raises:
         ex: [description]
@@ -266,23 +269,28 @@ def add_column(
     ##### Go! #####
     datasource = None
     try:
-        # If column doesn't exist yet, create it
-        #if name not in getlayerinfo(path_p, layer=layer).columns:
-        sqlite_stmt = f'ALTER TABLE "{layer}" ADD COLUMN "{name}" {type}'
-
-        ogr_util.vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
         #datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
-        #datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
-        if expression is not None:
+        column_added = False
+        try:
+            # If column doesn't exist yet, create it
+            #if name not in getlayerinfo(path_p, layer=layer).columns:
+            sqlite_stmt = f'ALTER TABLE "{layer}" ADD COLUMN "{name}" {type}'
+            ogr_util.vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
+            #datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
+            column_added = True
+        except Exception as ex:
+            # If the column exists already, just print warning
+            if 'duplicate column name:' in str(ex):
+                logger.warning(f"Column {name} existed already in {path_p}, layer {layer}")
+            else:
+                raise ex
+    
+        # If an expression was provided and update can be done, go for it...
+        if(expression is not None 
+        and (column_added is True or force_update is True)):
             sqlite_stmt = f'UPDATE "{layer}" SET "{name}" = {expression}'
             ogr_util.vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
             #datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
-    except Exception as ex:
-        # If the column exists already, just print warning
-        if 'duplicate column name:' in str(ex):
-            logger.warning(f"Column {name} existed already in {path_p}, layer {layer}")
-        else:
-            raise ex
     finally:
         if datasource is not None:
             del datasource
