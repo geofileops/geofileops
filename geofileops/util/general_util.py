@@ -34,15 +34,27 @@ def report_progress(
         nb_todo: int,
         operation: Optional[str]):
 
-    # 
+    # Init
     time_passed = (datetime.datetime.now()-start_time).total_seconds()
-    if time_passed > 0 and nb_done > 0:
+    pct_progress = 100.0-(nb_todo-nb_done)*100/nb_todo
+    
+    # If we haven't really started yet, don't report time estimate yet
+    if nb_done == 0:
+        print(f"\r  ?: ? left to do {operation} on {(nb_todo-nb_done):8d} of {nb_todo:8d} ({pct_progress:3.2f}%)    ", 
+              end="", flush=True)
+    elif time_passed > 0:
+        # Else, report progress properly...
         processed_per_hour = (nb_done/time_passed) * 3600
         hours_to_go = (int)((nb_todo - nb_done)/processed_per_hour)
         min_to_go = (int)((((nb_todo - nb_done)/processed_per_hour)%1)*60)
         pct_progress = 100.0-(nb_todo-nb_done)*100/nb_todo
-        print(f"\r{hours_to_go:3d}:{min_to_go:2d} left to do {operation} on {(nb_todo-nb_done):8d} of {nb_todo:8d} ({pct_progress:3.2f}%)    ", 
-              end="", flush=True)
+        if pct_progress < 100:
+            print(f"\r{hours_to_go:3d}:{min_to_go:2d} left to do {operation} on {(nb_todo-nb_done):8d} of {nb_todo:8d} ({pct_progress:3.2f}%)    ", 
+                  end="", flush=True)
+        else:
+            print(f"\r{hours_to_go:3d}:{min_to_go:2d} left to do {operation} on {(nb_todo-nb_done):8d} of {nb_todo:8d} ({pct_progress:3.2f}%)    \n", 
+                  end="", flush=True)
+
 
 def formatbytes(bytes: float):
     """
