@@ -656,12 +656,12 @@ def get_driver_for_ext(file_ext: str) -> str:
     else:
         raise Exception(f"Not implemented for extension {file_ext_lower}")        
 
-def to_multi_type(geometrytype: str) -> str:
+def to_multi_type(geometrytypename: str) -> str:
     """
     Map the input geometry type to the corresponding 'MULTI' geometry type...
 
     Args:
-        geometrytype (str): Input geometry type
+        geometrytypename (str): Input geometry type
 
     Raises:
         Exception: If input geometrytype is not known.
@@ -669,11 +669,36 @@ def to_multi_type(geometrytype: str) -> str:
     Returns:
         str: Corresponding 'MULTI' geometry type
     """
-    if geometrytype in ['MULTIPOINT', 'MULTILINESTRING', 'MULTIPOLYGON', 'GEOMETRYCOLLECTION']:
-        return geometrytype
-    elif geometrytype in ['POINT', 'LINESTRING', 'POLYGON']:
-        return f"MULTI{geometrytype}"
-    elif geometrytype == 'GEOMETRY':
-        return geometrytype
+    if geometrytypename in ['MULTIPOINT', 'MULTILINESTRING', 'MULTIPOLYGON', 'GEOMETRYCOLLECTION']:
+        return geometrytypename
+    elif geometrytypename in ['POINT', 'LINESTRING', 'POLYGON']:
+        return f"MULTI{geometrytypename}"
+    elif geometrytypename == 'GEOMETRY':
+        return geometrytypename
     else:
-        raise Exception(f"Unknown geometrytype: {geometrytype}")
+        raise Exception(f"Unknown geometrytype: {geometrytypename}")
+
+def to_generaltypeid(geometrytypename: str) -> int:
+    """
+    Map the input geometry type to the corresponding geometry type id:
+        * 1 = POINT-type
+        * 2 = LINESTRING-type
+        * 3 = POLYGON-type
+
+    Args:
+        geometrytypename (str): Input geometry type
+
+    Raises:
+        Exception: If input geometrytype is not known.
+
+    Returns:
+        int: Corresponding geometry type id
+    """
+    if geometrytypename in ['POINT', 'MULTIPOINT']:
+        return 1
+    elif geometrytypename in ['LINESTRING', 'MULTILINESTRING']:
+        return 2
+    elif geometrytypename in ['POLYGON', 'MULTIPOLYGON']:
+        return 3
+    else:
+        raise Exception(f"Unsupported geometrytype ({geometrytypename})")
