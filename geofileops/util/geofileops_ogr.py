@@ -672,7 +672,7 @@ def _two_layer_vector_operation(
             if nb_parallel > 4:
                 nb_parallel -= 1
 
-        nb_batches = nb_parallel
+        nb_batches = nb_parallel * 4
         batches = _split_layer_features(
                 input_path=input1_path,
                 input_layer=input1_layer,
@@ -777,9 +777,10 @@ def _two_layer_vector_operation(
                 future = ogr_util.vector_translate_async(
                         concurrent_pool=calculate_pool, info=translate_info)
                 future_to_translate_id[future] = translate_id
-                #row_offset += row_limit
-
-            # Wait till all parallel processes are ready
+            
+            # Loop till all parallel processes are ready, but process each one that is ready already
+            nb_done = 0
+            general_util.report_progress(start_time, nb_done, nb_batches, geom_operation_description)
             for future in futures.as_completed(future_to_translate_id):
                 try:
                     _ = future.result()
@@ -796,7 +797,6 @@ def _two_layer_vector_operation(
                         continue
                     
                     translate_description = f"Copy result {translate_id} of {nb_batches} to {output_layer}"
-                    
                     translate_info = ogr_util.VectorTranslateInfo(
                             input_path=tmp_partial_output_path,
                             output_path=tmp_output_path,
@@ -817,6 +817,10 @@ def _two_layer_vector_operation(
                 except Exception as ex:
                     translate_id = future_to_translate_id[future]
                     raise Exception(f"Error executing {translate_jobs[translate_id]}") from ex
+
+                # Log the progress and prediction speed
+                nb_done += 1
+                general_util.report_progress(start_time, nb_done, nb_batches, geom_operation_description)
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
@@ -851,25 +855,24 @@ def _split_layer_features(
         if len(layerinfo.columns) > 0:
             columns_to_select = [f"\"{column}\"" for column in layerinfo.columns]
             columns_to_select_str = "," + ", ".join(columns_to_select)
-
-        # Randomly determine the batch to be used for calculation in parallel...
-        geofile.add_column(path=temp_path, layer=input_layer, 
-                name='batch_id', type='INTEGER', expression=f"ABS(RANDOM() % {nb_batches})")
-        
-        # Remark: adding data to a file in parallel using ogr2ogr gives locking 
-        # issues on the sqlite file, so needs to be done sequential!
-        batches = {}
-        nb_rows_input_layer = layerinfo.featurecount
-        if nb_batches > nb_rows_input_layer:
-            nb_batches = nb_rows_input_layer
-
         if layerinfo.geometrycolumn == 'geom':
             geometry_column_for_select = 'geom'
         else:
             geometry_column_for_select = f"{layerinfo.geometrycolumn} geom"
 
+        # Check number of batches + appoint rows to batches
+        nb_rows_input_layer = layerinfo.featurecount
+        if nb_batches > nb_rows_input_layer:
+            nb_batches = nb_rows_input_layer
+        # Randomly determine the batch to be used for calculation in parallel...
+        geofile.add_column(path=temp_path, layer=input_layer, 
+                name='batch_id', type='INTEGER', expression=f"ABS(RANDOM() % {nb_batches})")
+
+        # Remark: adding data to a file in parallel using ogr2ogr gives locking 
+        # issues on the sqlite file, so needs to be done sequential!
         if verbose:
             logger.info(f"Split the input file to {nb_batches} batches")
+        batches = {}
         for batch_id in range(nb_batches):
             # Prepare destination layer name
             output_baselayer_stripped = output_baselayer.strip("'\"")
