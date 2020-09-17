@@ -9,8 +9,6 @@ from pathlib import Path
 import shutil
 from typing import Any, AnyStr, List, Optional, Tuple, Union
 
-import fiona
-
 from geofileops import geofile
 from . import io_util
 from . import ogr_util as ogr_util
@@ -22,8 +20,105 @@ from . import ogr_util as ogr_util
 logger = logging.getLogger(__name__)
 
 ################################################################################
-# The real work
+# Operations on one layer
 ################################################################################
+
+def buffer(
+        input_path: Path,
+        output_path: Path,
+        distance: float,
+        quadrantsegments: int = 5,
+        input_layer: str = None,
+        output_layer: str = None,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+
+    geom_operation_sqlite = f"ST_Buffer({{geometrycolumn}}, {distance}, {quadrantsegments}) AS geom"
+    geom_operation_description = "buffer"
+
+    return _single_layer_vector_operation(
+            input_path=input_path,
+            output_path=output_path,
+            geom_operation_sqlite=geom_operation_sqlite,
+            geom_operation_description=geom_operation_description,
+            input_layer=input_layer,
+            output_layer=output_layer,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
+
+def check_valid(
+        input_path: Path,
+        output_path: Path,
+        input_layer: str = None,        
+        output_layer: str = None,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False) -> bool:
+
+    geom_operation_sqlite = f"ST_IsValid({{geometrycolumn}}) AS isvalid, ST_IsValidReason({{geometrycolumn}}) AS isvalidreason, ST_IsValidDetail({{geometrycolumn}}) AS isvaliddetail"
+    geom_operation_description = "check_valid"
+
+    _single_layer_vector_operation(
+            input_path=input_path,
+            output_path=output_path,
+            geom_operation_sqlite=geom_operation_sqlite,
+            geom_operation_description=geom_operation_description,
+            input_layer=input_layer,
+            output_layer=output_layer,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
+    
+    # TODO: implement this properly
+    return True
+
+def convexhull(
+        input_path: Path,
+        output_path: Path,
+        input_layer: str = None,
+        output_layer: str = None,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+
+    geom_operation_sqlite = f"ST_ConvexHull({{geometrycolumn}}) AS geom"
+    geom_operation_description = "convexhull"
+
+    return _single_layer_vector_operation(
+            input_path=input_path,
+            output_path=output_path,
+            geom_operation_sqlite=geom_operation_sqlite,
+            geom_operation_description=geom_operation_description,
+            input_layer=input_layer,
+            output_layer=output_layer,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
+
+def make_valid(
+        input_path: Path,
+        output_path: Path,
+        input_layer: str = None,        
+        output_layer: str = None,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+
+    geom_operation_sqlite = f"ST_MakeValid({{geometrycolumn}}) AS geom"
+    geom_operation_description = "make_valid"
+
+    return _single_layer_vector_operation(
+            input_path=input_path,
+            output_path=output_path,
+            geom_operation_sqlite=geom_operation_sqlite,
+            geom_operation_description=geom_operation_description,
+            input_layer=input_layer,
+            output_layer=output_layer,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
 
 def select(
         input_path: Path,
@@ -61,80 +156,6 @@ def select(
             verbose=verbose)
 
     logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
-
-def check_valid(
-        input_path: Path,
-        output_path: Path,
-        input_layer: str = None,        
-        output_layer: str = None,
-        nb_parallel: int = -1,
-        verbose: bool = False,
-        force: bool = False) -> bool:
-
-    geom_operation_sqlite = f"ST_IsValid({{geometrycolumn}}) AS isvalid, ST_IsValidReason({{geometrycolumn}}) AS isvalidreason, ST_IsValidDetail({{geometrycolumn}}) AS isvaliddetail"
-    geom_operation_description = "check_valid"
-
-    _single_layer_vector_operation(
-            input_path=input_path,
-            output_path=output_path,
-            geom_operation_sqlite=geom_operation_sqlite,
-            geom_operation_description=geom_operation_description,
-            input_layer=input_layer,
-            output_layer=output_layer,
-            nb_parallel=nb_parallel,
-            verbose=verbose,
-            force=force)
-    
-    # TODO: implement this properly
-    return True
-            
-def convexhull(
-        input_path: Path,
-        output_path: Path,
-        input_layer: str = None,
-        output_layer: str = None,
-        nb_parallel: int = -1,
-        verbose: bool = False,
-        force: bool = False):
-
-    geom_operation_sqlite = f"ST_ConvexHull({{geometrycolumn}}) AS geom"
-    geom_operation_description = "convexhull"
-
-    return _single_layer_vector_operation(
-            input_path=input_path,
-            output_path=output_path,
-            geom_operation_sqlite=geom_operation_sqlite,
-            geom_operation_description=geom_operation_description,
-            input_layer=input_layer,
-            output_layer=output_layer,
-            nb_parallel=nb_parallel,
-            verbose=verbose,
-            force=force)
-
-def buffer(
-        input_path: Path,
-        output_path: Path,
-        distance: float,
-        quadrantsegments: int = 5,
-        input_layer: str = None,
-        output_layer: str = None,
-        nb_parallel: int = -1,
-        verbose: bool = False,
-        force: bool = False):
-
-    geom_operation_sqlite = f"ST_Buffer({{geometrycolumn}}, {distance}, {quadrantsegments}) AS geom"
-    geom_operation_description = "buffer"
-
-    return _single_layer_vector_operation(
-            input_path=input_path,
-            output_path=output_path,
-            geom_operation_sqlite=geom_operation_sqlite,
-            geom_operation_description=geom_operation_description,
-            input_layer=input_layer,
-            output_layer=output_layer,
-            nb_parallel=nb_parallel,
-            verbose=verbose,
-            force=force)
 
 def simplify(
         input_path: Path,
@@ -265,7 +286,7 @@ def _single_layer_vector_operation(
                 future_to_translate_id[future] = translate_id
                 row_offset += row_limit
             
-            # Wait till all parallel processes are ready
+            # Loop till all parallel processes are ready, but process each one that is ready already
             for future in futures.as_completed(future_to_translate_id):
                 try:
                     _ = future.result()
@@ -299,29 +320,7 @@ def _single_layer_vector_operation(
         # Clean tmp dir
         shutil.rmtree(tempdir)
         logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
-    
-def make_valid(
-        input_path: Path,
-        output_path: Path,
-        input_layer: str = None,        
-        output_layer: str = None,
-        nb_parallel: int = -1,
-        verbose: bool = False,
-        force: bool = False):
 
-    geom_operation_sqlite = f"ST_MakeValid({{geometrycolumn}}) AS geom"
-    geom_operation_description = "make_valid"
-
-    return _single_layer_vector_operation(
-            input_path=input_path,
-            output_path=output_path,
-            geom_operation_sqlite=geom_operation_sqlite,
-            geom_operation_description=geom_operation_description,
-            input_layer=input_layer,
-            output_layer=output_layer,
-            nb_parallel=nb_parallel,
-            verbose=verbose,
-            force=force)
 ################################################################################
 # Operations on two layers
 ################################################################################
