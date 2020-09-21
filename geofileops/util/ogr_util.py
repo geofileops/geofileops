@@ -402,7 +402,8 @@ def vector_translate_exe(
         fileinfo = _getfileinfo(output_path, readonly=False)
         if len(fileinfo['layers']) == 0:
             output_path.unlink()
-            logger.warn(f"Finished, but empty result for '{translate_description}'")
+            if verbose is True:
+                logger.warn(f"Finished, but empty result for '{translate_description}'")
         elif translate_description is not None:
             if verbose is True:
                 logger.info(f"Finished '{translate_description}'")

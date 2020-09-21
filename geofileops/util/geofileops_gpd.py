@@ -253,7 +253,8 @@ def _apply_geooperation_to_layer(
                                 create_spatial_index=False)
                         geofile.remove(tmp_partial_output_path)
                     else:
-                        logger.info(f"Result file {tmp_partial_output_path} was empty")
+                        if verbose:
+                            logger.info(f"Result file {tmp_partial_output_path} was empty")
 
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
