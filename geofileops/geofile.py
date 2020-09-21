@@ -110,6 +110,10 @@ def getlayerinfo(
     geometrytypename = gdal.ogr.GeometryTypeToName(datasource_layer.GetGeomType())
     geometrytypename = geometrytypename.replace(' ', '').upper()
     
+    # For shape files, the geometrytypename is sometimes wrong...
+    if Path(path).suffix.lower() == '.shp' and geometrytypename == 'LINESTRING':
+        geometrytypename = 'MULTILINESTRING'       
+    
     # Convert gdal extent (xmin, xmax, ymin, ymax) to bounds (xmin, ymin, xmax, ymax)
     extent = datasource_layer.GetExtent()
     total_bounds = (extent[0], extent[2], extent[1], extent[3])
