@@ -405,6 +405,7 @@ def intersect(
         '''
     geom_operation_description = "intersect"
 
+    # Go!
     return _two_layer_vector_operation(
             input1_path=input1_path,
             input2_path=input2_path,
@@ -442,7 +443,7 @@ def erase(
     # To be safe, if explodecollections is False, force the MULTI version of 
     # the input layer as output type, because erase can cause eg. polygons to 
     # be split to multipolygons...
-    if explodecollections is True:
+    if explodecollections is True: # and input_layer_info.geometrytypename in ['POLYGON']:
         force_output_geometrytype = input_layer_info.geometrytypename
     else:
         force_output_geometrytype = geofile.to_multi_type(input_layer_info.geometrytypename)
@@ -475,8 +476,6 @@ def erase(
           )
           WHERE geom IS NOT NULL
             '''
-    geom_operation_description = "erase"
-    logger.info(f"Start {geom_operation_description} on {input_path} with {erase_path} to {output_path}")
     
     # Go!
     return _two_layer_vector_operation(
@@ -484,7 +483,7 @@ def erase(
             input2_path=erase_path,
             output_path=output_path,
             sql_template=sql_template,
-            geom_operation_description=geom_operation_description,
+            geom_operation_description='erase',
             input1_layer=input_layer,
             input1_columns=input_columns,
             input2_layer=erase_layer,
@@ -542,7 +541,6 @@ def export_by_location(
              AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
            GROUP BY layer1.rowid {{layer1_columns_in_groupby_str}}
         '''
-    geom_operation_description = "export_by_location"
     input_layer_info = geofile.getlayerinfo(input_to_select_from_path, input1_layer)
 
     # Go!
@@ -551,7 +549,7 @@ def export_by_location(
             input2_path=input_to_compare_with_path,
             output_path=output_path,
             sql_template=sql_template,
-            geom_operation_description=geom_operation_description,
+            geom_operation_description='export_by_location',
             input1_layer=input1_layer,
             input1_columns=input1_columns,
             input2_layer=input2_layer,
@@ -591,7 +589,6 @@ def export_by_distance(
                           AND (layer1tree.maxy+{max_distance}) >= layer2tree.miny
                           AND ST_distance(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) <= {max_distance})
             '''
-    geom_operation_description = "export_by_distance"
     input_layer_info = geofile.getlayerinfo(input_to_select_from_path, input1_layer)
 
     # Go!
@@ -600,7 +597,7 @@ def export_by_distance(
             input2_path=input_to_compare_with_path,
             output_path=output_path,
             sql_template=sql_template,
-            geom_operation_description=geom_operation_description,
+            geom_operation_description='export_by_distance',
             input1_layer=input1_layer,
             input2_layer=input2_layer,
             output_layer=output_layer,
