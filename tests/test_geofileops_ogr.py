@@ -69,40 +69,39 @@ def test_select_gpkg(tmpdir):
     assert 'UIDN' in layerinfo_select.columns
     assert len(layerinfo_select.columns) == 2
 
-def test_check_valid_gpkg(tmpdir):
+def test_isvalid_gpkg(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
     with GdalBin():
-        basetest_check_valid(input_path, output_path)
+        basetest_isvalid(input_path, output_path)
 
     # Without gdal_bin set, this fails at the moment
     try:
-        basetest_check_valid(input_path, output_path)
+        basetest_isvalid(input_path, output_path)
         assert True is False, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
     except:
         assert True is True, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
         
-def test_check_valid_shp(tmpdir):
+def test_isvalid_shp(tmpdir):
     # Select some data from src to tmp file
     input_path = get_testdata_dir() / 'parcels.shp'
     output_path = Path(tmpdir) / 'parcels.gpkg'
     with GdalBin():
-        basetest_check_valid(input_path, output_path)
+        basetest_isvalid(input_path, output_path)
 
     # Without gdal_bin set, this fails at the moment
     try:
-        basetest_check_valid(input_path, output_path)
+        basetest_isvalid(input_path, output_path)
         assert True is False, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
     except:
         assert True is True, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
 
-def basetest_check_valid(input_path, output_path):
-    layerinfo_orig = geofile.getlayerinfo(input_path)
-    geofileops_ogr.check_valid(
-            input_path=input_path,
-            output_path=output_path)
+def basetest_isvalid(input_path, output_path):
+    
+    assert geofileops_ogr.isvalid(input_path=input_path, output_path=output_path) == True
 
+    '''
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
     layerinfo_select = geofile.getlayerinfo(output_path)
@@ -111,10 +110,11 @@ def basetest_check_valid(input_path, output_path):
 
     output_gdf = geofile.read_file(output_path)
     print(output_gdf)
+    assert output_gdf['geom'][0] is None
     assert output_gdf['isvalid'][0] == 1
     assert output_gdf['isvalidreason'][0] == 'Valid Geometry'
-    assert output_gdf['isvaliddetail'][0] is None
-    
+    '''
+
 def test_convexhull_gpkg(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.gpkg'
@@ -186,10 +186,47 @@ def basetest_buffer(input_path, output_path):
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
+def test_makevalid_gpkg(tmpdir):
+    # makevalid to test dir
+    input_path = get_testdata_dir() / 'invalid_geometries.gpkg'
+    output_path = Path(tmpdir) / input_path.name
+    with GdalBin():
+        basetest_makevalid(input_path, output_path)
+
+    # Without gdal_bin set, this fails at the moment
+    try:
+        basetest_makevalid(input_path, output_path)
+        assert True is False, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    except:
+        assert True is True, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+           
+def basetest_makevalid(input_path: Path, output_path: Path):
+    # The input file should contain invalid features
+    output_orig_isvalid_path = output_path.parent / f"{output_path.stem}_orig_isvalid{output_path.suffix}"
+    isvalid = geofileops_ogr.isvalid(input_path=input_path, output_path=output_orig_isvalid_path)
+    assert isvalid == False, "Input file should contain invalid features"
+
+    # Make features valid
+    geofileops_ogr.makevalid(input_path=input_path, output_path=output_path)
+
+    # Now check if the output file is correctly created
+    assert output_path.exists() == True
+    layerinfo_orig = geofile.getlayerinfo(input_path)
+    layerinfo_output = geofile.getlayerinfo(output_path)
+    assert layerinfo_orig.featurecount == layerinfo_output.featurecount
+    assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
+
+    output_gdf = geofile.read_file(output_path)
+    assert output_gdf['geometry'][0] is not None
+
+    output_new_isvalid_path = output_path.parent / f"{output_path.stem}_new_isvalid{output_path.suffix}"
+    isvalid = geofileops_ogr.isvalid(input_path=output_path, output_path=output_new_isvalid_path)
+    assert isvalid == True, "Output file shouldn't contain invalid features"
+
 def test_simplify_gpkg(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels.gpkg'
+    output_path = Path(tmpdir) / input_path.name
     with GdalBin():
         basetest_simplify(input_path, output_path)
 
@@ -213,11 +250,11 @@ def basetest_simplify(input_path, output_path):
             output_path=output_path,
             tolerance=5)
 
-    # Now check if the tmp file is correctly created
+    # Now check if the output file is correctly created
     assert output_path.exists() == True
-    layerinfo_select = geofile.getlayerinfo(input_path)
-    assert layerinfo_orig.featurecount == layerinfo_select.featurecount
-    assert len(layerinfo_orig.columns) == len(layerinfo_select.columns)
+    layerinfo_output = geofile.getlayerinfo(output_path)
+    assert layerinfo_orig.featurecount == layerinfo_output.featurecount
+    assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
@@ -407,10 +444,16 @@ if __name__ == '__main__':
     tmpdir = Path(tempfile.gettempdir()) / 'test_geofileops_ogr_ogr'
     if tmpdir.exists():
         shutil.rmtree(tmpdir)
+    
+    # Single layer operations
     #test_buffer_gpkg(tmpdir)
+    test_makevalid_gpkg(tmpdir)
     #test_erase_shp(tmpdir)
-    test_intersect_gpkg(tmpdir)
-    #test_export_by_distance_shp(tmpdir)
-    #test_check_valid_shp(tmpdir)
+    #test_isvalid_shp(tmpdir)
     #test_convexhull_shp(tmpdir)
     #test_select_geos_version(tmpdir)
+
+    # Two layer operations
+    #test_intersect_gpkg(tmpdir)
+    #test_export_by_distance_shp(tmpdir)
+    
