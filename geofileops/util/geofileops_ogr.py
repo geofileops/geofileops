@@ -840,16 +840,33 @@ def _split_layer_features(
         verbose: bool = False) -> dict:
 
     ##### Init #####
+    # Get the geometry type of the geom column, and convert
+    layerinfo = geofile.getlayerinfo(input_path, input_layer)
+    force_output_geometrytype = layerinfo.geometrytypename
+        
     # Make a temp copy of the input file
     temp_path = output_path.parent / f"{input_path.stem}.gpkg"
     if input_path.suffix.lower() == '.gpkg':
         geofile.copy(input_path, temp_path)
     else:
-        ogr_util.vector_translate(input_path=input_path, output_path=temp_path)
+        ogr_util.vector_translate(
+                input_path=input_path, 
+                output_path=temp_path,
+                transaction_size=200000,
+                force_py=True,
+                force_output_geometrytype=force_output_geometrytype,
+                verbose=verbose)
     
     ##### Split to x files/layers #####
     try:
-        # Get column names
+        # TODO: test if it is still needed to copy data to seperate layers if index is present on batch_id
+        # TODO: maybe if a sequential number is added as column this can be used to create the batches,
+        #       because that way the number of items in a batch will be more correct...
+        # TODO: if the rowid is already +- sequential, use rowid filtering istead of a seperate column?
+        #       remark: for dissolve, it will be necessary (especially if multiple passes were used) that
+        #               the output file doen't group large objects as it does now...
+
+        # Get column names and info
         layerinfo = geofile.getlayerinfo(temp_path, input_layer)
         columns_to_select_str = ''
         if len(layerinfo.columns) > 0:
@@ -862,16 +879,19 @@ def _split_layer_features(
 
         # Check number of batches + appoint rows to batches
         nb_rows_input_layer = layerinfo.featurecount
-        if nb_batches > nb_rows_input_layer:
-            nb_batches = nb_rows_input_layer
+        if nb_batches > int(nb_rows_input_layer/10):
+            nb_batches = int(nb_rows_input_layer/10)
         # Randomly determine the batch to be used for calculation in parallel...
         geofile.add_column(path=temp_path, layer=input_layer, 
                 name='batch_id', type='INTEGER', expression=f"ABS(RANDOM() % {nb_batches})")
-
+        
+        # Add index
+        sqlite_stmt = f'CREATE INDEX idx_batch_id ON "{input_layer}"(batch_id)' 
+        ogr_util.vector_info(path=temp_path, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
+            
         # Remark: adding data to a file in parallel using ogr2ogr gives locking 
         # issues on the sqlite file, so needs to be done sequential!
-        if verbose:
-            logger.info(f"Split the input file to {nb_batches} batches")
+        logger.debug(f"Split the input file to {nb_batches} batches")
         batches = {}
         for batch_id in range(nb_batches):
             # Prepare destination layer name
@@ -894,7 +914,7 @@ def _split_layer_features(
                     transaction_size=200000,
                     append=True,
                     force_py=True,
-                    force_output_geometrytype=layerinfo.geometrytypename,
+                    force_output_geometrytype=force_output_geometrytype,
                     verbose=verbose)
 
             # If items were actually added to the layer, add it to the list of jobs
@@ -902,12 +922,12 @@ def _split_layer_features(
                 batches[batch_id] = {}
                 batches[batch_id]['layer'] = output_layer_curr
             else:
-                logger.warn(f"Layer {output_layer_curr} is empty in geofile {output_path}")
+                logger.debug(f"Layer {output_layer_curr} is empty in geofile {output_path}")
     
     finally:
         # Cleanup
         geofile.remove(temp_path) 
-        
+    
     return batches
 
 def dissolve(
