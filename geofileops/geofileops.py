@@ -53,8 +53,8 @@ def buffer(
         force (bool, optional): overwrite existing output file(s). 
                 Defaults to False.
     """
-
-    return geofileops_gpd.buffer(
+    logger.info(f"Start buffer on {input_path} with distance: {distance} and quadrantsegments: {quadrantsegments}")
+    return geofileops_ogr.buffer(
             input_path=Path(input_path),
             output_path=Path(output_path),
             distance=distance,
