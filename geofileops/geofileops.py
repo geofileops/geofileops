@@ -66,18 +66,27 @@ def buffer(
             verbose=verbose,
             force=force)
 
-def check_valid(
+def isvalid(
         input_path: Union[str, 'os.PathLike[Any]'],
-        output_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'] = None,
         input_layer: str = None,        
         output_layer: str = None,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False) -> bool:
 
-    return geofileops_ogr.check_valid(
+    # Check parameters
+    if output_path is not None:
+        output_path_p = Path(output_path)
+    else:
+        input_path_p = Path(input_path)
+        output_path_p = input_path_p.parent / f"{input_path_p.stem}_isvalid{input_path_p.suffix}" 
+
+    # Go!
+    logger.info(f"Start isvalid on {input_path}")
+    return geofileops_ogr.isvalid(
             input_path=Path(input_path),
-            output_path=Path(output_path),
+            output_path=output_path_p,
             input_layer=input_layer,        
             output_layer=output_layer,
             nb_parallel=nb_parallel,
@@ -114,8 +123,8 @@ def convexhull(
         force (bool, optional): overwrite existing output file(s). 
             Defaults to False.
     """
-
-    return geofileops_gpd.convexhull(
+    logger.info(f"Start convexhull on {input_path}")
+    return geofileops_ogr.convexhull(
             input_path=Path(input_path),
             output_path=Path(output_path),
             input_layer=input_layer,
@@ -125,7 +134,7 @@ def convexhull(
             verbose=verbose,
             force=force)
 
-def make_valid(
+def makevalid(
         input_path: Union[str, 'os.PathLike[Any]'],
         output_path: Union[str, 'os.PathLike[Any]'],
         input_layer: str = None,        
@@ -134,7 +143,8 @@ def make_valid(
         verbose: bool = False,
         force: bool = False):
 
-    return geofileops_ogr.make_valid(
+    logger.info(f"Start makevalid on {input_path}")
+    return geofileops_ogr.makevalid(
             input_path=Path(input_path),
             output_path=Path(output_path),
             input_layer=input_layer,        
@@ -171,6 +181,7 @@ def select(
         verbose (bool, optional): write more info to the output. Defaults to False.
         force (bool, optional): overwrite existing output file(s). Defaults to False.
     """
+    logger.info(f"Start select on {input_path}")
     return geofileops_ogr.select(
             input_path=Path(input_path),
             output_path=Path(output_path),
@@ -213,7 +224,7 @@ def simplify(
         force (bool, optional): overwrite existing output file(s). 
             Defaults to False.
     """
-
+    logger.info(f"Start simplify on {input_path} with tolerance {tolerance}")
     return geofileops_gpd.simplify(
             input_path=Path(input_path),
             output_path=Path(output_path),
@@ -238,6 +249,7 @@ def erase(
         verbose: bool = False,
         force: bool = False):
 
+    logger.info(f"Start erase on {input_path} with {erase_path} to {output_path}")
     return geofileops_ogr.erase(
         input_path=Path(input_path),
         erase_path=Path(erase_path),
@@ -283,7 +295,7 @@ def intersect(
         force (bool, optional): overwrite existing output file(s). 
                 Defaults to False.
     """
-
+    logger.info(f"Start intersect between {input1_path} and {input2_path} to {output_path}")
     return geofileops_ogr.intersect(
             input1_path=Path(input1_path),
             input2_path=Path(input2_path),
@@ -333,6 +345,7 @@ def export_by_location(
         force (bool, optional): overwrite existing output file(s). 
                 Defaults to False.
     """
+    logger.info(f"Start export_by_location: select from {input_to_select_from_path} interacting with {input_to_compare_with_path} to {output_path}")
     return geofileops_ogr.export_by_location(
             input_to_select_from_path=Path(input_to_select_from_path),
             input_to_compare_with_path=Path(input_to_compare_with_path),
@@ -379,6 +392,7 @@ def export_by_distance(
         force (bool, optional): overwrite existing output file(s). 
                 Defaults to False.
     """
+    logger.info(f"Start export_by_distance: select from {input_to_select_from_path} within max_distance of {max_distance} from {input_to_compare_with_path} to {output_path}")
     return geofileops_ogr.export_by_distance(
             input_to_select_from_path=Path(input_to_select_from_path),
             input_to_compare_with_path=Path(input_to_compare_with_path),
@@ -431,7 +445,8 @@ def dissolve(
     tiles_path_p = None
     if tiles_path is not None:
         tiles_path_p = Path(tiles_path)
-        
+
+    logger.info(f"Start dissolve on {input_path} to {output_path}")
     return geofileops_gpd.dissolve(
             input_path=Path(input_path),
             output_path=Path(output_path),
@@ -445,6 +460,6 @@ def dissolve(
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
-    
+
 if __name__ == '__main__':
     raise Exception("Not implemented!")
