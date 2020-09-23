@@ -28,23 +28,37 @@ def create_grid(
     width = (xmax-xmin)/nb_columns
     height = (ymax-ymin)/nb_rows
 
+    return create_grid3(total_bounds=total_bounds, width=width, height=height, crs=crs)
+
+def create_grid3(
+        total_bounds: Tuple[float, float, float, float],
+        width: float,
+        height: float,
+        crs: pyproj.CRS) -> gpd.GeoDataFrame:
+
+    xmin, ymin, xmax, ymax = total_bounds
     rows = int(math.ceil((ymax-ymin) / height))
     cols = int(math.ceil((xmax-xmin) / width))
-    XleftOrigin = xmin
-    XrightOrigin = xmin + width
-    YtopOrigin = ymax
-    YbottomOrigin = ymax- height
+     
     polygons = []
-    for _ in range(cols):
-        Ytop = YtopOrigin
-        Ybottom =YbottomOrigin
-        for _ in range(rows):
-            polygons.append(sh_geom.box(XleftOrigin, Ybottom, XrightOrigin, Ytop)) 
-            Ytop = Ytop - height
-            Ybottom = Ybottom - height
-        XleftOrigin = XleftOrigin + width
-        XrightOrigin = XrightOrigin + width     
-    return gpd.GeoDataFrame({'geometry':polygons}, crs=crs)
+    cell_left = xmin
+    cell_right = xmin + width
+    for _ in range(cols+1):
+        if cell_left > xmax:
+            break
+        cell_top = ymin + height
+        cell_bottom = ymin
+        for _ in range(rows+1):
+            if cell_bottom > ymax:
+                break
+            polygons.append(sh_ops.Polygon([(cell_left, cell_top), (cell_right, cell_top), (cell_right, cell_bottom), (cell_left, cell_bottom)])) 
+            cell_top += height
+            cell_bottom += height
+            
+        cell_left += width
+        cell_right += width
+        
+    return gpd.GeoDataFrame({'geometry': polygons}, crs=crs)
 
 def create_grid2(
         total_bounds: Tuple[float, float, float, float], 

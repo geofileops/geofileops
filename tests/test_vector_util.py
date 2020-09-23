@@ -24,7 +24,7 @@ def test_create_grid2():
             total_bounds=(40000.0, 160000.0, 45000.0, 210000.0), 
             nb_squarish_tiles=100,
             crs=None)
-    assert len(grid_gdf) == 96
+    assert len(grid_gdf) == 132
 
 def test_split_tiles():
     input_tiles_path = get_testdata_dir() / 'BEFL_kbl.gpkg'
@@ -41,5 +41,5 @@ def test_split_tiles():
 if __name__ == '__main__':
     #import tempfile
     #tmpdir = tempfile.gettempdir()
-    #test_create_grid2()
-    test_split_tiles()
+    test_create_grid2()
+    #test_split_tiles()
