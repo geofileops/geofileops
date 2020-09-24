@@ -274,17 +274,17 @@ def _single_layer_vector_operation(
             tmp_output_path = tempdir / output_path.name
 
             translate_jobs = {}    
-            future_to_translate_id = {}
-            for translate_id in range(nb_batches):
+            future_to_batch_id = {}
+            for batch_id in range(nb_batches):
 
-                translate_jobs[translate_id] = {}
-                translate_jobs[translate_id]['layer'] = output_layer
+                translate_jobs[batch_id] = {}
+                translate_jobs[batch_id]['layer'] = output_layer
 
-                output_tmp_partial_path = tempdir / f"{output_path.stem}_{translate_id}{output_path.suffix}"
-                translate_jobs[translate_id]['tmp_partial_output_path'] = output_tmp_partial_path
+                output_tmp_partial_path = tempdir / f"{output_path.stem}_{batch_id}{output_path.suffix}"
+                translate_jobs[batch_id]['tmp_partial_output_path'] = output_tmp_partial_path
 
-                # For the last translate_id, take all rowid's left...
-                if translate_id < nb_batches-1:
+                # For the last batch_id, take all rowid's left...
+                if batch_id < nb_batches-1:
                     sql_stmt = f'''
                             SELECT sub.*
                               FROM
@@ -303,8 +303,8 @@ def _single_layer_vector_operation(
                                    WHERE rowid >= {row_offset}
                                 ) sub
                              WHERE sub.geom IS NOT NULL'''
-                translate_jobs[translate_id]['sql_stmt'] = sql_stmt
-                translate_description = f"Async {geom_operation_description} {translate_id} of {nb_batches}"
+                translate_jobs[batch_id]['sql_stmt'] = sql_stmt
+                translate_description = f"Async {geom_operation_description} {batch_id} of {nb_batches}"
                 # Remark: this temp file doesn't need spatial index
                 translate_info = ogr_util.VectorTranslateInfo(
                         input_path=input_tmp_path,
@@ -319,21 +319,21 @@ def _single_layer_vector_operation(
                         verbose=verbose)
                 future = ogr_util.vector_translate_async(
                         concurrent_pool=calculate_pool, info=translate_info)
-                future_to_translate_id[future] = translate_id
+                future_to_batch_id[future] = batch_id
                 row_offset += row_limit
             
             # Loop till all parallel processes are ready, but process each one that is ready already
-            for future in futures.as_completed(future_to_translate_id):
+            for future in futures.as_completed(future_to_batch_id):
                 try:
                     _ = future.result()
                 except Exception as ex:
-                    translate_id = future_to_translate_id[future]
-                    raise Exception(f"Error executing {translate_jobs[translate_id]}") from ex
+                    batch_id = future_to_batch_id[future]
+                    raise Exception(f"Error executing {translate_jobs[batch_id]}") from ex
 
                 # Start copy of the result to a common file
                 # Remark: give higher priority, because this is the slowest factor
-                translate_id = future_to_translate_id[future]
-                tmp_partial_output_path = translate_jobs[translate_id]['tmp_partial_output_path']
+                batch_id = future_to_batch_id[future]
+                tmp_partial_output_path = translate_jobs[batch_id]['tmp_partial_output_path']
                 
                 if tmp_partial_output_path.exists():
                     geofile.append_to(
@@ -774,16 +774,16 @@ def _two_layer_vector_operation(
 
             # Start looping
             translate_jobs = {}    
-            future_to_translate_id = {}
-            for translate_id in batches:
+            future_to_batch_id = {}
+            for batch_id in batches:
 
-                translate_jobs[translate_id] = {}
-                translate_jobs[translate_id]['layer'] = output_layer
+                translate_jobs[batch_id] = {}
+                translate_jobs[batch_id]['layer'] = output_layer
 
-                tmp_output_partial_path = tempdir / f"{output_path.stem}_{translate_id}{output_path.suffix}"
-                translate_jobs[translate_id]['tmp_partial_output_path'] = tmp_output_partial_path
+                tmp_output_partial_path = tempdir / f"{output_path.stem}_{batch_id}{output_path.suffix}"
+                translate_jobs[batch_id]['tmp_partial_output_path'] = tmp_output_partial_path
 
-                input1_tmp_curr_layer = batches[translate_id]['layer']
+                input1_tmp_curr_layer = batches[batch_id]['layer']
                 sql_stmt = sql_template.format(
                         layer1_columns_in_select_str=layer1_columns_in_select_str,
                         layer1_columns_in_subselect_str=layer1_columns_in_subselect_str,
@@ -795,7 +795,7 @@ def _two_layer_vector_operation(
                         input2_geometrycolumn=input2_tmp_layerinfo.geometrycolumn,
                         layer1_columns_in_groupby_str=layer1_columns_in_groupby_str)
 
-                translate_jobs[translate_id]['sqlite_stmt'] = sql_stmt
+                translate_jobs[batch_id]['sqlite_stmt'] = sql_stmt
                 translate_description = f"Calculate export_by_location between {input_tmp_path} and {tmp_output_partial_path}"
                 # Remark: this temp file doesn't need spatial index
                 translate_info = ogr_util.VectorTranslateInfo(
@@ -811,27 +811,27 @@ def _two_layer_vector_operation(
                         verbose=verbose)
                 future = ogr_util.vector_translate_async(
                         concurrent_pool=calculate_pool, info=translate_info)
-                future_to_translate_id[future] = translate_id
+                future_to_batch_id[future] = batch_id
             
             # Loop till all parallel processes are ready, but process each one that is ready already
             nb_done = 0
             general_util.report_progress(start_time, nb_done, nb_batches, geom_operation_description)
-            for future in futures.as_completed(future_to_translate_id):
+            for future in futures.as_completed(future_to_batch_id):
                 try:
                     _ = future.result()
 
                     # Start copy of the result to a common file
                     # Remark: give higher priority, because this is the slowest factor
-                    translate_id = future_to_translate_id[future]
-                    tmp_partial_output_path = translate_jobs[translate_id]['tmp_partial_output_path']
+                    batch_id = future_to_batch_id[future]
+                    tmp_partial_output_path = translate_jobs[batch_id]['tmp_partial_output_path']
 
                     # If there wasn't an exception, but the output file doesn't exist, the result was empty, so just skip.
                     if not tmp_partial_output_path.exists():
                         if verbose:
-                            logger.info(f"Temporary partial file was empty: {translate_jobs[translate_id]}")
+                            logger.info(f"Temporary partial file was empty: {translate_jobs[batch_id]}")
                         continue
                     
-                    translate_description = f"Copy result {translate_id} of {nb_batches} to {output_layer}"
+                    translate_description = f"Copy result {batch_id} of {nb_batches} to {output_layer}"
                     translate_info = ogr_util.VectorTranslateInfo(
                             input_path=tmp_partial_output_path,
                             output_path=tmp_output_path,
@@ -846,12 +846,12 @@ def _two_layer_vector_operation(
                             force_py=True,
                             verbose=verbose)
                     ogr_util.vector_translate_by_info(info=translate_info)
-                    future_to_translate_id[future] = translate_id
-                    tmp_partial_output_path = translate_jobs[translate_id]['tmp_partial_output_path']
+                    future_to_batch_id[future] = batch_id
+                    tmp_partial_output_path = translate_jobs[batch_id]['tmp_partial_output_path']
                     geofile.remove(tmp_partial_output_path)
                 except Exception as ex:
-                    translate_id = future_to_translate_id[future]
-                    raise Exception(f"Error executing {translate_jobs[translate_id]}") from ex
+                    batch_id = future_to_batch_id[future]
+                    raise Exception(f"Error executing {translate_jobs[batch_id]}") from ex
 
                 # Log the progress and prediction speed
                 nb_done += 1
@@ -1117,15 +1117,15 @@ def dissolve_cardsheets(
         with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
             translate_jobs = {}    
-            future_to_translate_id = {}    
+            future_to_batch_id = {}    
             nb_batches = len(cardsheets_gdf)
-            for translate_id, cardsheet in enumerate(cardsheets_gdf.itertuples()):
+            for batch_id, cardsheet in enumerate(cardsheets_gdf.itertuples()):
         
-                translate_jobs[translate_id] = {}
-                translate_jobs[translate_id]['layer'] = output_layer
+                translate_jobs[batch_id] = {}
+                translate_jobs[batch_id]['layer'] = output_layer
 
-                output_tmp_partial_path = tempdir / f"{output_path.stem}_{translate_id}{output_path.suffix}"
-                translate_jobs[translate_id]['tmp_partial_output_path'] = output_tmp_partial_path
+                output_tmp_partial_path = tempdir / f"{output_path.stem}_{batch_id}{output_path.suffix}"
+                translate_jobs[batch_id]['tmp_partial_output_path'] = output_tmp_partial_path
 
                 # Remarks: 
                 #   - calculating the area in the enclosing selects halves the processing time
@@ -1146,8 +1146,8 @@ def dissolve_cardsheets(
                 else:
                     force_output_geometrytype = 'MULTIPOLYGON'
 
-                translate_jobs[translate_id]['sqlite_stmt'] = sql_stmt
-                translate_description = f"Async dissolve {translate_id} of {nb_batches}, bounds: {cardsheet.geometry.bounds}"
+                translate_jobs[batch_id]['sqlite_stmt'] = sql_stmt
+                translate_description = f"Async dissolve {batch_id} of {nb_batches}, bounds: {cardsheet.geometry.bounds}"
                 # Remark: this temp file doesn't need spatial index
                 translate_info = ogr_util.VectorTranslateInfo(
                         input_path=input_tmp_path,
@@ -1164,20 +1164,20 @@ def dissolve_cardsheets(
                         verbose=verbose)
                 future = ogr_util.vector_translate_async(
                         concurrent_pool=calculate_pool, info=translate_info)
-                future_to_translate_id[future] = translate_id
+                future_to_batch_id[future] = batch_id
             
             # Loop till all parallel processes are ready, but process each one that is ready already
-            for future in futures.as_completed(future_to_translate_id):
+            for future in futures.as_completed(future_to_batch_id):
                 try:
                     _ = future.result()
 
                     # Start copy of the result to a common file
                     # Remark: give higher priority, because this is the slowest factor
-                    translate_id = future_to_translate_id[future]
+                    batch_id = future_to_batch_id[future]
                     # If the calculate gave results, copy to output
-                    tmp_partial_output_path = translate_jobs[translate_id]['tmp_partial_output_path']
+                    tmp_partial_output_path = translate_jobs[batch_id]['tmp_partial_output_path']
                     if tmp_partial_output_path.exists():
-                        translate_description = f"Copy result {translate_id} of {nb_batches} to {output_layer}"
+                        translate_description = f"Copy result {batch_id} of {nb_batches} to {output_layer}"
                         translate_info = ogr_util.VectorTranslateInfo(
                                 input_path=tmp_partial_output_path,
                                 output_path=tmp_output_path,
@@ -1193,9 +1193,9 @@ def dissolve_cardsheets(
                         ogr_util.vector_translate_by_info(info=translate_info)
                         geofile.remove(tmp_partial_output_path)
                 except Exception as ex:
-                    translate_id = future_to_translate_id[future]
+                    batch_id = future_to_batch_id[future]
                     #calculate_pool.shutdown()
-                    logger.error(f"Error executing {translate_jobs[translate_id]}: {ex}")
+                    logger.error(f"Error executing {translate_jobs[batch_id]}: {ex}")
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
