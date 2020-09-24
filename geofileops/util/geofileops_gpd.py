@@ -179,7 +179,8 @@ def _apply_geooperation_to_layer(
         # the available resources
         layerinfo = geofile.getlayerinfo(input_path, input_layer)
         nb_rows_total = layerinfo.featurecount
-        force_output_geometrytype = layerinfo.geometrytypename
+        #force_output_geometrytype = layerinfo.geometrytypename
+        force_output_geometrytype = 'MULTIPOLYGON'
         if(nb_parallel == -1):
             nb_parallel = multiprocessing.cpu_count()
         nb_batches = nb_parallel
@@ -306,6 +307,7 @@ def _apply_geooperation(
         data_gdf.geometry = data_gdf.geometry.buffer(
                 distance=operation_params['distance'], 
                 resolution=operation_params['quadrantsegments'])
+        #data_gdf['geometry'] = [sh_geom.Polygon(sh_geom.mapping(x)['coordinates']) for x in data_gdf.geometry]
     elif operation == 'convexhull':
         data_gdf.geometry = data_gdf.geometry.convex_hull
     elif operation == 'simplify':
