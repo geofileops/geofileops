@@ -312,6 +312,8 @@ def export_by_location(
         input_to_select_from_path: Union[str, 'os.PathLike[Any]'],
         input_to_compare_with_path: Union[str, 'os.PathLike[Any]'],
         output_path: Union[str, 'os.PathLike[Any]'],
+        min_area_intersect: Optional[float] = None,
+        area_inters_column_name: Optional[str] = 'area_inters',
         input1_layer: str = None,
         input1_columns: List[str] = None,
         input2_layer: str = None,
@@ -328,28 +330,34 @@ def export_by_location(
         input_to_select_from_path (PathLike): the 1st input file
         input_to_compare_with_path (PathLike): the 2nd input file
         output_path (PathLike): the file to write the result to
+        min_area_intersect (float, optional): minimum area of the intersection.
+            Defaults to None.
+        area_inters_column_name (str, optional): column name of the intersect 
+            area. Defaults to 'area_inters'. In None, no area column is added.
         input1_layer (str, optional): input layer name. Optional if the  
-                file only contains one layer.
+            file only contains one layer.
         input1_columns (List[str], optional): columns to select. If no columns
-                specified, all columns are selected.
+            specified, all columns are selected.
         input2_layer (str, optional): input layer name. Optional if the  
-                file only contains one layer.
+            file only contains one layer.
         input2_columns (List[str], optional): columns to select. If no columns
-                specified, all columns are selected.
+            specified, all columns are selected.
         output_layer (str, optional): output layer name. Optional if the  
-                file only contains one layer.
+            file only contains one layer.
         nb_parallel (int, optional): the number of parallel processes to use. 
-                If not specified, all available processors will be used.
+            If not specified, all available processors will be used.
         verbose (bool, optional): write more info to the output. 
-                Defaults to False.
+            Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
-                Defaults to False.
+            Defaults to False.
     """
     logger.info(f"Start export_by_location: select from {input_to_select_from_path} interacting with {input_to_compare_with_path} to {output_path}")
     return geofileops_ogr.export_by_location(
             input_to_select_from_path=Path(input_to_select_from_path),
             input_to_compare_with_path=Path(input_to_compare_with_path),
             output_path=Path(output_path),
+            min_area_intersect=min_area_intersect,
+            area_inters_column_name=area_inters_column_name,
             input1_layer=input1_layer,
             input1_columns=input1_columns,
             input2_layer=input2_layer,

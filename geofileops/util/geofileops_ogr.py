@@ -503,6 +503,8 @@ def export_by_location(
         input_to_select_from_path: Path,
         input_to_compare_with_path: Path,
         output_path: Path,
+        min_area_intersect: Optional[float] = None,
+        area_inters_column_name: Optional[str] = 'area_inters',
         input1_layer: str = None,
         input1_columns: List[str] = None,
         input2_layer: str = None,
@@ -529,27 +531,43 @@ def export_by_location(
                      AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
                      AND ST_intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
                      AND ST_touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0)
-        '''
+            '''
+    # Calculate intersect area if necessary
+    area_inters_column_expression = None
+    if area_inters_column_name is not None or min_area_intersect is not None:
+        if area_inters_column_name is None:
+            area_inters_column_name = 'area_inters'
+        area_inters_column_expression = f",ST_area(ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}), ST_union(layer2.{{input2_geometrycolumn}}))) as {area_inters_column_name}"
     
     sql_template = f'''
-        SELECT ST_union(layer1.{{input1_geometrycolumn}}) as geom
-              {{layer1_columns_in_groupby_str}}
-              ,ST_area(ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}), ST_union(layer2.{{input2_geometrycolumn}}))) as area_inters
-            FROM "{{input1_tmp_layer}}" layer1
-            JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-            JOIN "{{input2_tmp_layer}}" layer2
-            JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
-           WHERE 1=1
-           {{batch_filter}}
-             AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
-             AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
-             AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
-             AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
-           GROUP BY layer1.rowid {{layer1_columns_in_groupby_str}}
-        '''
-    input_layer_info = geofile.getlayerinfo(input_to_select_from_path, input1_layer)
+            SELECT ST_union(layer1.{{input1_geometrycolumn}}) as geom
+                  {{layer1_columns_in_groupby_str}}
+                  {area_inters_column_expression}
+              FROM "{{input1_tmp_layer}}" layer1
+              JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+              JOIN "{{input2_tmp_layer}}" layer2
+              JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+             WHERE 1=1
+               {{batch_filter}}
+               AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
+               AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
+               AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
+               AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
+             GROUP BY layer1.rowid {{layer1_columns_in_groupby_str}}
+            '''
+
+    # Filter on intersect area if necessary
+    if min_area_intersect is not None:
+        sql_template = f'''
+                SELECT sub.* 
+                  FROM 
+                    ( {sql_template}
+                    ) sub
+                 WHERE sub.{area_inters_column_name} >= {min_area_intersect}
+            '''
 
     # Go!
+    input_layer_info = geofile.getlayerinfo(input_to_select_from_path, input1_layer)
     return _two_layer_vector_operation(
             input1_path=input_to_select_from_path,
             input2_path=input_to_compare_with_path,
@@ -585,7 +603,7 @@ def export_by_distance(
                 FROM "{{input1_tmp_layer}}" layer1
                 JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
                 WHERE 1=1
-                {{batch_filter}}
+                  {{batch_filter}}
                   AND EXISTS (
                       SELECT 1 
                         FROM "{{input2_tmp_layer}}" layer2
@@ -893,7 +911,7 @@ def _split_layer_features(
         layerinfo = geofile.getlayerinfo(input_path, input_layer)
         force_output_geometrytype = layerinfo.geometrytypename
         if split_to_seperate_layers:
-            
+
             # If the batches should be split by random, we need a temp file to add
             # the batch_id column to...
             if split_random is True:
