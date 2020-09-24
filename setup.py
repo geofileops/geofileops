@@ -1,11 +1,16 @@
+import os
 import setuptools
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
+version = "0.0.9"
+with open('package_tag_version.txt', mode='w') as file:
+    file.write(version)
+
 setuptools.setup(
     name="geofileops", 
-    version="0.0.9",
+    version=version,
     author="Pieter Roggemans",
     author_email="pieter.roggemans@gmail.com",
     description="Package to do spatial operations on geo files.",
