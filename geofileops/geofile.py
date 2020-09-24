@@ -11,7 +11,7 @@ from pathlib import Path
 import pyproj
 import shutil
 import time
-from typing import Any, List, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 
 import fiona
 import geopandas as gpd
@@ -225,7 +225,7 @@ def remove_spatial_index(
 
 def rename_layer(
         path: Union[str, 'os.PathLike[Any]'],
-        layer: str,
+        layer: Optional[str],
         new_layer: str):
     # Check input parameters
     path_p = Path(path)
