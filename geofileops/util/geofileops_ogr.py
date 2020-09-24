@@ -41,7 +41,8 @@ def buffer(
     if distance < 0:
         # A negative buffer is only relevant for polygon types, so only keep polygon results
         # Negative buffer creates invalid stuff, and the st_simplify(geom, 0) seems the only function fixing this!
-        geom_operation_sqlite = f"Collectionextract(ST_makevalid(ST_simplify(ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}), 0)), 3) AS geom"
+        #geom_operation_sqlite = f"Collectionextract(ST_makevalid(ST_simplify(ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}), 0)), 3) AS geom"
+        geom_operation_sqlite = f"Collectionextract(ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}), 3) AS geom"
         logger.debug(f"Negative buffer, so use {geom_operation_sqlite}")
     else:
         geom_operation_sqlite = f"ST_Buffer({{geometrycolumn}}, {distance}, {quadrantsegments}) AS geom"
