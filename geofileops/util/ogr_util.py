@@ -300,6 +300,7 @@ def vector_translate_exe(
         args.extend(['-nln', output_layer])
     if force_output_geometrytype is not None:
         args.extend(['-nlt', force_output_geometrytype])
+    args.extend(['-nlt', 'PROMOTE_TO_MULTI'])
     if create_spatial_index is not None:
         if create_spatial_index is True:
             args.extend(['-lco', 'SPATIAL_INDEX=YES'])
@@ -475,6 +476,7 @@ def vector_translate_py(
         args.extend(['-nln', output_layer])
     if force_output_geometrytype is not None:
         args.extend(['-nlt', force_output_geometrytype])
+    args.extend(['-nlt', 'PROMOTE_TO_MULTI'])
     if transaction_size is not None:
         args.extend(['-gt', str(transaction_size)])
 
