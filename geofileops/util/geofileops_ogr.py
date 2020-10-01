@@ -1139,7 +1139,7 @@ def dissolve(
     # Prepare the strings to use in the select statement
     if groupby_columns is not None:
         # Because the query uses a subselect, the groupby columns need to be prefixed
-        columns_with_prefix = [f"t.{column}" for column in groupby_columns]
+        columns_with_prefix = [f't."{column}"' for column in groupby_columns]
         groupby_columns_str = ", ".join(columns_with_prefix)
         groupby_columns_for_groupby_str = groupby_columns_str
         groupby_columns_for_select_str = ", " + groupby_columns_str
@@ -1243,7 +1243,7 @@ def dissolve_cardsheets(
     # Prepare the strings to use in the select statement
     if groupby_columns is not None:
         # Because the query uses a subselect, the groupby columns need to be prefixed
-        columns_with_prefix = [f't."{column}"' for column in groupby_columns]
+        columns_with_prefix = [f"t.{column}" for column in groupby_columns]
         groupby_columns_str = ", ".join(columns_with_prefix)
         groupby_columns_for_groupby_str = groupby_columns_str
         groupby_columns_for_select_str = ", " + groupby_columns_str
