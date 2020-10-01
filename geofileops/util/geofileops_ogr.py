@@ -37,17 +37,27 @@ def buffer(
         force: bool = False):
 
     # If buffer distance < 0, necessary to apply a make_valid to evade invalid geometries 
-    force_output_geometrytype = None
     if distance < 0:
         # A negative buffer is only relevant for polygon types, so only keep polygon results
         # Negative buffer creates invalid stuff, and the st_simplify(geom, 0) seems the only function fixing this!
         #geom_operation_sqlite = f"Collectionextract(ST_makevalid(ST_simplify(ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}), 0)), 3) AS geom"
-        geom_operation_sqlite = f"Collectionextract(ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}), 3) AS geom"
-        logger.debug(f"Negative buffer, so use {geom_operation_sqlite}")
+        
+        sql_template = f'''
+            SELECT Collectionextract(ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}), 3) AS geom
+                  {{columns_to_select_str}} 
+              FROM "{{input_layer}}"
+             WHERE 1=1 
+               {{batch_filter}}'''
     else:
-        geom_operation_sqlite = f"ST_Buffer({{geometrycolumn}}, {distance}, {quadrantsegments}) AS geom"
+        sql_template = f'''
+            SELECT ST_Buffer({{geometrycolumn}}, {distance}, {quadrantsegments}) AS geom
+                  {{columns_to_select_str}} 
+              FROM "{{input_layer}}"
+             WHERE 1=1 
+               {{batch_filter}}'''
 
     # Buffer operation always results in polygons...
+    force_output_geometrytype = None
     if explodecollections is True:
         force_output_geometrytype = 'POLYGON'
     else:
@@ -56,8 +66,8 @@ def buffer(
     return _single_layer_vector_operation(
             input_path=input_path,
             output_path=output_path,
-            geom_operation_sqlite=geom_operation_sqlite,
-            geom_operation_description='buffer',
+            sql_template=sql_template,
+            operation_name='buffer',
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
@@ -76,13 +86,21 @@ def isvalid(
         verbose: bool = False,
         force: bool = False) -> bool:
 
-    geom_operation_sqlite = f"ST_IsValidDetail({{geometrycolumn}}) AS geom, ST_IsValid({{geometrycolumn}}) AS isvalid, ST_IsValidReason({{geometrycolumn}}) AS isvalidreason"
-    
+    # Prepare sql template for this operation 
+    sql_template = f'''
+            SELECT ST_IsValidDetail({{geometrycolumn}}) AS geom
+                  ,ST_IsValid({{geometrycolumn}}) AS isvalid
+                  ,ST_IsValidReason({{geometrycolumn}}) AS isvalidreason
+                  {{columns_to_select_str}} 
+              FROM "{{input_layer}}"
+             WHERE 1=1 
+                {{batch_filter}}'''
+
     _single_layer_vector_operation(
             input_path=input_path,
             output_path=output_path,
-            geom_operation_sqlite=geom_operation_sqlite,
-            geom_operation_description='isvalid',
+            sql_template=sql_template,
+            operation_name='isvalid',
             input_layer=input_layer,
             output_layer=output_layer,
             nb_parallel=nb_parallel,
@@ -107,13 +125,19 @@ def convexhull(
         verbose: bool = False,
         force: bool = False):
 
-    geom_operation_sqlite = f"ST_ConvexHull({{geometrycolumn}}) AS geom"
+    # Prepare sql template for this operation 
+    sql_template = f'''
+            SELECT ST_ConvexHull({{geometrycolumn}}) AS geom
+                  {{columns_to_select_str}} 
+              FROM "{{input_layer}}"
+             WHERE 1=1 
+               {{batch_filter}}'''
 
     return _single_layer_vector_operation(
             input_path=input_path,
             output_path=output_path,
-            geom_operation_sqlite=geom_operation_sqlite,
-            geom_operation_description='convexhull',
+            sql_template=sql_template,
+            operation_name='convexhull',
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
@@ -130,13 +154,19 @@ def makevalid(
         verbose: bool = False,
         force: bool = False):
 
-    geom_operation_sqlite = f"ST_MakeValid({{geometrycolumn}}) AS geom"
+    # Prepare sql template for this operation 
+    sql_template = f'''
+            SELECT ST_MakeValid({{geometrycolumn}}) AS geom
+                  {{columns_to_select_str}} 
+              FROM "{{input_layer}}"
+             WHERE 1=1 
+               {{batch_filter}}'''
 
     return _single_layer_vector_operation(
             input_path=input_path,
             output_path=output_path,
-            geom_operation_sqlite=geom_operation_sqlite,
-            geom_operation_description='make_valid',
+            sql_template=sql_template,
+            operation_name='make_valid',
             input_layer=input_layer,
             output_layer=output_layer,
             nb_parallel=nb_parallel,
@@ -150,8 +180,26 @@ def select(
         sql_dialect: str = None,
         input_layer: str = None,        
         output_layer: str = None,
+        explodecollections: bool = False,
+        force_output_geometrytype: str = None,
+        nb_parallel: int = 1,
         verbose: bool = False,
         force: bool = False):
+
+    # If parallel processing asked...
+    if nb_parallel == -1 or nb_parallel > 1:
+        return _single_layer_vector_operation(
+                input_path=input_path,
+                output_path=output_path,
+                sql_template=sql_stmt,
+                operation_name='select',
+                input_layer=input_layer,
+                output_layer=output_layer,
+                explodecollections=explodecollections,
+                force_output_geometrytype=force_output_geometrytype,
+                nb_parallel=nb_parallel,
+                verbose=verbose,
+                force=force)
 
     ##### Init #####
     start_time = datetime.datetime.now()
@@ -166,6 +214,9 @@ def select(
         input_layer = geofile.get_only_layer(input_path)
     if output_layer is None:
         output_layer = geofile.get_default_layer(output_path)
+    if force_output_geometrytype is None:
+        input_layer_info = geofile.getlayerinfo(input_path, input_layer)
+        force_output_geometrytype = input_layer_info.geometrytypename
 
     ##### Exec #####
     translate_description = f"Select on {input_path}"
@@ -176,6 +227,7 @@ def select(
             output_layer=output_layer,
             sql_stmt=sql_stmt,
             sql_dialect=sql_dialect,
+            force_output_geometrytype=force_output_geometrytype,
             verbose=verbose)
 
     logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
@@ -191,13 +243,19 @@ def simplify(
         verbose: bool = False,
         force: bool = False):
 
-    geom_operation_sqlite = f"ST_Simplify({{geometrycolumn}}, {tolerance}) AS geom"
+    # Prepare sql template for this operation 
+    sql_template = f'''
+            SELECT ST_Simplify({{geometrycolumn}}, {tolerance}) AS geom
+                  {{columns_to_select_str}} 
+              FROM "{{input_layer}}"
+             WHERE 1=1 
+               {{batch_filter}}'''
 
     return _single_layer_vector_operation(
             input_path=input_path,
             output_path=output_path,
-            geom_operation_sqlite=geom_operation_sqlite,
-            geom_operation_description='simplify',
+            sql_template=sql_template,
+            operation_name='simplify',
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
@@ -208,8 +266,8 @@ def simplify(
 def _single_layer_vector_operation(
         input_path: Path,
         output_path: Path,
-        geom_operation_sqlite: str,
-        geom_operation_description: str,
+        sql_template: str,
+        operation_name: str,
         input_layer: str = None,        
         output_layer: str = None,
         columns: List[str] = None,
@@ -223,14 +281,14 @@ def _single_layer_vector_operation(
     start_time = datetime.datetime.now()
     if output_path.exists():
         if force is False:
-            logger.info(f"Stop {geom_operation_description}: output exists already {output_path}")
+            logger.info(f"Stop {operation_name}: output exists already {output_path}")
             return
         else:
             geofile.remove(output_path)
     
     # Check if spatialite is properly installed to execute this query
     if input_path.suffix.lower() == '.gpkg':
-        ogr_util.check_gdal_spatialite_install(geom_operation_sqlite)
+        ogr_util.check_gdal_spatialite_install(sql_template)
 
     # Get layer info
     if input_layer is None:
@@ -239,7 +297,7 @@ def _single_layer_vector_operation(
         output_layer = geofile.get_default_layer(output_path)
 
     ##### Calculate #####
-    tempdir = io_util.create_tempdir(geom_operation_description.replace(' ', '_'))
+    tempdir = io_util.create_tempdir(operation_name.replace(' ', '_'))
     
     try:
         input_tmp_path = input_path
@@ -266,9 +324,6 @@ def _single_layer_vector_operation(
                 columns_quoted = [f'"{col}"' for col in layerinfo.columns]
                 columns_to_select_str = f", {', '.join(columns_quoted)}"
             
-            # Fill out the geometry column name in geom_operation_sqlite
-            geom_operation_sqlite = geom_operation_sqlite.format(
-                    geometrycolumn=layerinfo.geometrycolumn)
             # Calculate the number of features per thread
             nb_rows_input_layer = layerinfo.featurecount
             row_limit = int(nb_rows_input_layer/nb_batches)
@@ -288,26 +343,27 @@ def _single_layer_vector_operation(
 
                 # For the last batch_id, take all rowid's left...
                 if batch_id < nb_batches-1:
-                    sql_stmt = f'''
-                            SELECT sub.*
-                              FROM
-                                ( SELECT {geom_operation_sqlite}{columns_to_select_str} 
-                                    FROM "{input_layer}"
-                                   WHERE rowid >= {row_offset}
-                                     AND rowid < {row_offset + row_limit}
-                                ) sub
-                             WHERE sub.geom IS NOT NULL'''
+                    batch_filter = f"AND (rowid >= {row_offset} AND rowid < {row_offset + row_limit})"
                 else:
-                    sql_stmt = f'''
-                            SELECT sub.*
-                              FROM
-                                ( SELECT {geom_operation_sqlite}{columns_to_select_str} 
-                                    FROM "{input_layer}"
-                                   WHERE rowid >= {row_offset}
-                                ) sub
-                             WHERE sub.geom IS NOT NULL'''
+                    batch_filter = f"AND rowid >= {row_offset}"
+
+                # Now we have everything to format sql statement
+                sql_stmt = sql_template.format(
+                        geometrycolumn=layerinfo.geometrycolumn,
+                        columns_to_select_str=columns_to_select_str,
+                        input_layer=input_layer,
+                        batch_filter=batch_filter)
+
+                # Make sure no NULL geoms are outputted...
+                sql_stmt = f'''
+                        SELECT sub.*
+                          FROM
+                            ( {sql_stmt}
+                            ) sub
+                         WHERE sub.geom IS NOT NULL'''
+
                 translate_jobs[batch_id]['sql_stmt'] = sql_stmt
-                translate_description = f"Async {geom_operation_description} {batch_id} of {nb_batches}"
+                translate_description = f"Async {operation_name} {batch_id} of {nb_batches}"
                 # Remark: this temp file doesn't need spatial index
                 translate_info = ogr_util.VectorTranslateInfo(
                         input_path=input_tmp_path,
@@ -350,7 +406,7 @@ def _single_layer_vector_operation(
 
                 # Log the progress and prediction speed
                 nb_done += 1
-                general_util.report_progress(start_time, nb_done, nb_batches, geom_operation_description)
+                general_util.report_progress(start_time, nb_done, nb_batches, operation_name)
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location

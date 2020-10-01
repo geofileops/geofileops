@@ -160,10 +160,19 @@ def select(
         sql_dialect: str = 'SQLITE',
         input_layer: str = None,        
         output_layer: str = None,
+        explodecollections: bool = False,
+        force_output_geometrytype: str = None,
+        nb_parallel: int = 1,
         verbose: bool = False,
         force: bool = False):
     """
     Execute an sqlite style SQL query on the file. 
+    
+    Because for most standard queries there is noadvantage to parallellize, 
+    nb_parallel is 1 by default. If you do want to use parallel processing, 
+    specify nb_parallel + make sure to include the placeholder {batch_filter} 
+    in your sql_stmt. This placeholder will be replaced with a filter
+    of the form 'AND rowid >= x AND rowid < y'.
 
     The result is written to the output file specified.
 
@@ -178,6 +187,12 @@ def select(
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input
             file only contains one layer.
+        explodecollections (bool, optional): True to convert all multi-geometries to 
+            singular ones after the dissolve. Defaults to False.
+        force_output_geometrytype (str, optional): The output geometry type to 
+            force. Defaults to None, and then the geometry type of the input is used 
+        nb_parallel (int, optional): the number of parallel processes to use. 
+            Defaults to 1. To use all available cores, pass -1. 
         verbose (bool, optional): write more info to the output. Defaults to False.
         force (bool, optional): overwrite existing output file(s). Defaults to False.
     """
@@ -189,6 +204,9 @@ def select(
             sql_dialect=sql_dialect,
             input_layer=input_layer,        
             output_layer=output_layer,
+            explodecollections=explodecollections,
+            force_output_geometrytype=force_output_geometrytype,
+            nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
 
