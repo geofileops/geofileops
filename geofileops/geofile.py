@@ -269,29 +269,25 @@ def add_column(
     name = name.lower()
     if layer is None:
         layer = get_only_layer(path_p)
-
+    layerinfo_orig = getlayerinfo(path_p, layer)
+    
     ##### Go! #####
     datasource = None
     try:
         #datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
-        column_added = False
-        try:
+        if name not in layerinfo_orig.columns:
             # If column doesn't exist yet, create it
             #if name not in getlayerinfo(path_p, layer=layer).columns:
             sqlite_stmt = f'ALTER TABLE "{layer}" ADD COLUMN "{name}" {type}'
             ogr_util.vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
             #datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
-            column_added = True
-        except Exception as ex:
-            # If the column exists already, just print warning
-            if 'duplicate column name:' in str(ex):
-                logger.warning(f"Column {name} existed already in {path_p}, layer {layer}")
-            else:
-                raise ex
-    
+        else:
+            logger.warning(f"Column {name} existed already in {path_p}, layer {layer}")
+            
         # If an expression was provided and update can be done, go for it...
         if(expression is not None 
-        and (column_added is True or force_update is True)):
+           and (name not in layerinfo_orig.columns 
+                or force_update is True)):
             sqlite_stmt = f'UPDATE "{layer}" SET "{name}" = {expression}'
             ogr_util.vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
             #datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
