@@ -1100,7 +1100,7 @@ def _split_layer_features(
                 else:
                     # If not random, use rowid filtering
                     if batch_id < nb_batches:
-                        batches[batch_id]['batch_filter'] = f"AND layer1.rowid >= {offset} AND layer1.rowid < {offset+nb_rows_per_batch}"
+                        batches[batch_id]['batch_filter'] = f"AND (layer1.rowid >= {offset} AND layer1.rowid < {offset+nb_rows_per_batch})"
                         offset += nb_rows_per_batch
                     else:
                         batches[batch_id]['batch_filter'] = f"AND layer1.rowid >= {offset}"
