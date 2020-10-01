@@ -442,6 +442,7 @@ def intersect(
     collection_extract_typeid = min(geofile.to_generaltypeid(input1_layer_info.geometrytypename), 
                                     geofile.to_generaltypeid(input2_layer_info.geometrytypename))
 
+    # Prepare sql template for this operation 
     sql_template = f'''
         SELECT sub.geom
              {{layer1_columns_in_select_str}}
@@ -455,7 +456,7 @@ def intersect(
                 JOIN "{{input2_tmp_layer}}" layer2
                 JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
                WHERE 1=1
-               {{batch_filter}}
+                 {{batch_filter}}
                  AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
                  AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
                  AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
@@ -463,7 +464,7 @@ def intersect(
             ) sub
          WHERE sub.geom IS NOT NULL
         '''
-    geom_operation_description = "intersect"
+    operation_name = "intersect"
 
     # Go!
     return _two_layer_vector_operation(
@@ -471,7 +472,7 @@ def intersect(
             input2_path=input2_path,
             output_path=output_path,
             sql_template=sql_template,
-            geom_operation_description=geom_operation_description,
+            operation_name=operation_name,
             input1_layer=input1_layer,
             input1_columns=input1_columns,
             input2_layer=input2_layer,
@@ -508,6 +509,7 @@ def erase(
     else:
         force_output_geometrytype = geofile.to_multi_type(input_layer_info.geometrytypename)
 
+    # Prepare sql template for this operation 
     # Remarks:
     #   - ST_difference(geometry , NULL) gives NULL as result! -> hence the CASE 
     #   - use of the with instead of an inline view is a lot faster
@@ -545,7 +547,7 @@ def erase(
             input2_path=erase_path,
             output_path=output_path,
             sql_template=sql_template,
-            geom_operation_description='erase',
+            operation_name='erase',
             input1_layer=input_layer,
             input1_columns=input_columns,
             input2_layer=erase_layer,
@@ -572,7 +574,7 @@ def export_by_location(
         verbose: bool = False,
         force: bool = False):
     
-    # Init
+    # Prepare sql template for this operation 
     # TODO: test performance difference between the following two queries
     sql_template = f'''
             SELECT layer1.{{input1_geometrycolumn}} AS geom 
@@ -580,7 +582,7 @@ def export_by_location(
               FROM "{{input1_tmp_layer}}" layer1
               JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
              WHERE 1=1
-             {{batch_filter}}
+               {{batch_filter}}
                AND EXISTS (
                   SELECT 1 
                     FROM "{{input2_tmp_layer}}" layer2
@@ -597,6 +599,7 @@ def export_by_location(
             area_inters_column_name = 'area_inters'
         area_inters_column_expression = f",ST_area(ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}), ST_union(layer2.{{input2_geometrycolumn}}))) as {area_inters_column_name}"
     
+    # Prepare sql template for this operation 
     sql_template = f'''
             SELECT ST_union(layer1.{{input1_geometrycolumn}}) as geom
                   {{layer1_columns_in_groupby_str}}
@@ -621,8 +624,7 @@ def export_by_location(
                   FROM 
                     ( {sql_template}
                     ) sub
-                 WHERE sub.{area_inters_column_name} >= {min_area_intersect}
-            '''
+                 WHERE sub.{area_inters_column_name} >= {min_area_intersect}'''
 
     # Go!
     input_layer_info = geofile.getlayerinfo(input_to_select_from_path, input1_layer)
@@ -631,7 +633,7 @@ def export_by_location(
             input2_path=input_to_compare_with_path,
             output_path=output_path,
             sql_template=sql_template,
-            geom_operation_description='export_by_location',
+            operation_name='export_by_location',
             input1_layer=input1_layer,
             input1_columns=input1_columns,
             input2_layer=input2_layer,
@@ -654,7 +656,7 @@ def export_by_distance(
         verbose: bool = False,
         force: bool = False):
 
-    # Init
+    # Prepare sql template for this operation 
     sql_template = f'''
             SELECT geom
                   {{layer1_columns_in_subselect_str}}
@@ -670,8 +672,8 @@ def export_by_distance(
                           AND (layer1tree.maxx+{max_distance}) >= layer2tree.minx
                           AND (layer1tree.miny-{max_distance}) <= layer2tree.maxy 
                           AND (layer1tree.maxy+{max_distance}) >= layer2tree.miny
-                          AND ST_distance(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) <= {max_distance})
-            '''
+                          AND ST_distance(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) <= {max_distance})'''
+
     input_layer_info = geofile.getlayerinfo(input_to_select_from_path, input1_layer)
 
     # Go!
@@ -680,7 +682,7 @@ def export_by_distance(
             input2_path=input_to_compare_with_path,
             output_path=output_path,
             sql_template=sql_template,
-            geom_operation_description='export_by_distance',
+            operation_name='export_by_distance',
             input1_layer=input1_layer,
             input2_layer=input2_layer,
             output_layer=output_layer,
@@ -694,7 +696,7 @@ def _two_layer_vector_operation(
         input2_path: Path,
         output_path: Path,
         sql_template: str,
-        geom_operation_description: str,
+        operation_name: str,
         input1_layer: str = None,
         input1_columns: List[str] = None,
         input2_layer: str = None,
@@ -734,7 +736,7 @@ def _two_layer_vector_operation(
     ##### Init #####
     if output_path.exists():
         if force is False:
-            logger.info(f"Stop {geom_operation_description}: output exists already {output_path}")
+            logger.info(f"Stop {operation_name}: output exists already {output_path}")
             return
         else:
             geofile.remove(output_path)
@@ -752,7 +754,7 @@ def _two_layer_vector_operation(
         output_layer = geofile.get_default_layer(output_path)
 
     # Prepare tmp layer/file names
-    tempdir = io_util.create_tempdir(geom_operation_description)
+    tempdir = io_util.create_tempdir(operation_name)
     if(input1_layer != input2_layer):
         input1_tmp_layer = input1_layer
         input2_tmp_layer = input2_layer
@@ -762,7 +764,7 @@ def _two_layer_vector_operation(
     input_tmp_path = tempdir / "input_layers.gpkg" 
 
     ##### Prepare tmp files #####
-    logger.info(f"Prepare temp input files for {geom_operation_description} in {tempdir}")
+    logger.info(f"Prepare temp input files for {operation_name} in {tempdir}")
 
     try:
         # Get input2 data to temp gpkg file. 
@@ -849,7 +851,7 @@ def _two_layer_vector_operation(
         tmp_output_path = tempdir / output_path.name
         
         ##### Calculate #####
-        logger.info(f"Start {geom_operation_description} in {nb_parallel} parallel processes")
+        logger.info(f"Start {operation_name} in {nb_parallel} parallel processes")
 
         # Calculating can be done in parallel, but only one process can write to 
         # the same file at the time... 
@@ -900,7 +902,8 @@ def _two_layer_vector_operation(
             
             # Loop till all parallel processes are ready, but process each one that is ready already
             nb_done = 0
-            general_util.report_progress(start_time, nb_done, nb_batches, geom_operation_description)
+
+            general_util.report_progress(start_time, nb_done, nb_batches, operation_name)
             for future in futures.as_completed(future_to_batch_id):
                 try:
                     _ = future.result()
@@ -940,16 +943,16 @@ def _two_layer_vector_operation(
 
                 # Log the progress and prediction speed
                 nb_done += 1
-                general_util.report_progress(start_time, nb_done, nb_batches, geom_operation_description)
+                general_util.report_progress(start_time, nb_done, nb_batches, operation_name)
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
         geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
         geofile.move(tmp_output_path, output_path)
         shutil.rmtree(tempdir)
-        logger.info(f"{geom_operation_description} ready, took {datetime.datetime.now()-start_time}!")
+        logger.info(f"{operation_name} ready, took {datetime.datetime.now()-start_time}!")
     except Exception as ex:
-        logger.exception(f"{geom_operation_description} ready with ERROR, took {datetime.datetime.now()-start_time}!")
+        logger.exception(f"{operation_name} ready with ERROR, took {datetime.datetime.now()-start_time}!")
 
 def _split_layer_features(
         input_path: Path,
@@ -1278,13 +1281,13 @@ def dissolve_cardsheets(
                 bbox_wkt = f"POLYGON (({bbox_xmin} {bbox_ymin}, {bbox_xmax} {bbox_ymin}, {bbox_xmax} {bbox_ymax}, {bbox_xmin} {bbox_ymax}, {bbox_xmin} {bbox_ymin}))"
                 sql_stmt = f"""
                         SELECT ST_union(ST_intersection(t.geom, ST_GeomFromText('{bbox_wkt}'))) AS geom{groupby_columns_for_select_str}
-                            FROM {input_layer} t
-                            JOIN rtree_{input_layer}_geom t_tree ON t.fid = t_tree.id
-                            WHERE t_tree.minx <= {bbox_xmax} AND t_tree.maxx >= {bbox_xmin}
-                            AND t_tree.miny <= {bbox_ymax} AND t_tree.maxy >= {bbox_ymin}
-                            AND ST_Intersects(t.geom, ST_GeomFromText('{bbox_wkt}')) = 1
-                            AND ST_Touches(t.geom, ST_GeomFromText('{bbox_wkt}')) = 0
-                            GROUP BY {groupby_columns_for_groupby_str}"""
+                          FROM {input_layer} t
+                          JOIN rtree_{input_layer}_geom t_tree ON t.fid = t_tree.id
+                         WHERE t_tree.minx <= {bbox_xmax} AND t_tree.maxx >= {bbox_xmin}
+                           AND t_tree.miny <= {bbox_ymax} AND t_tree.maxy >= {bbox_ymin}
+                           AND ST_Intersects(t.geom, ST_GeomFromText('{bbox_wkt}')) = 1
+                           AND ST_Touches(t.geom, ST_GeomFromText('{bbox_wkt}')) = 0
+                         GROUP BY {groupby_columns_for_groupby_str}"""
                 if explodecollections is True:
                     force_output_geometrytype = 'POLYGON'
                 else:
