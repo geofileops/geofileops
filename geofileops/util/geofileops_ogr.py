@@ -969,8 +969,6 @@ def _split_layer_features(
     try:
         # If we want to split to seperate layers using random allocation, 
         # we need to create a temporary copy of the file to work on
-        layerinfo = geofile.getlayerinfo(input_path, input_layer)
-        force_output_geometrytype = layerinfo.geometrytypename
         if split_to_seperate_layers:
 
             # If the batches should be split by random, we need a temp file to add
@@ -989,7 +987,6 @@ def _split_layer_features(
                             output_layer=input_layer,
                             transaction_size=200000,
                             force_py=True,
-                            force_output_geometrytype=force_output_geometrytype,
                             verbose=verbose)
             else:
                 # Else we can just use the input file to copy the data from
@@ -1001,7 +998,6 @@ def _split_layer_features(
                     src=input_path, 
                     dst=temp_path,
                     dst_layer=input_layer,
-                    force_output_geometrytype=force_output_geometrytype,
                     verbose=verbose)
 
         # TODO: test if it is still needed to copy data to seperate layers if index is present on batch_id
@@ -1081,7 +1077,6 @@ def _split_layer_features(
                         transaction_size=200000,
                         append=True,
                         force_py=True,
-                        force_output_geometrytype=force_output_geometrytype,
                         verbose=verbose)
 
                 # If items were actually added to the layer, add it to the list of jobs
