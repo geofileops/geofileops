@@ -260,9 +260,11 @@ def _single_layer_vector_operation(
             layerinfo = geofile.getlayerinfo(input_path, input_layer)  
             columns_to_select_str = ''
             if columns is not None:
-                columns_to_select_str = f", {','.join(columns)}"
+                columns_quoted = [f'"{col}"' for col in columns] 
+                columns_to_select_str = f", {', '.join(columns_quoted)}"
             elif len(layerinfo.columns) > 0:
-                columns_to_select_str = f", {','.join(layerinfo.columns)}"
+                columns_quoted = [f'"{col}"' for col in layerinfo.columns]
+                columns_to_select_str = f", {', '.join(columns_quoted)}"
             
             # Fill out the geometry column name in geom_operation_sqlite
             geom_operation_sqlite = geom_operation_sqlite.format(
@@ -754,11 +756,11 @@ def _two_layer_vector_operation(
         layer1_columns_in_select_str = ''
         layer1_columns_in_groupby_str = ''
         if len(layer1_columns) > 0:
-            layer1_columns_in_subselect = [f"layer1.{column} l1_{column}" for column in layer1_columns]
+            layer1_columns_in_subselect = [f'layer1."{column}" "l1_{column}"' for column in layer1_columns]
             layer1_columns_in_subselect_str = ',' + ", ".join(layer1_columns_in_subselect)
-            layer1_columns_in_select = [f"sub.l1_{column}" for column in layer1_columns]
+            layer1_columns_in_select = [f'sub."l1_{column}"' for column in layer1_columns]
             layer1_columns_in_select_str = ',' + ", ".join(layer1_columns_in_select)
-            layer1_columns_in_groupby = [f"layer1.{column}" for column in layer1_columns]
+            layer1_columns_in_groupby = [f'layer1."{column}"' for column in layer1_columns]
             layer1_columns_in_groupby_str = ',' + ", ".join(layer1_columns_in_groupby)
 
         # We need the input2 column names to format the select
@@ -771,11 +773,11 @@ def _two_layer_vector_operation(
         layer2_columns_in_select_str = ''
         layer2_columns_in_groupby_str = ''
         if len(layer2_columns) > 0:
-            layer2_columns_in_subselect = [f"layer2.{column} l2_{column}" for column in layer2_columns]
+            layer2_columns_in_subselect = [f'layer2."{column}" "l2_{column}"' for column in layer2_columns]
             layer2_columns_in_subselect_str = ',' + ", ".join(layer2_columns_in_subselect)
-            layer2_columns_in_select = [f"sub.l2_{column}" for column in layer2_columns]
+            layer2_columns_in_select = [f'sub."l2_{column}"' for column in layer2_columns]
             layer2_columns_in_select_str = ',' + ", ".join(layer2_columns_in_select)
-            layer2_columns_in_groupby = [f"layer2.{column}" for column in layer2_columns]
+            layer2_columns_in_groupby = [f'layer2."{column}"' for column in layer2_columns]
             layer2_columns_in_groupby_str = ',' + ", ".join(layer2_columns_in_groupby)        
 
         # Fill out the geometry column name in geom_operation_sqlite
@@ -954,7 +956,7 @@ def _split_layer_features(
         layerinfo = geofile.getlayerinfo(temp_path, input_layer)
         columns_to_select_str = ''
         if len(layerinfo.columns) > 0:
-            columns_to_select = [f"\"{column}\"" for column in layerinfo.columns]
+            columns_to_select = [f'"{column}"' for column in layerinfo.columns]
             columns_to_select_str = "," + ", ".join(columns_to_select)
         if layerinfo.geometrycolumn == 'geom':
             geometry_column_for_select = 'geom'
@@ -1182,7 +1184,7 @@ def dissolve_cardsheets(
     # Prepare the strings to use in the select statement
     if groupby_columns is not None:
         # Because the query uses a subselect, the groupby columns need to be prefixed
-        columns_with_prefix = [f"t.{column}" for column in groupby_columns]
+        columns_with_prefix = [f't."{column}"' for column in groupby_columns]
         groupby_columns_str = ", ".join(columns_with_prefix)
         groupby_columns_for_groupby_str = groupby_columns_str
         groupby_columns_for_select_str = ", " + groupby_columns_str
