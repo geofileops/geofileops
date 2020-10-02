@@ -196,7 +196,7 @@ def select(
         verbose (bool, optional): write more info to the output. Defaults to False.
         force (bool, optional): overwrite existing output file(s). Defaults to False.
     """
-    logger.info(f"Start select on {input_path}")
+    logger.info(f"Start select {sql_stmt} \n    on {input_path}")
     return geofileops_ogr.select(
             input_path=Path(input_path),
             output_path=Path(output_path),
