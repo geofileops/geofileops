@@ -445,12 +445,12 @@ def intersect(
     # Prepare sql template for this operation 
     sql_template = f'''
         SELECT sub.geom
-             {{layer1_columns_in_select_str}}
-             {{layer2_columns_in_select_str}} 
+             {{layer1_columns_from_subselect_str}}
+             {{layer2_columns_from_subselect_str}} 
           FROM
             ( SELECT ST_Multi(Collectionextract(ST_Intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}), {collection_extract_typeid})) as geom
-                    {{layer1_columns_in_subselect_str}}
-                    {{layer2_columns_in_subselect_str}}
+                    {{layer1_columns_prefix_alias_str}}
+                    {{layer2_columns_prefix_alias_str}}
                 FROM "{{input1_tmp_layer}}" layer1
                 JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
                 JOIN "{{input2_tmp_layer}}" layer2
@@ -532,7 +532,7 @@ def erase(
             SELECT CASE WHEN layer2_unioned.geom IS NULL THEN layer1.{{input1_geometrycolumn}}
                         ELSE CollectionExtract(ST_difference(layer1.{{input1_geometrycolumn}}, layer2_unioned.geom), {collection_extract_typeid})
                    END as geom
-                  {{layer1_columns_in_subselect_str}}
+                  {{layer1_columns_prefix_alias_str}}
               FROM "{{input1_tmp_layer}}" layer1
               LEFT JOIN layer2_unioned ON layer1.rowid = layer2_unioned.layer1_rowid
              WHERE 1=1
@@ -578,7 +578,7 @@ def export_by_location(
     # TODO: test performance difference between the following two queries
     sql_template = f'''
             SELECT layer1.{{input1_geometrycolumn}} AS geom 
-                  {{layer1_columns_in_subselect_str}}
+                  {{layer1_columns_prefix_alias_str}}
               FROM "{{input1_tmp_layer}}" layer1
               JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
              WHERE 1=1
@@ -593,7 +593,7 @@ def export_by_location(
                      AND ST_touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0)
             '''
     # Calculate intersect area if necessary
-    area_inters_column_expression = None
+    area_inters_column_expression = ''
     if area_inters_column_name is not None or min_area_intersect is not None:
         if area_inters_column_name is None:
             area_inters_column_name = 'area_inters'
@@ -602,7 +602,7 @@ def export_by_location(
     # Prepare sql template for this operation 
     sql_template = f'''
             SELECT ST_union(layer1.{{input1_geometrycolumn}}) as geom
-                  {{layer1_columns_in_groupby_str}}
+                  {{layer1_columns_prefix_str}}
                   {area_inters_column_expression}
               FROM "{{input1_tmp_layer}}" layer1
               JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
@@ -614,7 +614,7 @@ def export_by_location(
                AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
                AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
                AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
-             GROUP BY layer1.rowid {{layer1_columns_in_groupby_str}}
+             GROUP BY layer1.rowid {{layer1_columns_prefix_str}}
             '''
 
     # Filter on intersect area if necessary
@@ -659,7 +659,7 @@ def export_by_distance(
     # Prepare sql template for this operation 
     sql_template = f'''
             SELECT geom
-                  {{layer1_columns_in_subselect_str}}
+                  {{layer1_columns_prefix_alias_str}}
                 FROM "{{input1_tmp_layer}}" layer1
                 JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
                 WHERE 1=1
@@ -810,16 +810,16 @@ def _two_layer_vector_operation(
             layer1_columns = input1_columns
         else:
             layer1_columns = input1_tmp_layerinfo.columns
-        layer1_columns_in_subselect_str = ''
-        layer1_columns_in_select_str = ''
-        layer1_columns_in_groupby_str = ''
+        layer1_columns_prefix_alias_str = ''
+        layer1_columns_from_subselect_str = ''
+        layer1_columns_prefix_str = ''
         if len(layer1_columns) > 0:
-            layer1_columns_in_subselect = [f'layer1."{column}" "l1_{column}"' for column in layer1_columns]
-            layer1_columns_in_subselect_str = ',' + ", ".join(layer1_columns_in_subselect)
-            layer1_columns_in_select = [f'sub."l1_{column}"' for column in layer1_columns]
-            layer1_columns_in_select_str = ',' + ", ".join(layer1_columns_in_select)
-            layer1_columns_in_groupby = [f'layer1."{column}"' for column in layer1_columns]
-            layer1_columns_in_groupby_str = ',' + ", ".join(layer1_columns_in_groupby)
+            layer1_columns_prefix_alias = [f'layer1."{column}" "l1_{column}"' for column in layer1_columns]
+            layer1_columns_prefix_alias_str = ',' + ", ".join(layer1_columns_prefix_alias)
+            layer1_columns_from_subselect = [f'sub."l1_{column}"' for column in layer1_columns]
+            layer1_columns_from_subselect_str = ',' + ", ".join(layer1_columns_from_subselect)
+            layer1_columns_prefix = [f'layer1."{column}"' for column in layer1_columns]
+            layer1_columns_prefix_str = ',' + ", ".join(layer1_columns_prefix)
 
         # We need the input2 column names to format the select
         input2_tmp_layerinfo = geofile.getlayerinfo(input_tmp_path, input2_tmp_layer)
@@ -827,17 +827,21 @@ def _two_layer_vector_operation(
             layer2_columns = input2_columns
         else:
             layer2_columns = input2_tmp_layerinfo.columns
-        layer2_columns_in_subselect_str = ''
-        layer2_columns_in_select_str = ''
-        layer2_columns_in_groupby_str = ''
+        layer2_columns_prefix_alias_str = ''
+        layer2_columns_prefix_alias_null_str = ''
+        layer2_columns_from_subselect_str = ''
+        layer2_columns_prefix_str = ''
+        
         if len(layer2_columns) > 0:
-            layer2_columns_in_subselect = [f'layer2."{column}" "l2_{column}"' for column in layer2_columns]
-            layer2_columns_in_subselect_str = ',' + ", ".join(layer2_columns_in_subselect)
-            layer2_columns_in_select = [f'sub."l2_{column}"' for column in layer2_columns]
-            layer2_columns_in_select_str = ',' + ", ".join(layer2_columns_in_select)
-            layer2_columns_in_groupby = [f'layer2."{column}"' for column in layer2_columns]
-            layer2_columns_in_groupby_str = ',' + ", ".join(layer2_columns_in_groupby)        
-
+            layer2_columns_prefix_alias = [f'layer2."{column}" "l2_{column}"' for column in layer2_columns]
+            layer2_columns_prefix_alias_str = ',' + ", ".join(layer2_columns_prefix_alias)
+            layer2_columns_prefix_alias_null = [f'NULL "l2_{column}"' for column in layer2_columns]
+            layer2_columns_prefix_alias_null_str = ',' + ", ".join(layer2_columns_prefix_alias_null)
+            layer2_columns_from_subselect = [f'sub."l2_{column}"' for column in layer2_columns]
+            layer2_columns_from_subselect_str = ',' + ", ".join(layer2_columns_from_subselect)
+            layer2_columns_prefix = [f'layer2."{column}"' for column in layer2_columns]
+            layer2_columns_prefix_str = ',' + ", ".join(layer2_columns_prefix)
+            
         # Fill out the geometry column name in geom_operation_sqlite
         # TODO: check if geom column is always geom
         #geom_operation_sqlite = geom_operation_sqlite.format(
@@ -870,15 +874,17 @@ def _two_layer_vector_operation(
 
                 input1_tmp_curr_layer = batches[batch_id]['layer']
                 sql_stmt = sql_template.format(
-                        layer1_columns_in_select_str=layer1_columns_in_select_str,
-                        layer1_columns_in_subselect_str=layer1_columns_in_subselect_str,
+                        layer1_columns_from_subselect_str=layer1_columns_from_subselect_str,
+                        layer1_columns_prefix_alias_str=layer1_columns_prefix_alias_str,
                         input1_tmp_layer=input1_tmp_curr_layer,
                         input1_geometrycolumn=input1_tmp_layerinfo.geometrycolumn,
-                        layer2_columns_in_select_str=layer2_columns_in_select_str,
-                        layer2_columns_in_subselect_str=layer2_columns_in_subselect_str,
+                        layer2_columns_from_subselect_str=layer2_columns_from_subselect_str,
+                        layer2_columns_prefix_alias_str=layer2_columns_prefix_alias_str,
+                        layer2_columns_prefix_alias_null_str=layer2_columns_prefix_alias_null_str,
                         input2_tmp_layer=input2_tmp_layer,
                         input2_geometrycolumn=input2_tmp_layerinfo.geometrycolumn,
-                        layer1_columns_in_groupby_str=layer1_columns_in_groupby_str,
+                        layer1_columns_prefix_str=layer1_columns_prefix_str,
+                        layer2_columns_prefix_str=layer2_columns_prefix_str,
                         batch_filter=batches[batch_id]['batch_filter'])
 
                 translate_jobs[batch_id]['sqlite_stmt'] = sql_stmt
