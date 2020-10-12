@@ -423,7 +423,11 @@ def basetest_intersect(
         input2_path: Path, 
         output_path: Path):
         
-    layerinfo_orig = geofile.getlayerinfo(input1_path)
+    # Get some info from input files
+    layerinfo_input1 = geofile.getlayerinfo(input1_path)
+    layerinfo_input2 = geofile.getlayerinfo(input2_path)
+
+    # Execute operation
     geofileops_ogr.intersect(
             input1_path=input1_path,
             input2_path=input2_path,
@@ -431,9 +435,13 @@ def basetest_intersect(
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
-    layerinfo_select = geofile.getlayerinfo(input1_path)
-    assert layerinfo_orig.featurecount == layerinfo_select.featurecount
-    assert len(layerinfo_orig.columns) == len(layerinfo_select.columns)
+    layerinfo_select = geofile.getlayerinfo(output_path)
+    assert layerinfo_select.featurecount == 28
+    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_select.columns)
+
+    output_gdf = geofile.read_file(output_path)
+    assert output_gdf['geometry'][0] is not None
+
 def test_join_by_location_gpkg(tmpdir):
     # Export to test dir
     input1_path = get_testdata_dir() / 'parcels.gpkg'
