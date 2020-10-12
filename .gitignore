@@ -5,3 +5,4 @@ build/
 geofileops.egg-info/
 dist/
 *.log
+tests/data/testdata.qgz
