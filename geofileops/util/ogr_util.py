@@ -400,17 +400,21 @@ def vector_translate_exe(
             logger.warn(f"\t-> Returncode ok, but stderr contains: {err}")
 
         # Check if the output file contains data
-        fileinfo = _getfileinfo(output_path, readonly=False)
-        if len(fileinfo['layers']) == 0:
-            output_path.unlink()
+        if output_path.exists():
+            fileinfo = _getfileinfo(output_path, readonly=False)
+            if len(fileinfo['layers']) == 0:
+                output_path.unlink()
+                if verbose is True:
+                    logger.warn(f"Finished, but empty result for '{translate_description}'")
+            elif translate_description is not None:
+                if verbose is True:
+                    logger.info(f"Finished '{translate_description}'")
+                else:
+                    logger.debug(f"Finished '{translate_description}'")
+        else:
             if verbose is True:
                 logger.warn(f"Finished, but empty result for '{translate_description}'")
-        elif translate_description is not None:
-            if verbose is True:
-                logger.info(f"Finished '{translate_description}'")
-            else:
-                logger.debug(f"Finished '{translate_description}'")
-
+                
         return True
 
     # If we get here, the retries didn't suffice to get it executed properly
