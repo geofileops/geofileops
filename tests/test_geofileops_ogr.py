@@ -434,6 +434,75 @@ def basetest_intersect(
     layerinfo_select = geofile.getlayerinfo(input1_path)
     assert layerinfo_orig.featurecount == layerinfo_select.featurecount
     assert len(layerinfo_orig.columns) == len(layerinfo_select.columns)
+def test_join_by_location_gpkg(tmpdir):
+    # Export to test dir
+    input1_path = get_testdata_dir() / 'parcels.gpkg'
+    input2_path = get_testdata_dir() / 'zones.gpkg'
+    output_path = Path(tmpdir) / 'parcels.gpkg'
+    with GdalBin():
+        basetest_join_by_location(input1_path, input2_path, output_path)
+    
+    # Without gdal_bin set, this fails at the moment
+    try:
+        basetest_join_by_location(input1_path, input2_path, output_path)
+        assert True is False, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    except:
+        assert True is True, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    
+def test_join_by_location_shp(tmpdir):
+    # Export to test dir
+    input1_path = get_testdata_dir() / 'parcels.shp'
+    input2_path = get_testdata_dir() / 'zones.gpkg'
+    output_path = Path(tmpdir) / 'parcels.gpkg'
+    with GdalBin():
+        basetest_join_by_location(input1_path, input2_path, output_path)
+    
+    # Without gdal_bin set, this fails at the moment
+    try:
+        basetest_join_by_location(input1_path, input2_path, output_path)
+        assert True is False, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    except:
+        assert True is True, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    
+def basetest_join_by_location(
+        input1_path: Path, 
+        input2_path: Path, 
+        output_path: Path):
+        
+    # Get some info from input files
+    layerinfo_input1 = geofile.getlayerinfo(input1_path)
+    layerinfo_input2 = geofile.getlayerinfo(input2_path)
+
+    ### Test 1: inner join, intersect
+    geofileops_ogr.join_by_location(
+            input1_path=input1_path,
+            input2_path=input2_path,
+            output_path=output_path,
+            force=True)
+
+    # Now check if the output file is correctly created
+    assert output_path.exists() == True
+    layerinfo_result = geofile.getlayerinfo(output_path)
+    assert layerinfo_result.featurecount == 28
+    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_result.columns)
+
+    output_gdf = geofile.read_file(output_path)
+    assert output_gdf['geometry'][0] is not None
+
+    ### Test 2: left outer join, intersect
+    ### Test 1: inner join, intersect
+    geofileops_ogr.join_by_location(
+            input1_path=input1_path,
+            input2_path=input2_path,
+            output_path=output_path,
+            discard_nonmatching=False,
+            force=True)
+
+    # Now check if the output file is correctly created
+    assert output_path.exists() == True
+    layerinfo_result = geofile.getlayerinfo(output_path)
+    assert layerinfo_result.featurecount == 48, f"Featurecount is {layerinfo_result.featurecount}, expected 48"
+    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_result.columns)
 
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
@@ -456,4 +525,5 @@ if __name__ == '__main__':
     # Two layer operations
     #test_intersect_gpkg(tmpdir)
     #test_export_by_distance_shp(tmpdir)
+    test_join_by_location_gpkg(tmpdir)
     

@@ -431,6 +431,70 @@ def export_by_distance(
             verbose=verbose,
             force=force)
 
+def join_by_location(
+        input1_path: Path,
+        input2_path: Path,
+        output_path: Path,
+        discard_nonmatching: bool = True,
+        min_area_intersect: Optional[float] = None,
+        area_inters_column_name: Optional[str] = None,
+        input1_layer: str = None,
+        input1_columns: List[str] = None,
+        input2_layer: str = None,
+        input2_columns: List[str] = None,
+        output_layer: str = None,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+    """
+    Exports all features in input_to_select_from_path that are within the 
+    distance specified of any features in input_to_compare_with_path.
+    
+    Args:
+        input1_path (PathLike): the 1st input file
+        input2_path (PathLike): the 2nd input file
+        output_path (PathLike): the file to write the result to
+        discard_nonmatching (bool, optional): pass True to keep rows in the 
+            "select layer" if they don't compy to the spatial operation anyway 
+            (=outer join). Defaults to False (=inner join). 
+        min_area_intersect (float, optional): minimum area of the intersection.
+            Defaults to None.
+        area_inters_column_name (str, optional): column name of the intersect 
+            area. Defaults to 'area_inters'. In None, no area column is added.
+        input1_layer (str, optional): input layer name. Optional if the  
+            file only contains one layer.
+        input1_columns (List[str], optional): columns to select. If no columns
+            specified, all columns are selected.
+        input2_layer (str, optional): input layer name. Optional if the  
+            file only contains one layer.
+        input2_columns (List[str], optional): columns to select. If no columns
+            specified, all columns are selected.
+        output_layer (str, optional): output layer name. Optional if the  
+            file only contains one layer.
+        nb_parallel (int, optional): the number of parallel processes to use. 
+            If not specified, all available processors will be used.
+        verbose (bool, optional): write more info to the output. 
+            Defaults to False.
+        force (bool, optional): overwrite existing output file(s). 
+            Defaults to False.
+    """
+    logger.info(f"Start join_by_location: select from {input1_path} joined with {input2_path} to {output_path}")
+    return geofileops_ogr.join_by_location(
+            input1_path=Path(input1_path),
+            input2_path=Path(input2_path),
+            output_path=Path(output_path),
+            discard_nonmatching=discard_nonmatching,
+            min_area_intersect=min_area_intersect,
+            area_inters_column_name=area_inters_column_name,
+            input1_layer=input1_layer,
+            input1_columns=input1_columns,
+            input2_layer=input2_layer,
+            input2_columns=input2_columns,
+            output_layer=output_layer,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
+
 def dissolve(
         input_path: Union[str, 'os.PathLike[Any]'],  
         output_path: Union[str, 'os.PathLike[Any]'],

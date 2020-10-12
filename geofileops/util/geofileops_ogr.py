@@ -691,6 +691,118 @@ def export_by_distance(
             verbose=verbose,
             force=force)
 
+def join_by_location(
+        input1_path: Path,
+        input2_path: Path,
+        output_path: Path,
+        discard_nonmatching: bool = True,
+        min_area_intersect: Optional[float] = None,
+        area_inters_column_name: Optional[str] = None,
+        input1_layer: str = None,
+        input1_columns: List[str] = None,
+        input2_layer: str = None,
+        input2_columns: List[str] = None,
+        output_layer: str = None,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+    
+    # Prepare sql template for this operation 
+    # Calculate intersect area if necessary
+    area_inters_column_expression = ''
+    if area_inters_column_name is not None or min_area_intersect is not None:
+        if area_inters_column_name is None:
+            area_inters_column_name = 'area_inters'
+        area_inters_column_expression = f",ST_area(ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}), ST_union(layer2.{{input2_geometrycolumn}}))) as {area_inters_column_name}"
+    
+    # Prepare sql template for this operation 
+    if discard_nonmatching:
+        # Use inner join
+        sql_template = f'''
+                SELECT layer1.{{input1_geometrycolumn}} as geom /*ST_union(layer1.{{input1_geometrycolumn}}) as geom*/
+                      {{layer1_columns_prefix_alias_str}}
+                      {{layer2_columns_prefix_alias_str}}
+                      --{area_inters_column_expression}
+                      ,ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}), ST_union(layer2.{{input2_geometrycolumn}})) as geom_intersect
+                 FROM "{{input1_tmp_layer}}" layer1
+                 JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                 JOIN "{{input2_tmp_layer}}" layer2
+                 JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                WHERE 1=1
+                  {{batch_filter}}
+                  AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
+                  AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
+                  AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
+                  AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
+                /*GROUP BY layer1.rowid {{layer1_columns_prefix_str}}*/
+                '''
+    else:
+        # Left outer join 
+        sql_template = f'''
+                SELECT layer1.{{input1_geometrycolumn}} as geom /*ST_union(layer1.{{input1_geometrycolumn}}) as geom*/
+                      {{layer1_columns_prefix_alias_str}}
+                      {{layer2_columns_prefix_alias_str}}
+                      --{area_inters_column_expression}
+                      ,ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}), ST_union(layer2.{{input2_geometrycolumn}})) as geom_intersect
+                 FROM "{{input1_tmp_layer}}" layer1
+                 JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                 JOIN "{{input2_tmp_layer}}" layer2
+                 JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                WHERE 1=1
+                  {{batch_filter}}
+                  AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
+                  AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
+                  AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
+                  AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
+                /*GROUP BY layer1.rowid {{layer1_columns_prefix_str}}*/
+                UNION ALL
+                SELECT layer1.{{input1_geometrycolumn}} as geom /*ST_union(layer1.{{input1_geometrycolumn}}) as geom*/
+                      {{layer1_columns_prefix_alias_str}}
+                      {{layer2_columns_prefix_alias_null_str}}
+                      --{area_inters_column_expression}
+                      ,NULL as geom_intersect
+                 FROM "{{input1_tmp_layer}}" layer1
+                 JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                 WHERE 1=1
+                  {{batch_filter}}
+                  AND NOT EXISTS (
+                      SELECT 1 
+                        FROM "{{input2_tmp_layer}}" layer2
+                        JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                       WHERE layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
+                         AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
+                         AND ST_intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
+                         AND ST_touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0)
+                /*GROUP BY layer1.rowid {{layer1_columns_prefix_str}}*/
+                '''
+        
+    # Filter on intersect area if necessary
+    if min_area_intersect is not None:
+        sql_template = f'''
+                SELECT sub.* 
+                  FROM 
+                    ( {sql_template}
+                    ) sub
+                 WHERE sub.{area_inters_column_name} >= {min_area_intersect}'''
+
+    # Go!
+    input_layer_info = geofile.getlayerinfo(input1_path, input1_layer)
+    return _two_layer_vector_operation(
+            input1_path=input1_path,
+            input2_path=input2_path,
+            output_path=output_path,
+            sql_template=sql_template,
+            operation_name='join_by_location',
+            input1_layer=input1_layer,
+            input1_columns=input1_columns,
+            input2_layer=input2_layer,
+            input2_columns=input2_columns,
+            output_layer=output_layer,
+            force_output_geometrytype=input_layer_info.geometrytypename,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
+
 def _two_layer_vector_operation(
         input1_path: Path,
         input2_path: Path,
