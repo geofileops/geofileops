@@ -7,89 +7,65 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
 from geofileops.util import ogr_util
 from geofileops import geofile
 
+class GdalBin():
+    def __init__(self, set_gdal_bin: bool = True, gdal_bin_path: str = None):
+        self.set_gdal_bin = set_gdal_bin
+        if set_gdal_bin is True:
+            if gdal_bin_path is None:
+                self.gdal_bin_path = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
+            else:
+                self.gdal_bin_path = gdal_bin_path
+
+    def __enter__(self):
+        if self.set_gdal_bin is True:
+            import os
+            os.environ['GDAL_BIN'] = self.gdal_bin_path
+
+    def __exit__(self, type, value, traceback):
+        #Exception handling here
+        import os
+        if os.environ['GDAL_BIN'] is not None:
+            del os.environ['GDAL_BIN']
+
 def get_testdata_dir() -> Path:
     return Path(__file__).resolve().parent / 'data'
 
-def test_check_gdal_spatialite_install():
+def is_gdal_default_ok() -> bool:
+    return False
+
+def is_gdal_bin_ok() -> bool:
+    return True
+
+def test_get_gdal_to_use():
 
     # On windows, the default gdal installation with conda doesn't work
     if os.name == 'nt': 
         # If GDAL_BIN not set, should be not OK
-        test_ok = False
         try:
-            ogr_util.check_gdal_spatialite_install('ST_area()')
+            ogr_util.get_gdal_to_use('ST_area()')
             test_ok = True
         except:
-            assert True == True, "On windows, check is expected to be ok if GDAL_BIN is not set"
-        if test_ok == True:
-            assert True == True, "On windows, check is expected to be ok if GDAL_BIN is not set"
+            test_ok = False
+        assert test_ok is is_gdal_default_ok(), "On windows, check is expected to be OK if GDAL_BIN is not set"
 
         # If GDAL_BIN set, it should be ok as well
-        test_ok = False
-        try: 
-            os.environ['GDAL_BIN'] = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
+        with GdalBin():
             try:
-                ogr_util.check_gdal_spatialite_install('ST_area()')
+                ogr_util.get_gdal_to_use('ST_area()')
                 test_ok = True
             except:
-                assert True == False, "On windows, check is expected to be OK if GDAL_BIN is set (properly)"
-            
-            if test_ok == True:
-                assert True == True, "On windows, check is expected to be OK if GDAL_BIN is set (properly)"
-        finally:
-            del os.environ['GDAL_BIN']
+                test_ok = False
+            assert test_ok is is_gdal_bin_ok(), "On windows, check is expected to be OK if GDAL_BIN is set (properly)"
         
     else:
         try:
-            ogr_util.check_gdal_spatialite_install('ST_area()')
-            assert True == True, "If not on windows, check is expected to be OK without setting GDAL_BIN"
+            ogr_util.get_gdal_to_use('ST_area()')
+            test_ok = True
         except:
-            assert True == False, "If not on windows, check is expected to be OK without setting GDAL_BIN"
-
-def test_spatialite_dependencies(tmpdir):
-    
-    # Get some version info from spatialite...
-    input_path = get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels.gpkg'
-    sql_stmt = f'select spatialite_version(), HasGeos(), HasGeosAdvanced(), HasGeosTrunk(), geos_version(), rttopo_version()'
-
-    print('check without GDAL_BIN')
-    ogr_util.vector_translate(
-            input_path=input_path,
-            output_path=output_path,
-            sql_stmt=sql_stmt)
-    result_gdf = geofile.read_file(output_path)
-    print(result_gdf)
-
-    assert 'GDAL_BIN' not in os.environ    
-    assert result_gdf['spatialite_version()'][0] >= '4.3.0'
-    assert result_gdf['geos_version()'][0] >= '3.8.1'
-    
-    # On non-windows, geos should be ok 
-    if os.name != 'nt': 
-        assert result_gdf['rttopo_version()'][0] is not None
-    else: 
-        # On windows, in the conda gdal installation geos operations don't seem to work in spatialite 
-        assert result_gdf['rttopo_version()'][0] is None
-        try:
-            os.environ['GDAL_BIN'] = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
-            print(f"check with GDAL_BIN={os.environ['GDAL_BIN']}")
-            ogr_util.vector_translate(
-                    input_path=input_path,
-                    output_path=output_path,
-                    sql_stmt=sql_stmt)
-            result_gdf = geofile.read_file(output_path)
-            print(result_gdf)
-        finally:
-            del os.environ['GDAL_BIN']
-
-        assert 'GDAL_BIN' not in os.environ    
-        assert result_gdf['spatialite_version()'][0] >= '4.3.0'
-        assert result_gdf['geos_version()'][0] >= '3.8.1'
-        assert result_gdf['lwgeom_version()'][0] is not None
+            test_ok = False
+        assert test_ok is True, "If not on windows, check is expected to be OK without setting GDAL_BIN"
 
 if __name__ == '__main__':
     import tempfile
     tmpdir = tempfile.gettempdir()
-    test_check_gdal_spatialite_install()
-    #test_spatialite_dependencies(tmpdir)
+    test_get_gdal_to_use()
