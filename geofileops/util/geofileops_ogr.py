@@ -1065,12 +1065,14 @@ def _two_layer_vector_operation(
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
-        geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
-        geofile.move(tmp_output_path, output_path)
-        shutil.rmtree(tempdir)
+        if tmp_output_path.exists():
+            geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
+            geofile.move(tmp_output_path, output_path)
         logger.info(f"{operation_name} ready, took {datetime.datetime.now()-start_time}!")
     except Exception as ex:
         logger.exception(f"{operation_name} ready with ERROR, took {datetime.datetime.now()-start_time}!")
+    finally:
+        shutil.rmtree(tempdir)
 
 def _split_layer_features(
         input_path: Path,
