@@ -9,6 +9,8 @@ import os
 from pathlib import Path
 import pprint
 import subprocess
+import shutil
+import tempfile
 from threading import Lock
 import time
 from typing import Any, List, Optional, Tuple, Union
@@ -32,9 +34,8 @@ lock = Lock()
 logger = logging.getLogger(__name__)
 
 # Cache the result of the check because it is quite expensive
-global_check_gdal_spatialite_install_ok: Optional[bool] = None
-global_check_gdal_spatialite_install_gdal_bin_defined: Optional[bool] = None
-global_check_gdal_spatialite_install_gdal_bin_value: Optional[str] = None
+global_spatiallite_versioninfo_default = None
+global_spatiallite_versioninfo_alternative = None
 
 #-------------------------------------------------------------
 # The real work
@@ -179,13 +180,17 @@ def vector_translate(
     """
     # If running a sqlite statement on a gpkg file, check first if spatialite works properly
     # Remark: if force_py is True, the user should know what he is doing 
-    if(sql_stmt is not None 
+    if force_py:
+        gdal_to_use = 'gdal_default'
+    elif(sql_stmt is not None 
        and sql_dialect is not None
        and sql_dialect.upper() == 'SQLITE' 
        and input_path.suffix.lower() == '.gpkg'):
-        check_gdal_spatialite_install(sql_stmt)
+        gdal_to_use = get_gdal_to_use(sql_stmt)
+    else:
+        gdal_to_use = 'gdal_default'
 
-    if os.getenv('GDAL_BIN') is None or force_py is True:
+    if gdal_to_use == 'gdal_default':
         return vector_translate_py( 
             input_path=input_path,
             output_path=output_path,
@@ -205,7 +210,7 @@ def vector_translate(
             priority_class=priority_class,    
             sqlite_journal_mode=sqlite_journal_mode,
             verbose=verbose)
-    else:
+    elif gdal_to_use == 'gdal_bin':
         logger.debug("Use ogr2ogr.exe instead of python version")
         return vector_translate_exe( 
             input_path=input_path,
@@ -226,6 +231,8 @@ def vector_translate(
             priority_class=priority_class,    
             sqlite_journal_mode=sqlite_journal_mode,
             verbose=verbose)
+    else:
+        raise Exception(f"Unsupported gdal_to_use: {gdal_to_use}")
 
 def vector_translate_exe(
         input_path: Path, 
@@ -606,84 +613,6 @@ def _getfileinfo(
 
     return result_dict
 
-def check_gdal_spatialite_install(sqlite_stmt: str):
-    """
-    Run a health check for the installation of spatialite. 
-
-    Raises:
-        Exception: [description]
-        Exception: [description]
-    """
-
-    # Check if there is a geom function is het sqlite statement
-    geom_functions = [
-            'buffer', 'st_buffer', 'convexhull', 'st_convexhull', 'simplify', 'st_simplify', 
-            'simplifypreservetopology', 'st_simplifypreservetopology', 
-            'isvalid', 'st_isvalid', 'isvalidreason', 'st_isvalidreason', 'isvaliddetail', 'st_isvaliddetail'
-            'st_area', 'area']
-    sqlite_stmt_lower = sqlite_stmt.lower()
-    geom_function_found = False 
-    for geom_function in geom_functions:
-        if(f"{geom_function}(" in sqlite_stmt_lower
-           or f"{geom_function} (" in sqlite_stmt_lower):
-            geom_function_found = True
-            break
-
-    # If no geom function found, just return
-    if geom_function_found is False:
-        return
-
-    # Check if the test has run already (in the same circumstances)
-    global global_check_gdal_spatialite_install_ok
-    global global_check_gdal_spatialite_install_gdal_bin_defined
-    global global_check_gdal_spatialite_install_gdal_bin_value
-
-    gdal_bin_dir = os.getenv('GDAL_BIN')
-    if global_check_gdal_spatialite_install_ok is not None:
-        
-        # If gdal_bin_dir is not defined and during the previous check is wasn't either, reuse result 
-        if gdal_bin_dir is None: 
-            if global_check_gdal_spatialite_install_gdal_bin_defined is False:
-                return global_check_gdal_spatialite_install_ok
-        else:
-            if(global_check_gdal_spatialite_install_gdal_bin_defined is True
-               and global_check_gdal_spatialite_install_gdal_bin_value == gdal_bin_dir):
-                return global_check_gdal_spatialite_install_ok
-    
-    # Previous check cannot be reused, so save the circumstances for this check...
-    global_check_gdal_spatialite_install_ok = None
-    if gdal_bin_dir is None:
-        global_check_gdal_spatialite_install_gdal_bin_defined = False
-    else:
-        global_check_gdal_spatialite_install_gdal_bin_defined = True
-        global_check_gdal_spatialite_install_gdal_bin_value = gdal_bin_dir
-
-    # Now run the check
-    test_path = Path(__file__).resolve().parent / "test.gpkg"
-    sqlite_stmt = 'SELECT round(ST_area(geom), 2) as area FROM "test"'
-    #sqlite_stmt = "SELECT ST_area(GeomFromText('POLYGON ((0 0, 0 10, 10 10, 10 0, 0 0))'))"
-    
-    output = vector_info(
-            path=test_path, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=True, skip_health_check=True)
-    output_lines = StringIO(str(output)).readlines()
-
-    # Check if the area is calculated properly
-    output_ok = 'area (Real) = 4816.51'
-    error_message_template = f"Error: probably lwgeom/geos is not activated in spatialite, install OSGEO4W and set the GDAL_BIN environment variable to the bin dir: sqlite_stmt <{sqlite_stmt}> should output <{output_ok}> but the result was <{{line}}>"
-    for line in reversed(output_lines): 
-        if line.strip() == '':
-            continue
-        elif line.strip() == output_ok:
-            global_check_gdal_spatialite_install_ok = True
-            return
-        else:
-            global_check_gdal_spatialite_install_ok = False
-            raise Exception(error_message_template.format(line=line.strip()))
-
-    # If no result, probebly something wrong as well...
-    global_check_gdal_spatialite_install_ok = False
-    raise Exception(error_message_template.format(line=None))
-
 def vector_info(
         path: Path, 
         task_description = None,
@@ -715,7 +644,7 @@ def vector_info(
        and sql_dialect is not None
        and sql_dialect.upper() == 'SQLITE' 
        and path.suffix.lower() == '.gpkg'):
-        check_gdal_spatialite_install(sql_stmt)
+        get_gdal_to_use(sql_stmt)
 
     # Add all parameters to args list
     args = [str(ogrinfo_path)]
@@ -773,6 +702,170 @@ def vector_info(
 
     # If we get here, the retries didn't suffice to get it executed properly
     raise Exception(f"Error executing {pprint.pformat(args)}\n\t-> Return code: {returncode}")
+
+def get_gdal_to_use(sqlite_stmt: str) -> str:
+    """
+    Check which gdal installation to use for this query: 
+      * If query is supported using standard python execution, returns 'gdal_default'
+      * If query is only supported using gedal installed in GDAL_BIN, returns 'gdal_bin'
+      * If query is not supported at all, raises exception
+
+    Raises:
+        Exception: [description]
+        Exception: [description]
+    """
+    ### First check if the python version can be used ###
+    # Get spatialite version info for the default gdal 
+    global global_spatiallite_versioninfo_default
+    if global_spatiallite_versioninfo_default is None:
+        global_spatiallite_versioninfo_default = get_gdal_install_info('gdal_default')
+
+    # If version 5 and rettopo installed... the default python way can be used!
+    if(global_spatiallite_versioninfo_default['spatialite_version()'] >= '5.0' 
+       and global_spatiallite_versioninfo_default['rttopo_version()'] is not None):
+        return 'gdal_default'
+        
+    # Check if there is an unsupported function in the sqlite statement
+    sqlite_stmt_lower = sqlite_stmt.lower()
+    unsupported_function_found = False 
+    for unsupported_function in global_spatiallite_versioninfo_default['unsupported_functions']:
+        if(f"{unsupported_function}(" in sqlite_stmt_lower
+           or f"{unsupported_function} (" in sqlite_stmt_lower):
+            unsupported_function_found = True
+            break
+
+    # If no unsupported function found, default gdal can be used
+    if unsupported_function_found is False:
+        return 'gdal_default'
+
+    ### Default gdal not OK, so check if there is a GDAL_BIN version that is ok ###
+    # First check if there is an alternative gdal installation 
+    gdal_bin_dir = os.getenv('GDAL_BIN')
+    if gdal_bin_dir is None:
+        raise Exception('sqlite_stmt not supported by default gdal, and no alternative gdal installation specified using GDAL_BIN')
+
+    # Get spatiallite version info for the alternative gdal, if it isn't cached yet for this gdal_bin_dir
+    global global_spatiallite_versioninfo_alternative
+    if global_spatiallite_versioninfo_alternative is None:
+        global_spatiallite_versioninfo_alternative = get_gdal_install_info('gdal_bin')
+        global_spatiallite_versioninfo_alternative['gdal_bin_dir'] = gdal_bin_dir
+    elif global_spatiallite_versioninfo_alternative['gdal_bin_dir'] != gdal_bin_dir:
+        global_spatiallite_versioninfo_alternative = get_gdal_install_info('gdal_bin')
+        global_spatiallite_versioninfo_alternative['gdal_bin_dir'] = gdal_bin_dir
+
+    # Check if there is an unsupported function in the sqlite statement
+    sqlite_stmt_lower = sqlite_stmt.lower()
+    unsupported_function_found = False 
+    for unsupported_function in global_spatiallite_versioninfo_alternative['unsupported_functions']:
+        if(f"{unsupported_function}(" in sqlite_stmt_lower
+           or f"{unsupported_function} (" in sqlite_stmt_lower):
+            unsupported_function_found = True
+            break
+
+    # If no unsupported function found, alternative gdal can be used
+    if unsupported_function_found is False:
+        return 'gdal_bin'
+    else:
+        raise Exception(f"Alternative gdal in gdal_bin_dir {gdal_bin_dir} doesn't support sqlite_stmt either: {sqlite_stmt}")
+
+def get_gdal_install_info(gdal_installation: str) -> dict:
+
+    # First check the spatialite version
+    test_path = Path(__file__).resolve().parent / "test.gpkg"
+    sqlite_stmt = f'select spatialite_version()'
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir) / 'tmp_test_output.gpkg'
+        if gdal_installation == 'gdal_default':
+            vector_translate_py(
+                    input_path=test_path,
+                    output_path=tmp_path,
+                    sql_stmt=sqlite_stmt,
+                    sql_dialect='SQLITE')
+        elif gdal_installation == 'gdal_bin':
+            vector_translate_exe(
+                    input_path=test_path,
+                    output_path=tmp_path,
+                    sql_stmt=sqlite_stmt,
+                    sql_dialect='SQLITE')
+        else:
+            raise Exception(f"Unsupported gdal_installation: {gdal_installation}")
+        
+        result_gdf = geofile.read_file(tmp_path)
+
+    # Now get extra information, depending on the spatialite version
+    if result_gdf['spatialite_version()'][0] >= '5.0.0':
+        sqlite_stmt = f'select spatialite_version(), HasGeos(), HasGeosAdvanced(), HasGeosTrunk(), geos_version(), rttopo_version()'
+    elif result_gdf['spatialite_version()'][0] >= '4.3.0':
+        sqlite_stmt = f'select spatialite_version(), HasGeos(), HasGeosAdvanced(), HasGeosTrunk(), geos_version(), lwgeom_version()'
+    else:
+        raise Exception(f"Unsupported spatialite version: {result_gdf['spatialite_version()'][0]}")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir) / 'tmp_test_output.gpkg'
+        if gdal_installation == 'gdal_default':
+            vector_translate_py(
+                    input_path=test_path,
+                    output_path=tmp_path,
+                    sql_stmt=sqlite_stmt,
+                    sql_dialect='SQLITE')
+        elif gdal_installation == 'gdal_bin':
+            vector_translate_exe(
+                    input_path=test_path,
+                    output_path=tmp_path,
+                    sql_stmt=sqlite_stmt,
+                    sql_dialect='SQLITE')
+        else:
+            raise Exception(f"Unsupported gdal_installation: {gdal_installation}")
+        
+        result_gdf = geofile.read_file(tmp_path)
+    
+    # Copy results to result dict
+    result = {}
+    for column in result_gdf.columns:
+        result[column] = result_gdf[column][0]
+
+    # Check if there are unsupported functions
+    if result['spatialite_version()'] >= '5.0.0':
+        if result['rttopo_version()'] is None:
+            result['unsupported_functions'] = [
+                    'makevalid', 'st_makevalid', 'isvalid', 'st_isvalid', 
+                    'isvalidreason', 'st_isvalidreason', 'isvaliddetail', 'st_isvaliddetail']
+        else:
+            result['unsupported_functions'] = []
+    elif result['spatialite_version()'] >= '4.3.0':
+        if result['lwgeom_version()'] is None:
+            result['unsupported_functions'] = [
+                    'buffer', 'st_buffer', 'convexhull', 'st_convexhull', 'simplify', 'st_simplify', 
+                    'simplifypreservetopology', 'st_simplifypreservetopology', 
+                    'makevalid', 'st_makevalid', 'isvalid', 'st_isvalid', 
+                    'isvalidreason', 'st_isvalidreason', 'isvaliddetail', 'st_isvaliddetail'
+                    'st_area', 'area',
+                    'st_multi', 'collectionextract', 'st_intersection', 'st_union']
+        else:
+            result['unsupported_functions'] = []
+                
+    return result
+    """
+    # Now run the check
+    print('check without GDAL_BIN')
+    sqlite_stmt = 'SELECT round(ST_area(geom), 2) as area FROM "test"'
+    output = vector_info(
+            path=test_path, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=True, skip_health_check=True)
+    output_lines = StringIO(str(output)).readlines()
+
+    # Check if the area is calculated properly
+    output_ok = 'area (Real) = 4816.51'
+    error_message_template = f"Error: probably lwgeom/geos is not activated in spatialite, install OSGEO4W and set the GDAL_BIN environment variable to the bin dir: sqlite_stmt <{sqlite_stmt}> should output <{output_ok}> but the result was <{{line}}>"
+    for line in reversed(output_lines): 
+        if line.strip() == '':
+            continue
+        elif line.strip() == output_ok:
+            global_check_gdal_spatialite_install_ok = True
+            return 'gdal_bin'
+        else:
+            global_check_gdal_spatialite_install_ok = False
+            raise Exception(error_message_template.format(line=line.strip()))
+    """
 
 if __name__ == '__main__':
     None

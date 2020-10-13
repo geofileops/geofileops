@@ -288,7 +288,7 @@ def _single_layer_vector_operation(
     
     # Check if spatialite is properly installed to execute this query
     if input_path.suffix.lower() == '.gpkg':
-        ogr_util.check_gdal_spatialite_install(sql_template)
+        ogr_util.get_gdal_to_use(sql_template)
 
     # Get layer info
     if input_layer is None:
@@ -854,7 +854,7 @@ def _two_layer_vector_operation(
             geofile.remove(output_path)
 
     # Check if spatialite is properly installed to execute this query
-    ogr_util.check_gdal_spatialite_install(sql_template)
+    ogr_util.get_gdal_to_use(sql_template)
 
     # Init layer info
     start_time = datetime.datetime.now()
