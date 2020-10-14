@@ -318,6 +318,11 @@ def _single_layer_vector_operation(
             layerinfo = geofile.getlayerinfo(input_path, input_layer)  
             columns_to_select_str = ''
             if columns is not None:
+                # If input2_columns contains columns not in layer... error!
+                missing_columns = [col for col in columns if (col not in layerinfo.columns)]
+                if len(missing_columns) > 0:
+                    raise Exception(f"Error, input1_columns contains columns not in input2_layer: {missing_columns}. Existing columns: {layerinfo.columns}")
+
                 columns_quoted = [f'"{col}"' for col in columns] 
                 columns_to_select_str = f", {', '.join(columns_quoted)}"
             elif len(layerinfo.columns) > 0:
@@ -919,6 +924,10 @@ def _two_layer_vector_operation(
         # We need the input1 column names to format the select
         input1_tmp_layerinfo = geofile.getlayerinfo(input_tmp_path, batches[0]['layer'])
         if input1_columns is not None:
+            # If input2_columns contains columns not in layer... error!
+            missing_columns = [col for col in input1_columns if (col not in input1_tmp_layerinfo.columns)]
+            if len(missing_columns) > 0:
+                raise Exception(f"Error, input1_columns contains columns not in input2_layer: {missing_columns}. Existing columns: {input1_tmp_layerinfo.columns}")
             layer1_columns = input1_columns
         else:
             layer1_columns = input1_tmp_layerinfo.columns
@@ -936,6 +945,10 @@ def _two_layer_vector_operation(
         # We need the input2 column names to format the select
         input2_tmp_layerinfo = geofile.getlayerinfo(input_tmp_path, input2_tmp_layer)
         if input2_columns is not None:
+            # If input2_columns contains columns not in layer... error!
+            missing_columns = [col for col in input2_columns if (col not in input2_tmp_layerinfo.columns)]
+            if len(missing_columns) > 0:
+                raise Exception(f"Error, input2_columns contains columns not in input2_layer: {missing_columns}. Existing columns: {input2_tmp_layerinfo.columns}")
             layer2_columns = input2_columns
         else:
             layer2_columns = input2_tmp_layerinfo.columns
