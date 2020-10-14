@@ -286,7 +286,9 @@ def intersect(
         input2_path: Union[str, 'os.PathLike[Any]'],
         output_path: Union[str, 'os.PathLike[Any]'],
         input1_layer: str = None,
+        input1_columns: List[str] = None,
         input2_layer: str = None,
+        input2_columns: List[str] = None,
         output_layer: str = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
@@ -302,8 +304,12 @@ def intersect(
         output_path (PathLike): the file to write the result to
         input1_layer (str, optional): input layer name. Optional if the  
                 file only contains one layer.
+        input1_columns (List[str], optional): columns to select. If no columns
+            specified, all columns are selected.
         input2_layer (str, optional): input layer name. Optional if the  
-                file only contains one layer.
+            file only contains one layer.
+        input2_columns (List[str], optional): columns to select. If no columns
+            specified, all columns are selected.
         output_layer (str, optional): output layer name. Optional if the  
                 file only contains one layer.
         nb_parallel (int, optional): the number of parallel processes to use. 
@@ -319,7 +325,9 @@ def intersect(
             input2_path=Path(input2_path),
             output_path=Path(output_path),
             input1_layer=input1_layer,
+            input1_columns=input1_columns,
             input2_layer=input2_layer,
+            input2_columns=input2_columns,
             output_layer=output_layer,
             explodecollections=explodecollections,
             nb_parallel=nb_parallel,
