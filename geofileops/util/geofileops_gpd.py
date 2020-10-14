@@ -620,9 +620,9 @@ def _dissolve(
         return_info['total_time'] = (datetime.datetime.now()-start_time).total_seconds()
         return return_info
 
-    # If a groupby is filled out, or if the tiles don't need to be kept,
+    # If the tiles don't need to be kept,
     # evade geometries from being processed in multiple tiles.    
-    if groupby_columns is not None or clip_on_tiles is False:
+    if clip_on_tiles is False:
 
         # Geometries can be on the border of tiles, so can intersect with 
         # multiple tiles. 
