@@ -1,10 +1,9 @@
-import os
 import setuptools
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-version = "0.0.9"
+version = "0.0.11"
 with open('package_tag_version.txt', mode='w') as file:
     file.write(version)
 
@@ -17,6 +16,7 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/theroggy/geofileops",
+    include_package_data=True,
     packages=setuptools.find_packages(),
     install_requires=["geopandas>=0.8", "pygeos", "psutil"],
     classifiers=[
