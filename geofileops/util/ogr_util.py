@@ -770,11 +770,13 @@ def get_gdal_to_use(sqlite_stmt: str) -> str:
 
 def get_gdal_install_info(gdal_installation: str) -> dict:
 
+    result = {}
+    
     # First check the spatialite version
     test_path = Path(__file__).resolve().parent / "test.gpkg"
     sqlite_stmt = f'select spatialite_version()'
     with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = Path(tmpdir) / 'tmp_test_output.gpkg'
+        tmp_path = Path(tmpdir) / 'tmp_test_spatialite_version.gpkg'
         if gdal_installation == 'gdal_default':
             vector_translate_py(
                     input_path=test_path,
@@ -791,17 +793,16 @@ def get_gdal_install_info(gdal_installation: str) -> dict:
             raise Exception(f"Unsupported gdal_installation: {gdal_installation}")
         
         result_gdf = geofile.read_file(tmp_path)
-
-    # Now get extra information, depending on the spatialite version
-    if result_gdf['spatialite_version()'][0] >= '5.0.0':
-        sqlite_stmt = f'select spatialite_version(), HasGeos(), HasGeosAdvanced(), HasGeosTrunk(), geos_version(), rttopo_version()'
-    elif result_gdf['spatialite_version()'][0] >= '4.3.0':
-        sqlite_stmt = f'select spatialite_version(), HasGeos(), HasGeosAdvanced(), HasGeosTrunk(), geos_version(), lwgeom_version()'
-    else:
-        raise Exception(f"Unsupported spatialite version: {result_gdf['spatialite_version()'][0]}")
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = Path(tmpdir) / 'tmp_test_output.gpkg'
+        
+        # Now get extra information, depending on the spatialite version
+        if result_gdf['spatialite_version()'][0] >= '5.0.0':
+            sqlite_stmt = f'select spatialite_version(), HasGeos(), HasGeosAdvanced(), HasGeosTrunk(), geos_version(), rttopo_version()'
+        elif result_gdf['spatialite_version()'][0] >= '4.3.0':
+            sqlite_stmt = f'select spatialite_version(), HasGeos(), HasGeosAdvanced(), HasGeosTrunk(), geos_version(), lwgeom_version()'
+        else:
+            raise Exception(f"Unsupported spatialite version: {result_gdf['spatialite_version()'][0]}")
+        
+        tmp_path = Path(tmpdir) / 'tmp_test_full_version_info.gpkg'
         if gdal_installation == 'gdal_default':
             vector_translate_py(
                     input_path=test_path,
@@ -818,31 +819,32 @@ def get_gdal_install_info(gdal_installation: str) -> dict:
             raise Exception(f"Unsupported gdal_installation: {gdal_installation}")
         
         result_gdf = geofile.read_file(tmp_path)
+        #logger.warn(result_gdf)
     
-    # Copy results to result dict
-    result = {}
-    for column in result_gdf.columns:
-        result[column] = result_gdf[column][0]
+        # Copy results to result dict
+        for column in result_gdf.columns:
+            result[column] = result_gdf[column][0]
 
-    # Check if there are unsupported functions
-    if result['spatialite_version()'] >= '5.0.0':
-        if result['rttopo_version()'] is None:
-            result['unsupported_functions'] = [
-                    'makevalid', 'st_makevalid', 'isvalid', 'st_isvalid', 
-                    'isvalidreason', 'st_isvalidreason', 'isvaliddetail', 'st_isvaliddetail']
-        else:
-            result['unsupported_functions'] = []
-    elif result['spatialite_version()'] >= '4.3.0':
-        if result['lwgeom_version()'] is None:
-            result['unsupported_functions'] = [
-                    'buffer', 'st_buffer', 'convexhull', 'st_convexhull', 'simplify', 'st_simplify', 
-                    'simplifypreservetopology', 'st_simplifypreservetopology', 
-                    'makevalid', 'st_makevalid', 'isvalid', 'st_isvalid', 
-                    'isvalidreason', 'st_isvalidreason', 'isvaliddetail', 'st_isvaliddetail'
-                    'st_area', 'area',
-                    'st_multi', 'collectionextract', 'st_intersection', 'st_union']
-        else:
-            result['unsupported_functions'] = []
+        # Check if there are unsupported functions
+        if result['spatialite_version()'] >= '5.0.0':
+            if result['rttopo_version()'] is None:
+                result['unsupported_functions'] = [
+                        'makevalid', 'st_makevalid', 'isvalid', 'st_isvalid', 
+                        'isvalidreason', 'st_isvalidreason', 'isvaliddetail', 'st_isvaliddetail']
+            else:
+                result['unsupported_functions'] = []
+        elif result['spatialite_version()'] >= '4.3.0':
+            if result['lwgeom_version()'] is None:
+                result['unsupported_functions'] = [
+                        #'buffer', 'st_buffer', 
+                        'convexhull', 'st_convexhull', 'simplify', 'st_simplify', 
+                        'simplifypreservetopology', 'st_simplifypreservetopology', 
+                        'makevalid', 'st_makevalid', 'isvalid', 'st_isvalid', 
+                        'isvalidreason', 'st_isvalidreason', 'isvaliddetail', 'st_isvaliddetail'
+                        'st_area', 'area',
+                        'st_multi', 'collectionextract', 'st_intersection', 'st_union']
+            else:
+                result['unsupported_functions'] = []
                 
     return result
     """
