@@ -220,6 +220,7 @@ def select(
 
     ##### Exec #####
     translate_description = f"Select on {input_path}"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     ogr_util.vector_translate(
             input_path=input_path,
             output_path=output_path,
@@ -417,6 +418,7 @@ def _single_layer_vector_operation(
         # Now create spatial index and move to output location
         if tmp_output_path.exists():
             geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
             geofile.move(tmp_output_path, output_path)
     finally:
         # Clean tmp dir
@@ -908,7 +910,11 @@ def _two_layer_vector_operation(
 
             # If needed, rename layer
             if input2_layer != input2_tmp_layer:
-                geofile.rename_layer(input_tmp_path, input2_layer, input2_tmp_layer)           
+                geofile.rename_layer(input_tmp_path, input2_layer, input2_tmp_layer)
+
+            # Make sure the layer has a spatial index
+            if not geofile.has_spatial_index(input_tmp_path, input2_tmp_layer):
+                geofile.create_spatial_index(input_tmp_path, input2_tmp_layer)
         else:
             # Copy the layer needed to a new gpkg
             ogr_util.vector_translate(
