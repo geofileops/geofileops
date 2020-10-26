@@ -433,8 +433,10 @@ def intersect(
         output_path: Path,
         input1_layer: str = None,
         input1_columns: List[str] = None,
+        input1_columns_prefix: str = 'l1_',
         input2_layer: str = None,
         input2_columns: List[str] = None,
+        input2_columns_prefix: str = 'l2_',
         output_layer: str = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
@@ -469,7 +471,6 @@ def intersect(
             ) sub
          WHERE sub.geom IS NOT NULL
         '''
-    operation_name = "intersect"
 
     # Go!
     return _two_layer_vector_operation(
@@ -477,11 +478,13 @@ def intersect(
             input2_path=input2_path,
             output_path=output_path,
             sql_template=sql_template,
-            operation_name=operation_name,
+            operation_name='intersect',
             input1_layer=input1_layer,
             input1_columns=input1_columns,
+            input1_columns_prefix=input1_columns_prefix,
             input2_layer=input2_layer,
             input2_columns=input2_columns,
+            input2_columns_prefix=input2_columns_prefix,
             output_layer=output_layer,
             explodecollections=explodecollections,
             nb_parallel=nb_parallel,
@@ -655,6 +658,7 @@ def export_by_distance(
         output_path: Path,
         max_distance: float,
         input1_layer: str = None,
+        input1_columns: List[str] = None,
         input2_layer: str = None,
         output_layer: str = None,
         nb_parallel: int = -1,
@@ -689,6 +693,7 @@ def export_by_distance(
             sql_template=sql_template,
             operation_name='export_by_distance',
             input1_layer=input1_layer,
+            input1_columns=input1_columns,
             input2_layer=input2_layer,
             output_layer=output_layer,
             force_output_geometrytype=input_layer_info.geometrytypename,
@@ -705,8 +710,10 @@ def join_by_location(
         area_inters_column_name: Optional[str] = None,
         input1_layer: str = None,
         input1_columns: List[str] = None,
+        input1_columns_prefix: str = 'l1_',
         input2_layer: str = None,
         input2_columns: List[str] = None,
+        input2_columns_prefix: str = 'l2_',
         output_layer: str = None,
         nb_parallel: int = -1,
         verbose: bool = False,
@@ -800,8 +807,10 @@ def join_by_location(
             operation_name='join_by_location',
             input1_layer=input1_layer,
             input1_columns=input1_columns,
+            input1_columns_prefix=input1_columns_prefix,
             input2_layer=input2_layer,
             input2_columns=input2_columns,
+            input2_columns_prefix=input2_columns_prefix,
             output_layer=output_layer,
             force_output_geometrytype=input_layer_info.geometrytypename,
             nb_parallel=nb_parallel,
@@ -816,8 +825,10 @@ def _two_layer_vector_operation(
         operation_name: str,
         input1_layer: str = None,
         input1_columns: List[str] = None,
+        input1_columns_prefix: str = 'l1_',
         input2_layer: str = None,
         input2_columns: List[str] = None,
+        input2_columns_prefix: str = 'l2_',
         output_layer: str = None,
         explodecollections: bool = False,
         force_output_geometrytype: str = 'MULTIPOLYGON',
@@ -834,7 +845,11 @@ def _two_layer_vector_operation(
         input2_path (str): the file to check intersections with
         output_path (str): output file
         input1_layer (str, optional): [description]. Defaults to None.
+        input1_columns
+        input1_columns_prefix
         input2_layer (str, optional): [description]. Defaults to None.
+        input2_columns
+        input2_columns_prefix
         output_layer (str, optional): [description]. Defaults to None.
         explodecollections (bool, optional): Explode collecions in output. Defaults to False.
         force_output_geometrytype (str, optional): Defaults to 'MULTIPOLYGON'.
@@ -876,8 +891,8 @@ def _two_layer_vector_operation(
         input1_tmp_layer = input1_layer
         input2_tmp_layer = input2_layer
     else:
-        input1_tmp_layer = 'l1_' + input1_layer
-        input2_tmp_layer = 'l2_' + input2_layer
+        input1_tmp_layer = f"{input1_columns_prefix}{input1_layer}"
+        input2_tmp_layer = f"{input2_columns_prefix}{input2_layer}"
     input_tmp_path = tempdir / "input_layers.gpkg" 
 
     ##### Prepare tmp files #####
@@ -935,9 +950,9 @@ def _two_layer_vector_operation(
         layer1_columns_from_subselect_str = ''
         layer1_columns_prefix_str = ''
         if len(layer1_columns) > 0:
-            layer1_columns_prefix_alias = [f'layer1."{column}" "l1_{column}"' for column in layer1_columns]
+            layer1_columns_prefix_alias = [f'layer1."{column}" "{input1_columns_prefix}{column}"' for column in layer1_columns]
             layer1_columns_prefix_alias_str = ',' + ", ".join(layer1_columns_prefix_alias)
-            layer1_columns_from_subselect = [f'sub."l1_{column}"' for column in layer1_columns]
+            layer1_columns_from_subselect = [f'sub."{input1_columns_prefix}{column}"' for column in layer1_columns]
             layer1_columns_from_subselect_str = ',' + ", ".join(layer1_columns_from_subselect)
             layer1_columns_prefix = [f'layer1."{column}"' for column in layer1_columns]
             layer1_columns_prefix_str = ',' + ", ".join(layer1_columns_prefix)
@@ -958,11 +973,11 @@ def _two_layer_vector_operation(
         layer2_columns_prefix_str = ''
         
         if len(layer2_columns) > 0:
-            layer2_columns_prefix_alias = [f'layer2."{column}" "l2_{column}"' for column in layer2_columns]
+            layer2_columns_prefix_alias = [f'layer2."{column}" "{input2_columns_prefix}{column}"' for column in layer2_columns]
             layer2_columns_prefix_alias_str = ',' + ", ".join(layer2_columns_prefix_alias)
-            layer2_columns_prefix_alias_null = [f'NULL "l2_{column}"' for column in layer2_columns]
+            layer2_columns_prefix_alias_null = [f'NULL "{input2_columns_prefix}{column}"' for column in layer2_columns]
             layer2_columns_prefix_alias_null_str = ',' + ", ".join(layer2_columns_prefix_alias_null)
-            layer2_columns_from_subselect = [f'sub."l2_{column}"' for column in layer2_columns]
+            layer2_columns_from_subselect = [f'sub."{input2_columns_prefix}{column}"' for column in layer2_columns]
             layer2_columns_from_subselect_str = ',' + ", ".join(layer2_columns_from_subselect)
             layer2_columns_prefix = [f'layer2."{column}"' for column in layer2_columns]
             layer2_columns_prefix_str = ',' + ", ".join(layer2_columns_prefix)

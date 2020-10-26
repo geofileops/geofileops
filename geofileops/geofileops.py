@@ -287,8 +287,10 @@ def intersect(
         output_path: Union[str, 'os.PathLike[Any]'],
         input1_layer: str = None,
         input1_columns: List[str] = None,
+        input1_columns_prefix: str = 'l1_',
         input2_layer: str = None,
         input2_columns: List[str] = None,
+        input2_columns_prefix: str = 'l2_',
         output_layer: str = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
@@ -326,8 +328,10 @@ def intersect(
             output_path=Path(output_path),
             input1_layer=input1_layer,
             input1_columns=input1_columns,
+            input1_columns_prefix=input1_columns_prefix,
             input2_layer=input2_layer,
             input2_columns=input2_columns,
+            input2_columns_prefix=input2_columns_prefix,
             output_layer=output_layer,
             explodecollections=explodecollections,
             nb_parallel=nb_parallel,
@@ -399,6 +403,7 @@ def export_by_distance(
         output_path: Union[str, 'os.PathLike[Any]'],
         max_distance: float,
         input1_layer: str = None,
+        input1_columns: List[str] = None,
         input2_layer: str = None,
         output_layer: str = None,
         nb_parallel: int = -1,
@@ -415,6 +420,8 @@ def export_by_distance(
         max_distance (float): maximum distance
         input1_layer (str, optional): input layer name. Optional if the  
                 file only contains one layer.
+        input1_columns (List[str], optional): columns to select. If no columns
+            specified, all columns are selected.
         input2_layer (str, optional): input layer name. Optional if the  
                 file only contains one layer.
         output_layer (str, optional): output layer name. Optional if the  
@@ -433,6 +440,7 @@ def export_by_distance(
             output_path=Path(output_path),
             max_distance=max_distance,
             input1_layer=input1_layer,
+            input1_columns=input1_columns,
             input2_layer=input2_layer,
             output_layer=output_layer,
             nb_parallel=nb_parallel,
@@ -448,8 +456,10 @@ def join_by_location(
         area_inters_column_name: Optional[str] = None,
         input1_layer: str = None,
         input1_columns: List[str] = None,
+        input1_columns_prefix: str = 'l1_',
         input2_layer: str = None,
         input2_columns: List[str] = None,
+        input2_columns_prefix: str = 'l2_',
         output_layer: str = None,
         nb_parallel: int = -1,
         verbose: bool = False,
@@ -496,8 +506,10 @@ def join_by_location(
             area_inters_column_name=area_inters_column_name,
             input1_layer=input1_layer,
             input1_columns=input1_columns,
+            input1_columns_prefix=input1_columns_prefix,
             input2_layer=input2_layer,
             input2_columns=input2_columns,
+            input2_columns_prefix=input2_columns_prefix,
             output_layer=output_layer,
             nb_parallel=nb_parallel,
             verbose=verbose,
