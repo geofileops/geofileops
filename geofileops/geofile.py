@@ -295,6 +295,49 @@ def add_column(
         if datasource is not None:
             del datasource
 
+def update_column(
+        path: Union[str, 'os.PathLike[Any]'],
+        name: str, 
+        expression: str,
+        layer: str = None):
+    """
+    Update a column from a layer of the geofile.
+
+    Args:
+        path (PathLike): Path to the geofile
+        name (str): Name for the new column
+        expression (str): SQLite expression to use to update 
+            the value. 
+        layer (str, optional): The layer name. If None and the geofile
+            has only one layer, that layer is used. Defaults to None.
+
+    Raises:
+        ex: [description]
+    """
+
+    ##### Init #####
+    path_p = Path(path)
+    name = name.lower()
+    if layer is None:
+        layer = get_only_layer(path_p)
+    layerinfo_orig = getlayerinfo(path_p, layer)
+    
+    ##### Go! #####
+    datasource = None
+    try:
+        #datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
+        if name not in layerinfo_orig.columns:
+            # If column doesn't exist yet, error!
+            raise Exception(f"Column {name} doesn't exist in {path_p}, layer {layer}")
+            
+        # If an expression was provided and update can be done, go for it...
+        sqlite_stmt = f'UPDATE "{layer}" SET "{name}" = {expression}'
+        ogr_util.vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
+        #datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
+    finally:
+        if datasource is not None:
+            del datasource
+
 def read_file(
         path: Union[str, 'os.PathLike[Any]'],
         layer: str = None,
