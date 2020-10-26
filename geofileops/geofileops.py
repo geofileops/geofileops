@@ -134,6 +134,62 @@ def convexhull(
             verbose=verbose,
             force=force)
 
+def dissolve(
+        input_path: Union[str, 'os.PathLike[Any]'],  
+        output_path: Union[str, 'os.PathLike[Any]'],
+        groupby_columns: Optional[List[str]] = None,
+        aggfunc: str = 'first',
+        explodecollections: bool = False,
+        clip_on_tiles: bool = False,
+        tiles_path: Union[str, 'os.PathLike[Any]'] = None,
+        input_layer: str = None,        
+        output_layer: str = None,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+    """
+    Applies a dissolve operation on geometry column of the input file.
+    
+    The result is written to the output file specified. 
+
+    Args:
+        input_path (PathLike): the input file
+        output_path (PathLike): the file to write the result to
+        groupby_columns: (List[str]): list of columns to group on before applying the union.
+        explodecollections (bool, optional): True to convert all multi-geometries to 
+                singular ones after the dissolve. Defaults to False.
+        clip_on_tiles (bool, optional): True to clip the result on the tiles used.
+        input_layer (str, optional): input layer name. Optional if the  
+                file only contains one layer.
+        output_layer (str, optional): input layer name. Optional if the  
+                file only contains one layer.
+        nb_parallel (int, optional): the number of parallel processes to use. 
+                If not specified, all available processors will be used.
+        verbose (bool, optional): write more info to the output. 
+                Defaults to False.
+        force (bool, optional): overwrite existing output file(s). 
+                Defaults to False.
+    """
+    # Init
+    tiles_path_p = None
+    if tiles_path is not None:
+        tiles_path_p = Path(tiles_path)
+
+    logger.info(f"Start dissolve on {input_path} to {output_path}")
+    return geofileops_gpd.dissolve(
+            input_path=Path(input_path),
+            output_path=Path(output_path),
+            groupby_columns=groupby_columns,
+            aggfunc=aggfunc,
+            explodecollections=explodecollections,
+            clip_on_tiles=clip_on_tiles,
+            input_layer=input_layer,        
+            output_layer=output_layer,
+            tiles_path=tiles_path_p,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
+
 def makevalid(
         input_path: Union[str, 'os.PathLike[Any]'],
         output_path: Union[str, 'os.PathLike[Any]'],
@@ -515,58 +571,135 @@ def join_by_location(
             verbose=verbose,
             force=force)
 
-def dissolve(
-        input_path: Union[str, 'os.PathLike[Any]'],  
-        output_path: Union[str, 'os.PathLike[Any]'],
-        groupby_columns: Optional[List[str]] = None,
-        aggfunc: str = 'first',
-        explodecollections: bool = False,
-        clip_on_tiles: bool = False,
-        tiles_path: Union[str, 'os.PathLike[Any]'] = None,
-        input_layer: str = None,        
+def select_two_layers(
+        input1_path: Path,
+        input2_path: Path,
+        output_path: Path,
+        sql_stmt: str,
+        input1_layer: str = None,
+        input1_columns: List[str] = None,
+        input1_columns_prefix: str = 'l1_',
+        input2_layer: str = None,
+        input2_columns: List[str] = None,
+        input2_columns_prefix: str = 'l2_',
         output_layer: str = None,
+        explodecollections: bool = False,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
     """
-    Applies a dissolve operation on geometry column of the input file.
-    
-    The result is written to the output file specified. 
+    Executes the sqlite query specified on the 2 input layers specified.
 
+    By convention, the sqlite query can contain following placeholders that
+    will be automatically replaced for you:
+        * layer1_columns_from_subselect_str: 
+        * layer1_columns_prefix_alias_str: 
+        * input1_tmp_layer: 
+        * input1_geometrycolumn: 
+        * layer2_columns_from_subselect_st: 
+        * layer2_columns_prefix_alias_str: 
+        * layer2_columns_prefix_alias_null_str: 
+        * input2_tmp_layer: 
+        * input2_geometrycolumn: 
+        * layer1_columns_prefix_str: 
+        * layer2_columns_prefix_str: 
+        * batch_filter: the filter to be applied per batch when using parallel processing.
+    
     Args:
-        input_path (PathLike): the input file
+        input1_path (PathLike): the 1st input file
+        input2_path (PathLike): the 2nd input file
         output_path (PathLike): the file to write the result to
-        groupby_columns: (List[str]): list of columns to group on before applying the union.
+        input1_layer (str, optional): input layer name. Optional if the  
+            file only contains one layer.
+        input1_columns (List[str], optional): columns to select. If no columns
+            specified, all columns are selected.
+        input2_layer (str, optional): input layer name. Optional if the  
+            file only contains one layer.
+        input2_columns (List[str], optional): columns to select. If no columns
+            specified, all columns are selected.
+        output_layer (str, optional): output layer name. Optional if the  
+            file only contains one layer.
         explodecollections (bool, optional): True to convert all multi-geometries to 
                 singular ones after the dissolve. Defaults to False.
-        clip_on_tiles (bool, optional): True to clip the result on the tiles used.
-        input_layer (str, optional): input layer name. Optional if the  
-                file only contains one layer.
-        output_layer (str, optional): input layer name. Optional if the  
-                file only contains one layer.
         nb_parallel (int, optional): the number of parallel processes to use. 
-                If not specified, all available processors will be used.
+            If not specified, all available processors will be used.
         verbose (bool, optional): write more info to the output. 
-                Defaults to False.
+            Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
-                Defaults to False.
+            Defaults to False.
     """
-    # Init
-    tiles_path_p = None
-    if tiles_path is not None:
-        tiles_path_p = Path(tiles_path)
-
-    logger.info(f"Start dissolve on {input_path} to {output_path}")
-    return geofileops_gpd.dissolve(
-            input_path=Path(input_path),
+    logger.info(f"Start select_two_layers: select from {input1_path} and {input2_path} to {output_path}")
+    return geofileops_ogr.select_two_layers(
+            input1_path=Path(input1_path),
+            input2_path=Path(input2_path),
             output_path=Path(output_path),
-            groupby_columns=groupby_columns,
-            aggfunc=aggfunc,
-            explodecollections=explodecollections,
-            clip_on_tiles=clip_on_tiles,
-            input_layer=input_layer,        
+            sql_stmt=sql_stmt,
+            input1_layer=input1_layer,
+            input1_columns=input1_columns,
+            input1_columns_prefix=input1_columns_prefix,
+            input2_layer=input2_layer,
+            input2_columns=input2_columns,
+            input2_columns_prefix=input2_columns_prefix,
             output_layer=output_layer,
-            tiles_path=tiles_path_p,
+            explodecollections=explodecollections,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
+
+def union(
+        input1_path: Path,
+        input2_path: Path,
+        output_path: Path,
+        input1_layer: str = None,
+        input1_columns: List[str] = None,
+        input1_columns_prefix: str = 'l1_',
+        input2_layer: str = None,
+        input2_columns: List[str] = None,
+        input2_columns_prefix: str = 'l2_',
+        output_layer: str = None,
+        explodecollections: bool = False,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+    """
+    Calculates the "union" of the two input layers.
+    
+    Args:
+        input1_path (PathLike): the 1st input file
+        input2_path (PathLike): the 2nd input file
+        output_path (PathLike): the file to write the result to
+        input1_layer (str, optional): input layer name. Optional if the  
+            file only contains one layer.
+        input1_columns (List[str], optional): columns to select. If no columns
+            specified, all columns are selected.
+        input2_layer (str, optional): input layer name. Optional if the  
+            file only contains one layer.
+        input2_columns (List[str], optional): columns to select. If no columns
+            specified, all columns are selected.
+        output_layer (str, optional): output layer name. Optional if the  
+            file only contains one layer.
+        explodecollections (bool, optional): True to convert all multi-geometries to 
+                singular ones after the dissolve. Defaults to False.
+        nb_parallel (int, optional): the number of parallel processes to use. 
+            If not specified, all available processors will be used.
+        verbose (bool, optional): write more info to the output. 
+            Defaults to False.
+        force (bool, optional): overwrite existing output file(s). 
+            Defaults to False.
+    """
+    logger.info(f"Start union: select from {input1_path} and {input2_path} to {output_path}")
+    return geofileops_ogr.union(
+            input1_path=Path(input1_path),
+            input2_path=Path(input2_path),
+            output_path=Path(output_path),
+            input1_layer=input1_layer,
+            input1_columns=input1_columns,
+            input1_columns_prefix=input1_columns_prefix,
+            input2_layer=input2_layer,
+            input2_columns=input2_columns,
+            input2_columns_prefix=input2_columns_prefix,
+            output_layer=output_layer,
+            explodecollections=explodecollections,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
