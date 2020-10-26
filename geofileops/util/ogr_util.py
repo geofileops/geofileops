@@ -523,7 +523,7 @@ def vector_translate_py(
     #else:
     #    args.extend(['--config', 'OGR_SQLITE_PRAGMA', 'busy_timeout=-1'])  
     #args.extend(['--config', 'OGR_SQLITE_SYNCHRONOUS', 'OFF'])  
-    gdal.SetConfigOption('OGR_SQLITE_CACHE', '512')
+    gdal.SetConfigOption('OGR_SQLITE_CACHE', '128')
 
     options = gdal.VectorTranslateOptions(
             options=args, 
