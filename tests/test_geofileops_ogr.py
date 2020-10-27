@@ -180,8 +180,8 @@ def test_buffer_gpkg(tmpdir):
     output_path = Path(tmpdir) / 'parcels.gpkg'
 
     # Without gdal_bin set, this fails at the moment
-    basetest_buffer(input_path, output_path, set_gdal_bin=True, ok_expected=is_gdal_bin_ok())
     basetest_buffer(input_path, output_path, set_gdal_bin=False, ok_expected=is_gdal_default_ok())
+    basetest_buffer(input_path, output_path, set_gdal_bin=True, ok_expected=is_gdal_bin_ok())
         
 def test_buffer_shp(tmpdir):
     # Buffer to test dir
@@ -189,9 +189,9 @@ def test_buffer_shp(tmpdir):
     output_path = Path(tmpdir) / 'parcels.shp'
 
     # Without gdal_bin set, this fails at the moment
-    basetest_buffer(input_path, output_path, set_gdal_bin=True, ok_expected=is_gdal_bin_ok())
     basetest_buffer(input_path, output_path, set_gdal_bin=False, ok_expected=is_gdal_default_ok())
-
+    basetest_buffer(input_path, output_path, set_gdal_bin=True, ok_expected=is_gdal_bin_ok())
+    
 def basetest_buffer(
         input_path: Path, 
         output_path: Path, 
@@ -212,7 +212,6 @@ def basetest_buffer(
         return
 
     # Now check if the tmp file is correctly created
-    assert output_path.exists() == True
     layerinfo_orig = geofile.getlayerinfo(input_path)
     layerinfo_select = geofile.getlayerinfo(input_path)
     assert layerinfo_orig.featurecount == layerinfo_select.featurecount
@@ -278,8 +277,8 @@ def test_simplify_gpkg(tmpdir):
     output_path = Path(tmpdir) / input_path.name
 
     # Without gdal_bin set, this fails with libspatialite 4.3
-    basetest_simplify(input_path, output_path, set_gdal_bin=True, ok_expected=is_gdal_bin_ok())
     basetest_simplify(input_path, output_path, set_gdal_bin=False, ok_expected=is_gdal_default_ok())
+    basetest_simplify(input_path, output_path, set_gdal_bin=True, ok_expected=is_gdal_bin_ok())
         
 def test_simplify_shp(tmpdir):
     # Simplify to test dir
@@ -287,8 +286,8 @@ def test_simplify_shp(tmpdir):
     output_path = Path(tmpdir) / 'parcels.shp'
 
     # Without gdal_bin set, this fails with libspatialite 4.3
-    basetest_simplify(input_path, output_path, set_gdal_bin=True, ok_expected=is_gdal_bin_ok())
     basetest_simplify(input_path, output_path, set_gdal_bin=False, ok_expected=is_gdal_default_ok())
+    basetest_simplify(input_path, output_path, set_gdal_bin=True, ok_expected=is_gdal_bin_ok())
     
 def basetest_simplify(
         input_path: Path, 
