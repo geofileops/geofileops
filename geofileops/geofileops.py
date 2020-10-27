@@ -66,33 +66,6 @@ def buffer(
             verbose=verbose,
             force=force)
 
-def isvalid(
-        input_path: Union[str, 'os.PathLike[Any]'],
-        output_path: Union[str, 'os.PathLike[Any]'] = None,
-        input_layer: str = None,        
-        output_layer: str = None,
-        nb_parallel: int = -1,
-        verbose: bool = False,
-        force: bool = False) -> bool:
-
-    # Check parameters
-    if output_path is not None:
-        output_path_p = Path(output_path)
-    else:
-        input_path_p = Path(input_path)
-        output_path_p = input_path_p.parent / f"{input_path_p.stem}_isvalid{input_path_p.suffix}" 
-
-    # Go!
-    logger.info(f"Start isvalid on {input_path}")
-    return geofileops_ogr.isvalid(
-            input_path=Path(input_path),
-            output_path=output_path_p,
-            input_layer=input_layer,        
-            output_layer=output_layer,
-            nb_parallel=nb_parallel,
-            verbose=verbose,
-            force=force)
-
 def convexhull(
         input_path: Union[str, 'os.PathLike[Any]'],
         output_path: Union[str, 'os.PathLike[Any]'],
@@ -186,6 +159,33 @@ def dissolve(
             input_layer=input_layer,        
             output_layer=output_layer,
             tiles_path=tiles_path_p,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
+
+def isvalid(
+        input_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'] = None,
+        input_layer: str = None,        
+        output_layer: str = None,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False) -> bool:
+
+    # Check parameters
+    if output_path is not None:
+        output_path_p = Path(output_path)
+    else:
+        input_path_p = Path(input_path)
+        output_path_p = input_path_p.parent / f"{input_path_p.stem}_isvalid{input_path_p.suffix}" 
+
+    # Go!
+    logger.info(f"Start isvalid on {input_path}")
+    return geofileops_ogr.isvalid(
+            input_path=Path(input_path),
+            output_path=output_path_p,
+            input_layer=input_layer,        
+            output_layer=output_layer,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
@@ -310,6 +310,10 @@ def simplify(
             verbose=verbose,
             force=force)
 
+################################################################################
+# Operations on two layers
+################################################################################
+
 def erase(
         input_path: Union[str, 'os.PathLike[Any]'],
         erase_path: Union[str, 'os.PathLike[Any]'],
@@ -336,63 +340,6 @@ def erase(
         nb_parallel=nb_parallel,
         verbose=verbose,
         force=force)
-
-def intersect(
-        input1_path: Union[str, 'os.PathLike[Any]'],
-        input2_path: Union[str, 'os.PathLike[Any]'],
-        output_path: Union[str, 'os.PathLike[Any]'],
-        input1_layer: str = None,
-        input1_columns: List[str] = None,
-        input1_columns_prefix: str = 'l1_',
-        input2_layer: str = None,
-        input2_columns: List[str] = None,
-        input2_columns_prefix: str = 'l2_',
-        output_layer: str = None,
-        explodecollections: bool = False,
-        nb_parallel: int = -1,
-        verbose: bool = False,
-        force: bool = False):
-    """
-    Calculate the pairwise intersection of alle features in input1 with all 
-    features in input2.
-    
-    Args:
-        input1_path (PathLike): the 1st input file
-        input2_path (PathLike): the 2nd input file
-        output_path (PathLike): the file to write the result to
-        input1_layer (str, optional): input layer name. Optional if the  
-                file only contains one layer.
-        input1_columns (List[str], optional): columns to select. If no columns
-            specified, all columns are selected.
-        input2_layer (str, optional): input layer name. Optional if the  
-            file only contains one layer.
-        input2_columns (List[str], optional): columns to select. If no columns
-            specified, all columns are selected.
-        output_layer (str, optional): output layer name. Optional if the  
-                file only contains one layer.
-        nb_parallel (int, optional): the number of parallel processes to use. 
-                If not specified, all available processors will be used.
-        verbose (bool, optional): write more info to the output. 
-                Defaults to False.
-        force (bool, optional): overwrite existing output file(s). 
-                Defaults to False.
-    """
-    logger.info(f"Start intersect between {input1_path} and {input2_path} to {output_path}")
-    return geofileops_ogr.intersect(
-            input1_path=Path(input1_path),
-            input2_path=Path(input2_path),
-            output_path=Path(output_path),
-            input1_layer=input1_layer,
-            input1_columns=input1_columns,
-            input1_columns_prefix=input1_columns_prefix,
-            input2_layer=input2_layer,
-            input2_columns=input2_columns,
-            input2_columns_prefix=input2_columns_prefix,
-            output_layer=output_layer,
-            explodecollections=explodecollections,
-            nb_parallel=nb_parallel,
-            verbose=verbose,
-            force=force)
 
 def export_by_location(
         input_to_select_from_path: Union[str, 'os.PathLike[Any]'],
@@ -499,6 +446,63 @@ def export_by_distance(
             input1_columns=input1_columns,
             input2_layer=input2_layer,
             output_layer=output_layer,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
+
+def intersect(
+        input1_path: Union[str, 'os.PathLike[Any]'],
+        input2_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
+        input1_layer: str = None,
+        input1_columns: List[str] = None,
+        input1_columns_prefix: str = 'l1_',
+        input2_layer: str = None,
+        input2_columns: List[str] = None,
+        input2_columns_prefix: str = 'l2_',
+        output_layer: str = None,
+        explodecollections: bool = False,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+    """
+    Calculate the pairwise intersection of alle features in input1 with all 
+    features in input2.
+    
+    Args:
+        input1_path (PathLike): the 1st input file
+        input2_path (PathLike): the 2nd input file
+        output_path (PathLike): the file to write the result to
+        input1_layer (str, optional): input layer name. Optional if the  
+                file only contains one layer.
+        input1_columns (List[str], optional): columns to select. If no columns
+            specified, all columns are selected.
+        input2_layer (str, optional): input layer name. Optional if the  
+            file only contains one layer.
+        input2_columns (List[str], optional): columns to select. If no columns
+            specified, all columns are selected.
+        output_layer (str, optional): output layer name. Optional if the  
+                file only contains one layer.
+        nb_parallel (int, optional): the number of parallel processes to use. 
+                If not specified, all available processors will be used.
+        verbose (bool, optional): write more info to the output. 
+                Defaults to False.
+        force (bool, optional): overwrite existing output file(s). 
+                Defaults to False.
+    """
+    logger.info(f"Start intersect between {input1_path} and {input2_path} to {output_path}")
+    return geofileops_ogr.intersect(
+            input1_path=Path(input1_path),
+            input2_path=Path(input2_path),
+            output_path=Path(output_path),
+            input1_layer=input1_layer,
+            input1_columns=input1_columns,
+            input1_columns_prefix=input1_columns_prefix,
+            input2_layer=input2_layer,
+            input2_columns=input2_columns,
+            input2_columns_prefix=input2_columns_prefix,
+            output_layer=output_layer,
+            explodecollections=explodecollections,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)

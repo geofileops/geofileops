@@ -429,70 +429,6 @@ def _single_layer_vector_operation(
 # Operations on two layers
 ################################################################################
 
-def intersect(
-        input1_path: Path,
-        input2_path: Path,
-        output_path: Path,
-        input1_layer: str = None,
-        input1_columns: List[str] = None,
-        input1_columns_prefix: str = 'l1_',
-        input2_layer: str = None,
-        input2_columns: List[str] = None,
-        input2_columns_prefix: str = 'l2_',
-        output_layer: str = None,
-        explodecollections: bool = False,
-        nb_parallel: int = -1,
-        verbose: bool = False,
-        force: bool = False):
-
-    # In the query, important to only extract the geometry types that are expected 
-    input1_layer_info = geofile.getlayerinfo(input1_path, input1_layer)
-    input2_layer_info = geofile.getlayerinfo(input2_path, input2_layer)
-    collection_extract_typeid = min(geofile.to_generaltypeid(input1_layer_info.geometrytypename), 
-                                    geofile.to_generaltypeid(input2_layer_info.geometrytypename))
-
-    # Prepare sql template for this operation 
-    sql_template = f'''
-        SELECT sub.geom
-             {{layer1_columns_from_subselect_str}}
-             {{layer2_columns_from_subselect_str}} 
-          FROM
-            ( SELECT ST_Multi(Collectionextract(ST_Intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}), {collection_extract_typeid})) as geom
-                    {{layer1_columns_prefix_alias_str}}
-                    {{layer2_columns_prefix_alias_str}}
-                FROM "{{input1_tmp_layer}}" layer1
-                JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                JOIN "{{input2_tmp_layer}}" layer2
-                JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
-               WHERE 1=1
-                 {{batch_filter}}
-                 AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
-                 AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
-                 AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
-                 AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
-            ) sub
-         WHERE sub.geom IS NOT NULL
-        '''
-
-    # Go!
-    return _two_layer_vector_operation(
-            input1_path=input1_path,
-            input2_path=input2_path,
-            output_path=output_path,
-            sql_template=sql_template,
-            operation_name='intersect',
-            input1_layer=input1_layer,
-            input1_columns=input1_columns,
-            input1_columns_prefix=input1_columns_prefix,
-            input2_layer=input2_layer,
-            input2_columns=input2_columns,
-            input2_columns_prefix=input2_columns_prefix,
-            output_layer=output_layer,
-            explodecollections=explodecollections,
-            nb_parallel=nb_parallel,
-            verbose=verbose,
-            force=force)
-
 def erase(
         input_path: Path,
         erase_path: Path,
@@ -699,6 +635,70 @@ def export_by_distance(
             input2_layer=input2_layer,
             output_layer=output_layer,
             force_output_geometrytype=input_layer_info.geometrytypename,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
+
+def intersect(
+        input1_path: Path,
+        input2_path: Path,
+        output_path: Path,
+        input1_layer: str = None,
+        input1_columns: List[str] = None,
+        input1_columns_prefix: str = 'l1_',
+        input2_layer: str = None,
+        input2_columns: List[str] = None,
+        input2_columns_prefix: str = 'l2_',
+        output_layer: str = None,
+        explodecollections: bool = False,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+
+    # In the query, important to only extract the geometry types that are expected 
+    input1_layer_info = geofile.getlayerinfo(input1_path, input1_layer)
+    input2_layer_info = geofile.getlayerinfo(input2_path, input2_layer)
+    collection_extract_typeid = min(geofile.to_generaltypeid(input1_layer_info.geometrytypename), 
+                                    geofile.to_generaltypeid(input2_layer_info.geometrytypename))
+
+    # Prepare sql template for this operation 
+    sql_template = f'''
+        SELECT sub.geom
+             {{layer1_columns_from_subselect_str}}
+             {{layer2_columns_from_subselect_str}} 
+          FROM
+            ( SELECT ST_Multi(Collectionextract(ST_Intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}), {collection_extract_typeid})) as geom
+                    {{layer1_columns_prefix_alias_str}}
+                    {{layer2_columns_prefix_alias_str}}
+                FROM "{{input1_tmp_layer}}" layer1
+                JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                JOIN "{{input2_tmp_layer}}" layer2
+                JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+               WHERE 1=1
+                 {{batch_filter}}
+                 AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
+                 AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
+                 AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
+                 AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
+            ) sub
+         WHERE sub.geom IS NOT NULL
+        '''
+
+    # Go!
+    return _two_layer_vector_operation(
+            input1_path=input1_path,
+            input2_path=input2_path,
+            output_path=output_path,
+            sql_template=sql_template,
+            operation_name='intersect',
+            input1_layer=input1_layer,
+            input1_columns=input1_columns,
+            input1_columns_prefix=input1_columns_prefix,
+            input2_layer=input2_layer,
+            input2_columns=input2_columns,
+            input2_columns_prefix=input2_columns_prefix,
+            output_layer=output_layer,
+            explodecollections=explodecollections,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
