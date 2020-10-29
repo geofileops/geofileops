@@ -6,35 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
 
 from geofileops.util import ogr_util
 from geofileops import geofile
-
-class GdalBin():
-    def __init__(self, set_gdal_bin: bool = True, gdal_bin_path: str = None):
-        self.set_gdal_bin = set_gdal_bin
-        if set_gdal_bin is True:
-            if gdal_bin_path is None:
-                self.gdal_bin_path = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
-            else:
-                self.gdal_bin_path = gdal_bin_path
-
-    def __enter__(self):
-        if self.set_gdal_bin is True:
-            import os
-            os.environ['GDAL_BIN'] = self.gdal_bin_path
-
-    def __exit__(self, type, value, traceback):
-        #Exception handling here
-        import os
-        if os.environ['GDAL_BIN'] is not None:
-            del os.environ['GDAL_BIN']
-
-def get_testdata_dir() -> Path:
-    return Path(__file__).resolve().parent / 'data'
-
-def is_gdal_default_ok() -> bool:
-    return False
-
-def is_gdal_bin_ok() -> bool:
-    return True
+from tests import test_helper
 
 def test_get_gdal_to_use():
 
@@ -46,16 +18,16 @@ def test_get_gdal_to_use():
             test_ok = True
         except:
             test_ok = False
-        assert test_ok is is_gdal_default_ok(), "On windows, check is expected to be OK if GDAL_BIN is not set"
+        assert test_ok is test_helper.is_gdal_ok('area', 'gdal_default'), "On windows, check is expected to be OK if GDAL_BIN is not set"
 
         # If GDAL_BIN set, it should be ok as well
-        with GdalBin():
+        with test_helper.GdalBin('gdal_bin'):
             try:
                 ogr_util.get_gdal_to_use('ST_area()')
                 test_ok = True
             except:
                 test_ok = False
-            assert test_ok is is_gdal_bin_ok(), "On windows, check is expected to be OK if GDAL_BIN is set (properly)"
+            assert test_ok is test_helper.is_gdal_ok('area', 'gdal_bin'), "On windows, check is expected to be OK if GDAL_BIN is set (properly)"
         
     else:
         try:
@@ -65,7 +37,65 @@ def test_get_gdal_to_use():
             test_ok = False
         assert test_ok is True, "If not on windows, check is expected to be OK without setting GDAL_BIN"
 
+def test_gis_operations():
+
+    # Depends on the spatialite version
+    gdal_installation = 'gdal_default'
+    install_info = ogr_util.get_gdal_install_info(gdal_installation)
+    if install_info['spatialite_version()'] >= '5.0.0':
+        if install_info['rttopo_version()'] is None:
+            basetest_st_area(gdal_installation)
+        else:
+            basetest_st_area(gdal_installation)
+    elif install_info['spatialite_version()'] >= '4.3.0':
+        if install_info['lwgeom_version()'] is None:
+            basetest_st_area(gdal_installation)
+        else:
+            basetest_st_area(gdal_installation)
+
+def basetest_st_area(gdal_installation: str):
+    
+    # try st_area
+    input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
+    sqlite_stmt = 'SELECT round(ST_area(geom), 2) as area FROM "parcels"'
+    test_ok = False
+    try:
+        result_gdf = ogr_util._execute_sql(input_path, sqlite_stmt, gdal_installation)
+        if result_gdf['area'][0] == 146.8:
+            test_ok = True
+    except:
+        assert False == test_helper.is_gdal_ok('makevalid', gdal_installation)
+        test_ok = True
+    assert test_ok is True, f"Test to run test <{sqlite_stmt}> failed for gdal_installation: {gdal_installation}, install_info: {ogr_util.get_gdal_install_info(gdal_installation)}"  
+    
+    # Try st_makevalid 
+    input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
+    sqlite_stmt = 'SELECT st_makevalid(geom) as geom FROM "parcels"'
+    test_ok = False
+    try:
+        result_gdf = ogr_util._execute_sql(input_path, sqlite_stmt, gdal_installation)
+        if result_gdf['geom'][0] is not None:
+            test_ok = True
+    except:
+        assert False == test_helper.is_gdal_ok('makevalid', gdal_installation)
+        test_ok = True
+    assert test_ok is True, f"Test to run test <{sqlite_stmt}> failed for gdal_installation: {gdal_installation}, install_info: {ogr_util.get_gdal_install_info(gdal_installation)}"  
+    
+    # Try st_isvalid 
+    input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
+    sqlite_stmt = 'SELECT st_isvalid(geom) as geom FROM "parcels"'
+    test_ok = False
+    try:
+        result_gdf = ogr_util._execute_sql(input_path, sqlite_stmt, gdal_installation)
+        if result_gdf['geom'][0] is not None:
+            test_ok = True
+    except:
+        assert False == test_helper.is_gdal_ok('makevalid', gdal_installation)
+        test_ok = True
+    assert test_ok is True, f"Test to run test <{sqlite_stmt}> failed for gdal_installation: {gdal_installation}, install_info: {ogr_util.get_gdal_install_info(gdal_installation)}"  
+
 if __name__ == '__main__':
     import tempfile
     tmpdir = tempfile.gettempdir()
+
     test_get_gdal_to_use()

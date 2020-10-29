@@ -17,6 +17,7 @@ from typing import Any, List, Optional, Tuple, Union
 from io import StringIO
 import re
 
+import geopandas as gpd
 from osgeo import gdal
 gdal.UseExceptions() 
 
@@ -770,105 +771,74 @@ def get_gdal_to_use(sqlite_stmt: str) -> str:
 
 def get_gdal_install_info(gdal_installation: str) -> dict:
 
-    result = {}
+    install_info = {}
     
     # First check the spatialite version
     test_path = Path(__file__).resolve().parent / "test.gpkg"
-    sqlite_stmt = f'select spatialite_version()'
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = Path(tmpdir) / 'tmp_test_spatialite_version.gpkg'
-        if gdal_installation == 'gdal_default':
-            vector_translate_py(
-                    input_path=test_path,
-                    output_path=tmp_path,
-                    sql_stmt=sqlite_stmt,
-                    sql_dialect='SQLITE')
-        elif gdal_installation == 'gdal_bin':
-            vector_translate_exe(
-                    input_path=test_path,
-                    output_path=tmp_path,
-                    sql_stmt=sqlite_stmt,
-                    sql_dialect='SQLITE')
-        else:
-            raise Exception(f"Unsupported gdal_installation: {gdal_installation}")
+    sqlite_stmt = f'select spatialite_version()'    
+    install_info_gdf = _execute_sql(test_path, sqlite_stmt, gdal_installation)
         
-        result_gdf = geofile.read_file(tmp_path)
-        
-        # Now get extra information, depending on the spatialite version
-        if result_gdf['spatialite_version()'][0] >= '5.0.0':
-            sqlite_stmt = f'select spatialite_version(), HasGeos(), HasGeosAdvanced(), HasGeosTrunk(), geos_version(), rttopo_version()'
-        elif result_gdf['spatialite_version()'][0] >= '4.3.0':
-            sqlite_stmt = f'select spatialite_version(), HasGeos(), HasGeosAdvanced(), HasGeosTrunk(), geos_version(), lwgeom_version()'
-        else:
-            raise Exception(f"Unsupported spatialite version: {result_gdf['spatialite_version()'][0]}")
-        
-        tmp_path = Path(tmpdir) / 'tmp_test_full_version_info.gpkg'
-        if gdal_installation == 'gdal_default':
-            vector_translate_py(
-                    input_path=test_path,
-                    output_path=tmp_path,
-                    sql_stmt=sqlite_stmt,
-                    sql_dialect='SQLITE')
-        elif gdal_installation == 'gdal_bin':
-            vector_translate_exe(
-                    input_path=test_path,
-                    output_path=tmp_path,
-                    sql_stmt=sqlite_stmt,
-                    sql_dialect='SQLITE')
-        else:
-            raise Exception(f"Unsupported gdal_installation: {gdal_installation}")
-        
-        result_gdf = geofile.read_file(tmp_path)
-        #logger.warn(result_gdf)
+    # Now get extra information, depending on the spatialite version
+    if install_info_gdf['spatialite_version()'][0] >= '5.0.0':
+        sqlite_stmt = f'select spatialite_version(), HasGeos(), HasGeosAdvanced(), HasGeosTrunk(), geos_version(), rttopo_version()'
+    elif install_info_gdf['spatialite_version()'][0] >= '4.3.0':
+        sqlite_stmt = f'select spatialite_version(), HasGeos(), HasGeosAdvanced(), HasGeosTrunk(), geos_version(), lwgeom_version()'
+    else:
+        raise Exception(f"Unsupported spatialite version: {install_info_gdf['spatialite_version()'][0]}")
+    install_info_gdf = _execute_sql(test_path, sqlite_stmt, gdal_installation)
     
-        # Copy results to result dict
-        for column in result_gdf.columns:
-            result[column] = result_gdf[column][0]
+    # Copy results to result dict
+    for column in install_info_gdf.columns:
+        install_info[column] = install_info_gdf[column][0]
 
-        # Check if there are unsupported functions
-        if result['spatialite_version()'] >= '5.0.0':
-            if result['rttopo_version()'] is None:
-                result['unsupported_functions'] = [
-                        'makevalid', 'st_makevalid', 'isvalid', 'st_isvalid', 
-                        'isvalidreason', 'st_isvalidreason', 'isvaliddetail', 'st_isvaliddetail']
-            else:
-                result['unsupported_functions'] = []
-        elif result['spatialite_version()'] >= '4.3.0':
-            if result['lwgeom_version()'] is None:
-                result['unsupported_functions'] = [
-                        #'buffer', 'st_buffer', 
-                        'convexhull', 'st_convexhull', 'simplify', 'st_simplify', 
-                        'simplifypreservetopology', 'st_simplifypreservetopology', 
-                        'makevalid', 'st_makevalid', 'isvalid', 'st_isvalid', 
-                        'isvalidreason', 'st_isvalidreason', 'isvaliddetail', 'st_isvaliddetail'
-                        'st_area', 'area',
-                        'st_multi', 'collectionextract', 'st_intersection', 'st_union']
-            else:
-                result['unsupported_functions'] = []
-                
-    return result
-    """
-    # Now run the check
-    print('check without GDAL_BIN')
-    sqlite_stmt = 'SELECT round(ST_area(geom), 2) as area FROM "test"'
-    output = vector_info(
-            path=test_path, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=True, skip_health_check=True)
-    output_lines = StringIO(str(output)).readlines()
-
-    # Check if the area is calculated properly
-    output_ok = 'area (Real) = 4816.51'
-    error_message_template = f"Error: probably lwgeom/geos is not activated in spatialite, install OSGEO4W and set the GDAL_BIN environment variable to the bin dir: sqlite_stmt <{sqlite_stmt}> should output <{output_ok}> but the result was <{{line}}>"
-    for line in reversed(output_lines): 
-        if line.strip() == '':
-            continue
-        elif line.strip() == output_ok:
-            global_check_gdal_spatialite_install_ok = True
-            return 'gdal_bin'
+    # Check if there are unsupported functions
+    if install_info['spatialite_version()'] >= '5.0.0':
+        if install_info['rttopo_version()'] is None:
+            install_info['unsupported_functions'] = [
+                    'makevalid', 'st_makevalid', 'isvalid', 'st_isvalid', 
+                    'isvalidreason', 'st_isvalidreason', 'isvaliddetail', 'st_isvaliddetail']
         else:
-            global_check_gdal_spatialite_install_ok = False
-            raise Exception(error_message_template.format(line=line.strip()))
-    """
+            install_info['unsupported_functions'] = []
+    elif install_info['spatialite_version()'] >= '4.3.0':
+        if install_info['lwgeom_version()'] is None:
+            install_info['unsupported_functions'] = [
+                    'buffer', 'st_buffer', 
+                    'convexhull', 'st_convexhull', 'simplify', 'st_simplify', 
+                    'simplifypreservetopology', 'st_simplifypreservetopology', 
+                    'makevalid', 'st_makevalid', 'isvalid', 'st_isvalid', 
+                    'isvalidreason', 'st_isvalidreason', 'isvaliddetail', 'st_isvaliddetail',
+                    'st_area', 'area',
+                    'st_multi', 'collectionextract', 'st_intersection', 'st_union']
+        else:
+            install_info['unsupported_functions'] = []
+
+    return install_info
+
+def _execute_sql(
+        path: Path,
+        sqlite_stmt: str,
+        gdal_installation: str) -> gpd.GeoDataFrame:
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir) / 'ogr_util_execute_sql_tmp_file.gpkg'
+        if gdal_installation == 'gdal_default':
+            vector_translate_py(
+                    input_path=path,
+                    output_path=tmp_path,
+                    sql_stmt=sqlite_stmt,
+                    sql_dialect='SQLITE')
+        elif gdal_installation == 'gdal_bin':
+            vector_translate_exe(
+                    input_path=path,
+                    output_path=tmp_path,
+                    sql_stmt=sqlite_stmt,
+                    sql_dialect='SQLITE')
+        else:
+            raise Exception(f"Unsupported gdal_installation: {gdal_installation}")
+        
+        # Return result
+        install_info_gdf = geofile.read_file(tmp_path)
+        return install_info_gdf
 
 if __name__ == '__main__':
     None
-        
