@@ -166,7 +166,7 @@ def makevalid(
             input_path=input_path,
             output_path=output_path,
             sql_template=sql_template,
-            operation_name='make_valid',
+            operation_name='makevalid',
             input_layer=input_layer,
             output_layer=output_layer,
             nb_parallel=nb_parallel,
@@ -306,17 +306,23 @@ def _single_layer_vector_operation(
         ##### Calculate #####
         # Calculating can be done in parallel, but only one process can write to 
         # the same file at the time... 
-        if(nb_parallel == -1):
-            nb_parallel = multiprocessing.cpu_count()
+        layerinfo = geofile.getlayerinfo(input_path, input_layer)  
+        if nb_parallel == -1:
+            # Default, put at lease 100 rows in a batch for parallelisation
+            max_parallel = int(layerinfo.featurecount/100)
+            nb_parallel = min(multiprocessing.cpu_count(), max_parallel)
+
+            # Don't use all processors so the machine stays accessible 
             if nb_parallel > 4:
                 nb_parallel -= 1
+            elif nb_parallel < 1:
+                nb_parallel = 1                
 
         nb_batches = nb_parallel*4
         nb_done = 0
         with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
             # Prepare columns to select
-            layerinfo = geofile.getlayerinfo(input_path, input_layer)  
             columns_to_select_str = ''
             if columns is not None:
                 # If input2_columns contains columns not in layer... error!
@@ -1069,9 +1075,16 @@ def _two_layer_vector_operation(
         
         # Spread input1 data over different layers to be able to calculate in parallel
         if nb_parallel == -1:
-            nb_parallel = multiprocessing.cpu_count()
+            # Default, put at lease 100 rows in a batch for parallelisation
+            input1_layerinfo = geofile.getlayerinfo(input1_path, input1_layer)
+            max_parallel = int(input1_layerinfo.featurecount/100)
+            nb_parallel = min(multiprocessing.cpu_count(), max_parallel)
+
+            # Don't use all processors so the machine stays accessible 
             if nb_parallel > 4:
                 nb_parallel -= 1
+            elif nb_parallel < 1:
+                nb_parallel = 1
 
         nb_batches = nb_parallel * 4
         batches = _split_layer_features(
