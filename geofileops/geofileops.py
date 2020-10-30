@@ -674,6 +674,65 @@ def select_two_layers(
             verbose=verbose,
             force=force)
 
+def split(
+        input1_path: Union[str, 'os.PathLike[Any]'],
+        input2_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
+        input1_layer: str = None,
+        input1_columns: List[str] = None,
+        input1_columns_prefix: str = 'l1_',
+        input2_layer: str = None,
+        input2_columns: List[str] = None,
+        input2_columns_prefix: str = 'l2_',
+        output_layer: str = None,
+        explodecollections: bool = False,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+    """
+    Split the features in input1 with all features in input2.
+
+    The result is the equivalent of an intersect between the two layers + layer 
+    1 erased with layer 2
+    
+    Args:
+        input1_path (PathLike): the 1st input file
+        input2_path (PathLike): the 2nd input file
+        output_path (PathLike): the file to write the result to
+        input1_layer (str, optional): input layer name. Optional if the  
+                file only contains one layer.
+        input1_columns (List[str], optional): columns to select. If no columns
+            specified, all columns are selected.
+        input2_layer (str, optional): input layer name. Optional if the  
+            file only contains one layer.
+        input2_columns (List[str], optional): columns to select. If no columns
+            specified, all columns are selected.
+        output_layer (str, optional): output layer name. Optional if the  
+                file only contains one layer.
+        nb_parallel (int, optional): the number of parallel processes to use. 
+                If not specified, all available processors will be used.
+        verbose (bool, optional): write more info to the output. 
+                Defaults to False.
+        force (bool, optional): overwrite existing output file(s). 
+                Defaults to False.
+    """
+    logger.info(f"Start split between {input1_path} and {input2_path} to {output_path}")
+    return geofileops_ogr.split(
+            input1_path=Path(input1_path),
+            input2_path=Path(input2_path),
+            output_path=Path(output_path),
+            input1_layer=input1_layer,
+            input1_columns=input1_columns,
+            input1_columns_prefix=input1_columns_prefix,
+            input2_layer=input2_layer,
+            input2_columns=input2_columns,
+            input2_columns_prefix=input2_columns_prefix,
+            output_layer=output_layer,
+            explodecollections=explodecollections,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
+
 def union(
         input1_path: Path,
         input2_path: Path,

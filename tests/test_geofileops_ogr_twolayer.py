@@ -326,6 +326,118 @@ def basetest_join_by_location(
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
+def test_split_gpkg(tmpdir):
+    # Prepare input and output paths
+    input1_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
+    input2_path = test_helper.get_testdata_dir() / 'zones.gpkg'
+    output_path = Path(tmpdir) / 'parcels_split_zones.gpkg'
+
+    # Try both with and without gdal_bin set
+    basetest_split(input1_path, input2_path, output_path, gdal_installation='gdal_default')
+    basetest_split(input1_path, input2_path, output_path, gdal_installation='gdal_bin')
+    
+def test_split_shp(tmpdir):
+    # Prepare input and output paths
+    input1_path = test_helper.get_testdata_dir() / 'parcels.shp'
+    input2_path = test_helper.get_testdata_dir() / 'zones.gpkg'
+    output_path = Path(tmpdir) / 'parcels_split_zones.gpkg'
+    
+    # Try both with and without gdal_bin set
+    basetest_split(input1_path, input2_path, output_path, gdal_installation='gdal_default')
+    basetest_split(input1_path, input2_path, output_path, gdal_installation='gdal_bin')
+    
+def basetest_split(
+        input1_path: Path, 
+        input2_path: Path, 
+        output_basepath: Path, 
+        gdal_installation: str):
+
+    # Do operation
+    output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}{output_basepath.suffix}"
+    with test_helper.GdalBin(gdal_installation):
+        ok_expected = test_helper.is_gdal_ok('', gdal_installation)
+        try:
+            geofileops_ogr.split(
+                    input1_path=input1_path,
+                    input2_path=input2_path,
+                    output_path=output_path,
+                    verbose=True)
+            test_ok = True
+        except:
+            test_ok = False
+    assert test_ok is ok_expected, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+
+    # If it is expected not to be OK, don't do other checks
+    if ok_expected is False:
+        return
+
+    # Now check if the tmp file is correctly created
+    assert output_path.exists() == True
+    layerinfo_input1 = geofile.getlayerinfo(input1_path)
+    layerinfo_input2 = geofile.getlayerinfo(input2_path)
+    layerinfo_select = geofile.getlayerinfo(output_path)
+    assert layerinfo_select.featurecount == 63
+    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_select.columns)
+
+    output_gdf = geofile.read_file(output_path)
+    assert output_gdf['geometry'][0] is not None
+
+def test_union_gpkg(tmpdir):
+    # Prepare input and output paths
+    input1_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
+    input2_path = test_helper.get_testdata_dir() / 'zones.gpkg'
+    output_path = Path(tmpdir) / 'parcels_union_zones.gpkg'
+
+    # Try both with and without gdal_bin set
+    basetest_union(input1_path, input2_path, output_path, gdal_installation='gdal_default')
+    basetest_union(input1_path, input2_path, output_path, gdal_installation='gdal_bin')
+    
+def test_union_shp(tmpdir):
+    # Prepare input and output paths
+    input1_path = test_helper.get_testdata_dir() / 'parcels.shp'
+    input2_path = test_helper.get_testdata_dir() / 'zones.gpkg'
+    output_path = Path(tmpdir) / 'parcels_union_zones.gpkg'
+    
+    # Try both with and without gdal_bin set
+    basetest_union(input1_path, input2_path, output_path, gdal_installation='gdal_default')
+    basetest_union(input1_path, input2_path, output_path, gdal_installation='gdal_bin')
+    
+def basetest_union(
+        input1_path: Path, 
+        input2_path: Path, 
+        output_basepath: Path, 
+        gdal_installation: str):
+
+    # Do operation
+    output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}{output_basepath.suffix}"
+    with test_helper.GdalBin(gdal_installation):
+        ok_expected = test_helper.is_gdal_ok('', gdal_installation)
+        try:
+            geofileops_ogr.union(
+                    input1_path=input1_path,
+                    input2_path=input2_path,
+                    output_path=output_path,
+                    verbose=True)
+            test_ok = True
+        except:
+            test_ok = False
+    assert test_ok is ok_expected, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+
+    # If it is expected not to be OK, don't do other checks
+    if ok_expected is False:
+        return
+
+    # Now check if the tmp file is correctly created
+    assert output_path.exists() == True
+    layerinfo_input1 = geofile.getlayerinfo(input1_path)
+    layerinfo_input2 = geofile.getlayerinfo(input2_path)
+    layerinfo_select = geofile.getlayerinfo(output_path)
+    assert layerinfo_select.featurecount == 67
+    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_select.columns)
+
+    output_gdf = geofile.read_file(output_path)
+    assert output_gdf['geometry'][0] is not None
+
 if __name__ == '__main__':
     import tempfile
     import shutil
@@ -334,8 +446,9 @@ if __name__ == '__main__':
         shutil.rmtree(tmpdir)
 
     # Two layer operations
-    test_erase_gpkg(tmpdir)
+    #test_erase_gpkg(tmpdir)
     #test_intersect_gpkg(tmpdir)
     #test_export_by_distance_shp(tmpdir)
     #test_join_by_location_gpkg(tmpdir)
+    test_union_gpkg(tmpdir)
     

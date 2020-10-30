@@ -422,6 +422,7 @@ def erase(
         output_path: Path,
         input_layer: str = None,
         input_columns: List[str] = None,
+        input_columns_prefix: str = '',
         erase_layer: str = None,
         output_layer: str = None,
         explodecollections: bool = False,
@@ -483,6 +484,7 @@ def erase(
             operation_name='erase',
             input1_layer=input_layer,
             input1_columns=input_columns,
+            input1_columns_prefix=input_columns_prefix,
             input2_layer=erase_layer,
             input2_columns=None,
             output_layer=output_layer,
@@ -787,7 +789,6 @@ def join_by_location(
                  WHERE sub.{area_inters_column_name} >= {min_area_intersect}'''
 
     # Go!
-    input_layer_info = geofile.getlayerinfo(input1_path, input1_layer)
     return _two_layer_vector_operation(
             input1_path=input1_path,
             input2_path=input2_path,
@@ -841,7 +842,7 @@ def select_two_layers(
             verbose=verbose,
             force=force)
 
-def union(
+def split(
         input1_path: Path,
         input2_path: Path,
         output_path: Path,
@@ -857,13 +858,13 @@ def union(
         verbose: bool = False,
         force: bool = False):
 
-    # Prepare sql template for this operation 
     # In the query, important to only extract the geometry types that are expected 
     input1_layer_info = geofile.getlayerinfo(input1_path, input1_layer)
     input2_layer_info = geofile.getlayerinfo(input2_path, input2_layer)
     collection_extract_typeid = min(geofile.to_generaltypeid(input1_layer_info.geometrytypename), 
                                     geofile.to_generaltypeid(input2_layer_info.geometrytypename))
 
+    # Prepare sql template for this operation 
     sql_template = f'''
             SELECT * FROM 
               ( WITH layer2_unioned AS (
@@ -878,19 +879,6 @@ def union(
                      AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
                      AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
                    GROUP BY layer1.rowid
-                )
-                WITH layer1_unioned AS (
-                  SELECT layer2.rowid AS layer2_rowid
-                        ,ST_union(layer1.{{input1_geometrycolumn}}) AS geom
-                    FROM "{{input2_tmp_layer}}" layer2
-                    JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
-                    JOIN "{{input1_tmp_layer}}" layer1
-                    JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                   WHERE layer2tree.minx <= layer1tree.maxx AND layer2tree.maxx >= layer1tree.minx
-                     AND layer2tree.miny <= layer1tree.maxy AND layer2tree.maxy >= layer1tree.miny
-                     AND ST_Intersects(layer2.{{input2_geometrycolumn}}, layer1.{{input1_geometrycolumn}}) = 1
-                     AND ST_Touches(layer2.{{input2_geometrycolumn}}, layer1.{{input1_geometrycolumn}}) = 0
-                   GROUP BY layer2.rowid
                 )
                 SELECT Collectionextract(ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}), ST_union(layer2.{{input2_geometrycolumn}})), {collection_extract_typeid}) as geom
                       {{layer1_columns_prefix_alias_str}}
@@ -916,16 +904,6 @@ def union(
                   LEFT JOIN layer2_unioned ON layer1.rowid = layer2_unioned.layer1_rowid
                  WHERE 1=1
                    {{batch_filter}}
-                UNION ALL
-                SELECT CASE WHEN layer1_unioned.geom IS NULL THEN layer2.{{input2_geometrycolumn}}
-                            ELSE CollectionExtract(ST_difference(layer2.{{input2_geometrycolumn}}, layer1_unioned.geom), {collection_extract_typeid})
-                       END as geom
-                       {{layer2_columns_prefix_alias_str}}
-                       {{layer1_columns_prefix_alias_null_str}}
-                  FROM "{{input2_tmp_layer}}" layer2
-                  LEFT JOIN layer1_unioned ON layer2.rowid = layer1_unioned.layer2_rowid
-                 WHERE 1=1
-                   {{batch_filter}}
                )
              WHERE geom IS NOT NULL
             '''
@@ -936,7 +914,7 @@ def union(
             input2_path=input2_path,
             output_path=output_path,
             sql_template=sql_template,
-            operation_name='union',
+            operation_name='split',
             input1_layer=input1_layer,
             input1_columns=input1_columns,
             input1_columns_prefix=input1_columns_prefix,
@@ -948,6 +926,75 @@ def union(
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
+
+def union(
+        input1_path: Path,
+        input2_path: Path,
+        output_path: Path,
+        input1_layer: str = None,
+        input1_columns: List[str] = None,
+        input1_columns_prefix: str = 'l1_',
+        input2_layer: str = None,
+        input2_columns: List[str] = None,
+        input2_columns_prefix: str = 'l2_',
+        output_layer: str = None,
+        explodecollections: bool = False,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+
+    # A union can be simulated by doing a "split" of input1 and input2 and 
+    # then append the result of an erase of input2 with input1... 
+    # Init layer info
+    if output_layer is None:
+        output_layer = geofile.get_default_layer(output_path)
+
+    tempdir = io_util.create_tempdir('union')
+    try:
+        # First split input1 with input2 to a temporary output file...
+        split_output_path = tempdir / "split_output.gpkg"
+        split(  input1_path=input1_path,
+                input2_path=input2_path,
+                output_path=split_output_path,
+                input1_layer=input1_layer,
+                input1_columns=input1_columns,
+                input1_columns_prefix=input1_columns_prefix,
+                input2_layer=input2_layer,
+                input2_columns=input2_columns,
+                input2_columns_prefix=input2_columns_prefix,
+                output_layer=output_layer,
+                explodecollections=explodecollections,
+                nb_parallel=nb_parallel,
+                verbose=verbose,
+                force=force)
+
+        # Now erase input1 from input2 to another temporary output file...
+        erase_output_path = tempdir / "erase_output.gpkg"
+        erase(  input_path=input2_path,
+                erase_path=input1_path,
+                output_path=erase_output_path,
+                input_layer=input2_layer,
+                input_columns=input2_columns,
+                input_columns_prefix=input2_columns_prefix,
+                erase_layer=input1_layer,
+                output_layer=output_layer,
+                explodecollections=explodecollections,
+                nb_parallel=nb_parallel,
+                verbose=verbose,
+                force=force)
+        
+        # Now append 
+        geofile._append_to_nolock(
+            src=erase_output_path,
+            dst=split_output_path,
+            src_layer=output_layer,
+            dst_layer=output_layer)
+
+        # Now we are ready to move the result to the final spot...
+        geofile.move(split_output_path, output_path)
+
+    finally:
+        shutil.rmtree(tempdir)
 
 def _two_layer_vector_operation(
         input1_path: Path,
