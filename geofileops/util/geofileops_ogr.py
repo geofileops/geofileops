@@ -9,6 +9,8 @@ from pathlib import Path
 import shutil
 from typing import List, Optional, Tuple, Union
 
+from osgeo import gdal 
+
 from geofileops import geofile
 from . import io_util
 from . import ogr_util as ogr_util
@@ -1078,50 +1080,135 @@ def _two_layer_vector_operation(
     logger.info(f"Prepare temp input files for {operation_name} in {tempdir}")
 
     try:
-        # Get input2 data to temp gpkg file. 
-        # If it is the only layer in the input file, just copy file
-        if(input2_path.suffix.lower() == '.gpkg' 
-           and len(geofile.listlayers(input2_path)) == 1):
-            logger.debug(f"Copy {input2_path} to {input_tmp_path}")
-            geofile.copy(input2_path, input_tmp_path)
+        use_vrt = False
+        if use_vrt is True:
+            input_tmp_path = tempdir / "input_layers.vrt"
 
-            # If needed, rename layer
-            if input2_layer != input2_tmp_layer:
-                geofile.rename_layer(input_tmp_path, input2_layer, input2_tmp_layer)
+            # Get input2 data to temp gpkg file. 
+            # If it is the only layer in the input file, just copy file
+            input2_tmp_path = tempdir / "input_layers2.gpkg"
+            if(input2_path.suffix.lower() == '.gpkg' 
+            and len(geofile.listlayers(input2_path)) == 1):
+                logger.debug(f"Copy {input2_path} to {input2_tmp_path}")
+                geofile.copy(input2_path, input2_tmp_path)
 
-            # Make sure the layer has a spatial index
-            if not geofile.has_spatial_index(input_tmp_path, input2_tmp_layer):
-                geofile.create_spatial_index(input_tmp_path, input2_tmp_layer)
-        else:
-            # Copy the layer needed to a new gpkg
-            ogr_util.vector_translate(
-                    input_path=input2_path,
-                    output_path=input_tmp_path,
-                    input_layers=input2_layer,
-                    output_layer=input2_tmp_layer,
+                # If needed, rename layer
+                if input2_layer != input2_tmp_layer:
+                    geofile.rename_layer(input2_tmp_path, input2_layer, input2_tmp_layer)
+
+                # Make sure the layer has a spatial index
+                if not geofile.has_spatial_index(input2_tmp_path, input2_tmp_layer):
+                    geofile.create_spatial_index(input2_tmp_path, input2_tmp_layer)
+            else:
+                # Copy the layer needed to a new gpkg
+                ogr_util.vector_translate(
+                        input_path=input2_path,
+                        output_path=input2_tmp_path,
+                        input_layers=input2_layer,
+                        output_layer=input2_tmp_layer,
+                        verbose=verbose)
+            
+            # Spread input1 data over different layers to be able to calculate in parallel
+            if nb_parallel == -1:
+                # Default, put at lease 100 rows in a batch for parallelisation
+                input1_layerinfo = geofile.getlayerinfo(input1_path, input1_layer)
+                max_parallel = int(input1_layerinfo.featurecount/100)
+                nb_parallel = min(multiprocessing.cpu_count(), max_parallel)
+
+                # Don't use all processors so the machine stays accessible 
+                if nb_parallel > 4:
+                    nb_parallel -= 1
+                elif nb_parallel < 1:
+                    nb_parallel = 1
+
+            nb_batches = nb_parallel * 4
+            input1_tmp_path = tempdir / "input_layers1.gpkg"
+            batches = _split_layer_features(
+                    input_path=input1_path,
+                    input_layer=input1_layer,
+                    output_path=input1_tmp_path,
+                    output_baselayer=input1_tmp_layer,
+                    nb_batches=nb_batches,
                     verbose=verbose)
-        
-        # Spread input1 data over different layers to be able to calculate in parallel
-        if nb_parallel == -1:
-            # Default, put at lease 100 rows in a batch for parallelisation
-            input1_layerinfo = geofile.getlayerinfo(input1_path, input1_layer)
-            max_parallel = int(input1_layerinfo.featurecount/100)
-            nb_parallel = min(multiprocessing.cpu_count(), max_parallel)
 
-            # Don't use all processors so the machine stays accessible 
-            if nb_parallel > 4:
-                nb_parallel -= 1
-            elif nb_parallel < 1:
-                nb_parallel = 1
+            # Create vrt file
+            with open(input_tmp_path, "w") as vrt_file:
+                vrt_file.write(f'<OGRVRTDataSource>\n')
 
-        nb_batches = nb_parallel * 4
-        batches = _split_layer_features(
-                input_path=input1_path,
-                input_layer=input1_layer,
-                output_path=input_tmp_path,
-                output_baselayer=input1_tmp_layer,
-                nb_batches=nb_batches,
-                verbose=verbose)
+                # input 2 layer
+                vrt_file.write(f'  <OGRVRTLayer name="{input2_layer}">\n')
+                vrt_file.write(f'    <SrcDataSource>{input2_tmp_path}</SrcDataSource>\n')
+                #vrt_file.write(f'    <SrcLayer>{input2_layer}</SrcLayer>\n')
+                vrt_file.write(f'  </OGRVRTLayer>\n')
+
+                # input 2 layer index
+                vrt_file.write(f'  <OGRVRTLayer name="rtree_{input2_layer}_geometry">\n')
+                vrt_file.write(f'    <SrcDataSource>{input2_tmp_path}</SrcDataSource>\n')
+                #vrt_file.write(f'    <SrcLayer>rtree_{input2_layer}_geom</SrcLayer>\n')
+                vrt_file.write(f'  </OGRVRTLayer>\n')
+
+                # input 1 layers
+                for batch_id in batches:
+                    # Add layer
+                    vrt_file.write(f'  <OGRVRTLayer name="{batches[batch_id]["layer"]}">\n')
+                    vrt_file.write(f'    <SrcDataSource>{batches[batch_id]["path"]}</SrcDataSource>\n')
+                    vrt_file.write(f'  </OGRVRTLayer>\n')
+
+                    # Add layer index
+                    vrt_file.write(f'  <OGRVRTLayer name="rtree_{batches[batch_id]["layer"]}_geom">\n')
+                    vrt_file.write(f'    <SrcDataSource>{batches[batch_id]["path"]}</SrcDataSource>\n')
+                    #vrt_file.write(f'    <SrcLayer>rtree_{batches[batch_id]["layer"]}_geom</SrcLayer>\n')
+                    vrt_file.write(f'  </OGRVRTLayer>\n')
+
+                vrt_file.write(f'</OGRVRTDataSource>\n')
+
+        else:
+            # Get input2 data to temp gpkg file. 
+            # If it is the only layer in the input file, just copy file
+            if(input2_path.suffix.lower() == '.gpkg' 
+            and len(geofile.listlayers(input2_path)) == 1):
+                logger.debug(f"Copy {input2_path} to {input_tmp_path}")
+                geofile.copy(input2_path, input_tmp_path)
+
+                # If needed, rename layer
+                if input2_layer != input2_tmp_layer:
+                    geofile.rename_layer(input_tmp_path, input2_layer, input2_tmp_layer)
+
+                # Make sure the layer has a spatial index
+                if not geofile.has_spatial_index(input_tmp_path, input2_tmp_layer):
+                    geofile.create_spatial_index(input_tmp_path, input2_tmp_layer)
+            else:
+                # Copy the layer needed to a new gpkg
+                ogr_util.vector_translate(
+                        input_path=input2_path,
+                        output_path=input_tmp_path,
+                        input_layers=input2_layer,
+                        output_layer=input2_tmp_layer,
+                        verbose=verbose)
+            
+            # Spread input1 data over different layers to be able to calculate in parallel
+            if nb_parallel == -1:
+                # Default, put at lease 100 rows in a batch for parallelisation
+                input1_layerinfo = geofile.getlayerinfo(input1_path, input1_layer)
+                max_parallel = int(input1_layerinfo.featurecount/100)
+                nb_parallel = min(multiprocessing.cpu_count(), max_parallel)
+
+                # Don't use all processors so the machine stays accessible 
+                if nb_parallel > 4:
+                    nb_parallel -= 1
+                elif nb_parallel < 1:
+                    nb_parallel = 1
+
+            nb_batches = nb_parallel * 4
+            batches = _split_layer_features(
+                    input_path=input1_path,
+                    input_layer=input1_layer,
+                    output_path=input_tmp_path,
+                    output_baselayer=input1_tmp_layer,
+                    nb_batches=nb_batches,
+                    verbose=verbose)
+
+        # No use starting more processes than the number of batches...            
         if len(batches) < nb_parallel:
             nb_parallel = len(batches)
         
@@ -1218,10 +1305,10 @@ def _two_layer_vector_operation(
                         batch_filter=batches[batch_id]['batch_filter'])
 
                 translate_jobs[batch_id]['sqlite_stmt'] = sql_stmt
-                translate_description = f"Calculate export_by_location between {input_tmp_path} and {tmp_output_partial_path}"
+                translate_description = f"Calculate {operation_name} between {batches[batch_id]['path']} and {tmp_output_partial_path}"
                 # Remark: this temp file doesn't need spatial index nor journalling mode
                 translate_info = ogr_util.VectorTranslateInfo(
-                        input_path=input_tmp_path,
+                        input_path=batches[batch_id]['path'],
                         output_path=tmp_output_partial_path,
                         translate_description=translate_description,
                         output_layer=output_layer,
@@ -1359,7 +1446,7 @@ def _split_layer_features(
         # Check number of batches + appoint rows to batches
         nb_rows_input_layer = layerinfo.featurecount
         if nb_batches > int(nb_rows_input_layer/10):
-            nb_batches = int(nb_rows_input_layer/10)
+            nb_batches = max(int(nb_rows_input_layer/10), 1)
         nb_rows_per_batch = int(nb_rows_input_layer / nb_batches)
 
         ##### Split to x batches/layers #####
@@ -1421,6 +1508,7 @@ def _split_layer_features(
                 if output_layer_curr in geofile.listlayers(output_path):
                     batches[batch_id] = {}
                     batches[batch_id]['layer'] = output_layer_curr
+                    batches[batch_id]['path'] = output_path
                     batches[batch_id]['batch_filter'] = ''
                 else:
                     logger.debug(f"Layer {output_layer_curr} is empty in geofile {output_path}")
@@ -1428,6 +1516,7 @@ def _split_layer_features(
                 # If they are all still in the same layer
                 batches[batch_id] = {}
                 batches[batch_id]['layer'] = input_layer
+                batches[batch_id]['path'] = output_path
                 if split_random is True:
                     batches[batch_id]['batch_filter'] = f"AND batch_id = {batch_id}"
                 else:

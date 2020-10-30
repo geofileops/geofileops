@@ -34,6 +34,31 @@ gdal.UseExceptions()        # Enable exceptions
 # The real work
 #-------------------------------------------------------------
 
+def buildOGRVrt(
+        output_path: Path,
+        input_layer_paths: dict):
+
+    # Create vrt file
+    with open(output_path, "w") as vrt_file:
+        vrt_file.write(f'<OGRVRTDataSource>\n')
+
+        # Loop over all layers and add them to vrt file
+        for input_layer in input_layer_paths:
+            vrt_file.write(f'  <OGRVRTLayer name="{input_layer}">\n')
+            vrt_file.write(f'    <SrcDataSource>{input_layer_paths[input_layer]["path"]}</SrcDataSource>\n')
+            vrt_file.write(f'    <SrcLayer>{input_layer}</SrcLayer>\n')
+            vrt_file.write(f'  </OGRVRTLayer>\n')
+
+            # layer index
+            '''
+            vrt_file.write(f'  <OGRVRTLayer name="rtree_{input_layer}_geometry">\n')
+            vrt_file.write(f'    <SrcDataSource>{input_layer_paths[input_layer]["path"]}</SrcDataSource>\n')
+            vrt_file.write(f'    <SrcLayer>rtree_{input_layer}_geom</SrcLayer>\n')
+            vrt_file.write(f'  </OGRVRTLayer>\n')
+            '''
+
+        vrt_file.write(f'</OGRVRTDataSource>\n')
+        
 def listlayers(
         path: Union[str, 'os.PathLike[Any]'],
         verbose: bool = False) -> List[str]:
@@ -49,7 +74,6 @@ def listlayers(
         List[str]: the list of layers
     """
     return fiona.listlayers(str(path))
-
 class LayerInfo:
     def __init__(self, 
             name: str,
