@@ -224,8 +224,17 @@ def select(
     """
     Execute an sqlite style SQL query on the file. 
     
-    Because for most standard queries there is noadvantage to parallellize, 
-    nb_parallel is 1 by default. If you do want to use parallel processing, 
+    By convention, the sqlite query can contain following placeholders that
+    will be automatically replaced for you:
+        * {geometrycolumn}: 
+        * {columns_to_select_str}: if 'columns' is not None, those columns, 
+          otherwise all columns of the layer  
+        * {input_layer}: 
+        * {batch_filter}: 
+
+    Because some sql statement won't give the same result when parallellized 
+    (eg. when using a group by statement), nb_parallel is 1 by default. 
+    If you do want to use parallel processing, 
     specify nb_parallel + make sure to include the placeholder {batch_filter} 
     in your sql_stmt. This placeholder will be replaced with a filter
     of the form 'AND rowid >= x AND rowid < y'.
@@ -243,6 +252,9 @@ def select(
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input
             file only contains one layer.
+        columns (List[str], optional): If not None AND the column placeholders 
+            are used in the sql statement, only output the columns specified. 
+            Defaults to None.
         explodecollections (bool, optional): True to convert all multi-geometries to 
             singular ones after the dissolve. Defaults to False.
         force_output_geometrytype (str, optional): The output geometry type to 
@@ -260,6 +272,7 @@ def select(
             sql_dialect=sql_dialect,
             input_layer=input_layer,        
             output_layer=output_layer,
+            columns=columns,
             explodecollections=explodecollections,
             force_output_geometrytype=force_output_geometrytype,
             nb_parallel=nb_parallel,

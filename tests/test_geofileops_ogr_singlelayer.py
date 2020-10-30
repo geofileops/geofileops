@@ -12,28 +12,20 @@ def test_select_shp(tmpdir):
     # Select some data from src to tmp file
     input_path = test_helper.get_testdata_dir() / 'parcels.shp'
     output_path = Path(tmpdir) / 'parcels.shp'
-    layerinfo_orig = geofile.getlayerinfo(input_path)
-    sql_stmt = f'select {layerinfo_orig.geometrycolumn}, oidn, uidn from "parcels"'
-    geofileops_ogr.select(
-            input_path=input_path,
-            output_path=output_path,
-            sql_stmt=sql_stmt,
-            sql_dialect='SQLITE')
 
-    # Now check if the tmp file is correctly created
-    layerinfo_select = geofile.getlayerinfo(output_path)
-    assert layerinfo_orig.featurecount == layerinfo_select.featurecount
-    assert 'OIDN' in layerinfo_select.columns
-    assert 'UIDN' in layerinfo_select.columns
-    assert len(layerinfo_select.columns) == 2
-
-    output_gdf = geofile.read_file(output_path)
-    assert output_gdf['geometry'][0] is not None
+    basetest_select(input_path, output_path)
 
 def test_select_gpkg(tmpdir):
     # Select some data from src to tmp file
     input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
+
+    basetest_select(input_path, output_path)
+    
+def basetest_select(
+        input_path: Path, 
+        output_path: Path):
+
     layerinfo_orig = geofile.getlayerinfo(input_path)
     sql_stmt = f'select {layerinfo_orig.geometrycolumn}, oidn, uidn from "parcels"'
     geofileops_ogr.select(
@@ -47,6 +39,50 @@ def test_select_gpkg(tmpdir):
     assert 'OIDN' in layerinfo_select.columns
     assert 'UIDN' in layerinfo_select.columns
     assert len(layerinfo_select.columns) == 2
+
+    output_gdf = geofile.read_file(output_path)
+    assert output_gdf['geometry'][0] is not None
+
+def test_select_various_options_shp(tmpdir):
+    # Select some data from src to tmp file
+    input_path = test_helper.get_testdata_dir() / 'parcels.shp'
+    output_path = Path(tmpdir) / 'parcels.shp'
+
+    basetest_select_various_options(input_path, output_path)
+
+def test_select_various_options_gpkg(tmpdir):
+    # Select some data from src to tmp file
+    input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels.gpkg'
+
+    basetest_select_various_options(input_path, output_path)
+    
+def basetest_select_various_options(
+        input_path: Path, 
+        output_path: Path):
+
+    ### Check if columns parameter works (case insensitive) ###
+    columns = ['OIDN', 'uidn', 'HFDTLT', 'lblhfdtlt', 'GEWASGROEP', 'lengte', 'OPPERVL']
+    layerinfo_orig = geofile.getlayerinfo(input_path)
+    sql_stmt = f'select {layerinfo_orig.geometrycolumn}, oidn, uidn from "parcels"'
+    geofileops_ogr.select(
+            input_path=input_path,
+            output_path=output_path,
+            columns=columns,
+            sql_stmt=sql_stmt)
+
+    # Now check if the tmp file is correctly created
+    layerinfo_select = geofile.getlayerinfo(output_path)
+    assert layerinfo_orig.featurecount == layerinfo_select.featurecount
+    assert 'OIDN' in layerinfo_select.columns
+    assert 'UIDN' in layerinfo_select.columns
+    assert len(layerinfo_select.columns) == 2
+
+    output_gdf = geofile.read_file(output_path)
+    assert output_gdf['geometry'][0] is not None
+
+    ### Check if ... parameter works ###
+    # TODO: increase test coverage of other options...
 
 def test_isvalid_gpkg(tmpdir):
     # Buffer to test dir

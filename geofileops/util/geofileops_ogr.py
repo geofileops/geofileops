@@ -177,61 +177,31 @@ def select(
         input_path: Path,
         output_path: Path,
         sql_stmt: str,
-        sql_dialect: str = None,
+        sql_dialect: str = 'SQLITE',
         input_layer: str = None,        
         output_layer: str = None,
+        columns: Optional[List[str]] = None,
         explodecollections: bool = False,
         force_output_geometrytype: str = None,
         nb_parallel: int = 1,
         verbose: bool = False,
         force: bool = False):
 
-    # If parallel processing asked...
-    if nb_parallel == -1 or nb_parallel > 1:
-        return _single_layer_vector_operation(
-                input_path=input_path,
-                output_path=output_path,
-                sql_template=sql_stmt,
-                operation_name='select',
-                input_layer=input_layer,
-                output_layer=output_layer,
-                explodecollections=explodecollections,
-                force_output_geometrytype=force_output_geometrytype,
-                nb_parallel=nb_parallel,
-                verbose=verbose,
-                force=force)
-
-    ##### Init #####
-    start_time = datetime.datetime.now()
-    if output_path.exists():
-        if force is False:
-            logger.info(f"Stop select: output exists already {output_path}")
-            return
-        else:
-            geofile.remove(output_path)
-
-    if input_layer is None:
-        input_layer = geofile.get_only_layer(input_path)
-    if output_layer is None:
-        output_layer = geofile.get_default_layer(output_path)
-    if force_output_geometrytype is None:
-        input_layer_info = geofile.getlayerinfo(input_path, input_layer)
-        force_output_geometrytype = input_layer_info.geometrytypename
-
-    ##### Exec #####
-    translate_description = f"Select on {input_path}"
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    ogr_util.vector_translate(
+    # Go!
+    return _single_layer_vector_operation(
             input_path=input_path,
             output_path=output_path,
-            translate_description=translate_description,
+            sql_template=sql_stmt,
+            operation_name='select',
+            input_layer=input_layer,
             output_layer=output_layer,
-            sql_stmt=sql_stmt,
-            sql_dialect=sql_dialect,
+            columns=columns,
+            explodecollections=explodecollections,
             force_output_geometrytype=force_output_geometrytype,
-            verbose=verbose)
-
-    logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
+            filter_null_geoms=False,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
 
 def simplify(
         input_path: Path,
