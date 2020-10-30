@@ -244,6 +244,7 @@ def _single_layer_vector_operation(
         columns: List[str] = None,
         explodecollections: bool = False,
         force_output_geometrytype: str = None,
+        filter_null_geoms: bool = True,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -288,7 +289,14 @@ def _single_layer_vector_operation(
             elif nb_parallel < 1:
                 nb_parallel = 1                
 
-        nb_batches = nb_parallel*4
+        # If we are processing in parallel... seperate work in batches
+        # Remark: especially for 'select' operation, if nb_parallel is 1 
+        #         nb_batches should be 1 (select might give wrong results)
+        if nb_parallel > 1:
+            nb_batches = nb_parallel*4
+        else:
+            nb_batches = 1
+
         nb_done = 0
         with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
@@ -339,12 +347,13 @@ def _single_layer_vector_operation(
                         batch_filter=batch_filter)
 
                 # Make sure no NULL geoms are outputted...
-                sql_stmt = f'''
-                        SELECT sub.*
-                          FROM
-                            ( {sql_stmt}
-                            ) sub
-                         WHERE sub.geom IS NOT NULL'''
+                if filter_null_geoms is True:
+                    sql_stmt = f'''
+                            SELECT sub.*
+                            FROM
+                                ( {sql_stmt}
+                                ) sub
+                            WHERE sub.geom IS NOT NULL'''
 
                 translate_jobs[batch_id]['sql_stmt'] = sql_stmt
                 translate_description = f"Async {operation_name} {batch_id} of {nb_batches}"
