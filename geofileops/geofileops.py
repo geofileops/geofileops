@@ -216,6 +216,7 @@ def select(
         sql_dialect: str = 'SQLITE',
         input_layer: str = None,        
         output_layer: str = None,
+        columns: List[str] = None,
         explodecollections: bool = False,
         force_output_geometrytype: str = None,
         nb_parallel: int = 1,
