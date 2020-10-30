@@ -602,7 +602,7 @@ def select_two_layers(
         input2_columns_prefix: str = 'l2_',
         output_layer: str = None,
         explodecollections: bool = False,
-        nb_parallel: int = -1,
+        nb_parallel: int = 1,
         verbose: bool = False,
         force: bool = False):
     """
@@ -610,18 +610,28 @@ def select_two_layers(
 
     By convention, the sqlite query can contain following placeholders that
     will be automatically replaced for you:
-        * layer1_columns_from_subselect_str: 
-        * layer1_columns_prefix_alias_str: 
-        * input1_tmp_layer: 
-        * input1_geometrycolumn: 
-        * layer2_columns_from_subselect_st: 
-        * layer2_columns_prefix_alias_str: 
-        * layer2_columns_prefix_alias_null_str: 
-        * input2_tmp_layer: 
-        * input2_geometrycolumn: 
-        * layer1_columns_prefix_str: 
-        * layer2_columns_prefix_str: 
-        * batch_filter: the filter to be applied per batch when using parallel processing.
+        * {layer1_columns_from_subselect_str}: 
+        * {layer1_columns_prefix_alias_str}: 
+        * {input1_tmp_layer}: 
+        * {input1_geometrycolumn}: 
+        * {layer2_columns_from_subselect_str$}: 
+        * {layer2_columns_prefix_alias_str}: 
+        * {layer2_columns_prefix_alias_null_str}: 
+        * {input2_tmp_layer}: 
+        * {input2_geometrycolumn}: 
+        * {layer1_columns_prefix_str}: 
+        * {layer2_columns_prefix_str}: 
+        * {batch_filter}: the filter to be applied per batch when using 
+          parallel processing.
+    
+    Because some sql statement won't give the same result when parallellized 
+    (eg. when using a group by statement), nb_parallel is 1 by default. 
+    If you do want to use parallel processing, 
+    specify nb_parallel + make sure to include the placeholder {batch_filter} 
+    in your sql_stmt. This placeholder will be replaced with a filter
+    of the form 'AND rowid >= x AND rowid < y'.
+
+    The result is written to the output file specified.
     
     Args:
         input1_path (PathLike): the 1st input file
@@ -640,7 +650,7 @@ def select_two_layers(
         explodecollections (bool, optional): True to convert all multi-geometries to 
                 singular ones after the dissolve. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use. 
-            If not specified, all available processors will be used.
+            If not specified, 1 processors will be used.
         verbose (bool, optional): write more info to the output. 
             Defaults to False.
         force (bool, optional): overwrite existing output file(s). 

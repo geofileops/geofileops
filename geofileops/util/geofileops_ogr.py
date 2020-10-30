@@ -818,7 +818,7 @@ def select_two_layers(
         input2_columns_prefix: str = 'l2_',
         output_layer: str = None,
         explodecollections: bool = False,
-        nb_parallel: int = -1,
+        nb_parallel: int = 1,
         verbose: bool = False,
         force: bool = False):
 
