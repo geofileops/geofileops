@@ -27,7 +27,7 @@ def basetest_select(
         output_path: Path):
 
     layerinfo_orig = geofile.getlayerinfo(input_path)
-    sql_stmt = f'select {layerinfo_orig.geometrycolumn}, oidn, uidn from "parcels"'
+    sql_stmt = f'SELECT {layerinfo_orig.geometrycolumn}, oidn, uidn FROM "parcels"'
     geofileops_ogr.select(
             input_path=input_path,
             output_path=output_path,
@@ -64,7 +64,9 @@ def basetest_select_various_options(
     ### Check if columns parameter works (case insensitive) ###
     columns = ['OIDN', 'uidn', 'HFDTLT', 'lblhfdtlt', 'GEWASGROEP', 'lengte', 'OPPERVL']
     layerinfo_orig = geofile.getlayerinfo(input_path)
-    sql_stmt = f'select {layerinfo_orig.geometrycolumn}, oidn, uidn from "parcels"'
+    sql_stmt = f'''SELECT {layerinfo_orig.geometrycolumn}
+                         {{columns_to_select_str}} 
+                     FROM "parcels" '''
     geofileops_ogr.select(
             input_path=input_path,
             output_path=output_path,
@@ -76,7 +78,7 @@ def basetest_select_various_options(
     assert layerinfo_orig.featurecount == layerinfo_select.featurecount
     assert 'OIDN' in layerinfo_select.columns
     assert 'UIDN' in layerinfo_select.columns
-    assert len(layerinfo_select.columns) == 2
+    assert len(layerinfo_select.columns) == len(columns)
 
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
