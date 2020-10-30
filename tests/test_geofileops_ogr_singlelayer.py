@@ -53,7 +53,7 @@ def test_isvalid_gpkg(tmpdir):
     input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
 
-    # Try with and without gdal_bin
+    # Try both with and without gdal_bin set
     basetest_isvalid(input_path, output_path, gdal_installation='gdal_bin')
     basetest_isvalid(input_path, output_path, gdal_installation='gdal_default')
 
@@ -62,7 +62,7 @@ def test_isvalid_shp(tmpdir):
     input_path = test_helper.get_testdata_dir() / 'parcels.shp'
     output_path = Path(tmpdir) / 'parcels.gpkg'
     
-    # Try with and without gdal_bin. For shp the isvalid works always.
+    # Try both with and without gdal_bin set
     basetest_isvalid(input_path, output_path, gdal_installation='gdal_bin', ok_expected=True)
     basetest_isvalid(input_path, output_path, gdal_installation='gdal_default', ok_expected=True)
     
@@ -107,7 +107,7 @@ def test_convexhull_gpkg(tmpdir):
     input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
     
-    # Without gdal_bin set, this fails at the moment
+    # Try both with and without gdal_bin set
     basetest_convexhull(input_path, output_path, gdal_installation='gdal_bin')
     basetest_convexhull(input_path, output_path, gdal_installation='gdal_default')
 
@@ -116,7 +116,7 @@ def test_convexhull_shp(tmpdir):
     input_path = test_helper.get_testdata_dir() / 'parcels.shp'
     output_path = Path(tmpdir) / 'parcels.shp'
 
-    # Without gdal_bin set, this fails at the moment
+    # Try both with and without gdal_bin set
     basetest_convexhull(input_path, output_path, gdal_installation='gdal_bin')
     basetest_convexhull(input_path, output_path, gdal_installation='gdal_default')
 
@@ -155,7 +155,7 @@ def test_buffer_gpkg(tmpdir):
     input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
 
-    # Without gdal_bin set, this fails at the moment
+    # Try both with and without gdal_bin set
     basetest_buffer(input_path, output_path, gdal_installation='gdal_default')
     basetest_buffer(input_path, output_path, gdal_installation='gdal_bin')
         
@@ -164,7 +164,7 @@ def test_buffer_shp(tmpdir):
     input_path = test_helper.get_testdata_dir() / 'parcels.shp'
     output_path = Path(tmpdir) / 'parcels.shp'
 
-    # Without gdal_bin set, this fails at the moment
+    # Try both with and without gdal_bin set
     basetest_buffer(input_path, output_path, gdal_installation='gdal_default')
     basetest_buffer(input_path, output_path, gdal_installation='gdal_bin')
     
@@ -203,7 +203,7 @@ def test_makevalid_gpkg(tmpdir):
     input_path = test_helper.get_testdata_dir() / 'invalid_geometries.gpkg'
     output_path = Path(tmpdir) / f"{input_path.stem}_valid.gpkg"
     
-    # Without gdal_bin set, this fails at the moment
+    # Try both with and without gdal_bin set
     basetest_makevalid(input_path, output_path, gdal_installation='gdal_bin')
     basetest_makevalid(input_path, output_path, gdal_installation='gdal_default')
            
@@ -252,7 +252,7 @@ def test_simplify_gpkg(tmpdir):
     input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
     output_path = Path(tmpdir) / input_path.name
 
-    # Without gdal_bin set, this fails with libspatialite 4.3
+    # Try both with and without gdal_bin set
     basetest_simplify(input_path, output_path, gdal_installation='gdal_default')
     basetest_simplify(input_path, output_path, gdal_installation='gdal_bin')
         
@@ -261,7 +261,7 @@ def test_simplify_shp(tmpdir):
     input_path = test_helper.get_testdata_dir() / 'parcels.shp'
     output_path = Path(tmpdir) / 'parcels.shp'
 
-    # Without gdal_bin set, this fails with libspatialite 4.3
+    # Try both with and without gdal_bin set
     basetest_simplify(input_path, output_path, gdal_installation='gdal_default')
     basetest_simplify(input_path, output_path, gdal_installation='gdal_bin')
     
