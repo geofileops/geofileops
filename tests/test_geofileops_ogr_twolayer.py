@@ -9,22 +9,22 @@ from geofileops.util import geofileops_ogr
 from tests import test_helper
 
 def test_erase_gpkg(tmpdir):
-    # Erase to test dir
+    # Prepare input and output paths
     input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
     erase_path = test_helper.get_testdata_dir() / 'zones.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
 
-    # Without gdal_bin set, this fails with libspatialite 4.3
+    # Try both with and without gdal_bin set
     basetest_erase(input_path, erase_path, output_path, gdal_installation='gdal_bin')
     basetest_erase(input_path, erase_path, output_path, gdal_installation='gdal_default')
 
 def test_erase_shp(tmpdir):
-    # Buffer to test dir
+    # Prepare input and output paths
     input_path = test_helper.get_testdata_dir() / 'parcels.shp'
     erase_path = test_helper.get_testdata_dir() / 'zones.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
 
-    # Without gdal_bin set, this fails with libspatialite 4.3
+    # Try both with and without gdal_bin set
     basetest_erase(input_path, erase_path, output_path, gdal_installation='gdal_bin')
     basetest_erase(input_path, erase_path, output_path, gdal_installation='gdal_default')
 
@@ -62,12 +62,12 @@ def basetest_erase(
     assert output_gdf['geometry'][0] is not None
 
 def test_export_by_location_gpkg(tmpdir):
-    # Export to test dir
+    # Prepare input and output paths
     input_to_select_from_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
     input_to_compare_with_path = test_helper.get_testdata_dir() / 'zones.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
 
-    # Without gdal_bin set, this fails with libspatialite 4.3
+    # Try both with and without gdal_bin set
     basetest_export_by_location(
             input_to_select_from_path, input_to_compare_with_path, output_path, 
             gdal_installation='gdal_bin')
@@ -76,12 +76,12 @@ def test_export_by_location_gpkg(tmpdir):
             gdal_installation='gdal_default')
         
 def test_export_by_location_shp(tmpdir):
-    # Export to test dir
+    # Prepare input and output paths
     input_to_select_from_path = test_helper.get_testdata_dir() / 'parcels.shp'
     input_to_compare_with_path = test_helper.get_testdata_dir() / 'zones.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
 
-    # Without gdal_bin set, this fails at the moment
+    # Try both with and without gdal_bin set
     basetest_export_by_location(
             input_to_select_from_path, input_to_compare_with_path, output_path, 
             gdal_installation='gdal_bin')
@@ -124,12 +124,12 @@ def basetest_export_by_location(
     assert output_gdf['geometry'][0] is not None
 
 def test_export_by_distance_gpkg(tmpdir):
-        # Export to test dir
+    # Prepare input and output paths
     input_to_select_from_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
     input_to_compare_with_path = test_helper.get_testdata_dir() / 'zones.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
     
-    # Without gdal_bin set, this fails at the moment
+    # Try both with and without gdal_bin set
     basetest_export_by_location(
             input_to_select_from_path, input_to_compare_with_path, output_path, 
             gdal_installation='gdal_bin')
@@ -138,12 +138,12 @@ def test_export_by_distance_gpkg(tmpdir):
             gdal_installation='gdal_default')
     
 def test_export_by_distance_shp(tmpdir):
-    # Export to test dir
+    # Prepare input and output paths
     input_to_select_from_path = test_helper.get_testdata_dir() / 'parcels.shp'
     input_to_compare_with_path = test_helper.get_testdata_dir() / 'zones.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
 
-    # Without gdal_bin set, this fails at the moment
+    # Try both with and without gdal_bin set
     basetest_export_by_location(
             input_to_select_from_path, input_to_compare_with_path, output_path, 
             gdal_installation='gdal_bin')
@@ -187,22 +187,22 @@ def basetest_export_by_distance(
     assert output_gdf['geometry'][0] is not None
 
 def test_intersect_gpkg(tmpdir):
-    # Export to test dir
+    # Prepare input and output paths
     input1_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
     input2_path = test_helper.get_testdata_dir() / 'zones.gpkg'
     output_path = Path(tmpdir) / 'parcels_intersect_zones.gpkg'
 
-    # Without gdal_bin set, this fails at the moment
+    # Try both with and without gdal_bin set
     basetest_intersect(input1_path, input2_path, output_path, gdal_installation='gdal_default')
     basetest_intersect(input1_path, input2_path, output_path, gdal_installation='gdal_bin')
     
 def test_intersect_shp(tmpdir):
-    # Export to test dir
+    # Prepare input and output paths
     input1_path = test_helper.get_testdata_dir() / 'parcels.shp'
     input2_path = test_helper.get_testdata_dir() / 'zones.gpkg'
     output_path = Path(tmpdir) / 'parcels_intersect_zones.gpkg'
     
-    # Without gdal_bin set, this fails at the moment
+    # Try both with and without gdal_bin set
     basetest_intersect(input1_path, input2_path, output_path, gdal_installation='gdal_default')
     basetest_intersect(input1_path, input2_path, output_path, gdal_installation='gdal_bin')
     
@@ -243,22 +243,22 @@ def basetest_intersect(
     assert output_gdf['geometry'][0] is not None
 
 def test_join_by_location_gpkg(tmpdir):
-    # Export to test dir
+    # Prepare input and output paths
     input1_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
     input2_path = test_helper.get_testdata_dir() / 'zones.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
     
-    # Without gdal_bin set, this fails at the moment
+    # Try both with and without gdal_bin set
     basetest_join_by_location(input1_path, input2_path, output_path, gdal_installation='gdal_default')
     basetest_join_by_location(input1_path, input2_path, output_path, gdal_installation='gdal_bin')
     
 def test_join_by_location_shp(tmpdir):
-    # Export to test dir
+    # Prepare input and output paths
     input1_path = test_helper.get_testdata_dir() / 'parcels.shp'
     input2_path = test_helper.get_testdata_dir() / 'zones.gpkg'
     output_path = Path(tmpdir) / 'parcels.gpkg'
     
-    # Without gdal_bin set, this fails at the moment
+    # Try both with and without gdal_bin set
     basetest_join_by_location(input1_path, input2_path, output_path, gdal_installation='gdal_default')
     basetest_join_by_location(input1_path, input2_path, output_path, gdal_installation='gdal_bin')
     
