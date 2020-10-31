@@ -293,7 +293,7 @@ def _single_layer_vector_operation(
         # Remark: especially for 'select' operation, if nb_parallel is 1 
         #         nb_batches should be 1 (select might give wrong results)
         if nb_parallel > 1:
-            nb_batches = nb_parallel*4
+            nb_batches = nb_parallel
         else:
             nb_batches = 1
 
