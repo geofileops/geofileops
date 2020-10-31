@@ -457,7 +457,9 @@ def erase(
                 JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
                 JOIN "{{input2_tmp_layer}}" layer2
                 JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
-               WHERE layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
+               WHERE 1=1
+                 {{batch_filter}}
+                 AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
                  AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
                  AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
                  AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
@@ -871,7 +873,9 @@ def split(
                     JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
                     JOIN "{{input2_tmp_layer}}" layer2
                     JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
-                   WHERE layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
+                   WHERE 1=1
+                     {{batch_filter}}
+                     AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
                      AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
                      AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
                      AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
