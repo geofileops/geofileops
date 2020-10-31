@@ -946,7 +946,11 @@ def union(
 
     # A union can be simulated by doing a "split" of input1 and input2 and 
     # then append the result of an erase of input2 with input1... 
-    # Init layer info
+
+    # Because the calculations in split and erase will be towards temp files, 
+    # we need to do some additional init + checks here...
+    if force is False and output_path.exists():
+        return
     if output_layer is None:
         output_layer = geofile.get_default_layer(output_path)
 
@@ -992,6 +996,8 @@ def union(
             dst_layer=output_layer)
 
         # Now we are ready to move the result to the final spot...
+        if output_path.exists():
+            geofile.remove(output_path)
         geofile.move(split_output_path, output_path)
 
     finally:
