@@ -703,6 +703,20 @@ def _append_to_nolock(
             verbose=verbose)
     ogr_util.vector_translate_by_info(info=translate_info)
 
+def convert(
+        src: Union[str, 'os.PathLike[Any]'], 
+        dst: Union[str, 'os.PathLike[Any]']):
+    
+    src_p = Path(src)
+    dst_p = Path(dst)
+
+    # If dest file exists already, remove it
+    if dst_p.exists():
+        remove(dst_p)
+
+    # Convert
+    _append_to_nolock(src_p, dst_p)
+
 def get_driver(path: Union[str, 'os.PathLike[Any]']) -> str:
     """
     Get the driver to use for the file extension of this filepath.
