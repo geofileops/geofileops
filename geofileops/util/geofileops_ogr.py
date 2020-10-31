@@ -1312,8 +1312,8 @@ def _split_layer_features(
         verbose: bool = False) -> dict:
 
     ##### Init #####
-    split_random = True
-    split_to_seperate_layers = True
+    split_random = False
+    split_to_seperate_layers = False
     seperate_working_file_created = False
     try:
         # If we want to split to seperate layers using random allocation, 
@@ -1445,7 +1445,9 @@ def _split_layer_features(
                     batches[batch_id]['batch_filter'] = f"AND batch_id = {batch_id}"
                 else:
                     # If not random, use rowid filtering
-                    if batch_id < nb_batches:
+                    if nb_batches == 1:
+                        batches[batch_id]['batch_filter'] = ''
+                    elif batch_id < nb_batches:
                         batches[batch_id]['batch_filter'] = f"AND (layer1.rowid >= {offset} AND layer1.rowid < {offset+nb_rows_per_batch})"
                         offset += nb_rows_per_batch
                     else:
