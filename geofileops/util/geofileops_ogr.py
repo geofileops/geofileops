@@ -719,14 +719,14 @@ def join_by_location(
         area_inters_column_expression = f",ST_area(ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}), ST_union(layer2.{{input2_geometrycolumn}}))) as {area_inters_column_name}"
     
     # Prepare sql template for this operation 
-    if discard_nonmatching:
+    if discard_nonmatching is True:
         # Use inner join
         sql_template = f'''
-                SELECT layer1.{{input1_geometrycolumn}} as geom /*ST_union(layer1.{{input1_geometrycolumn}}) as geom*/
+                SELECT layer1.{{input1_geometrycolumn}} as geom
                       {{layer1_columns_prefix_alias_str}}
                       {{layer2_columns_prefix_alias_str}}
-                      --{area_inters_column_expression}
-                      ,ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}), ST_union(layer2.{{input2_geometrycolumn}})) as geom_intersect
+                      {area_inters_column_expression}
+                      ,ST_intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) as geom_intersect
                  FROM "{{input1_tmp_layer}}" layer1
                  JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
                  JOIN "{{input2_tmp_layer}}" layer2
@@ -737,7 +737,6 @@ def join_by_location(
                   AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
                   AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
                   AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
-                /*GROUP BY layer1.rowid {{layer1_columns_prefix_str}}*/
                 '''
     else:
         # Left outer join 
@@ -745,8 +744,8 @@ def join_by_location(
                 SELECT layer1.{{input1_geometrycolumn}} as geom /*ST_union(layer1.{{input1_geometrycolumn}}) as geom*/
                       {{layer1_columns_prefix_alias_str}}
                       {{layer2_columns_prefix_alias_str}}
-                      --{area_inters_column_expression}
-                      ,ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}), ST_union(layer2.{{input2_geometrycolumn}})) as geom_intersect
+                      {area_inters_column_expression}
+                      ,ST_intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) as geom_intersect
                  FROM "{{input1_tmp_layer}}" layer1
                  JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
                  JOIN "{{input2_tmp_layer}}" layer2
@@ -757,12 +756,11 @@ def join_by_location(
                   AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
                   AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
                   AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
-                /*GROUP BY layer1.rowid {{layer1_columns_prefix_str}}*/
                 UNION ALL
-                SELECT layer1.{{input1_geometrycolumn}} as geom /*ST_union(layer1.{{input1_geometrycolumn}}) as geom*/
+                SELECT layer1.{{input1_geometrycolumn}} as geom
                       {{layer1_columns_prefix_alias_str}}
                       {{layer2_columns_prefix_alias_null_str}}
-                      --{area_inters_column_expression}
+                      {area_inters_column_expression}
                       ,NULL as geom_intersect
                  FROM "{{input1_tmp_layer}}" layer1
                  JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
@@ -776,7 +774,6 @@ def join_by_location(
                          AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
                          AND ST_intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
                          AND ST_touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0)
-                /*GROUP BY layer1.rowid {{layer1_columns_prefix_str}}*/
                 '''
         
     # Filter on intersect area if necessary

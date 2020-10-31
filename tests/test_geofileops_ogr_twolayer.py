@@ -276,6 +276,7 @@ def basetest_join_by_location(
                     input1_path=input1_path,
                     input2_path=input2_path,
                     output_path=output_path,
+                    discard_nonmatching=True,
                     force=True)
             test_ok = True
         except:
@@ -291,7 +292,7 @@ def basetest_join_by_location(
     layerinfo_input1 = geofile.getlayerinfo(input1_path)
     layerinfo_input2 = geofile.getlayerinfo(input2_path)
     layerinfo_result = geofile.getlayerinfo(output_path)
-    assert layerinfo_result.featurecount == 4
+    assert layerinfo_result.featurecount == 28
     assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns) + 1) == len(layerinfo_result.columns)
 
     output_gdf = geofile.read_file(output_path)
@@ -320,7 +321,7 @@ def basetest_join_by_location(
     # Now check if the output file is correctly created
     assert output_path.exists() == True
     layerinfo_result = geofile.getlayerinfo(output_path)
-    assert layerinfo_result.featurecount == 24, f"Featurecount is {layerinfo_result.featurecount}, expected 48"
+    assert layerinfo_result.featurecount == 48
     assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns) + 1) == len(layerinfo_result.columns)
 
     output_gdf = geofile.read_file(output_path)
@@ -449,6 +450,6 @@ if __name__ == '__main__':
     #test_erase_gpkg(tmpdir)
     #test_intersect_gpkg(tmpdir)
     #test_export_by_distance_shp(tmpdir)
-    #test_join_by_location_gpkg(tmpdir)
-    test_union_gpkg(tmpdir)
+    test_join_by_location_gpkg(tmpdir)
+    #test_union_gpkg(tmpdir)
     
