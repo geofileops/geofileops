@@ -12,10 +12,11 @@ from typing import Any, List, Optional, Tuple, Union
 import geopandas as gpd
 import shapely.geometry as sh_geom
 
-from . import general_util
 from geofileops import geofile
+from geofileops.util import geofileops_ogr
+from geofileops.util import ogr_util
+from . import general_util
 from . import io_util
-from . import ogr_util
 from . import vector_util
 
 ################################################################################
@@ -402,9 +403,9 @@ def dissolve(
         layerinfo = geofile.getlayerinfo(input_path, input_layer)
         result_tiles_gdf = vector_util.create_grid2(layerinfo.total_bounds, nb_squarish_tiles, layerinfo.crs)
         if len(result_tiles_gdf) > 1:
-            geofile.to_file(result_tiles_gdf, output_path.parent / f"{output_path.stem}_tiles{output_path.suffix}")
+            geofile.to_file(result_tiles_gdf, output_path.parent / f"{output_path.stem}_tiles.gpkg")
 
-    # Now start dissolving...
+    ##### Now start dissolving... #####
     # The dissolve is done in several passes, and after the first pass, only the 
     # 'onborder' features are further dissolved, as the 'notonborder' features 
     # are already OK.  
@@ -412,7 +413,7 @@ def dissolve(
     if output_layer is None:
         output_layer = geofile.get_default_layer(output_path)
     tempdir = io_util.create_tempdir(operation)
-    output_tmp_path = tempdir / output_path.name
+    output_tmp_path = tempdir / f"{output_path.stem}.gpkg"
     prev_nb_batches = None
     last_pass = False
     pass_id = 0
@@ -448,11 +449,11 @@ def dissolve(
             # creating new one...
             tiles_gdf = vector_util.split_tiles(
                 result_tiles_gdf, nb_batches_recommended)
-        geofile.to_file(tiles_gdf, tempdir / f"{output_path.stem}_{pass_id}_tiles{output_path.suffix}")
+        geofile.to_file(tiles_gdf, tempdir / f"{output_path.stem}_{pass_id}_tiles.gpkg")
 
         # The notonborder rows are final immediately
         # The onborder parcels will need extra processing still... 
-        output_tmp_onborder_path = tempdir / f"{output_path.stem}_{pass_id}_onborder{output_path.suffix}"
+        output_tmp_onborder_path = tempdir / f"{output_path.stem}_{pass_id}_onborder.gpkg"
         
         result = dissolve_pass(
                 input_path=pass_input_path,
@@ -479,12 +480,32 @@ def dissolve(
         pass_input_path = output_tmp_onborder_path
         pass_id += 1
 
-    # If there is a result on border, append it to the default output
+    ##### Calculation ready! Now finalise output! #####
+    # If there is a result on border, append it to the rest
     if output_tmp_onborder_path.exists():
         geofile.append_to(output_tmp_onborder_path, output_tmp_path, dst_layer=output_layer)
         
-    # Ready! Move tmp file to output location
-    geofile.move(output_tmp_path, output_path)
+    # Now move tmp file to output location, but order the rows randomly
+    # to evade having all complex geometries together...   
+    # Add column to use for random ordering
+    geofile.add_column(path=output_tmp_path, layer=output_layer, 
+            name='temp_ordering_id', type='REAL', expression=f"RANDOM()", force_update=True)
+    sqlite_stmt = f'CREATE INDEX idx_batch_id ON "{output_layer}"(temp_ordering_id)' 
+    ogr_util.vector_info(path=output_tmp_path, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
+
+    # Get columns to keep
+    layerinfo = geofile.getlayerinfo(output_tmp_path, output_layer)
+    columns_str = ''
+    for column in layerinfo.columns:
+        if column.lower() not in ('fid', 'temp_ordering_id'):
+            columns_str += f',"{column}"'
+    # Now write to final output file
+    sql_stmt = f'''
+            SELECT {{geometrycolumn}} 
+                  {columns_str} 
+              FROM "{input_path.stem}" 
+             ORDER BY temp_ordering_id'''
+    geofileops_ogr.select(output_tmp_path, output_path, sql_stmt)
 
     # Clean tmp dir
     shutil.rmtree(tempdir)
