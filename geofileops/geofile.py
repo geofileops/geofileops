@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import pyproj
 import shutil
+import tempfile
 import time
 from typing import Any, List, Optional, Tuple, Union
 
@@ -370,9 +371,29 @@ def read_file(
         rows = None,
         ignore_geometry: bool = False) -> gpd.GeoDataFrame:
     """
-    Reads a file to a pandas dataframe. The fileformat is detected based on the filepath extension.
+    Reads a file to a pandas dataframe. 
+    
+    he file format is detected based on the filepath extension.
 
-    # TODO: think about if possible/how to support adding optional parameter and pass them to next function, example encoding, float_format,...
+    Args:
+        path (file path): path to the file to read from
+        layer (str, optional): The layer to read. Defaults to None,  
+            then reads the only layer in the file or throws error.
+        columns (List[str], optional): The columns to read. 
+            Defaults to None, then all columns are read.
+        bbox ([type], optional): Read only geometries intersecting this bbox. 
+            Defaults to None, then all rows are read.
+        rows ([type], optional): Read only the rows specified. 
+            Defaults to None, then all rows are read.
+        ignore_geometry (bool, optional): True not to read/return the geomatry. 
+            Defaults to False.
+
+    Raises:
+        Exception: [description]
+        Exception: [description]
+
+    Returns:
+        gpd.GeoDataFrame: the data read.
     """
     # Init
     path_p = Path(path)
@@ -402,6 +423,49 @@ def read_file(
         result_gdf = result_gdf[columns]
         
     return result_gdf
+
+def read_file_sql(
+        path: Union[str, 'os.PathLike[Any]'],
+        sql_stmt: str,
+        sql_dialect: str = 'SQLITE',
+        layer: str = None,
+        ignore_geometry: bool = False) -> gpd.GeoDataFrame:
+    """
+    Reads a file to a GeoPandas GeoDataFrame, using an sql statement to filter 
+    the data. 
+
+    Args:
+        path (file path): path to the file to read from
+        sql_stmt (str): sql statement to use
+        sql_dialect (str, optional): Sql dialect used. Defaults to 'SQLITE'.
+        layer (str, optional): The layer to read. If no layer is specified, 
+            reads the only layer in the file or throws error.
+        ignore_geometry (bool, optional): True not to read/return the geomatry. 
+            Defaults to False.
+
+    Returns:
+        gpd.GeoDataFrame: The data read.
+    """
+
+    # Check and init some parameters/variables
+    path_p = Path(path)
+    layer_list = None
+    if layer is not None:
+        layer_list = [layer]
+
+    # Now we're ready to go!
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir) / 'read_file_sql_tmp_file.gpkg'
+        ogr_util.vector_translate(
+                input_path=path_p,
+                output_path=tmp_path,
+                sql_stmt=sql_stmt,
+                sql_dialect=sql_dialect,
+                input_layers=layer_list,
+                create_spatial_index=False)
+            
+        # Return result
+        return read_file(tmp_path, ignore_geometry=ignore_geometry)
 
 def to_file(
         gdf: gpd.GeoDataFrame,
