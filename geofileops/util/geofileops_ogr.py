@@ -317,9 +317,18 @@ def _single_layer_vector_operation(
                 columns_to_select_str = f", {', '.join(columns_quoted)}"
             
             # Calculate the number of features per thread
-            nb_rows_input_layer = layerinfo.featurecount
-            row_limit = int(nb_rows_input_layer/nb_batches)
+            # Determine the min_rowid and max_rowid to devide the batches as good as possible
+            sql_stmt = f'SELECT MIN(rowid) as min_rowid, MAX(rowid) as max_rowid FROM "{input_layer}"'
+            result = geofile.read_file_sql(path=input_path, sql_stmt=sql_stmt, layer=input_layer)
+            if len(result) == 1:
+                min_rowid = result['min_rowid'][0]
+                max_rowid = result['max_rowid'][0]
+                nb_rowids_per_batch = (max_rowid - min_rowid)/nb_batches
+            else:
+                raise Exception(f"Error determining min_rowid and max_rowid for {input_path}, layer {input_layer}")
+            row_limit = int(nb_rowids_per_batch/nb_batches)
             row_offset = 0
+
             # Prepare output filename
             tmp_output_path = tempdir / output_path.name
 
@@ -1377,16 +1386,26 @@ def _split_layer_features(
         nb_rows_input_layer = layerinfo.featurecount
         if nb_batches > int(nb_rows_input_layer/10):
             nb_batches = max(int(nb_rows_input_layer/10), 1)
-        nb_rows_per_batch = int(nb_rows_input_layer / nb_batches)
-
+        
         ##### Split to x batches/layers #####
         # If needed, randomly determine the batch to be used for calculation in parallel 
         # + add index for (big)increase of performance 
+        nb_rowids_per_batch = 0
         if split_random is True:
             geofile.add_column(path=temp_path, layer=input_layer, 
                     name='batch_id', type='INTEGER', expression=f"ABS(RANDOM() % {nb_batches})")
             sqlite_stmt = f'CREATE INDEX idx_batch_id ON "{input_layer}"(batch_id)' 
             ogr_util.vector_info(path=temp_path, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
+        else:
+            # Determine the min_rowid and max_rowid to devide the batches as good as possible
+            sql_stmt = f'SELECT MIN(rowid) as min_rowid, MAX(rowid) as max_rowid FROM "{input_layer}"'
+            result = geofile.read_file_sql(path=temp_path, sql_stmt=sql_stmt, layer=input_layer)
+            if len(result) == 1:
+                min_rowid = result['min_rowid'][0]
+                max_rowid = result['max_rowid'][0]
+                nb_rowids_per_batch = (max_rowid - min_rowid)/nb_batches
+            else:
+                raise Exception(f"Error determining min_rowid and max_rowid for {temp_path}, layer {input_layer}")
 
         # Remark: adding data to a file in parallel using ogr2ogr gives locking 
         # issues on the sqlite file, so needs to be done sequential!
@@ -1413,7 +1432,7 @@ def _split_layer_features(
                             SELECT {geometry_column_for_select}{columns_to_select_str}  
                               FROM "{input_layer}" layer1
                              WHERE layer1.rowid >= {offset} 
-                               AND layer1.rowid < {offset+nb_rows_per_batch}'''
+                               AND layer1.rowid < {offset+nb_rowids_per_batch}'''
                         
                     else:
                         sql_stmt = f'''
@@ -1454,8 +1473,8 @@ def _split_layer_features(
                     if nb_batches == 1:
                         batches[batch_id]['batch_filter'] = ''
                     elif batch_id < nb_batches:
-                        batches[batch_id]['batch_filter'] = f"AND (layer1.rowid >= {offset} AND layer1.rowid < {offset+nb_rows_per_batch})"
-                        offset += nb_rows_per_batch
+                        batches[batch_id]['batch_filter'] = f"AND (layer1.rowid >= {offset} AND layer1.rowid < {offset+nb_rowids_per_batch})"
+                        offset += nb_rowids_per_batch
                     else:
                         batches[batch_id]['batch_filter'] = f"AND layer1.rowid >= {offset}"
     
