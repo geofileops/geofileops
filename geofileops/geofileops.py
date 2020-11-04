@@ -54,7 +54,7 @@ def buffer(
                 Defaults to False.
     """
     logger.info(f"Start buffer on {input_path} with distance: {distance} and quadrantsegments: {quadrantsegments}")
-    return geofileops_ogr.buffer(
+    return geofileops_gpd.buffer(
             input_path=Path(input_path),
             output_path=Path(output_path),
             distance=distance,
@@ -97,7 +97,7 @@ def convexhull(
             Defaults to False.
     """
     logger.info(f"Start convexhull on {input_path}")
-    return geofileops_ogr.convexhull(
+    return geofileops_gpd.convexhull(
             input_path=Path(input_path),
             output_path=Path(output_path),
             input_layer=input_layer,
