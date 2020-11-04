@@ -1,12 +1,15 @@
 import datetime
+import multiprocessing
 from pathlib import Path
 import shutil
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
 import tempfile
-from typing import List
+from typing import List, Optional
 import urllib.request
 import zipfile
+
+import pandas as pd 
 
 from geofileops.util import geofileops_gpd
 from geofileops.util import geofileops_ogr
@@ -16,11 +19,22 @@ class BenchResult:
     def __init__(self, 
             operation: str,
             tool_used: str,
-            secs_taken: float):
+            params: str,
+            nb_cpu: int,
+            secs_taken: float,
+            secs_expected_one_cpu: float,
+            input1_filename: str,
+            input2_filename: Optional[str]):
+        self.datetime = datetime.datetime.now()
         self.operation = operation
         self.tool_used = tool_used
+        self.params = params
+        self.nb_cpu = nb_cpu
         self.secs_taken = secs_taken
-
+        self.secs_expected_one_cpu = secs_expected_one_cpu
+        self.input1_filename = input1_filename
+        self.input2_filename = input2_filename
+        
     def __repr__(self):
         return f"{self.__class__}({self.__dict__})"
 
@@ -102,8 +116,15 @@ def benchmark_buffer(tmp_dir: Path) -> List[BenchResult]:
     output_path = tmp_dir / f"{input_path.stem}_buf_gpd.gpkg"
     geofileops_gpd.buffer(input_path, output_path, distance=1, force=True)
     secs_taken = (datetime.datetime.now()-start_time).total_seconds()
-    bench_results.append(
-            BenchResult(operation='buffer', tool_used='geopandas', secs_taken=secs_taken))
+    bench_results.append(BenchResult(
+            operation='buffer', 
+            tool_used='geopandas', 
+            params='',
+            nb_cpu=multiprocessing.cpu_count(),
+            secs_taken=secs_taken,
+            secs_expected_one_cpu=1000,
+            input1_filename=input_path.name, 
+            input2_filename=None))
     print(f"Buffer with geopandas ready in {secs_taken:.2f} secs")
     
     print('Start buffer with ogr')
@@ -112,8 +133,15 @@ def benchmark_buffer(tmp_dir: Path) -> List[BenchResult]:
     output_path = tmp_dir / f"{input_path.stem}_buf_ogr.gpkg"
     geofileops_ogr.buffer(input_path, output_path, distance=1, force=True)
     secs_taken = (datetime.datetime.now()-start_time).total_seconds()
-    bench_results.append(
-            BenchResult(operation='buffer', tool_used='ogr', secs_taken=secs_taken))
+    bench_results.append(BenchResult(
+            operation='buffer', 
+            tool_used='ogr', 
+            params='',
+            nb_cpu=multiprocessing.cpu_count(),
+            secs_taken=secs_taken,
+            secs_expected_one_cpu=1600,
+            input1_filename=input_path.name, 
+            input2_filename=None))
 
     print(f"Buffer with ogr ready in {secs_taken:.2f} secs")
 
@@ -135,8 +163,15 @@ def benchmark_intersect(tmp_dir: Path) -> List[BenchResult]:
                 output_path=output_path,
                 force=True)
         secs_taken = (datetime.datetime.now()-start_time).total_seconds()
-        bench_results.append(
-                BenchResult(operation='intersect', tool_used='ogr', secs_taken=secs_taken))
+        bench_results.append(BenchResult(
+                operation='intersect', 
+                tool_used='ogr', 
+                params='',
+                nb_cpu=multiprocessing.cpu_count(),
+                secs_taken=secs_taken,
+                secs_expected_one_cpu=1700,
+                input1_filename=input1_path.name, 
+                input2_filename=input2_path.name))
         print(f"Intersect with ogr ready in {secs_taken:.2f} secs")
 
     return bench_results
@@ -157,8 +192,16 @@ def benchmark_union(tmp_dir: Path) -> List[BenchResult]:
                 output_path=output_path,
                 force=True)
         secs_taken = (datetime.datetime.now()-start_time).total_seconds()
-        bench_results.append(
-                BenchResult(operation='union', tool_used='ogr', secs_taken=secs_taken))
+        bench_results.append(BenchResult(
+                operation='union', 
+                tool_used='ogr', 
+                params='',
+                nb_cpu=multiprocessing.cpu_count(),
+                secs_taken=secs_taken,
+                secs_expected_one_cpu=4000,
+                input1_filename=input1_path.name, 
+                input2_filename=input2_path.name))
+        
         print(f"Union with ogr ready in {secs_taken:.2f} secs")
 
     return bench_results
@@ -177,9 +220,24 @@ if __name__ == '__main__':
     tmpdir = Path(tempfile.gettempdir()) / 'geofileops_benchmark'
 
     results = []
-    #results.extend(benchmark_buffer(tmpdir))
-    #results.extend(benchmark_intersect(tmpdir))
+    results.extend(benchmark_buffer(tmpdir))
+    results.extend(benchmark_intersect(tmpdir))
     results.extend(benchmark_union(tmpdir))
-
+    
+    # Check and print results
     for result in results:
-        print(str(result))
+        if result.secs_taken > ((result.secs_expected_one_cpu/result.nb_cpu) * 1.5):
+            print(f"ERROR: {result}") 
+        else:
+            print(str(result))
+    
+    # Write results to csv file
+    results_path = Path(__file__).resolve().parent / 'benchmark_results.csv'
+    results_dictlist = [vars(result) for result in results]
+    results_df = pd.DataFrame(results_dictlist)
+
+    # If output file doesn't exist yet, create new, otherwise append...
+    if not results_path.exists():
+        results_df.to_csv(results_path, index=False)
+    else:
+        results_df.to_csv(results_path, index=False, mode='a', header=False)
