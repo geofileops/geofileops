@@ -104,7 +104,7 @@ else
   echo
   echo Prepare for development: only install dependencies / dev tools
   echo
-  conda install -y pylint pytest rope
+  conda install -y pylint pytest rope sphinx-rtd-theme
 fi
 
 # Deactivate new env + base
