@@ -1,10 +1,14 @@
+# -*- coding: utf-8 -*-
+"""
+Module containing the implementation of Geofile operations using ogr.
+"""
+
 from concurrent import futures
 import datetime
 from geofileops.util import general_util
 import logging
 import logging.config
 import multiprocessing
-import os
 from pathlib import Path
 import shutil
 from typing import List, Optional, Tuple, Union

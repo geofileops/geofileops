@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Module exposing all supported operations on geofiles.
+"""
 
 import logging
 import logging.config

@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+Module containing utilities regarding low level vector operations.
+"""
+
 import logging
 import math
 from typing import Tuple

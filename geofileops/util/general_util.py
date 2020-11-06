@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Module containing some general utilities.
+"""
 
 import datetime
 import logging

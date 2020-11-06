@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Tests for functionalities in ogr_util.
+"""
 
 import os
 from pathlib import Path

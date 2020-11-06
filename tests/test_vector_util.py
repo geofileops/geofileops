@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Tests for functionalities in vector_util.
+"""
 
 from pathlib import Path
 import sys

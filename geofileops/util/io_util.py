@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Module containing some utilities regarding io.
+"""
 
 import os
 from pathlib import Path

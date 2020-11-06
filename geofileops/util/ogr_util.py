@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+Module containing utilities regarding the usage of ogr functionalities.
+"""
+
 #-------------------------------------
 # Import/init needed modules
 #-------------------------------------
@@ -9,7 +14,6 @@ import os
 from pathlib import Path
 import pprint
 import subprocess
-import shutil
 import tempfile
 from threading import Lock
 import time
