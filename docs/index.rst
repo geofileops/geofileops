@@ -3,12 +3,8 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-geofileops 0.1
-==============
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+geofileops |version|
+====================
 
 This python library makes spatial operations on geo files fast and easy. 
 
@@ -20,30 +16,12 @@ Most typical operations are available: buffer, simplify, dissolve, union,
 erase, intersect,...
 Tested on geopackage and shapefile input files.
 
-Getting started 
-===============
+.. toctree::
+   :maxdepth: 2
 
-Installation 
-
-User guide
-==========
-
-Some examples how to use some different things
-
-Reference guide
-===============
-
-Reference to all attributes and methods
-Changelog
-
-Get in touch
-============
-
-Report bugs, suggest features or view the source code on GitHub.
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+   Home <self>
+   Getting started <getting_started>
+   User guide <user_guide>
+   API reference <reference>
+   Development <development>
+   Release notes <release_notes>

@@ -7,3 +7,4 @@ dist/
 *.log
 tests/data/testdata.qgz
 docs/_build
+docs/api
