@@ -1,5 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+Tests for operations using ogr on one layer.
+"""
 
-import os
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
@@ -11,7 +14,7 @@ from tests import test_helper
 def test_buffer_gpkg(tmpdir):
     # Buffer to test dir
     input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels_output.gpkg'
 
     # Try both with and without gdal_bin set
     basetest_buffer(input_path, output_path, gdal_installation='gdal_default')
@@ -20,7 +23,7 @@ def test_buffer_gpkg(tmpdir):
 def test_buffer_shp(tmpdir):
     # Buffer to test dir
     input_path = test_helper.get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels.shp'
+    output_path = Path(tmpdir) / 'parcels_output.shp'
 
     # Try both with and without gdal_bin set
     basetest_buffer(input_path, output_path, gdal_installation='gdal_default')
@@ -59,7 +62,7 @@ def basetest_buffer(
 def test_convexhull_gpkg(tmpdir):
     # Execute to test dir
     input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels_output.gpkg'
     
     # Try both with and without gdal_bin set
     basetest_convexhull(input_path, output_path, gdal_installation='gdal_bin')
@@ -68,7 +71,7 @@ def test_convexhull_gpkg(tmpdir):
 def test_convexhull_shp(tmpdir):
     # Select some data from src to tmp file
     input_path = test_helper.get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels.shp'
+    output_path = Path(tmpdir) / 'parcels_output.shp'
 
     # Try both with and without gdal_bin set
     basetest_convexhull(input_path, output_path, gdal_installation='gdal_bin')
@@ -107,7 +110,7 @@ def basetest_convexhull(
 def test_isvalid_gpkg(tmpdir):
     # Buffer to test dir
     input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels_output.gpkg'
 
     # Try both with and without gdal_bin set
     basetest_isvalid(input_path, output_path, gdal_installation='gdal_bin')
@@ -116,7 +119,7 @@ def test_isvalid_gpkg(tmpdir):
 def test_isvalid_shp(tmpdir):
     # Select some data from src to tmp file
     input_path = test_helper.get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels_output.gpkg'
     
     # Try both with and without gdal_bin set
     basetest_isvalid(input_path, output_path, gdal_installation='gdal_bin', ok_expected=True)
@@ -210,14 +213,14 @@ def basetest_makevalid(
 def test_select_shp(tmpdir):
     # Select some data from src to tmp file
     input_path = test_helper.get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels.shp'
+    output_path = Path(tmpdir) / 'parcels_output.shp'
 
     basetest_select(input_path, output_path)
 
 def test_select_gpkg(tmpdir):
     # Select some data from src to tmp file
     input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels_output.gpkg'
 
     basetest_select(input_path, output_path)
     
@@ -245,14 +248,14 @@ def basetest_select(
 def test_select_various_options_shp(tmpdir):
     # Select some data from src to tmp file
     input_path = test_helper.get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels.shp'
+    output_path = Path(tmpdir) / 'parcels_output.shp'
 
     basetest_select_various_options(input_path, output_path)
 
 def test_select_various_options_gpkg(tmpdir):
     # Select some data from src to tmp file
     input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels_output.gpkg'
 
     basetest_select_various_options(input_path, output_path)
     

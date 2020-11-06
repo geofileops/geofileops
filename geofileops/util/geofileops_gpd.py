@@ -1,8 +1,12 @@
+# -*- coding: utf-8 -*-
+"""
+Module containing the implementation of Geofile operations using GeoPandas.
+"""
+
 from concurrent import futures
 import datetime
 import logging
 import logging.config
-import math
 import multiprocessing
 from pathlib import Path
 import time
@@ -503,7 +507,7 @@ def dissolve(
     sql_stmt = f'''
             SELECT {{geometrycolumn}} 
                   {columns_str} 
-              FROM "{input_path.stem}" 
+              FROM "{output_layer}" 
              ORDER BY temp_ordering_id'''
     geofileops_ogr.select(output_tmp_path, output_path, sql_stmt)
 

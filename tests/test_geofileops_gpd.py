@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Tests for operations using GeoPandas.
+"""
 
 from pathlib import Path
 import sys
@@ -12,13 +16,13 @@ def get_testdata_dir() -> Path:
 def test_convexhull_gpkg(tmpdir):
     # Select some data from input to output file
     input_path = get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels_output.gpkg'
     basetest_convexhull(input_path, output_path)
 
 def test_convexhull_shp(tmpdir):
     # Select some data from input to output file
     input_path = get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels.shp'
+    output_path = Path(tmpdir) / 'parcels_output.shp'
     basetest_convexhull(input_path, output_path)
 
 def basetest_convexhull(input_path, output_path):
@@ -39,13 +43,13 @@ def basetest_convexhull(input_path, output_path):
 def test_buffer_gpkg(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels_output.gpkg'
     basetest_buffer(input_path, output_path)
 
 def test_buffer_shp(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels.shp'
+    output_path = Path(tmpdir) / 'parcels_output.shp'
     basetest_buffer(input_path, output_path)
 
 def basetest_buffer(input_path, output_path):
@@ -67,13 +71,13 @@ def basetest_buffer(input_path, output_path):
 def test_simplify_gpkg(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels_output.gpkg'
     basetest_simplify(input_path, output_path)
 
 def test_simplify_shp(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels.shp'
+    output_path = Path(tmpdir) / 'parcels_output.shp'
     basetest_simplify(input_path, output_path)
 
 def basetest_simplify(input_path, output_path):
@@ -92,13 +96,13 @@ def basetest_simplify(input_path, output_path):
 def test_dissolve_nogroupby_gpkg(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels_output.gpkg'
     basetest_dissolve_nogroupby(input_path, output_path)
 
 def test_dissolve_nogroupby_shp(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels.shp'
+    output_path = Path(tmpdir) / 'parcels_output.shp'
     basetest_dissolve_nogroupby(input_path, output_path)
 
 def basetest_dissolve_nogroupby(input_path, output_path):
@@ -124,13 +128,13 @@ def basetest_dissolve_nogroupby(input_path, output_path):
 def test_dissolve_groupby_gpkg(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels_output.gpkg'
     basetest_dissolve_groupby(input_path, output_path)
 
 def test_dissolve_groupby_shp(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels.shp'
+    output_path = Path(tmpdir) / 'parcels_output.shp'
     basetest_dissolve_groupby(input_path, output_path)
 
 def basetest_dissolve_groupby(input_path, output_path):

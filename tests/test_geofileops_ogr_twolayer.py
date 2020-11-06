@@ -1,5 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+Tests for operations using ogr on two layers.
+"""
 
-import os
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
@@ -12,7 +15,7 @@ def test_erase_gpkg(tmpdir):
     # Prepare input and output paths
     input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
     erase_path = test_helper.get_testdata_dir() / 'zones.gpkg'
-    output_path = Path(tmpdir) / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels_erase_zones.gpkg'
 
     # Try both with and without gdal_bin set
     basetest_erase(input_path, erase_path, output_path, gdal_installation='gdal_bin')
@@ -22,7 +25,7 @@ def test_erase_shp(tmpdir):
     # Prepare input and output paths
     input_path = test_helper.get_testdata_dir() / 'parcels.shp'
     erase_path = test_helper.get_testdata_dir() / 'zones.gpkg'
-    output_path = Path(tmpdir) / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels_erase_zones.gpkg'
 
     # Try both with and without gdal_bin set
     basetest_erase(input_path, erase_path, output_path, gdal_installation='gdal_bin')
@@ -65,7 +68,7 @@ def test_export_by_location_gpkg(tmpdir):
     # Prepare input and output paths
     input_to_select_from_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
     input_to_compare_with_path = test_helper.get_testdata_dir() / 'zones.gpkg'
-    output_path = Path(tmpdir) / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels_loc_zones.gpkg'
 
     # Try both with and without gdal_bin set
     basetest_export_by_location(
@@ -79,7 +82,7 @@ def test_export_by_location_shp(tmpdir):
     # Prepare input and output paths
     input_to_select_from_path = test_helper.get_testdata_dir() / 'parcels.shp'
     input_to_compare_with_path = test_helper.get_testdata_dir() / 'zones.gpkg'
-    output_path = Path(tmpdir) / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels_loc_zones.gpkg'
 
     # Try both with and without gdal_bin set
     basetest_export_by_location(
@@ -127,7 +130,7 @@ def test_export_by_distance_gpkg(tmpdir):
     # Prepare input and output paths
     input_to_select_from_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
     input_to_compare_with_path = test_helper.get_testdata_dir() / 'zones.gpkg'
-    output_path = Path(tmpdir) / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels_distance_zones.gpkg'
     
     # Try both with and without gdal_bin set
     basetest_export_by_location(
@@ -141,7 +144,7 @@ def test_export_by_distance_shp(tmpdir):
     # Prepare input and output paths
     input_to_select_from_path = test_helper.get_testdata_dir() / 'parcels.shp'
     input_to_compare_with_path = test_helper.get_testdata_dir() / 'zones.gpkg'
-    output_path = Path(tmpdir) / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels_distance_zones.gpkg'
 
     # Try both with and without gdal_bin set
     basetest_export_by_location(
@@ -246,7 +249,7 @@ def test_join_by_location_gpkg(tmpdir):
     # Prepare input and output paths
     input1_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
     input2_path = test_helper.get_testdata_dir() / 'zones.gpkg'
-    output_path = Path(tmpdir) / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels_join_zones.gpkg'
     
     # Try both with and without gdal_bin set
     basetest_join_by_location(input1_path, input2_path, output_path, gdal_installation='gdal_default')
@@ -256,7 +259,7 @@ def test_join_by_location_shp(tmpdir):
     # Prepare input and output paths
     input1_path = test_helper.get_testdata_dir() / 'parcels.shp'
     input2_path = test_helper.get_testdata_dir() / 'zones.gpkg'
-    output_path = Path(tmpdir) / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels_join_zones.gpkg'
     
     # Try both with and without gdal_bin set
     basetest_join_by_location(input1_path, input2_path, output_path, gdal_installation='gdal_default')
