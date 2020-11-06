@@ -424,96 +424,101 @@ def dissolve(
     current_clip_on_tiles = False
     logger.info(f"Start dissolve on file {input_path}")
     start_time = datetime.datetime.now()
-    while True:
-        
-        # Get some info of the file that needs to be dissolved
-        layerinfo = geofile.getlayerinfo(pass_input_path, input_layer)
-        nb_rows_total = layerinfo.featurecount
 
-        # Calculate the best number of parallel processes and batches for 
-        # the available resources
-        nb_parallel, nb_batches_recommended, _ = general_util.get_parallellisation_params(
-                nb_rows_total=nb_rows_total,
-                nb_parallel=nb_parallel,
-                prev_nb_batches=prev_nb_batches,
-                verbose=verbose)
+    try:
+        while True:
+            
+            # Get some info of the file that needs to be dissolved
+            layerinfo = geofile.getlayerinfo(pass_input_path, input_layer)
+            nb_rows_total = layerinfo.featurecount
 
-        # If the ideal number of batches is close to the nb. result tiles asked,  
-        # dissolve towards the asked result!
-        # If not, a temporary result is created using smaller tiles 
-        if nb_batches_recommended <= len(result_tiles_gdf)*1.1:
-            tiles_gdf = result_tiles_gdf
-            current_clip_on_tiles = clip_on_tiles
-            last_pass = True
-        elif len(result_tiles_gdf) == 1:
-            # Create a grid based on the ideal number of batches
-            tiles_gdf = vector_util.create_grid2(layerinfo.total_bounds, nb_batches_recommended, layerinfo.crs)
-        else:
-            # If a grid is specified already, add extra columns/rows instead of 
-            # creating new one...
-            tiles_gdf = vector_util.split_tiles(
-                result_tiles_gdf, nb_batches_recommended)
-        geofile.to_file(tiles_gdf, tempdir / f"{output_path.stem}_{pass_id}_tiles.gpkg")
+            # Calculate the best number of parallel processes and batches for 
+            # the available resources
+            nb_parallel, nb_batches_recommended, _ = general_util.get_parallellisation_params(
+                    nb_rows_total=nb_rows_total,
+                    nb_parallel=nb_parallel,
+                    prev_nb_batches=prev_nb_batches,
+                    verbose=verbose)
 
-        # The notonborder rows are final immediately
-        # The onborder parcels will need extra processing still... 
-        output_tmp_onborder_path = tempdir / f"{output_path.stem}_{pass_id}_onborder.gpkg"
-        
-        result = dissolve_pass(
-                input_path=pass_input_path,
-                output_notonborder_path=output_tmp_path,
-                output_onborder_path=output_tmp_onborder_path,
-                tiles_gdf=tiles_gdf,
-                groupby_columns=groupby_columns,
-                aggfunc=aggfunc,
-                explodecollections=explodecollections,
-                clip_on_tiles=current_clip_on_tiles,
-                input_layer=input_layer,        
-                output_layer=output_layer,
-                nb_parallel=nb_parallel,
-                verbose=verbose,
-                force=force)
+            # If the ideal number of batches is close to the nb. result tiles asked,  
+            # dissolve towards the asked result!
+            # If not, a temporary result is created using smaller tiles 
+            if nb_batches_recommended <= len(result_tiles_gdf)*1.1:
+                tiles_gdf = result_tiles_gdf
+                current_clip_on_tiles = clip_on_tiles
+                last_pass = True
+            elif len(result_tiles_gdf) == 1:
+                # Create a grid based on the ideal number of batches
+                tiles_gdf = vector_util.create_grid2(layerinfo.total_bounds, nb_batches_recommended, layerinfo.crs)
+            else:
+                # If a grid is specified already, add extra columns/rows instead of 
+                # creating new one...
+                tiles_gdf = vector_util.split_tiles(
+                    result_tiles_gdf, nb_batches_recommended)
+            geofile.to_file(tiles_gdf, tempdir / f"{output_path.stem}_{pass_id}_tiles.gpkg")
 
-        # If we are ready...
-        if last_pass is True:
-            break
-        
-        # Prepare the next pass...
-        # The input path are the onborder rows...
-        prev_nb_batches = len(tiles_gdf)
-        pass_input_path = output_tmp_onborder_path
-        pass_id += 1
+            # The notonborder rows are final immediately
+            # The onborder parcels will need extra processing still... 
+            output_tmp_onborder_path = tempdir / f"{output_path.stem}_{pass_id}_onborder.gpkg"
+            
+            result = dissolve_pass(
+                    input_path=pass_input_path,
+                    output_notonborder_path=output_tmp_path,
+                    output_onborder_path=output_tmp_onborder_path,
+                    tiles_gdf=tiles_gdf,
+                    groupby_columns=groupby_columns,
+                    aggfunc=aggfunc,
+                    explodecollections=explodecollections,
+                    clip_on_tiles=current_clip_on_tiles,
+                    input_layer=input_layer,        
+                    output_layer=output_layer,
+                    nb_parallel=nb_parallel,
+                    verbose=verbose,
+                    force=force)
 
-    ##### Calculation ready! Now finalise output! #####
-    # If there is a result on border, append it to the rest
-    if output_tmp_onborder_path.exists():
-        geofile.append_to(output_tmp_onborder_path, output_tmp_path, dst_layer=output_layer)
-        
-    # Now move tmp file to output location, but order the rows randomly
-    # to evade having all complex geometries together...   
-    # Add column to use for random ordering
-    geofile.add_column(path=output_tmp_path, layer=output_layer, 
-            name='temp_ordering_id', type='REAL', expression=f"RANDOM()", force_update=True)
-    sqlite_stmt = f'CREATE INDEX idx_batch_id ON "{output_layer}"(temp_ordering_id)' 
-    ogr_util.vector_info(path=output_tmp_path, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
+            # If we are ready...
+            if last_pass is True:
+                break
+            
+            # Prepare the next pass...
+            # The input path are the onborder rows...
+            prev_nb_batches = len(tiles_gdf)
+            pass_input_path = output_tmp_onborder_path
+            pass_id += 1
 
-    # Get columns to keep
-    layerinfo = geofile.getlayerinfo(output_tmp_path, output_layer)
-    columns_str = ''
-    for column in layerinfo.columns:
-        if column.lower() not in ('fid', 'temp_ordering_id'):
-            columns_str += f',"{column}"'
-    # Now write to final output file
-    sql_stmt = f'''
-            SELECT {{geometrycolumn}} 
-                  {columns_str} 
-              FROM "{output_layer}" 
-             ORDER BY temp_ordering_id'''
-    geofileops_ogr.select(output_tmp_path, output_path, sql_stmt)
+        ##### Calculation ready! Now finalise output! #####
+        # If there is a result on border, append it to the rest
+        if output_tmp_onborder_path.exists():
+            geofile.append_to(output_tmp_onborder_path, output_tmp_path, dst_layer=output_layer)
+            
+        # Now move tmp file to output location, but order the rows randomly
+        # to evade having all complex geometries together...   
+        # Add column to use for random ordering
+        geofile.add_column(path=output_tmp_path, layer=output_layer, 
+                name='temp_ordering_id', type='REAL', expression=f"RANDOM()", force_update=True)
+        sqlite_stmt = f'CREATE INDEX idx_batch_id ON "{output_layer}"(temp_ordering_id)' 
+        ogr_util.vector_info(path=output_tmp_path, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
 
-    # Clean tmp dir
-    shutil.rmtree(tempdir)
+        # Get columns to keep
+        layerinfo = geofile.getlayerinfo(output_tmp_path, output_layer)
+        columns_str = ''
+        for column in layerinfo.columns:
+            if column.lower() not in ('fid', 'temp_ordering_id'):
+                columns_str += f',"{column}"'
+        # Now write to final output file
+        sql_stmt = f'''
+                SELECT {{geometrycolumn}} 
+                    {columns_str} 
+                FROM "{output_layer}" 
+                ORDER BY temp_ordering_id'''
+        geofileops_ogr.select(output_tmp_path, output_path, sql_stmt)
 
+    finally:
+        # Clean tmp dir if it exists...
+        if tempdir.exists():
+            shutil.rmtree(tempdir)
+
+    # Return result info
     result_info['message'] = f"Dissolve completely ready, took {datetime.datetime.now()-start_time}!"
     logger.info(result_info['message'])
     return result_info
