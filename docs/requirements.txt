@@ -10,6 +10,7 @@ imagesize==1.2.0
 Jinja2==2.11.2
 mccabe==0.6.1
 munch==2.5.0
+pydata_sphinx_theme==0.4.1
 pyOpenSSL==19.1.0
 pyparsing==2.4.7
 pytest==6.1.1
