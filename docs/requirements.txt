@@ -6,6 +6,7 @@ click==7.1.2
 click-plugins==1.1.1
 cligj==0.5.0
 colorama==0.4.3
+fiona==1.8.17
 imagesize==1.2.0
 Jinja2==2.11.2
 mccabe==0.6.1
