@@ -1,7 +1,6 @@
 name: geofileopsdev
 channels:
   - conda-forge
-  - defaults
 dependencies:
   - alabaster=0.7.12=py_0
   - astroid=2.4.2=py38h32f6830_1
