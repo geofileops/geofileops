@@ -1,54 +1,25 @@
 alabaster==0.7.12
-astroid @ file:///D:/bld/astroid_1602489393750/work
-atomicwrites @ file:///home/conda/feedstock_root/build_artifacts/atomicwrites_1588182545583/work
-attrs @ file:///home/conda/feedstock_root/build_artifacts/attrs_1599308529326/work
 Babel==2.8.0
 brotlipy==0.7.0
 certifi==2020.6.20
-cffi @ file:///D:/bld/cffi_1602537433319/work
-chardet @ file:///D:/bld/chardet_1602255508636/work
 click==7.1.2
 click-plugins==1.1.1
 cligj==0.5.0
 colorama==0.4.3
-cryptography @ file:///D:/bld/cryptography_1604179264939/work
-docutils @ file:///D:/bld/docutils_1602628360491/work
 Fiona==1.8.17
 GDAL==3.1.3
-geopandas @ file:///home/conda/feedstock_root/build_artifacts/geopandas_1594925563431/work
-idna @ file:///home/conda/feedstock_root/build_artifacts/idna_1593328102638/work
 imagesize==1.2.0
-iniconfig @ file:///home/conda/feedstock_root/build_artifacts/iniconfig_1596221474428/work
-isort @ file:///home/conda/feedstock_root/build_artifacts/isort_1602591728846/work
 Jinja2==2.11.2
-lazy-object-proxy @ file:///D:/bld/lazy-object-proxy_1602435572008/work
-MarkupSafe @ file:///D:/bld/markupsafe_1602267501600/work
 mccabe==0.6.1
-more-itertools @ file:///home/conda/feedstock_root/build_artifacts/more-itertools_1598643641143/work
 munch==2.5.0
-numpy @ file:///D:/bld/numpy_1602429360191/work
-packaging @ file:///home/conda/feedstock_root/build_artifacts/packaging_1589925210001/work
-pandas @ file:///D:/bld/pandas_1602503023092/work
-pluggy @ file:///D:/bld/pluggy_1602337646417/work
-psutil @ file:///D:/bld/psutil_1602264219096/work
-py @ file:///home/conda/feedstock_root/build_artifacts/py_1593088446458/work
-pycparser @ file:///home/conda/feedstock_root/build_artifacts/pycparser_1593275161868/work
-pydata-sphinx-theme @ file:///home/conda/feedstock_root/build_artifacts/pydata-sphinx-theme_1602031380786/work
-Pygments @ file:///home/conda/feedstock_root/build_artifacts/pygments_1603558917696/work
-pylint @ file:///D:/bld/pylint_1602598303351/work
 pyOpenSSL==19.1.0
 pyparsing==2.4.7
-pyproj @ file:///D:/bld/pyproj_1602663687475/work
-PySocks @ file:///D:/bld/pysocks_1602327034683/work
 pytest==6.1.1
 python-dateutil==2.8.1
 pytz==2020.1
-requests @ file:///home/conda/feedstock_root/build_artifacts/requests_1592425495151/work
 Rtree==0.9.4
 Shapely==1.7.1
-six @ file:///home/conda/feedstock_root/build_artifacts/six_1590081179328/work
 snowballstemmer==2.0.0
-Sphinx @ file:///home/conda/feedstock_root/build_artifacts/sphinx_1604329905038/work
 sphinx-automodapi==0.13
 sphinxcontrib-applehelp==1.0.2
 sphinxcontrib-devhelp==1.0.2
@@ -56,8 +27,4 @@ sphinxcontrib-htmlhelp==1.0.3
 sphinxcontrib-jsmath==1.0.1
 sphinxcontrib-qthelp==1.0.3
 sphinxcontrib-serializinghtml==1.1.4
-toml @ file:///home/conda/feedstock_root/build_artifacts/toml_1589469402899/work
-urllib3 @ file:///home/conda/feedstock_root/build_artifacts/urllib3_1603125704209/work
-win-inet-pton @ file:///D:/bld/win_inet_pton_1602260115377/work
 wincertstore==0.2
-wrapt @ file:///D:/bld/wrapt_1602463535053/work
