@@ -135,4 +135,3 @@ dependencies:
   - zstd=1.4.5=h1f3a1b7_2
   - pip:
     - sphinx-automodapi==0.13
-prefix: C:\Users\pierog\Miniconda3\envs\geofileopsdev
