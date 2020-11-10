@@ -10,7 +10,7 @@ install, but luckily the conda package management system also gives an easy
 alternative.
 
 The easy way
---------
+------------
 If you don't have miniconda or anaconda installed yet, here is a link to the 
 `miniconda installer`_
 
@@ -40,5 +40,5 @@ follow the instructions to `install GeoPandas`_.
 
 Afterwards you can install GeofileOps with pip.
 
-.. miniconda installer_ : https://conda.io/projects/conda/en/latest/user-guide/install/index.html
-.. install GeoPandas_: https://geopandas.org/install.html
+.. _miniconda installer : https://conda.io/projects/conda/en/latest/user-guide/install/index.html
+.. _install GeoPandas : https://geopandas.org/install.html

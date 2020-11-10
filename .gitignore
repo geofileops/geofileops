@@ -6,5 +6,6 @@ geofileops.egg-info/
 dist/
 *.log
 tests/data/testdata.qgz
+docs/_autosummary
 docs/_build
 docs/api

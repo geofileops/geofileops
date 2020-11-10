@@ -15,7 +15,6 @@ sphinx:
 
 # Optionally build your docs in additional formats such as PDF
 formats: []
-#  - pdf
 
 # Specify conda env required to build docs 
 conda:
@@ -28,4 +27,3 @@ conda:
 #    - method: pip
 #      path: .
 #    - requirements: docs/requirements.txt
- 

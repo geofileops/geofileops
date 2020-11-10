@@ -1,10 +1,10 @@
 
 API Reference
 =============
+.. currentmodule:: geofileops
 
-.. automodapi:: geofileops.geofile
-  :no-inheritance-diagram:
-  :member-order: bysource
-.. automodapi:: geofileops.geofileops
-  :no-inheritance-diagram:
-  :member-order: bysource
+.. autosummary::
+   :toctree: _autosummary
+
+   geofile
+   geofileops
