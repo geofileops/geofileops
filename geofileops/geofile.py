@@ -83,7 +83,25 @@ def listlayers(
         List[str]: the list of layers
     """
     return fiona.listlayers(str(path))
+
 class LayerInfo:
+    """
+    A data object containing meta-information about a layer.
+
+    Attributes:
+        name (str): the name of the layer.
+        featurecount (int): the number of features (rows) in the layer.
+        total_bounds (Tuple[float, float, float, float]): the bounding box of 
+            the layer.
+        geometrycolumn (str): name of the column that contains the 
+            primary geometry.
+        geometrytypename (str): the geometry type name of the geometrycolumn. 
+            The type name returned is one of the following: POINT, MULTIPOINT, 
+            LINESTRING, MULTILINESTRING, POLYGON, MULTIPOLYGON, COLLECTION.
+        columns (List[str]): the columns (other than the geometry column) that 
+            are available on the layer.
+        crs (pyproj.CRS): the spatial reference of the layer. 
+    """
     def __init__(self, 
             name: str,
             featurecount: int, 
@@ -201,7 +219,7 @@ def get_default_layer(path: Union[str, 'os.PathLike[Any]']) -> str:
         path (Union[str,): The path to the file.
 
     Returns:
-        str: The default layer name
+        str: The default layer name.
     """
     return Path(path).stem
 
