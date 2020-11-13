@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
 
 from geofileops import geofile
 from geofileops.util import geofileops_ogr
+from geofileops.util import ogr_util
 from tests import test_helper
 
 def test_buffer_gpkg(tmpdir):
@@ -41,9 +42,9 @@ def basetest_buffer(
         try:
             geofileops_ogr.buffer(input_path=input_path, output_path=output_path, distance=1)
             test_ok = True
-        except:
+        except ogr_util.SQLNotSupportedException:
             test_ok = False
-    assert test_ok is ok_expected, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
 
     # If it is expected not to be OK, don't do other checks
     if ok_expected is False:
@@ -89,9 +90,9 @@ def basetest_convexhull(
         try:
             geofileops_ogr.convexhull(input_path=input_path, output_path=output_path)
             test_ok = True
-        except:
+        except ogr_util.SQLNotSupportedException:
             test_ok = False
-    assert test_ok is ok_expected, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
 
     # If it is expected not to be OK, don't do other checks
     if ok_expected is False:
@@ -122,8 +123,8 @@ def test_isvalid_shp(tmpdir):
     output_path = Path(tmpdir) / 'parcels_output.gpkg'
     
     # Try both with and without gdal_bin set
-    basetest_isvalid(input_path, output_path, gdal_installation='gdal_bin', ok_expected=True)
-    basetest_isvalid(input_path, output_path, gdal_installation='gdal_default', ok_expected=True)
+    basetest_isvalid(input_path, output_path, gdal_installation='gdal_bin')
+    basetest_isvalid(input_path, output_path, gdal_installation='gdal_default')
     
 def basetest_isvalid(
         input_path: Path, 
@@ -137,9 +138,9 @@ def basetest_isvalid(
         if ok_expected is None:
             ok_expected = test_helper.is_gdal_ok('isvalid', gdal_installation)
         try:
-            assert geofileops_ogr.isvalid(input_path=input_path, output_path=output_path, nb_parallel=2) == True
+            geofileops_ogr.isvalid(input_path=input_path, output_path=output_path, nb_parallel=2)
             test_ok = True
-        except:
+        except ogr_util.SQLNotSupportedException:
             test_ok = False
     assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
 
@@ -173,18 +174,20 @@ def test_makevalid_gpkg(tmpdir):
 def basetest_makevalid(
         input_path: Path, 
         output_basepath: Path, 
-        gdal_installation: str):
+        gdal_installation: str,
+        ok_expected: bool = None):
 
     # Do operation
     output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}{output_basepath.suffix}"
     with test_helper.GdalBin(gdal_installation):
-        ok_expected = test_helper.is_gdal_ok('makevalid', gdal_installation)
+        if ok_expected is None:
+            ok_expected = test_helper.is_gdal_ok('makevalid', gdal_installation)
         try: 
             geofileops_ogr.makevalid(input_path=input_path, output_path=output_path, nb_parallel=2)
             test_ok = True
-        except:
+        except ogr_util.SQLNotSupportedException:
             test_ok = False
-        assert test_ok is ok_expected, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+        assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
 
         # If it is expected not to be OK, don't do other checks
         if ok_expected is False:
@@ -320,9 +323,9 @@ def basetest_simplify(
                     input_path=input_path, output_path=output_path,
                     tolerance=5)
             test_ok = True
-        except:
+        except ogr_util.SQLNotSupportedException:
             test_ok = False
-    assert test_ok is ok_expected, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
 
     # If it is expected not to be OK, don't do other checks
     if ok_expected is False:
@@ -344,13 +347,13 @@ if __name__ == '__main__':
     tmpdir = Path(tempfile.gettempdir()) / 'test_geofileops_ogr_ogr'
     if tmpdir.exists():
         shutil.rmtree(tmpdir)
-    
+
     # Single layer operations
-    #test_buffer_gpkg(tmpdir)
+    test_buffer_gpkg(tmpdir)
+    #test_makevalid_shp(tmpdir)
     #test_makevalid_gpkg(tmpdir)
-    #test_erase_shp(tmpdir)
-    test_isvalid_shp(tmpdir)
-    #test_isvalid_gpkg(tmpdir)
+    #test_isvalid_shp(tmpdir)
+    test_isvalid_gpkg(tmpdir)
     #test_convexhull_shp(tmpdir)
     #test_convexhull_gpkg(tmpdir)
     #test_select_geos_version(tmpdir)

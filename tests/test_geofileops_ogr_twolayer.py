@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
 
 from geofileops import geofile
 from geofileops.util import geofileops_ogr
+from geofileops.util import ogr_util
 from tests import test_helper
 
 def test_erase_gpkg(tmpdir):
@@ -40,15 +41,15 @@ def basetest_erase(
     # Do operation
     output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}{output_basepath.suffix}"
     with test_helper.GdalBin(gdal_installation):
-        ok_expected = test_helper.is_gdal_ok('', gdal_installation)
+        ok_expected = test_helper.is_gdal_ok('twolayer', gdal_installation)
         try:
             geofileops_ogr.erase(
                     input_path=input_path, erase_path=erase_path,
                     output_path=output_path)
             test_ok = True
-        except:
+        except ogr_util.SQLNotSupportedException:
             test_ok = False
-    assert test_ok is ok_expected, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
 
     # If it is expected not to be OK, don't do other checks
     if ok_expected is False:
@@ -101,16 +102,16 @@ def basetest_export_by_location(
     # Do operation
     output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}{output_basepath.suffix}"
     with test_helper.GdalBin(gdal_installation):
-        ok_expected = test_helper.is_gdal_ok('', gdal_installation)
+        ok_expected = test_helper.is_gdal_ok('twolayer', gdal_installation)
         try:
             geofileops_ogr.export_by_location(
                     input_to_select_from_path=input_to_select_from_path,
                     input_to_compare_with_path=input_to_compare_with_path,
                     output_path=output_path)
             test_ok = True
-        except:
+        except ogr_util.SQLNotSupportedException:
             test_ok = False
-    assert test_ok is ok_expected, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
 
     # If it is expected not to be OK, don't do other checks
     if ok_expected is False:
@@ -163,7 +164,7 @@ def basetest_export_by_distance(
     # Do operation
     output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}{output_basepath.suffix}"
     with test_helper.GdalBin(gdal_installation):
-        ok_expected = test_helper.is_gdal_ok('', gdal_installation)
+        ok_expected = test_helper.is_gdal_ok('twolayer', gdal_installation)
         try:
             geofileops_ogr.export_by_distance(
                     input_to_select_from_path=input_to_select_from_path,
@@ -171,9 +172,9 @@ def basetest_export_by_distance(
                     max_distance=10,
                     output_path=output_path)
             test_ok = True
-        except:
+        except ogr_util.SQLNotSupportedException:
             test_ok = False
-    assert test_ok is ok_expected, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
 
     # If it is expected not to be OK, don't do other checks
     if ok_expected is False:
@@ -218,7 +219,7 @@ def basetest_intersect(
     # Do operation
     output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}{output_basepath.suffix}"
     with test_helper.GdalBin(gdal_installation):
-        ok_expected = test_helper.is_gdal_ok('', gdal_installation)
+        ok_expected = test_helper.is_gdal_ok('twolayer', gdal_installation)
         try:
             geofileops_ogr.intersect(
                     input1_path=input1_path,
@@ -226,9 +227,9 @@ def basetest_intersect(
                     output_path=output_path,
                     verbose=True)
             test_ok = True
-        except:
+        except ogr_util.SQLNotSupportedException:
             test_ok = False
-    assert test_ok is ok_expected, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
 
     # If it is expected not to be OK, don't do other checks
     if ok_expected is False:
@@ -273,7 +274,7 @@ def basetest_join_by_location(
     ### Test 1: inner join, intersect
     output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}_test1_{output_basepath.suffix}"
     with test_helper.GdalBin(gdal_installation):
-        ok_expected = test_helper.is_gdal_ok('', gdal_installation)
+        ok_expected = test_helper.is_gdal_ok('twolayer', gdal_installation)
         try:
             geofileops_ogr.join_by_location(
                     input1_path=input1_path,
@@ -282,9 +283,9 @@ def basetest_join_by_location(
                     discard_nonmatching=True,
                     force=True)
             test_ok = True
-        except:
+        except ogr_util.SQLNotSupportedException:
             test_ok = False
-    assert test_ok is ok_expected, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
 
     # If it is expected not to be OK, don't do other checks
     if ok_expected is False:
@@ -304,7 +305,7 @@ def basetest_join_by_location(
     ### Test 2: left outer join, intersect
     output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}_test2_{output_basepath.suffix}"
     with test_helper.GdalBin(gdal_installation):
-        ok_expected = test_helper.is_gdal_ok('', gdal_installation)
+        ok_expected = test_helper.is_gdal_ok('twolayer', gdal_installation)
         try:
             geofileops_ogr.join_by_location(
                     input1_path=input1_path,
@@ -313,9 +314,9 @@ def basetest_join_by_location(
                     discard_nonmatching=False,
                     force=True)
             test_ok = True
-        except:
+        except ogr_util.SQLNotSupportedException:
             test_ok = False
-    assert test_ok is ok_expected, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
 
     # If it is expected not to be OK, don't do other checks
     if ok_expected is False:
@@ -359,7 +360,7 @@ def basetest_split(
     # Do operation
     output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}{output_basepath.suffix}"
     with test_helper.GdalBin(gdal_installation):
-        ok_expected = test_helper.is_gdal_ok('', gdal_installation)
+        ok_expected = test_helper.is_gdal_ok('twolayer', gdal_installation)
         try:
             geofileops_ogr.split(
                     input1_path=input1_path,
@@ -367,9 +368,9 @@ def basetest_split(
                     output_path=output_path,
                     verbose=True)
             test_ok = True
-        except:
+        except ogr_util.SQLNotSupportedException:
             test_ok = False
-    assert test_ok is ok_expected, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
 
     # If it is expected not to be OK, don't do other checks
     if ok_expected is False:
@@ -415,7 +416,7 @@ def basetest_union(
     # Do operation
     output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}{output_basepath.suffix}"
     with test_helper.GdalBin(gdal_installation):
-        ok_expected = test_helper.is_gdal_ok('', gdal_installation)
+        ok_expected = test_helper.is_gdal_ok('twolayer', gdal_installation)
         try:
             geofileops_ogr.union(
                     input1_path=input1_path,
@@ -423,9 +424,9 @@ def basetest_union(
                     output_path=output_path,
                     verbose=True)
             test_ok = True
-        except:
+        except ogr_util.SQLNotSupportedException:
             test_ok = False
-    assert test_ok is ok_expected, "Without gdal_bin set to an osgeo installation, it is 'normal' this fails"
+    assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
 
     # If it is expected not to be OK, don't do other checks
     if ok_expected is False:
@@ -450,9 +451,9 @@ if __name__ == '__main__':
         shutil.rmtree(tmpdir)
 
     # Two layer operations
-    #test_erase_gpkg(tmpdir)
+    test_erase_gpkg(tmpdir)
     #test_intersect_gpkg(tmpdir)
     #test_export_by_distance_shp(tmpdir)
-    test_join_by_location_gpkg(tmpdir)
+    #test_join_by_location_gpkg(tmpdir)
     #test_union_gpkg(tmpdir)
     

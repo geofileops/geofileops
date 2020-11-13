@@ -46,6 +46,17 @@ global_spatiallite_versioninfo_alternative = None
 # The real work
 #-------------------------------------------------------------
 
+class SQLNotSupportedException(Exception):
+    """
+    Exception raised when an unsupported SQL statement is passed.
+
+    Attributes:
+        message (str): Exception message
+    """
+    def __init__(self, message):
+        self.message = message
+        super().__init__(self.message)
+
 class VectorTranslateInfo:
     def __init__(
             self,
@@ -185,13 +196,14 @@ def vector_translate(
     """
     # If running a sqlite statement on a gpkg file, check first if spatialite works properly
     # Remark: if force_py is True, the user should know what he is doing 
+    sql_dialect_to_use = sql_dialect
     if force_py:
         gdal_to_use = 'gdal_default'
     elif(sql_stmt is not None 
        and sql_dialect is not None
        and sql_dialect.upper() == 'SQLITE' 
        and input_path.suffix.lower() == '.gpkg'):
-        gdal_to_use = get_gdal_to_use(sql_stmt)
+        gdal_to_use, sql_dialect_to_use = get_gdal_to_use(sql_stmt)
     else:
         gdal_to_use = 'gdal_default'
 
@@ -205,7 +217,7 @@ def vector_translate(
             spatial_filter=spatial_filter,
             clip_bounds=clip_bounds,
             sql_stmt=sql_stmt,
-            sql_dialect=sql_dialect,
+            sql_dialect=sql_dialect_to_use,
             transaction_size=transaction_size,
             append=append,
             update=update,
@@ -226,7 +238,7 @@ def vector_translate(
             spatial_filter=spatial_filter,
             clip_bounds=clip_bounds,
             sql_stmt=sql_stmt,
-            sql_dialect=sql_dialect,
+            sql_dialect=sql_dialect_to_use,
             transaction_size=transaction_size,
             append=append,
             update=update,
@@ -708,7 +720,7 @@ def vector_info(
     # If we get here, the retries didn't suffice to get it executed properly
     raise Exception(f"Error executing {pprint.pformat(args)}\n\t-> Return code: {returncode}")
 
-def get_gdal_to_use(sqlite_stmt: str) -> str:
+def get_gdal_to_use(sqlite_stmt: str) -> Tuple[str, str]:
     """
     Check which gdal installation to use for this query: 
       * If query is supported using standard python execution, returns 'gdal_default'
@@ -716,8 +728,7 @@ def get_gdal_to_use(sqlite_stmt: str) -> str:
       * If query is not supported at all, raises exception
 
     Raises:
-        Exception: [description]
-        Exception: [description]
+        SQLNotSupportedException: [description]
     """
     ### First check if the python version can be used ###
     # Get spatialite version info for the default gdal 
@@ -725,10 +736,10 @@ def get_gdal_to_use(sqlite_stmt: str) -> str:
     if global_spatiallite_versioninfo_default is None:
         global_spatiallite_versioninfo_default = get_gdal_install_info('gdal_default')
 
-    # If version 5 and rettopo installed... the default python way can be used!
+    # If version 5 and rttopo installed... the default python way can be used!
     if(global_spatiallite_versioninfo_default['spatialite_version()'] >= '5.0' 
        and global_spatiallite_versioninfo_default['rttopo_version()'] is not None):
-        return 'gdal_default'
+        return ('gdal_default', 'SQLITE')
         
     # Check if there is an unsupported function in the sqlite statement
     sqlite_stmt_lower = sqlite_stmt.lower()
@@ -741,13 +752,18 @@ def get_gdal_to_use(sqlite_stmt: str) -> str:
 
     # If no unsupported function found, default gdal can be used
     if unsupported_function_found is False:
-        return 'gdal_default'
+        return ('gdal_default', 'SQLITE')
+    else:
+        # If no spatial index table is used in sql_stmt, we can force indirect sql 
+        # TODO: could be checked in a more robust way...
+        if not 'join "rtree_' in sqlite_stmt_lower:
+            return ('gdal_default', 'INDIRECT_SQLITE')
 
     ### Default gdal not OK, so check if there is a GDAL_BIN version that is ok ###
     # First check if there is an alternative gdal installation 
     gdal_bin_dir = os.getenv('GDAL_BIN')
     if gdal_bin_dir is None:
-        raise Exception('sqlite_stmt not supported by default gdal, and no alternative gdal installation specified using GDAL_BIN')
+        raise SQLNotSupportedException('sqlite_stmt not supported by default gdal, and no alternative gdal installation specified using GDAL_BIN')
 
     # Get spatiallite version info for the alternative gdal, if it isn't cached yet for this gdal_bin_dir
     global global_spatiallite_versioninfo_alternative
@@ -769,9 +785,9 @@ def get_gdal_to_use(sqlite_stmt: str) -> str:
 
     # If no unsupported function found, alternative gdal can be used
     if unsupported_function_found is False:
-        return 'gdal_bin'
+        return ('gdal_bin', 'SQLITE')
     else:
-        raise Exception(f"Alternative gdal in gdal_bin_dir {gdal_bin_dir} doesn't support sqlite_stmt either: {sqlite_stmt}")
+        raise SQLNotSupportedException(f"Alternative gdal in gdal_bin_dir {gdal_bin_dir} doesn't support sqlite_stmt either: {sqlite_stmt}")
 
 def get_gdal_install_info(gdal_installation: str) -> dict:
 
@@ -780,7 +796,7 @@ def get_gdal_install_info(gdal_installation: str) -> dict:
     # First check the spatialite version
     test_path = Path(__file__).resolve().parent / "test.gpkg"
     sqlite_stmt = f'select spatialite_version()'    
-    install_info_gdf = _execute_sql(test_path, sqlite_stmt, gdal_installation)
+    install_info_gdf = _execute_sql(test_path, sqlite_stmt, gdal_installation, sql_dialect='SQLITE')
         
     # Now get extra information, depending on the spatialite version
     if install_info_gdf['spatialite_version()'][0] >= '5.0.0':
@@ -789,7 +805,7 @@ def get_gdal_install_info(gdal_installation: str) -> dict:
         sqlite_stmt = f'select spatialite_version(), HasGeos(), HasGeosAdvanced(), HasGeosTrunk(), geos_version(), lwgeom_version()'
     else:
         raise Exception(f"Unsupported spatialite version: {install_info_gdf['spatialite_version()'][0]}")
-    install_info_gdf = _execute_sql(test_path, sqlite_stmt, gdal_installation)
+    install_info_gdf = _execute_sql(test_path, sqlite_stmt, gdal_installation, sql_dialect='SQLITE')
     
     # Copy results to result dict
     for column in install_info_gdf.columns:
@@ -821,7 +837,8 @@ def get_gdal_install_info(gdal_installation: str) -> dict:
 def _execute_sql(
         path: Path,
         sqlite_stmt: str,
-        gdal_installation: str) -> gpd.GeoDataFrame:
+        gdal_installation: str,
+        sql_dialect: str) -> gpd.GeoDataFrame:
     
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir) / 'ogr_util_execute_sql_tmp_file.gpkg'
@@ -830,13 +847,13 @@ def _execute_sql(
                     input_path=path,
                     output_path=tmp_path,
                     sql_stmt=sqlite_stmt,
-                    sql_dialect='SQLITE')
+                    sql_dialect=sql_dialect)
         elif gdal_installation == 'gdal_bin':
             vector_translate_exe(
                     input_path=path,
                     output_path=tmp_path,
                     sql_stmt=sqlite_stmt,
-                    sql_dialect='SQLITE')
+                    sql_dialect=sql_dialect)
         else:
             raise Exception(f"Unsupported gdal_installation: {gdal_installation}")
         
