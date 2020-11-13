@@ -255,6 +255,8 @@ def _single_layer_vector_operation(
 
     ##### Init #####
     start_time = datetime.datetime.now()
+    if not input_path.exists():
+        raise Exception(f"Error {operation_name}: input_path doesn't exist: {input_path}")
     if output_path.exists():
         if force is False:
             logger.info(f"Stop {operation_name}: output exists already {output_path}")
@@ -1065,6 +1067,10 @@ def _two_layer_vector_operation(
     #            FROM file1 a LEFT JOIN 'file2.shp'.file2 b USING (id) WHERE a.Geometry != b.Geometry"
 
     ##### Init #####
+    if not input1_path.exists():
+        raise Exception(f"Error {operation_name}: input1_path doesn't exist: {input1_path}")
+    if not input2_path.exists():
+        raise Exception(f"Error {operation_name}: input2_path doesn't exist: {input2_path}")
     if output_path.exists():
         if force is False:
             logger.info(f"Stop {operation_name}: output exists already {output_path}")
