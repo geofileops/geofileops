@@ -170,6 +170,15 @@ def test_makevalid_gpkg(tmpdir):
     # Try both with and without gdal_bin set
     basetest_makevalid(input_path, output_path, gdal_installation='gdal_bin')
     basetest_makevalid(input_path, output_path, gdal_installation='gdal_default')
+
+def test_makevalid_shp(tmpdir):
+    # makevalid to test dir
+    input_path = test_helper.get_testdata_dir() / 'invalid_geometries.shp'
+    output_path = Path(tmpdir) / f"{input_path.stem}_valid.shp"
+    
+    # Try both with and without gdal_bin set
+    basetest_makevalid(input_path, output_path, gdal_installation='gdal_bin')
+    basetest_makevalid(input_path, output_path, gdal_installation='gdal_default')
            
 def basetest_makevalid(
         input_path: Path, 
