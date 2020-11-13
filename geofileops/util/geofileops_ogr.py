@@ -44,10 +44,10 @@ def buffer(
     if distance < 0:
         # A negative buffer is only relevant for polygon types, so only keep polygon results
         # Negative buffer creates invalid stuff, and the st_simplify(geom, 0) seems the only function fixing this!
-        #geom_operation_sqlite = f"Collectionextract(ST_makevalid(ST_simplify(ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}), 0)), 3) AS geom"
+        #geom_operation_sqlite = f"ST_CollectionExtract(ST_makevalid(ST_simplify(ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}), 0)), 3) AS geom"
         
         sql_template = f'''
-            SELECT Collectionextract(ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}), 3) AS geom
+            SELECT ST_CollectionExtract(ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}), 3) AS geom
                   {{columns_to_select_str}} 
               FROM "{{input_layer}}"
              WHERE 1=1 
@@ -479,7 +479,7 @@ def erase(
                GROUP BY layer1.rowid
             )
             SELECT CASE WHEN layer2_unioned.geom IS NULL THEN layer1.{{input1_geometrycolumn}}
-                        ELSE CollectionExtract(ST_difference(layer1.{{input1_geometrycolumn}}, layer2_unioned.geom), {collection_extract_typeid})
+                        ELSE ST_CollectionExtract(ST_difference(layer1.{{input1_geometrycolumn}}, layer2_unioned.geom), {collection_extract_typeid})
                    END as geom
                   {{layer1_columns_prefix_alias_str}}
               FROM "{{input1_tmp_layer}}" layer1
@@ -671,7 +671,7 @@ def intersect(
              {{layer1_columns_from_subselect_str}}
              {{layer2_columns_from_subselect_str}} 
           FROM
-            ( SELECT ST_Multi(Collectionextract(ST_Intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}), {collection_extract_typeid})) as geom
+            ( SELECT ST_CollectionExtract(ST_Intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}), {collection_extract_typeid}) as geom
                     {{layer1_columns_prefix_alias_str}}
                     {{layer2_columns_prefix_alias_str}}
                 FROM "{{input1_tmp_layer}}" layer1
@@ -894,7 +894,7 @@ def split(
                      AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
                    GROUP BY layer1.rowid
                 )
-                SELECT Collectionextract(ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}), ST_union(layer2.{{input2_geometrycolumn}})), {collection_extract_typeid}) as geom
+                SELECT ST_CollectionExtract(ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}), ST_union(layer2.{{input2_geometrycolumn}})), {collection_extract_typeid}) as geom
                       {{layer1_columns_prefix_alias_str}}
                       {{layer2_columns_prefix_alias_str}}
                  FROM "{{input1_tmp_layer}}" layer1
@@ -910,7 +910,7 @@ def split(
                 GROUP BY layer1.rowid {{layer1_columns_prefix_str}}
                 UNION ALL
                 SELECT CASE WHEN layer2_unioned.geom IS NULL THEN layer1.{{input1_geometrycolumn}}
-                            ELSE CollectionExtract(ST_difference(layer1.{{input1_geometrycolumn}}, layer2_unioned.geom), {collection_extract_typeid})
+                            ELSE ST_CollectionExtract(ST_difference(layer1.{{input1_geometrycolumn}}, layer2_unioned.geom), {collection_extract_typeid})
                        END as geom
                        {{layer1_columns_prefix_alias_str}}
                        {{layer2_columns_prefix_alias_null_str}}
@@ -918,7 +918,7 @@ def split(
                   LEFT JOIN layer2_unioned ON layer1.rowid = layer2_unioned.layer1_rowid
                  WHERE 1=1
                    {{batch_filter}}
-               )
+               ) 
              WHERE geom IS NOT NULL
             '''
 
