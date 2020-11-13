@@ -490,6 +490,7 @@ def erase(
                {{batch_filter}}
           )
           WHERE geom IS NOT NULL
+            AND ST_NPoints(geom) > 0   -- ST_CollectionExtract outputs empty, but not NULL geoms in spatialite 4.3 
             '''
     
     # Go!
@@ -922,6 +923,7 @@ def split(
                    {{batch_filter}}
                ) 
              WHERE geom IS NOT NULL
+               AND ST_NPoints(geom) > 0   -- ST_CollectionExtract outputs empty, but not NULL geoms in spatialite 4.3 
             '''
 
     # Go!
