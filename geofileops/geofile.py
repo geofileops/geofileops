@@ -457,7 +457,7 @@ def read_file(
         path (file path): path to the file to read from
         layer (str, optional): The layer to read. Defaults to None,  
             then reads the only layer in the file or throws error.
-        columns (List[str], optional): The columns to read. 
+        columns (List[str], optional): The (non-geometry) columns to read. 
             Defaults to None, then all columns are read.
         bbox ([type], optional): Read only geometries intersecting this bbox. 
             Defaults to None, then all rows are read.
@@ -496,9 +496,13 @@ def read_file(
     else:
         raise Exception(f"Not implemented for extension {ext_lower}")
 
-    # If columns to read are specified... filter 
+    # If columns to read are specified... filter non-geometry columns 
+    # case-insensitive 
     if columns is not None:
-        result_gdf = result_gdf[columns]
+        columns_to_keep = [col for col in result_gdf.columns if (
+                col.upper() in (column.upper() for column in columns))]
+        columns_to_keep.append('geometry')
+        result_gdf = result_gdf[columns_to_keep]
         
     return result_gdf
 

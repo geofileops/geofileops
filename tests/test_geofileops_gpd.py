@@ -41,6 +41,42 @@ def basetest_buffer(input_path, output_path):
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
+def test_buffer_various_options_gpkg(tmpdir):
+    # Buffer to test dir
+    input_path = get_testdata_dir() / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels_output.gpkg'
+    basetest_buffer_various_options(input_path, output_path)
+
+def test_buffer_various_options_shp(tmpdir):
+    # Buffer to test dir
+    input_path = get_testdata_dir() / 'parcels.shp'
+    output_path = Path(tmpdir) / 'parcels_output.shp'
+    basetest_buffer_various_options(input_path, output_path)
+
+def basetest_buffer_various_options(input_path, output_path):
+
+    ### Check if columns parameter works (case insensitive) ###
+    columns = ['OIDN', 'uidn', 'HFDTLT', 'lblhfdtlt', 'GEWASGROEP', 'lengte', 'OPPERVL']
+    geofileops_gpd.buffer(
+            input_path=input_path,
+            columns=columns,
+            output_path=output_path,
+            distance=1)
+
+    # Now check if the tmp file is correctly created
+    layerinfo_orig = geofile.getlayerinfo(input_path)
+    layerinfo_output = geofile.getlayerinfo(output_path)
+    assert layerinfo_orig.featurecount == layerinfo_output.featurecount
+    assert 'OIDN' in layerinfo_output.columns
+    assert 'UIDN' in layerinfo_output.columns
+    assert len(layerinfo_output.columns) == len(columns)
+
+    output_gdf = geofile.read_file(output_path)
+    assert output_gdf['geometry'][0] is not None
+
+    ### Check if ... parameter works ###
+    # TODO: increase test coverage of other options...
+
 def test_convexhull_gpkg(tmpdir):
     # Select some data from input to output file
     input_path = get_testdata_dir() / 'parcels.gpkg'
@@ -169,5 +205,6 @@ if __name__ == '__main__':
         tmpdir.mkdir()
 
     # Run
-    test_dissolve_nogroupby_shp(tmpdir)
+    test_buffer_various_options_gpkg(tmpdir)
+    #test_dissolve_nogroupby_shp(tmpdir)
     #test_dissolve_nogroupby_gpkg(tmpdir)
