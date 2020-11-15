@@ -42,7 +42,7 @@ def test_gis_operations():
             basetest_st_area(gdal_installation, sql_dialect='SQLITE')
     elif install_info['spatialite_version()'] >= '4.3.0':
         if install_info['lwgeom_version()'] is None:
-            basetest_st_area(gdal_installation, sql_dialect='SQLITE')
+            basetest_st_area(gdal_installation, sql_dialect='INDIRECT_SQLITE')
         else:
             basetest_st_area(gdal_installation, sql_dialect='SQLITE')
 
@@ -50,19 +50,21 @@ def basetest_st_area(
         gdal_installation: str, 
         sql_dialect: str):
     
-    # try st_area
+    # try st_areag
     input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
     sqlite_stmt = 'SELECT round(ST_area(geom), 2) as area FROM "parcels"'
     test_ok = False
     ok_expected = test_helper.is_gdal_ok('', gdal_installation)
+    result_gdf = None
     try:
         result_gdf = ogr_util._execute_sql(input_path, sqlite_stmt, gdal_installation, sql_dialect)
-        if result_gdf['area'][0] == 146.8:
-            test_ok = True
+        test_ok = True
     except ogr_util.SQLNotSupportedException:
         test_ok = False
-    assert test_ok is ok_expected, f"Test to run test <{sqlite_stmt}> failed for gdal_installation: {gdal_installation}, install_info: {ogr_util.get_gdal_install_info(gdal_installation)}"  
-    
+    assert test_ok is ok_expected, f"Result: {test_ok}, expected: {ok_expected}, with stmt <{sqlite_stmt}> and gdal_installation: {gdal_installation}, install_info: {ogr_util.get_gdal_install_info(gdal_installation)}"  
+    assert result_gdf is not None
+    assert result_gdf['area'][0] == 146.8
+
     # Try st_makevalid 
     input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
     sqlite_stmt = 'SELECT st_makevalid(geom) as geom FROM "parcels"'
