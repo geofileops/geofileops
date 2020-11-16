@@ -40,16 +40,28 @@ def test_add_column(tmpdir):
 def test_cmp(tmpdir):
     # Copy test file to tmpdir
     src = _get_testdata_dir() / 'parcels.shp'
-    dst = Path(tmpdir) / 'parcels.shp'
+    dst = Path(tmpdir) / 'parcels_output.shp'
     geofile.copy(src, dst)
 
     # Now compare source and dst file
     assert geofile.cmp(src, dst) == True
 
+def test_convert(tmpdir):
+    # Convert test file to tmpdir
+    src = _get_testdata_dir() / 'parcels.shp'
+    dst = Path(tmpdir) / 'parcels_output.gpkg'
+    geofile.convert(src, dst)
+
+    # Now compare source and dst file 
+    src_layerinfo = geofile.getlayerinfo(src)
+    dst_layerinfo = geofile.getlayerinfo(dst)
+    assert src_layerinfo.featurecount == dst_layerinfo.featurecount
+    assert len(src_layerinfo.columns) == len(dst_layerinfo.columns)
+
 def test_copy(tmpdir):
     # Copy test file to tmpdir
     src = _get_testdata_dir() / 'parcels.shp'
-    dst = Path(tmpdir) / 'parcels.shp'
+    dst = Path(tmpdir) / 'parcels_output.shp'
     geofile.copy(src, dst)
     assert dst.exists() == True
 
@@ -119,12 +131,12 @@ def test_listlayers():
 def test_move(tmpdir):
     # Copy test file to tmpdir
     src = _get_testdata_dir() / 'parcels.shp'
-    tmp1path = Path(tmpdir) / 'parcels.shp'
+    tmp1path = Path(tmpdir) / 'parcels_tmp.shp'
     geofile.copy(src, tmp1path)
     assert tmp1path.exists() == True
 
     # Move (rename actually) and check result
-    tmp2path = Path(tmpdir) / 'parcels2.shp'
+    tmp2path = Path(tmpdir) / 'parcels_tmp2.shp'
     geofile.move(tmp1path, tmp2path)
     assert tmp1path.exists() == False
     assert tmp2path.exists() == True
@@ -143,7 +155,7 @@ def test_read_file():
 def test_rename_layer(tmpdir):
     # First copy test file to tmpdir
     src = _get_testdata_dir() / 'parcels.gpkg'
-    tmppath = Path(tmpdir) / 'parcels.gpkg'
+    tmppath = Path(tmpdir) / 'parcels_tmp.gpkg'
     geofile.copy(src, tmppath)
 
     # Now test rename layer
@@ -198,7 +210,7 @@ def test_to_file_shp(tmpdir):
     # Read test file and write to tmpdir
     srcpath = _get_testdata_dir() / 'parcels.shp'
     read_gdf = geofile.read_file(srcpath)
-    tmppath = Path(tmpdir) / 'parcels.shp'
+    tmppath = Path(tmpdir) / 'parcels_tmp.shp'
     geofile.to_file(read_gdf, tmppath)
     tmp_gdf = geofile.read_file(tmppath)
     
@@ -208,7 +220,7 @@ def test_to_file_gpkg(tmpdir):
     # Read test file and write to tmpdir
     srcpath = _get_testdata_dir() / 'parcels.gpkg'
     read_gdf = geofile.read_file(srcpath)
-    tmppath = Path(tmpdir) / 'parcels.gpkg'
+    tmppath = Path(tmpdir) / 'parcels_tmp.gpkg'
     geofile.to_file(read_gdf, tmppath)
     tmp_gdf = geofile.read_file(tmppath)
     
@@ -217,7 +229,7 @@ def test_to_file_gpkg(tmpdir):
 def test_remove(tmpdir):
     # Copy test file to tmpdir
     src = _get_testdata_dir() / 'parcels.shp'
-    tmppath = Path(tmpdir) / 'parcels.shp'
+    tmppath = Path(tmpdir) / 'parcels_tmp.shp'
     geofile.copy(src, tmppath)
     assert tmppath.exists() == True
 
