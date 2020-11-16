@@ -369,7 +369,6 @@ def add_column(
     if type.upper() not in ['TEXT', 'NUMERIC', 'INTEGER', 'REAL', 'BLOB']:
         raise Exception(f"Type specified is not supported: {type}")
     path_p = Path(path)
-    name = name.lower()
     if layer is None:
         layer = get_only_layer(path_p)
     layerinfo_orig = getlayerinfo(path_p, layer)
@@ -378,7 +377,8 @@ def add_column(
     datasource = None
     try:
         #datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
-        if name not in layerinfo_orig.columns:
+        columns_upper = [column.upper() for column in layerinfo_orig.columns]
+        if name.upper() not in columns_upper:
             # If column doesn't exist yet, create it
             #if name not in getlayerinfo(path_p, layer=layer).columns:
             sqlite_stmt = f'ALTER TABLE "{layer}" ADD COLUMN "{name}" {type}'
@@ -420,7 +420,6 @@ def update_column(
 
     ##### Init #####
     path_p = Path(path)
-    name = name.lower()
     if layer is None:
         layer = get_only_layer(path_p)
     layerinfo_orig = getlayerinfo(path_p, layer)
@@ -429,7 +428,8 @@ def update_column(
     datasource = None
     try:
         #datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
-        if name not in layerinfo_orig.columns:
+        columns_upper = [column.upper() for column in layerinfo_orig.columns]
+        if name.upper() not in columns_upper:
             # If column doesn't exist yet, error!
             raise Exception(f"Column {name} doesn't exist in {path_p}, layer {layer}")
             
@@ -499,9 +499,9 @@ def read_file(
     # If columns to read are specified... filter non-geometry columns 
     # case-insensitive 
     if columns is not None:
-        columns_to_keep = [col for col in result_gdf.columns if (
-                col.upper() in (column.upper() for column in columns))]
-        columns_to_keep.append('geometry')
+        columns_upper = [column.upper() for column in columns]
+        columns_upper.append('GEOMETRY')
+        columns_to_keep = [col for col in result_gdf.columns if (col.upper() in columns_upper)]
         result_gdf = result_gdf[columns_to_keep]
         
     return result_gdf

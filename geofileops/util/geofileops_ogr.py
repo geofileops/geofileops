@@ -310,7 +310,8 @@ def _single_layer_vector_operation(
             columns_to_select_str = ''
             if columns is not None:
                 # Case-insinsitive check if columns contains columns not in input layer...
-                missing_columns = [col for col in columns if (col.upper() not in (column.upper() for column in layerinfo.columns))]
+                columns_orig_upper = [column.upper() for column in layerinfo.columns]
+                missing_columns = [col for col in columns if (col.upper() not in columns_orig_upper)]
                 if len(missing_columns) > 0:
                     raise Exception(f"Error, parameter columns contains columns not in input layer: {missing_columns}. Existing columns: {layerinfo.columns}")
 
@@ -1168,7 +1169,8 @@ def _two_layer_vector_operation(
         input1_tmp_layerinfo = geofile.getlayerinfo(input_tmp_path, batches[0]['layer'])
         if input1_columns is not None:
             # Case-insinsitive check if input1_columns contains columns not in layer...
-            missing_columns = [col for col in input1_columns if (col.upper() not in (column.upper() for column in input1_tmp_layerinfo.columns))]
+            columns_orig_upper = [column.upper() for column in input1_tmp_layerinfo.columns]
+            missing_columns = [col for col in input1_columns if (col.upper() not in columns_orig_upper)]                
             if len(missing_columns) > 0:
                 raise Exception(f"Error, input1_columns contains columns not in input1_layer: {missing_columns}. Existing columns: {input1_tmp_layerinfo.columns}")
             layer1_columns = input1_columns
@@ -1189,7 +1191,8 @@ def _two_layer_vector_operation(
         input2_tmp_layerinfo = geofile.getlayerinfo(input_tmp_path, input2_tmp_layer)
         if input2_columns is not None:
             # Case-insinsitive check if input1_columns contains columns not in layer...
-            missing_columns = [col for col in input2_columns if (col.upper() not in (column.upper() for column in input2_tmp_layerinfo.columns))]
+            columns_orig_upper = [column.upper() for column in input2_tmp_layerinfo.columns]
+            missing_columns = [col for col in input2_columns if (col.upper() not in columns_orig_upper)]                
             if len(missing_columns) > 0:
                 raise Exception(f"Error, input2_columns contains columns not in input2_layer: {missing_columns}. Existing columns: {input2_tmp_layerinfo.columns}")
             layer2_columns = input2_columns

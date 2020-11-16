@@ -21,21 +21,30 @@ def test_add_column(tmpdir):
 
     # The area column shouldn't be in the test file yet
     layerinfo = geofile.getlayerinfo(path=tmppath, layer='parcels')
-    assert 'area' not in layerinfo.columns
+    assert 'AREA' not in layerinfo.columns
         
-    # Add area column
+    ### Add area column ###
     try: 
         import os
         os.environ['GDAL_BIN'] = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
-        geofile.add_column(tmppath, layer='parcels', name='area', type='real', expression='ST_area(geom)')
+        geofile.add_column(tmppath, layer='parcels', name='AREA', type='real', expression='ST_area(geom)')
     finally:
         del os.environ['GDAL_BIN']
         
     layerinfo = geofile.getlayerinfo(path=tmppath, layer='parcels')
-    assert 'area' in layerinfo.columns
+    assert 'AREA' in layerinfo.columns
     
     gdf = geofile.read_file(tmppath)
-    assert round(gdf['area'][0], 1) == round(gdf['OPPERVL'][0], 1)
+    assert round(gdf['AREA'][0], 1) == round(gdf['OPPERVL'][0], 1)
+
+    ### Add invalid column type -> should raise an exception
+    test_ok = False
+    try: 
+        geofile.add_column(tmppath, layer='parcels', name='joske', type='joske', expression='ST_area(geom)')
+        test_ok = False
+    except:
+        test_ok = True
+    assert test_ok is True
 
 def test_cmp(tmpdir):
     # Copy test file to tmpdir
@@ -141,16 +150,56 @@ def test_move(tmpdir):
     assert tmp1path.exists() == False
     assert tmp2path.exists() == True
 
+def test_update_column(tmpdir):
+    # First copy test file to tmpdir
+    # Now add area column
+    src = _get_testdata_dir() / 'parcels.gpkg'
+    tmppath = Path(tmpdir) / 'parcels.gpkg'
+    geofile.copy(src, tmppath)
+
+    # The area column shouldn't be in the test file yet
+    layerinfo = geofile.getlayerinfo(path=tmppath, layer='parcels')
+    assert 'area' not in layerinfo.columns
+        
+    ### Add area column ###
+    try: 
+        import os
+        os.environ['GDAL_BIN'] = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
+        geofile.add_column(tmppath, layer='parcels', name='AREA', type='real', expression='ST_area(geom)')
+        geofile.update_column(tmppath, name='AreA', expression='ST_area(geom)')
+    finally:
+        del os.environ['GDAL_BIN']
+        
+    layerinfo = geofile.getlayerinfo(path=tmppath, layer='parcels')
+    assert 'AREA' in layerinfo.columns
+    
+    gdf = geofile.read_file(tmppath)
+    assert round(gdf['AREA'][0], 1) == round(gdf['OPPERVL'][0], 1)
+
 def test_read_file():
-    # Test shapefile
+    # Test shapefile, with defaults
     srcpath = _get_testdata_dir() / 'parcels.shp'
     read_gdf = geofile.read_file(srcpath)
     assert len(read_gdf) == 46
 
-    # Test geopackage
+    # Test shapefile, specific columns (+ test case insensitivity)
+    srcpath = _get_testdata_dir() / 'parcels.shp'
+    columns = ['OIDN', 'uidn', 'HFDTLT', 'lblhfdtlt', 'GEWASGROEP', 'lengte', 'OPPERVL']
+    read_gdf = geofile.read_file(srcpath, columns=columns)
+    assert len(read_gdf) == 46
+    assert len(read_gdf.columns) == (len(columns) + 1)
+
+    # Test geopackage, with defaults
     srcpath = _get_testdata_dir() / 'parcels.gpkg'
     read_gdf = geofile.read_file(srcpath)
     assert len(read_gdf) == 46
+
+    # Test shapefile, specific columns (+ test case insensitivity)
+    srcpath = _get_testdata_dir() / 'parcels.gpkg'
+    columns = ['OIDN', 'uidn', 'HFDTLT', 'lblhfdtlt', 'GEWASGROEP', 'lengte', 'OPPERVL']
+    read_gdf = geofile.read_file(srcpath, columns=columns)
+    assert len(read_gdf) == 46
+    assert len(read_gdf.columns) == (len(columns) + 1)
 
 def test_rename_layer(tmpdir):
     # First copy test file to tmpdir
