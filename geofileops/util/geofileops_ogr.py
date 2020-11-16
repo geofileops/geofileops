@@ -115,7 +115,7 @@ def isvalid(
     if not output_path.exists():
         return True
     else:
-        layerinfo = geofile.getlayerinfo(output_path)
+        layerinfo = geofile.get_layerinfo(output_path)
         logger.info(f"Found {layerinfo.featurecount} invalid geometries in {output_path}")
         return False
 
@@ -154,6 +154,9 @@ def makevalid(
         output_path: Path,
         input_layer: str = None,        
         output_layer: str = None,
+        columns: Optional[List[str]] = None,
+        explodecollections: bool = False,
+        force_output_geometrytype: str = None,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -165,7 +168,13 @@ def makevalid(
               FROM "{{input_layer}}"
              WHERE 1=1 
                {{batch_filter}}'''
-
+    
+    # Specify output_geomatrytype, because otherwise makevalid results in 
+    # column type 'GEOMETRY'/'UNKNOWN(ANY)' 
+    if force_output_geometrytype is None:
+        input_layer_info = geofile.get_layerinfo(input_path, input_layer)
+        force_output_geometrytype = input_layer_info.geometrytypename
+    
     return _single_layer_vector_operation(
             input_path=input_path,
             output_path=output_path,
@@ -173,6 +182,9 @@ def makevalid(
             operation_name='makevalid',
             input_layer=input_layer,
             output_layer=output_layer,
+            columns=columns,
+            explodecollections=explodecollections,
+            force_output_geometrytype=force_output_geometrytype,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
@@ -283,7 +295,7 @@ def _single_layer_vector_operation(
         ##### Calculate #####
         # Calculating can be done in parallel, but only one process can write to 
         # the same file at the time... 
-        layerinfo = geofile.getlayerinfo(input_path, input_layer)  
+        layerinfo = geofile.get_layerinfo(input_path, input_layer)  
         if nb_parallel == -1:
             # Default, put at lease 100 rows in a batch for parallelisation
             max_parallel = int(layerinfo.featurecount/100)
@@ -448,7 +460,7 @@ def erase(
 
     # Init
     # In the query, important to only extract the geometry types that are expected 
-    input_layer_info = geofile.getlayerinfo(input_path, input_layer)
+    input_layer_info = geofile.get_layerinfo(input_path, input_layer)
     collection_extract_typeid = geofile.to_generaltypeid(input_layer_info.geometrytypename)
 
     # To be safe, if explodecollections is False, force the MULTI version of 
@@ -581,7 +593,7 @@ def export_by_location(
                  WHERE sub.{area_inters_column_name} >= {min_area_intersect}'''
 
     # Go!
-    input_layer_info = geofile.getlayerinfo(input_to_select_from_path, input1_layer)
+    input_layer_info = geofile.get_layerinfo(input_to_select_from_path, input1_layer)
     return _two_layer_vector_operation(
             input1_path=input_to_select_from_path,
             input2_path=input_to_compare_with_path,
@@ -629,7 +641,7 @@ def export_by_distance(
                           AND (layer1tree.maxy+{max_distance}) >= layer2tree.miny
                           AND ST_distance(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) <= {max_distance})'''
 
-    input_layer_info = geofile.getlayerinfo(input_to_select_from_path, input1_layer)
+    input_layer_info = geofile.get_layerinfo(input_to_select_from_path, input1_layer)
 
     # Go!
     return _two_layer_vector_operation(
@@ -664,8 +676,8 @@ def intersect(
         force: bool = False):
 
     # In the query, important to only extract the geometry types that are expected 
-    input1_layer_info = geofile.getlayerinfo(input1_path, input1_layer)
-    input2_layer_info = geofile.getlayerinfo(input2_path, input2_layer)
+    input1_layer_info = geofile.get_layerinfo(input1_path, input1_layer)
+    input2_layer_info = geofile.get_layerinfo(input2_path, input2_layer)
     collection_extract_typeid = min(geofile.to_generaltypeid(input1_layer_info.geometrytypename), 
                                     geofile.to_generaltypeid(input2_layer_info.geometrytypename))
 
@@ -875,8 +887,8 @@ def split(
         force: bool = False):
 
     # In the query, important to only extract the geometry types that are expected 
-    input1_layer_info = geofile.getlayerinfo(input1_path, input1_layer)
-    input2_layer_info = geofile.getlayerinfo(input2_path, input2_layer)
+    input1_layer_info = geofile.get_layerinfo(input1_path, input1_layer)
+    input2_layer_info = geofile.get_layerinfo(input2_path, input2_layer)
     collection_extract_typeid = min(geofile.to_generaltypeid(input1_layer_info.geometrytypename), 
                                     geofile.to_generaltypeid(input2_layer_info.geometrytypename))
 
@@ -1133,7 +1145,7 @@ def _two_layer_vector_operation(
         # Spread input1 data over different layers to be able to calculate in parallel
         if nb_parallel == -1:
             # Default, put at least 100 rows in a batch for parallelisation
-            input1_layerinfo = geofile.getlayerinfo(input1_path, input1_layer)
+            input1_layerinfo = geofile.get_layerinfo(input1_path, input1_layer)
             max_parallel = int(input1_layerinfo.featurecount/100)
             nb_parallel = min(multiprocessing.cpu_count(), max_parallel)
 
@@ -1166,7 +1178,7 @@ def _two_layer_vector_operation(
         
         ##### Calculate! #####
         # We need the input1 column names to format the select
-        input1_tmp_layerinfo = geofile.getlayerinfo(input_tmp_path, batches[0]['layer'])
+        input1_tmp_layerinfo = geofile.get_layerinfo(input_tmp_path, batches[0]['layer'])
         if input1_columns is not None:
             # Case-insinsitive check if input1_columns contains columns not in layer...
             columns_orig_upper = [column.upper() for column in input1_tmp_layerinfo.columns]
@@ -1188,7 +1200,7 @@ def _two_layer_vector_operation(
             layer1_columns_prefix_str = ',' + ", ".join(layer1_columns_prefix)
 
         # We need the input2 column names to format the select
-        input2_tmp_layerinfo = geofile.getlayerinfo(input_tmp_path, input2_tmp_layer)
+        input2_tmp_layerinfo = geofile.get_layerinfo(input_tmp_path, input2_tmp_layer)
         if input2_columns is not None:
             # Case-insinsitive check if input1_columns contains columns not in layer...
             columns_orig_upper = [column.upper() for column in input2_tmp_layerinfo.columns]
@@ -1387,7 +1399,7 @@ def _split_layer_features(
         #               the output file doen't group large objects as it does now...
 
         # Get column names and info
-        layerinfo = geofile.getlayerinfo(temp_path, input_layer)
+        layerinfo = geofile.get_layerinfo(temp_path, input_layer)
         columns_to_select_str = ''
         if len(layerinfo.columns) > 0:
             columns_to_select = [f'"{column}"' for column in layerinfo.columns]

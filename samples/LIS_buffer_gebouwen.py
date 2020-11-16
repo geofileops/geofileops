@@ -35,7 +35,7 @@ if __name__ == '__main__':
     force = True
 
     # Go!
-    logger.info(geofile.getlayerinfo(input_path))
+    logger.info(geofile.get_layerinfo(input_path))
     logger.info("Start dissolve buildings")
     buildings_diss_path = str(tempdir / f"{output_basename}_diss.gpkg")
     geofileops.dissolve(

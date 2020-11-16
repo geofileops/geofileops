@@ -182,7 +182,7 @@ def _apply_geooperation_to_layer(
 
         # Calculate the best number of parallel processes and batches for 
         # the available resources
-        layerinfo = geofile.getlayerinfo(input_path, input_layer)
+        layerinfo = geofile.get_layerinfo(input_path, input_layer)
         nb_rows_total = layerinfo.featurecount
         #force_output_geometrytype = layerinfo.geometrytypename
         force_output_geometrytype = 'MULTIPOLYGON'
@@ -404,7 +404,7 @@ def dissolve(
             logger.debug(f"Nb cpus found: {nb_cpu}, nb_parallel: {nb_parallel}")
     else:
         # Else, create a grid based on the number of tiles wanted as result
-        layerinfo = geofile.getlayerinfo(input_path, input_layer)
+        layerinfo = geofile.get_layerinfo(input_path, input_layer)
         result_tiles_gdf = vector_util.create_grid2(layerinfo.total_bounds, nb_squarish_tiles, layerinfo.crs)
         if len(result_tiles_gdf) > 1:
             geofile.to_file(result_tiles_gdf, output_path.parent / f"{output_path.stem}_tiles.gpkg")
@@ -429,7 +429,7 @@ def dissolve(
         while True:
             
             # Get some info of the file that needs to be dissolved
-            layerinfo = geofile.getlayerinfo(pass_input_path, input_layer)
+            layerinfo = geofile.get_layerinfo(pass_input_path, input_layer)
             nb_rows_total = layerinfo.featurecount
 
             # Calculate the best number of parallel processes and batches for 
@@ -500,7 +500,7 @@ def dissolve(
         ogr_util.vector_info(path=output_tmp_path, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
 
         # Get columns to keep
-        layerinfo = geofile.getlayerinfo(output_tmp_path, output_layer)
+        layerinfo = geofile.get_layerinfo(output_tmp_path, output_layer)
         columns_str = ''
         for column in layerinfo.columns:
             if column.lower() not in ('fid', 'temp_ordering_id'):
@@ -542,7 +542,7 @@ def dissolve_pass(
     start_time = datetime.datetime.now()
     result_info = {}
     start_time = datetime.datetime.now()
-    layerinfo = geofile.getlayerinfo(input_path, input_layer)
+    layerinfo = geofile.get_layerinfo(input_path, input_layer)
     nb_rows_total = layerinfo.featurecount
     
     logger.info(f"Start dissolve pass to {len(tiles_gdf)} tiles (nb_parallel: {nb_parallel})")       

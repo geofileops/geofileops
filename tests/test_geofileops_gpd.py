@@ -26,7 +26,7 @@ def test_buffer_shp(tmpdir):
     basetest_buffer(input_path, output_path)
 
 def basetest_buffer(input_path, output_path):
-    layerinfo_orig = geofile.getlayerinfo(input_path)
+    layerinfo_orig = geofile.get_layerinfo(input_path)
     geofileops_gpd.buffer(
             input_path=input_path,
             output_path=output_path,
@@ -34,10 +34,14 @@ def basetest_buffer(input_path, output_path):
 
     # Now check if the output file is correctly created
     assert output_path.exists() == True
-    layerinfo_select = geofile.getlayerinfo(input_path)
-    assert layerinfo_orig.featurecount == layerinfo_select.featurecount
-    assert len(layerinfo_orig.columns) == len(layerinfo_select.columns)
+    layerinfo_output = geofile.get_layerinfo(input_path)
+    assert layerinfo_orig.featurecount == layerinfo_output.featurecount
+    assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
+    
+    # Check geometry type
+    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
 
+    # Read result for some more detailed checks
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
@@ -64,13 +68,14 @@ def basetest_buffer_various_options(input_path, output_path):
             distance=1)
 
     # Now check if the tmp file is correctly created
-    layerinfo_orig = geofile.getlayerinfo(input_path)
-    layerinfo_output = geofile.getlayerinfo(output_path)
+    layerinfo_orig = geofile.get_layerinfo(input_path)
+    layerinfo_output = geofile.get_layerinfo(output_path)
     assert layerinfo_orig.featurecount == layerinfo_output.featurecount
     assert 'OIDN' in layerinfo_output.columns
     assert 'UIDN' in layerinfo_output.columns
     assert len(layerinfo_output.columns) == len(columns)
 
+    # Read result for some more detailed checks
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
@@ -90,17 +95,21 @@ def test_convexhull_shp(tmpdir):
     basetest_convexhull(input_path, output_path)
 
 def basetest_convexhull(input_path, output_path):
-    layerinfo_orig = geofile.getlayerinfo(input_path)
+    layerinfo_orig = geofile.get_layerinfo(input_path)
     geofileops_gpd.convexhull(
             input_path=input_path,
             output_path=output_path)
 
     # Now check if the output file is correctly created
     assert output_path.exists() == True
-    layerinfo_select = geofile.getlayerinfo(output_path)
-    assert layerinfo_orig.featurecount == layerinfo_select.featurecount
-    assert len(layerinfo_orig.columns) == len(layerinfo_select.columns)
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_orig.featurecount == layerinfo_output.featurecount
+    assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
+    # Check geometry type
+    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+
+    # Read result for some more detailed checks
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
@@ -117,7 +126,7 @@ def test_dissolve_groupby_shp(tmpdir):
     basetest_dissolve_groupby(input_path, output_path)
 
 def basetest_dissolve_groupby(input_path, output_path):
-    layerinfo_orig = geofile.getlayerinfo(input_path)
+    layerinfo_orig = geofile.get_layerinfo(input_path)
     geofileops_gpd.dissolve(
             input_path=input_path,
             output_path=output_path,
@@ -126,9 +135,12 @@ def basetest_dissolve_groupby(input_path, output_path):
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
-    layerinfo_output = geofile.getlayerinfo(output_path)
+    layerinfo_output = geofile.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 3
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
+
+    # Check geometry type
+    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
 
     # Now check the contents of the result file
     input_gdf = geofile.read_file(input_path)
@@ -157,10 +169,13 @@ def basetest_dissolve_nogroupby(input_path, output_path):
 
     # Now check if the result file is correctly created
     assert output_path.exists() == True
-    layerinfo_orig = geofile.getlayerinfo(input_path)
-    layerinfo_output = geofile.getlayerinfo(output_path)
+    layerinfo_orig = geofile.get_layerinfo(input_path)
+    layerinfo_output = geofile.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 21
     assert len(layerinfo_output.columns) >= 0
+
+    # Check geometry type
+    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
 
     # Now check the contents of the result file
     input_gdf = geofile.read_file(input_path)
@@ -182,7 +197,7 @@ def test_simplify_shp(tmpdir):
     basetest_simplify(input_path, output_path)
 
 def basetest_simplify(input_path, output_path):
-    layerinfo_orig = geofile.getlayerinfo(input_path)
+    layerinfo_orig = geofile.get_layerinfo(input_path)
     geofileops_gpd.simplify(
             input_path=input_path,
             output_path=output_path,
@@ -190,9 +205,19 @@ def basetest_simplify(input_path, output_path):
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
-    layerinfo_select = geofile.getlayerinfo(input_path)
-    assert layerinfo_orig.featurecount == layerinfo_select.featurecount
-    assert len(layerinfo_orig.columns) == len(layerinfo_select.columns)
+    layerinfo_output = geofile.get_layerinfo(input_path)
+    assert layerinfo_orig.featurecount == layerinfo_output.featurecount
+    assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
+
+    # Check geometry type
+    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+
+    # Now check the contents of the result file
+    input_gdf = geofile.read_file(input_path)
+    output_gdf = geofile.read_file(output_path)
+    assert input_gdf.crs == output_gdf.crs
+    assert len(output_gdf) == layerinfo_output.featurecount
+    assert output_gdf['geometry'][0] is not None
 
 if __name__ == '__main__':
     #Prepare tempdir

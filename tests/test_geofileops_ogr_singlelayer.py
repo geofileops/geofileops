@@ -51,11 +51,15 @@ def basetest_buffer(
         return
 
     # Now check if the tmp file is correctly created
-    layerinfo_orig = geofile.getlayerinfo(input_path)
-    layerinfo_select = geofile.getlayerinfo(input_path)
-    assert layerinfo_orig.featurecount == layerinfo_select.featurecount
-    assert len(layerinfo_orig.columns) == len(layerinfo_select.columns)
+    layerinfo_orig = geofile.get_layerinfo(input_path)
+    layerinfo_output = geofile.get_layerinfo(input_path)
+    assert layerinfo_orig.featurecount == layerinfo_output.featurecount
+    assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
+    # Check geometry type
+    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+
+    # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
     geofile.remove(output_path)
@@ -100,11 +104,15 @@ def basetest_convexhull(
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
-    layerinfo_orig = geofile.getlayerinfo(input_path)
-    layerinfo_select = geofile.getlayerinfo(output_path)
-    assert layerinfo_orig.featurecount == layerinfo_select.featurecount
-    assert len(layerinfo_orig.columns) == len(layerinfo_select.columns)
+    layerinfo_orig = geofile.get_layerinfo(input_path)
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_orig.featurecount == layerinfo_output.featurecount
+    assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
+    # Check geometry type
+    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+
+    # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
@@ -204,11 +212,15 @@ def basetest_makevalid(
 
         # Now check if the output file is correctly created
         assert output_path.exists() == True
-        layerinfo_orig = geofile.getlayerinfo(input_path)
-        layerinfo_output = geofile.getlayerinfo(output_path)
+        layerinfo_orig = geofile.get_layerinfo(input_path)
+        layerinfo_output = geofile.get_layerinfo(output_path)
         assert layerinfo_orig.featurecount == layerinfo_output.featurecount
         assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
+    
+        # Check geometry type
+        assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
 
+        # Now check the contents of the result file
         output_gdf = geofile.read_file(output_path)
         assert output_gdf['geometry'][0] is not None
 
@@ -240,7 +252,7 @@ def basetest_select(
         input_path: Path, 
         output_path: Path):
 
-    layerinfo_orig = geofile.getlayerinfo(input_path)
+    layerinfo_orig = geofile.get_layerinfo(input_path)
     sql_stmt = f'SELECT {layerinfo_orig.geometrycolumn}, oidn, uidn FROM "parcels"'
     geofileops_ogr.select(
             input_path=input_path,
@@ -248,12 +260,16 @@ def basetest_select(
             sql_stmt=sql_stmt)
 
     # Now check if the tmp file is correctly created
-    layerinfo_select = geofile.getlayerinfo(output_path)
-    assert layerinfo_orig.featurecount == layerinfo_select.featurecount
-    assert 'OIDN' in layerinfo_select.columns
-    assert 'UIDN' in layerinfo_select.columns
-    assert len(layerinfo_select.columns) == 2
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_orig.featurecount == layerinfo_output.featurecount
+    assert 'OIDN' in layerinfo_output.columns
+    assert 'UIDN' in layerinfo_output.columns
+    assert len(layerinfo_output.columns) == 2
 
+    # Check geometry type
+    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+
+    # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
@@ -277,7 +293,7 @@ def basetest_select_various_options(
 
     ### Check if columns parameter works (case insensitive) ###
     columns = ['OIDN', 'uidn', 'HFDTLT', 'lblhfdtlt', 'GEWASGROEP', 'lengte', 'OPPERVL']
-    layerinfo_orig = geofile.getlayerinfo(input_path)
+    layerinfo_orig = geofile.get_layerinfo(input_path)
     sql_stmt = f'''SELECT {layerinfo_orig.geometrycolumn}
                          {{columns_to_select_str}} 
                      FROM "parcels" '''
@@ -288,7 +304,7 @@ def basetest_select_various_options(
             sql_stmt=sql_stmt)
 
     # Now check if the tmp file is correctly created
-    layerinfo_select = geofile.getlayerinfo(output_path)
+    layerinfo_select = geofile.get_layerinfo(output_path)
     assert layerinfo_orig.featurecount == layerinfo_select.featurecount
     assert 'OIDN' in layerinfo_select.columns
     assert 'UIDN' in layerinfo_select.columns
@@ -342,11 +358,15 @@ def basetest_simplify(
 
     # Now check if the output file is correctly created
     assert output_path.exists() == True
-    layerinfo_orig = geofile.getlayerinfo(input_path)
-    layerinfo_output = geofile.getlayerinfo(output_path)
+    layerinfo_orig = geofile.get_layerinfo(input_path)
+    layerinfo_output = geofile.get_layerinfo(output_path)
     assert layerinfo_orig.featurecount == layerinfo_output.featurecount
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
+    # Check geometry type
+    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+
+    # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
@@ -358,11 +378,11 @@ if __name__ == '__main__':
         shutil.rmtree(tmpdir)
 
     # Single layer operations
-    test_buffer_gpkg(tmpdir)
+    #test_buffer_gpkg(tmpdir)
     #test_makevalid_shp(tmpdir)
-    #test_makevalid_gpkg(tmpdir)
+    test_makevalid_gpkg(tmpdir)
     #test_isvalid_shp(tmpdir)
-    test_isvalid_gpkg(tmpdir)
+    #test_isvalid_gpkg(tmpdir)
     #test_convexhull_shp(tmpdir)
     #test_convexhull_gpkg(tmpdir)
     #test_select_geos_version(tmpdir)

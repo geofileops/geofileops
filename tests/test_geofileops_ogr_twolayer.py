@@ -26,7 +26,7 @@ def test_erase_shp(tmpdir):
     # Prepare input and output paths
     input_path = test_helper.get_testdata_dir() / 'parcels.shp'
     erase_path = test_helper.get_testdata_dir() / 'zones.gpkg'
-    output_path = Path(tmpdir) / 'parcels_erase_zones.gpkg'
+    output_path = Path(tmpdir) / 'parcels_erase_zones.shp'
 
     # Try both with and without gdal_bin set
     basetest_erase(input_path, erase_path, output_path, gdal_installation='gdal_bin')
@@ -57,11 +57,15 @@ def basetest_erase(
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
-    layerinfo_orig = geofile.getlayerinfo(input_path)
-    layerinfo_select = geofile.getlayerinfo(input_path)
-    assert layerinfo_orig.featurecount == layerinfo_select.featurecount
-    assert len(layerinfo_orig.columns) == len(layerinfo_select.columns)
+    layerinfo_orig = geofile.get_layerinfo(input_path)
+    layerinfo_output = geofile.get_layerinfo(input_path)
+    assert layerinfo_orig.featurecount == layerinfo_output.featurecount
+    assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
+    # Check geometry type
+    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+
+    # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
@@ -83,7 +87,7 @@ def test_export_by_location_shp(tmpdir):
     # Prepare input and output paths
     input_to_select_from_path = test_helper.get_testdata_dir() / 'parcels.shp'
     input_to_compare_with_path = test_helper.get_testdata_dir() / 'zones.gpkg'
-    output_path = Path(tmpdir) / 'parcels_loc_zones.gpkg'
+    output_path = Path(tmpdir) / 'parcels_loc_zones.shp'
 
     # Try both with and without gdal_bin set
     basetest_export_by_location(
@@ -119,11 +123,15 @@ def basetest_export_by_location(
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
-    layerinfo_orig = geofile.getlayerinfo(input_to_select_from_path)
-    layerinfo_select = geofile.getlayerinfo(input_to_select_from_path)
-    assert layerinfo_orig.featurecount == layerinfo_select.featurecount
-    assert len(layerinfo_orig.columns) == len(layerinfo_select.columns)
+    layerinfo_orig = geofile.get_layerinfo(input_to_select_from_path)
+    layerinfo_output = geofile.get_layerinfo(input_to_select_from_path)
+    assert layerinfo_orig.featurecount == layerinfo_output.featurecount
+    assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
+    # Check geometry type
+    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+
+    # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
@@ -145,7 +153,7 @@ def test_export_by_distance_shp(tmpdir):
     # Prepare input and output paths
     input_to_select_from_path = test_helper.get_testdata_dir() / 'parcels.shp'
     input_to_compare_with_path = test_helper.get_testdata_dir() / 'zones.gpkg'
-    output_path = Path(tmpdir) / 'parcels_distance_zones.gpkg'
+    output_path = Path(tmpdir) / 'parcels_distance_zones.shp'
 
     # Try both with and without gdal_bin set
     basetest_export_by_location(
@@ -182,11 +190,15 @@ def basetest_export_by_distance(
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
-    layerinfo_orig = geofile.getlayerinfo(input_to_select_from_path)
-    layerinfo_select = geofile.getlayerinfo(input_to_select_from_path)
-    assert layerinfo_orig.featurecount == layerinfo_select.featurecount
-    assert len(layerinfo_orig.columns) == len(layerinfo_select.columns)
+    layerinfo_orig = geofile.get_layerinfo(input_to_select_from_path)
+    layerinfo_output = geofile.get_layerinfo(input_to_select_from_path)
+    assert layerinfo_orig.featurecount == layerinfo_output.featurecount
+    assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
+    # Check geometry type
+    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+
+    # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
@@ -237,12 +249,20 @@ def basetest_intersect(
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
-    layerinfo_input1 = geofile.getlayerinfo(input1_path)
-    layerinfo_input2 = geofile.getlayerinfo(input2_path)
-    layerinfo_select = geofile.getlayerinfo(output_path)
-    assert layerinfo_select.featurecount == 28
-    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_select.columns)
+    layerinfo_input1 = geofile.get_layerinfo(input1_path)
+    layerinfo_input2 = geofile.get_layerinfo(input2_path)
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_output.featurecount == 28
+    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_output.columns)
 
+    # Check geometry type
+    if output_path.suffix.lower() == '.shp':
+        # For shapefiles the type stays POLYGON anyway 
+        assert layerinfo_output.geometrytypename == 'POLYGON' 
+    elif output_path.suffix.lower() == '.gpkg':
+        assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+
+    # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
@@ -293,12 +313,20 @@ def basetest_join_by_location(
 
     # Now check if the output file is correctly created
     assert output_path.exists() == True
-    layerinfo_input1 = geofile.getlayerinfo(input1_path)
-    layerinfo_input2 = geofile.getlayerinfo(input2_path)
-    layerinfo_result = geofile.getlayerinfo(output_path)
-    assert layerinfo_result.featurecount == 28
-    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns) + 1) == len(layerinfo_result.columns)
+    layerinfo_input1 = geofile.get_layerinfo(input1_path)
+    layerinfo_input2 = geofile.get_layerinfo(input2_path)
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_output.featurecount == 28
+    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns) + 1) == len(layerinfo_output.columns)
 
+    # Check geometry type
+    if output_path.suffix.lower() == '.shp':
+        # For shapefiles the type stays POLYGON anyway 
+        assert layerinfo_output.geometrytypename == 'POLYGON' 
+    elif output_path.suffix.lower() == '.gpkg':
+        assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+
+    # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
@@ -324,10 +352,18 @@ def basetest_join_by_location(
 
     # Now check if the output file is correctly created
     assert output_path.exists() == True
-    layerinfo_result = geofile.getlayerinfo(output_path)
-    assert layerinfo_result.featurecount == 48
-    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns) + 1) == len(layerinfo_result.columns)
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_output.featurecount == 48
+    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns) + 1) == len(layerinfo_output.columns)
 
+    # Check geometry type
+    if output_path.suffix.lower() == '.shp':
+        # For shapefiles the type stays POLYGON anyway 
+        assert layerinfo_output.geometrytypename == 'POLYGON' 
+    elif output_path.suffix.lower() == '.gpkg':
+        assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+
+    # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
@@ -378,12 +414,20 @@ def basetest_split(
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
-    layerinfo_input1 = geofile.getlayerinfo(input1_path)
-    layerinfo_input2 = geofile.getlayerinfo(input2_path)
-    layerinfo_select = geofile.getlayerinfo(output_path)
-    assert layerinfo_select.featurecount == 63
-    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_select.columns)
+    layerinfo_input1 = geofile.get_layerinfo(input1_path)
+    layerinfo_input2 = geofile.get_layerinfo(input2_path)
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_output.featurecount == 63
+    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_output.columns)
 
+    # Check geometry type
+    if output_path.suffix.lower() == '.shp':
+        # For shapefiles the type stays POLYGON anyway 
+        assert layerinfo_output.geometrytypename == 'POLYGON' 
+    elif output_path.suffix.lower() == '.gpkg':
+        assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+
+    # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
@@ -434,12 +478,20 @@ def basetest_union(
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
-    layerinfo_input1 = geofile.getlayerinfo(input1_path)
-    layerinfo_input2 = geofile.getlayerinfo(input2_path)
-    layerinfo_select = geofile.getlayerinfo(output_path)
-    assert layerinfo_select.featurecount == 67
-    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_select.columns)
+    layerinfo_input1 = geofile.get_layerinfo(input1_path)
+    layerinfo_input2 = geofile.get_layerinfo(input2_path)
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_output.featurecount == 67
+    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_output.columns)
 
+    # Check geometry type
+    if output_path.suffix.lower() == '.shp':
+        # For shapefiles the type stays POLYGON anyway 
+        assert layerinfo_output.geometrytypename == 'POLYGON' 
+    elif output_path.suffix.lower() == '.gpkg':
+        assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+
+    # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 

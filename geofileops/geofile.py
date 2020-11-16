@@ -120,11 +120,19 @@ class LayerInfo:
 
     def __repr__(self):
         return f"{self.__class__}({self.__dict__})"
-    
+
 def getlayerinfo(
         path: Union[str, 'os.PathLike[Any]'],
         layer: str = None,
         verbose: bool = False) -> LayerInfo:
+    """
+    Deprecated. For backwards compatibility.
+    """
+    return get_layerinfo(path, layer)
+
+def get_layerinfo(
+        path: Union[str, 'os.PathLike[Any]'],
+        layer: str = None) -> LayerInfo:
     """
     Get information about a layer in the geofile.
 
@@ -161,9 +169,13 @@ def getlayerinfo(
     geometrytypename = gdal.ogr.GeometryTypeToName(datasource_layer.GetGeomType())
     geometrytypename = geometrytypename.replace(' ', '').upper()
     
-    # For shape files, the geometrytypename is sometimes wrong...
-    if Path(path).suffix.lower() == '.shp' and geometrytypename == 'LINESTRING':
-        geometrytypename = 'MULTILINESTRING'       
+    # For shape files, the difference between the 'MULTI' variant and the 
+    # single one doesn't exists... so always report MULTI variant by convention.
+    if Path(path).suffix.lower() == '.shp':
+        if(geometrytypename.startswith('POLYGON')
+           or geometrytypename.startswith('LINESTRING')
+           or geometrytypename.startswith('POINT')):
+            geometrytypename = f"MULTI{geometrytypename}"
     
     # Convert gdal extent (xmin, xmax, ymin, ymax) to bounds (xmin, ymin, xmax, ymax)
     extent = datasource_layer.GetExtent()
@@ -248,7 +260,7 @@ def has_spatial_index(
     # Now check the index
     driver = get_driver(path_p)    
     if driver == 'GPKG':
-        layerinfo = getlayerinfo(path_p, layer)
+        layerinfo = get_layerinfo(path_p, layer)
         data_source = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_READONLY)
         result = data_source.ExecuteSQL(
                 f"SELECT HasSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",
@@ -275,7 +287,7 @@ def create_spatial_index(
     """
     # Init
     path_p = Path(path)
-    layerinfo = getlayerinfo(path_p, layer)
+    layerinfo = get_layerinfo(path_p, layer)
 
     # Now really add index
     datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
@@ -300,7 +312,7 @@ def remove_spatial_index(
     """
     # Init
     path_p = Path(path)
-    layerinfo = getlayerinfo(path_p, layer)
+    layerinfo = get_layerinfo(path_p, layer)
 
     # Now really remove index
     datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
@@ -371,7 +383,7 @@ def add_column(
     path_p = Path(path)
     if layer is None:
         layer = get_only_layer(path_p)
-    layerinfo_orig = getlayerinfo(path_p, layer)
+    layerinfo_orig = get_layerinfo(path_p, layer)
     
     ##### Go! #####
     datasource = None
@@ -422,7 +434,7 @@ def update_column(
     path_p = Path(path)
     if layer is None:
         layer = get_only_layer(path_p)
-    layerinfo_orig = getlayerinfo(path_p, layer)
+    layerinfo_orig = get_layerinfo(path_p, layer)
     
     ##### Go! #####
     datasource = None

@@ -20,7 +20,7 @@ def test_add_column(tmpdir):
     geofile.copy(src, tmppath)
 
     # The area column shouldn't be in the test file yet
-    layerinfo = geofile.getlayerinfo(path=tmppath, layer='parcels')
+    layerinfo = geofile.get_layerinfo(path=tmppath, layer='parcels')
     assert 'AREA' not in layerinfo.columns
         
     ### Add area column ###
@@ -31,7 +31,7 @@ def test_add_column(tmpdir):
     finally:
         del os.environ['GDAL_BIN']
         
-    layerinfo = geofile.getlayerinfo(path=tmppath, layer='parcels')
+    layerinfo = geofile.get_layerinfo(path=tmppath, layer='parcels')
     assert 'AREA' in layerinfo.columns
     
     gdf = geofile.read_file(tmppath)
@@ -62,8 +62,8 @@ def test_convert(tmpdir):
     geofile.convert(src, dst)
 
     # Now compare source and dst file 
-    src_layerinfo = geofile.getlayerinfo(src)
-    dst_layerinfo = geofile.getlayerinfo(dst)
+    src_layerinfo = geofile.get_layerinfo(src)
+    dst_layerinfo = geofile.get_layerinfo(dst)
     assert src_layerinfo.featurecount == dst_layerinfo.featurecount
     assert len(src_layerinfo.columns) == len(dst_layerinfo.columns)
 
@@ -102,13 +102,13 @@ def test_get_driver():
 def test_getlayerinfo():
     # Test shapefile
     srcpath = _get_testdata_dir() / 'parcels.shp'
-    layerinfo = geofile.getlayerinfo(srcpath)
+    layerinfo = geofile.get_layerinfo(srcpath)
     assert layerinfo.featurecount == 46
     assert layerinfo.geometrycolumn == 'geometry' 
 
     # Test geopackage
     srcpath = _get_testdata_dir() / 'parcels.gpkg'
-    layerinfo = geofile.getlayerinfo(srcpath, 'parcels')
+    layerinfo = geofile.get_layerinfo(srcpath, 'parcels')
     assert layerinfo.featurecount == 46
     assert layerinfo.geometrycolumn == 'geom' 
 
@@ -158,7 +158,7 @@ def test_update_column(tmpdir):
     geofile.copy(src, tmppath)
 
     # The area column shouldn't be in the test file yet
-    layerinfo = geofile.getlayerinfo(path=tmppath, layer='parcels')
+    layerinfo = geofile.get_layerinfo(path=tmppath, layer='parcels')
     assert 'area' not in layerinfo.columns
         
     ### Add area column ###
@@ -170,7 +170,7 @@ def test_update_column(tmpdir):
     finally:
         del os.environ['GDAL_BIN']
         
-    layerinfo = geofile.getlayerinfo(path=tmppath, layer='parcels')
+    layerinfo = geofile.get_layerinfo(path=tmppath, layer='parcels')
     assert 'AREA' in layerinfo.columns
     
     gdf = geofile.read_file(tmppath)
