@@ -5,8 +5,9 @@ Tests for functionalities in vector_util.
 
 from pathlib import Path
 import sys
-sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
 
+# Add path so the local geofileops packages are found 
+sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
 from geofileops import geofile
 from geofileops.util import vector_util
 

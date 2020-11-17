@@ -6,8 +6,9 @@ Tests for functionalities in ogr_util.
 from pathlib import Path
 import pprint
 import sys
-sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
 
+# Add path so the local geofileops packages are found 
+sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
 from geofileops.util import ogr_util
 from tests import test_helper
 
