@@ -13,14 +13,24 @@ from geofileops.util import ogr_util
 from tests import test_helper
 
 def test_buffer_gpkg(tmpdir):
-    # Buffer to test dir
+    # Buffer to test dir, and try with and without gdal_bin set
     input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
     output_path = Path(tmpdir) / 'parcels_output.gpkg'
-
-    # Try both with and without gdal_bin set
     basetest_buffer(input_path, output_path, gdal_installation='gdal_default')
     basetest_buffer(input_path, output_path, gdal_installation='gdal_bin')
-        
+
+    # Buffer point source to test dir
+    input_path = test_helper.get_testdata_dir() / 'points.gpkg'
+    output_path = Path(tmpdir) / 'points_output.gpkg'
+    basetest_buffer(input_path, output_path, gdal_installation='gdal_default')
+    basetest_buffer(input_path, output_path, gdal_installation='gdal_bin')
+
+    # Buffer line source to test dir
+    input_path = test_helper.get_testdata_dir() / 'rows_of_trees.gpkg'
+    output_path = Path(tmpdir) / 'rows_of_trees_output.gpkg'
+    basetest_buffer(input_path, output_path, gdal_installation='gdal_default')
+    basetest_buffer(input_path, output_path, gdal_installation='gdal_bin')
+
 def test_buffer_shp(tmpdir):
     # Buffer to test dir
     input_path = test_helper.get_testdata_dir() / 'parcels.shp'
@@ -52,7 +62,7 @@ def basetest_buffer(
 
     # Now check if the tmp file is correctly created
     layerinfo_orig = geofile.get_layerinfo(input_path)
-    layerinfo_output = geofile.get_layerinfo(input_path)
+    layerinfo_output = geofile.get_layerinfo(output_path)
     assert layerinfo_orig.featurecount == layerinfo_output.featurecount
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
@@ -317,26 +327,53 @@ def basetest_select_various_options(
     # TODO: increase test coverage of other options...
 
 def test_simplify_gpkg(tmpdir):
-    # Simplify to test dir
+    # Simplify polygon source to test dir, with and without gdal_bin set
     input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
     output_path = Path(tmpdir) / input_path.name
+    basetest_simplify(input_path, output_path, 
+            expected_output_geometrytype='MULTIPOLYGON',
+            gdal_installation='gdal_default')
+    basetest_simplify(input_path, output_path, 
+            expected_output_geometrytype='MULTIPOLYGON',
+            gdal_installation='gdal_bin')
 
-    # Try both with and without gdal_bin set
-    basetest_simplify(input_path, output_path, gdal_installation='gdal_default')
-    basetest_simplify(input_path, output_path, gdal_installation='gdal_bin')
-        
+    # Simplify point source to test dir
+    input_path = test_helper.get_testdata_dir() / 'points.gpkg'
+    output_path = Path(tmpdir) / 'points_output.gpkg'
+    basetest_simplify(input_path, output_path, 
+            expected_output_geometrytype='MULTIPOINT',
+            gdal_installation='gdal_default')
+    basetest_simplify(input_path, output_path, 
+            expected_output_geometrytype='MULTIPOINT',
+            gdal_installation='gdal_bin')
+
+    # Simplify line source to test dir
+    input_path = test_helper.get_testdata_dir() / 'rows_of_trees.gpkg'
+    output_path = Path(tmpdir) / 'rows_of_trees_output.gpkg'
+    basetest_simplify(input_path, output_path, 
+            expected_output_geometrytype='MULTILINESTRING',
+            gdal_installation='gdal_default')
+    basetest_simplify(input_path, output_path, 
+            expected_output_geometrytype='MULTILINESTRING',
+            gdal_installation='gdal_bin')
+
 def test_simplify_shp(tmpdir):
     # Simplify to test dir
     input_path = test_helper.get_testdata_dir() / 'parcels.shp'
     output_path = Path(tmpdir) / 'parcels.shp'
 
     # Try both with and without gdal_bin set
-    basetest_simplify(input_path, output_path, gdal_installation='gdal_default')
-    basetest_simplify(input_path, output_path, gdal_installation='gdal_bin')
+    basetest_simplify(input_path, output_path, 
+            expected_output_geometrytype='MULTIPOLYGON',
+            gdal_installation='gdal_default')
+    basetest_simplify(input_path, output_path, 
+            expected_output_geometrytype='MULTIPOLYGON',
+            gdal_installation='gdal_bin')
     
 def basetest_simplify(
         input_path: Path, 
         output_basepath: Path,
+        expected_output_geometrytype: str,
         gdal_installation: str):
 
     # Do operation
@@ -364,7 +401,7 @@ def basetest_simplify(
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
     # Check geometry type
-    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+    assert layerinfo_output.geometrytypename == expected_output_geometrytype 
 
     # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
@@ -378,9 +415,9 @@ if __name__ == '__main__':
         shutil.rmtree(tmpdir)
 
     # Single layer operations
-    #test_buffer_gpkg(tmpdir)
+    test_buffer_gpkg(tmpdir)
     #test_makevalid_shp(tmpdir)
-    test_makevalid_gpkg(tmpdir)
+    #test_makevalid_gpkg(tmpdir)
     #test_isvalid_shp(tmpdir)
     #test_isvalid_gpkg(tmpdir)
     #test_convexhull_shp(tmpdir)

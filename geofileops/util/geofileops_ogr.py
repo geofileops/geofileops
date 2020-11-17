@@ -61,7 +61,6 @@ def buffer(
                {{batch_filter}}'''
 
     # Buffer operation always results in polygons...
-    force_output_geometrytype = None
     if explodecollections is True:
         force_output_geometrytype = 'POLYGON'
     else:

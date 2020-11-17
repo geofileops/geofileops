@@ -184,8 +184,6 @@ def _apply_geooperation_to_layer(
         # the available resources
         layerinfo = geofile.get_layerinfo(input_path, input_layer)
         nb_rows_total = layerinfo.featurecount
-        #force_output_geometrytype = layerinfo.geometrytypename
-        force_output_geometrytype = 'MULTIPOLYGON'
         if(nb_parallel == -1):
             nb_parallel = multiprocessing.cpu_count()
         nb_batches = nb_parallel
@@ -255,7 +253,7 @@ def _apply_geooperation_to_layer(
                         geofile.append_to(
                                 src=tmp_partial_output_path, 
                                 dst=output_tmp_path, 
-                                force_output_geometrytype=force_output_geometrytype,
+                                force_output_geometrytype=None,
                                 create_spatial_index=False)
                         geofile.remove(tmp_partial_output_path)
                     else:

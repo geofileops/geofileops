@@ -13,14 +13,38 @@ from geofileops.util import ogr_util
 from tests import test_helper
 
 def test_erase_gpkg(tmpdir):
-    # Prepare input and output paths
+    # Erase from polygon layer, with and without gdal_bin set
     input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
     erase_path = test_helper.get_testdata_dir() / 'zones.gpkg'
     output_path = Path(tmpdir) / 'parcels_erase_zones.gpkg'
+    basetest_erase(input_path, erase_path, output_path, 
+            expected_output_geometrytype='MULTIPOLYGON',
+            gdal_installation='gdal_bin')
+    basetest_erase(input_path, erase_path, output_path, 
+            expected_output_geometrytype='MULTIPOLYGON',
+            gdal_installation='gdal_default')
 
-    # Try both with and without gdal_bin set
-    basetest_erase(input_path, erase_path, output_path, gdal_installation='gdal_bin')
-    basetest_erase(input_path, erase_path, output_path, gdal_installation='gdal_default')
+    # Erase from point layer, with and without gdal_bin set
+    input_path = test_helper.get_testdata_dir() / 'points.gpkg'
+    erase_path = test_helper.get_testdata_dir() / 'zones.gpkg'
+    output_path = Path(tmpdir) / 'points_erase_zones.gpkg'
+    basetest_erase(input_path, erase_path, output_path, 
+            expected_output_geometrytype='MULTIPOINT',
+            gdal_installation='gdal_default')
+    basetest_erase(input_path, erase_path, output_path,
+            expected_output_geometrytype='MULTIPOINT',
+            gdal_installation='gdal_bin')
+
+    # Erase from line layer, with and without gdal_bin set
+    input_path = test_helper.get_testdata_dir() / 'rows_of_trees.gpkg'
+    erase_path = test_helper.get_testdata_dir() / 'zones.gpkg'
+    output_path = Path(tmpdir) / 'rows_of_trees_erase_zones.gpkg'
+    basetest_erase(input_path, erase_path, output_path, 
+            expected_output_geometrytype='MULTILINESTRING',
+            gdal_installation='gdal_default')
+    basetest_erase(input_path, erase_path, output_path, 
+            expected_output_geometrytype='MULTILINESTRING',
+            gdal_installation='gdal_bin')
 
 def test_erase_shp(tmpdir):
     # Prepare input and output paths
@@ -29,13 +53,18 @@ def test_erase_shp(tmpdir):
     output_path = Path(tmpdir) / 'parcels_erase_zones.shp'
 
     # Try both with and without gdal_bin set
-    basetest_erase(input_path, erase_path, output_path, gdal_installation='gdal_bin')
-    basetest_erase(input_path, erase_path, output_path, gdal_installation='gdal_default')
+    basetest_erase(input_path, erase_path, output_path, 
+            expected_output_geometrytype='MULTIPOLYGON',
+            gdal_installation='gdal_bin')
+    basetest_erase(input_path, erase_path, output_path, 
+            expected_output_geometrytype='MULTIPOLYGON',
+            gdal_installation='gdal_default')
 
 def basetest_erase(
         input_path: Path,
         erase_path: Path, 
-        output_basepath: Path, 
+        output_basepath: Path,
+        expected_output_geometrytype: str, 
         gdal_installation: str):
 
     # Do operation
@@ -58,12 +87,19 @@ def basetest_erase(
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
     layerinfo_orig = geofile.get_layerinfo(input_path)
-    layerinfo_output = geofile.get_layerinfo(input_path)
-    assert layerinfo_orig.featurecount == layerinfo_output.featurecount
+    layerinfo_output = geofile.get_layerinfo(output_path)
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
-    # Check geometry type
-    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+    # Checks depending on geometry type
+    assert layerinfo_output.geometrytypename == expected_output_geometrytype
+    if expected_output_geometrytype == 'MULTIPOLYGON':
+        assert layerinfo_output.featurecount == 37
+    elif expected_output_geometrytype == 'MULTIPOINT':
+        assert layerinfo_output.featurecount == 47
+    elif expected_output_geometrytype == 'MULTILINESTRING':
+        assert layerinfo_output.featurecount == 12
+    else:
+        raise Exception(f"Unsupported expected_output_geometrytype: {expected_output_geometrytype}")
 
     # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)

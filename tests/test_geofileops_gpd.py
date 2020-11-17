@@ -13,10 +13,24 @@ from geofileops.util import geofileops_gpd
 def get_testdata_dir() -> Path:
     return Path(__file__).resolve().parent / 'data'
 
+def get_nb_parallel() -> int:
+    # The number of parallel processes to use for these tests.
+    return 2
+
 def test_buffer_gpkg(tmpdir):
-    # Buffer to test dir
+    # Buffer polygon source to test dir
     input_path = get_testdata_dir() / 'parcels.gpkg'
     output_path = Path(tmpdir) / 'parcels_output.gpkg'
+    basetest_buffer(input_path, output_path)
+
+    # Buffer point source to test dir
+    input_path = get_testdata_dir() / 'points.gpkg'
+    output_path = Path(tmpdir) / 'points_output.gpkg'
+    basetest_buffer(input_path, output_path)
+
+    # Buffer line source to test dir
+    input_path = get_testdata_dir() / 'rows_of_trees.gpkg'
+    output_path = Path(tmpdir) / 'rows_of_trees_output.gpkg'
     basetest_buffer(input_path, output_path)
 
 def test_buffer_shp(tmpdir):
@@ -30,11 +44,12 @@ def basetest_buffer(input_path, output_path):
     geofileops_gpd.buffer(
             input_path=input_path,
             output_path=output_path,
-            distance=1)
+            distance=1,
+            nb_parallel=get_nb_parallel())
 
     # Now check if the output file is correctly created
     assert output_path.exists() == True
-    layerinfo_output = geofile.get_layerinfo(input_path)
+    layerinfo_output = geofile.get_layerinfo(output_path)
     assert layerinfo_orig.featurecount == layerinfo_output.featurecount
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
     
@@ -65,7 +80,8 @@ def basetest_buffer_various_options(input_path, output_path):
             input_path=input_path,
             columns=columns,
             output_path=output_path,
-            distance=1)
+            distance=1,
+            nb_parallel=get_nb_parallel())
 
     # Now check if the tmp file is correctly created
     layerinfo_orig = geofile.get_layerinfo(input_path)
@@ -98,7 +114,8 @@ def basetest_convexhull(input_path, output_path):
     layerinfo_orig = geofile.get_layerinfo(input_path)
     geofileops_gpd.convexhull(
             input_path=input_path,
-            output_path=output_path)
+            output_path=output_path,
+            nb_parallel=get_nb_parallel())
 
     # Now check if the output file is correctly created
     assert output_path.exists() == True
@@ -131,7 +148,8 @@ def basetest_dissolve_groupby(input_path, output_path):
             input_path=input_path,
             output_path=output_path,
             groupby_columns=['GEWASGROEP'],
-            explodecollections=False)
+            explodecollections=False,
+            nb_parallel=get_nb_parallel())
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
@@ -165,7 +183,8 @@ def basetest_dissolve_nogroupby(input_path, output_path):
     geofileops_gpd.dissolve(
             input_path=input_path,
             output_path=output_path,
-            explodecollections=True)
+            explodecollections=True,
+            nb_parallel=get_nb_parallel())
 
     # Now check if the result file is correctly created
     assert output_path.exists() == True
@@ -185,32 +204,46 @@ def basetest_dissolve_nogroupby(input_path, output_path):
     assert output_gdf['geometry'][0] is not None
 
 def test_simplify_gpkg(tmpdir):
-    # Buffer to test dir
+    # Simplify polygon source to test dir
     input_path = get_testdata_dir() / 'parcels.gpkg'
     output_path = Path(tmpdir) / 'parcels_output.gpkg'
-    basetest_simplify(input_path, output_path)
+    basetest_simplify(input_path, output_path, 'MULTIPOLYGON')
+
+    # Simplify point source to test dir
+    input_path = get_testdata_dir() / 'points.gpkg'
+    output_path = Path(tmpdir) / 'points_output.gpkg'
+    basetest_simplify(input_path, output_path, 'MULTIPOINT')
+
+    # Simplify line source to test dir
+    input_path = get_testdata_dir() / 'rows_of_trees.gpkg'
+    output_path = Path(tmpdir) / 'rows_of_trees_output.gpkg'
+    basetest_simplify(input_path, output_path, 'MULTILINESTRING')
 
 def test_simplify_shp(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.shp'
     output_path = Path(tmpdir) / 'parcels_output.shp'
-    basetest_simplify(input_path, output_path)
+    basetest_simplify(input_path, output_path, 'MULTIPOLYGON')
 
-def basetest_simplify(input_path, output_path):
+def basetest_simplify(
+        input_path: Path, 
+        output_path: Path, 
+        expected_output_geometrytype: str):
     layerinfo_orig = geofile.get_layerinfo(input_path)
     geofileops_gpd.simplify(
             input_path=input_path,
             output_path=output_path,
-            tolerance=5)
+            tolerance=5,
+            nb_parallel=get_nb_parallel())
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
-    layerinfo_output = geofile.get_layerinfo(input_path)
+    layerinfo_output = geofile.get_layerinfo(output_path)
     assert layerinfo_orig.featurecount == layerinfo_output.featurecount
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
     # Check geometry type
-    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+    assert layerinfo_output.geometrytypename == expected_output_geometrytype
 
     # Now check the contents of the result file
     input_gdf = geofile.read_file(input_path)
@@ -230,6 +263,7 @@ if __name__ == '__main__':
         tmpdir.mkdir()
 
     # Run
-    test_buffer_various_options_gpkg(tmpdir)
+    test_buffer_gpkg(tmpdir)
+    #test_buffer_various_options_gpkg(tmpdir)
     #test_dissolve_nogroupby_shp(tmpdir)
     #test_dissolve_nogroupby_gpkg(tmpdir)
