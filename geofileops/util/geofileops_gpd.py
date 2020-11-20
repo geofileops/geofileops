@@ -41,6 +41,7 @@ def buffer(
         input_layer: str = None,
         output_layer: str = None,
         columns: List[str] = None,
+        explodecollections: bool = False,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -51,6 +52,12 @@ def buffer(
             'quadrantsegments': quadrantsegments
         }
     
+    # Buffer operation always results in polygons...
+    if explodecollections is True:
+        force_output_geometrytype = 'POLYGON'
+    else:
+        force_output_geometrytype = 'MULTIPOLYGON'
+
     # Go!
     return _apply_geooperation_to_layer(
             input_path=input_path,
@@ -60,6 +67,8 @@ def buffer(
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
+            explodecollections=explodecollections,
+            force_output_geometrytype=force_output_geometrytype,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
@@ -127,6 +136,8 @@ def _apply_geooperation_to_layer(
         input_layer: str = None,
         columns: List[str] = None,
         output_layer: str = None,
+        explodecollections: bool = False,
+        force_output_geometrytype: str = None,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -231,6 +242,7 @@ def _apply_geooperation_to_layer(
                         columns=columns,     
                         output_layer=output_layer,
                         rows=rows,
+                        explodecollections=explodecollections,
                         verbose=verbose,
                         force=force)
                 future_to_batch_id[future] = batch_id
@@ -242,18 +254,18 @@ def _apply_geooperation_to_layer(
                     result = future.result()
 
                     if result is not None and verbose is True:
-                        logger.debug(result)
+                        logger.info(result)
 
                     # Start copy of the result to a common file
                     batch_id = future_to_batch_id[future]
 
                     # If the calculate gave results, copy to output
                     tmp_partial_output_path = batches[batch_id]['tmp_partial_output_path']
-                    if tmp_partial_output_path.exists():
+                    if tmp_partial_output_path.exists() and tmp_partial_output_path.stat().st_size > 0:
                         geofile.append_to(
                                 src=tmp_partial_output_path, 
                                 dst=output_tmp_path, 
-                                force_output_geometrytype=None,
+                                force_output_geometrytype=force_output_geometrytype,
                                 create_spatial_index=False)
                         geofile.remove(tmp_partial_output_path)
                     else:
@@ -271,8 +283,11 @@ def _apply_geooperation_to_layer(
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
-        geofile.create_spatial_index(path=output_tmp_path, layer=output_layer)
-        geofile.move(output_tmp_path, output_path)
+        if output_tmp_path.exists():
+            geofile.create_spatial_index(path=output_tmp_path, layer=output_layer)
+            geofile.move(output_tmp_path, output_path)
+        else:
+            logger.warning(f"Result of {operation} was empty!f")
 
     finally:
         # Clean tmp dir
@@ -288,14 +303,15 @@ def _apply_geooperation(
         output_layer: str = None,
         columns: List[str] = None,
         rows = None,
+        explodecollections: bool = False,
         verbose: bool = False,
-        force: bool = False) -> Optional[str]:
+        force: bool = False) -> str:
     
     ##### Init #####
     if output_path.exists():
         if force is False:
-            logger.info(f"Stop {operation}: output exists already {output_path}")
-            return None
+            message = f"Stop {operation}: output exists already {output_path}"
+            return message
         else:
             geofile.remove(output_path)
 
@@ -303,8 +319,8 @@ def _apply_geooperation(
     start_time = datetime.datetime.now()
     data_gdf = geofile.read_file(path=input_path, layer=input_layer, columns=columns, rows=rows)
     if len(data_gdf) == 0:
-        logger.info(f"No input geometries found for rows: {rows} in layer: {input_layer} in input_path: {input_path}")
-        return None
+        message = f"No input geometries found for rows: {rows} in layer: {input_layer} in input_path: {input_path}"
+        return message
 
     if operation == 'buffer':
         data_gdf.geometry = data_gdf.geometry.buffer(
@@ -319,12 +335,25 @@ def _apply_geooperation(
     else:
         raise Exception(f"Operation not supported: {operation}")     
 
+    # Remove rows where geom is empty
+    data_gdf = data_gdf[~data_gdf.is_empty] 
+    data_gdf = data_gdf[~data_gdf.isna()] 
+    
+    if explodecollections:
+        data_gdf = data_gdf.explode() #.reset_index()
+        
+        '''
+        # Explode only works with one column, but cast to geodataframe, otherwise geoseries 
+        geoms_simpl_gdf = gpd.GeoDataFrame(geoms_simpl_gdf['geometry'])
+        geoms_simpl_gdf = geoms_simpl_gdf.explode().reset_index()
+        geoms_simpl_gdf['geometry'] = geoms_simpl_gdf.geometry.apply(
+                lambda geom: vector_util.remove_inner_rings(geom, 2))        
+        '''
+
     if len(data_gdf) > 0:
         geofile.to_file(gdf=data_gdf, path=output_path, layer=output_layer, index=False)
 
     message = f"Took {datetime.datetime.now()-start_time} for {len(data_gdf)} rows ({rows})!"
-    #logger.info(message)
-
     return message
 
 def dissolve(

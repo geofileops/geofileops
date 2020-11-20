@@ -22,26 +22,28 @@ def test_buffer_gpkg(tmpdir):
     # Buffer polygon source to test dir
     input_path = get_testdata_dir() / 'parcels.gpkg'
     output_path = Path(tmpdir) / 'parcels_output.gpkg'
-    basetest_buffer(input_path, output_path)
+    basetest_buffer(input_path, output_path, 'MULTIPOLYGON')
 
     # Buffer point source to test dir
     input_path = get_testdata_dir() / 'points.gpkg'
     output_path = Path(tmpdir) / 'points_output.gpkg'
-    basetest_buffer(input_path, output_path)
+    basetest_buffer(input_path, output_path, 'MULTIPOINT')
 
     # Buffer line source to test dir
     input_path = get_testdata_dir() / 'rows_of_trees.gpkg'
     output_path = Path(tmpdir) / 'rows_of_trees_output.gpkg'
-    basetest_buffer(input_path, output_path)
+    basetest_buffer(input_path, output_path, 'MULTILINESTRING')
 
 def test_buffer_shp(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.shp'
     output_path = Path(tmpdir) / 'parcels_output.shp'
-    basetest_buffer(input_path, output_path)
+    basetest_buffer(input_path, output_path, 'MULTIPOLYGON')
 
-def basetest_buffer(input_path, output_path):
+def basetest_buffer(input_path, output_path, input_geometry_type):
     layerinfo_orig = geofile.get_layerinfo(input_path)
+    
+    ### Test positive buffer ###
     geofileops_gpd.buffer(
             input_path=input_path,
             output_path=output_path,
@@ -60,6 +62,32 @@ def basetest_buffer(input_path, output_path):
     # Read result for some more detailed checks
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
+
+    ### Test negative buffer ###
+    output_path = output_path.parent / f"{output_path.stem}_m10m{output_path.suffix}"
+    geofileops_gpd.buffer(
+            input_path=input_path,
+            output_path=output_path,
+            distance=-10,
+            nb_parallel=get_nb_parallel())
+
+    # Now check if the output file is correctly created
+    if input_geometry_type in ['MULTIPOINT', 'MULTILINESTRING']:
+        # A Negative buffer of points or linestrings doesn't give a result.
+        assert output_path.exists() == False
+    else:    
+        # A Negative buffer of polygons  gives a result for large polygons.
+        assert output_path.exists() == True
+        layerinfo_output = geofile.get_layerinfo(output_path)
+        assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
+        assert layerinfo_output.featurecount == 39
+        
+        # Check geometry type
+        assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+
+        # Read result for some more detailed checks
+        output_gdf = geofile.read_file(output_path)
+        assert output_gdf['geometry'][0] is not None
 
 def test_buffer_various_options_gpkg(tmpdir):
     # Buffer to test dir

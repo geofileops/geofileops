@@ -16,7 +16,7 @@ def main():
     logging.config.dictConfig(log_config_dict)
     logger = logging.getLogger()
     
-    input_path = Path(r"X:\__IT_TEAM_ANG_GIS\Taken\2020\2020-04-09_FasterDissolve\GBG_woningen03.gpkg")
+    input_path = Path(r"X:\GIS\GIS DATA\Percelen_ALP\Vlaanderen\Perc_VL_2020_2020-10-05\perc_2020_met_k_2020-10-05.gpkg")
     output_path = input_path.parent / f"{input_path.stem}_buf{input_path.suffix}"
 
     # Go!
@@ -24,8 +24,8 @@ def main():
     geofileops.buffer(
             input_path=str(input_path),
             output_path=str(output_path),
-            distance=1,
-            force=True)
+            distance=-1,
+            verbose=True)
     logger.info("Ready buffer")
 
 if __name__ == '__main__':
