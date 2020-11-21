@@ -434,6 +434,9 @@ def _single_layer_vector_operation(
             geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
             output_path.parent.mkdir(parents=True, exist_ok=True)
             geofile.move(tmp_output_path, output_path)
+        else:
+            logger.warning(f"Result of {operation_name} was empty!f")
+
     finally:
         # Clean tmp dir
         shutil.rmtree(tempdir)
@@ -680,6 +683,12 @@ def intersect(
     collection_extract_typeid = min(geofile.to_generaltypeid(input1_layer_info.geometrytypename), 
                                     geofile.to_generaltypeid(input2_layer_info.geometrytypename))
 
+    # For the output file, if output is going to be polygon, force 
+    # MULTIPOLYGON to evade ugly warnings
+    force_output_geometrytype = None
+    if collection_extract_typeid == 3:
+        force_output_geometrytype = 'MULTIPOLYGON'
+
     # Prepare sql template for this operation 
     sql_template = f'''
         SELECT sub.geom
@@ -718,6 +727,7 @@ def intersect(
             input2_columns_prefix=input2_columns_prefix,
             output_layer=output_layer,
             explodecollections=explodecollections,
+            force_output_geometrytype=force_output_geometrytype,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
@@ -1046,7 +1056,7 @@ def _two_layer_vector_operation(
         input2_columns_prefix: str = 'l2_',
         output_layer: str = None,
         explodecollections: bool = False,
-        force_output_geometrytype: str = 'MULTIPOLYGON',
+        force_output_geometrytype: str = None,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -1067,7 +1077,7 @@ def _two_layer_vector_operation(
         input2_columns_prefix
         output_layer (str, optional): [description]. Defaults to None.
         explodecollections (bool, optional): Explode collecions in output. Defaults to False.
-        force_output_geometrytype (str, optional): Defaults to 'MULTIPOLYGON'.
+        force_output_geometrytype (str, optional): Defaults to None.
         nb_parallel (int, optional): [description]. Defaults to -1.
         force (bool, optional): [description]. Defaults to False.
     
@@ -1338,6 +1348,9 @@ def _two_layer_vector_operation(
         if tmp_output_path.exists():
             geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
             geofile.move(tmp_output_path, output_path)
+        else:
+            logger.warning(f"Result of {operation_name} was empty!f")
+
         logger.info(f"{operation_name} ready, took {datetime.datetime.now()-start_time}!")
     except Exception as ex:
         logger.exception(f"{operation_name} ready with ERROR, took {datetime.datetime.now()-start_time}!")
