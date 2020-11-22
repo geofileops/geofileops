@@ -1,4 +1,5 @@
 import datetime
+from logging import Logger
 import multiprocessing
 from pathlib import Path
 import shutil
@@ -15,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
 from geofileops.util import geofileops_gpd
 from geofileops.util import geofileops_ogr
 from geofileops import geofile
+from geofileops import geofileops
 
 class BenchResult:
     def __init__(self, 
@@ -97,8 +99,8 @@ def get_testdata_aiv(testdata_path: Path):
     if len(shp_paths) != 1:
         raise Exception(f"Should find 1 shapefile, found {len(shp_paths)}")
 
-    print('Convert shapefile to gpkg')
-    geofile.convert(shp_paths[0], testdata_path)
+    print('Make shapefile valid to gpkg')
+    geofileops.makevalid(shp_paths[0], testdata_path)
     
     # Cleanup
     if zip_path.exists():
@@ -109,7 +111,6 @@ def get_testdata_aiv(testdata_path: Path):
 def benchmark_buffer(tmp_dir: Path) -> List[BenchResult]:
     
     bench_results = []
-    
     input_path = get_testdata_dir() / 'Lbgbrprc19.gpkg'
     
     print('Start buffer with geopandas')
