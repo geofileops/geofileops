@@ -6,10 +6,5 @@ Remarks:
 * Quite fast on large files. The more available cores, the faster obviously.
 * Tested on geopackage and shapefile input files.
 
-## Installation manual
-
-1. Create and activate a new conda environment
-```
-conda create --name geofileops python=3.6 geopandas
-conda activate geofileops
-```
+Documentation can be found here:
+https://geofileops.readthedocs.io/en/latest/index.html
