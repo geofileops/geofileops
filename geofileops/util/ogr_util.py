@@ -76,7 +76,7 @@ class VectorTranslateInfo:
             explodecollections: bool = False,
             force_output_geometrytype: str = None,
             priority_class: str = 'VERY_LOW',
-            sqlite_journal_mode: str = 'WAL',
+            sqlite_journal_mode: str = None,
             force_py: bool = False,
             verbose: bool = False):
         self.input_path = input_path
@@ -188,7 +188,7 @@ def vector_translate(
         explodecollections: bool = False,
         force_output_geometrytype: str = None,
         priority_class: str = 'VERY_LOW',
-        sqlite_journal_mode: str = 'WAL',
+        sqlite_journal_mode: str = None,
         force_py: bool = False,
         verbose: bool = False) -> bool:
     """
@@ -268,7 +268,7 @@ def vector_translate_exe(
         explodecollections: bool = False,
         force_output_geometrytype: str = None,
         priority_class: str = 'VERY_LOW',
-        sqlite_journal_mode: str = 'WAL',
+        sqlite_journal_mode: str = None,
         verbose: bool = False) -> bool:
 
     ##### Init #####
