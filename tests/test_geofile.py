@@ -6,7 +6,7 @@ Tests for functionalities in geofileops.general.
 from pathlib import Path
 import sys
 
-# Add path so the local gfo_generalops packages are found 
+# Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
 from geofileops import gfo_general
 
