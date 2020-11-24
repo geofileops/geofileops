@@ -121,15 +121,6 @@ class LayerInfo:
     def __repr__(self):
         return f"{self.__class__}({self.__dict__})"
 
-def getlayerinfo(
-        path: Union[str, 'os.PathLike[Any]'],
-        layer: str = None,
-        verbose: bool = False) -> LayerInfo:
-    """
-    Deprecated. For backwards compatibility.
-    """
-    return get_layerinfo(path, layer)
-
 def get_layerinfo(
         path: Union[str, 'os.PathLike[Any]'],
         layer: str = None) -> LayerInfo:

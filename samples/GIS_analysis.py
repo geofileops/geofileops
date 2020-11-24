@@ -7,8 +7,8 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
 
-from geofileops import geofileops
-from geofileops import geofile
+from geofileops import gfo_geometry
+from geofileops import gfo_general
 
 if __name__ == '__main__':
 
@@ -35,10 +35,10 @@ if __name__ == '__main__':
     force = True
 
     # Go!
-    logger.info(geofile.get_layerinfo(input_path))
+    logger.info(gfo_general.get_layerinfo(input_path))
     logger.info("Start dissolve buildings")
     buildings_diss_path = str(tempdir / f"{output_basename}_diss.gpkg")
-    geofileops.dissolve(
+    gfo_geometry.dissolve(
             input_path=input_path,
             tiles_path=tiles_path,
             output_path=buildings_diss_path,
@@ -48,7 +48,7 @@ if __name__ == '__main__':
 
     logger.info("Start buffer 50m")
     buildings_diss_buf50m_path = str(tempdir / f"{output_basename}_diss_buf50m.gpkg")
-    geofileops.buffer(
+    gfo_geometry.buffer(
             input_path=buildings_diss_path,
             output_path=buildings_diss_buf50m_path,
             distance=50)
@@ -56,7 +56,7 @@ if __name__ == '__main__':
 
     logger.info("Start dissolve buffer 50m")
     buildings_diss_buf50m_diss_path = str(output_dir / f"{output_basename}_diss_buf50m_diss.gpkg")
-    geofileops.dissolve(
+    gfo_geometry.dissolve(
             input_path=buildings_diss_buf50m_path,
             tiles_path=tiles_path,
             output_path=buildings_diss_buf50m_diss_path,
@@ -66,7 +66,7 @@ if __name__ == '__main__':
 
     logger.info("Start buffer 100m")
     buildings_diss_buf100m_path = str(tempdir / f"{output_basename}_diss_buf100m.gpkg")
-    geofileops.buffer(
+    gfo_geometry.buffer(
             input_path=buildings_diss_path,
             output_path=buildings_diss_buf100m_path,
             distance=100)
@@ -74,7 +74,7 @@ if __name__ == '__main__':
 
     logger.info("Start dissolve buffer 100m")
     buildings_diss_buf100m_diss_path = str(output_dir / f"{output_basename}_diss_buf100m_diss.gpkg")
-    geofileops.dissolve(
+    gfo_geometry.dissolve(
             input_path=buildings_diss_buf100m_path,
             tiles_path=tiles_path,
             output_path=buildings_diss_buf100m_diss_path,

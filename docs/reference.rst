@@ -6,5 +6,6 @@ API Reference
 .. autosummary::
    :toctree: _autosummary
 
-   geofile
-   geofileops
+   gfo_general
+   gfo_geometry
+   gfo_overlay
