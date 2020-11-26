@@ -34,6 +34,33 @@ def erase(
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
+    """
+    Erase all geometries in the erase layer from the input layer.
+
+    Args:
+        input_path (PathLike): The file to erase from.
+        erase_path (PathLike): The file with the geometries to erase with.
+        output_path (PathLike): the file to write the result to
+        input1_layer (str, optional): input layer name. Optional if the  
+                file only contains one layer.
+        input1_columns (List[str], optional): columns to select. If no columns
+            specified, all columns are selected.
+        erase_layer (str, optional): erase layer name. Optional if the  
+            file only contains one layer.
+        output_layer (str, optional): output layer name. Optional if the  
+            file only contains one layer.
+        explodecollections (bool, optional): True to convert all multi-geometries to 
+                singular ones after the dissolve. Defaults to False.
+        nb_parallel (int, optional): the number of parallel processes to use. 
+            If not specified, all available processors will be used.
+        verbose (bool, optional): write more info to the output. 
+             Defaults to False.
+        force (bool, optional): overwrite existing output file(s). 
+            Defaults to False.
+
+    Returns:
+        [type]: [description]
+    """
 
     logger.info(f"Start erase on {input_path} with {erase_path} to {output_path}")
     return geofileops_ogr.erase(
@@ -191,6 +218,8 @@ def intersect(
             specified, all columns are selected.
         output_layer (str, optional): output layer name. Optional if the  
                 file only contains one layer.
+        explodecollections (bool, optional): True to convert all multi-geometries to 
+                singular ones after the dissolve. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use. 
                 If not specified, all available processors will be used.
         verbose (bool, optional): write more info to the output. 
@@ -403,6 +432,8 @@ def split(
             specified, all columns are selected.
         output_layer (str, optional): output layer name. Optional if the  
                 file only contains one layer.
+        explodecollections (bool, optional): True to convert all multi-geometries to 
+                singular ones after the dissolve. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use. 
                 If not specified, all available processors will be used.
         verbose (bool, optional): write more info to the output. 
