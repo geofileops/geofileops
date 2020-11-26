@@ -175,6 +175,29 @@ def isvalid(
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False) -> bool:
+    """
+    Checks for all geometries in the geofile if they are valid, and writes the 
+    results to the output file
+
+    Args:
+        input_path (PathLike): The input file.
+        output_path (PathLike, optional): The output file path. If not 
+            specified the result will be written in a new file alongside the 
+            input file. Defaults to None.
+        input_layer (str, optional): input layer name. Optional if the  
+                file only contains one layer.
+        output_layer (str, optional): input layer name. Optional if the  
+                file only contains one layer.
+        nb_parallel (int, optional): the number of parallel processes to use. 
+                If not specified, all available processors will be used.
+        verbose (bool, optional): write more info to the output. 
+                Defaults to False.
+        force (bool, optional): overwrite existing output file(s). 
+                Defaults to False.
+
+    Returns:
+        bool: True if all geometries were valid.
+    """
 
     # Check parameters
     if output_path is not None:
@@ -202,9 +225,27 @@ def makevalid(
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
+    """
+    Makes all geometries in the input file valid and writes the result to the
+    output path.
+
+    Args:
+        input_path (PathLike): The input file.
+        output_path (PathLike): The file to write the result to.
+        input_layer (str, optional): input layer name. Optional if the  
+                file only contains one layer.
+        output_layer (str, optional): input layer name. Optional if the  
+                file only contains one layer.
+        nb_parallel (int, optional): the number of parallel processes to use. 
+                If not specified, all available processors will be used.
+        verbose (bool, optional): write more info to the output. 
+                Defaults to False.
+        force (bool, optional): overwrite existing output file(s). 
+                Defaults to False.
+    """
 
     logger.info(f"Start makevalid on {input_path}")
-    return geofileops_ogr.makevalid(
+    geofileops_ogr.makevalid(
             input_path=Path(input_path),
             output_path=Path(output_path),
             input_layer=input_layer,        
