@@ -960,6 +960,11 @@ def split(
                AND ST_NPoints(geom) > 0   -- ST_CollectionExtract outputs empty, but not NULL geoms in spatialite 4.3 
             '''
 
+    # When polygons are split, they can become multipolygons, even with explodecollections
+    force_output_geometrytype = input1_layer_info.geometrytypename
+    if force_output_geometrytype == 'POLYGON':
+        force_output_geometrytype = 'MULTIPOLYGON'
+    
     # Go!
     return _two_layer_vector_operation(
             input1_path=input1_path,
@@ -974,6 +979,7 @@ def split(
             input2_columns=input2_columns,
             input2_columns_prefix=input2_columns_prefix,
             output_layer=output_layer,
+            force_output_geometrytype=force_output_geometrytype,
             explodecollections=explodecollections,
             nb_parallel=nb_parallel,
             verbose=verbose,
