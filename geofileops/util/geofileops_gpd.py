@@ -748,9 +748,12 @@ def _dissolve(
                                 if type(feature) == sh_geom.Polygon 
                                 else feature for feature in diss_gdf.geometry]
 
+        # Explode multi-geometries if asked...
+        """
         if explodecollections:
-            diss_gdf = diss_gdf.explode() #.reset_index()
-            # TODO: reset_index necessary???
+            diss_gdf = diss_gdf.reset_index().explode().reset_index()
+        """
+
         perfinfo['time_dissolve'] = (datetime.datetime.now()-start_dissolve).total_seconds()
 
     # If there is no result, return
