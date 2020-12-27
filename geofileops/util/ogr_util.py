@@ -665,7 +665,7 @@ def vector_info(
 
     # Add all parameters to args list
     args = [str(ogrinfo_path)]
-    args.extend(['--config', 'OGR_SQLITE_PRAGMA', 'journal_mode=WAL'])  
+    #args.extend(['--config', 'OGR_SQLITE_PRAGMA', 'journal_mode=WAL'])  
     if readonly is True:
         args.append('-ro')
     if report_summary is True:
