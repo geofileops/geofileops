@@ -202,6 +202,18 @@ def select(
         verbose: bool = False,
         force: bool = False):
 
+    # Check if output exists already here, to evade to much logging to be written 
+    if output_path.exists():
+        if force is False:
+            logger.info(f"Stop select: output exists already {output_path}")
+            return
+    logger.info(f"  -> select to execute:\n{sql_stmt}")
+    
+    # If no output geometrytype is specified, use the geometrytype of the input layer
+    if force_output_geometrytype is None:
+        force_output_geometrytype = gfo_general.get_layerinfo(input_path, input_layer).geometrytypename
+        logger.info(f"No force_output_geometrytype specified, so defaults to input layer geometrytype: {force_output_geometrytype}")
+
     # Go!
     return _single_layer_vector_operation(
             input_path=input_path,
