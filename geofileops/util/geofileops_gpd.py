@@ -359,6 +359,7 @@ def _apply_geooperation(
 def dissolve(
         input_path: Path,  
         output_path: Path,
+        columns: List[str] = None,
         groupby_columns: Optional[List[str]] = None,
         aggfunc: str = 'first',
         explodecollections: bool = False,
@@ -376,7 +377,9 @@ def dissolve(
     Args:
         input_path (Path): path to the input file
         output_path (Path): path to the output file
-        groupby_columns (List[str]): columns to group on
+        columns (List[str], optional): columns to read from the input file.
+                Defaults to None, and then all columns are read.
+        groupby_columns (List[str], optional): columns to group on
         aggfunc (str, optional): aggregation function to apply to columns not 
                 grouped on. Defaults to None.
         explodecollections (bool, optional): after dissolving, evade having 
@@ -427,7 +430,7 @@ def dissolve(
         result_tiles_gdf = gfo_general.read_file(tiles_path)
         if nb_parallel == -1:
             nb_cpu = multiprocessing.cpu_count()
-            nb_parallel = int(1.25 * nb_cpu)
+            nb_parallel = nb_cpu #int(1.25 * nb_cpu)
             logger.debug(f"Nb cpus found: {nb_cpu}, nb_parallel: {nb_parallel}")
     else:
         # Else, create a grid based on the number of tiles wanted as result
@@ -493,6 +496,7 @@ def dissolve(
                     output_notonborder_path=output_tmp_path,
                     output_onborder_path=output_tmp_onborder_path,
                     tiles_gdf=tiles_gdf,
+                    columns=columns,
                     groupby_columns=groupby_columns,
                     aggfunc=aggfunc,
                     explodecollections=explodecollections,
@@ -555,6 +559,7 @@ def dissolve_pass(
         output_notonborder_path: Path,
         output_onborder_path: Path,
         tiles_gdf: gpd.GeoDataFrame,
+        columns: List[str] = None,
         groupby_columns: Optional[List[str]] = None,
         aggfunc: str = 'first',
         explodecollections: bool = False,
@@ -588,6 +593,7 @@ def dissolve_pass(
                     input_path=input_path,
                     output_notonborder_path=output_notonborder_path,
                     output_onborder_path=output_onborder_path,
+                    columns=columns,
                     groupby_columns=groupby_columns,
                     aggfunc=aggfunc,
                     explodecollections=explodecollections,
@@ -629,6 +635,7 @@ def _dissolve(
         input_path: Path,
         output_notonborder_path: Path,
         output_onborder_path: Path,
+        columns: List[str] = None,
         groupby_columns: Optional[List[str]] = None,
         aggfunc: str = 'first',
         explodecollections: bool = False,
@@ -655,7 +662,8 @@ def _dissolve(
     start_read = datetime.datetime.now()
     while True:
         try:
-            input_gdf = gfo_general.read_file(path=input_path, layer=input_layer, bbox=bbox)
+            input_gdf = gfo_general.read_file(
+                    path=input_path, layer=input_layer, bbox=bbox, columns=columns)
             break
         except Exception as ex:
             if str(ex) == 'database is locked':

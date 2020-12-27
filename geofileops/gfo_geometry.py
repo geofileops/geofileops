@@ -114,6 +114,7 @@ def convexhull(
 def dissolve(
         input_path: Union[str, 'os.PathLike[Any]'],  
         output_path: Union[str, 'os.PathLike[Any]'],
+        columns: List[str] = None,
         groupby_columns: Optional[List[str]] = None,
         aggfunc: str = 'first',
         explodecollections: bool = False,
@@ -132,6 +133,8 @@ def dissolve(
     Args:
         input_path (PathLike): the input file
         output_path (PathLike): the file to write the result to
+        columns (List[str], optional): columns to read from the input file.
+                Defaults to None, and then all columns are read.
         groupby_columns: (List[str]): list of columns to group on before applying the union.
         explodecollections (bool, optional): True to convert all multi-geometries to 
                 singular ones after the dissolve. Defaults to False.
@@ -156,6 +159,7 @@ def dissolve(
     return geofileops_gpd.dissolve(
             input_path=Path(input_path),
             output_path=Path(output_path),
+            columns=columns,
             groupby_columns=groupby_columns,
             aggfunc=aggfunc,
             explodecollections=explodecollections,
