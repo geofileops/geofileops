@@ -405,7 +405,8 @@ def update_column(
         path: Union[str, 'os.PathLike[Any]'],
         name: str, 
         expression: str,
-        layer: str = None):
+        layer: str = None,
+        where: str = None):
     """
     Update a column from a layer of the geofile.
 
@@ -416,6 +417,8 @@ def update_column(
             the value. 
         layer (str, optional): The layer name. If None and the geofile
             has only one layer, that layer is used. Defaults to None.
+        layer (str, optional): SQL where clause to restrict the rows that will 
+            be updated. Defaults to None.
 
     Raises:
         ex: [description]
@@ -438,6 +441,8 @@ def update_column(
             
         # If an expression was provided and update can be done, go for it...
         sqlite_stmt = f'UPDATE "{layer}" SET "{name}" = {expression}'
+        if where is not None:
+            sqlite_stmt += f"\n WHERE {where}"
         ogr_util.vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
         #datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
     finally:
