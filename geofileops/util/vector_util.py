@@ -117,7 +117,7 @@ def split_tiles(
         # For this tile, as long as the curr_nb_tiles_ratio_todo is not 1, keep splitting 
         curr_nb_tiles_ratio_todo = nb_tiles_ratio_target
         curr_tiles_being_split = [tile.geometry]
-        while round(curr_nb_tiles_ratio_todo) > 1:
+        while curr_nb_tiles_ratio_todo > 1:
 
             # Check in how many parts the tiles are split in this iteration
             divisor = 0 
