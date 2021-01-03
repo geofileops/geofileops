@@ -106,7 +106,7 @@ def get_parallellisation_params(
     bytes_basefootprint = 50*1024*1024   # Base footprint of a python process
     bytes_per_row = 100                  # Average memory needed per row in bytes. Remark: when running from VS code, 3 times higher!
     min_avg_rows_per_batch = 1000
-    max_avg_rows_per_batch = 7500       # 60.000 on small test, but seems slow in larger
+    max_avg_rows_per_batch = 10000       # 60.000 on small test, but seems slow in larger
     bytes_min_per_process = bytes_basefootprint + bytes_per_row * min_avg_rows_per_batch
     bytes_usable = psutil.virtual_memory().available * 0.9
     
