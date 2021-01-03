@@ -1,13 +1,15 @@
 
+.coverage
+*.log
 *.pyc
 .vscode/
-build/
-geofileops.egg-info/
-dist/
-*.log
 tests/data/testdata.qgz
+
+build/
+dist/
 docs/_autosummary
 docs/_build
 docs/api
-htmlcov
-.coverage
+geofileops.egg-info/
+htmlcov/
+tmp/
