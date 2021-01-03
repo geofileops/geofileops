@@ -173,11 +173,37 @@ def test_dissolve_groupby_shp(tmpdir):
 
 def basetest_dissolve_groupby(input_path, output_path):
     layerinfo_orig = gfo_general.get_layerinfo(input_path)
+
+    # Test dissolve without explodecollections
     geofileops_gpd.dissolve(
             input_path=input_path,
             output_path=output_path,
             groupby_columns=['GEWASGROEP'],
             explodecollections=False,
+            nb_parallel=get_nb_parallel())
+
+    # Now check if the tmp file is correctly created
+    assert output_path.exists() == True
+    layerinfo_output = gfo_general.get_layerinfo(output_path)
+    assert layerinfo_output.featurecount == 3
+    assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
+
+    # Check geometry type
+    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+
+    # Now check the contents of the result file
+    input_gdf = gfo_general.read_file(input_path)
+    output_gdf = gfo_general.read_file(output_path)
+    assert input_gdf.crs == output_gdf.crs
+    assert len(output_gdf) == layerinfo_output.featurecount
+    assert output_gdf['geometry'][0] is not None
+
+    # Test dissolve with explodecollections
+    geofileops_gpd.dissolve(
+            input_path=input_path,
+            output_path=output_path,
+            groupby_columns=['GEWASGROEP'],
+            explodecollections=True,
             nb_parallel=get_nb_parallel())
 
     # Now check if the tmp file is correctly created
