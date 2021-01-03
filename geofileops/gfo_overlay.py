@@ -373,7 +373,7 @@ def select_two_layers(
         explodecollections (bool, optional): True to convert all multi-geometries to 
                 singular ones after the dissolve. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use. 
-            If not specified, 1 processors will be used.
+            If not specified, 1 parallel process will be used.
         verbose (bool, optional): write more info to the output. 
             Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
