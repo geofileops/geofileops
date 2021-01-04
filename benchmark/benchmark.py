@@ -14,7 +14,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
 from geofileops.util import geofileops_gpd
 from geofileops.util import geofileops_ogr
-from geofileops import gfo_geometry
+from geofileops import geofileops
 
 class BenchResult:
     def __init__(self, 
@@ -98,7 +98,7 @@ def get_testdata_aiv(testdata_path: Path):
         raise Exception(f"Should find 1 shapefile, found {len(shp_paths)}")
 
     print('Make shapefile valid to gpkg')
-    gfo_geometry.makevalid(shp_paths[0], testdata_path)
+    geofileops.makevalid(shp_paths[0], testdata_path)
     
     # Cleanup
     if zip_path.exists():

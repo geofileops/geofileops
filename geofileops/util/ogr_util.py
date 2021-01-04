@@ -25,7 +25,7 @@ import geopandas as gpd
 from osgeo import gdal
 gdal.UseExceptions() 
 
-from geofileops import gfo_general
+from geofileops import geofile
 from geofileops.util import general_util
 
 #-------------------------------------------------------------
@@ -414,7 +414,7 @@ def vector_translate_exe(
                 # If output_path didn't exist yet before, clean it up... if it exists
                 if not output_path_exists_already:
                     if output_path.exists():
-                        gfo_general.remove(output_path)
+                        geofile.remove(output_path)
                 raise Exception(f"Error executing {pprint.pformat(args)}\n\t-> Return code: {returncode}\n\t-> Error: {err}\n\t->Output: {output}")
         elif(err is not None and err != ""
              and not str(err).startswith(r"Warning 1: Layer creation options ignored since an existing layer is")):
@@ -519,7 +519,7 @@ def vector_translate_py(
                 layerCreationOptions.extend(['SPATIAL_INDEX=NO'])
     # Get output format from the filename
     # TODO: better te remove if not needed
-    output_format = gfo_general.get_driver(output_path)
+    output_format = geofile.get_driver(output_path)
 
     # Sqlite specific options
     datasetCreationOptions = []
@@ -592,7 +592,7 @@ def vector_translate_py(
         else:
             if result_ds.GetLayerCount() == 0:
                 del result_ds
-                gfo_general.remove(output_path)
+                geofile.remove(output_path)
     except Exception as ex:
         message = f"Error executing {sql_stmt}"
         logger.exception(message)
@@ -858,7 +858,7 @@ def _execute_sql(
             raise Exception(f"Unsupported gdal_installation: {gdal_installation}")
         
         # Return result
-        install_info_gdf = gfo_general.read_file(tmp_path)
+        install_info_gdf = geofile.read_file(tmp_path)
         return install_info_gdf
 
 if __name__ == '__main__':
