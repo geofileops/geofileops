@@ -305,8 +305,10 @@ def simplify_ext(
             raise Exception(f"Unsupported tolerance_type: {algorythm}, supported: {algorythms}")
 
         coords_gdf = gpd.GeoDataFrame(geometry=list(sh_geom.MultiPoint(coords)))
-        coords_on_border_series = coords_gdf.intersects(keep_points_on)
-        coords_on_border_idx = coords_on_border_series.index[coords_on_border_series == True].tolist()
+        coords_on_border_idx = []
+        if keep_points_on is not None:
+            coords_on_border_series = coords_gdf.intersects(keep_points_on)
+            coords_on_border_idx = coords_on_border_series.index[coords_on_border_series].tolist()
 
         # Extracts coordinates that need to be kept
         coords_to_keep = sorted(set(coords_simplify_idx + coords_on_border_idx))
