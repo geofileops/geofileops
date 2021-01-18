@@ -44,34 +44,78 @@ def test_split_tiles():
 
     assert len(result) == len(input_tiles) * 8
 
-def test_simplify_ext():
+def test_simplify_ext(tmpdir):
+    
+    #### Test if keep_points_on works properly ####
+    
+    ## First init some stuff ##
+    # Read the test data
     input_path = get_testdata_dir() / 'simplify_onborder_testcase.gpkg'
     input_gdf = geofile.read_file(input_path)
 
-    # Create grid lines geometry 
+    # Create geometry where we want the points kept
     grid_gdf = vector_util.create_grid(
             total_bounds=(210431.875-1000, 176640.125-1000, 210431.875+1000, 176640.125+1000),
             nb_columns=2,
             nb_rows=2,
             crs='epsg:31370')
+    geofile.to_file(grid_gdf, tmpdir / "grid.gpkg")
     grid_coords = [tile.exterior.coords for tile in grid_gdf['geometry']]
     grid_lines = sh_geom.MultiLineString(grid_coords)
+    
+    ## Test ramer–douglas–peucker ##
+    # Without keep_points_on, the following point that is on the test data + 
+    # on the grid is removed by ramer–douglas–peucker with tolerance=1 
+    point_on_input_and_border = sh_geom.Point(210431.875, 176599.375)
+    tolerance_rdp = 1
 
-    simplified_gdf = input_gdf.geometry.simplify(1)
-    geofile.to_file(simplified_gdf, r"c:\temp\simplified.gpkg")
+    # Determine the number of intersects with the input test data
+    nb_intersects_with_input = len(input_gdf[input_gdf.intersects(point_on_input_and_border)])
+    assert nb_intersects_with_input > 0
+    # Test if intersects > 0
+    assert len(input_gdf[grid_gdf.intersects(point_on_input_and_border)]) > 0
 
-    simplified_dist_ext_gdf = input_gdf.geometry.apply(
-            lambda geom: vector_util.simplify_ext(geom, 'ramer–douglas–peucker', tolerance=tolerance, keep_points_on=grid_lines))
-    geofile.to_file(simplified_dist_ext_gdf, r"c:\temp\simplified_dist0.25_ext.gpkg")
+    # Without keep_points_on the number of intersections changes 
+    simplified_gdf = input_gdf.geometry.simplify(tolerance_rdp)
+    print(len(simplified_gdf))
+    geofile.to_file(simplified_gdf, tmpdir / f"simplified_rdp{tolerance_rdp}.gpkg")
+    assert len(simplified_gdf[simplified_gdf.intersects(point_on_input_and_border)]) != nb_intersects_with_input
+    
+    # With keep_points_on specified, the number of intersections stays the same 
+    simplified_gdf = input_gdf.geometry.apply(
+            lambda geom: vector_util.simplify_ext(geom, 'ramer–douglas–peucker', tolerance=tolerance_rdp, keep_points_on=grid_lines))
+    geofile.to_file(simplified_gdf, tmpdir / f"simplified_rdp{tolerance_rdp}_keep_points_on.gpkg")
+    assert len(simplified_gdf[simplified_gdf.intersects(point_on_input_and_border)]) == nb_intersects_with_input
+    
+    ## Test visvalingam-whyatt ##
+    # Without keep_points_on, the following point that is on the test data + 
+    # on the grid is removed by ramer–douglas–peucker with tolerance=1 
+    point_on_input_and_border = sh_geom.Point(210430.125, 176640.125)
+    tolerance_vw = 16*0.25*0.25   # 1m²
 
-    tolerance = 16*0.25*0.25
-    simplified_area_ext_gdf = input_gdf.geometry.apply(
-            lambda geom: vector_util.simplify_ext(geom, 'visvalingam-whyatt', tolerance=tolerance, keep_points_on=grid_lines))
-    geofile.to_file(simplified_area_ext_gdf, f"c:/temp/simplified_area{tolerance}_ext.gpkg")
+    # Determine the number of intersects with the input test data
+    nb_intersects_with_input = len(input_gdf[input_gdf.intersects(point_on_input_and_border)])
+    assert nb_intersects_with_input > 0
+    # Test if intersects > 0
+    assert len(input_gdf[grid_gdf.intersects(point_on_input_and_border)]) > 0
 
+    # Without keep_points_on the number of intersections changes 
+    simplified_gdf = input_gdf.geometry.apply(
+            lambda geom: vector_util.simplify_ext(geom, 'visvalingam-whyatt', tolerance=tolerance_vw))
+    geofile.to_file(simplified_gdf, tmpdir / f"simplified_vw{tolerance_vw}.gpkg")
+    assert len(simplified_gdf[simplified_gdf.intersects(point_on_input_and_border)]) != nb_intersects_with_input
+    
+    # With keep_points_on specified, the number of intersections stays the same 
+    simplified_gdf = input_gdf.geometry.apply(
+            lambda geom: vector_util.simplify_ext(geom, 'visvalingam-whyatt', tolerance=tolerance_vw, keep_points_on=grid_lines))
+    geofile.to_file(simplified_gdf, tmpdir / f"simplified_vw{tolerance_vw}_keep_points_on.gpkg")
+    assert len(simplified_gdf[simplified_gdf.intersects(point_on_input_and_border)]) == nb_intersects_with_input
+    
 if __name__ == '__main__':
-    #import tempfile
-    #tmpdir = tempfile.gettempdir()
+    import os
+    import tempfile
+    tmpdir = Path(tempfile.gettempdir()) / "test_vector_util"
+    os.makedirs(tmpdir)
     #test_create_grid2()
     #test_split_tiles()
-    test_simplify_ext()
+    test_simplify_ext(tmpdir)
