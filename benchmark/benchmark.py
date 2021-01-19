@@ -81,7 +81,7 @@ def get_testdata_aiv(testdata_path: Path):
     unzippedzip_dir = get_testdata_dir() / zip_path.stem
     if not zip_path.exists() and not unzippedzip_dir.exists():
         # Download beschmark file
-        print('Download test data')
+        print(f"Download test data {testdata_path}")
         urllib.request.urlretrieve(str(url), zip_path)
     
     # Unzip zip file if needed... 
