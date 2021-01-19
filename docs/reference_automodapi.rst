@@ -3,10 +3,8 @@ API Reference
 =============
 .. currentmodule:: geofileops
 
-.. automodapi:: geofileops.gfo_general
+.. automodapi:: geofileops.geofile
   :no-inheritance-diagram:
-.. automodapi:: geofileops.gfo_geometry
-  :no-inheritance-diagram:
-.. automodapi:: geofileops.gfo_overlay
+.. automodapi:: geofileops.geofileops
   :no-inheritance-diagram:
   

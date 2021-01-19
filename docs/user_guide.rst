@@ -9,18 +9,18 @@ typical expected time divided by the number of available CPU's.
 As a side product some functions that are used internally are also exposed in 
 the general module. 
 
-geofileops.gfo_geometry
------------------------
-The first type of operations are the operations that are executed on one 
+geofileops.geofileops
+---------------------
+The first type of operations are operations that are executed on one 
 file/layer. Examples are buffer, simplify, dissolve,...
 
 This is an example for a buffer operation:
 
 .. code-block:: python
 
-    from geofileops import gfo_geometry
+    from geofileops import geofileops
     
-    gfo_geometry.buffer(
+    geofileops.buffer(
             input_path='...',
             output_path='...',
             distance=2)
@@ -28,26 +28,24 @@ This is an example for a buffer operation:
 By default all available CPU's will be used. You can specify the 
 number of CPU's to be used with the nb_parallel parameter. 
 
-geofileops.gfo_overlay
-----------------------
-The second type of operations are operations between two files/layers. 
+There are also operations between two files/layers. 
 Examples are intersection, erase, union,... 
 
 This is an example for the intersection operation:
 
 .. code-block:: python
 
-    from geofileops import gfo_overlay
+    from geofileops import geofileops
 
-    gfo_overlay.intersect(
+    geofileops.intersect(
             input1_path='...',
             input2_path='...',
             output_path='...')
 
 Please check out all available operations in the API reference.
 
-geofileops.gfo_general
-----------------------
+geofileops.geofile
+------------------
 This module contains some general purpose helper functions that might be of 
 use when working with geofiles (or layers).
 Remark: some functions will only work on Geopackage files, not on 
