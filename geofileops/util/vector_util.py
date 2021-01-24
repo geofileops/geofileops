@@ -272,8 +272,8 @@ def simplify_ext(
     """
 
     # Check parameters
-    algorythms = ['ramer–douglas–peucker', 'visvalingam-whyatt']
-    if algorythm == 'ramer–douglas–peucker':
+    algorythms = ['ramer-douglas-peucker', 'visvalingam-whyatt']
+    if algorythm == 'ramer-douglas-peucker':
         if tolerance is None:
             raise Exception(f"Tolerance parameter needs to be specified for algorythm {algorythm}!")
     elif algorythm == 'visvalingam-whyatt':
@@ -297,12 +297,12 @@ def simplify_ext(
     def simplify_coords(coords: list):
 
         # Determine the indexes of the coordinates to keep after simplification
-        if algorythm == 'ramer–douglas–peucker':
+        if algorythm == 'ramer-douglas-peucker':
             coords_simplify_idx = simpl.simplify_coords_idx(coords, tolerance)
         elif algorythm == 'visvalingam-whyatt':
             coords_simplify_idx = simpl.simplify_coords_vw_idx(coords, tolerance)
         else:
-            raise Exception(f"Unsupported tolerance_type: {algorythm}, supported: {algorythms}")
+            raise Exception(f"Unsupported algorythm: {algorythm}, supported: {algorythms}")
 
         coords_gdf = gpd.GeoDataFrame(geometry=list(sh_geom.MultiPoint(coords)))
         coords_on_border_idx = []
