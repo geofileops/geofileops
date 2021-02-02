@@ -185,8 +185,8 @@ def basetest_dissolve_groupby(input_path, output_path):
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
     layerinfo_output = geofile.get_layerinfo(output_path)
-    assert layerinfo_output.featurecount == 3
-    assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
+    assert layerinfo_output.featurecount == 6
+    assert len(layerinfo_output.columns) == 1
 
     # Check geometry type
     assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
@@ -209,8 +209,33 @@ def basetest_dissolve_groupby(input_path, output_path):
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
     layerinfo_output = geofile.get_layerinfo(output_path)
-    assert layerinfo_output.featurecount == 3
-    assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
+    assert layerinfo_output.featurecount == 6
+    assert len(layerinfo_output.columns) == 1
+
+    # Check geometry type
+    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+
+    # Now check the contents of the result file
+    input_gdf = geofile.read_file(input_path)
+    output_gdf = geofile.read_file(output_path)
+    assert input_gdf.crs == output_gdf.crs
+    assert len(output_gdf) == layerinfo_output.featurecount
+    assert output_gdf['geometry'][0] is not None
+
+    # Test dissolve with explodecollections + all columns
+    geofileops_gpd.dissolve(
+            input_path=input_path,
+            output_path=output_path,
+            groupby_columns=['GEWASGROEP'],
+            columns=None,
+            explodecollections=True,
+            nb_parallel=get_nb_parallel())
+
+    # Now check if the tmp file is correctly created
+    assert output_path.exists() == True
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_output.featurecount == 6
+    assert len(layerinfo_output.columns) == 1
 
     # Check geometry type
     assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
@@ -318,7 +343,9 @@ if __name__ == '__main__':
         tmpdir.mkdir()
 
     # Run
-    test_buffer_gpkg(tmpdir)
+    #test_buffer_gpkg(tmpdir)
     #test_buffer_various_options_gpkg(tmpdir)
+    #test_dissolve_nogroupby_shp(tmpdir)
+    test_dissolve_groupby_gpkg(tmpdir)
     #test_dissolve_nogroupby_shp(tmpdir)
     #test_dissolve_nogroupby_gpkg(tmpdir)

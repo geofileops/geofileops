@@ -114,12 +114,13 @@ def convexhull(
 def dissolve(
         input_path: Union[str, 'os.PathLike[Any]'],  
         output_path: Union[str, 'os.PathLike[Any]'],
-        columns: List[str] = None,
-        groupby_columns: Optional[List[str]] = None,
+        explodecollections: bool,
+        groupby_columns: List[str] = [],
+        columns: Optional[List[str]] = [],
         aggfunc: str = 'first',
-        explodecollections: bool = False,
-        clip_on_tiles: bool = False,
         tiles_path: Union[str, 'os.PathLike[Any]'] = None,
+        nb_squarish_tiles: int = 1,
+        clip_on_tiles: bool = False,
         input_layer: str = None,        
         output_layer: str = None,
         nb_parallel: int = -1,
@@ -130,15 +131,43 @@ def dissolve(
     
     The result is written to the output file specified. 
 
+    Remark: only aggfunc = 'first' is supported at the moment. 
+
     Args:
         input_path (PathLike): the input file
         output_path (PathLike): the file to write the result to
-        columns (List[str], optional): columns to read from the input file.
-                Defaults to None, and then all columns are read.
-        groupby_columns: (List[str]): list of columns to group on before applying the union.
-        explodecollections (bool, optional): True to convert all multi-geometries to 
-                singular ones after the dissolve. Defaults to False.
-        clip_on_tiles (bool, optional): True to clip the result on the tiles used.
+        explodecollections (bool): True to output only simple geometries. If 
+            False is specified, this can result in huge geometries for large 
+            files, so beware...   
+        groupby_columns (List[str], optional): columns to group on while 
+            aggregating. Defaults to [], resulting in a spatial union of all 
+            geometries that touch.
+        columns (List[str], optional): columns to retain in the output file. 
+            The columns in parameter groupby_columns are always retained. The
+            other columns specified are aggregated as specified in parameter 
+            aggfunc. If None is specified, all columns are retained.
+            Defaults to [] (= only the groupby_columns are retained).
+        aggfunc (str, optional): aggregation function to apply to columns not 
+            grouped on. Defaults to 'first'.
+        tiles_path (PathLike, optional): a path to a geofile containing tiles. 
+            If specified, the output will be dissolved/unioned only within the 
+            tiles provided. 
+            Can be used to evade huge geometries being created if the input 
+            geometries are very interconnected. 
+            Defaults to None (= the output is not tiled).
+        nb_squarish_tiles (int, optional): the approximate number of tiles the 
+            output should be dissolved/unioned to. If > 1, a tiling grid is 
+            automatically created based on the total bounds of the input file.
+            The input geometries will be dissolved/unioned only within the 
+            tiles generated.   
+            Can be used to evade huge geometries being created if the input 
+            geometries are very interconnected. 
+            Defaults to 1 (= the output is not tiled).
+        clip_on_tiles (bool, optional): if True, the result will be clipped 
+            on the output tiles, so the tile borders are never crossed. 
+            Only used if the output is tiled (by specifying a tiles_path 
+            or a nb_squarish_tiles > 1) and no groupby_columns are specified. 
+            Defaults to False.
         input_layer (str, optional): input layer name. Optional if the  
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the  
@@ -159,14 +188,15 @@ def dissolve(
     return geofileops_gpd.dissolve(
             input_path=Path(input_path),
             output_path=Path(output_path),
-            columns=columns,
-            groupby_columns=groupby_columns,
-            aggfunc=aggfunc,
             explodecollections=explodecollections,
+            groupby_columns=groupby_columns,
+            columns=columns,
+            aggfunc=aggfunc,
+            tiles_path=tiles_path_p,
+            nb_squarish_tiles=nb_squarish_tiles,
             clip_on_tiles=clip_on_tiles,
             input_layer=input_layer,        
             output_layer=output_layer,
-            tiles_path=tiles_path_p,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
