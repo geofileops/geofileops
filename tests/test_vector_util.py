@@ -4,8 +4,10 @@ Tests for functionalities in vector_util.
 """
 
 from pathlib import Path
-import shapely.geometry as sh_geom
 import sys
+
+import geopandas as gpd
+import shapely.geometry as sh_geom
 
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
@@ -29,8 +31,8 @@ def test_create_grid2():
     grid_gdf = vector_util.create_grid2(
             total_bounds=(40000.0, 160000.0, 45000.0, 210000.0), 
             nb_squarish_tiles=100,
-            crs=None)
-    assert len(grid_gdf) == 132
+            crs='epsg:31370')
+    assert len(grid_gdf) == 96
 
 def test_split_tiles():
     input_tiles_path = get_testdata_dir() / 'BEFL_kbl.gpkg'
@@ -61,7 +63,7 @@ def test_simplify_ext(tmpdir):
             crs='epsg:31370')
     geofile.to_file(grid_gdf, tmpdir / "grid.gpkg")
     grid_coords = [tile.exterior.coords for tile in grid_gdf['geometry']]
-    grid_lines = sh_geom.MultiLineString(grid_coords)
+    grid_lines_geom = sh_geom.MultiLineString(grid_coords)
     
     ## Test ramer–douglas–peucker ##
     # Without keep_points_on, the following point that is on the test data + 
@@ -83,13 +85,15 @@ def test_simplify_ext(tmpdir):
     
     # With keep_points_on specified, the number of intersections stays the same 
     simplified_gdf = input_gdf.geometry.apply(
-            lambda geom: vector_util.simplify_ext(geom, 'ramer–douglas–peucker', tolerance=tolerance_rdp, keep_points_on=grid_lines))
+            lambda geom: vector_util.simplify_ext(
+                    geom, algorythm='ramer-douglas-peucker', 
+                    tolerance=tolerance_rdp, keep_points_on=grid_lines_geom))
     geofile.to_file(simplified_gdf, tmpdir / f"simplified_rdp{tolerance_rdp}_keep_points_on.gpkg")
     assert len(simplified_gdf[simplified_gdf.intersects(point_on_input_and_border)]) == nb_intersects_with_input
     
     ## Test visvalingam-whyatt ##
     # Without keep_points_on, the following point that is on the test data + 
-    # on the grid is removed by ramer–douglas–peucker with tolerance=1 
+    # on the grid is removed by ramer-douglas-peucker with tolerance=1 
     point_on_input_and_border = sh_geom.Point(210430.125, 176640.125)
     tolerance_vw = 16*0.25*0.25   # 1m²
 
@@ -107,7 +111,7 @@ def test_simplify_ext(tmpdir):
     
     # With keep_points_on specified, the number of intersections stays the same 
     simplified_gdf = input_gdf.geometry.apply(
-            lambda geom: vector_util.simplify_ext(geom, 'visvalingam-whyatt', tolerance=tolerance_vw, keep_points_on=grid_lines))
+            lambda geom: vector_util.simplify_ext(geom, 'visvalingam-whyatt', tolerance=tolerance_vw, keep_points_on=grid_lines_geom))
     geofile.to_file(simplified_gdf, tmpdir / f"simplified_vw{tolerance_vw}_keep_points_on.gpkg")
     assert len(simplified_gdf[simplified_gdf.intersects(point_on_input_and_border)]) == nb_intersects_with_input
     
@@ -115,7 +119,7 @@ if __name__ == '__main__':
     import os
     import tempfile
     tmpdir = Path(tempfile.gettempdir()) / "test_vector_util"
-    os.makedirs(tmpdir)
+    os.makedirs(tmpdir, exist_ok=True)
     #test_create_grid2()
     #test_split_tiles()
     test_simplify_ext(tmpdir)
