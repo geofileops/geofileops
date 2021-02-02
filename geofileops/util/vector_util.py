@@ -50,12 +50,12 @@ def create_grid3(
     polygons = []
     cell_left = xmin
     cell_right = xmin + width
-    for _ in range(cols+1):
+    for _ in range(cols):
         if cell_left > xmax:
             break
         cell_top = ymin + height
         cell_bottom = ymin
-        for _ in range(rows+1):
+        for _ in range(rows):
             if cell_bottom > ymax:
                 break
             polygons.append(sh_ops.Polygon([(cell_left, cell_top), (cell_right, cell_top), (cell_right, cell_bottom), (cell_left, cell_bottom)])) 
