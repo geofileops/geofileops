@@ -5,7 +5,7 @@ Module containing utilities regarding low level vector operations.
 
 import logging
 import math
-from typing import Any, List, Tuple
+from typing import Any, List, Tuple, Union
 
 import geopandas as gpd
 import numpy as np
@@ -29,7 +29,7 @@ def create_grid(
         total_bounds: Tuple[float, float, float, float],
         nb_columns: int,
         nb_rows: int,
-        crs: pyproj.CRS) -> gpd.GeoDataFrame:
+        crs: Union[pyproj.CRS, str, None]) -> gpd.GeoDataFrame:
 
     xmin, ymin, xmax, ymax = total_bounds
     width = (xmax-xmin)/nb_columns
@@ -41,7 +41,7 @@ def create_grid3(
         total_bounds: Tuple[float, float, float, float],
         width: float,
         height: float,
-        crs: pyproj.CRS) -> gpd.GeoDataFrame:
+        crs: Union[pyproj.CRS, str, None]) -> gpd.GeoDataFrame:
 
     xmin, ymin, xmax, ymax = total_bounds
     rows = int(math.ceil((ymax-ymin) / height))
@@ -70,7 +70,7 @@ def create_grid3(
 def create_grid2(
         total_bounds: Tuple[float, float, float, float], 
         nb_squarish_tiles: int,
-        crs: pyproj.CRS) -> gpd.GeoDataFrame:
+        crs: Union[pyproj.CRS, str, None]) -> gpd.GeoDataFrame:
     """
     Creates a grid and tries to approximate the number of cells asked as
     good as possible with grid cells that as close to square as possible.
@@ -163,18 +163,18 @@ def split_tiles(
 #-------------------------------------------------------------
 
 def extract_polygons_from_list(
-        in_geom: sh_geom.base.BaseGeometry) -> list:
+        in_geom: sh_geom.base.BaseGeometry) -> List[Any]:
     """
     Extracts all polygons from the input geom and returns them as a list.
     """
     # Extract the polygons from the multipolygon, but store them as multipolygons anyway
     geoms = []
     if in_geom.geom_type == 'MultiPolygon':
-        geoms = list(in_geom)
+        geoms = list(sh_geom.MultiPolygon(in_geom))
     elif in_geom.geom_type == 'Polygon':
         geoms.append(in_geom)
     elif in_geom.geom_type == 'GeometryCollection':
-        for geom in in_geom:
+        for geom in sh_geom.GeometryCollection(in_geom):
             if geom.geom_type == 'MultiPolygon':
                 geoms.append(list(geom))
             elif geom.geom_type == 'Polygon':
@@ -247,7 +247,7 @@ def simplify_ext(
         algorythm: str,
         tolerance: float = None,
         preserve_topology: bool = False,
-        keep_points_on: List[Any] = None):
+        keep_points_on: sh_geom.base.BaseGeometry = None):
     """
     Simplify the geometry, with extended options.
 
@@ -259,7 +259,7 @@ def simplify_ext(
             * "visvalingam-whyatt": area to use as tolerance
         preserve_topology (bool, optional): True to try to preserve topology. 
             Defaults to False.
-        keep_points_on (List[shapely geometry], optional): point of the geometry to 
+        keep_points_on (BaseGeometry], optional): point of the geometry to 
             that intersect with these geometries are not removed. Defaults to None.
 
     Raises:
