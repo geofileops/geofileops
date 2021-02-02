@@ -645,7 +645,7 @@ def vector_info(
     ##### Init #####
     if not path.exists():
         raise Exception(f"File does not exist: {path}")
-
+            
     # If GDAL_BIN is set, use ogrinfo.exe located there
     ogrinfo_exe = 'ogrinfo.exe'
     gdal_bin_dir = os.getenv('GDAL_BIN')
@@ -655,13 +655,18 @@ def vector_info(
     else:
         ogrinfo_path = ogrinfo_exe
 
-    # If running a sqlite statement on a gpkg file, check first if spatialite works properly
+    # If running a sqlite statement on a gpkg file, check first if spatialite 
+    # works properly an if INDIRECT_SQLITE should be used.
     if(skip_health_check is False
        and sql_stmt is not None 
        and sql_dialect is not None
        and sql_dialect.upper() == 'SQLITE' 
        and path.suffix.lower() == '.gpkg'):
-        get_gdal_to_use(sql_stmt)
+        _, sql_dialect = get_gdal_to_use(sql_stmt)
+
+        # Warn that updates with 'INDIRECT_SQLITE' give terrible performance!
+        if sql_dialect == 'INDIRECT_SQLITE':
+            logger.warn(f"sql_stmt needs 'INDIRECT_SQLITE', but this is gonna be slow!\n\t{sql_stmt}")  
 
     # Add all parameters to args list
     args = [str(ogrinfo_path)]
@@ -827,7 +832,7 @@ def get_gdal_install_info(gdal_installation: str) -> dict:
                     'simplifypreservetopology', 'st_simplifypreservetopology', 
                     'makevalid', 'st_makevalid', 'isvalid', 'st_isvalid', 
                     'isvalidreason', 'st_isvalidreason', 'isvaliddetail', 'st_isvaliddetail',
-                    'st_area', 'area',
+                    'st_area', 'area', 'st_npoints', 'npoints',
                     'st_multi', 'collectionextract', 'st_intersection', 'st_union']
         else:
             install_info['unsupported_functions'] = []
