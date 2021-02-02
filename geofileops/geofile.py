@@ -110,7 +110,7 @@ class LayerInfo:
             geometrycolumn: str, 
             geometrytypename: str,
             columns: List[str],
-            crs: pyproj.CRS):
+            crs: Optional[pyproj.CRS]):
         self.name = name
         self.featurecount = featurecount
         self.total_bounds = total_bounds
