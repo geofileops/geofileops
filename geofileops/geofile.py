@@ -17,6 +17,7 @@ from typing import Any, List, Optional, Tuple, Union
 import fiona
 import geopandas as gpd
 from osgeo import gdal
+import shapely.geometry as sh_geom
 
 from .util import io_util
 from .util import ogr_util
@@ -561,6 +562,7 @@ def to_file(
         gdf: gpd.GeoDataFrame,
         path: Union[str, 'os.PathLike[Any]'],
         layer: str = None,
+        force_output_geometrytype: str = None, 
         append: bool = False,
         append_timeout_s: int = 600,
         index: bool = True):
@@ -572,6 +574,8 @@ def to_file(
         path (Union[str,): The file path to write to.
         layer (str, optional): The layer to read. If no layer is specified, 
             reads the only layer in the file or throws an Exception.
+        force_output_geometrytype (str, optional): force the geometry type to
+            the type specified. Defaults to None.
         append (bool, optional): True to append to the file. Defaults to False.
         append_timeout_s (int, optional): The maximum timeout to wait when the 
             output file is already being written to by another process. 
@@ -602,8 +606,10 @@ def to_file(
             path: Path, 
             layer: str, 
             index: bool = True,
+            force_output_geometrytype: str = None,
             append: bool = False):
 
+        # Change mode if append is true
         if append is True:
             if path.exists():
                 mode = 'a'
@@ -611,6 +617,25 @@ def to_file(
                 mode = 'w'
         else:
             mode = 'w'
+
+        # Apply force_output_geometrytype
+        if force_output_geometrytype is not None:
+            if force_output_geometrytype == 'MULTIPOLYGON':
+                gdf.geometry = [sh_geom.MultiPolygon([feature]) 
+                                if type(feature) == sh_geom.Polygon 
+                                else feature for feature in gdf.geometry]
+            elif force_output_geometrytype == 'MULTIPOINT':
+                gdf.geometry = [sh_geom.MultiPoint([feature]) 
+                                if type(feature) == sh_geom.Point 
+                                else feature for feature in gdf.geometry]
+            elif force_output_geometrytype == 'MULTILINESTRING':
+                gdf.geometry = [sh_geom.MultiLineString([feature]) 
+                                if type(feature) == sh_geom.LineString 
+                                else feature for feature in gdf.geometry]
+            elif force_output_geometrytype in ['POLYGON', 'POINT', 'LINESTRING']:
+                logger.info(f"force_output_geometrytype is {force_output_geometrytype}, so no conversion is done")
+            else:
+                raise Exception(f"Unsupported force_output_geometrytype: {force_output_geometrytype}")
 
         ext_lower = path.suffix.lower()
         if ext_lower == '.shp':
@@ -624,7 +649,8 @@ def to_file(
 
     # If no append, just write to output path
     if append is False:
-        write_to_file(gdf=gdf, path=path_p, layer=layer, index=index, append=False)
+        write_to_file(gdf=gdf, path=path_p, layer=layer, index=index, 
+                force_output_geometrytype=force_output_geometrytype, append=False)
     else:
         # If append is asked, check if the fiona driver supports appending. If
         # not, write to temporary output file 
@@ -639,7 +665,8 @@ def to_file(
                     base_filename='gdftemp',
                     suffix=path_p.suffix,
                     dirname='geofile_to_file')
-            write_to_file(gdf, path=gdftemp_path, layer=layer, index=index)  
+            write_to_file(gdf, path=gdftemp_path, layer=layer, index=index, 
+                    force_output_geometrytype=force_output_geometrytype)  
         
         # Files don't typically support having multiple processes writing 
         # simultanously to them, so use lock file to synchronize access.
@@ -650,7 +677,8 @@ def to_file(
                 try:
                     # If gdf wasn't written to temp file, use standard write-to-file
                     if gdftemp_path is None:
-                        write_to_file(gdf=gdf, path=path_p, layer=layer, index=index, append=True)
+                        write_to_file(gdf=gdf, path=path_p, layer=layer, index=index, 
+                                force_output_geometrytype=force_output_geometrytype, append=True)
                     else:
                         # If gdf was written to temp file, use append_to_nolock + cleanup
                         _append_to_nolock(src=gdftemp_path, dst=path_p, dst_layer=layer)
