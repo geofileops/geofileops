@@ -207,7 +207,10 @@ def select(
         if force is False:
             logger.info(f"Stop select: output exists already {output_path}")
             return
-    logger.info(f"  -> select to execute:\n{sql_stmt}")
+    if verbose:
+        logger.info(f"  -> select to execute:\n{sql_stmt}")
+    else:
+        logger.debug(f"  -> select to execute:\n{sql_stmt}")
     
     # If no output geometrytype is specified, use the geometrytype of the input layer
     if force_output_geometrytype is None:
