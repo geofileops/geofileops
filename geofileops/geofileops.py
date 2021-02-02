@@ -43,19 +43,19 @@ def buffer(
         output_path (PathLike): the file to write the result to
         distance (float): the buffer size to apply
         quadrantsegments (int): the number of points an arc needs to be 
-                approximated with. Defaults to 5.
+            approximated with. Defaults to 5.
         input_layer (str, optional): input layer name. Optional if the input 
-                file only contains one layer.
+            file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input 
-                file only contains one layer.
+            file only contains one layer.
         columns (List[str], optional): list of columns to return. If None,
-                all columns are returned.
+            all columns are returned.
         nb_parallel (int, optional): the number of parallel processes to use. 
-                If not specified, all available processors will be used.
+            If not specified, all available processors will be used.
         verbose (bool, optional): write more info to the output. 
-                Defaults to False.
+            Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
-                Defaults to False.
+            Defaults to False.
     """
     logger.info(f"Start buffer on {input_path} with distance: {distance} and quadrantsegments: {quadrantsegments}")
     return geofileops_gpd.buffer(
@@ -140,15 +140,15 @@ def dissolve(
                 singular ones after the dissolve. Defaults to False.
         clip_on_tiles (bool, optional): True to clip the result on the tiles used.
         input_layer (str, optional): input layer name. Optional if the  
-                file only contains one layer.
+            file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the  
-                file only contains one layer.
+            file only contains one layer.
         nb_parallel (int, optional): the number of parallel processes to use. 
-                If not specified, all available processors will be used.
+            If not specified, all available processors will be used.
         verbose (bool, optional): write more info to the output. 
-                Defaults to False.
+            Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
-                Defaults to False.
+            Defaults to False.
     """
     # Init
     tiles_path_p = None
@@ -189,15 +189,15 @@ def isvalid(
             specified the result will be written in a new file alongside the 
             input file. Defaults to None.
         input_layer (str, optional): input layer name. Optional if the  
-                file only contains one layer.
+            file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the  
-                file only contains one layer.
+            file only contains one layer.
         nb_parallel (int, optional): the number of parallel processes to use. 
-                If not specified, all available processors will be used.
+            If not specified, all available processors will be used.
         verbose (bool, optional): write more info to the output. 
-                Defaults to False.
+            Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
-                Defaults to False.
+            Defaults to False.
 
     Returns:
         bool: True if all geometries were valid.
@@ -237,15 +237,15 @@ def makevalid(
         input_path (PathLike): The input file.
         output_path (PathLike): The file to write the result to.
         input_layer (str, optional): input layer name. Optional if the  
-                file only contains one layer.
+            file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the  
-                file only contains one layer.
+            file only contains one layer.
         nb_parallel (int, optional): the number of parallel processes to use. 
-                If not specified, all available processors will be used.
+            If not specified, all available processors will be used.
         verbose (bool, optional): write more info to the output. 
-                Defaults to False.
+            Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
-                Defaults to False.
+            Defaults to False.
     """
 
     logger.info(f"Start makevalid on {input_path}")
@@ -394,7 +394,7 @@ def erase(
         erase_path (PathLike): The file with the geometries to erase with.
         output_path (PathLike): the file to write the result to
         input1_layer (str, optional): input layer name. Optional if the  
-                file only contains one layer.
+            file only contains one layer.
         input1_columns (List[str], optional): columns to select. If no columns
             specified, all columns are selected.
         erase_layer (str, optional): erase layer name. Optional if the  
@@ -402,7 +402,7 @@ def erase(
         output_layer (str, optional): output layer name. Optional if the  
             file only contains one layer.
         explodecollections (bool, optional): True to convert all multi-geometries to 
-                singular ones after the dissolve. Defaults to False.
+            singular ones after the dissolve. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use. 
             If not specified, all available processors will be used.
         verbose (bool, optional): write more info to the output. 
@@ -509,19 +509,19 @@ def export_by_distance(
         output_path (PathLike): the file to write the result to
         max_distance (float): maximum distance
         input1_layer (str, optional): input layer name. Optional if the  
-                file only contains one layer.
+            file only contains one layer.
         input1_columns (List[str], optional): columns to select. If no columns
             specified, all columns are selected.
         input2_layer (str, optional): input layer name. Optional if the  
-                file only contains one layer.
+            file only contains one layer.
         output_layer (str, optional): output layer name. Optional if the  
-                file only contains one layer.
+            file only contains one layer.
         nb_parallel (int, optional): the number of parallel processes to use. 
-                If not specified, all available processors will be used.
+            If not specified, all available processors will be used.
         verbose (bool, optional): write more info to the output. 
-                Defaults to False.
+            Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
-                Defaults to False.
+            Defaults to False.
     """
     logger.info(f"Start export_by_distance: select from {input_to_select_from_path} within max_distance of {max_distance} from {input_to_compare_with_path} to {output_path}")
     return geofileops_ogr.export_by_distance(
@@ -561,7 +561,7 @@ def intersect(
         input2_path (PathLike): the 2nd input file
         output_path (PathLike): the file to write the result to
         input1_layer (str, optional): input layer name. Optional if the  
-                file only contains one layer.
+            file only contains one layer.
         input1_columns (List[str], optional): columns to select. If no columns
             specified, all columns are selected.
         input2_layer (str, optional): input layer name. Optional if the  
@@ -569,15 +569,15 @@ def intersect(
         input2_columns (List[str], optional): columns to select. If no columns
             specified, all columns are selected.
         output_layer (str, optional): output layer name. Optional if the  
-                file only contains one layer.
+            file only contains one layer.
         explodecollections (bool, optional): True to convert all multi-geometries to 
-                singular ones after the dissolve. Defaults to False.
+            singular ones after the dissolve. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use. 
-                If not specified, all available processors will be used.
+            If not specified, all available processors will be used.
         verbose (bool, optional): write more info to the output. 
-                Defaults to False.
+            Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
-                Defaults to False.
+            Defaults to False.
     """
     logger.info(f"Start intersect between {input1_path} and {input2_path} to {output_path}")
     return geofileops_ogr.intersect(
@@ -723,7 +723,7 @@ def select_two_layers(
         output_layer (str, optional): output layer name. Optional if the  
             file only contains one layer.
         explodecollections (bool, optional): True to convert all multi-geometries to 
-                singular ones after the dissolve. Defaults to False.
+            singular ones after the dissolve. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use. 
             If not specified, 1 parallel process will be used.
         verbose (bool, optional): write more info to the output. 
@@ -775,7 +775,7 @@ def split(
         input2_path (PathLike): the 2nd input file
         output_path (PathLike): the file to write the result to
         input1_layer (str, optional): input layer name. Optional if the  
-                file only contains one layer.
+            file only contains one layer.
         input1_columns (List[str], optional): columns to select. If no columns
             specified, all columns are selected.
         input2_layer (str, optional): input layer name. Optional if the  
@@ -783,15 +783,15 @@ def split(
         input2_columns (List[str], optional): columns to select. If no columns
             specified, all columns are selected.
         output_layer (str, optional): output layer name. Optional if the  
-                file only contains one layer.
+            file only contains one layer.
         explodecollections (bool, optional): True to convert all multi-geometries to 
-                singular ones after the dissolve. Defaults to False.
+            singular ones after the dissolve. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use. 
-                If not specified, all available processors will be used.
+            If not specified, all available processors will be used.
         verbose (bool, optional): write more info to the output. 
-                Defaults to False.
+            Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
-                Defaults to False.
+            Defaults to False.
     """
     logger.info(f"Start split between {input1_path} and {input2_path} to {output_path}")
     return geofileops_ogr.split(
@@ -843,7 +843,7 @@ def union(
         output_layer (str, optional): output layer name. Optional if the  
             file only contains one layer.
         explodecollections (bool, optional): True to convert all multi-geometries to 
-                singular ones after the dissolve. Defaults to False.
+            singular ones after the dissolve. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use. 
             If not specified, all available processors will be used.
         verbose (bool, optional): write more info to the output. 
