@@ -4,7 +4,7 @@ Getting started
 
 Installation
 ------------
-GeofileOps is written in python, but it relies on several other libraries that 
+geofileops is written in python, but it relies on several other libraries that 
 have dependencies written in C. Those C dependencies can be difficult to 
 install, but luckily the conda package management system also gives an easy 
 alternative.
@@ -23,13 +23,13 @@ versions of the dependencies::
     conda config --env --add channels conda-forge
     conda config --env --set channel_priority strict
 
-Now the conda environment is prepared, you can install the GeofileOps 
-dependencies::
+Now the conda environment is prepared, you can install the geofileops 
+dependencies that are available as conda packages::
 
     conda install --channel conda-forge python=3.8 geopandas=0.8 psutil
 
-GeofileOps is not available as a conda package at the moment, but you can now 
-install it using pip::
+geofileops and some other dependencies are not available as a conda package 
+at the moment, but they can be installed using pip::
 
     pip install geofileops
 
@@ -38,7 +38,7 @@ The hard way
 If you are not able/willing to use conda to install the dependencies, please
 follow the instructions to `install GeoPandas`_.
 
-Afterwards you can install GeofileOps with pip.
+Afterwards you can install geofileops with pip.
 
 .. _miniconda installer : https://conda.io/projects/conda/en/latest/user-guide/install/index.html
 .. _install GeoPandas : https://geopandas.org/install.html
