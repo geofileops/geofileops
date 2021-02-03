@@ -3,9 +3,8 @@ import setuptools
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-version = "0.2.0a1"
-with open('package_tag_version.txt', mode='w') as file:
-    file.write(version)
+with open('version.txt', mode='r') as file:
+    version = file.readline()
 
 setuptools.setup(
     name="geofileops", 
