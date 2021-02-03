@@ -354,8 +354,8 @@ def _single_layer_vector_operation(
             sql_stmt = f'SELECT MIN(rowid) as min_rowid, MAX(rowid) as max_rowid FROM "{input_layer}"'
             result = geofile.read_file_sql(path=input_path, sql_stmt=sql_stmt, layer=input_layer)
             if len(result) == 1:
-                min_rowid = result['min_rowid'][0]
-                max_rowid = result['max_rowid'][0]
+                min_rowid = result['min_rowid'].values[0]
+                max_rowid = result['max_rowid'].values[0]
                 nb_rowids_per_batch = (max_rowid - min_rowid)/nb_batches
             else:
                 raise Exception(f"Error determining min_rowid and max_rowid for {input_path}, layer {input_layer}")
@@ -1461,8 +1461,8 @@ def _split_layer_features(
             sql_stmt = f'SELECT MIN(rowid) as min_rowid, MAX(rowid) as max_rowid FROM "{input_layer}"'
             result = geofile.read_file_sql(path=temp_path, sql_stmt=sql_stmt, layer=input_layer)
             if len(result) == 1:
-                min_rowid = result['min_rowid'][0]
-                max_rowid = result['max_rowid'][0]
+                min_rowid = result['min_rowid'].values[0]
+                max_rowid = result['max_rowid'].values[0]
                 nb_rowids_per_batch = (max_rowid - min_rowid)/nb_batches
             else:
                 raise Exception(f"Error determining min_rowid and max_rowid for {temp_path}, layer {input_layer}")

@@ -804,9 +804,9 @@ def get_gdal_install_info(gdal_installation: str) -> dict:
     install_info_gdf = _execute_sql(test_path, sqlite_stmt, gdal_installation, sql_dialect='SQLITE')
         
     # Now get extra information, depending on the spatialite version
-    if install_info_gdf['spatialite_version()'][0] >= '5.0.0':
+    if install_info_gdf['spatialite_version()'].values[0] >= '5.0.0':
         sqlite_stmt = f'select spatialite_version(), HasGeos(), HasGeosAdvanced(), HasGeosTrunk(), geos_version(), rttopo_version()'
-    elif install_info_gdf['spatialite_version()'][0] >= '4.3.0':
+    elif install_info_gdf['spatialite_version()'].values[0] >= '4.3.0':
         sqlite_stmt = f'select spatialite_version(), HasGeos(), HasGeosAdvanced(), HasGeosTrunk(), geos_version(), lwgeom_version()'
     else:
         raise Exception(f"Unsupported spatialite version: {install_info_gdf['spatialite_version()'][0]}")
