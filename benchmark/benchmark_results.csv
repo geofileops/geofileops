@@ -1,0 +1,15 @@
+datetime,package_version,operation,tool_used,params,nb_cpu,secs_taken,secs_expected_one_cpu,input1_filename,input2_filename
+2020-11-04 15:54:43.652783,0.1.0,buffer,geopandas,,20,48.336906,1000,Lbgbrprc19.gpkg,
+2020-11-04 15:56:00.248442,0.1.0,buffer,ogr,,20,76.588808,1600,Lbgbrprc19.gpkg,
+2020-11-16 13:50:11.690659,0.1.0,buffer,geopandas,,20,53.579026,1000,Lbgbrprc19.gpkg,
+2020-11-16 13:51:38.348909,0.1.0,buffer,ogr,,20,86.65652,1600,Lbgbrprc19.gpkg,
+2020-11-16 13:53:11.482978,0.1.0,intersect,ogr,,20,93.122083,1700,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
+2020-11-16 13:57:02.642874,0.1.0,union,ogr,,20,231.158898,4000,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
+2020-11-23 15:07:01.465543,0.1.1,buffer,geopandas,,20,47.740183,1000,Lbgbrprc19.gpkg,
+2020-11-23 15:08:17.318605,0.1.1,buffer,ogr,,20,75.851675,1600,Lbgbrprc19.gpkg,
+2020-11-23 15:09:37.742564,0.1.1,intersect,ogr,,20,80.411759,1700,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
+2020-11-23 15:13:02.943686,0.1.1,union,ogr,,20,205.200124,4000,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
+2021-02-03 09:20:07.926815,0.2.0,buffer,geopandas,,20,47.505688,1000,Lbgbrprc19.gpkg,
+2021-02-03 09:21:28.493934,0.2.0,buffer,ogr,,20,80.553449,1600,Lbgbrprc19.gpkg,
+2021-02-03 09:22:53.420793,0.2.0,intersect,ogr,,20,84.912886,1700,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
+2021-02-03 09:26:31.219814,0.2.0,union,ogr,,20,217.789125,4000,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
