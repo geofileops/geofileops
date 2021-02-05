@@ -348,7 +348,7 @@ def add_column(
         path: Union[str, 'os.PathLike[Any]'],
         name: str,
         type: str,
-        expression: str = None, 
+        expression: Union[str, int, float] = None, 
         layer: str = None,
         force_update: bool = False):
     """
