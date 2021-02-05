@@ -3,6 +3,7 @@
 Tests for operations using GeoPandas.
 """
 
+from geofileops.util.vector_util import SimplifyAlgorithm
 from pathlib import Path
 import sys
 
@@ -309,11 +310,64 @@ def basetest_simplify(
         input_path: Path, 
         output_path: Path, 
         expected_output_geometrytype: str):
+
+    ### Test default algorithm, rdp ###
     layerinfo_orig = geofile.get_layerinfo(input_path)
     geofileops_gpd.simplify(
             input_path=input_path,
             output_path=output_path,
             tolerance=5,
+            nb_parallel=get_nb_parallel())
+
+    # Now check if the tmp file is correctly created
+    assert output_path.exists() == True
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_orig.featurecount == layerinfo_output.featurecount
+    assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
+
+    # Check geometry type
+    assert layerinfo_output.geometrytypename == expected_output_geometrytype
+
+    # Now check the contents of the result file
+    input_gdf = geofile.read_file(input_path)
+    output_gdf = geofile.read_file(output_path)
+    assert input_gdf.crs == output_gdf.crs
+    assert len(output_gdf) == layerinfo_output.featurecount
+    assert output_gdf['geometry'][0] is not None
+
+    ### Test vw (visvalingam-whyatt) algorithm ###
+    layerinfo_orig = geofile.get_layerinfo(input_path)
+    geofileops_gpd.simplify(
+            input_path=input_path,
+            output_path=output_path,
+            tolerance=5,
+            algorithm=SimplifyAlgorithm.VISVALINGAM_WHYATT,
+            nb_parallel=get_nb_parallel())
+
+    # Now check if the tmp file is correctly created
+    assert output_path.exists() == True
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_orig.featurecount == layerinfo_output.featurecount
+    assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
+
+    # Check geometry type
+    assert layerinfo_output.geometrytypename == expected_output_geometrytype
+
+    # Now check the contents of the result file
+    input_gdf = geofile.read_file(input_path)
+    output_gdf = geofile.read_file(output_path)
+    assert input_gdf.crs == output_gdf.crs
+    assert len(output_gdf) == layerinfo_output.featurecount
+    assert output_gdf['geometry'][0] is not None
+
+    ### Test lang algorithm ###
+    layerinfo_orig = geofile.get_layerinfo(input_path)
+    geofileops_gpd.simplify(
+            input_path=input_path,
+            output_path=output_path,
+            tolerance=5,
+            algorithm=SimplifyAlgorithm.LANG,
+            lookahead=8,
             nb_parallel=get_nb_parallel())
 
     # Now check if the tmp file is correctly created
@@ -346,6 +400,7 @@ if __name__ == '__main__':
     #test_buffer_gpkg(tmpdir)
     #test_buffer_various_options_gpkg(tmpdir)
     #test_dissolve_nogroupby_shp(tmpdir)
-    test_dissolve_groupby_gpkg(tmpdir)
+    #test_dissolve_groupby_gpkg(tmpdir)
     #test_dissolve_nogroupby_shp(tmpdir)
     #test_dissolve_nogroupby_gpkg(tmpdir)
+    test_simplify_gpkg(tmpdir)

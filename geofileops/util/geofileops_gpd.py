@@ -5,13 +5,14 @@ Module containing the implementation of Geofile operations using GeoPandas.
 
 from concurrent import futures
 import datetime
+import enum
 import logging
 import logging.config
 import multiprocessing
 from pathlib import Path
 import time
 import shutil
-from typing import Any, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import geopandas as gpd
 import shapely.geometry as sh_geom
@@ -33,6 +34,11 @@ logger = logging.getLogger(__name__)
 # The real work
 ################################################################################
 
+class GeoOperation(enum.Enum):
+    SIMPLIFY = 'simplify'
+    BUFFER = 'buffer'
+    CONVEXHULL = 'convexhull'
+
 def buffer(
         input_path: Path,
         output_path: Path,
@@ -46,7 +52,6 @@ def buffer(
         verbose: bool = False,
         force: bool = False):
     # Init
-    operation = 'buffer'
     operation_params = {
             'distance': distance,
             'quadrantsegments': quadrantsegments
@@ -62,7 +67,7 @@ def buffer(
     return _apply_geooperation_to_layer(
             input_path=input_path,
             output_path=output_path,
-            operation=operation,
+            operation=GeoOperation.BUFFER,
             operation_params=operation_params,
             input_layer=input_layer,
             output_layer=output_layer,
@@ -83,14 +88,13 @@ def convexhull(
         verbose: bool = False,
         force: bool = False):
     # Init
-    operation = 'convexhull'
     operation_params = {}
     
     # Go!
     return _apply_geooperation_to_layer(
             input_path=input_path,
             output_path=output_path,
-            operation=operation,
+            operation=GeoOperation.CONVEXHULL,
             operation_params=operation_params,
             input_layer=input_layer,
             output_layer=output_layer,
@@ -103,6 +107,8 @@ def simplify(
         input_path: Path,
         output_path: Path,
         tolerance: float,
+        algorithm: vector_util.SimplifyAlgorithm = vector_util.SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER,
+        lookahead: int = 8,
         input_layer: str = None,
         output_layer: str = None,
         columns: List[str] = None,
@@ -110,16 +116,17 @@ def simplify(
         verbose: bool = False,
         force: bool = False):
     # Init
-    operation = 'simplify'
     operation_params = {
-            'tolerance': tolerance
+            'tolerance': tolerance,
+            'algorithm': algorithm,
+            'step': lookahead
         }
     
     # Go!
     return _apply_geooperation_to_layer(
             input_path=input_path,
             output_path=output_path,
-            operation=operation,
+            operation=GeoOperation.SIMPLIFY,
             operation_params=operation_params,
             input_layer=input_layer,
             output_layer=output_layer,
@@ -131,7 +138,7 @@ def simplify(
 def _apply_geooperation_to_layer(
         input_path: Path,
         output_path: Path,
-        operation: str,
+        operation: GeoOperation,
         operation_params: dict,
         input_layer: str = None,
         columns: List[str] = None,
@@ -144,19 +151,20 @@ def _apply_geooperation_to_layer(
     """
     Applies a geo operation on a layer.
 
-    The operation to apply can be the following:
-      - buffer: apply a buffer. Operation parameters:
+    The operation to apply can be one of the the following:
+      - BUFFER: apply a buffer. Operation parameters:
           - distance: distance to buffer
           - quadrantsegments: number of points used to represent 1/4 of a circle
-      - convexhull: appy a convex hull.
-      - simplify: simplify the geometry using Douglas-Peukert algorythm. 
-          Operation parameters:
-          - tolerance: maximum distance to simplify.  
+      - CONVEXHULL: appy a convex hull.
+      - SIMPLIFY: simplify the geometry. Operation parameters:
+          - algorithm: vector_util.SimplifyAlgorithm
+          - tolerance: maximum distance to simplify.
+          - lookahead: for LANG, the number of points to forward-look
 
     Args:
         input_path (Path): [description]
         output_path (Path): [description]
-        operation (str): the geo operation to apply.
+        operation (GeoOperation): the geo operation to apply.
         operation_params (dict, optional): the parameters for the geo operation. 
             Defaults to None. 
         input_layer (str, optional): [description]. Defaults to None.
@@ -183,7 +191,7 @@ def _apply_geooperation_to_layer(
         output_layer = geofile.get_default_layer(output_path)
 
     ##### Prepare tmp files #####
-    tempdir = io_util.create_tempdir(operation.replace(' ', '_'))
+    tempdir = io_util.create_tempdir(operation.value)
     logger.info(f"Start calculation to temp files in {tempdir}")
 
     try:
@@ -279,7 +287,7 @@ def _apply_geooperation_to_layer(
 
                 # Log the progress and prediction speed
                 nb_done += 1
-                general_util.report_progress(start_time, nb_done, nb_batches, operation)
+                general_util.report_progress(start_time, nb_done, nb_batches, operation.value)
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
@@ -297,7 +305,7 @@ def _apply_geooperation_to_layer(
 def _apply_geooperation(
         input_path: Path,
         output_path: Path,
-        operation: str,
+        operation: GeoOperation,
         operation_params: dict,
         input_layer: str = None,
         output_layer: str = None,
@@ -322,16 +330,25 @@ def _apply_geooperation(
         message = f"No input geometries found for rows: {rows} in layer: {input_layer} in input_path: {input_path}"
         return message
 
-    if operation == 'buffer':
+    if operation is GeoOperation.BUFFER:
         data_gdf.geometry = data_gdf.geometry.buffer(
                 distance=operation_params['distance'], 
                 resolution=operation_params['quadrantsegments'])
         #data_gdf['geometry'] = [sh_geom.Polygon(sh_geom.mapping(x)['coordinates']) for x in data_gdf.geometry]
-    elif operation == 'convexhull':
+    elif operation is GeoOperation.CONVEXHULL:
         data_gdf.geometry = data_gdf.geometry.convex_hull
-    elif operation == 'simplify':
-        data_gdf.geometry = data_gdf.geometry.simplify(
-                tolerance=operation_params['tolerance'])
+    elif operation is GeoOperation.SIMPLIFY:
+        # If ramer-douglas-peucker, use standard geopandas algorithm
+        if operation_params['algorithm'] is vector_util.SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER:
+            data_gdf.geometry = data_gdf.geometry.simplify(
+                    tolerance=operation_params['tolerance'])
+        else:
+            # For other algorithms, use vector_util.simplify_ext()
+            data_gdf.geometry = data_gdf.geometry.apply(
+                    lambda geom: vector_util.simplify_ext(
+                            geom, algorithm=operation_params['algorithm'], 
+                            tolerance=operation_params['tolerance'], 
+                            lookahead=operation_params['step']))
     else:
         raise Exception(f"Operation not supported: {operation}")     
 

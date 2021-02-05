@@ -7,10 +7,11 @@ import logging
 import logging.config
 import os
 from pathlib import Path
-from typing import Any, AnyStr, List, Optional, Tuple, Union
+from typing import Any, List, Optional, Union
 
 from .util import geofileops_ogr
 from .util import geofileops_gpd
+from .util.vector_util import SimplifyAlgorithm
 
 ################################################################################
 # Some init
@@ -362,8 +363,10 @@ def select(
 def simplify(
         input_path: Union[str, 'os.PathLike[Any]'],
         output_path: Union[str, 'os.PathLike[Any]'],
-        tolerance: float,        
-        input_layer: str = None,        
+        tolerance: float,
+        algorithm: SimplifyAlgorithm = SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER,
+        lookahead: int = 8,
+        input_layer: str = None,
         output_layer: str = None,
         columns: List[str] = None,
         nb_parallel: int = -1,
@@ -377,7 +380,13 @@ def simplify(
     Args:
         input_path (PathLike): the input file
         output_path (PathLike): the file to write the result to
-        tolerance (float): the tolerancy to use when simplifying
+        tolerance (float): mandatory for the following algorithms:  
+            * RAMER_DOUGLAS_PEUCKER: distance to use as tolerance.
+            * LANG: distance to use as tolerance.
+            * VISVALINGAM_WHYATT: area to use as tolerance.
+        algorithm (SimplifyAlgorithm, optional): algorithm to use.
+            Defaults to SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER.
+        lookahead (int, optional): used for LANG algorithm. Defaults to 8.
         input_layer (str, optional): input layer name. Optional if the input 
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input 
@@ -396,13 +405,14 @@ def simplify(
             input_path=Path(input_path),
             output_path=Path(output_path),
             tolerance=tolerance,
+            algorithm=algorithm,
+            lookahead=lookahead,
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
-
 
 def erase(
         input_path: Union[str, 'os.PathLike[Any]'],
