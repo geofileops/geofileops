@@ -15,9 +15,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
 from geofileops.util import geofileops_gpd
 from geofileops.util import geofileops_ogr
 from geofileops import geofileops
+import setup
 
 class BenchResult:
     def __init__(self, 
+            package_version: str,
             operation: str,
             tool_used: str,
             params: str,
@@ -27,6 +29,7 @@ class BenchResult:
             input1_filename: str,
             input2_filename: Optional[str]):
         self.datetime = datetime.datetime.now()
+        self.package_version = package_version
         self.operation = operation
         self.tool_used = tool_used
         self.params = params
@@ -59,12 +62,12 @@ class GdalBin():
         if os.environ.get('GDAL_BIN') is not None:
             del os.environ['GDAL_BIN']
 
-def get_testdata_dir() -> Path:
+def _get_testdata_dir() -> Path:
     #return Path(__file__).resolve().parent / 'data'
     testdata_dir = Path(tempfile.gettempdir()) / 'geofileops_benchmark_data'
     return testdata_dir
 
-def get_testdata_aiv(testdata_path: Path):
+def _get_testdata_aiv(testdata_path: Path):
 
     # If the testdata file already exists... just return
     if testdata_path.exists():
@@ -77,8 +80,8 @@ def get_testdata_aiv(testdata_path: Path):
         raise Exception(f"Unknown testdata file: {testdata_path}")
 
     # Download zip file if needed...  
-    zip_path = get_testdata_dir() / f"{testdata_path.stem}.zip"
-    unzippedzip_dir = get_testdata_dir() / zip_path.stem
+    zip_path = _get_testdata_dir() / f"{testdata_path.stem}.zip"
+    unzippedzip_dir = _get_testdata_dir() / zip_path.stem
     if not zip_path.exists() and not unzippedzip_dir.exists():
         # Download beschmark file
         print(f"Download test data {testdata_path}")
@@ -106,10 +109,13 @@ def get_testdata_aiv(testdata_path: Path):
     if unzippedzip_dir.exists():
         shutil.rmtree(unzippedzip_dir)
 
+def _get_package_version():
+    return setup.version
+
 def benchmark_buffer(tmp_dir: Path) -> List[BenchResult]:
     
     bench_results = []
-    input_path = get_testdata_dir() / 'Lbgbrprc19.gpkg'
+    input_path = _get_testdata_dir() / 'Lbgbrprc19.gpkg'
     
     print('Start buffer with geopandas')
     start_time = datetime.datetime.now()
@@ -117,6 +123,7 @@ def benchmark_buffer(tmp_dir: Path) -> List[BenchResult]:
     geofileops_gpd.buffer(input_path, output_path, distance=1, force=True)
     secs_taken = (datetime.datetime.now()-start_time).total_seconds()
     bench_results.append(BenchResult(
+            package_version=_get_package_version(),
             operation='buffer', 
             tool_used='geopandas', 
             params='',
@@ -134,6 +141,7 @@ def benchmark_buffer(tmp_dir: Path) -> List[BenchResult]:
     geofileops_ogr.buffer(input_path, output_path, distance=1, force=True)
     secs_taken = (datetime.datetime.now()-start_time).total_seconds()
     bench_results.append(BenchResult(
+            package_version=_get_package_version(),
             operation='buffer', 
             tool_used='ogr', 
             params='',
@@ -150,8 +158,8 @@ def benchmark_buffer(tmp_dir: Path) -> List[BenchResult]:
 def benchmark_intersect(tmp_dir: Path) -> List[BenchResult]:
     # Init
     bench_results = []
-    input1_path = get_testdata_dir() / 'Lbgbrprc19.gpkg'
-    input2_path = get_testdata_dir() / 'Lbgbrprc18.gpkg'
+    input1_path = _get_testdata_dir() / 'Lbgbrprc19.gpkg'
+    input2_path = _get_testdata_dir() / 'Lbgbrprc18.gpkg'
     
     with GdalBin('gdal_bin'):
         print('Start Intersect with ogr')
@@ -164,6 +172,7 @@ def benchmark_intersect(tmp_dir: Path) -> List[BenchResult]:
                 force=True)
         secs_taken = (datetime.datetime.now()-start_time).total_seconds()
         bench_results.append(BenchResult(
+                package_version=_get_package_version(),
                 operation='intersect', 
                 tool_used='ogr', 
                 params='',
@@ -179,8 +188,8 @@ def benchmark_intersect(tmp_dir: Path) -> List[BenchResult]:
 def benchmark_union(tmp_dir: Path) -> List[BenchResult]:
     # Init
     bench_results = []
-    input1_path = get_testdata_dir() / 'Lbgbrprc19.gpkg'
-    input2_path = get_testdata_dir() / 'Lbgbrprc18.gpkg'
+    input1_path = _get_testdata_dir() / 'Lbgbrprc19.gpkg'
+    input2_path = _get_testdata_dir() / 'Lbgbrprc18.gpkg'
     
     with GdalBin('gdal_bin'):
         print('Start Union with ogr')
@@ -193,6 +202,7 @@ def benchmark_union(tmp_dir: Path) -> List[BenchResult]:
                 force=True)
         secs_taken = (datetime.datetime.now()-start_time).total_seconds()
         bench_results.append(BenchResult(
+                package_version=_get_package_version(),
                 operation='union', 
                 tool_used='ogr', 
                 params='',
@@ -206,15 +216,15 @@ def benchmark_union(tmp_dir: Path) -> List[BenchResult]:
 
     return bench_results
 
-if __name__ == '__main__':
+def benchmark():
     
     # First make sure the testdata is present
-    testdata_dir = get_testdata_dir()
+    testdata_dir = _get_testdata_dir()
     testdata_dir.mkdir(parents=True, exist_ok=True)
     prc2019_path = testdata_dir / 'Lbgbrprc19.gpkg'
-    get_testdata_aiv(prc2019_path)
+    _get_testdata_aiv(prc2019_path)
     prc2018_path = testdata_dir / 'Lbgbrprc18.gpkg'
-    get_testdata_aiv(prc2018_path)
+    _get_testdata_aiv(prc2018_path)
 
     # Now we can start benchmarking
     tmpdir = Path(tempfile.gettempdir()) / 'geofileops_benchmark'
@@ -241,3 +251,6 @@ if __name__ == '__main__':
         results_df.to_csv(results_path, index=False)
     else:
         results_df.to_csv(results_path, index=False, mode='a', header=False)
+
+if __name__ == '__main__':
+    benchmark()
