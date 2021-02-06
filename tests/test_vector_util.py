@@ -8,6 +8,7 @@ import sys
 
 import geopandas as gpd
 import shapely.geometry as sh_geom
+from shapely.geometry import linestring
 
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
@@ -33,6 +34,49 @@ def test_create_grid2():
             nb_squarish_tiles=100,
             crs='epsg:31370')
     assert len(grid_gdf) == 96
+
+def test_numberpoints():
+    # Test Point
+    point = sh_geom.Point((0, 0))
+    numberpoints = vector_util.numberpoints(point)
+    numberpoints_geometrycollection = numberpoints
+    assert numberpoints == 1
+
+    # Test MultiPoint
+    multipoint = sh_geom.MultiPoint([(0, 0), (10, 10), (20, 20)])
+    numberpoints = vector_util.numberpoints(multipoint)
+    numberpoints_geometrycollection += numberpoints
+    assert numberpoints == 3
+    
+    # Test LineString
+    linestring = sh_geom.LineString([(0, 0), (10, 10), (20, 20)])
+    numberpoints = vector_util.numberpoints(linestring)
+    numberpoints_geometrycollection += numberpoints
+    assert numberpoints == 3
+    
+    # Test MultiLineString
+    multilinestring = sh_geom.MultiLineString([[(0, 0), (10, 10), (20, 20)], [(100, 100), (110, 110), (120, 120)]])
+    numberpoints = vector_util.numberpoints(multilinestring)
+    numberpoints_geometrycollection += numberpoints
+    assert numberpoints == 6
+
+    # Test Polygon
+    poly = sh_geom.Polygon(shell=[(0, 0), (0, 10), (10, 10), (10, 0), (0,0)] , holes=[[(2,2), (2,8), (8,8), (8,2), (2,2)]])
+    numberpoints = vector_util.numberpoints(poly)
+    numberpoints_geometrycollection += numberpoints
+    assert numberpoints == 10
+
+    # Test MultiPolygon
+    poly2 = sh_geom.Polygon(shell=[(100, 100), (100, 110), (110, 110), (110, 100), (100,100)])
+    multipoly = sh_geom.MultiPolygon([poly, poly2])
+    numberpoints = vector_util.numberpoints(multipoly)
+    numberpoints_geometrycollection += numberpoints
+    assert numberpoints == 15
+
+    # Test GeometryCollection (as combination of all previous ones)
+    geometrycollection = sh_geom.GeometryCollection([point, multipoint, linestring, multilinestring, poly, multipoly])
+    numberpoints = vector_util.numberpoints(geometrycollection)
+    assert numberpoints == numberpoints_geometrycollection
 
 def test_split_tiles():
     input_tiles_path = get_testdata_dir() / 'BEFL_kbl.gpkg'
@@ -159,5 +203,6 @@ if __name__ == '__main__':
     tmpdir = Path(tempfile.gettempdir()) / "test_vector_util"
     os.makedirs(tmpdir, exist_ok=True)
     #test_create_grid2()
+    test_numberpoints()
     #test_split_tiles()
-    test_simplify_ext(tmpdir)
+    #test_simplify_ext(tmpdir)

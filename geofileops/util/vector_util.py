@@ -6,7 +6,7 @@ Module containing utilities regarding low level vector operations.
 import enum
 import logging
 import math
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Collection, List, Optional, Tuple, Union
 
 import geopandas as gpd
 import numpy as np
@@ -245,32 +245,30 @@ def makevalid(geometry):
 
 def numberpoints(geometry: sh_geom.base.BaseGeometry) -> int:
     """
-    Calculate the total number of points in a geometry.
+    Calculates the total number of points in a geometry.
 
     Args:
-        geometry (sh_geom.base.BaseGeometry): [description]
-
-    Raises:
-        Exception: [description]
+        geometry (sh_geom.base.BaseGeometry): the geometry to count the point of.
 
     Returns:
-        int: [description]
-    """         
-    nb_points = 0
-    if(isinstance(geometry, sh_geom.multipolygon.MultiPolygon)):
-        for polygon in geometry:
-            nb_points += len(polygon.exterior.coords)
-            for ring in polygon.interiors:
-                nb_points += len(ring.coords)
+        int: the number of points in the geometry.
+    """
+    # If it is a multi-part, recursively call numberpoints for all parts. 
+    if(isinstance(geometry, sh_geom.base.BaseMultipartGeometry)):
+        nb_points = 0
+        for geom in geometry:
+            nb_points += numberpoints(geom)
+        return nb_points
     elif(isinstance(geometry, sh_geom.polygon.Polygon)):
-        nb_points += len(geometry.exterior.coords)
+        # If it is a polygon, calculate number for exterior and interior rings. 
+        nb_points = len(geometry.exterior.coords)
         for ring in geometry.interiors:
             nb_points += len(ring.coords)
+        return nb_points
     else:
-        raise Exception(f"geometry type is not supported: {geometry.geom_type}")
-    
-    return nb_points
-    
+        # For other types, it is just the number of coordinates.
+        return len(geometry.coords)
+
 class SimplifyAlgorithm(enum.Enum):
     RAMER_DOUGLAS_PEUCKER = 'rdp'
     LANG = 'lang'
@@ -531,15 +529,3 @@ def remove_inner_rings(
     else:
         return sh_ops.Polygon(geometry.exterior.coords, 
                               ring_coords_to_keep)        
-
-def get_nb_coords(geometry) -> int:
-    # First check if the geom is None...
-    if geometry is None:
-        return 0
-    
-    # Get the number of points for all rings
-    nb_coords = len(geometry.exterior.coords)
-    for ring in geometry.interiors:
-        nb_coords += len(ring.coords)
-    
-    return nb_coords
