@@ -212,20 +212,6 @@ def extract_polygons_from_gdf(
     
     return ret_gdf
 
-def polygons_to_lines(input_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-    cardsheets_lines = []
-    for cardsheet_poly in input_gdf.itertuples():
-        cardsheet_boundary = cardsheet_poly.geometry.boundary
-        if cardsheet_boundary.type == 'MultiLineString':
-            for line in cardsheet_boundary:
-                cardsheets_lines.append(line)
-        else:
-            cardsheets_lines.append(cardsheet_boundary)
-
-    cardsheets_lines_gdf = gpd.GeoDataFrame(geometry=cardsheets_lines, crs=input_gdf.crs)
-
-    return cardsheets_lines_gdf
-
 def makevalid(geometry):
     
     # First check if the geom is None...
@@ -268,6 +254,57 @@ def numberpoints(geometry: sh_geom.base.BaseGeometry) -> int:
     else:
         # For other types, it is just the number of coordinates.
         return len(geometry.coords)
+
+def polygons_to_lines(input_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    cardsheets_lines = []
+    for cardsheet_poly in input_gdf.itertuples():
+        cardsheet_boundary = cardsheet_poly.geometry.boundary
+        if cardsheet_boundary.type == 'MultiLineString':
+            for line in cardsheet_boundary:
+                cardsheets_lines.append(line)
+        else:
+            cardsheets_lines.append(cardsheet_boundary)
+
+    cardsheets_lines_gdf = gpd.GeoDataFrame(geometry=cardsheets_lines, crs=input_gdf.crs)
+
+    return cardsheets_lines_gdf
+
+def remove_inner_rings(
+        geometry,
+        min_area_to_keep: float = None):
+    
+    # First check if the geom is None...
+    if geometry is None:
+        return None
+    if geometry.type not in ('Polygon', 'Multipolgon'):
+        raise Exception(f"remove_inner_rings is not possible with geometry.type: {geometry.type}, geometry: {geometry}")
+
+    #if geometry.area > 91000 and geometry.area < 92000:
+    #    logger.info("test")
+
+    # If all inner rings need to be removed...
+    if min_area_to_keep is None or min_area_to_keep == 0.0:
+        # If there are no interior rings anyway, just return input
+        if len(geometry.interiors) == 0:
+            return geometry
+        else:
+            # Else create new polygon with only the exterior ring
+            return sh_ops.Polygon(geometry.exterior)
+    
+    # If only small rings need to be removed... loop over them
+    ring_coords_to_keep = []
+    small_ring_found = False
+    for ring in geometry.interiors:
+        if abs(sh_ops.Polygon(ring).area) <= min_area_to_keep:
+            small_ring_found = True
+        else:
+            ring_coords_to_keep.append(ring.coords)
+    
+    # If no small rings were found, just return input
+    if small_ring_found == False:
+        return geometry
+    else:
+        return sh_ops.Polygon(geometry.exterior.coords, ring_coords_to_keep)
 
 class SimplifyAlgorithm(enum.Enum):
     RAMER_DOUGLAS_PEUCKER = 'rdp'
@@ -491,41 +528,3 @@ def simplify_coords_lang_idx(
         return idx_to_keep_arr
     else:
         return idx_to_keep_arr.tolist()
-
-def remove_inner_rings(
-        geometry,
-        min_area_to_keep: float = None):
-    
-    # First check if the geom is None...
-    if geometry is None:
-        return None
-    if geometry.type not in ('Polygon', 'Multipolgon'):
-        raise Exception(f"remove_inner_rings is not possible with geometry.type: {geometry.type}, geometry: {geometry}")
-
-    #if geometry.area > 91000 and geometry.area < 92000:
-    #    logger.info("test")
-
-    # If all inner rings need to be removed...
-    if min_area_to_keep is None or min_area_to_keep == 0.0:
-        # If there are no interior rings anyway, just return input
-        if len(geometry.interiors) == 0:
-            return geometry
-        else:
-            # Else create new polygon with only the exterior ring
-            return sh_ops.Polygon(geometry.exterior)
-    
-    # If only small rings need to be removed... loop over them
-    ring_coords_to_keep = []
-    small_ring_found = False
-    for ring in geometry.interiors:
-        if abs(sh_ops.Polygon(ring).area) <= min_area_to_keep:
-            small_ring_found = True
-        else:
-            ring_coords_to_keep.append(ring.coords)
-    
-    # If no small rings were found, just return input
-    if small_ring_found == False:
-        return geometry
-    else:
-        return sh_ops.Polygon(geometry.exterior.coords, 
-                              ring_coords_to_keep)        
