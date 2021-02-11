@@ -3,14 +3,14 @@
 Tests for operations using GeoPandas.
 """
 
-from geofileops.util.vector_util import SimplifyAlgorithm
 from pathlib import Path
 import sys
 
 # Add path so the local geofileops packages are found 
-sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
 from geofileops.util import geofileops_gpd
+from geofileops.util.vector_util import SimplifyAlgorithm
 
 def get_testdata_dir() -> Path:
     return Path(__file__).resolve().parent / 'data'
@@ -397,10 +397,10 @@ if __name__ == '__main__':
         tmpdir.mkdir()
 
     # Run
-    #test_buffer_gpkg(tmpdir)
+    test_buffer_gpkg(tmpdir)
     #test_buffer_various_options_gpkg(tmpdir)
     #test_dissolve_nogroupby_shp(tmpdir)
     #test_dissolve_groupby_gpkg(tmpdir)
     #test_dissolve_nogroupby_shp(tmpdir)
     #test_dissolve_nogroupby_gpkg(tmpdir)
-    test_simplify_gpkg(tmpdir)
+    #test_simplify_gpkg(tmpdir)

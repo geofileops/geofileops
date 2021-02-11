@@ -3,6 +3,7 @@
 Tests for functionalities in geofileops.general.
 """
 
+import os
 from pathlib import Path
 import sys
 
@@ -26,7 +27,6 @@ def test_add_column(tmpdir):
         
     ### Add area column ###
     try: 
-        import os
         os.environ['GDAL_BIN'] = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
         geofile.add_column(tmppath, layer='parcels', name='AREA', type='real', expression='ST_area(geom)')
     finally:
@@ -164,7 +164,6 @@ def test_update_column(tmpdir):
         
     ### Add area column ###
     try: 
-        import os
         os.environ['GDAL_BIN'] = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
         geofile.add_column(tmppath, layer='parcels', name='AREA', type='real', expression='ST_area(geom)')
         geofile.update_column(tmppath, name='AreA', expression='ST_area(geom)')

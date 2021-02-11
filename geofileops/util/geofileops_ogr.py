@@ -1390,6 +1390,7 @@ def _split_layer_features(
     split_random = False
     split_to_seperate_layers = False
     seperate_working_file_created = False
+    temp_path = None
     try:
         # If we want to split to seperate layers using random allocation, 
         # we need to create a temporary copy of the file to work on
@@ -1540,7 +1541,9 @@ def _split_layer_features(
     
     finally:
         # Cleanup
-        if seperate_working_file_created is True and temp_path.exists():
+        if(seperate_working_file_created is True 
+           and temp_path is not None 
+           and temp_path.exists()):
             geofile.remove(temp_path)
     
     return batches
