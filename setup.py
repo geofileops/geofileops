@@ -17,7 +17,7 @@ setuptools.setup(
     url="https://github.com/theroggy/geofileops",
     include_package_data=True,
     packages=setuptools.find_packages(),
-    install_requires=["geopandas>=0.8", "psutil", "pygeos", "simplification"],
+    install_requires=["pyproj", "geopandas>=0.8", "pygeos", "simplification", "psutil"],
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",

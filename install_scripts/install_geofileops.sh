@@ -90,11 +90,21 @@ fi
 echo
 echo Create/overwrite environment
 echo -------------------------------------
+if [[ -d "$condadir/envs/$envname/" ]]
+then
+  echo "First remove conda environment $envname"
+  conda env remove -y --name $envname
+
+  echo "Also really delete the env directory, to evade locked file errors"
+  rm -rf $condadir/envs/$envname
+fi
+
+echo "Create and install conda environment $envname"
 conda create -y --name $envname
 conda activate $envname
 conda config --env --add channels conda-forge
 conda config --env --set channel_priority strict
-conda install -y python=3.8 geopandas=0.8 psutil
+conda install -y python=3.8 pyproj "geopandas>=0.8" pygeos psutil
 
 # For the following packages, no conda package is available.
 if [[ ! $fordev =~ ^[Yy]$ ]]
@@ -102,13 +112,20 @@ then
   pip install geofileops
 else
   echo
-  echo Prepare for development: only install dependencies / dev tools
+  echo Prepare for development: conda install dev tools
   echo
   conda install -y pylint pytest pytest-cov rope pydata-sphinx-theme sphinx-automodapi
+  echo
+  echo Prepare for development: pip install needed dependencies
+  echo
+  pip install simplification
 fi
 
-# Deactivate new env + base
+# Deactivate new env
 conda deactivate
+
+# Ask to clean the cache dir + deactivate base env
+#conda clean --all
 conda deactivate
 
 # Pause
