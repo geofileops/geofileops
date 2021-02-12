@@ -6,12 +6,10 @@ Tests for functionalities in vector_util.
 from pathlib import Path
 import sys
 
-import geopandas as gpd
 import shapely.geometry as sh_geom
-from shapely.geometry import linestring
 
 # Add path so the local geofileops packages are found 
-sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
 from geofileops.util import vector_util
 

@@ -5,8 +5,9 @@ Helper functions for all tests.
 
 from pathlib import Path
 import sys
-sys.path.insert(0, str(Path(__file__).resolve().parent / '..'))
 
+# Add path so the local geofileops packages are found 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops.util import ogr_util
 
 class GdalBin():
