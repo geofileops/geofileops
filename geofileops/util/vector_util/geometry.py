@@ -29,27 +29,36 @@ logger = logging.getLogger(__name__)
 # Geometry helpers
 #-------------------------------------------------------------
 
-def extract_polygons_from_list(
-        in_geom: sh_geom.base.BaseGeometry) -> List[Any]:
+def extract_polygons_from_geometry(
+        in_geom: sh_geom.base.BaseGeometry) -> List[sh_geom.Polygon]:
     """
     Extracts all polygons from the input geom and returns them as a list.
+
+    Args:
+        in_geom (sh_geom.base.BaseGeometry): geometry to extract the polygons 
+            from.
+
+    Raises:
+        Exception: if in_geom is an unsupported geometry type.  
+
+    Returns:
+        List[sh_geom.Polygon]: List of extracted polygons or empty list if there 
+            were no Polygons in the input.
     """
     # Extract the polygons from the multipolygon, but store them as multipolygons anyway
     geoms = []
-    if in_geom.geom_type == 'MultiPolygon':
+    if isinstance(in_geom, sh_geom.MultiPolygon):
         geoms = list(sh_geom.MultiPolygon(in_geom))
-    elif in_geom.geom_type == 'Polygon':
+    elif isinstance(in_geom.geom_type, sh_geom.Polygon):
         geoms.append(in_geom)
-    elif in_geom.geom_type == 'GeometryCollection':
+    elif isinstance(in_geom.geom_type, sh_geom.GeometryCollection):
         for geom in sh_geom.GeometryCollection(in_geom):
-            if geom.geom_type == 'MultiPolygon':
+            if isinstance(geom, sh_geom.MultiPolygon):
                 geoms.append(list(geom))
-            elif geom.geom_type == 'Polygon':
+            elif isinstance(geom, sh_geom.Polygon):
                 geoms.append(geom)
             else:
                 logger.debug(f"Found {geom.geom_type}, ignore!")
-    else:
-        raise IOError(f"in_geom is of an unsupported type: {in_geom.geom_type}")
     
     return geoms
 
