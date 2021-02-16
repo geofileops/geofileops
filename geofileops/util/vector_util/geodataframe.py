@@ -3,9 +3,7 @@
 Module containing utilities regarding low level vector operations.
 """
 
-import enum
 import logging
-from typing import Any, List
 
 import geopandas as gpd
 
@@ -22,21 +20,22 @@ logger = logging.getLogger(__name__)
 # GeoDataFrame helpers
 #-------------------------------------------------------------
 
-def extract_polygons_from_gdf(
-        in_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+def extract_polygons_from_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 
     # Extract only polygons
-    poly_gdf = in_gdf.loc[(in_gdf.geometry.geom_type == 'Polygon')].copy()
-    multipoly_gdf = in_gdf.loc[(in_gdf.geometry.geom_type == 'MultiPolygon')].copy()
-    collection_gdf = in_gdf.loc[(in_gdf.geometry.geom_type == 'GeometryCollection')].copy()
+    poly_gdf = gdf.loc[(gdf.geometry.geom_type == 'Polygon')].copy()
+    multipoly_gdf = gdf.loc[(gdf.geometry.geom_type == 'MultiPolygon')].copy()
+    collection_gdf = gdf.loc[(gdf.geometry.geom_type == 'GeometryCollection')].copy()
     collection_polys_gdf = None
     
     if len(collection_gdf) > 0:
         collection_polygons = []
         for collection_geom in collection_gdf.geometry:
-            collection_polygons.extend(geometry.extract_polygons_from_geometry(collection_geom))
+            collection_polygons.extend(
+                    geometry.collection_extract_to_list(collection_geom, 
+                            primitivetype=geometry.PrimitiveType.POLYGON))
         if len(collection_polygons) > 0:
-            collection_polys_gdf = gpd.GeoDataFrame(geometry=collection_polygons, crs=in_gdf.crs)
+            collection_polys_gdf = gpd.GeoDataFrame(geometry=collection_polygons, crs=gdf.crs)
 
     # Only keep the polygons...
     ret_gdf = poly_gdf
@@ -47,9 +46,9 @@ def extract_polygons_from_gdf(
     
     return ret_gdf
 
-def polygons_to_lines(input_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+def polygons_to_lines(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     cardsheets_lines = []
-    for cardsheet_poly in input_gdf.itertuples():
+    for cardsheet_poly in gdf.itertuples():
         cardsheet_boundary = cardsheet_poly.geometry.boundary
         if cardsheet_boundary.type == 'MultiLineString':
             for line in cardsheet_boundary:
@@ -57,6 +56,6 @@ def polygons_to_lines(input_gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         else:
             cardsheets_lines.append(cardsheet_boundary)
 
-    cardsheets_lines_gdf = gpd.GeoDataFrame(geometry=cardsheets_lines, crs=input_gdf.crs)
+    cardsheets_lines_gdf = gpd.GeoDataFrame(geometry=cardsheets_lines, crs=gdf.crs)
 
     return cardsheets_lines_gdf

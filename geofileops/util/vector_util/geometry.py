@@ -29,51 +29,147 @@ logger = logging.getLogger(__name__)
 # Geometry helpers
 #-------------------------------------------------------------
 
-class GeometryTypes(enum.Enum):
-    Point = 'Point'
-    LineString = 'LineString'
-    LinearRing = 'LinearRing'
-    Polygon = 'Polygon'
-    MultiPoint = 'MultiPoint'
-    MultiLineString = 'MultiLineString'
-    MultiPolygon = 'MultiPolygon'
-    GeometryCollection = 'GeometryCollection'
+class GeometryType(enum.Enum):
+    POINT = 'Point'
+    LINESTRING = 'LineString'
+    LINEARRING = 'LinearRing'
+    POLYGON = 'Polygon'
+    MULTIPOINT = 'MultiPoint'
+    MULTILINESTRING = 'MultiLineString'
+    MULTIPOLYGON = 'MultiPolygon'
+    GEOMETRYCOLLECTION = 'GeometryCollection'
 
-def extract_polygons_from_geometry(
-        in_geom: sh_geom.base.BaseGeometry) -> List[sh_geom.Polygon]:
+class PrimitiveType(enum.Enum):
+    POINT = 'Point'
+    LINESTRING = 'LineString'
+    POLYGON = 'Polygon'
+
+def to_geometrytype(geometrytype: Union[str, GeometryType]) -> GeometryType:
     """
-    Extracts all polygons from the input geom and returns them as a list.
+    Cast a string to a GeometryTypes.
 
     Args:
-        in_geom (sh_geom.base.BaseGeometry): geometry to extract the polygons 
+        geometrytype (str): string to cast to GeometryTypes.
+
+    Returns:
+        GeometryTypes: the corresponding geometry type.
+    """
+    if isinstance(geometrytype, GeometryType):
+        return geometrytype
+    else:
+        return GeometryType[geometrytype.upper()]
+
+def to_primitivetype(geometrytype: Union[str, GeometryType]) -> PrimitiveType:
+    """
+    Get the primitive type for the geometry type specified.
+
+    Args:
+        geometrytype (Union[str, GeometryTypes]): the geometry type to convert.
+
+    Raises:
+        Exception: if a geometry type is passed that cannot be converted to a 
+        primitive type.
+
+    Returns:
+        PrimitiveTypes: the corresponding primitive type.
+    """
+    # Prepare input parameters
+    geometrytype_local = geometrytype
+    if isinstance(geometrytype, str):
+        geometrytype_local = to_geometrytype(geometrytype)
+
+    # Lookup correct primitive type
+    if geometrytype_local in [GeometryType.POINT, GeometryType.MULTIPOINT]:
+        return PrimitiveType.POINT
+    elif geometrytype_local in [GeometryType.LINESTRING, GeometryType.MULTILINESTRING]:
+        return PrimitiveType.LINESTRING
+    elif geometrytype_local in [GeometryType.POLYGON, GeometryType.MULTIPOLYGON]:
+        return PrimitiveType.POLYGON
+    else:
+        raise Exception(f"No primitive type available for geometrytype {geometrytype_local}")
+
+def to_primitivetypeid(primitivetype: PrimitiveType) -> int:
+    if primitivetype == PrimitiveType.POINT:
+        return 1
+    elif primitivetype == PrimitiveType.LINESTRING:
+        return 2
+    elif primitivetype == PrimitiveType.POLYGON:
+        return 3
+    else:
+        raise Exception(f"Not an existing primitivetype: {primitivetype}")
+
+def collection_extract(
+        geom: sh_geom.base.BaseGeometry,
+        primitivetype: PrimitiveType) -> Optional[sh_geom.base.BaseGeometry]:
+    """
+    Extract only the features of the specified primitive type from the geometry.
+
+    Args:
+        geom (sh_geom.base.BaseGeometry): geometry to extract from.
+        primitivetype (PrimitiveTypes): primitive types to extract.
+
+    Returns:
+        Optional[sh_geom.base.BaseGeometry]: a geometry containing only the 
+            features from geom of the primitive type specified. 
+    """
+
+    # Extract the polygons from the multipolygon, but store them as multipolygons anyway
+    returngeoms = collection_extract_to_list(geom, primitivetype=primitivetype)
+    if len(returngeoms) > 0:
+        return collect(returngeoms)
+    else:
+        return None
+
+def collection_extract_to_list(
+        geom: sh_geom.base.BaseGeometry,
+        primitivetype: PrimitiveType) -> List[sh_geom.base.BaseGeometry]:
+    """
+    Extracts the geometries from the input geom that comply with the 
+    primitive_type specified and returns them as a list.
+
+    Args:
+        geom (sh_geom.base.BaseGeometry): geometry to extract the polygons 
             from.
+        primitivetype (GeometryPrimitiveTypes): the primitive type to extract
+            from the input geom.
 
     Raises:
         Exception: if in_geom is an unsupported geometry type.  
 
     Returns:
-        List[sh_geom.Polygon]: List of extracted polygons or empty list if there 
-            were no Polygons in the input.
+        List[sh_geom.base.BaseGeometry]: List of primitive geometries, only 
+            containing the primitive type specified.
     """
     # Extract the polygons from the multipolygon, but store them as multipolygons anyway
-    geoms = []
-    if isinstance(in_geom, sh_geom.MultiPolygon):
-        geoms = list(sh_geom.MultiPolygon(in_geom))
-    elif isinstance(in_geom.geom_type, sh_geom.Polygon):
-        geoms.append(in_geom)
-    elif isinstance(in_geom.geom_type, sh_geom.GeometryCollection):
-        for geom in sh_geom.GeometryCollection(in_geom):
-            if isinstance(geom, sh_geom.MultiPolygon):
-                geoms.append(list(geom))
-            elif isinstance(geom, sh_geom.Polygon):
-                geoms.append(geom)
-            else:
-                logger.debug(f"Found {geom.geom_type}, ignore!")
-    
-    return geoms
+    if isinstance(geom, sh_geom.Point):
+        if primitivetype == PrimitiveType.POINT:
+            return [geom]
+    elif isinstance(geom, sh_geom.MultiPoint):
+        if primitivetype == PrimitiveType.POINT:
+            return list(geom)
+    elif isinstance(geom, sh_geom.LineString):
+        if primitivetype == PrimitiveType.LINESTRING:
+            return [geom]
+    elif isinstance(geom, sh_geom.MultiLineString):
+        if primitivetype == PrimitiveType.LINESTRING:
+            return list(geom)
+    elif isinstance(geom.geom_type, sh_geom.Polygon):
+        if primitivetype == PrimitiveType.POLYGON:
+            return [geom]
+    elif isinstance(geom, sh_geom.MultiPolygon):
+        if primitivetype == PrimitiveType.POLYGON:
+            return list(geom)
+    elif isinstance(geom.geom_type, sh_geom.GeometryCollection):
+        returngeoms = []
+        for geom in sh_geom.GeometryCollection(geom):
+            returngeoms.append(collection_extract(geom, primitivetype=primitivetype))
+        if len(returngeoms) > 0:
+            return returngeoms
 
-def collect_geometries(
-        geometry_list: List[sh_geom.base.BaseGeometry]) -> Optional[sh_geom.base.BaseGeometry]:
+    return []
+
+def collect(
+        geometry_list_cleaned: List[sh_geom.base.BaseGeometry]) -> Optional[sh_geom.base.BaseGeometry]:
     """
     Collect a list of geometries to one geometry. 
     
@@ -91,36 +187,39 @@ def collect_geometries(
     Returns:
         Optional[sh_geom.base.BaseGeometry]: the result
     """
+    # First remove all None geometries in the input list
+    geometry_list_cleaned = [geometry for geometry in geometry_list_cleaned if geometry is not None]
+
     # If the list is empty or contains only 1 element, it is easy...
-    if geometry_list is None or len(geometry_list) == 0: 
+    if geometry_list_cleaned is None or len(geometry_list_cleaned) == 0: 
         return None
-    elif len(geometry_list) == 1:
-        return geometry_list[0]
+    elif len(geometry_list_cleaned) == 1:
+        return geometry_list_cleaned[0]
     
     # Loop over all elements in the list, and determine the appropriate geometry type to create
-    collection_geom_type = GeometryTypes[geometry_list[0].geom_type]
-    for geom in geometry_list[1:]:
-        # If it is the same, continue 
-        if geom.geom_type == collection_geom_type.value:
+    result_collection_type = GeometryType[geometry_list_cleaned[0].geom_type.upper()]
+    for geom in geometry_list_cleaned:
+        # If it is the same as the collection_geom_type, continue checking
+        if geom.geom_type.upper() == result_collection_type.name:
             continue
         else:
-            # If different types in the list, becomes a geometrycollection
-            collection_geom_type = GeometryTypes.GeometryCollection
+            # If multiple types in the list, result becomes a geometrycollection
+            result_collection_type = GeometryType.GEOMETRYCOLLECTION
             break
     
     # Now we can create the collection
-    if collection_geom_type == GeometryTypes.Point:
-        return sh_geom.MultiPoint(geometry_list)
-    elif collection_geom_type == GeometryTypes.LineString:
-        return sh_geom.MultiLineString(geometry_list)
-    elif collection_geom_type == GeometryTypes.Polygon:
-        return sh_geom.MultiPolygon(geometry_list)
-    elif collection_geom_type == GeometryTypes.GeometryCollection:
-        return sh_geom.GeometryCollection(geometry_list)
+    if result_collection_type == GeometryType.POINT:
+        return sh_geom.MultiPoint(geometry_list_cleaned)
+    elif result_collection_type == GeometryType.LINESTRING:
+        return sh_geom.MultiLineString(geometry_list_cleaned)
+    elif result_collection_type == GeometryType.POLYGON:
+        return sh_geom.MultiPolygon(geometry_list_cleaned)
+    elif result_collection_type == GeometryType.GEOMETRYCOLLECTION:
+        return sh_geom.GeometryCollection(geometry_list_cleaned)
     else:
-        raise Exception(f"Unsupported geometry type: {collection_geom_type}")
+        raise Exception(f"Unsupported geometry type: {result_collection_type}")
 
-def makevalid(geometry: sh_geom.base.BaseGeometry):
+def makevalid(geometry: Optional[sh_geom.base.BaseGeometry]):
     
     # First check if the geom is None...
     if geometry is None:
@@ -306,6 +405,16 @@ def simplify_ext(
     # If the geometry is None, just return...
     if geometry is None:
         return None
+    elif isinstance(geometry, sh_geom.Point):
+        # Point cannot be simplified
+        return geometry
+    elif isinstance(geometry, sh_geom.MultiPoint):
+        # MultiPoint cannot be simplified
+        return geometry
+    elif isinstance(geometry, sh_geom.LineString):
+        result_geom = simplify_linestring(geometry)
+    elif isinstance(geometry, sh_geom.Polygon):
+        result_geom = simplify_polygon(geometry)
     elif isinstance(geometry, sh_geom.base.BaseMultipartGeometry):
         # If it is a multi-part, recursively call simplify for all parts. 
         simplified_geometries = []
@@ -315,13 +424,7 @@ def simplify_ext(
                     algorithm=algorithm, lookahead=lookahead, 
                     preserve_topology=preserve_topology, 
                     keep_points_on=keep_points_on))
-        result_geom = collect_geometries(simplified_geometries)
-    elif isinstance(geometry, sh_geom.Polygon):
-        result_geom = simplify_polygon(geometry)
-    elif isinstance(geometry, sh_geom.LineString):
-        result_geom = simplify_linestring(geometry)
-    elif isinstance(geometry, sh_geom.Point):
-        return geometry
+        result_geom = collect(simplified_geometries)
     else:
         raise Exception(f"Unsupported geom_type: {geometry.geom_type}, {geometry}")
 
