@@ -171,6 +171,15 @@ def simplify_ext(
     Returns:
         sh_geom.base.BaseGeometry: The simplified version of the geometry.
     """
+    # Init
+    if algorithm in [SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER,
+                     SimplifyAlgorithm.VISVALINGAM_WHYATT]:
+        try:
+            import simplification.cutil as simplification
+        except ImportError as ex:
+            raise ImportError(f"To use simplify_ext using rdp or vw, first do: 'pip install simplification'") from ex
+
+    # Define some inline funtions 
     # Apply the simplification
     def simplify_polygon(polygon: sh_geom.Polygon) -> sh_geom.Polygon:
         # Simplify all rings
@@ -187,9 +196,9 @@ def simplify_ext(
 
         # Determine the indexes of the coordinates to keep after simplification
         if algorithm is SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER:
-            coords_simplify_idx = simpl.simplify_coords_idx(coords, tolerance)
+            coords_simplify_idx = simplification.simplify_coords_idx(coords, tolerance)
         elif algorithm is SimplifyAlgorithm.VISVALINGAM_WHYATT:
-            coords_simplify_idx = simpl.simplify_coords_vw_idx(coords, tolerance)
+            coords_simplify_idx = simplification.simplify_coords_vw_idx(coords, tolerance)
         elif algorithm is SimplifyAlgorithm.LANG:
             coords_simplify_idx = simplify_coords_lang_idx(coords, tolerance, lookahead=lookahead)    
         else:
