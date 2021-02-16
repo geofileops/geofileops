@@ -730,7 +730,7 @@ def _dissolve(
             raise Exception(message) from ex
 
         # TODO: also support other geometry types (points and lines) 
-        union_polygons = vector_util.extract_polygons_from_list(union_geom)
+        union_polygons = vector_util.extract_polygons_from_geometry(union_geom)
         diss_gdf = gpd.GeoDataFrame(geometry=union_polygons, crs=input_gdf.crs)
         perfinfo['time_unary_union'] = (datetime.datetime.now()-start_unary_union).total_seconds()
 

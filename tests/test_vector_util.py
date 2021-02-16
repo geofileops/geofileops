@@ -53,23 +53,26 @@ def test_numberpoints():
     assert numberpoints == 3
     
     # Test MultiLineString
-    multilinestring = sh_geom.MultiLineString([[(0, 0), (10, 10), (20, 20)], [(100, 100), (110, 110), (120, 120)]])
+    multilinestring = sh_geom.MultiLineString(
+            [linestring.coords, [(100, 100), (110, 110), (120, 120)]])
     numberpoints = vector_util.numberpoints(multilinestring)
     numberpoints_geometrycollection += numberpoints
     assert numberpoints == 6
 
     # Test Polygon
-    poly = sh_geom.Polygon(shell=[(0, 0), (0, 10), (10, 10), (10, 0), (0,0)] , holes=[[(2,2), (2,8), (8,8), (8,2), (2,2)]])
+    poly = sh_geom.Polygon(
+            shell=[(0, 0), (0, 10), (1, 10), (10, 10), (10, 0), (0,0)], 
+            holes=[[(2,2), (2,8), (8,8), (8,2), (2,2)]])
     numberpoints = vector_util.numberpoints(poly)
     numberpoints_geometrycollection += numberpoints
-    assert numberpoints == 10
+    assert numberpoints == 11
 
     # Test MultiPolygon
     poly2 = sh_geom.Polygon(shell=[(100, 100), (100, 110), (110, 110), (110, 100), (100,100)])
     multipoly = sh_geom.MultiPolygon([poly, poly2])
     numberpoints = vector_util.numberpoints(multipoly)
     numberpoints_geometrycollection += numberpoints
-    assert numberpoints == 15
+    assert numberpoints == 16
 
     # Test GeometryCollection (as combination of all previous ones)
     geometrycollection = sh_geom.GeometryCollection([point, multipoint, linestring, multilinestring, poly, multipoly])
@@ -88,7 +91,105 @@ def test_split_tiles():
 
     assert len(result) == len(input_tiles) * 8
 
-def test_simplify_ext(tmpdir):
+def test_simplify_ext_lang_basic():
+    # Test LineString lookahead -1 
+    linestring = sh_geom.LineString([(0, 0), (10, 10), (20, 20)])
+    geom_simplified = vector_util.simplify_ext(
+            geometry=linestring, 
+            algorithm=vector_util.SimplifyAlgorithm.LANG, 
+            tolerance=1,
+            lookahead=-1)
+    assert isinstance(geom_simplified, sh_geom.LineString)
+    assert len(geom_simplified.coords) < len(linestring.coords)
+    assert len(geom_simplified.coords) == 2
+
+    # Test Polygon lookahead -1 
+    poly = sh_geom.Polygon(
+            shell=[(0, 0), (0, 10), (1, 10), (10, 10), (10, 0), (0,0)], 
+            holes=[[(2,2), (2,8), (8,8), (8,2), (2,2)]])
+    geom_simplified = vector_util.simplify_ext(
+            geometry=poly, 
+            algorithm=vector_util.SimplifyAlgorithm.LANG, 
+            tolerance=1,
+            lookahead=-1)
+    assert isinstance(geom_simplified, sh_geom.Polygon)
+    assert len(geom_simplified.exterior.coords) < len(poly.exterior.coords)
+    assert len(geom_simplified.exterior.coords) == 5
+
+    # Test Point simplification
+    point = sh_geom.Point((0, 0))
+    geom_simplified = vector_util.simplify_ext(
+            geometry=point, 
+            algorithm=vector_util.SimplifyAlgorithm.LANG, 
+            tolerance=1)
+    assert isinstance(geom_simplified, sh_geom.Point)
+    assert len(geom_simplified.coords) == 1
+    
+    # Test MultiPoint simplification
+    multipoint = sh_geom.MultiPoint([(0, 0), (10, 10), (20, 20)])
+    geom_simplified = vector_util.simplify_ext(
+            geometry=multipoint,
+            algorithm=vector_util.SimplifyAlgorithm.LANG, 
+            tolerance=1)
+    assert isinstance(geom_simplified, sh_geom.MultiPoint)
+    assert len(geom_simplified) == 3
+
+    # Test LineString simplification
+    linestring = sh_geom.LineString([(0, 0), (10, 10), (20, 20)])
+    geom_simplified = vector_util.simplify_ext(
+            geometry=linestring, 
+            algorithm=vector_util.SimplifyAlgorithm.LANG, 
+            tolerance=1)
+    assert isinstance(geom_simplified, sh_geom.LineString)
+    assert len(geom_simplified.coords) < len(linestring.coords)
+    assert len(geom_simplified.coords) == 2
+    
+    # Test MultiLineString simplification
+    multilinestring = sh_geom.MultiLineString(
+            [list(linestring.coords), [(100, 100), (110, 110), (120, 120)]])
+    geom_simplified = vector_util.simplify_ext(
+            geometry=multilinestring, 
+            algorithm=vector_util.SimplifyAlgorithm.LANG, 
+            tolerance=1)
+    assert isinstance(geom_simplified, sh_geom.MultiLineString)
+    assert len(geom_simplified) == 2
+    assert len(geom_simplified[0].coords) < len(multilinestring[0].coords)
+    assert len(geom_simplified[0].coords) == 2
+
+    # Test Polygon simplification
+    poly = sh_geom.Polygon(
+            shell=[(0, 0), (0, 10), (1, 10), (10, 10), (10, 0), (0,0)], 
+            holes=[[(2,2), (2,8), (8,8), (8,2), (2,2)]])
+    geom_simplified = vector_util.simplify_ext(
+            geometry=poly,
+            algorithm=vector_util.SimplifyAlgorithm.LANG, 
+            tolerance=1)
+    assert isinstance(geom_simplified, sh_geom.Polygon)
+    assert len(geom_simplified.exterior.coords) < len(poly.exterior.coords)
+    assert len(geom_simplified.exterior.coords) == 5
+
+    # Test MultiPolygon simplification
+    poly2 = sh_geom.Polygon(shell=[(100, 100), (100, 110), (110, 110), (110, 100), (100,100)])
+    multipoly = sh_geom.MultiPolygon([poly, poly2])
+    geom_simplified = vector_util.simplify_ext(
+            geometry=multipoly,
+            algorithm=vector_util.SimplifyAlgorithm.LANG, 
+            tolerance=1)
+    assert isinstance(geom_simplified, sh_geom.MultiPolygon)
+    assert len(geom_simplified) == 2
+    assert len(geom_simplified[0].exterior.coords) < len(poly.exterior.coords)
+    assert len(geom_simplified[0].exterior.coords) == 5
+
+    # Test GeometryCollection (as combination of all previous ones) simplification
+    geom = sh_geom.GeometryCollection([point, multipoint, linestring, multilinestring, poly, multipoly])
+    geom_simplified = vector_util.simplify_ext(
+            geometry=geom,
+            algorithm=vector_util.SimplifyAlgorithm.LANG, 
+            tolerance=1)
+    assert isinstance(geom_simplified, sh_geom.GeometryCollection)
+    assert len(geom_simplified) == 6
+
+def test_simplify_ext_keep_points_on(tmpdir):
     
     #### Test if keep_points_on works properly ####
     
@@ -194,13 +295,38 @@ def test_simplify_ext(tmpdir):
                     keep_points_on=grid_lines_geom))
     geofile.to_file(simplified_gdf, tmpdir / f"simplified_lang;{tolerance_lang};{step_lang}_keep_points_on.gpkg")
     assert len(simplified_gdf[simplified_gdf.intersects(point_on_input_and_border)]) == nb_intersects_with_input
-    
+
+def test_simplify_ext_no_simplification():
+    # Backup reference to simplification module
+    _temp_simplification = None
+    if sys.modules.get('simplification'):
+        _temp_simplification = sys.modules['simplification']
+    try:
+        # Fake that the module is not available
+        sys.modules['simplification'] = None
+
+        # Using RDP needs simplification module, so should give ImportError
+        vector_util.simplify_ext(
+                geometry=sh_geom.LineString([(0, 0), (10, 10), (20, 20)]), 
+                algorithm=vector_util.SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER, 
+                tolerance=1)
+        assert True is False
+    except ImportError as ex:
+        assert True is True
+    finally:
+        if _temp_simplification:
+            sys.modules['simplification'] = _temp_simplification
+        else:
+            del sys.modules['simplification']
+
 if __name__ == '__main__':
     import os
     import tempfile
     tmpdir = Path(tempfile.gettempdir()) / "test_vector_util"
     os.makedirs(tmpdir, exist_ok=True)
     #test_create_grid2()
-    test_numberpoints()
+    #test_numberpoints()
     #test_split_tiles()
-    #test_simplify_ext(tmpdir)
+    test_simplify_ext_basic_lang()
+    #test_simplify_ext_keep_points_on(tmpdir)
+    #test_simplify_ext_no_simplification()

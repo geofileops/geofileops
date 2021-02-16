@@ -29,6 +29,16 @@ logger = logging.getLogger(__name__)
 # Geometry helpers
 #-------------------------------------------------------------
 
+class GeometryTypes(enum.Enum):
+    Point = 'Point'
+    LineString = 'LineString'
+    LinearRing = 'LinearRing'
+    Polygon = 'Polygon'
+    MultiPoint = 'MultiPoint'
+    MultiLineString = 'MultiLineString'
+    MultiPolygon = 'MultiPolygon'
+    GeometryCollection = 'GeometryCollection'
+
 def extract_polygons_from_geometry(
         in_geom: sh_geom.base.BaseGeometry) -> List[sh_geom.Polygon]:
     """
@@ -61,6 +71,54 @@ def extract_polygons_from_geometry(
                 logger.debug(f"Found {geom.geom_type}, ignore!")
     
     return geoms
+
+def collect_geometries(
+        geometry_list: List[sh_geom.base.BaseGeometry]) -> Optional[sh_geom.base.BaseGeometry]:
+    """
+    Collect a list of geometries to one geometry. 
+    
+    Examples:
+      * if the list contains only Polygon's, returns a MultiPolygon. 
+      * if the list contains different types, returns a GeometryCollection.
+
+    Args:
+        geometry_list (List[sh_geom.base.BaseGeometry]): [description]
+
+    Raises:
+        Exception: raises an exception if one of the input geometries is of an 
+            unknown type. 
+
+    Returns:
+        Optional[sh_geom.base.BaseGeometry]: the result
+    """
+    # If the list is empty or contains only 1 element, it is easy...
+    if geometry_list is None or len(geometry_list) == 0: 
+        return None
+    elif len(geometry_list) == 1:
+        return geometry_list[0]
+    
+    # Loop over all elements in the list, and determine the appropriate geometry type to create
+    collection_geom_type = GeometryTypes[geometry_list[0].geom_type]
+    for geom in geometry_list[1:]:
+        # If it is the same, continue 
+        if geom.geom_type == collection_geom_type.value:
+            continue
+        else:
+            # If different types in the list, becomes a geometrycollection
+            collection_geom_type = GeometryTypes.GeometryCollection
+            break
+    
+    # Now we can create the collection
+    if collection_geom_type == GeometryTypes.Point:
+        return sh_geom.MultiPoint(geometry_list)
+    elif collection_geom_type == GeometryTypes.LineString:
+        return sh_geom.MultiLineString(geometry_list)
+    elif collection_geom_type == GeometryTypes.Polygon:
+        return sh_geom.MultiPolygon(geometry_list)
+    elif collection_geom_type == GeometryTypes.GeometryCollection:
+        return sh_geom.GeometryCollection(geometry_list)
+    else:
+        raise Exception(f"Unsupported geometry type: {collection_geom_type}")
 
 def makevalid(geometry: sh_geom.base.BaseGeometry):
     
@@ -167,8 +225,8 @@ def simplify_ext(
             Defaults to SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER.
         lookahead (int, optional): the number of points to consider for removing
             in a moving window. Used for LANG algorithm. Defaults to 8.
-        preserve_topology (bool, optional): True to try to preserve topology. 
-            Defaults to False.
+        preserve_topology (bool, optional): True to (try to) return valid 
+            geometries as result. Defaults to False.
         keep_points_on (BaseGeometry], optional): point of the geometry to 
             that intersect with these geometries are not removed. Defaults to None.
 
@@ -196,13 +254,33 @@ def simplify_ext(
         interiors_simplified = []
         for interior in polygon.interiors:
             interior_simplified = simplify_coords(interior.coords)
-            if interior_simplified is not None:
-                interiors_simplified.append(interior_simplified)
+            
+            # If simplified version is ring, add it
+            if(interior_simplified is not None 
+               and len(interior_simplified) >= 3):
+                interiors_simplified.append(interior_simplified) 
+            elif preserve_topology:
+                # If topology needs to be preserved, keep original ring
+                interiors_simplified.append(interior.coords)              
 
         return sh_geom.Polygon(exterior_simplified, interiors_simplified)
 
-    def simplify_coords(coords: list):
+    def simplify_linestring(linestring: sh_geom.LineString) -> sh_geom.LineString:
+        # If the linestring cannot be simplified, return it
+        if linestring is None or len(linestring.coords) <= 2:
+            return linestring
+        
+        # Simplify
+        coords_simplified = simplify_coords(linestring.coords)
 
+        # If preserve_topology is True and the result is no line anymore, return original line
+        if(preserve_topology is True
+           and (coords_simplified is None or len(coords_simplified) < 2)):
+            return linestring
+        else:
+            return sh_geom.LineString(coords_simplified)
+
+    def simplify_coords(coords: list) -> List[Any]:
         # Determine the indexes of the coordinates to keep after simplification
         if algorithm is SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER:
             coords_simplify_idx = simplification.simplify_coords_idx(coords, tolerance)
@@ -213,41 +291,41 @@ def simplify_ext(
         else:
             raise Exception(f"Unsupported algorithm: {algorithm}, supported: {SimplifyAlgorithm}")
 
-        coords_gdf = gpd.GeoDataFrame(geometry=list(sh_geom.MultiPoint(coords)))
         coords_on_border_idx = []
         if keep_points_on is not None:
+            coords_gdf = gpd.GeoDataFrame(geometry=list(sh_geom.MultiPoint(coords)))
             coords_on_border_series = coords_gdf.intersects(keep_points_on)
             coords_on_border_idx = np.array(coords_on_border_series.index[coords_on_border_series]).tolist()
 
         # Extracts coordinates that need to be kept
         coords_to_keep = sorted(set(coords_simplify_idx + coords_on_border_idx))
         coords_simplified = np.array(coords)[coords_to_keep].tolist()
-
-        # If simplified version has at least 3 points...
-        if len(coords_simplified) >= 3:
-            return coords_simplified
-        else:
-            if preserve_topology:
-                return coords
-            else:
-                return None
-                
+        return coords_simplified
+    
     # Loop over the rings, and simplify them one by one...
+    # If the geometry is None, just return...
     if geometry is None:
         return None
-    elif isinstance(geometry, sh_geom.multipolygon.MultiPolygon):
-        polygons_simplified = []
-        for polygon in geometry:
-            polygon_simplified = simplify_polygon(polygon)
-            if polygon_simplified is not None:
-                polygons_simplified.append(polygon_simplified)
-        return_geom = sh_geom.MultiPolygon(polygons_simplified)
-    elif isinstance(geometry, sh_geom.polygon.Polygon):
-        return_geom = simplify_polygon(geometry)
+    elif isinstance(geometry, sh_geom.base.BaseMultipartGeometry):
+        # If it is a multi-part, recursively call simplify for all parts. 
+        simplified_geometries = []
+        for geom in geometry:
+            simplified_geometries.append(simplify_ext(geom, 
+                    tolerance=tolerance, 
+                    algorithm=algorithm, lookahead=lookahead, 
+                    preserve_topology=preserve_topology, 
+                    keep_points_on=keep_points_on))
+        result_geom = collect_geometries(simplified_geometries)
+    elif isinstance(geometry, sh_geom.Polygon):
+        result_geom = simplify_polygon(geometry)
+    elif isinstance(geometry, sh_geom.LineString):
+        result_geom = simplify_linestring(geometry)
+    elif isinstance(geometry, sh_geom.Point):
+        return geometry
     else:
         raise Exception(f"Unsupported geom_type: {geometry.geom_type}, {geometry}")
 
-    return makevalid(return_geom)
+    return makevalid(result_geom)
 
 def simplify_coords_lang(
         coords: Union[np.ndarray, list],
@@ -311,8 +389,8 @@ def simplify_coords_lang_idx(
         If input coords is np.ndarray, returns np.ndarray, otherwise returns a list.  
     """
     
-    def point_line_distance(x0, y0, x1, y1, x2, y2):
-        return abs((x2-x1)*(y1-y0)-(x1-x0)*(y2-y1)) / math.sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1))
+    def point_line_distance(point_x, point_y, line_x1, line_y1, line_x2, line_y2):
+        return abs((line_x2-line_x1)*(line_y1-point_y)-(line_x1-point_x)*(line_y2-line_y1)) / math.sqrt((line_x2-line_x1)*(line_x2-line_x1)+(line_y2-line_y1)*(line_y2-line_y1))
 
     # Init variables 
     if isinstance(coords, np.ndarray):
