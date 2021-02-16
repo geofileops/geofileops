@@ -314,7 +314,7 @@ def simplify_coords_lang_idx(
     # Prepare lookahead
     nb_points = len(line_arr)
     if lookahead == -1:
-        window_size = nb_points
+        window_size = nb_points-1
     else:
         window_size = min(lookahead, nb_points-1)
 
@@ -335,7 +335,8 @@ def simplify_coords_lang_idx(
                     line_arr[i, 0], line_arr[i, 1],
                     line_arr[window_start, 0], line_arr[window_start, 1],
                     line_arr[window_end, 0], line_arr[window_end, 1])
-            if distance > tolerance:
+            # If distance is nan (= linepoint1 == linepoint2) or > tolerance
+            if math.isnan(distance) or distance > tolerance:
                 all_points_in_tolerance = False
                 break
 
