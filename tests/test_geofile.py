@@ -20,8 +20,8 @@ def _get_testdata_dir() -> Path:
 def test_add_column(tmpdir):
     # First copy test file to tmpdir
     # Now add area column
-    src = _get_testdata_dir() / 'parcels.gpkg'
-    tmppath = Path(tmpdir) / 'parcels.gpkg'
+    src = _get_testdata_dir() / 'polygons_parcels.gpkg'
+    tmppath = Path(tmpdir) / 'polygons_parcels.gpkg'
     geofile.copy(src, tmppath)
 
     # The area column shouldn't be in the test file yet
@@ -52,8 +52,8 @@ def test_add_column(tmpdir):
 
 def test_cmp(tmpdir):
     # Copy test file to tmpdir
-    src = _get_testdata_dir() / 'parcels.shp'
-    dst = Path(tmpdir) / 'parcels_output.shp'
+    src = _get_testdata_dir() / 'polygons_parcels.shp'
+    dst = Path(tmpdir) / 'polygons_parcels_output.shp'
     geofile.copy(src, dst)
 
     # Now compare source and dst file
@@ -61,8 +61,8 @@ def test_cmp(tmpdir):
 
 def test_convert(tmpdir):
     # Convert test file to tmpdir
-    src = _get_testdata_dir() / 'parcels.shp'
-    dst = Path(tmpdir) / 'parcels_output.gpkg'
+    src = _get_testdata_dir() / 'polygons_parcels.shp'
+    dst = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     geofile.convert(src, dst)
 
     # Now compare source and dst file 
@@ -73,83 +73,87 @@ def test_convert(tmpdir):
 
 def test_copy(tmpdir):
     # Copy test file to tmpdir
-    src = _get_testdata_dir() / 'parcels.shp'
-    dst = Path(tmpdir) / 'parcels_output.shp'
+    src = _get_testdata_dir() / 'polygons_parcels.shp'
+    dst = Path(tmpdir) / 'polygons_parcels_output.shp'
     geofile.copy(src, dst)
     assert dst.exists() == True
 
 def test_get_crs():
     # Test shapefile
-    srcpath = _get_testdata_dir() / 'parcels.shp'
+    srcpath = _get_testdata_dir() / 'polygons_parcels.shp'
     crs = geofile.get_crs(srcpath)
     assert crs.to_epsg() == 31370
 
     # Test geopackage
-    srcpath = _get_testdata_dir() / 'parcels.gpkg'
+    srcpath = _get_testdata_dir() / 'polygons_parcels.gpkg'
     crs = geofile.get_crs(srcpath)
     assert crs.to_epsg() == 31370
 
 def test_get_default_layer():
-    srcpath = _get_testdata_dir() / 'parcels.shp'
+    srcpath = _get_testdata_dir() / 'polygons_parcels.shp'
     layer = geofile.get_default_layer(srcpath)
-    assert layer == 'parcels'
+    assert layer == 'polygons_parcels'
 
 def test_get_driver():
     # Test shapefile
-    src = _get_testdata_dir() / 'parcels.shp'
+    src = _get_testdata_dir() / 'polygons_parcels.shp'
     assert geofile.get_driver(src) == "ESRI Shapefile"
 
     # Test geopackage
-    src = _get_testdata_dir() / 'parcels.gpkg'
+    src = _get_testdata_dir() / 'polygons_parcels.gpkg'
     assert geofile.get_driver(src) == "GPKG"
 
 def test_getlayerinfo():
     # Test shapefile
-    srcpath = _get_testdata_dir() / 'parcels.shp'
+    srcpath = _get_testdata_dir() / 'polygons_parcels.shp'
     layerinfo = geofile.get_layerinfo(srcpath)
     assert layerinfo.featurecount == 46
     assert layerinfo.geometrycolumn == 'geometry' 
 
     # Test geopackage
-    srcpath = _get_testdata_dir() / 'parcels.gpkg'
+    srcpath = _get_testdata_dir() / 'polygons_parcels.gpkg'
     layerinfo = geofile.get_layerinfo(srcpath, 'parcels')
     assert layerinfo.featurecount == 46
     assert layerinfo.geometrycolumn == 'geom' 
 
 def test_get_only_layer():
-    srcpath = _get_testdata_dir() / 'parcels.shp'
+    srcpath = _get_testdata_dir() / 'polygons_parcels.shp'
+    layer = geofile.get_only_layer(srcpath)
+    assert layer == 'polygons_parcels'
+
+    srcpath = _get_testdata_dir() / 'polygons_parcels.gpkg'
     layer = geofile.get_only_layer(srcpath)
     assert layer == 'parcels'
 
 def test_is_geofile():
     # Test shapefile
-    srcpath = _get_testdata_dir() / 'parcels.shp'
+    srcpath = _get_testdata_dir() / 'polygons_parcels.shp'
     assert geofile.is_geofile(srcpath) == True
 
     # Test geopackage
-    srcpath = _get_testdata_dir() / 'parcels.gpkg'
+    srcpath = _get_testdata_dir() / 'polygons_parcels.gpkg'
     assert geofile.is_geofile(srcpath) == True
     
 def test_listlayers():
     # Test shapefile
-    srcpath = _get_testdata_dir() / 'parcels.shp'
+    srcpath = _get_testdata_dir() / 'polygons_parcels.shp'
     layers = geofile.listlayers(srcpath)
-    assert layers[0] == 'parcels'
+    assert layers[0] == 'polygons_parcels'
     
     # Test geopackage
-    srcpath = _get_testdata_dir() / 'parcels.gpkg'
+    srcpath = _get_testdata_dir() / 'polygons_parcels.gpkg'
     layers = geofile.listlayers(srcpath)
     assert layers[0] == 'parcels'
 
 def test_move(tmpdir):
     # Copy test file to tmpdir
-    src = _get_testdata_dir() / 'parcels.shp'
-    tmp1path = Path(tmpdir) / 'parcels_tmp.shp'
+    src = _get_testdata_dir() / 'polygons_parcels.shp'
+    tmp1path = Path(tmpdir) / 'polygons_parcels_tmp.shp'
     geofile.copy(src, tmp1path)
     assert tmp1path.exists() == True
 
     # Move (rename actually) and check result
-    tmp2path = Path(tmpdir) / 'parcels_tmp2.shp'
+    tmp2path = Path(tmpdir) / 'polygons_parcels_tmp2.shp'
     geofile.move(tmp1path, tmp2path)
     assert tmp1path.exists() == False
     assert tmp2path.exists() == True
@@ -157,8 +161,8 @@ def test_move(tmpdir):
 def test_update_column(tmpdir):
     # First copy test file to tmpdir
     # Now add area column
-    src = _get_testdata_dir() / 'parcels.gpkg'
-    tmppath = Path(tmpdir) / 'parcels.gpkg'
+    src = _get_testdata_dir() / 'polygons_parcels.gpkg'
+    tmppath = Path(tmpdir) / 'polygons_parcels.gpkg'
     geofile.copy(src, tmppath)
 
     # The area column shouldn't be in the test file yet
@@ -180,11 +184,11 @@ def test_update_column(tmpdir):
 
 def test_read_file():
     # Test shapefile
-    srcpath = _get_testdata_dir() / 'parcels.shp'
+    srcpath = _get_testdata_dir() / 'polygons_parcels.shp'
     basetest_read_file(srcpath=srcpath)
 
     # Test geopackage
-    srcpath = _get_testdata_dir() / 'parcels.gpkg'
+    srcpath = _get_testdata_dir() / 'polygons_parcels.gpkg'
     basetest_read_file(srcpath=srcpath)
 
 def basetest_read_file(srcpath: Path):
@@ -216,8 +220,8 @@ def basetest_read_file(srcpath: Path):
 
 def test_rename_layer(tmpdir):
     # First copy test file to tmpdir
-    src = _get_testdata_dir() / 'parcels.gpkg'
-    tmppath = Path(tmpdir) / 'parcels_tmp.gpkg'
+    src = _get_testdata_dir() / 'polygons_parcels.gpkg'
+    tmppath = Path(tmpdir) / 'polygons_parcels_tmp.gpkg'
     geofile.copy(src, tmppath)
 
     # Now test rename layer
@@ -227,8 +231,8 @@ def test_rename_layer(tmpdir):
 
 def test_spatial_index_gpkg(tmpdir):
     # First copy test file to tmpdir
-    src = _get_testdata_dir() / 'parcels.gpkg'
-    tmppath = Path(tmpdir) / 'parcels.gpkg'
+    src = _get_testdata_dir() / 'polygons_parcels.gpkg'
+    tmppath = Path(tmpdir) / 'polygons_parcels.gpkg'
     geofile.copy(src, tmppath)
 
     # Check if spatial index present
@@ -250,8 +254,8 @@ def test_spatial_index_gpkg(tmpdir):
 
 def test_spatial_index_shp(tmpdir):
     # First copy test file to tmpdir
-    src = _get_testdata_dir() / 'parcels.shp'
-    tmppath = Path(tmpdir) / 'parcels.shp'
+    src = _get_testdata_dir() / 'polygons_parcels.shp'
+    tmppath = Path(tmpdir) / 'polygons_parcels.shp'
     geofile.copy(src, tmppath)
 
     # Check if spatial index present
@@ -270,9 +274,9 @@ def test_spatial_index_shp(tmpdir):
 
 def test_to_file_shp(tmpdir):
     # Read test file and write to tmpdir
-    srcpath = _get_testdata_dir() / 'parcels.shp'
+    srcpath = _get_testdata_dir() / 'polygons_parcels.shp'
     read_gdf = geofile.read_file(srcpath)
-    tmppath = Path(tmpdir) / 'parcels_tmp.shp'
+    tmppath = Path(tmpdir) / 'polygons_parcels_tmp.shp'
     geofile.to_file(read_gdf, tmppath)
     tmp_gdf = geofile.read_file(tmppath)
     
@@ -280,9 +284,9 @@ def test_to_file_shp(tmpdir):
 
 def test_to_file_gpkg(tmpdir):
     # Read test file and write to tmpdir
-    srcpath = _get_testdata_dir() / 'parcels.gpkg'
+    srcpath = _get_testdata_dir() / 'polygons_parcels.gpkg'
     read_gdf = geofile.read_file(srcpath)
-    tmppath = Path(tmpdir) / 'parcels_tmp.gpkg'
+    tmppath = Path(tmpdir) / 'polygons_parcels_tmp.gpkg'
     geofile.to_file(read_gdf, tmppath)
     tmp_gdf = geofile.read_file(tmppath)
     
@@ -290,8 +294,8 @@ def test_to_file_gpkg(tmpdir):
 
 def test_remove(tmpdir):
     # Copy test file to tmpdir
-    src = _get_testdata_dir() / 'parcels.shp'
-    tmppath = Path(tmpdir) / 'parcels_tmp.shp'
+    src = _get_testdata_dir() / 'polygons_parcels.shp'
+    tmppath = Path(tmpdir) / 'polygons_parcels_tmp.shp'
     geofile.copy(src, tmppath)
     assert tmppath.exists() == True
 
@@ -303,5 +307,6 @@ if __name__ == '__main__':
     import tempfile
     
     tmpdir = tempfile.gettempdir()
+    test_listlayers()
     #test_add_column(tmpdir)
-    test_read_file()
+    #test_read_file()

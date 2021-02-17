@@ -15,8 +15,8 @@ from tests import test_helper
 
 def test_buffer_gpkg(tmpdir):
     # Buffer to test dir, and try with and without gdal_bin set
-    input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels_output.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     basetest_buffer(input_path, output_path, gdal_installation='gdal_default')
     basetest_buffer(input_path, output_path, gdal_installation='gdal_bin')
 
@@ -27,15 +27,15 @@ def test_buffer_gpkg(tmpdir):
     basetest_buffer(input_path, output_path, gdal_installation='gdal_bin')
 
     # Buffer line source to test dir
-    input_path = test_helper.get_testdata_dir() / 'rows_of_trees.gpkg'
-    output_path = Path(tmpdir) / 'rows_of_trees_output.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'linestrings_rows_of_trees.gpkg'
+    output_path = Path(tmpdir) / 'linestrings_rows_of_trees_output.gpkg'
     basetest_buffer(input_path, output_path, gdal_installation='gdal_default')
     basetest_buffer(input_path, output_path, gdal_installation='gdal_bin')
 
 def test_buffer_shp(tmpdir):
     # Buffer to test dir
-    input_path = test_helper.get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels_output.shp'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.shp'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
 
     # Try both with and without gdal_bin set
     basetest_buffer(input_path, output_path, gdal_installation='gdal_default')
@@ -77,8 +77,8 @@ def basetest_buffer(
 
 def test_convexhull_gpkg(tmpdir):
     # Execute to test dir
-    input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels_output.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     
     # Try both with and without gdal_bin set
     basetest_convexhull(input_path, output_path, gdal_installation='gdal_bin')
@@ -86,8 +86,8 @@ def test_convexhull_gpkg(tmpdir):
 
 def test_convexhull_shp(tmpdir):
     # Select some data from src to tmp file
-    input_path = test_helper.get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels_output.shp'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.shp'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
 
     # Try both with and without gdal_bin set
     basetest_convexhull(input_path, output_path, gdal_installation='gdal_bin')
@@ -129,8 +129,8 @@ def basetest_convexhull(
 
 def test_isvalid_gpkg(tmpdir):
     # Buffer to test dir
-    input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels_output.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
 
     # Try both with and without gdal_bin set
     basetest_isvalid(input_path, output_path, gdal_installation='gdal_bin')
@@ -138,8 +138,8 @@ def test_isvalid_gpkg(tmpdir):
 
 def test_isvalid_shp(tmpdir):
     # Select some data from src to tmp file
-    input_path = test_helper.get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels_output.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.shp'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     
     # Try both with and without gdal_bin set
     basetest_isvalid(input_path, output_path, gdal_installation='gdal_bin')
@@ -183,7 +183,7 @@ def basetest_isvalid(
 
 def test_makevalid_gpkg(tmpdir):
     # makevalid to test dir
-    input_path = test_helper.get_testdata_dir() / 'invalid_geometries.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'polygons_invalid_geometries.gpkg'
     output_path = Path(tmpdir) / f"{input_path.stem}_valid.gpkg"
     
     # Try both with and without gdal_bin set
@@ -192,7 +192,7 @@ def test_makevalid_gpkg(tmpdir):
 
 def test_makevalid_shp(tmpdir):
     # makevalid to test dir
-    input_path = test_helper.get_testdata_dir() / 'invalid_geometries.shp'
+    input_path = test_helper.get_testdata_dir() / 'polygons_invalid_geometries.shp'
     output_path = Path(tmpdir) / f"{input_path.stem}_valid.shp"
     
     # Try both with and without gdal_bin set
@@ -247,15 +247,15 @@ def basetest_makevalid(
 
 def test_select_shp(tmpdir):
     # Select some data from src to tmp file
-    input_path = test_helper.get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels_output.shp'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.shp'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
 
     basetest_select(input_path, output_path)
 
 def test_select_gpkg(tmpdir):
     # Select some data from src to tmp file
-    input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels_output.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
 
     basetest_select(input_path, output_path)
     
@@ -264,7 +264,7 @@ def basetest_select(
         output_path: Path):
 
     layerinfo_orig = geofile.get_layerinfo(input_path)
-    sql_stmt = f'SELECT {layerinfo_orig.geometrycolumn}, oidn, uidn FROM "parcels"'
+    sql_stmt = f'SELECT {layerinfo_orig.geometrycolumn}, oidn, uidn FROM {{input_layer}}'
     geofileops_ogr.select(
             input_path=input_path,
             output_path=output_path,
@@ -286,15 +286,15 @@ def basetest_select(
 
 def test_select_various_options_shp(tmpdir):
     # Select some data from src to tmp file
-    input_path = test_helper.get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels_output.shp'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.shp'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
 
     basetest_select_various_options(input_path, output_path)
 
 def test_select_various_options_gpkg(tmpdir):
     # Select some data from src to tmp file
-    input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels_output.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
 
     basetest_select_various_options(input_path, output_path)
     
@@ -307,7 +307,7 @@ def basetest_select_various_options(
     layerinfo_orig = geofile.get_layerinfo(input_path)
     sql_stmt = f'''SELECT {layerinfo_orig.geometrycolumn}
                          {{columns_to_select_str}} 
-                     FROM "parcels" '''
+                     FROM {{input_layer}} '''
     geofileops_ogr.select(
             input_path=input_path,
             output_path=output_path,
@@ -329,7 +329,7 @@ def basetest_select_various_options(
 
 def test_simplify_gpkg(tmpdir):
     # Simplify polygon source to test dir, with and without gdal_bin set
-    input_path = test_helper.get_testdata_dir() / 'parcels.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
     output_path = Path(tmpdir) / input_path.name
     basetest_simplify(input_path, output_path, 
             expected_output_geometrytype='MULTIPOLYGON',
@@ -349,8 +349,8 @@ def test_simplify_gpkg(tmpdir):
             gdal_installation='gdal_bin')
 
     # Simplify line source to test dir
-    input_path = test_helper.get_testdata_dir() / 'rows_of_trees.gpkg'
-    output_path = Path(tmpdir) / 'rows_of_trees_output.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'linestrings_rows_of_trees.gpkg'
+    output_path = Path(tmpdir) / 'linestrings_rows_of_trees_output.gpkg'
     basetest_simplify(input_path, output_path, 
             expected_output_geometrytype='MULTILINESTRING',
             gdal_installation='gdal_default')
@@ -360,8 +360,8 @@ def test_simplify_gpkg(tmpdir):
 
 def test_simplify_shp(tmpdir):
     # Simplify to test dir
-    input_path = test_helper.get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels.shp'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.shp'
+    output_path = Path(tmpdir) / 'polygons_parcels.shp'
 
     # Try both with and without gdal_bin set
     basetest_simplify(input_path, output_path, 

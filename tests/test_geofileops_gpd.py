@@ -22,8 +22,8 @@ def get_nb_parallel() -> int:
 
 def test_buffer_gpkg(tmpdir):
     # Buffer polygon source to test dir
-    input_path = get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels_output.gpkg'
+    input_path = get_testdata_dir() / 'polygons_parcels.gpkg'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     basetest_buffer(input_path, output_path, 'MULTIPOLYGON')
 
     # Buffer point source to test dir
@@ -32,14 +32,14 @@ def test_buffer_gpkg(tmpdir):
     basetest_buffer(input_path, output_path, 'MULTIPOINT')
 
     # Buffer line source to test dir
-    input_path = get_testdata_dir() / 'rows_of_trees.gpkg'
-    output_path = Path(tmpdir) / 'rows_of_trees_output.gpkg'
+    input_path = get_testdata_dir() / 'linestrings_rows_of_trees.gpkg'
+    output_path = Path(tmpdir) / 'linestrings_rows_of_trees_output.gpkg'
     basetest_buffer(input_path, output_path, 'MULTILINESTRING')
 
 def test_buffer_shp(tmpdir):
     # Buffer to test dir
-    input_path = get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels_output.shp'
+    input_path = get_testdata_dir() / 'polygons_parcels.shp'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_buffer(input_path, output_path, 'MULTIPOLYGON')
 
 def basetest_buffer(input_path, output_path, input_geometry_type):
@@ -93,14 +93,14 @@ def basetest_buffer(input_path, output_path, input_geometry_type):
 
 def test_buffer_various_options_gpkg(tmpdir):
     # Buffer to test dir
-    input_path = get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels_output.gpkg'
+    input_path = get_testdata_dir() / 'polygons_parcels.gpkg'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     basetest_buffer_various_options(input_path, output_path)
 
 def test_buffer_various_options_shp(tmpdir):
     # Buffer to test dir
-    input_path = get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels_output.shp'
+    input_path = get_testdata_dir() / 'polygons_parcels.shp'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_buffer_various_options(input_path, output_path)
 
 def basetest_buffer_various_options(input_path, output_path):
@@ -131,14 +131,14 @@ def basetest_buffer_various_options(input_path, output_path):
 
 def test_convexhull_gpkg(tmpdir):
     # Select some data from input to output file
-    input_path = get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels_output.gpkg'
+    input_path = get_testdata_dir() / 'polygons_parcels.gpkg'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     basetest_convexhull(input_path, output_path)
 
 def test_convexhull_shp(tmpdir):
     # Select some data from input to output file
-    input_path = get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels_output.shp'
+    input_path = get_testdata_dir() / 'polygons_parcels.shp'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_convexhull(input_path, output_path)
 
 def basetest_convexhull(input_path, output_path):
@@ -163,14 +163,14 @@ def basetest_convexhull(input_path, output_path):
 
 def test_dissolve_linestrings_nogroupby_gpkg(tmpdir):
     # Buffer to test dir
-    input_path = get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels_output.gpkg'
+    input_path = get_testdata_dir() / 'polygons_parcels.gpkg'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     basetest_dissolve_linestrings_nogroupby(input_path, output_path)
 
 def test_dissolve_linestrings_nogroupby_shp(tmpdir):
     # Buffer to test dir
-    input_path = get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels_output.shp'
+    input_path = get_testdata_dir() / 'polygons_parcels.shp'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_dissolve_linestrings_nogroupby(input_path, output_path)
 
 def basetest_dissolve_linestrings_nogroupby(input_path, output_path):
@@ -199,14 +199,14 @@ def basetest_dissolve_linestrings_nogroupby(input_path, output_path):
 
 def test_dissolve_polygons_groupby_gpkg(tmpdir):
     # Buffer to test dir
-    input_path = get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels_output.gpkg'
+    input_path = get_testdata_dir() / 'polygons_parcels.gpkg'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     basetest_dissolve_polygons_groupby(input_path, output_path)
 
 def test_dissolve_polygons_groupby_shp(tmpdir):
     # Buffer to test dir
-    input_path = get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels_output.shp'
+    input_path = get_testdata_dir() / 'polygons_parcels.shp'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_dissolve_polygons_groupby(input_path, output_path)
 
 def basetest_dissolve_polygons_groupby(input_path, output_path):
@@ -286,14 +286,14 @@ def basetest_dissolve_polygons_groupby(input_path, output_path):
 
 def test_dissolve_polygons_nogroupby_gpkg(tmpdir):
     # Buffer to test dir
-    input_path = get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels_output.gpkg'
+    input_path = get_testdata_dir() / 'polygons_parcels.gpkg'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     basetest_dissolve_polygons_nogroupby(input_path, output_path)
 
 def test_dissolve_polygons_nogroupby_shp(tmpdir):
     # Buffer to test dir
-    input_path = get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels_output.shp'
+    input_path = get_testdata_dir() / 'polygons_parcels.shp'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_dissolve_polygons_nogroupby(input_path, output_path)
 
 def basetest_dissolve_polygons_nogroupby(input_path, output_path):
@@ -322,8 +322,8 @@ def basetest_dissolve_polygons_nogroupby(input_path, output_path):
 
 def test_simplify_gpkg(tmpdir):
     # Simplify polygon source to test dir
-    input_path = get_testdata_dir() / 'parcels.gpkg'
-    output_path = Path(tmpdir) / 'parcels_output.gpkg'
+    input_path = get_testdata_dir() / 'polygons_parcels.gpkg'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     basetest_simplify(input_path, output_path, 'MULTIPOLYGON')
 
     # Simplify point source to test dir
@@ -332,14 +332,14 @@ def test_simplify_gpkg(tmpdir):
     basetest_simplify(input_path, output_path, 'MULTIPOINT')
 
     # Simplify line source to test dir
-    input_path = get_testdata_dir() / 'rows_of_trees.gpkg'
-    output_path = Path(tmpdir) / 'rows_of_trees_output.gpkg'
+    input_path = get_testdata_dir() / 'linestrings_rows_of_trees.gpkg'
+    output_path = Path(tmpdir) / 'linestrings_rows_of_trees_output.gpkg'
     basetest_simplify(input_path, output_path, 'MULTILINESTRING')
 
 def test_simplify_shp(tmpdir):
     # Buffer to test dir
-    input_path = get_testdata_dir() / 'parcels.shp'
-    output_path = Path(tmpdir) / 'parcels_output.shp'
+    input_path = get_testdata_dir() / 'polygons_parcels.shp'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_simplify(input_path, output_path, 'MULTIPOLYGON')
 
 def basetest_simplify(
@@ -435,7 +435,7 @@ if __name__ == '__main__':
     # Run
     #test_buffer_gpkg(tmpdir)
     #test_buffer_various_options_gpkg(tmpdir)
-    test_dissolve_groupby_gpkg(tmpdir)
-    #test_dissolve_nogroupby_shp(tmpdir)
-    #test_dissolve_nogroupby_gpkg(tmpdir)
+    test_dissolve_polygons_groupby_gpkg(tmpdir)
+    #test_dissolve_polygons_nogroupby_shp(tmpdir)
+    #test_dissolve_polygons_nogroupby_gpkg(tmpdir)
     #test_simplify_gpkg(tmpdir)
