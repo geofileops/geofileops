@@ -100,6 +100,15 @@ def to_primitivetypeid(primitivetype: PrimitiveType) -> int:
     else:
         raise Exception(f"Not an existing primitivetype: {primitivetype}")
 
+def collection_extract_polygon(
+        geometry: sh_geom.base.BaseGeometry) -> Union[sh_geom.Polygon, sh_geom.MultiPolygon]:
+    # Extract the polygons
+    extracted = collection_extract(geometry=geometry, primitivetype=PrimitiveType.POLYGON)
+
+    # Assert is to evade type warnings 
+    assert isinstance(extracted, sh_geom.Polygon) or isinstance(extracted, sh_geom.MultiPolygon)
+    return extracted
+
 def collection_extract(
         geometry: sh_geom.base.BaseGeometry,
         primitivetype: PrimitiveType) -> sh_geom.base.BaseGeometry:
@@ -317,7 +326,7 @@ def simplify_ext(
         tolerance: float,
         algorithm: SimplifyAlgorithm = SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER,
         lookahead: int = 8,
-        preserve_topology: bool = False,
+        preserve_topology: bool = True,
         keep_points_on: sh_geom.base.BaseGeometry = None) -> sh_geom.base.BaseGeometry:
     """
     Simplify the geometry, with extended options.
@@ -333,7 +342,7 @@ def simplify_ext(
         lookahead (int, optional): the number of points to consider for removing
             in a moving window. Used for LANG algorithm. Defaults to 8.
         preserve_topology (bool, optional): True to (try to) return valid 
-            geometries as result. Defaults to False.
+            geometries as result. Defaults to True.
         keep_points_on (BaseGeometry], optional): point of the geometry to 
             that intersect with these geometries are not removed. Defaults to None.
 
@@ -354,8 +363,8 @@ def simplify_ext(
             raise ImportError(f"To use simplify_ext using rdp or vw, first do: 'pip install simplification'") from ex
 
     # Define some inline funtions 
-    # Apply the simplification
-    def simplify_polygon(polygon: sh_geom.Polygon) -> sh_geom.Polygon:
+    # Apply the simplification (can result in multipolygons)
+    def simplify_polygon(polygon: sh_geom.Polygon) -> Union[sh_geom.Polygon, sh_geom.MultiPolygon]:
         # Simplify all rings
         exterior_simplified = simplify_coords(polygon.exterior.coords)
         interiors_simplified = []
@@ -370,7 +379,11 @@ def simplify_ext(
                 # If topology needs to be preserved, keep original ring
                 interiors_simplified.append(interior.coords)              
 
-        return sh_geom.Polygon(exterior_simplified, interiors_simplified)
+        result_poly = sh_geom.Polygon(exterior_simplified, interiors_simplified)
+        if preserve_topology is True: 
+            # Make the ring valid and only keep polygons
+            result_poly = collection_extract_polygon(make_valid(result_poly))
+        return result_poly
 
     def simplify_linestring(linestring: sh_geom.LineString) -> sh_geom.LineString:
         # If the linestring cannot be simplified, return it
