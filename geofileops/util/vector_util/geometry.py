@@ -10,6 +10,8 @@ from typing import Any, List, Optional, Union
 
 import geopandas as gpd
 import numpy as np
+import pygeos
+import shapely.wkb as sh_wkb
 import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
 # Import simplification if it is available. Only throw exception in runtime...
@@ -219,22 +221,17 @@ def collect(
     else:
         raise Exception(f"Unsupported geometry type: {result_collection_type}")
 
-def makevalid(geometry: Optional[sh_geom.base.BaseGeometry]):
-    
-    # First check if the geom is None...
-    if geometry is None:
-        return None
-    # If the geometry is valid, just return it
-    if geometry.is_valid:
-        return geometry
+def make_valid(geometry: sh_geom.base.BaseGeometry) -> sh_geom.base.BaseGeometry:
+    """
+    Make a geometry valid.
 
-    # Else... try fixing it...
-    geom_buf = geometry.buffer(0)
-    if geom_buf.is_valid:
-        return geom_buf
-    else:
-        logger.error(f"Error fixing geometry {geometry}")
-        return geometry
+    Args:
+        geometry (Optional[sh_geom.base.BaseGeometry]): A (possibly) invalid geometry.
+
+    Returns:
+        Optional[sh_geom.base.BaseGeometry]: The fixed geometry.
+    """
+    return sh_wkb.loads(pygeos.io.to_wkb(pygeos.make_valid(pygeos.io.from_shapely(geometry))))
 
 def numberpoints(geometry: sh_geom.base.BaseGeometry) -> int:
     """
@@ -428,7 +425,7 @@ def simplify_ext(
     else:
         raise Exception(f"Unsupported geom_type: {geometry.geom_type}, {geometry}")
 
-    return makevalid(result_geom)
+    return make_valid(result_geom)
 
 def simplify_coords_lang(
         coords: Union[np.ndarray, list],
