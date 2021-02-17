@@ -27,6 +27,7 @@ gdal.UseExceptions()
 
 from geofileops import geofile
 from geofileops.util import general_util
+from geofileops.util.vector_util import GeometryType
 
 #-------------------------------------------------------------
 # First define/init some general variables/constants
@@ -74,7 +75,7 @@ class VectorTranslateInfo:
             update: bool = False,
             create_spatial_index: bool = None,
             explodecollections: bool = False,
-            force_output_geometrytype: str = None,
+            force_output_geometrytype: GeometryType = None,
             priority_class: str = 'VERY_LOW',
             sqlite_journal_mode: str = None,
             force_py: bool = False,
@@ -186,7 +187,7 @@ def vector_translate(
         update: bool = False,
         create_spatial_index: bool = None,
         explodecollections: bool = False,
-        force_output_geometrytype: str = None,
+        force_output_geometrytype: GeometryType = None,
         priority_class: str = 'VERY_LOW',
         sqlite_journal_mode: str = None,
         force_py: bool = False,
@@ -266,7 +267,7 @@ def vector_translate_exe(
         update: bool = False,
         create_spatial_index: bool = None,
         explodecollections: bool = False,
-        force_output_geometrytype: str = None,
+        force_output_geometrytype: GeometryType = None,
         priority_class: str = 'VERY_LOW',
         sqlite_journal_mode: str = None,
         verbose: bool = False) -> bool:
@@ -323,7 +324,7 @@ def vector_translate_exe(
     if output_layer is not None:
         args.extend(['-nln', output_layer])
     if force_output_geometrytype is not None:
-        args.extend(['-nlt', force_output_geometrytype])
+        args.extend(['-nlt', force_output_geometrytype.name])
     args.extend(['-nlt', 'PROMOTE_TO_MULTI'])
     if create_spatial_index is not None:
         if create_spatial_index is True:
@@ -459,7 +460,7 @@ def vector_translate_py(
         update: bool = False,
         create_spatial_index: bool = None,
         explodecollections: bool = False,
-        force_output_geometrytype: str = None,
+        force_output_geometrytype: GeometryType = None,
         priority_class: str = 'VERY_LOW',
         sqlite_journal_mode: str = None,
         verbose: bool = False) -> bool:
@@ -503,7 +504,7 @@ def vector_translate_py(
     if output_layer is not None:
         args.extend(['-nln', output_layer])
     if force_output_geometrytype is not None:
-        args.extend(['-nlt', force_output_geometrytype])
+        args.extend(['-nlt', force_output_geometrytype.name])
     args.extend(['-nlt', 'PROMOTE_TO_MULTI'])
     if transaction_size is not None:
         args.extend(['-gt', str(transaction_size)])

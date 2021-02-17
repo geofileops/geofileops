@@ -540,9 +540,10 @@ if __name__ == '__main__':
         shutil.rmtree(tmpdir)
 
     # Two layer operations
-    test_erase_gpkg(tmpdir)
+    #test_erase_gpkg(tmpdir)
     #test_intersect_gpkg(tmpdir)
     #test_export_by_distance_shp(tmpdir)
     #test_join_by_location_gpkg(tmpdir)
+    test_split_gpkg(tmpdir)
     #test_union_gpkg(tmpdir)
     

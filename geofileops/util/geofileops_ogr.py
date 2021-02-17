@@ -11,11 +11,12 @@ import logging.config
 import multiprocessing
 from pathlib import Path
 import shutil
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional
 
 from geofileops import geofile
 from . import io_util
-from . import ogr_util as ogr_util
+from . import ogr_util
+from geofileops.geofile import GeometryType, PrimitiveType
 
 ################################################################################
 # Some init
@@ -61,10 +62,7 @@ def buffer(
                {{batch_filter}}'''
 
     # Buffer operation always results in polygons...
-    if explodecollections is True:
-        force_output_geometrytype = 'POLYGON'
-    else:
-        force_output_geometrytype = 'MULTIPOLYGON'
+    force_output_geometrytype = GeometryType.MULTIPOLYGON
             
     return _single_layer_vector_operation(
             input_path=input_path,
@@ -160,7 +158,7 @@ def makevalid(
         output_layer: str = None,
         columns: Optional[List[str]] = None,
         explodecollections: bool = False,
-        force_output_geometrytype: str = None,
+        force_output_geometrytype: GeometryType = None,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -176,8 +174,7 @@ def makevalid(
     # Specify output_geomatrytype, because otherwise makevalid results in 
     # column type 'GEOMETRY'/'UNKNOWN(ANY)' 
     if force_output_geometrytype is None:
-        input_layer_info = geofile.get_layerinfo(input_path, input_layer)
-        force_output_geometrytype = input_layer_info.geometrytypename
+        force_output_geometrytype = geofile.get_layerinfo(input_path, input_layer).geometrytype
     
     return _single_layer_vector_operation(
             input_path=input_path,
@@ -202,7 +199,7 @@ def select(
         output_layer: str = None,
         columns: Optional[List[str]] = None,
         explodecollections: bool = False,
-        force_output_geometrytype: str = None,
+        force_output_geometrytype: GeometryType = None,
         nb_parallel: int = 1,
         verbose: bool = False,
         force: bool = False):
@@ -219,7 +216,7 @@ def select(
     
     # If no output geometrytype is specified, use the geometrytype of the input layer
     if force_output_geometrytype is None:
-        force_output_geometrytype = geofile.get_layerinfo(input_path, input_layer).geometrytypename
+        force_output_geometrytype = geofile.get_layerinfo(input_path, input_layer).geometrytype
         logger.info(f"No force_output_geometrytype specified, so defaults to input layer geometrytype: {force_output_geometrytype}")
 
     # Go!
@@ -278,7 +275,7 @@ def _single_layer_vector_operation(
         output_layer: str = None,
         columns: List[str] = None,
         explodecollections: bool = False,
-        force_output_geometrytype: str = None,
+        force_output_geometrytype: GeometryType = None,
         filter_null_geoms: bool = True,
         nb_parallel: int = -1,
         verbose: bool = False,
@@ -483,15 +480,13 @@ def erase(
     # Init
     # In the query, important to only extract the geometry types that are expected 
     input_layer_info = geofile.get_layerinfo(input_path, input_layer)
-    collection_extract_typeid = geofile.to_generaltypeid(input_layer_info.geometrytypename)
+    primitivetypeid = geofile.to_primitivetype(input_layer_info.geometrytype).value
 
-    # To be safe, if explodecollections is False, force the MULTI version of 
-    # the input layer as output type, because erase can cause eg. polygons to 
-    # be split to multipolygons...
-    if explodecollections is True: # and input_layer_info.geometrytypename in ['POLYGON']:
-        force_output_geometrytype = input_layer_info.geometrytypename
-    else:
-        force_output_geometrytype = geofile.to_multi_type(input_layer_info.geometrytypename)
+    # If the input type is not point, force the output type to multi, 
+    # because erase can cause eg. polygons to be split to multipolygons...
+    force_output_geometrytype = input_layer_info.geometrytype
+    if force_output_geometrytype is not GeometryType.POINT:
+        force_output_geometrytype = geofile.to_multigeometrytype(input_layer_info.geometrytype)
 
     # Prepare sql template for this operation 
     # Remarks:
@@ -516,7 +511,7 @@ def erase(
                GROUP BY layer1.rowid
             )
             SELECT CASE WHEN layer2_unioned.geom IS NULL THEN layer1.{{input1_geometrycolumn}}
-                        ELSE ST_CollectionExtract(ST_difference(layer1.{{input1_geometrycolumn}}, layer2_unioned.geom), {collection_extract_typeid})
+                        ELSE ST_CollectionExtract(ST_difference(layer1.{{input1_geometrycolumn}}, layer2_unioned.geom), {primitivetypeid})
                    END as geom
                   {{layer1_columns_prefix_alias_str}}
               FROM "{{input1_tmp_layer}}" layer1
@@ -627,7 +622,7 @@ def export_by_location(
             input2_layer=input2_layer,
             input2_columns=input2_columns,
             output_layer=output_layer,
-            force_output_geometrytype=input_layer_info.geometrytypename,
+            force_output_geometrytype=input_layer_info.geometrytype,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
@@ -676,7 +671,7 @@ def export_by_distance(
             input1_columns=input1_columns,
             input2_layer=input2_layer,
             output_layer=output_layer,
-            force_output_geometrytype=input_layer_info.geometrytypename,
+            force_output_geometrytype=input_layer_info.geometrytype,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
@@ -698,16 +693,16 @@ def intersect(
         force: bool = False):
 
     # In the query, important to only extract the geometry types that are expected 
+    # TODO: test for geometrycollection, line, point,...
     input1_layer_info = geofile.get_layerinfo(input1_path, input1_layer)
     input2_layer_info = geofile.get_layerinfo(input2_path, input2_layer)
-    collection_extract_typeid = min(geofile.to_generaltypeid(input1_layer_info.geometrytypename), 
-                                    geofile.to_generaltypeid(input2_layer_info.geometrytypename))
+    extract_primitivetypeid = min(
+            geofile.to_primitivetype(input1_layer_info.geometrytypename).value, 
+            geofile.to_primitivetype(input2_layer_info.geometrytypename).value)
 
-    # For the output file, if output is going to be polygon, force 
-    # MULTIPOLYGON to evade ugly warnings
-    force_output_geometrytype = None
-    if collection_extract_typeid == 3:
-        force_output_geometrytype = 'MULTIPOLYGON'
+    # For the output file, if output is going to be polygon or linestring, force 
+    # MULTI variant to evade ugly warnings
+    force_output_geometrytype = geofile.to_multigeometrytype(PrimitiveType(extract_primitivetypeid).name)
 
     # Prepare sql template for this operation 
     sql_template = f'''
@@ -715,7 +710,7 @@ def intersect(
              {{layer1_columns_from_subselect_str}}
              {{layer2_columns_from_subselect_str}} 
           FROM
-            ( SELECT ST_CollectionExtract(ST_Intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}), {collection_extract_typeid}) as geom
+            ( SELECT ST_CollectionExtract(ST_Intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}), {extract_primitivetypeid}) as geom
                     {{layer1_columns_prefix_alias_str}}
                     {{layer2_columns_prefix_alias_str}}
                 FROM "{{input1_tmp_layer}}" layer1
@@ -915,11 +910,14 @@ def split(
         verbose: bool = False,
         force: bool = False):
 
-    # In the query, important to only extract the geometry types that are expected 
+    # In the query, important to only extract the geometry types that are 
+    # expected, so the primitive type of input1_layer  
+    # TODO: test for geometrycollection, line, point,...
     input1_layer_info = geofile.get_layerinfo(input1_path, input1_layer)
-    input2_layer_info = geofile.get_layerinfo(input2_path, input2_layer)
-    collection_extract_typeid = min(geofile.to_generaltypeid(input1_layer_info.geometrytypename), 
-                                    geofile.to_generaltypeid(input2_layer_info.geometrytypename))
+    extract_primitivetypeid = geofile.to_primitivetype(input1_layer_info.geometrytypename).value
+    
+    # For the output file, force MULTI variant to evade ugly warnings
+    force_output_geometrytype = geofile.to_multigeometrytype(PrimitiveType(extract_primitivetypeid).name)
 
     # Prepare sql template for this operation 
     sql_template = f'''
@@ -939,7 +937,7 @@ def split(
                      AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
                    GROUP BY layer1.rowid
                 )
-                SELECT ST_CollectionExtract(ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}), ST_union(layer2.{{input2_geometrycolumn}})), {collection_extract_typeid}) as geom
+                SELECT ST_CollectionExtract(ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}), ST_union(layer2.{{input2_geometrycolumn}})), {extract_primitivetypeid}) as geom
                       {{layer1_columns_prefix_alias_str}}
                       {{layer2_columns_prefix_alias_str}}
                  FROM "{{input1_tmp_layer}}" layer1
@@ -955,7 +953,7 @@ def split(
                 GROUP BY layer1.rowid {{layer1_columns_prefix_str}}
                 UNION ALL
                 SELECT CASE WHEN layer2_unioned.geom IS NULL THEN layer1.{{input1_geometrycolumn}}
-                            ELSE ST_CollectionExtract(ST_difference(layer1.{{input1_geometrycolumn}}, layer2_unioned.geom), {collection_extract_typeid})
+                            ELSE ST_CollectionExtract(ST_difference(layer1.{{input1_geometrycolumn}}, layer2_unioned.geom), {extract_primitivetypeid})
                        END as geom
                        {{layer1_columns_prefix_alias_str}}
                        {{layer2_columns_prefix_alias_null_str}}
@@ -967,11 +965,6 @@ def split(
              WHERE geom IS NOT NULL
                AND ST_NPoints(geom) > 0   -- ST_CollectionExtract outputs empty, but not NULL geoms in spatialite 4.3 
             '''
-
-    # When polygons are split, they can become multipolygons, even with explodecollections
-    force_output_geometrytype = input1_layer_info.geometrytypename
-    if force_output_geometrytype == 'POLYGON':
-        force_output_geometrytype = 'MULTIPOLYGON'
     
     # Go!
     return _two_layer_vector_operation(
@@ -1082,7 +1075,7 @@ def _two_layer_vector_operation(
         input2_columns_prefix: str = 'l2_',
         output_layer: str = None,
         explodecollections: bool = False,
-        force_output_geometrytype: str = None,
+        force_output_geometrytype: GeometryType = None,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -1103,7 +1096,7 @@ def _two_layer_vector_operation(
         input2_columns_prefix
         output_layer (str, optional): [description]. Defaults to None.
         explodecollections (bool, optional): Explode collecions in output. Defaults to False.
-        force_output_geometrytype (str, optional): Defaults to None.
+        force_output_geometrytype (GeometryType, optional): Defaults to None.
         nb_parallel (int, optional): [description]. Defaults to -1.
         force (bool, optional): [description]. Defaults to False.
     
@@ -1157,7 +1150,7 @@ def _two_layer_vector_operation(
         # Get input2 data to temp gpkg file. 
         # If it is the only layer in the input file, just copy file
         if(input2_path.suffix.lower() == '.gpkg' 
-        and len(geofile.listlayers(input2_path)) == 1):
+           and len(geofile.listlayers(input2_path)) == 1):
             logger.debug(f"Copy {input2_path} to {input_tmp_path}")
             geofile.copy(input2_path, input_tmp_path)
 
@@ -1625,13 +1618,13 @@ def dissolve(
             output_layer=output_layer,
             sql_stmt=sql_stmt,
             sql_dialect='SQLITE',
-            force_output_geometrytype='MULTIPOLYGON',
+            force_output_geometrytype=GeometryType.MULTIPOLYGON,
             explodecollections=explodecollections,
             verbose=verbose)
 
     logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
 
-def dissolve_cardsheets(
+def dissolve_cardsheets(    
         input_path: Path,
         input_cardsheets_path: Path,
         output_path: Path,
@@ -1729,10 +1722,10 @@ def dissolve_cardsheets(
                            AND ST_Intersects(t.geom, ST_GeomFromText('{bbox_wkt}')) = 1
                            AND ST_Touches(t.geom, ST_GeomFromText('{bbox_wkt}')) = 0
                          GROUP BY {groupby_columns_for_groupby_str}"""
-                if explodecollections is True:
-                    force_output_geometrytype = 'POLYGON'
-                else:
-                    force_output_geometrytype = 'MULTIPOLYGON'
+                
+                # Force geometrytype to multipolygon, because normal polygons easily are turned into 
+                # multipolygon if self-touching...
+                force_output_geometrytype = GeometryType.MULTIPOLYGON
 
                 translate_jobs[batch_id]['sqlite_stmt'] = sql_stmt
                 translate_description = f"Async dissolve {batch_id} of {nb_batches}, bounds: {cardsheet.geometry.bounds}"
@@ -1775,7 +1768,7 @@ def dissolve_cardsheets(
                                 append=True,
                                 update=True,
                                 create_spatial_index=False,
-                                force_output_geometrytype='MULTIPOLYGON',
+                                force_output_geometrytype=GeometryType.MULTIPOLYGON,
                                 priority_class='NORMAL',
                                 verbose=verbose)
                         ogr_util.vector_translate_by_info(info=translate_info)

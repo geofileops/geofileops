@@ -3,13 +3,13 @@
 Tests for operations using GeoPandas.
 """
 
-from geofileops.util.vector_util.geometry import GeometryType
 from pathlib import Path
 import sys
 
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
+from geofileops.geofile import GeometryType
 from geofileops.util import geofileops_gpd
 from geofileops.util.vector_util import SimplifyAlgorithm
 
@@ -162,33 +162,34 @@ def basetest_convexhull(input_path, output_path):
     assert output_gdf['geometry'][0] is not None
 
 def test_dissolve_linestrings_nogroupby_gpkg(tmpdir):
-    # Buffer to test dir
-    input_path = get_testdata_dir() / 'polygons_parcels.gpkg'
-    output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
+    # Apply operation
+    input_path = get_testdata_dir() / 'linestrings_watercourses.gpkg'
+    output_path = Path(tmpdir) / 'linestrings_watercourses_output.gpkg'
     basetest_dissolve_linestrings_nogroupby(input_path, output_path)
 
+"""
 def test_dissolve_linestrings_nogroupby_shp(tmpdir):
-    # Buffer to test dir
+    # Apply operation
     input_path = get_testdata_dir() / 'polygons_parcels.shp'
     output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_dissolve_linestrings_nogroupby(input_path, output_path)
-
+    """
+    
 def basetest_dissolve_linestrings_nogroupby(input_path, output_path):
+    # Apply dissolve
     geofileops_gpd.dissolve(
             input_path=input_path,
             output_path=output_path,
             explodecollections=True,
             nb_parallel=get_nb_parallel())
 
-    # Now check if the result file is correctly created
+    # Check if the result file is correctly created
     assert output_path.exists() == True
     layerinfo_orig = geofile.get_layerinfo(input_path)
     layerinfo_output = geofile.get_layerinfo(output_path)
-    assert layerinfo_output.featurecount == 21
+    assert layerinfo_output.featurecount < layerinfo_orig.featurecount
+    assert layerinfo_output.geometrytype is layerinfo_orig.geometrytype
     assert len(layerinfo_output.columns) >= 0
-
-    # Check geometry type
-    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Now check the contents of the result file
     input_gdf = geofile.read_file(input_path)
@@ -435,7 +436,8 @@ if __name__ == '__main__':
     # Run
     #test_buffer_gpkg(tmpdir)
     #test_buffer_various_options_gpkg(tmpdir)
-    test_dissolve_polygons_groupby_gpkg(tmpdir)
+    test_dissolve_linestrings_nogroupby_gpkg(tmpdir)
+    #test_dissolve_polygons_groupby_gpkg(tmpdir)
     #test_dissolve_polygons_nogroupby_shp(tmpdir)
     #test_dissolve_polygons_nogroupby_gpkg(tmpdir)
     #test_simplify_gpkg(tmpdir)

@@ -23,6 +23,7 @@ from geofileops.util import ogr_util
 from . import general_util
 from . import io_util
 from . import vector_util
+from .vector_util import GeometryType 
 
 ################################################################################
 # Some init
@@ -58,10 +59,8 @@ def buffer(
         }
     
     # Buffer operation always results in polygons...
-    if explodecollections is True:
-        force_output_geometrytype = 'POLYGON'
-    else:
-        force_output_geometrytype = 'MULTIPOLYGON'
+    # TODO: test is some buffers don't result in geometrycollection, line, point,...
+    force_output_geometrytype = GeometryType.MULTIPOLYGON
 
     # Go!
     return _apply_geooperation_to_layer(
@@ -144,7 +143,7 @@ def _apply_geooperation_to_layer(
         columns: List[str] = None,
         output_layer: str = None,
         explodecollections: bool = False,
-        force_output_geometrytype: str = None,
+        force_output_geometrytype: GeometryType = None,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -171,6 +170,10 @@ def _apply_geooperation_to_layer(
         output_layer (str, optional): [description]. Defaults to None.
         columns (List[str], optional): If not None, only output the columns 
             specified. Defaults to None.
+        explodecollections (bool, optional): True to convert all multi-geometries to 
+            singular ones during the geooperation. Defaults to False.
+        force_output_geometrytype (GeometryType, optional): Geometrytype to 
+            force output to. Defaults to None.
         nb_parallel (int, optional): [description]. Defaults to -1.
         verbose (bool, optional): [description]. Defaults to False.
         force (bool, optional): [description]. Defaults to False.
@@ -528,25 +531,27 @@ def dissolve(
         # If there is a result on border, append it to the rest
         if output_tmp_onborder_path.exists():
             geofile.append_to(output_tmp_onborder_path, output_tmp_path, dst_layer=output_layer)
-            
-        # Now move tmp file to output location, but order the rows randomly
-        # to evade having all complex geometries together...   
-        # Add column to use for random ordering
-        geofile.add_column(path=output_tmp_path, layer=output_layer, 
-                name='temp_ordering_id', type='REAL', expression=f"RANDOM()", force_update=True)
-        sqlite_stmt = f'CREATE INDEX idx_batch_id ON "{output_layer}"(temp_ordering_id)' 
-        ogr_util.vector_info(path=output_tmp_path, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
 
-        # Get columns to keep and write final stuff
-        columns_str = ''
-        for column in columns_to_retain:
-            columns_str += f',"{column}"'
-        sql_stmt = f'''
-                SELECT {{geometrycolumn}} 
-                      {columns_str} 
-                  FROM "{output_layer}" 
-                 ORDER BY temp_ordering_id'''
-        geofileops_ogr.select(output_tmp_path, output_path, sql_stmt)
+        # If there is a result...
+        if output_tmp_path.exists():
+            # Now move tmp file to output location, but order the rows randomly
+            # to evade having all complex geometries together...   
+            # Add column to use for random ordering
+            geofile.add_column(path=output_tmp_path, layer=output_layer, 
+                    name='temp_ordering_id', type='REAL', expression=f"RANDOM()", force_update=True)
+            sqlite_stmt = f'CREATE INDEX idx_batch_id ON "{output_layer}"(temp_ordering_id)' 
+            ogr_util.vector_info(path=output_tmp_path, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
+
+            # Get columns to keep and write final stuff
+            columns_str = ''
+            for column in columns_to_retain:
+                columns_str += f',"{column}"'
+            sql_stmt = f'''
+                    SELECT {{geometrycolumn}} 
+                        {columns_str} 
+                    FROM "{output_layer}" 
+                    ORDER BY temp_ordering_id'''
+            geofileops_ogr.select(output_tmp_path, output_path, sql_stmt)
 
     finally:
         # Clean tmp dir if it exists...

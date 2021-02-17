@@ -86,12 +86,12 @@ def create_grid2(
     total_height = ymax-ymin
 
     columns_vs_rows = total_width/total_height
-    nb_rows = round(math.sqrt(nb_squarish_tiles/columns_vs_rows))
+    nb_rows = max(round(math.sqrt(nb_squarish_tiles/columns_vs_rows)), 1)
 
     # Evade having too many cells if few cells are asked...
     if nb_rows > nb_squarish_tiles:
         nb_rows = nb_squarish_tiles
-    nb_columns = round(nb_squarish_tiles/nb_rows)
+    nb_columns = max(round(nb_squarish_tiles/nb_rows), 1)
     
     # Now we know everything to create the grid
     return create_grid(

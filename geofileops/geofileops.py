@@ -3,12 +3,14 @@
 Module exposing all supported operations on geomatries in geofiles.
 """
 
+from geofileops.util.vector_util.geometry import GeometryType
 import logging
 import logging.config
 import os
 from pathlib import Path
 from typing import Any, List, Optional, Union
 
+from geofileops import geofile
 from .util import geofileops_ogr
 from .util import geofileops_gpd
 from .util.vector_util import SimplifyAlgorithm
@@ -302,7 +304,7 @@ def select(
         output_layer: str = None,
         columns: List[str] = None,
         explodecollections: bool = False,
-        force_output_geometrytype: str = None,
+        force_output_geometrytype: Union[GeometryType, str] = None,
         nb_parallel: int = 1,
         verbose: bool = False,
         force: bool = False):
@@ -342,7 +344,7 @@ def select(
             Defaults to None.
         explodecollections (bool, optional): True to convert all multi-geometries to 
             singular ones after the dissolve. Defaults to False.
-        force_output_geometrytype (str, optional): The output geometry type to 
+        force_output_geometrytype (GeometryType, optional): The output geometry type to 
             force. Defaults to None, and then the geometry type of the input is used 
         nb_parallel (int, optional): the number of parallel processes to use. 
             Defaults to 1. To use all available cores, pass -1. 
@@ -350,6 +352,11 @@ def select(
         force (bool, optional): overwrite existing output file(s). Defaults to False.
     """
     logger.info(f"Start select on {input_path}")
+
+    # Convert force_output_geometrytype to GeometryType (if necessary)
+    if force_output_geometrytype is not None:
+        force_output_geometrytype = geofile.to_geometrytype(force_output_geometrytype)
+        
     return geofileops_ogr.select(
             input_path=Path(input_path),
             output_path=Path(output_path),

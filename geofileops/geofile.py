@@ -22,7 +22,11 @@ import shapely.geometry as sh_geom
 
 from .util import io_util
 from .util import ogr_util
-from .util.vector_util import GeometryType
+from .util import vector_util
+from .util.vector_util import GeometryType, PrimitiveType
+from .util.vector_util import to_geometrytype
+from .util.vector_util import to_multigeometrytype
+from .util.vector_util import to_primitivetype
 
 #-------------------------------------------------------------
 # First define/init some general variables/constants
@@ -656,7 +660,7 @@ def to_file(
         gdf: gpd.GeoDataFrame,
         path: Union[str, 'os.PathLike[Any]'],
         layer: str = None,
-        force_output_geometrytype: str = None, 
+        force_output_geometrytype: Union[GeometryType, str] = None, 
         append: bool = False,
         append_timeout_s: int = 600,
         index: bool = True):
@@ -668,7 +672,7 @@ def to_file(
         path (Union[str,): The file path to write to.
         layer (str, optional): The layer to read. If no layer is specified, 
             reads the only layer in the file or throws an Exception.
-        force_output_geometrytype (str, optional): force the geometry type to
+        force_output_geometrytype (GeometryType, optional): force the geometry type to
             the type specified. Defaults to None.
         append (bool, optional): True to append to the file. Defaults to False.
         append_timeout_s (int, optional): The maximum timeout to wait when the 
@@ -686,6 +690,8 @@ def to_file(
 
     # Check input parameters
     path_p = Path(path)
+    if force_output_geometrytype is not None:
+        force_output_geometrytype = to_geometrytype(force_output_geometrytype)
 
     # If no layer name specified, use the filename (without extension)
     if layer is None:
@@ -700,7 +706,7 @@ def to_file(
             path: Path, 
             layer: str, 
             index: bool = True,
-            force_output_geometrytype: str = None,
+            force_output_geometrytype: GeometryType = None,
             append: bool = False):
 
         # Change mode if append is true
@@ -714,20 +720,21 @@ def to_file(
 
         # Apply force_output_geometrytype
         if force_output_geometrytype is not None:
-            if force_output_geometrytype == 'MULTIPOLYGON':
+            if force_output_geometrytype is GeometryType.MULTIPOLYGON:
                 gdf.geometry = [sh_geom.MultiPolygon([feature]) 
                                 if type(feature) == sh_geom.Polygon 
                                 else feature for feature in gdf.geometry]
-            elif force_output_geometrytype == 'MULTIPOINT':
+            elif force_output_geometrytype is GeometryType.MULTIPOINT:
                 gdf.geometry = [sh_geom.MultiPoint([feature]) 
                                 if type(feature) == sh_geom.Point 
                                 else feature for feature in gdf.geometry]
-            elif force_output_geometrytype == 'MULTILINESTRING':
+            elif force_output_geometrytype is GeometryType.MULTILINESTRING:
                 gdf.geometry = [sh_geom.MultiLineString([feature]) 
                                 if type(feature) == sh_geom.LineString 
                                 else feature for feature in gdf.geometry]
-            elif force_output_geometrytype in ['POLYGON', 'POINT', 'LINESTRING']:
-                logger.info(f"force_output_geometrytype is {force_output_geometrytype}, so no conversion is done")
+            elif force_output_geometrytype in [
+                    GeometryType.POLYGON, GeometryType.POINT, GeometryType.LINESTRING]:
+                logger.debug(f"force_output_geometrytype is {force_output_geometrytype}, so no conversion is done")
             else:
                 raise Exception(f"Unsupported force_output_geometrytype: {force_output_geometrytype}")
 
@@ -953,7 +960,7 @@ def append_to(
         dst: Union[str, 'os.PathLike[Any]'],
         src_layer: str = None,
         dst_layer: str = None,
-        force_output_geometrytype: str = None,
+        force_output_geometrytype: Union[GeometryType, str] = None,
         create_spatial_index: bool = True,
         append_timeout_s: int = 600,
         verbose: bool = False):
@@ -968,7 +975,8 @@ def append_to(
         dst (Union[str,): destination file path.
         src_layer (str, optional): source layer. Defaults to None.
         dst_layer (str, optional): destination layer. Defaults to None.
-        force_output_geometrytype (str, optional): [description]. Defaults to None.
+        force_output_geometrytype (GeometryType, optional): Geometry type. 
+            to (try to) force the output to. Defaults to None.
         create_spatial_index (bool, optional): True to create a spatial index 
             on the destination file/layer. Defaults to True.
         append_timeout_s (int, optional): Timeout to use if the output file is
@@ -980,6 +988,8 @@ def append_to(
     """
     src_p = Path(src)
     dst_p = Path(dst)
+    if force_output_geometrytype is not None:
+        force_output_geometrytype = vector_util.to_geometrytype(force_output_geometrytype)
     
     # Files don't typically support having multiple processes writing 
     # simultanously to them, so use lock file to synchronize access.
@@ -1013,7 +1023,7 @@ def _append_to_nolock(
         dst: Path,
         src_layer: str = None,
         dst_layer: str = None,
-        force_output_geometrytype: str = None,
+        force_output_geometrytype: GeometryType = None,
         create_spatial_index: bool = True,
         verbose: bool = False):
     # append
@@ -1093,6 +1103,8 @@ def to_multi_type(geometrytypename: str) -> str:
     """
     Map the input geometry type to the corresponding 'MULTI' geometry type...
 
+    DEPRECATED, use to_multigeometrytype
+    
     Args:
         geometrytypename (str): Input geometry type
 
@@ -1102,21 +1114,16 @@ def to_multi_type(geometrytypename: str) -> str:
     Returns:
         str: Corresponding 'MULTI' geometry type
     """
-    if geometrytypename in ['MULTIPOINT', 'MULTILINESTRING', 'MULTIPOLYGON', 'GEOMETRYCOLLECTION']:
-        return geometrytypename
-    elif geometrytypename in ['POINT', 'LINESTRING', 'POLYGON']:
-        return f"MULTI{geometrytypename}"
-    elif geometrytypename == 'GEOMETRY':
-        return geometrytypename
-    else:
-        raise Exception(f"Unknown geometrytype: {geometrytypename}")
+    return to_multigeometrytype(geometrytypename).name
 
 def to_generaltypeid(geometrytypename: str) -> int:
     """
-    Map the input geometry type to the corresponding geometry type id:
+    Map the input geometry type name to the corresponding geometry type id:
         * 1 = POINT-type
         * 2 = LINESTRING-type
         * 3 = POLYGON-type
+
+    DEPRECATED, use to_primitivetypeid()
 
     Args:
         geometrytypename (str): Input geometry type
@@ -1127,11 +1134,4 @@ def to_generaltypeid(geometrytypename: str) -> int:
     Returns:
         int: Corresponding geometry type id
     """
-    if geometrytypename in ['POINT', 'MULTIPOINT']:
-        return 1
-    elif geometrytypename in ['LINESTRING', 'MULTILINESTRING']:
-        return 2
-    elif geometrytypename in ['POLYGON', 'MULTIPOLYGON']:
-        return 3
-    else:
-        raise Exception(f"Unsupported geometrytype ({geometrytypename})")
+    return to_primitivetype(geometrytypename).value
