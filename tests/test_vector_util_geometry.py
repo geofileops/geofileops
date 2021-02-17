@@ -3,10 +3,12 @@
 Tests for functionalities in vector_util, regarding geometry operations.
 """
 
+from geofileops.util.vector_util.geometry import numberpoints
 from pathlib import Path
 import sys
 
 import shapely.geometry as sh_geom
+from shapely.geometry.multipolygon import MultiPolygon
 
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -15,6 +17,48 @@ from geofileops.util import vector_util
 
 def get_testdata_dir() -> Path:
     return Path(__file__).resolve().parent / 'data'
+
+def test_makevalid():
+    # Test Point
+    point = sh_geom.Point((0, 0))
+    point_valid = vector_util.make_valid(point)
+    assert isinstance(point_valid, sh_geom.Point)
+
+    # Test MultiPoint
+    multipoint = sh_geom.MultiPoint([(0, 0), (10, 10), (20, 20)])
+    multipoint_valid = vector_util.make_valid(multipoint)
+    assert isinstance(multipoint_valid, sh_geom.MultiPoint)
+
+    # Test LineString
+    linestring = sh_geom.LineString([(0, 0), (10, 10), (20, 20)])
+    linestring_valid = vector_util.make_valid(linestring)
+    assert isinstance(linestring_valid, sh_geom.LineString)
+    
+    # Test MultiLineString
+    multilinestring = sh_geom.MultiLineString(
+            [linestring.coords, [(100, 100), (110, 110), (120, 120)]])
+    multilinestring_valid = vector_util.make_valid(multilinestring)
+    assert isinstance(multilinestring_valid, sh_geom.MultiLineString)
+
+    # Test Polygon, self-intersecting
+    poly_invalid = sh_geom.Polygon(
+            shell=[(0, 0), (0, 10), (5, 10), (4, 11), (4, 9), (10, 10), (10, 0), (0,0)], 
+            holes=[[(2,2), (2,8), (8,8), (8,2), (2,2)]])
+    poly_valid = vector_util.make_valid(poly_invalid)
+    assert isinstance(poly_valid, sh_geom.MultiPolygon)
+    assert len(poly_valid) == 2
+    assert len(poly_valid[0].interiors) == 1
+
+    # Test MultiPolygon
+    poly2 = sh_geom.Polygon(shell=[(100, 100), (100, 110), (110, 110), (110, 100), (100,100)])
+    multipoly = sh_geom.MultiPolygon([poly_invalid, poly2])
+    multipoly_valid = vector_util.make_valid(multipoly)
+    assert isinstance(multipoly_valid, sh_geom.MultiPolygon)
+
+    # Test GeometryCollection (as combination of all previous ones)
+    geometrycollection = sh_geom.GeometryCollection([point, multipoint, linestring, multilinestring, poly_invalid, multipoly])
+    geometrycollection_valid = vector_util.make_valid(geometrycollection)
+    assert isinstance(geometrycollection_valid, sh_geom.GeometryCollection)
 
 def test_numberpoints():
     # Test Point
@@ -62,6 +106,29 @@ def test_numberpoints():
     numberpoints = vector_util.numberpoints(geometrycollection)
     assert numberpoints == numberpoints_geometrycollection
 
+def test_remove_inner_rings():
+    # Apply to single Polygon, with area tolerance smaller than holes
+    poly = sh_geom.Polygon(
+            shell=[(0, 0), (0, 10), (1, 10), (10, 10), (10, 0), (0,0)], 
+            holes=[[(2,2), (2,4), (4,4), (4,2), (2,2)], [(5,5), (5,6), (7,6), (7,5), (5,5)]])
+    poly_result = vector_util.remove_inner_rings(poly, min_area_to_keep=1)
+    assert isinstance(poly_result, sh_geom.Polygon)
+    assert len(poly_result.interiors) == 2
+
+    # Apply to single Polygon, with area tolerance between 
+    # smallest hole (= 2m²) and largest (= 4m²)
+    poly_result = vector_util.remove_inner_rings(poly, min_area_to_keep=3)
+    assert isinstance(poly_result, sh_geom.Polygon)
+    assert len(poly_result.interiors) == 1
+
+    # Apply to MultiPolygon, with area tolerance between 
+    # smallest hole (= 2m²) and largest (= 4m²)
+    poly2 = sh_geom.Polygon(shell=[(100, 100), (100, 110), (110, 110), (110, 100), (100,100)])
+    multipoly = sh_geom.MultiPolygon([poly, poly2])
+    poly_result = vector_util.remove_inner_rings(multipoly, min_area_to_keep=3)
+    assert isinstance(poly_result, sh_geom.MultiPolygon)
+    assert len(poly_result[0].interiors) == 1
+    
 def test_simplify_ext_lang_basic():
     # Test LineString lookahead -1 
     linestring = sh_geom.LineString([(0, 0), (10, 10), (20, 20)])
@@ -126,7 +193,7 @@ def test_simplify_ext_lang_basic():
     assert len(geom_simplified) == 2
     assert len(geom_simplified[0].coords) < len(multilinestring[0].coords)
     assert len(geom_simplified[0].coords) == 2
-
+    
     # Test Polygon simplification
     poly = sh_geom.Polygon(
             shell=[(0, 0), (0, 10), (1, 10), (10, 10), (10, 0), (0,0)], 
@@ -159,6 +226,49 @@ def test_simplify_ext_lang_basic():
             tolerance=1)
     assert isinstance(geom_simplified, sh_geom.GeometryCollection)
     assert len(geom_simplified) == 6
+
+def test_simplify_ext_invalid():
+    # Test Polygon simplification, with invalid exterior ring
+    poly = sh_geom.Polygon(
+            shell=[(0, 0), (0, 10), (5, 10), (3, 12), (3, 9), (10, 10), (10, 0), (0,0)], 
+            holes=[[(2,2), (2,8), (8,8), (8,2), (2,2)]])
+    geom_simplified = vector_util.simplify_ext(
+            geometry=poly,
+            algorithm=vector_util.SimplifyAlgorithm.LANG, 
+            tolerance=1)
+    assert isinstance(geom_simplified, sh_geom.MultiPolygon)
+    assert len(geom_simplified[0].exterior.coords) < len(poly.exterior.coords)
+    assert len(geom_simplified[0].exterior.coords) == 7
+    assert len(geom_simplified[0].interiors) == len(poly.interiors)
+
+    # Test Polygon simplification, with exterior ring that touches itself 
+    # due to simplification and after make_valid results in multipolygon of 
+    # 2 equally large parts (left and right part of M shape).
+    poly_m_touch = sh_geom.Polygon(
+            shell=[(0, 0), (0, 10), (5, 5), (10, 10), (10, 0), 
+                   (8, 0), (8, 5), (5, 4), (2, 5), (2, 0), (0, 0)])
+    geom_simplified = vector_util.simplify_ext(
+            geometry=poly_m_touch,
+            algorithm=vector_util.SimplifyAlgorithm.LANG, 
+            tolerance=1)
+    assert geom_simplified.is_valid
+    assert isinstance(geom_simplified, sh_geom.MultiPolygon)
+    assert len(geom_simplified) == 2
+    assert numberpoints(geom_simplified) < numberpoints(poly)
+    
+    # Test Polygon simplification, with exterior ring that crosses itself
+    # due to simplification and after make_valid results in multipolygon of 
+    # 3 parts (left, middle and right part of M shape).
+    poly_m_cross = sh_geom.Polygon(
+            shell=[(0, 0), (0, 10), (5, 5), (10, 10), (10, 0), 
+                   (8, 0), (8, 5.5), (5, 4.5), (2, 5.5), (2, 0), (0, 0)])
+    geom_simplified = vector_util.simplify_ext(
+            geometry=poly_m_cross,
+            algorithm=vector_util.SimplifyAlgorithm.LANG, 
+            tolerance=1)
+    assert geom_simplified.is_valid
+    assert isinstance(geom_simplified, sh_geom.MultiPolygon)
+    assert len(geom_simplified) == 3
 
 def test_simplify_ext_keep_points_on(tmpdir):
     
@@ -295,7 +405,10 @@ if __name__ == '__main__':
     import tempfile
     tmpdir = Path(tempfile.gettempdir()) / "test_vector_util_geometry"
     os.makedirs(tmpdir, exist_ok=True)
+    #test_makevalid()
     #test_numberpoints()
-    test_simplify_ext_lang_basic()
+    #test_remove_inner_rings()
+    #test_simplify_ext_lang_basic()
+    test_simplify_ext_invalid()
     #test_simplify_ext_keep_points_on(tmpdir)
     #test_simplify_ext_no_simplification()
