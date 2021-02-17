@@ -3,6 +3,7 @@
 Tests for operations using GeoPandas.
 """
 
+from geofileops.util.vector_util.geometry import GeometryType
 from pathlib import Path
 import sys
 
@@ -58,7 +59,7 @@ def basetest_buffer(input_path, output_path, input_geometry_type):
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
     
     # Check geometry type
-    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Read result for some more detailed checks
     output_gdf = geofile.read_file(output_path)
@@ -84,7 +85,7 @@ def basetest_buffer(input_path, output_path, input_geometry_type):
         assert layerinfo_output.featurecount == 39
         
         # Check geometry type
-        assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
         # Read result for some more detailed checks
         output_gdf = geofile.read_file(output_path)
@@ -154,28 +155,63 @@ def basetest_convexhull(input_path, output_path):
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
     # Check geometry type
-    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Read result for some more detailed checks
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
-def test_dissolve_groupby_gpkg(tmpdir):
+def test_dissolve_linestrings_nogroupby_gpkg(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.gpkg'
     output_path = Path(tmpdir) / 'parcels_output.gpkg'
-    basetest_dissolve_groupby(input_path, output_path)
+    basetest_dissolve_linestrings_nogroupby(input_path, output_path)
 
-def test_dissolve_groupby_shp(tmpdir):
+def test_dissolve_linestrings_nogroupby_shp(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.shp'
     output_path = Path(tmpdir) / 'parcels_output.shp'
-    basetest_dissolve_groupby(input_path, output_path)
+    basetest_dissolve_linestrings_nogroupby(input_path, output_path)
 
-def basetest_dissolve_groupby(input_path, output_path):
+def basetest_dissolve_linestrings_nogroupby(input_path, output_path):
+    geofileops_gpd.dissolve(
+            input_path=input_path,
+            output_path=output_path,
+            explodecollections=True,
+            nb_parallel=get_nb_parallel())
+
+    # Now check if the result file is correctly created
+    assert output_path.exists() == True
     layerinfo_orig = geofile.get_layerinfo(input_path)
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_output.featurecount == 21
+    assert len(layerinfo_output.columns) >= 0
 
-    # Test dissolve without explodecollections
+    # Check geometry type
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
+
+    # Now check the contents of the result file
+    input_gdf = geofile.read_file(input_path)
+    output_gdf = geofile.read_file(output_path)
+    assert input_gdf.crs == output_gdf.crs
+    assert len(output_gdf) == layerinfo_output.featurecount
+    assert output_gdf['geometry'][0] is not None
+
+def test_dissolve_polygons_groupby_gpkg(tmpdir):
+    # Buffer to test dir
+    input_path = get_testdata_dir() / 'parcels.gpkg'
+    output_path = Path(tmpdir) / 'parcels_output.gpkg'
+    basetest_dissolve_polygons_groupby(input_path, output_path)
+
+def test_dissolve_polygons_groupby_shp(tmpdir):
+    # Buffer to test dir
+    input_path = get_testdata_dir() / 'parcels.shp'
+    output_path = Path(tmpdir) / 'parcels_output.shp'
+    basetest_dissolve_polygons_groupby(input_path, output_path)
+
+def basetest_dissolve_polygons_groupby(input_path, output_path):
+    
+    ### Test dissolve polygons without explodecollections ###
     geofileops_gpd.dissolve(
             input_path=input_path,
             output_path=output_path,
@@ -190,7 +226,7 @@ def basetest_dissolve_groupby(input_path, output_path):
     assert len(layerinfo_output.columns) == 1
 
     # Check geometry type
-    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
     # Now check the contents of the result file
     input_gdf = geofile.read_file(input_path)
@@ -199,7 +235,7 @@ def basetest_dissolve_groupby(input_path, output_path):
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
 
-    # Test dissolve with explodecollections
+    ### Test dissolve polygons with explodecollections ###
     geofileops_gpd.dissolve(
             input_path=input_path,
             output_path=output_path,
@@ -214,7 +250,7 @@ def basetest_dissolve_groupby(input_path, output_path):
     assert len(layerinfo_output.columns) == 1
 
     # Check geometry type
-    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Now check the contents of the result file
     input_gdf = geofile.read_file(input_path)
@@ -223,7 +259,7 @@ def basetest_dissolve_groupby(input_path, output_path):
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
 
-    # Test dissolve with explodecollections + all columns
+    ### Test dissolve polygons with explodecollections + all columns ###
     geofileops_gpd.dissolve(
             input_path=input_path,
             output_path=output_path,
@@ -239,7 +275,7 @@ def basetest_dissolve_groupby(input_path, output_path):
     assert len(layerinfo_output.columns) == 1
 
     # Check geometry type
-    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Now check the contents of the result file
     input_gdf = geofile.read_file(input_path)
@@ -248,19 +284,19 @@ def basetest_dissolve_groupby(input_path, output_path):
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
 
-def test_dissolve_nogroupby_gpkg(tmpdir):
+def test_dissolve_polygons_nogroupby_gpkg(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.gpkg'
     output_path = Path(tmpdir) / 'parcels_output.gpkg'
-    basetest_dissolve_nogroupby(input_path, output_path)
+    basetest_dissolve_polygons_nogroupby(input_path, output_path)
 
-def test_dissolve_nogroupby_shp(tmpdir):
+def test_dissolve_polygons_nogroupby_shp(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'parcels.shp'
     output_path = Path(tmpdir) / 'parcels_output.shp'
-    basetest_dissolve_nogroupby(input_path, output_path)
+    basetest_dissolve_polygons_nogroupby(input_path, output_path)
 
-def basetest_dissolve_nogroupby(input_path, output_path):
+def basetest_dissolve_polygons_nogroupby(input_path, output_path):
     geofileops_gpd.dissolve(
             input_path=input_path,
             output_path=output_path,
@@ -275,7 +311,7 @@ def basetest_dissolve_nogroupby(input_path, output_path):
     assert len(layerinfo_output.columns) >= 0
 
     # Check geometry type
-    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Now check the contents of the result file
     input_gdf = geofile.read_file(input_path)
@@ -397,10 +433,9 @@ if __name__ == '__main__':
         tmpdir.mkdir()
 
     # Run
-    test_buffer_gpkg(tmpdir)
+    #test_buffer_gpkg(tmpdir)
     #test_buffer_various_options_gpkg(tmpdir)
-    #test_dissolve_nogroupby_shp(tmpdir)
-    #test_dissolve_groupby_gpkg(tmpdir)
+    test_dissolve_groupby_gpkg(tmpdir)
     #test_dissolve_nogroupby_shp(tmpdir)
     #test_dissolve_nogroupby_gpkg(tmpdir)
     #test_simplify_gpkg(tmpdir)

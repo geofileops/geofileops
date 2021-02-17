@@ -17,10 +17,12 @@ from typing import Any, List, Optional, Tuple, Union
 import fiona
 import geopandas as gpd
 from osgeo import gdal
+import pandas as pd
 import shapely.geometry as sh_geom
 
 from .util import io_util
 from .util import ogr_util
+from .util.vector_util import GeometryType
 
 #-------------------------------------------------------------
 # First define/init some general variables/constants
@@ -99,6 +101,7 @@ class LayerInfo:
         geometrytypename (str): the geometry type name of the geometrycolumn. 
             The type name returned is one of the following: POINT, MULTIPOINT, 
             LINESTRING, MULTILINESTRING, POLYGON, MULTIPOLYGON, COLLECTION.
+        geometrytype (GeometryType): the geometry type of the geometrycolumn.
         columns (List[str]): the columns (other than the geometry column) that 
             are available on the layer.
         crs (pyproj.CRS): the spatial reference of the layer. 
@@ -109,6 +112,7 @@ class LayerInfo:
             total_bounds: Tuple[float, float, float, float],
             geometrycolumn: str, 
             geometrytypename: str,
+            geometrytype: GeometryType,
             columns: List[str],
             crs: Optional[pyproj.CRS]):
         self.name = name
@@ -116,6 +120,7 @@ class LayerInfo:
         self.total_bounds = total_bounds
         self.geometrycolumn = geometrycolumn
         self.geometrytypename = geometrytypename
+        self.geometrytype = geometrytype
         self.columns = columns
         self.crs = crs
 
@@ -169,6 +174,9 @@ def get_layerinfo(
            or geometrytypename.startswith('POINT')):
             geometrytypename = f"MULTI{geometrytypename}"
     
+    # Geometrytype
+    geometrytype = GeometryType[geometrytypename]
+    
     # Convert gdal extent (xmin, xmax, ymin, ymax) to bounds (xmin, ymin, xmax, ymax)
     extent = datasource_layer.GetExtent()
     total_bounds = (extent[0], extent[2], extent[1], extent[3])
@@ -185,6 +193,7 @@ def get_layerinfo(
             total_bounds=total_bounds,
             geometrycolumn=geometrycolumn, 
             geometrytypename=geometrytypename,
+            geometrytype=geometrytype,
             columns=columns,
             crs=crs)
 
@@ -455,12 +464,11 @@ def read_file(
         layer: str = None,
         columns: List[str] = None,
         bbox = None,
-        rows = None,
-        ignore_geometry: bool = False) -> gpd.GeoDataFrame:
+        rows = None) -> gpd.GeoDataFrame:
     """
-    Reads a file to a pandas dataframe. 
+    Reads a file to a geopandas GeoDataframe. 
     
-    he file format is detected based on the filepath extension.
+    The file format is detected based on the filepath extension.
 
     Args:
         path (file path): path to the file to read from
@@ -481,6 +489,89 @@ def read_file(
 
     Returns:
         gpd.GeoDataFrame: the data read.
+    """
+    result_gdf = _read_file_base(
+            path=path,
+            layer=layer,
+            columns=columns,
+            bbox=bbox,
+            rows=rows,
+            ignore_geometry=False)
+    assert isinstance(result_gdf, gpd.GeoDataFrame)
+    return result_gdf
+
+def read_file_nogeom(
+        path: Union[str, 'os.PathLike[Any]'],
+        layer: str = None,
+        columns: List[str] = None,
+        bbox = None,
+        rows = None) -> pd.DataFrame:
+    """
+    Reads a file to a pandas Dataframe. 
+    
+    The file format is detected based on the filepath extension.
+
+    Args:
+        path (file path): path to the file to read from
+        layer (str, optional): The layer to read. Defaults to None,  
+            then reads the only layer in the file or throws error.
+        columns (List[str], optional): The (non-geometry) columns to read. 
+            Defaults to None, then all columns are read.
+        bbox ([type], optional): Read only geometries intersecting this bbox. 
+            Defaults to None, then all rows are read.
+        rows ([type], optional): Read only the rows specified. 
+            Defaults to None, then all rows are read.
+        ignore_geometry (bool, optional): True not to read/return the geomatry. 
+            Defaults to False.
+
+    Raises:
+        Exception: [description]
+        Exception: [description]
+
+    Returns:
+        pd.DataFrame: the data read.
+    """
+    result_gdf = _read_file_base(
+            path=path,
+            layer=layer,
+            columns=columns,
+            bbox=bbox,
+            rows=rows,
+            ignore_geometry=True)
+    assert isinstance(result_gdf, pd.DataFrame)
+    return result_gdf
+
+def _read_file_base(
+        path: Union[str, 'os.PathLike[Any]'],
+        layer: str = None,
+        columns: List[str] = None,
+        bbox = None,
+        rows = None,
+        ignore_geometry: bool = False) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
+    """
+    Reads a file to a pandas Dataframe. 
+    
+    The file format is detected based on the filepath extension.
+
+    Args:
+        path (file path): path to the file to read from
+        layer (str, optional): The layer to read. Defaults to None,  
+            then reads the only layer in the file or throws error.
+        columns (List[str], optional): The (non-geometry) columns to read. 
+            Defaults to None, then all columns are read.
+        bbox ([type], optional): Read only geometries intersecting this bbox. 
+            Defaults to None, then all rows are read.
+        rows ([type], optional): Read only the rows specified. 
+            Defaults to None, then all rows are read.
+        ignore_geometry (bool, optional): True not to read/return the geomatry. 
+            Defaults to False.
+
+    Raises:
+        Exception: [description]
+        Exception: [description]
+
+    Returns:
+        Union[pd.DataFrame, gpd.GeoDataFrame]: the data read.
     """
     # Init
     path_p = Path(path)
@@ -512,7 +603,9 @@ def read_file(
         columns_upper.append('GEOMETRY')
         columns_to_keep = [col for col in result_gdf.columns if (col.upper() in columns_upper)]
         result_gdf = result_gdf[columns_to_keep]
-        
+    
+    # assert to evade pyLance warning 
+    assert isinstance(result_gdf, pd.DataFrame) or isinstance(result_gdf, gpd.GeoDataFrame) 
     return result_gdf
 
 def read_file_sql(
@@ -520,7 +613,7 @@ def read_file_sql(
         sql_stmt: str,
         sql_dialect: str = 'SQLITE',
         layer: str = None,
-        ignore_geometry: bool = False) -> gpd.GeoDataFrame:
+        ignore_geometry: bool = False) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
     """
     Reads a file to a GeoPandas GeoDataFrame, using an sql statement to filter 
     the data. 
@@ -535,7 +628,7 @@ def read_file_sql(
             Defaults to False.
 
     Returns:
-        gpd.GeoDataFrame: The data read.
+        Union[pd.DataFrame, gpd.GeoDataFrame]: The data read.
     """
 
     # Check and init some parameters/variables
@@ -546,6 +639,7 @@ def read_file_sql(
 
     # Now we're ready to go!
     with tempfile.TemporaryDirectory() as tmpdir:
+        # Execute sql againts file and write to temp file
         tmp_path = Path(tmpdir) / 'read_file_sql_tmp_file.gpkg'
         ogr_util.vector_translate(
                 input_path=path_p,
@@ -555,8 +649,8 @@ def read_file_sql(
                 input_layers=layer_list,
                 create_spatial_index=False)
             
-        # Return result
-        return read_file(tmp_path, ignore_geometry=ignore_geometry)
+        # Read and return result
+        return _read_file_base(tmp_path, ignore_geometry=ignore_geometry)
 
 def to_file(
         gdf: gpd.GeoDataFrame,
@@ -640,7 +734,7 @@ def to_file(
         ext_lower = path.suffix.lower()
         if ext_lower == '.shp':
             if index is True:
-                gdf = gdf.reset_index(inplace=False)
+                gdf.reset_index(inplace=True)
             gdf.to_file(str(path), mode=mode)
         elif ext_lower == '.gpkg':
             gdf.to_file(str(path), layer=layer, driver="GPKG", mode=mode)

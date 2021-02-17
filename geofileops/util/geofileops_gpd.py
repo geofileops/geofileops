@@ -368,6 +368,8 @@ def _apply_geooperation(
         '''
 
     if len(data_gdf) > 0:
+        # assert to evade pyLance warning
+        assert isinstance(data_gdf, gpd.GeoDataFrame)
         geofile.to_file(gdf=data_gdf, path=output_path, layer=output_layer, index=False)
 
     message = f"Took {datetime.datetime.now()-start_time} for {len(data_gdf)} rows ({rows})!"
@@ -744,6 +746,9 @@ def _dissolve(
             bbox_gdf = gpd.GeoDataFrame([1], geometry=[polygon], crs=input_gdf.crs)
             # keep_geom_type=True gives errors, so replace by own implementation
             diss_gdf = gpd.clip(diss_gdf, bbox_gdf)
+
+            # assert to evade pyLance werning 
+            assert isinstance(diss_gdf, gpd.GeoDataFrame)
             diss_gdf = vector_util.extract_polygons_from_gdf(diss_gdf)
     
             perfinfo['time_clip'] = (datetime.datetime.now()-start_clip).total_seconds()
@@ -752,6 +757,8 @@ def _dissolve(
         start_dissolve = datetime.datetime.now()
         diss_gdf = input_gdf.dissolve(by=groupby_columns, aggfunc=aggfunc, as_index=False)
         
+        # assert to evade pyLance werning 
+        assert isinstance(diss_gdf, gpd.GeoDataFrame)
         # Explode multi-geometries if asked...
         if explodecollections:
             diss_gdf = diss_gdf.explode()
@@ -782,11 +789,15 @@ def _dissolve(
         onborder_gdf = gpd.sjoin(diss_gdf, bbox_lines_gdf, op='intersects')
         onborder_gdf.drop('index_right', axis=1, inplace=True)
         if len(onborder_gdf) > 0:
+            # assert to evade pyLance warning 
+            assert isinstance(onborder_gdf, gpd.GeoDataFrame) 
             geofile.to_file(onborder_gdf, output_onborder_path, 
                     force_output_geometrytype=force_output_geometrytype, append=True)
         
         notonborder_gdf = diss_gdf[~diss_gdf.index.isin(onborder_gdf.index)].dropna()
         if len(notonborder_gdf) > 0:
+            # assert to evade pyLance warning 
+            assert isinstance(notonborder_gdf, gpd.GeoDataFrame) 
             geofile.to_file(notonborder_gdf, output_notonborder_path, 
                     force_output_geometrytype=force_output_geometrytype, append=True)
     perfinfo['time_to_file'] = (datetime.datetime.now()-start_to_file).total_seconds()

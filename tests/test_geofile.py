@@ -7,6 +7,9 @@ import os
 from pathlib import Path
 import sys
 
+import geopandas as gpd
+import pandas as pd
+
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
@@ -36,7 +39,7 @@ def test_add_column(tmpdir):
     assert 'AREA' in layerinfo.columns
     
     gdf = geofile.read_file(tmppath)
-    assert round(gdf['AREA'][0], 1) == round(gdf['OPPERVL'][0], 1)
+    assert round(gdf['AREA'].astype('float')[0], 1) == round(gdf['OPPERVL'].astype('float')[0], 1)
 
     ### Add invalid column type -> should raise an exception
     test_ok = False
@@ -172,34 +175,44 @@ def test_update_column(tmpdir):
         
     layerinfo = geofile.get_layerinfo(path=tmppath, layer='parcels')
     assert 'AREA' in layerinfo.columns
-    
     gdf = geofile.read_file(tmppath)
-    assert round(gdf['AREA'][0], 1) == round(gdf['OPPERVL'][0], 1)
+    assert round(gdf['AREA'].astype('float')[0], 1) == round(gdf['OPPERVL'].astype('float')[0], 1)
 
 def test_read_file():
-    # Test shapefile, with defaults
+    # Test shapefile
     srcpath = _get_testdata_dir() / 'parcels.shp'
+    basetest_read_file(srcpath=srcpath)
+
+    # Test geopackage
+    srcpath = _get_testdata_dir() / 'parcels.gpkg'
+    basetest_read_file(srcpath=srcpath)
+
+def basetest_read_file(srcpath: Path):
+    # Test with defaults
     read_gdf = geofile.read_file(srcpath)
+    assert isinstance(read_gdf, gpd.GeoDataFrame)
     assert len(read_gdf) == 46
 
-    # Test shapefile, specific columns (+ test case insensitivity)
-    srcpath = _get_testdata_dir() / 'parcels.shp'
+    # Test no columns
+    read_gdf = geofile.read_file(srcpath, columns=[])
+    assert isinstance(read_gdf, gpd.GeoDataFrame)
+    assert len(read_gdf) == 46
+
+    # Test specific columns (+ test case insensitivity)
     columns = ['OIDN', 'uidn', 'HFDTLT', 'lblhfdtlt', 'GEWASGROEP', 'lengte', 'OPPERVL']
     read_gdf = geofile.read_file(srcpath, columns=columns)
     assert len(read_gdf) == 46
     assert len(read_gdf.columns) == (len(columns) + 1)
 
-    # Test geopackage, with defaults
-    srcpath = _get_testdata_dir() / 'parcels.gpkg'
-    read_gdf = geofile.read_file(srcpath)
+    # Test no geom
+    read_gdf = geofile.read_file_nogeom(srcpath)
+    assert isinstance(read_gdf, pd.DataFrame)
     assert len(read_gdf) == 46
 
-    # Test shapefile, specific columns (+ test case insensitivity)
-    srcpath = _get_testdata_dir() / 'parcels.gpkg'
-    columns = ['OIDN', 'uidn', 'HFDTLT', 'lblhfdtlt', 'GEWASGROEP', 'lengte', 'OPPERVL']
-    read_gdf = geofile.read_file(srcpath, columns=columns)
+    # Test ignore_geometry, no columns
+    read_gdf = geofile.read_file_nogeom(srcpath, columns=[])
+    assert isinstance(read_gdf, pd.DataFrame)
     assert len(read_gdf) == 46
-    assert len(read_gdf.columns) == (len(columns) + 1)
 
 def test_rename_layer(tmpdir):
     # First copy test file to tmpdir
@@ -290,4 +303,5 @@ if __name__ == '__main__':
     import tempfile
     
     tmpdir = tempfile.gettempdir()
-    test_add_column(tmpdir)
+    #test_add_column(tmpdir)
+    test_read_file()

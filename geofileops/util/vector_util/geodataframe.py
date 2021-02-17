@@ -40,10 +40,14 @@ def extract_polygons_from_gdf(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     # Only keep the polygons...
     ret_gdf = poly_gdf
     if len(multipoly_gdf) > 0:
+        # assert to evade pyLance warning 
+        assert isinstance(multipoly_gdf, gpd.GeoDataFrame) 
         ret_gdf = ret_gdf.append(multipoly_gdf.explode(), ignore_index=True)
     if collection_polys_gdf is not None:
         ret_gdf = ret_gdf.append(collection_polys_gdf, ignore_index=True)
     
+    # assert to evade pyLance warning 
+    assert isinstance(ret_gdf, gpd.GeoDataFrame) 
     return ret_gdf
 
 def polygons_to_lines(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
