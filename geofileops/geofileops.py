@@ -205,6 +205,7 @@ def dissolve(
 def isvalid(
         input_path: Union[str, 'os.PathLike[Any]'],
         output_path: Union[str, 'os.PathLike[Any]'] = None,
+        only_invalid: bool = False,
         input_layer: str = None,        
         output_layer: str = None,
         nb_parallel: int = -1,
@@ -219,6 +220,8 @@ def isvalid(
         output_path (PathLike, optional): The output file path. If not 
             specified the result will be written in a new file alongside the 
             input file. Defaults to None.
+        only_invalid (bool, optional): if True, only put invalid results in the
+            output file. Defaults to False.
         input_layer (str, optional): input layer name. Optional if the  
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the  
@@ -246,7 +249,8 @@ def isvalid(
     return geofileops_ogr.isvalid(
             input_path=Path(input_path),
             output_path=output_path_p,
-            input_layer=input_layer,        
+            only_invalid=only_invalid,
+            input_layer=input_layer, 
             output_layer=output_layer,
             nb_parallel=nb_parallel,
             verbose=verbose,

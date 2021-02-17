@@ -83,13 +83,17 @@ def buffer(
 def isvalid(
         input_path: Path,
         output_path: Path,
+        only_invalid: bool = False,
         input_layer: str = None,        
         output_layer: str = None,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False) -> bool:
 
-    # Prepare sql template for this operation 
+    # Prepare sql template for this operation
+    only_invalid_filter = ""
+    if only_invalid is True:
+         only_invalid_filter = "AND ST_IsValid({geometrycolumn}) <> 1"
     sql_template = f'''
             SELECT ST_IsValidDetail({{geometrycolumn}}) AS geom
                   ,ST_IsValid({{geometrycolumn}}) AS isvalid
@@ -97,7 +101,8 @@ def isvalid(
                   {{columns_to_select_str}} 
               FROM "{{input_layer}}"
              WHERE 1=1 
-                {{batch_filter}}'''
+               {only_invalid_filter}
+               {{batch_filter}}'''
 
     _single_layer_vector_operation(
             input_path=input_path,
