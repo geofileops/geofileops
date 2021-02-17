@@ -103,18 +103,30 @@ def test_get_driver():
     src = _get_testdata_dir() / 'polygons_parcels.gpkg'
     assert geofile.get_driver(src) == "GPKG"
 
-def test_getlayerinfo():
+def test_get_layerinfo():
+    
+    def basetest_get_layerinfo(srcpath):
+        layerinfo = geofile.get_layerinfo(srcpath)
+        assert layerinfo.featurecount == 46
+        if srcpath.suffix == '.shp':
+            assert layerinfo.geometrycolumn == 'geometry'
+            assert layerinfo.name == 'polygons_parcels'
+        elif srcpath.suffix == '.gpkg':
+            assert layerinfo.geometrycolumn == 'geom'
+            assert layerinfo.name == 'parcels'
+        assert layerinfo.geometrytypename == geofile.GeometryType.MULTIPOLYGON.name
+        assert layerinfo.geometrytype == geofile.GeometryType.MULTIPOLYGON
+        assert len(layerinfo.columns) == 10
+        assert layerinfo.total_bounds is not None
+        assert layerinfo.crs.to_epsg() == 31370
+
     # Test shapefile
     srcpath = _get_testdata_dir() / 'polygons_parcels.shp'
-    layerinfo = geofile.get_layerinfo(srcpath)
-    assert layerinfo.featurecount == 46
-    assert layerinfo.geometrycolumn == 'geometry' 
-
+    basetest_get_layerinfo(srcpath=srcpath)
+        
     # Test geopackage
     srcpath = _get_testdata_dir() / 'polygons_parcels.gpkg'
-    layerinfo = geofile.get_layerinfo(srcpath, 'parcels')
-    assert layerinfo.featurecount == 46
-    assert layerinfo.geometrycolumn == 'geom' 
+    basetest_get_layerinfo(srcpath=srcpath)
 
 def test_get_only_layer():
     srcpath = _get_testdata_dir() / 'polygons_parcels.shp'
@@ -307,6 +319,7 @@ if __name__ == '__main__':
     import tempfile
     
     tmpdir = tempfile.gettempdir()
-    test_listlayers()
+    test_get_layerinfo()
+    #test_listlayers()
     #test_add_column(tmpdir)
     #test_read_file()
