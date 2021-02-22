@@ -775,7 +775,7 @@ def to_file(
         ext_lower = path.suffix.lower()
         if ext_lower == '.shp':
             if index is True:
-                gdf.reset_index(inplace=True)
+                gdf.reset_index(inplace=True, drop=True)
             gdf.to_file(str(path), mode=mode)
         elif ext_lower == '.gpkg':
             gdf.to_file(str(path), layer=layer, driver="GPKG", mode=mode)

@@ -5,6 +5,7 @@ Tests for functionalities in geofileops.general.
 
 import os
 from pathlib import Path
+import shutil
 import sys
 from tempfile import tempdir
 
@@ -303,22 +304,26 @@ def test_spatial_index_shp(tmpdir):
 def test_to_file_shp(tmpdir):
     # Read test file and write to tmpdir
     srcpath = _get_testdata_dir() / 'polygons_parcels.shp'
-    read_gdf = geofile.read_file(srcpath)
     tmppath = Path(tmpdir) / 'polygons_parcels_tmp.shp'
-    geofile.to_file(read_gdf, tmppath)
-    tmp_gdf = geofile.read_file(tmppath)
-    
-    assert len(read_gdf) == len(tmp_gdf)
+    basetest_to_file(srcpath, tmppath)
 
 def test_to_file_gpkg(tmpdir):
     # Read test file and write to tmpdir
     srcpath = _get_testdata_dir() / 'polygons_parcels.gpkg'
-    read_gdf = geofile.read_file(srcpath)
     tmppath = Path(tmpdir) / 'polygons_parcels_tmp.gpkg'
+    basetest_to_file(srcpath, tmppath)
+
+def basetest_to_file(srcpath, tmppath):
+    # Read test file and write to tmppath
+    read_gdf = geofile.read_file(srcpath)
     geofile.to_file(read_gdf, tmppath)
     tmp_gdf = geofile.read_file(tmppath)
-    
     assert len(read_gdf) == len(tmp_gdf)
+
+    # Append the file again to tmppath
+    geofile.to_file(read_gdf, tmppath, append=True)
+    tmp_gdf = geofile.read_file(tmppath)
+    assert 2*len(read_gdf) == len(tmp_gdf)
 
 def test_remove(tmpdir):
     # Copy test file to tmpdir
@@ -334,11 +339,17 @@ def test_remove(tmpdir):
 if __name__ == '__main__':
     # Init
     import tempfile
-    tmpdir = tempfile.gettempdir()
-    
+    tmpdir = Path(tempfile.gettempdir()) / 'test_geofile'
+    if tmpdir.exists():
+        shutil.rmtree(tmpdir)
+    tmpdir.mkdir(parents=True, exist_ok=True)
+
     # Run!
     #test_get_layerinfo()
-    test_rename_layer(tmpdir)
+    #test_rename_layer(tmpdir)
     #test_listlayers()
     #test_add_column(tmpdir)
     #test_read_file()
+    test_to_file_shp(tmpdir)
+    #test_to_file_gpkg(tmpdir)
+    
