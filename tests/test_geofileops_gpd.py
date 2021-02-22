@@ -175,8 +175,10 @@ def test_dissolve_linestrings_nogroupby_shp(tmpdir):
     basetest_dissolve_linestrings_nogroupby(input_path, output_path)
     """
     
-def basetest_dissolve_linestrings_nogroupby(input_path, output_path):
-    # Apply dissolve
+def basetest_dissolve_linestrings_nogroupby(input_path, output_basepath):
+    # Apply dissolve with explodecollections
+    output_path = (output_basepath.parent / 
+            f"{output_basepath.stem}_expl{output_basepath.suffix}")
     geofileops_gpd.dissolve(
             input_path=input_path,
             output_path=output_path,
@@ -187,7 +189,32 @@ def basetest_dissolve_linestrings_nogroupby(input_path, output_path):
     assert output_path.exists() == True
     layerinfo_orig = geofile.get_layerinfo(input_path)
     layerinfo_output = geofile.get_layerinfo(output_path)
-    assert layerinfo_output.featurecount < layerinfo_orig.featurecount
+    assert layerinfo_output.featurecount == 85
+    assert layerinfo_output.geometrytype is layerinfo_orig.geometrytype
+    assert len(layerinfo_output.columns) >= 0
+
+    # Now check the contents of the result file
+    input_gdf = geofile.read_file(input_path)
+    output_gdf = geofile.read_file(output_path)
+    assert input_gdf.crs == output_gdf.crs
+    assert len(output_gdf) == layerinfo_output.featurecount
+    assert output_gdf['geometry'][0] is not None
+
+    # Apply dissolve without explodecollections
+    output_path = (output_basepath.parent / 
+            f"{output_basepath.stem}_noexpl{output_basepath.suffix}")
+    geofileops_gpd.dissolve(
+            input_path=input_path,
+            output_path=output_path,
+            explodecollections=False,
+            nb_parallel=get_nb_parallel())
+
+    # Check if the result file is correctly created
+    assert output_path.exists() == True
+    layerinfo_orig = geofile.get_layerinfo(input_path)
+    
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_output.featurecount == 1
     assert layerinfo_output.geometrytype is layerinfo_orig.geometrytype
     assert len(layerinfo_output.columns) >= 0
 
@@ -210,15 +237,21 @@ def test_dissolve_polygons_groupby_shp(tmpdir):
     output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_dissolve_polygons_groupby(input_path, output_path)
 
-def basetest_dissolve_polygons_groupby(input_path, output_path):
-    
+def basetest_dissolve_polygons_groupby(input_path, output_basepath):
+    # Init
+    layerinfo_input = geofile.get_layerinfo(input_path)
+    filesuffix = 0
+
     ### Test dissolve polygons without explodecollections ###
+    output_path = output_basepath.parent / f"{output_basepath.stem}_{filesuffix}{output_basepath.suffix}"
+    filesuffix +=1
     geofileops_gpd.dissolve(
             input_path=input_path,
             output_path=output_path,
             groupby_columns=['GEWASGROEP'],
             explodecollections=False,
-            nb_parallel=get_nb_parallel())
+            nb_parallel=get_nb_parallel(),
+            force=True)
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
@@ -237,17 +270,20 @@ def basetest_dissolve_polygons_groupby(input_path, output_path):
     assert output_gdf['geometry'][0] is not None
 
     ### Test dissolve polygons with explodecollections ###
+    output_path = output_basepath.parent / f"{output_basepath.stem}_{filesuffix}{output_basepath.suffix}"
+    filesuffix +=1
     geofileops_gpd.dissolve(
             input_path=input_path,
             output_path=output_path,
             groupby_columns=['GEWASGROEP'],
             explodecollections=True,
-            nb_parallel=get_nb_parallel())
+            nb_parallel=get_nb_parallel(),
+            force=True)
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
     layerinfo_output = geofile.get_layerinfo(output_path)
-    assert layerinfo_output.featurecount == 6
+    assert layerinfo_output.featurecount == 23
     assert len(layerinfo_output.columns) == 1
 
     # Check geometry type
@@ -261,19 +297,22 @@ def basetest_dissolve_polygons_groupby(input_path, output_path):
     assert output_gdf['geometry'][0] is not None
 
     ### Test dissolve polygons with explodecollections + all columns ###
+    output_path = output_basepath.parent / f"{output_basepath.stem}_{filesuffix}{output_basepath.suffix}"
+    filesuffix +=1
     geofileops_gpd.dissolve(
             input_path=input_path,
             output_path=output_path,
             groupby_columns=['GEWASGROEP'],
             columns=None,
             explodecollections=True,
-            nb_parallel=get_nb_parallel())
+            nb_parallel=get_nb_parallel(),
+            force=True)
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
     layerinfo_output = geofile.get_layerinfo(output_path)
-    assert layerinfo_output.featurecount == 6
-    assert len(layerinfo_output.columns) == 1
+    assert layerinfo_output.featurecount == 17
+    assert len(layerinfo_output.columns) == len(layerinfo_input.columns)
 
     # Check geometry type
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
@@ -284,32 +323,78 @@ def basetest_dissolve_polygons_groupby(input_path, output_path):
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
+
+    ### Test dissolve polygons with specified output layer ###
+    # A different output layer is not supported for shapefile!!!
+    try:
+        output_path = output_basepath.parent / f"{output_basepath.stem}_{filesuffix}{output_basepath.suffix}"
+        filesuffix +=1
+        geofileops_gpd.dissolve(
+                input_path=input_path,
+                output_path=output_path,
+                groupby_columns=['GEWASGROEP'],
+                output_layer='banana',
+                nb_parallel=get_nb_parallel(),
+                force=True)
+
+        # Now check if the tmp file is correctly created
+        assert output_path.exists() == True
+        layerinfo_output = geofile.get_layerinfo(output_path)
+        assert layerinfo_output.featurecount == 23
+        assert len(layerinfo_output.columns) == 1
+        assert layerinfo_output.name == 'banana'
+
+        # Check geometry type
+        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
+
+        # Now check the contents of the result file
+        input_gdf = geofile.read_file(input_path)
+        output_gdf = geofile.read_file(output_path)
+        assert input_gdf.crs == output_gdf.crs
+        assert len(output_gdf) == layerinfo_output.featurecount
+        assert output_gdf['geometry'][0] is not None
+    except Exception as ex:
+        # A different output_layer is not supported for shapefile, so normal 
+        # that an exception is thrown!
+        assert output_path.suffix.lower() == '.shp'
 
 def test_dissolve_polygons_nogroupby_gpkg(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'polygons_parcels.gpkg'
-    output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
-    basetest_dissolve_polygons_nogroupby(input_path, output_path)
+    output_basepath = Path(tmpdir) / 'polygons_parcels_output.gpkg'
+    basetest_dissolve_polygons_nogroupby(input_path, output_basepath)
 
 def test_dissolve_polygons_nogroupby_shp(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'polygons_parcels.shp'
-    output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
-    basetest_dissolve_polygons_nogroupby(input_path, output_path)
+    output_basepath = Path(tmpdir) / 'polygons_parcels_output.shp'
+    basetest_dissolve_polygons_nogroupby(input_path, output_basepath)
 
-def basetest_dissolve_polygons_nogroupby(input_path, output_path):
+def basetest_dissolve_polygons_nogroupby(input_path, output_basepath):
+    # Init
+    layerinfo_input = geofile.get_layerinfo(input_path)
+    filesuffix = 0
+
+    ### Test dissolve polygons ###
+    output_path = output_basepath.parent / f"{output_basepath.stem}_{filesuffix}{output_basepath.suffix}"
+    filesuffix +=1
     geofileops_gpd.dissolve(
             input_path=input_path,
             output_path=output_path,
             explodecollections=True,
-            nb_parallel=get_nb_parallel())
+            nb_parallel=get_nb_parallel(),
+            force=True)
 
     # Now check if the result file is correctly created
     assert output_path.exists() == True
-    layerinfo_orig = geofile.get_layerinfo(input_path)
     layerinfo_output = geofile.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 21
-    assert len(layerinfo_output.columns) >= 0
+    if output_basepath.suffix == '.shp':
+        # Shapefile always has an FID field
+        # TODO: think about whether this should also be the case for geopackage??? 
+        assert len(layerinfo_output.columns) == 1
+    else:
+        assert len(layerinfo_output.columns) == 0
 
     # Check geometry type
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
@@ -320,6 +405,44 @@ def basetest_dissolve_polygons_nogroupby(input_path, output_path):
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
+
+    ### Test dissolve polygons, with output_layer ###
+    # A different output layer is not supported for shapefile!!!
+    try:
+        output_path = output_basepath.parent / f"{output_basepath.stem}_{filesuffix}{output_basepath.suffix}"
+        filesuffix +=1
+        geofileops_gpd.dissolve(
+                input_path=input_path,
+                output_path=output_path,
+                output_layer='banana',
+                explodecollections=True,
+                nb_parallel=get_nb_parallel(),
+                force=True)
+
+        # Now check if the result file is correctly created
+        assert output_path.exists() == True
+        layerinfo_output = geofile.get_layerinfo(output_path)
+        assert layerinfo_output.featurecount == 21
+        assert len(layerinfo_output.columns) == 0
+        if output_basepath.suffix == '.shp':
+            # Shapefile doesn't support specifying an output_layer
+            assert layerinfo_output.name == output_path.stem
+        else:
+            assert layerinfo_output.name == 'banana'
+
+        # Check geometry type
+        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
+
+        # Now check the contents of the result file
+        input_gdf = geofile.read_file(input_path)
+        output_gdf = geofile.read_file(output_path)
+        assert input_gdf.crs == output_gdf.crs
+        assert len(output_gdf) == layerinfo_output.featurecount
+        assert output_gdf['geometry'][0] is not None
+    except Exception as ex:
+        # A different output_layer is not supported for shapefile, so normal 
+        # that an exception is thrown!
+        assert output_path.suffix.lower() == '.shp'
 
 def test_simplify_gpkg(tmpdir):
     # Simplify polygon source to test dir
@@ -436,8 +559,9 @@ if __name__ == '__main__':
     # Run
     #test_buffer_gpkg(tmpdir)
     #test_buffer_various_options_gpkg(tmpdir)
-    test_dissolve_linestrings_nogroupby_gpkg(tmpdir)
+    #test_dissolve_linestrings_nogroupby_gpkg(tmpdir)
     #test_dissolve_polygons_groupby_gpkg(tmpdir)
-    #test_dissolve_polygons_nogroupby_shp(tmpdir)
+    #test_dissolve_polygons_groupby_shp(tmpdir)
     #test_dissolve_polygons_nogroupby_gpkg(tmpdir)
+    test_dissolve_polygons_nogroupby_shp(tmpdir)
     #test_simplify_gpkg(tmpdir)

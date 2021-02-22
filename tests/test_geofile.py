@@ -6,6 +6,7 @@ Tests for functionalities in geofileops.general.
 import os
 from pathlib import Path
 import sys
+from tempfile import tempdir
 
 import geopandas as gpd
 import pandas as pd
@@ -231,6 +232,7 @@ def basetest_read_file(srcpath: Path):
     assert len(read_gdf) == 46
 
 def test_rename_layer(tmpdir):
+    ### Geopackage ###
     # First copy test file to tmpdir
     src = _get_testdata_dir() / 'polygons_parcels.gpkg'
     tmppath = Path(tmpdir) / 'polygons_parcels_tmp.gpkg'
@@ -240,6 +242,20 @@ def test_rename_layer(tmpdir):
     geofile.rename_layer(tmppath, layer='parcels', new_layer='parcels_renamed')
     layernames_renamed = geofile.listlayers(path=tmppath)
     assert layernames_renamed[0] == 'parcels_renamed'
+
+    ### Shapefile ###
+    # First copy test file to tmpdir
+    src = _get_testdata_dir() / 'polygons_parcels.shp'
+    tmppath = Path(tmpdir) / 'polygons_parcels_tmp.shp'
+    geofile.copy(src, tmppath)
+
+    # Now test rename layer
+    try:
+        geofile.rename_layer(tmppath, layer='polygons_parcels_tmp', new_layer='polygons_parcels_tmp_renamed')
+        layernames_renamed = geofile.listlayers(path=tmppath)
+        assert layernames_renamed[0] == 'polygons_parcels_tmp_renamed'
+    except Exception as ex:
+        assert 'rename_layer is not possible' in str(ex) 
 
 def test_spatial_index_gpkg(tmpdir):
     # First copy test file to tmpdir
@@ -316,10 +332,13 @@ def test_remove(tmpdir):
     assert tmppath.exists() == False
 
 if __name__ == '__main__':
+    # Init
     import tempfile
-    
     tmpdir = tempfile.gettempdir()
-    test_get_layerinfo()
+    
+    # Run!
+    #test_get_layerinfo()
+    test_rename_layer(tmpdir)
     #test_listlayers()
     #test_add_column(tmpdir)
     #test_read_file()
