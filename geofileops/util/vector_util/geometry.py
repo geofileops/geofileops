@@ -135,30 +135,8 @@ def collection_extract(
         geometry: sh_geom.base.BaseGeometry,
         primitivetype: PrimitiveType) -> sh_geom.base.BaseGeometry:
     """
-    Extract only the features of the specified primitive type from the geometry.
-
-    Args:
-        geometry (sh_geom.base.BaseGeometry): geometry to extract from.
-        primitivetype (PrimitiveTypes): primitive types to extract.
-
-    Returns:
-        Optional[sh_geom.base.BaseGeometry]: a geometry containing only the 
-            features from geom of the primitive type specified. 
-    """
-    # Check input parameter
-    if geometry is None:
-        raise Exception("geom input parameter should not be None")
-
-    # Extract the polygons from the multipolygon, but store them as multipolygons anyway
-    returngeoms = collection_extract_to_list(geometry, primitivetype=primitivetype)
-    return collect(returngeoms)
-
-def collection_extract_to_list(
-        geometry: sh_geom.base.BaseGeometry,
-        primitivetype: PrimitiveType) -> List[sh_geom.base.BaseGeometry]:
-    """
     Extracts the geometries from the input geom that comply with the 
-    primitive_type specified and returns them as a list.
+    primitive_type specified and returns them as (Multi)geometry.
 
     Args:
         geometry (sh_geom.base.BaseGeometry): geometry to extract the polygons 
@@ -167,39 +145,41 @@ def collection_extract_to_list(
             from the input geom.
 
     Raises:
-        Exception: if in_geom is an unsupported geometry type.  
+        Exception: if in_geom is an unsupported geometry type or the primitive 
+            type is invalid.  
 
     Returns:
-        List[sh_geom.base.BaseGeometry]: List of primitive geometries, only 
+        sh_geom.base.BaseGeometry: List of primitive geometries, only 
             containing the primitive type specified.
     """
     # Extract the polygons from the multipolygon, but store them as multipolygons anyway
-    if isinstance(geometry, sh_geom.Point):
+    if isinstance(geometry, sh_geom.Point) or isinstance(geometry, sh_geom.MultiPoint):
         if primitivetype == PrimitiveType.POINT:
-            return [geometry]
-    elif isinstance(geometry, sh_geom.MultiPoint):
-        if primitivetype == PrimitiveType.POINT:
-            return list(geometry)
-    elif isinstance(geometry, sh_geom.LineString):
+            return geometry
+    elif isinstance(geometry, sh_geom.LineString) or isinstance(geometry, sh_geom.MultiLineString):
         if primitivetype == PrimitiveType.LINESTRING:
-            return [geometry]
-    elif isinstance(geometry, sh_geom.MultiLineString):
-        if primitivetype == PrimitiveType.LINESTRING:
-            return list(geometry)
-    elif isinstance(geometry, sh_geom.Polygon):
+            return geometry
+    elif isinstance(geometry, sh_geom.Polygon) or isinstance(geometry, sh_geom.MultiPolygon):
         if primitivetype == PrimitiveType.POLYGON:
-            return [geometry]
-    elif isinstance(geometry, sh_geom.MultiPolygon):
-        if primitivetype == PrimitiveType.POLYGON:
-            return list(geometry)
+            return geometry
     elif isinstance(geometry, sh_geom.GeometryCollection):
         returngeoms = []
         for geometry in sh_geom.GeometryCollection(geometry):
             returngeoms.append(collection_extract(geometry, primitivetype=primitivetype))
         if len(returngeoms) > 0:
-            return returngeoms
+            return collect(returngeoms)
+    else:
+        raise Exception(f"Invalid geometry: {geometry}")
 
-    return []
+    # Nothing found yet, so return empty geometry of the primitive type specified
+    if primitivetype is PrimitiveType.POINT:
+        return sh_geom.Point()
+    elif primitivetype is PrimitiveType.LINESTRING:
+        return sh_geom.LineString()
+    elif primitivetype is PrimitiveType.POLYGON:
+        return sh_geom.Polygon()
+    else:
+        raise Exception(f"Invalid primitive type: {primitivetype}")
 
 def collect(
         geometry_list: List[sh_geom.base.BaseGeometry]) -> sh_geom.base.BaseGeometry:

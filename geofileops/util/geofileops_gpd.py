@@ -573,11 +573,11 @@ def _dissolve_pass(
         aggfunc: str,
         tiles_gdf: gpd.GeoDataFrame,
         clip_on_tiles: bool,
-        input_layer: str = None,        
-        output_layer: str = None,
-        nb_parallel: int = -1,
-        verbose: bool = False,
-        force: bool = False) -> dict:
+        input_layer: Optional[str],        
+        output_layer: Optional[str],
+        nb_parallel: int,
+        verbose: bool,
+        force: bool) -> dict:
 
     # Start calculation in parallel
     start_time = datetime.datetime.now()
@@ -585,7 +585,7 @@ def _dissolve_pass(
     start_time = datetime.datetime.now()
     layerinfo = geofile.get_layerinfo(input_path, input_layer)
     nb_rows_total = layerinfo.featurecount
-    force_output_geometrytype = geofile.to_multi_type(layerinfo.geometrytypename)
+    force_output_geometrytype = geofile.to_multigeometrytype(layerinfo.geometrytype)
 
     logger.info(f"Start dissolve pass to {len(tiles_gdf)} tiles (nb_parallel: {nb_parallel})")       
     with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
@@ -649,13 +649,13 @@ def _dissolve(
         explodecollections: bool,
         groupby_columns: List[str],
         columns: List[str],
-        aggfunc: str = 'first',
-        force_output_geometrytype: str = None,
-        clip_on_tiles: bool = False,
-        input_layer: str = None,        
-        output_layer: str = None,
-        bbox: Tuple[float, float, float, float] = None,
-        verbose: bool = False) -> dict:
+        aggfunc: str,
+        force_output_geometrytype: GeometryType,
+        clip_on_tiles: bool,
+        input_layer: Optional[str],        
+        output_layer: Optional[str],
+        bbox: Tuple[float, float, float, float],
+        verbose: bool) -> dict:
 
     ##### Init #####
     perfinfo = {}
@@ -737,11 +737,17 @@ def _dissolve(
             raise Exception(message) from ex
 
         # TODO: also support other geometry types (points and lines)
-        force_output_geometrytype
-        union_polygons = vector_util.collection_extract_to_list(
-                union_geom, vector_util.PrimitiveType.POLYGON)
-        diss_gdf = gpd.GeoDataFrame(geometry=union_polygons, crs=input_gdf.crs)
+        union_geom_cleaned = vector_util.collection_extract(
+                union_geom, vector_util.to_primitivetype(force_output_geometrytype))
+        diss_gdf = gpd.GeoDataFrame(geometry=[union_geom_cleaned], crs=input_gdf.crs)
         perfinfo['time_unary_union'] = (datetime.datetime.now()-start_unary_union).total_seconds()
+
+        # For polygons, explode multi-geometries ...
+        if(explodecollections is True 
+           or force_output_geometrytype in [GeometryType.POLYGON, GeometryType.MULTIPOLYGON]):
+            diss_gdf = diss_gdf.explode()
+            # Reset the index, and drop the level_0 and lavel_1 multiindex
+            diss_gdf.reset_index(drop=True, inplace=True)
 
         # If we want to keep the tiles, clip the result on the borders of the 
         # bbox not to have overlaps between the different tiles.
@@ -752,9 +758,14 @@ def _dissolve(
             # keep_geom_type=True gives errors, so replace by own implementation
             diss_gdf = gpd.clip(diss_gdf, bbox_gdf)
 
-            # assert to evade pyLance werning 
-            assert isinstance(diss_gdf, gpd.GeoDataFrame)
-            diss_gdf = vector_util.extract_polygons_from_gdf(diss_gdf)
+            # Only keep geometries of the primitive type specified...
+            
+            # assert to evade pyLance warning 
+            #assert isinstance(diss_gdf, gpd.GeoDataFrame)
+            
+            diss_gdf.geometry = diss_gdf.geometry.apply(
+                    lambda geom: vector_util.collection_extract(
+                            geom, vector_util.to_primitivetype(force_output_geometrytype)))
     
             perfinfo['time_clip'] = (datetime.datetime.now()-start_clip).total_seconds()
     else:
