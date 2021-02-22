@@ -147,59 +147,64 @@ def get_layerinfo(
         LayerInfo: the information about the layer
     """        
     ##### Init #####
-    datasource = gdal.OpenEx(str(path))
-    if layer is not None:
-        datasource_layer = datasource.GetLayer(layer)
-    elif datasource.GetLayerCount() == 1:
-        datasource_layer = datasource.GetLayerByIndex(0)
-    else:
-        raise Exception(f"No layer specified, and file has <> 1 layer: {path}")
+    datasource = None
+    try:
+        datasource = gdal.OpenEx(str(path))
+        if layer is not None:
+            datasource_layer = datasource.GetLayer(layer)
+        elif datasource.GetLayerCount() == 1:
+            datasource_layer = datasource.GetLayerByIndex(0)
+        else:
+            raise Exception(f"No layer specified, and file has <> 1 layer: {path}")
 
-    # If the layer doesn't exist, return 
-    if datasource_layer is None:
-        raise Exception(f"Layer {layer} not found in file: {path}")
+        # If the layer doesn't exist, return 
+        if datasource_layer is None:
+            raise Exception(f"Layer {layer} not found in file: {path}")
 
-    # Get column info
-    columns = []
-    layer_defn = datasource_layer.GetLayerDefn()
-    for i in range(layer_defn.GetFieldCount()):
-        columns.append(layer_defn.GetFieldDefn(i).GetName())
-    geometrycolumn = datasource_layer.GetGeometryColumn()
-    if geometrycolumn == '':
-        geometrycolumn = 'geometry'
-    geometrytypename = gdal.ogr.GeometryTypeToName(datasource_layer.GetGeomType())
-    geometrytypename = geometrytypename.replace(' ', '').upper()
-    
-    # For shape files, the difference between the 'MULTI' variant and the 
-    # single one doesn't exists... so always report MULTI variant by convention.
-    if Path(path).suffix.lower() == '.shp':
-        if(geometrytypename.startswith('POLYGON')
-           or geometrytypename.startswith('LINESTRING')
-           or geometrytypename.startswith('POINT')):
-            geometrytypename = f"MULTI{geometrytypename}"
-    
-    # Geometrytype
-    geometrytype = GeometryType[geometrytypename]
-    
-    # Convert gdal extent (xmin, xmax, ymin, ymax) to bounds (xmin, ymin, xmax, ymax)
-    extent = datasource_layer.GetExtent()
-    total_bounds = (extent[0], extent[2], extent[1], extent[3])
+        # Get column info
+        columns = []
+        layer_defn = datasource_layer.GetLayerDefn()
+        for i in range(layer_defn.GetFieldCount()):
+            columns.append(layer_defn.GetFieldDefn(i).GetName())
+        geometrycolumn = datasource_layer.GetGeometryColumn()
+        if geometrycolumn == '':
+            geometrycolumn = 'geometry'
+        geometrytypename = gdal.ogr.GeometryTypeToName(datasource_layer.GetGeomType())
+        geometrytypename = geometrytypename.replace(' ', '').upper()
+        
+        # For shape files, the difference between the 'MULTI' variant and the 
+        # single one doesn't exists... so always report MULTI variant by convention.
+        if Path(path).suffix.lower() == '.shp':
+            if(geometrytypename.startswith('POLYGON')
+            or geometrytypename.startswith('LINESTRING')
+            or geometrytypename.startswith('POINT')):
+                geometrytypename = f"MULTI{geometrytypename}"
+        
+        # Geometrytype
+        geometrytype = GeometryType[geometrytypename]
+        
+        # Convert gdal extent (xmin, xmax, ymin, ymax) to bounds (xmin, ymin, xmax, ymax)
+        extent = datasource_layer.GetExtent()
+        total_bounds = (extent[0], extent[2], extent[1], extent[3])
 
-    # Get projection
-    crs = None
-    spatialref = datasource_layer.GetSpatialRef()
-    if spatialref is not None:
-        crs = pyproj.CRS(spatialref.ExportToWkt())
+        # Get projection
+        crs = None
+        spatialref = datasource_layer.GetSpatialRef()
+        if spatialref is not None:
+            crs = pyproj.CRS(spatialref.ExportToWkt())
 
-    return LayerInfo(
-            name=datasource_layer.GetName(),
-            featurecount=datasource_layer.GetFeatureCount(),
-            total_bounds=total_bounds,
-            geometrycolumn=geometrycolumn, 
-            geometrytypename=geometrytypename,
-            geometrytype=geometrytype,
-            columns=columns,
-            crs=crs)
+        return LayerInfo(
+                name=datasource_layer.GetName(),
+                featurecount=datasource_layer.GetFeatureCount(),
+                total_bounds=total_bounds,
+                geometrycolumn=geometrycolumn, 
+                geometrytypename=geometrytypename,
+                geometrytype=geometrytype,
+                columns=columns,
+                crs=crs)
+    finally:
+        if datasource is not None:
+            del datasource
 
 def get_only_layer(path: Union[str, 'os.PathLike[Any]']) -> str:
     """
@@ -266,13 +271,19 @@ def has_spatial_index(
     driver = get_driver(path_p)    
     if driver == 'GPKG':
         layerinfo = get_layerinfo(path_p, layer)
-        data_source = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_READONLY)
-        result = data_source.ExecuteSQL(
-                f"SELECT HasSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",
-                dialect='SQLITE')
-        row = result.GetNextFeature()
-        has_spatial_index = row.GetField(0)
-        return (has_spatial_index == 1)
+
+        datasource = None
+        try:
+            data_source = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_READONLY)
+            result = data_source.ExecuteSQL(
+                    f"SELECT HasSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",
+                    dialect='SQLITE')
+            row = result.GetNextFeature()
+            has_spatial_index = row.GetField(0)
+            return (has_spatial_index == 1)
+        finally:
+            if datasource is not None:
+                del datasource
     elif driver == 'ESRI Shapefile':
         index_path = path_p.parent / f"{path_p.stem}.qix" 
         return index_path.exists()
@@ -295,14 +306,19 @@ def create_spatial_index(
     layerinfo = get_layerinfo(path_p, layer)
 
     # Now really add index
-    datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
-    driver = get_driver(path_p)    
-    if driver == 'GPKG':
-        datasource.ExecuteSQL(
-                f"SELECT CreateSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",                
-                dialect='SQLITE') 
-    else:
-        datasource.ExecuteSQL(f'CREATE SPATIAL INDEX ON "{layerinfo.name}"')
+    datasource = None
+    try:
+        datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
+        driver = get_driver(path_p)    
+        if driver == 'GPKG':
+            datasource.ExecuteSQL(
+                    f"SELECT CreateSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",                
+                    dialect='SQLITE') 
+        else:
+            datasource.ExecuteSQL(f'CREATE SPATIAL INDEX ON "{layerinfo.name}"')
+    finally:
+        if datasource is not None:
+            del datasource
 
 def remove_spatial_index(
         path: Union[str, 'os.PathLike[Any]'],
@@ -320,18 +336,25 @@ def remove_spatial_index(
     layerinfo = get_layerinfo(path_p, layer)
 
     # Now really remove index
-    datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
-    driver = get_driver(path_p)    
-    if driver == 'GPKG':
-        datasource.ExecuteSQL(
-                f"SELECT DisableSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",
-                dialect='SQLITE') 
-    elif driver == 'ESRI Shapefile':
-        # DROP SPATIAL INDEX ON ... command gives an error, so just remove .qix
-        index_path = path_p.parent / f"{path_p.stem}.qix" 
-        index_path.unlink()
-    else:
-        datasource.ExecuteSQL(f'DROP SPATIAL INDEX ON "{layerinfo.name}"')
+    datasource = None
+    try:
+        suffix_lower = path_p.suffix.lower()  
+        if suffix_lower == '.gpkg':
+            datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
+            datasource.ExecuteSQL(
+                    f"SELECT DisableSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",
+                    dialect='SQLITE') 
+        elif suffix_lower == '.shp':
+            # DROP SPATIAL INDEX ON ... command gives an error, so just remove .qix
+            index_path = path_p.parent / f"{path_p.stem}.qix" 
+            index_path.unlink()
+        else:
+            raise Exception(f"remove_spatial_index is not supported for {suffix_lower} file")
+            #datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
+            #datasource.ExecuteSQL(f'DROP SPATIAL INDEX ON "{layerinfo.name}"')
+    finally:
+        if datasource is not None:
+            del datasource
 
 def rename_layer(
         path: Union[str, 'os.PathLike[Any]'],
@@ -353,9 +376,20 @@ def rename_layer(
         layer = get_only_layer(path_p)
 
     # Now really rename
-    datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
-    sql_stmt = f'ALTER TABLE "{layer}" RENAME TO "{new_layer}"'
-    datasource.ExecuteSQL(sql_stmt)
+    datasource = None
+    try:
+        suffix_lower = path_p.suffix.lower()  
+        if suffix_lower == '.gpkg':
+            datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
+            sql_stmt = f'ALTER TABLE "{layer}" RENAME TO "{new_layer}"'
+            datasource.ExecuteSQL(sql_stmt)
+        elif suffix_lower == '.shp':
+            raise Exception(f"rename_layer is not possible for {suffix_lower} file")
+        else:
+            raise Exception(f"rename_layer is not implemented for {suffix_lower} file")
+    finally:
+        if datasource is not None:
+            del datasource
 
 def add_column(
         path: Union[str, 'os.PathLike[Any]'],
