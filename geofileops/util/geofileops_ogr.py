@@ -283,24 +283,34 @@ def _single_layer_vector_operation(
 
     ##### Init #####
     start_time = datetime.datetime.now()
+
+    # Check input parameters...
     if not input_path.exists():
         raise Exception(f"Error {operation_name}: input_path doesn't exist: {input_path}")
+
+    # Check/get layer names
+    if input_layer is None:
+        input_layer = geofile.get_only_layer(input_path)
+    elif input_path.suffix.lower() == '.shp' and input_path.stem != input_layer:
+        # For shapefiles, the file stem and the layer name should be the same!
+        raise Exception(f"For Shapefiles, layername needs to be the same as file stem: input_path: {input_path.name} != input_layer: {input_layer}")   
+    if output_layer is None:
+        output_layer = geofile.get_default_layer(output_path)
+    elif output_path.suffix.lower() == '.shp' and output_path.stem != output_layer:
+        # For shapefiles, the file stem and the layer name should be the same!
+        raise Exception(f"For Shapefiles, layername needs to be the same as file stem: output_path: {output_path.name} != output_layer: {output_layer}")
+
+    # Check if spatialite is properly installed to execute this query
+    if input_path.suffix.lower() == '.gpkg':
+        ogr_util.get_gdal_to_use(sql_template)
+
+    # If output file exists already, either clean up or return...
     if output_path.exists():
         if force is False:
             logger.info(f"Stop {operation_name}: output exists already {output_path}")
             return
         else:
             geofile.remove(output_path)
-    
-    # Check if spatialite is properly installed to execute this query
-    if input_path.suffix.lower() == '.gpkg':
-        ogr_util.get_gdal_to_use(sql_template)
-
-    # Get layer info
-    if input_layer is None:
-        input_layer = geofile.get_only_layer(input_path)
-    if output_layer is None:
-        output_layer = geofile.get_default_layer(output_path)
 
     ##### Calculate #####
     tempdir = io_util.create_tempdir(operation_name.replace(' ', '_'))
@@ -435,6 +445,7 @@ def _single_layer_vector_operation(
                     geofile.append_to(
                             src=tmp_partial_output_path, 
                             dst=tmp_output_path, 
+                            dst_layer=output_layer,
                             create_spatial_index=False)
                     geofile.remove(tmp_partial_output_path)
                 else:

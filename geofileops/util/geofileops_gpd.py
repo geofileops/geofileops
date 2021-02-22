@@ -551,7 +551,7 @@ def dissolve(
                         {columns_str} 
                     FROM "{output_layer}" 
                     ORDER BY temp_ordering_id'''
-            geofileops_ogr.select(output_tmp_path, output_path, sql_stmt)
+            geofileops_ogr.select(output_tmp_path, output_path, sql_stmt, output_layer=output_layer)
 
     finally:
         # Clean tmp dir if it exists...
@@ -796,7 +796,9 @@ def _dissolve(
 
     # If the tiles don't need to be merged afterwards, we can just save the result as it is
     if str(output_notonborder_path) == str(output_onborder_path):
-        geofile.to_file(diss_gdf, output_notonborder_path, 
+        # assert to evade pyLance warning 
+        assert isinstance(diss_gdf, gpd.GeoDataFrame)
+        geofile.to_file(diss_gdf, output_notonborder_path, layer=output_layer,
                 force_output_geometrytype=force_output_geometrytype, append=True)
     else:
         # If not, save the polygons on the border seperately
@@ -807,14 +809,14 @@ def _dissolve(
         if len(onborder_gdf) > 0:
             # assert to evade pyLance warning 
             assert isinstance(onborder_gdf, gpd.GeoDataFrame) 
-            geofile.to_file(onborder_gdf, output_onborder_path, 
+            geofile.to_file(onborder_gdf, output_onborder_path, layer=output_layer,
                     force_output_geometrytype=force_output_geometrytype, append=True)
         
         notonborder_gdf = diss_gdf[~diss_gdf.index.isin(onborder_gdf.index)].dropna()
         if len(notonborder_gdf) > 0:
             # assert to evade pyLance warning 
             assert isinstance(notonborder_gdf, gpd.GeoDataFrame) 
-            geofile.to_file(notonborder_gdf, output_notonborder_path, 
+            geofile.to_file(notonborder_gdf, output_notonborder_path, layer=output_layer,
                     force_output_geometrytype=force_output_geometrytype, append=True)
     perfinfo['time_to_file'] = (datetime.datetime.now()-start_to_file).total_seconds()
 
