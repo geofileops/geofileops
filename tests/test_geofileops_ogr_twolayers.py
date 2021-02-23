@@ -9,6 +9,7 @@ import sys
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
+from geofileops.geofile import GeometryType
 from geofileops.util import geofileops_ogr
 from geofileops.util import ogr_util
 from tests import test_helper
@@ -19,10 +20,10 @@ def test_erase_gpkg(tmpdir):
     erase_path = test_helper.get_testdata_dir() / 'polygons_zones.gpkg'
     output_path = Path(tmpdir) / 'parcels_erase_zones.gpkg'
     basetest_erase(input_path, erase_path, output_path, 
-            expected_output_geometrytype='MULTIPOLYGON',
+            expected_output_geometrytype=GeometryType.MULTIPOLYGON,
             gdal_installation='gdal_bin')
     basetest_erase(input_path, erase_path, output_path, 
-            expected_output_geometrytype='MULTIPOLYGON',
+            expected_output_geometrytype=GeometryType.MULTIPOLYGON,
             gdal_installation='gdal_default')
 
     # Erase from point layer, with and without gdal_bin set
@@ -30,10 +31,10 @@ def test_erase_gpkg(tmpdir):
     erase_path = test_helper.get_testdata_dir() / 'polygons_zones.gpkg'
     output_path = Path(tmpdir) / 'points_erase_zones.gpkg'
     basetest_erase(input_path, erase_path, output_path, 
-            expected_output_geometrytype='MULTIPOINT',
+            expected_output_geometrytype=GeometryType.MULTIPOINT,
             gdal_installation='gdal_default')
     basetest_erase(input_path, erase_path, output_path,
-            expected_output_geometrytype='MULTIPOINT',
+            expected_output_geometrytype=GeometryType.MULTIPOINT,
             gdal_installation='gdal_bin')
 
     # Erase from line layer, with and without gdal_bin set
@@ -41,10 +42,10 @@ def test_erase_gpkg(tmpdir):
     erase_path = test_helper.get_testdata_dir() / 'polygons_zones.gpkg'
     output_path = Path(tmpdir) / 'rows_of_trees_erase_zones.gpkg'
     basetest_erase(input_path, erase_path, output_path, 
-            expected_output_geometrytype='MULTILINESTRING',
+            expected_output_geometrytype=GeometryType.MULTILINESTRING,
             gdal_installation='gdal_default')
     basetest_erase(input_path, erase_path, output_path, 
-            expected_output_geometrytype='MULTILINESTRING',
+            expected_output_geometrytype=GeometryType.MULTILINESTRING,
             gdal_installation='gdal_bin')
 
 def test_erase_shp(tmpdir):
@@ -55,17 +56,17 @@ def test_erase_shp(tmpdir):
 
     # Try both with and without gdal_bin set
     basetest_erase(input_path, erase_path, output_path, 
-            expected_output_geometrytype='MULTIPOLYGON',
+            expected_output_geometrytype=GeometryType.MULTIPOLYGON,
             gdal_installation='gdal_bin')
     basetest_erase(input_path, erase_path, output_path, 
-            expected_output_geometrytype='MULTIPOLYGON',
+            expected_output_geometrytype=GeometryType.MULTIPOLYGON,
             gdal_installation='gdal_default')
 
 def basetest_erase(
         input_path: Path,
         erase_path: Path, 
         output_basepath: Path,
-        expected_output_geometrytype: str, 
+        expected_output_geometrytype: GeometryType, 
         gdal_installation: str):
 
     # Do operation
@@ -92,12 +93,12 @@ def basetest_erase(
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
     # Checks depending on geometry type
-    assert layerinfo_output.geometrytypename == expected_output_geometrytype
-    if expected_output_geometrytype == 'MULTIPOLYGON':
+    assert layerinfo_output.geometrytype == expected_output_geometrytype
+    if expected_output_geometrytype == GeometryType.MULTIPOLYGON:
         assert layerinfo_output.featurecount == 37
-    elif expected_output_geometrytype == 'MULTIPOINT':
+    elif expected_output_geometrytype == GeometryType.MULTIPOINT:
         assert layerinfo_output.featurecount == 47
-    elif expected_output_geometrytype == 'MULTILINESTRING':
+    elif expected_output_geometrytype == GeometryType.MULTILINESTRING:
         assert layerinfo_output.featurecount == 12
     else:
         raise Exception(f"Unsupported expected_output_geometrytype: {expected_output_geometrytype}")
@@ -166,7 +167,7 @@ def basetest_export_by_location(
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
     # Check geometry type
-    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
@@ -233,7 +234,7 @@ def basetest_export_by_distance(
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
     # Check geometry type
-    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
@@ -295,9 +296,9 @@ def basetest_intersect(
     # Check geometry type
     if output_path.suffix.lower() == '.shp':
         # For shapefiles the type stays POLYGON anyway 
-        assert layerinfo_output.geometrytypename == 'POLYGON' 
+        assert layerinfo_output.geometrytype == GeometryType.POLYGON 
     elif output_path.suffix.lower() == '.gpkg':
-        assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
@@ -359,9 +360,9 @@ def basetest_join_by_location(
     # Check geometry type
     if output_path.suffix.lower() == '.shp':
         # For shapefiles the type stays POLYGON anyway 
-        assert layerinfo_output.geometrytypename == 'POLYGON' 
+        assert layerinfo_output.geometrytype == GeometryType.POLYGON 
     elif output_path.suffix.lower() == '.gpkg':
-        assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
@@ -396,9 +397,9 @@ def basetest_join_by_location(
     # Check geometry type
     if output_path.suffix.lower() == '.shp':
         # For shapefiles the type stays POLYGON anyway 
-        assert layerinfo_output.geometrytypename == 'POLYGON' 
+        assert layerinfo_output.geometrytype == GeometryType.POLYGON 
     elif output_path.suffix.lower() == '.gpkg':
-        assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
     # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
@@ -460,9 +461,9 @@ def basetest_split(
     # Check geometry type
     if output_path.suffix.lower() == '.shp':
         # For shapefiles the type stays POLYGON anyway 
-        assert layerinfo_output.geometrytypename == 'POLYGON' 
+        assert layerinfo_output.geometrytype == GeometryType.POLYGON 
     elif output_path.suffix.lower() == '.gpkg':
-        assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
     # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
@@ -524,9 +525,9 @@ def basetest_union(
     # Check geometry type
     if output_path.suffix.lower() == '.shp':
         # For shapefiles the type stays POLYGON anyway 
-        assert layerinfo_output.geometrytypename == 'POLYGON' 
+        assert layerinfo_output.geometrytype == GeometryType.POLYGON 
     elif output_path.suffix.lower() == '.gpkg':
-        assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
     # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)

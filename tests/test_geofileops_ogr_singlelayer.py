@@ -9,6 +9,7 @@ import sys
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
+from geofileops.geofile import GeometryType
 from geofileops.util import geofileops_ogr
 from geofileops.util import ogr_util
 from tests import test_helper
@@ -68,7 +69,7 @@ def basetest_buffer(
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
     # Check geometry type
-    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
@@ -121,7 +122,7 @@ def basetest_convexhull(
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
     # Check geometry type
-    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
@@ -229,7 +230,7 @@ def basetest_makevalid(
         assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
     
         # Check geometry type
-        assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
         # Now check the contents of the result file
         output_gdf = geofile.read_file(output_path)
@@ -278,7 +279,7 @@ def basetest_select(
     assert len(layerinfo_output.columns) == 2
 
     # Check geometry type
-    assert layerinfo_output.geometrytypename == 'MULTIPOLYGON' 
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
@@ -332,30 +333,30 @@ def test_simplify_gpkg(tmpdir):
     input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
     output_path = Path(tmpdir) / input_path.name
     basetest_simplify(input_path, output_path, 
-            expected_output_geometrytype='MULTIPOLYGON',
+            expected_output_geometrytype=GeometryType.MULTIPOLYGON,
             gdal_installation='gdal_default')
     basetest_simplify(input_path, output_path, 
-            expected_output_geometrytype='MULTIPOLYGON',
+            expected_output_geometrytype=GeometryType.MULTIPOLYGON,
             gdal_installation='gdal_bin')
 
     # Simplify point source to test dir
     input_path = test_helper.get_testdata_dir() / 'points.gpkg'
     output_path = Path(tmpdir) / 'points_output.gpkg'
     basetest_simplify(input_path, output_path, 
-            expected_output_geometrytype='MULTIPOINT',
+            expected_output_geometrytype=GeometryType.MULTIPOINT,
             gdal_installation='gdal_default')
     basetest_simplify(input_path, output_path, 
-            expected_output_geometrytype='MULTIPOINT',
+            expected_output_geometrytype=GeometryType.MULTIPOINT,
             gdal_installation='gdal_bin')
 
     # Simplify line source to test dir
     input_path = test_helper.get_testdata_dir() / 'linestrings_rows_of_trees.gpkg'
     output_path = Path(tmpdir) / 'linestrings_rows_of_trees_output.gpkg'
     basetest_simplify(input_path, output_path, 
-            expected_output_geometrytype='MULTILINESTRING',
+            expected_output_geometrytype=GeometryType.MULTILINESTRING,
             gdal_installation='gdal_default')
     basetest_simplify(input_path, output_path, 
-            expected_output_geometrytype='MULTILINESTRING',
+            expected_output_geometrytype=GeometryType.MULTILINESTRING,
             gdal_installation='gdal_bin')
 
 def test_simplify_shp(tmpdir):
@@ -365,16 +366,16 @@ def test_simplify_shp(tmpdir):
 
     # Try both with and without gdal_bin set
     basetest_simplify(input_path, output_path, 
-            expected_output_geometrytype='MULTIPOLYGON',
+            expected_output_geometrytype=GeometryType.MULTIPOLYGON,
             gdal_installation='gdal_default')
     basetest_simplify(input_path, output_path, 
-            expected_output_geometrytype='MULTIPOLYGON',
+            expected_output_geometrytype=GeometryType.MULTIPOLYGON,
             gdal_installation='gdal_bin')
     
 def basetest_simplify(
         input_path: Path, 
         output_basepath: Path,
-        expected_output_geometrytype: str,
+        expected_output_geometrytype: GeometryType,
         gdal_installation: str):
 
     # Do operation
@@ -402,7 +403,7 @@ def basetest_simplify(
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
     # Check geometry type
-    assert layerinfo_output.geometrytypename == expected_output_geometrytype 
+    assert layerinfo_output.geometrytype == expected_output_geometrytype 
 
     # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)

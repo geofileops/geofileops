@@ -24,25 +24,28 @@ def test_buffer_gpkg(tmpdir):
     # Buffer polygon source to test dir
     input_path = get_testdata_dir() / 'polygons_parcels.gpkg'
     output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
-    basetest_buffer(input_path, output_path, 'MULTIPOLYGON')
+    basetest_buffer(input_path, output_path, GeometryType.MULTIPOLYGON)
 
     # Buffer point source to test dir
     input_path = get_testdata_dir() / 'points.gpkg'
     output_path = Path(tmpdir) / 'points_output.gpkg'
-    basetest_buffer(input_path, output_path, 'MULTIPOINT')
+    basetest_buffer(input_path, output_path, GeometryType.MULTIPOINT)
 
     # Buffer line source to test dir
     input_path = get_testdata_dir() / 'linestrings_rows_of_trees.gpkg'
     output_path = Path(tmpdir) / 'linestrings_rows_of_trees_output.gpkg'
-    basetest_buffer(input_path, output_path, 'MULTILINESTRING')
+    basetest_buffer(input_path, output_path, GeometryType.MULTILINESTRING)
 
 def test_buffer_shp(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'polygons_parcels.shp'
     output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
-    basetest_buffer(input_path, output_path, 'MULTIPOLYGON')
+    basetest_buffer(input_path, output_path, GeometryType.MULTIPOLYGON)
 
-def basetest_buffer(input_path, output_path, input_geometry_type):
+def basetest_buffer(
+        input_path: Path, 
+        output_path: Path, 
+        input_geometry_type: GeometryType):
     layerinfo_orig = geofile.get_layerinfo(input_path)
     
     ### Test positive buffer ###
@@ -74,7 +77,7 @@ def basetest_buffer(input_path, output_path, input_geometry_type):
             nb_parallel=get_nb_parallel())
 
     # Now check if the output file is correctly created
-    if input_geometry_type in ['MULTIPOINT', 'MULTILINESTRING']:
+    if input_geometry_type in [GeometryType.MULTIPOINT, GeometryType.MULTILINESTRING]:
         # A Negative buffer of points or linestrings doesn't give a result.
         assert output_path.exists() == False
     else:    
@@ -237,7 +240,9 @@ def test_dissolve_polygons_groupby_shp(tmpdir):
     output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_dissolve_polygons_groupby(input_path, output_path)
 
-def basetest_dissolve_polygons_groupby(input_path, output_basepath):
+def basetest_dissolve_polygons_groupby(
+        input_path: Path, 
+        output_basepath: Path):
     # Init
     layerinfo_input = geofile.get_layerinfo(input_path)
     filesuffix = 0
@@ -370,7 +375,9 @@ def test_dissolve_polygons_nogroupby_shp(tmpdir):
     output_basepath = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_dissolve_polygons_nogroupby(input_path, output_basepath)
 
-def basetest_dissolve_polygons_nogroupby(input_path, output_basepath):
+def basetest_dissolve_polygons_nogroupby(
+        input_path: Path, 
+        output_basepath: Path):
     # Init
     layerinfo_input = geofile.get_layerinfo(input_path)
     filesuffix = 0
@@ -448,28 +455,28 @@ def test_simplify_gpkg(tmpdir):
     # Simplify polygon source to test dir
     input_path = get_testdata_dir() / 'polygons_parcels.gpkg'
     output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
-    basetest_simplify(input_path, output_path, 'MULTIPOLYGON')
+    basetest_simplify(input_path, output_path, GeometryType.MULTIPOLYGON)
 
     # Simplify point source to test dir
     input_path = get_testdata_dir() / 'points.gpkg'
     output_path = Path(tmpdir) / 'points_output.gpkg'
-    basetest_simplify(input_path, output_path, 'MULTIPOINT')
+    basetest_simplify(input_path, output_path, GeometryType.MULTIPOINT)
 
     # Simplify line source to test dir
     input_path = get_testdata_dir() / 'linestrings_rows_of_trees.gpkg'
     output_path = Path(tmpdir) / 'linestrings_rows_of_trees_output.gpkg'
-    basetest_simplify(input_path, output_path, 'MULTILINESTRING')
+    basetest_simplify(input_path, output_path, GeometryType.MULTILINESTRING)
 
 def test_simplify_shp(tmpdir):
     # Buffer to test dir
     input_path = get_testdata_dir() / 'polygons_parcels.shp'
     output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
-    basetest_simplify(input_path, output_path, 'MULTIPOLYGON')
+    basetest_simplify(input_path, output_path, GeometryType.MULTIPOLYGON)
 
 def basetest_simplify(
         input_path: Path, 
         output_path: Path, 
-        expected_output_geometrytype: str):
+        expected_output_geometrytype: GeometryType):
 
     ### Test default algorithm, rdp ###
     layerinfo_orig = geofile.get_layerinfo(input_path)
@@ -486,7 +493,7 @@ def basetest_simplify(
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
     # Check geometry type
-    assert layerinfo_output.geometrytypename == expected_output_geometrytype
+    assert layerinfo_output.geometrytype == expected_output_geometrytype
 
     # Now check the contents of the result file
     input_gdf = geofile.read_file(input_path)
@@ -511,7 +518,7 @@ def basetest_simplify(
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
     # Check geometry type
-    assert layerinfo_output.geometrytypename == expected_output_geometrytype
+    assert layerinfo_output.geometrytype == expected_output_geometrytype
 
     # Now check the contents of the result file
     input_gdf = geofile.read_file(input_path)
@@ -537,7 +544,7 @@ def basetest_simplify(
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
     # Check geometry type
-    assert layerinfo_output.geometrytypename == expected_output_geometrytype
+    assert layerinfo_output.geometrytype == expected_output_geometrytype
 
     # Now check the contents of the result file
     input_gdf = geofile.read_file(input_path)
