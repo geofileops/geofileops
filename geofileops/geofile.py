@@ -789,6 +789,10 @@ def to_file(
     else:
         # If append is asked, check if the fiona driver supports appending. If
         # not, write to temporary output file 
+        
+        # Remark: fiona pre-1.8.14 didn't support appending to geopackage. Once 
+        # older versions becomes rare, dependency can be put to this version, and 
+        # this code can be cleaned up...
         driver = get_driver(path_p)
         gdftemp_path = None
         gdftemp_lockpath = None
