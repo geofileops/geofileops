@@ -1083,7 +1083,10 @@ def _append_to_nolock(
 
 def convert(
         src: Union[str, 'os.PathLike[Any]'], 
-        dst: Union[str, 'os.PathLike[Any]']):
+        dst: Union[str, 'os.PathLike[Any]'],
+        src_layer: str = None,
+        dst_layer: str = None,
+        force_output_geometrytype: GeometryType = None):
     """
     Convert the source file to the destination file. File types will be 
     detected based on the file extensions.
@@ -1100,7 +1103,7 @@ def convert(
         remove(dst_p)
 
     # Convert
-    _append_to_nolock(src_p, dst_p)
+    _append_to_nolock(src_p, dst_p, src_layer, dst_layer, force_output_geometrytype)
 
 def get_driver(path: Union[str, 'os.PathLike[Any]']) -> str:
     """
