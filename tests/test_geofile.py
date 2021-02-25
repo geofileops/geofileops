@@ -15,6 +15,7 @@ import pandas as pd
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
+from geofileops.geofile import GeometryType
 
 def _get_testdata_dir() -> Path:
     return Path(__file__).resolve().parent / 'data'
@@ -62,7 +63,7 @@ def test_cmp(tmpdir):
     assert geofile.cmp(src, dst) == True
 
 def test_convert(tmpdir):
-    # Convert test file to tmpdir
+    # Convert polygon test file from shape to geopackage
     src = _get_testdata_dir() / 'polygons_parcels.shp'
     dst = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     geofile.convert(src, dst)
@@ -72,6 +73,40 @@ def test_convert(tmpdir):
     dst_layerinfo = geofile.get_layerinfo(dst)
     assert src_layerinfo.featurecount == dst_layerinfo.featurecount
     assert len(src_layerinfo.columns) == len(dst_layerinfo.columns)
+
+def test_convert_force_output_geometrytype(tmpdir):
+    # The conversion is done by ogr, and these test are just written to explore
+    # the behaviour of this ogr functionality 
+    
+    # Convert polygon test file and force to polygon
+    src = _get_testdata_dir() / 'polygons_parcels.gpkg'
+    dst = Path(tmpdir) / 'polygons_parcels_to_polygon.gpkg'
+    geofile.convert(src, dst, force_output_geometrytype=GeometryType.POLYGON)
+
+    # Convert polygon test file and force to multipolygon
+    src = _get_testdata_dir() / 'polygons_parcels.gpkg'
+    dst = Path(tmpdir) / 'polygons_parcels_to_multipolygon.gpkg'
+    geofile.convert(src, dst, force_output_geometrytype=GeometryType.MULTIPOLYGON)
+
+    # Convert polygon test file and force to linestring
+    src = _get_testdata_dir() / 'polygons_parcels.gpkg'
+    dst = Path(tmpdir) / 'polygons_parcels_to_linestring.gpkg'
+    geofile.convert(src, dst, force_output_geometrytype=GeometryType.LINESTRING)
+
+    # Convert polygon test file and force to multilinestring
+    src = _get_testdata_dir() / 'polygons_parcels.gpkg'
+    dst = Path(tmpdir) / 'polygons_parcels_to_multilinestring.gpkg'
+    geofile.convert(src, dst, force_output_geometrytype=GeometryType.MULTILINESTRING)
+
+    # Convert polygon test file and force to point
+    src = _get_testdata_dir() / 'polygons_parcels.gpkg'
+    dst = Path(tmpdir) / 'polygons_parcels_to_point.gpkg'
+    geofile.convert(src, dst, force_output_geometrytype=GeometryType.POINT)
+
+    # Convert polygon test file and force to multipoint
+    src = _get_testdata_dir() / 'polygons_parcels.gpkg'
+    dst = Path(tmpdir) / 'polygons_parcels_to_point.gpkg'
+    geofile.convert(src, dst, force_output_geometrytype=GeometryType.MULTIPOINT)
 
 def test_copy(tmpdir):
     # Copy test file to tmpdir
@@ -345,11 +380,13 @@ if __name__ == '__main__':
     tmpdir.mkdir(parents=True, exist_ok=True)
 
     # Run!
+    #test_convert(tmpdir)
+    test_convert_force_output_geometrytype(tmpdir)
     #test_get_layerinfo()
     #test_rename_layer(tmpdir)
     #test_listlayers()
     #test_add_column(tmpdir)
     #test_read_file()
-    test_to_file_shp(tmpdir)
+    #test_to_file_shp(tmpdir)
     #test_to_file_gpkg(tmpdir)
     
