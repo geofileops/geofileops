@@ -46,7 +46,7 @@ def basetest_buffer(
         input_path: Path, 
         output_path: Path, 
         input_geometry_type: GeometryType):
-    layerinfo_orig = geofile.get_layerinfo(input_path)
+    layerinfo_input = geofile.get_layerinfo(input_path)
     
     ### Test positive buffer ###
     geofileops_gpd.buffer(
@@ -58,8 +58,8 @@ def basetest_buffer(
     # Now check if the output file is correctly created
     assert output_path.exists() == True
     layerinfo_output = geofile.get_layerinfo(output_path)
-    assert layerinfo_orig.featurecount == layerinfo_output.featurecount
-    assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
+    assert layerinfo_input.featurecount == layerinfo_output.featurecount
+    assert len(layerinfo_output.columns) == len(layerinfo_input.columns)
     
     # Check geometry type
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
@@ -81,11 +81,41 @@ def basetest_buffer(
         # A Negative buffer of points or linestrings doesn't give a result.
         assert output_path.exists() == False
     else:    
-        # A Negative buffer of polygons  gives a result for large polygons.
+        # A Negative buffer of polygons gives a result for large polygons.
         assert output_path.exists() == True
         layerinfo_output = geofile.get_layerinfo(output_path)
-        assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
-        assert layerinfo_output.featurecount == 39
+        assert len(layerinfo_output.columns) == len(layerinfo_input.columns) 
+        # 7 polygons disappear because of the negative buffer
+        assert layerinfo_output.featurecount == layerinfo_input.featurecount - 7
+        
+        # Check geometry type
+        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
+
+        # Read result for some more detailed checks
+        output_gdf = geofile.read_file(output_path)
+        assert output_gdf['geometry'][0] is not None
+    
+    ### Test negative buffer with explodecollections ###
+    output_path = output_path.parent / f"{output_path.stem}_m10m_explode{output_path.suffix}"
+    geofileops_gpd.buffer(
+            input_path=input_path,
+            output_path=output_path,
+            distance=-10,
+            explodecollections=True,
+            nb_parallel=get_nb_parallel())
+
+    # Now check if the output file is correctly created
+    if input_geometry_type in [GeometryType.MULTIPOINT, GeometryType.MULTILINESTRING]:
+        # A Negative buffer of points or linestrings doesn't give a result.
+        assert output_path.exists() == False
+    else:    
+        # A Negative buffer of polygons gives a result for large polygons
+        assert output_path.exists() == True
+        layerinfo_output = geofile.get_layerinfo(output_path)
+        assert len(layerinfo_output.columns) == len(layerinfo_input.columns) 
+        # 6 polygons disappear because of the negative buffer, 3 polygons are 
+        # split in 2 because of the negative buffer and/or explodecollections=True.
+        assert layerinfo_output.featurecount == layerinfo_input.featurecount - 7 + 3
         
         # Check geometry type
         assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
@@ -288,7 +318,7 @@ def basetest_dissolve_polygons_groupby(
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
     layerinfo_output = geofile.get_layerinfo(output_path)
-    assert layerinfo_output.featurecount == 23
+    assert layerinfo_output.featurecount == 25
     assert len(layerinfo_output.columns) == 1
 
     # Check geometry type
@@ -316,7 +346,7 @@ def basetest_dissolve_polygons_groupby(
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
     layerinfo_output = geofile.get_layerinfo(output_path)
-    assert layerinfo_output.featurecount == 17
+    assert layerinfo_output.featurecount == 19
     assert len(layerinfo_output.columns) == len(layerinfo_input.columns)
 
     # Check geometry type
@@ -341,11 +371,16 @@ def basetest_dissolve_polygons_groupby(
                 output_layer='banana',
                 nb_parallel=get_nb_parallel(),
                 force=True)
+    except Exception as ex:
+        # A different output_layer is not supported for shapefile, so normal 
+        # that an exception is thrown!
+        assert output_path.suffix.lower() == '.shp'
 
-        # Now check if the tmp file is correctly created
+    # Now check if the tmp file is correctly created
+    if output_path.suffix.lower() != '.shp':
         assert output_path.exists() == True
         layerinfo_output = geofile.get_layerinfo(output_path)
-        assert layerinfo_output.featurecount == 23
+        assert layerinfo_output.featurecount == 25
         assert len(layerinfo_output.columns) == 1
         assert layerinfo_output.name == 'banana'
 
@@ -358,10 +393,6 @@ def basetest_dissolve_polygons_groupby(
         assert input_gdf.crs == output_gdf.crs
         assert len(output_gdf) == layerinfo_output.featurecount
         assert output_gdf['geometry'][0] is not None
-    except Exception as ex:
-        # A different output_layer is not supported for shapefile, so normal 
-        # that an exception is thrown!
-        assert output_path.suffix.lower() == '.shp'
 
 def test_dissolve_polygons_nogroupby_gpkg(tmpdir):
     # Buffer to test dir
@@ -395,7 +426,7 @@ def basetest_dissolve_polygons_nogroupby(
     # Now check if the result file is correctly created
     assert output_path.exists() == True
     layerinfo_output = geofile.get_layerinfo(output_path)
-    assert layerinfo_output.featurecount == 21
+    assert layerinfo_output.featurecount == 23
     if output_basepath.suffix == '.shp':
         # Shapefile always has an FID field
         # TODO: think about whether this should also be the case for geopackage??? 
@@ -425,11 +456,16 @@ def basetest_dissolve_polygons_nogroupby(
                 explodecollections=True,
                 nb_parallel=get_nb_parallel(),
                 force=True)
+    except Exception as ex:
+        # A different output_layer is not supported for shapefile, so normal 
+        # that an exception is thrown!
+        assert output_path.suffix.lower() == '.shp'
 
-        # Now check if the result file is correctly created
+    # Now check if the result file is correctly created
+    if output_path.suffix.lower() != '.shp':
         assert output_path.exists() == True
         layerinfo_output = geofile.get_layerinfo(output_path)
-        assert layerinfo_output.featurecount == 21
+        assert layerinfo_output.featurecount == 23
         assert len(layerinfo_output.columns) == 0
         if output_basepath.suffix == '.shp':
             # Shapefile doesn't support specifying an output_layer
@@ -446,10 +482,6 @@ def basetest_dissolve_polygons_nogroupby(
         assert input_gdf.crs == output_gdf.crs
         assert len(output_gdf) == layerinfo_output.featurecount
         assert output_gdf['geometry'][0] is not None
-    except Exception as ex:
-        # A different output_layer is not supported for shapefile, so normal 
-        # that an exception is thrown!
-        assert output_path.suffix.lower() == '.shp'
 
 def test_simplify_gpkg(tmpdir):
     # Simplify polygon source to test dir
@@ -567,8 +599,8 @@ if __name__ == '__main__':
     #test_buffer_gpkg(tmpdir)
     #test_buffer_various_options_gpkg(tmpdir)
     #test_dissolve_linestrings_nogroupby_gpkg(tmpdir)
-    #test_dissolve_polygons_groupby_gpkg(tmpdir)
+    test_dissolve_polygons_groupby_gpkg(tmpdir)
     #test_dissolve_polygons_groupby_shp(tmpdir)
     #test_dissolve_polygons_nogroupby_gpkg(tmpdir)
-    test_dissolve_polygons_nogroupby_shp(tmpdir)
+    #test_dissolve_polygons_nogroupby_shp(tmpdir)
     #test_simplify_gpkg(tmpdir)

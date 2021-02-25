@@ -33,6 +33,7 @@ def buffer(
         input_layer: str = None,
         output_layer: str = None,
         columns: List[str] = None,
+        explodecollections: bool = False,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -53,6 +54,8 @@ def buffer(
             file only contains one layer.
         columns (List[str], optional): list of columns to return. If None,
             all columns are returned.
+        explodecollections (bool, optional): True to output only simple geometries. 
+            Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use. 
             If not specified, all available processors will be used.
         verbose (bool, optional): write more info to the output. 
@@ -69,6 +72,7 @@ def buffer(
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
+            explodecollections=explodecollections,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
@@ -79,6 +83,7 @@ def convexhull(
         input_layer: str = None,
         output_layer: str = None,
         columns: List[str] = None,
+        explodecollections: bool = False,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -94,10 +99,12 @@ def convexhull(
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input 
             file only contains one layer.
-        nb_parallel (int, optional): the number of parallel processes to use. 
-            If not specified, all available processors will be used.
         columns (List[str], optional): If not None, only output the columns 
             specified. Defaults to None.
+        explodecollections (bool, optional): True to output only simple geometries. 
+            Defaults to False.
+        nb_parallel (int, optional): the number of parallel processes to use. 
+            If not specified, all available processors will be used.
         verbose (bool, optional): write more info to the output. 
             Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
@@ -110,6 +117,7 @@ def convexhull(
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
+            explodecollections=explodecollections,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
@@ -263,6 +271,8 @@ def makevalid(
         output_path: Union[str, 'os.PathLike[Any]'],
         input_layer: str = None,        
         output_layer: str = None,
+        columns: List[str] = None,
+        explodecollections: bool = False, 
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -277,6 +287,10 @@ def makevalid(
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the  
             file only contains one layer.
+        columns (List[str], optional): If not None, only output the columns 
+            specified. Defaults to None.
+        explodecollections (bool, optional): True to output only simple geometries. 
+            Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use. 
             If not specified, all available processors will be used.
         verbose (bool, optional): write more info to the output. 
@@ -291,6 +305,8 @@ def makevalid(
             output_path=Path(output_path),
             input_layer=input_layer,        
             output_layer=output_layer,
+            columns=columns,
+            explodecollections=explodecollections,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
@@ -380,6 +396,7 @@ def simplify(
         input_layer: str = None,
         output_layer: str = None,
         columns: List[str] = None,
+        explodecollections: bool = False,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -404,6 +421,8 @@ def simplify(
             file only contains one layer.
         columns (List[str], optional): If not None, only output the columns 
             specified. Defaults to None.
+        explodecollections (bool, optional): True to output only simple geometries. 
+            Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use. 
             If not specified, all available processors will be used.
         verbose (bool, optional): write more info to the output. 
@@ -421,6 +440,7 @@ def simplify(
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
+            explodecollections=explodecollections,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)

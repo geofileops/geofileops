@@ -83,6 +83,7 @@ def convexhull(
         input_layer: str = None,
         output_layer: str = None,
         columns: List[str] = None,
+        explodecollections: bool = False,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -99,6 +100,7 @@ def convexhull(
             output_layer=output_layer,
             columns=columns,
             nb_parallel=nb_parallel,
+            explodecollections=explodecollections,
             verbose=verbose,
             force=force)
 
@@ -111,6 +113,7 @@ def simplify(
         input_layer: str = None,
         output_layer: str = None,
         columns: List[str] = None,
+        explodecollections: bool = False,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -130,6 +133,7 @@ def simplify(
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
+            explodecollections=explodecollections,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
@@ -360,15 +364,7 @@ def _apply_geooperation(
     data_gdf = data_gdf[~data_gdf.isna()] 
     
     if explodecollections:
-        data_gdf = data_gdf.explode() #.reset_index()
-        
-        '''
-        # Explode only works with one column, but cast to geodataframe, otherwise geoseries 
-        geoms_simpl_gdf = gpd.GeoDataFrame(geoms_simpl_gdf['geometry'])
-        geoms_simpl_gdf = geoms_simpl_gdf.explode().reset_index()
-        geoms_simpl_gdf['geometry'] = geoms_simpl_gdf.geometry.apply(
-                lambda geom: vector_util.remove_inner_rings(geom, 2))        
-        '''
+        data_gdf = data_gdf.explode().reset_index(drop=True)
 
     if len(data_gdf) > 0:
         # assert to evade pyLance warning
