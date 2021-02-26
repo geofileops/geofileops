@@ -491,13 +491,13 @@ def erase(
     # Init
     # In the query, important to only extract the geometry types that are expected 
     input_layer_info = geofile.get_layerinfo(input_path, input_layer)
-    primitivetypeid = geofile.to_primitivetype(input_layer_info.geometrytype).value
+    primitivetypeid = input_layer_info.geometrytype.to_primitivetype.value
 
     # If the input type is not point, force the output type to multi, 
     # because erase can cause eg. polygons to be split to multipolygons...
     force_output_geometrytype = input_layer_info.geometrytype
     if force_output_geometrytype is not GeometryType.POINT:
-        force_output_geometrytype = geofile.to_multigeometrytype(input_layer_info.geometrytype)
+        force_output_geometrytype = input_layer_info.geometrytype.to_multitype
 
     # Prepare sql template for this operation 
     # Remarks:
@@ -707,13 +707,13 @@ def intersect(
     # TODO: test for geometrycollection, line, point,...
     input1_layer_info = geofile.get_layerinfo(input1_path, input1_layer)
     input2_layer_info = geofile.get_layerinfo(input2_path, input2_layer)
-    extract_primitivetypeid = min(
-            geofile.to_primitivetype(input1_layer_info.geometrytypename).value, 
-            geofile.to_primitivetype(input2_layer_info.geometrytypename).value)
+    primitivetype_to_extract = PrimitiveType(min(
+            input1_layer_info.geometrytype.to_primitivetype.value, 
+            input2_layer_info.geometrytype.to_primitivetype.value))
 
     # For the output file, if output is going to be polygon or linestring, force 
     # MULTI variant to evade ugly warnings
-    force_output_geometrytype = geofile.to_multigeometrytype(PrimitiveType(extract_primitivetypeid).name)
+    force_output_geometrytype = primitivetype_to_extract.to_multitype
 
     # Prepare sql template for this operation 
     sql_template = f'''
@@ -721,7 +721,9 @@ def intersect(
              {{layer1_columns_from_subselect_str}}
              {{layer2_columns_from_subselect_str}} 
           FROM
-            ( SELECT ST_CollectionExtract(ST_Intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}), {extract_primitivetypeid}) as geom
+            ( SELECT ST_CollectionExtract(
+                       ST_Intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}), 
+                       {primitivetype_to_extract.value}) as geom
                     {{layer1_columns_prefix_alias_str}}
                     {{layer2_columns_prefix_alias_str}}
                 FROM "{{input1_tmp_layer}}" layer1
@@ -792,7 +794,8 @@ def join_by_location(
                       {{layer1_columns_prefix_alias_str}}
                       {{layer2_columns_prefix_alias_str}}
                       {area_inters_column_expression}
-                      ,ST_intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) as geom_intersect
+                      ,ST_intersection(layer1.{{input1_geometrycolumn}}, 
+                                       layer2.{{input2_geometrycolumn}}) as geom_intersect
                  FROM "{{input1_tmp_layer}}" layer1
                  JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
                  JOIN "{{input2_tmp_layer}}" layer2
@@ -925,10 +928,10 @@ def split(
     # expected, so the primitive type of input1_layer  
     # TODO: test for geometrycollection, line, point,...
     input1_layer_info = geofile.get_layerinfo(input1_path, input1_layer)
-    extract_primitivetypeid = geofile.to_primitivetype(input1_layer_info.geometrytypename).value
+    primitivetype_to_extract = input1_layer_info.geometrytype.to_primitivetype
     
     # For the output file, force MULTI variant to evade ugly warnings
-    force_output_geometrytype = geofile.to_multigeometrytype(PrimitiveType(extract_primitivetypeid).name)
+    force_output_geometrytype = primitivetype_to_extract.to_multitype
 
     # Prepare sql template for this operation 
     sql_template = f'''
@@ -948,7 +951,10 @@ def split(
                      AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
                    GROUP BY layer1.rowid
                 )
-                SELECT ST_CollectionExtract(ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}), ST_union(layer2.{{input2_geometrycolumn}})), {extract_primitivetypeid}) as geom
+                SELECT ST_CollectionExtract(
+                            ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}), 
+                                            ST_union(layer2.{{input2_geometrycolumn}})), 
+                            {primitivetype_to_extract.value}) as geom
                       {{layer1_columns_prefix_alias_str}}
                       {{layer2_columns_prefix_alias_str}}
                  FROM "{{input1_tmp_layer}}" layer1
@@ -964,7 +970,9 @@ def split(
                 GROUP BY layer1.rowid {{layer1_columns_prefix_str}}
                 UNION ALL
                 SELECT CASE WHEN layer2_unioned.geom IS NULL THEN layer1.{{input1_geometrycolumn}}
-                            ELSE ST_CollectionExtract(ST_difference(layer1.{{input1_geometrycolumn}}, layer2_unioned.geom), {extract_primitivetypeid})
+                            ELSE ST_CollectionExtract(
+                                    ST_difference(layer1.{{input1_geometrycolumn}}, layer2_unioned.geom), 
+                                    {primitivetype_to_extract.value})
                        END as geom
                        {{layer1_columns_prefix_alias_str}}
                        {{layer2_columns_prefix_alias_null_str}}
