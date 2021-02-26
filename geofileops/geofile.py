@@ -18,15 +18,12 @@ import fiona
 import geopandas as gpd
 from osgeo import gdal
 import pandas as pd
-import shapely.geometry as sh_geom
 
-from .util import io_util
-from .util import ogr_util
-from .util import vector_util
-from .util.vector_util import GeometryType, PrimitiveType
-from .util.vector_util import to_geometrytype
-from .util.vector_util import to_multigeometrytype
-from .util.vector_util import to_primitivetype
+from geofileops.util import geometry_util
+from geofileops.util.geometry_util import GeometryType, PrimitiveType
+from geofileops.util import geoseries_util
+from geofileops.util import io_util
+from geofileops.util import ogr_util
 
 #-------------------------------------------------------------
 # First define/init some general variables/constants
@@ -1027,7 +1024,7 @@ def append_to(
     src_p = Path(src)
     dst_p = Path(dst)
     if force_output_geometrytype is not None:
-        force_output_geometrytype = vector_util.to_geometrytype(force_output_geometrytype)
+        force_output_geometrytype = GeometryType(force_output_geometrytype)
     
     # Files don't typically support having multiple processes writing 
     # simultanously to them, so use lock file to synchronize access.
@@ -1155,7 +1152,7 @@ def to_multi_type(geometrytypename: str) -> str:
     Returns:
         str: Corresponding 'MULTI' geometry type
     """
-    return to_multigeometrytype(geometrytypename).name
+    return geometry_util.GeometryType(geometrytypename).to_multitype.name
 
 def to_generaltypeid(geometrytypename: str) -> int:
     """
@@ -1175,4 +1172,4 @@ def to_generaltypeid(geometrytypename: str) -> int:
     Returns:
         int: Corresponding geometry type id
     """
-    return to_primitivetype(geometrytypename).value
+    return geometry_util.GeometryType(geometrytypename).to_primitivetype.value

@@ -27,7 +27,7 @@ gdal.UseExceptions()
 
 from geofileops import geofile
 from geofileops.util import general_util
-from geofileops.util.vector_util import GeometryType
+from geofileops.util.geometry_util import GeometryType
 
 #-------------------------------------------------------------
 # First define/init some general variables/constants

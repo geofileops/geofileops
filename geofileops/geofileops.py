@@ -3,17 +3,15 @@
 Module exposing all supported operations on geomatries in geofiles.
 """
 
-from geofileops.util.vector_util.geometry import GeometryType
 import logging
 import logging.config
 import os
 from pathlib import Path
 from typing import Any, List, Optional, Union
 
-from geofileops import geofile
-from .util import geofileops_ogr
-from .util import geofileops_gpd
-from .util.vector_util import SimplifyAlgorithm
+from geofileops.util import geofileops_gpd
+from geofileops.util import geofileops_ogr
+from geofileops.util.geometry_util import SimplifyAlgorithm, GeometryType
 
 ################################################################################
 # Some init
@@ -371,7 +369,7 @@ def select(
 
     # Convert force_output_geometrytype to GeometryType (if necessary)
     if force_output_geometrytype is not None:
-        force_output_geometrytype = geofile.to_geometrytype(force_output_geometrytype)
+        force_output_geometrytype = GeometryType(force_output_geometrytype)
         
     return geofileops_ogr.select(
             input_path=Path(input_path),

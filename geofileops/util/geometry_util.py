@@ -6,7 +6,7 @@ Module containing utilities regarding low level vector operations.
 import enum
 import logging
 import math
-from typing import Any, List, Optional, Union
+from typing import Any, List, Union
 
 import geopandas as gpd
 import numpy as np
@@ -33,94 +33,82 @@ logger = logging.getLogger(__name__)
 
 class GeometryType(enum.Enum):
     MISSING = -1
-    POINT = 0
-    LINESTRING = 1
-    LINEARRING = 2
+    GEOMETRY = 0
+    POINT = 1
+    LINESTRING = 2
     POLYGON = 3
     MULTIPOINT = 4
     MULTILINESTRING = 5
     MULTIPOLYGON = 6
     GEOMETRYCOLLECTION = 7
 
+    @classmethod
+    def _missing_(cls, value: Union[str, int]):
+        if value is None:
+            return None
+        elif isinstance(value, str):
+            return cls(GeometryType[value.upper()])
+        elif isinstance(value, GeometryType):
+            return cls(value.value)
+        return super()._missing_(value)
+
+    @property
+    def is_multitype(self):
+        return self in (
+                GeometryType.MULTIPOINT, GeometryType.MULTILINESTRING, 
+                GeometryType.MULTIPOLYGON, GeometryType.GEOMETRYCOLLECTION)
+
+    @property
+    def to_multitype(self):
+        if self in [GeometryType.MULTIPOINT, GeometryType.MULTILINESTRING, 
+            GeometryType.MULTIPOLYGON, GeometryType.GEOMETRYCOLLECTION]:
+            return self
+        elif self is GeometryType.POINT:
+            return GeometryType.MULTIPOINT
+        elif self is GeometryType.LINESTRING:
+            return GeometryType.MULTILINESTRING
+        elif self is GeometryType.POLYGON:
+            return GeometryType.MULTIPOLYGON
+        else:
+            raise Exception(f"No multitype implemented for: {self}")
+
+    @property
+    def to_primitivetype(self):
+        # Lookup correct primitive type
+        if self in [GeometryType.POINT, GeometryType.MULTIPOINT]:
+            return PrimitiveType.POINT
+        elif self in [GeometryType.LINESTRING, GeometryType.MULTILINESTRING]:
+            return PrimitiveType.LINESTRING
+        elif self in [GeometryType.POLYGON, GeometryType.MULTIPOLYGON]:
+            return PrimitiveType.POLYGON
+        else:
+            raise Exception(f"No primitive type implemented for {self}")
+    
 class PrimitiveType(enum.Enum):
     POINT = 1
     LINESTRING = 2
     POLYGON = 3
 
-def to_geometrytype(geometrytype: Union[str, GeometryType]) -> GeometryType:
-    """
-    Cast a string to a GeometryType.
+    @classmethod
+    def _missing_(cls, value):
+        if value is None:
+            return None
+        elif isinstance(value, str):
+            return cls(PrimitiveType[value.upper()])
+        elif isinstance(value, PrimitiveType):
+            return cls(value.value)
+        return super()._missing_(value)
 
-    Args:
-        geometrytype (str): string to cast to GeometryType.
-
-    Returns:
-        GeometryType: the corresponding geometry type.
-    """
-    if isinstance(geometrytype, GeometryType):
-        return geometrytype
-    elif isinstance(geometrytype, str):
-        return GeometryType[geometrytype.upper()]
-    else:
-        raise Exception(f"Invalid geometrytype specified: {geometrytype}")
-
-def to_multigeometrytype(geometrytype: Union[str, GeometryType]) -> GeometryType:
-    """
-    Convert GeometryType to corresponding Multi* variant.
-
-    Args:
-        geometrytype (Union[str, GeometryType]): Geometrytype to convert.
-
-    Raises:
-        Exception: if the geometry type does not exist.
-
-    Returns:
-        GeometryType: the Multi* variant of the input GeometryType.
-    """
-    # Convert geometrytype (if it is a string)    
-    geometrytype = to_geometrytype(geometrytype)
-
-    # Convert to corresponding multi type 
-    if geometrytype in [GeometryType.MULTIPOINT, GeometryType.MULTILINESTRING, 
-            GeometryType.MULTIPOLYGON, GeometryType.GEOMETRYCOLLECTION]:
-        return geometrytype
-    elif geometrytype is GeometryType.POINT:
-        return GeometryType.MULTIPOINT
-    elif geometrytype is GeometryType.LINESTRING:
-        return GeometryType.MULTILINESTRING
-    elif geometrytype is GeometryType.POLYGON:
-        return GeometryType.MULTIPOLYGON
-    else:
-        raise Exception(f"Unknown geometrytype: {geometrytype}")
-
-def to_primitivetype(geometrytype: Union[str, GeometryType]) -> PrimitiveType:
-    """
-    Get the primitive type for the geometry type specified.
-
-    Args:
-        geometrytype (Union[str, GeometryTypes]): the geometry type to convert.
-
-    Raises:
-        Exception: if a geometry type is passed that cannot be converted to a 
-        primitive type.
-
-    Returns:
-        PrimitiveTypes: the corresponding primitive type.
-    """
-    # Prepare input parameters
-    geometrytype_local = geometrytype
-    if isinstance(geometrytype, str):
-        geometrytype_local = to_geometrytype(geometrytype)
-
-    # Lookup correct primitive type
-    if geometrytype_local in [GeometryType.POINT, GeometryType.MULTIPOINT]:
-        return PrimitiveType.POINT
-    elif geometrytype_local in [GeometryType.LINESTRING, GeometryType.MULTILINESTRING]:
-        return PrimitiveType.LINESTRING
-    elif geometrytype_local in [GeometryType.POLYGON, GeometryType.MULTIPOLYGON]:
-        return PrimitiveType.POLYGON
-    else:
-        raise Exception(f"No primitive type available for geometrytype {geometrytype_local}")
+    @property
+    def to_multitype(self) -> GeometryType:
+        if self is PrimitiveType.POINT:
+            return GeometryType.MULTIPOINT
+        elif self is PrimitiveType.LINESTRING:
+            return GeometryType.MULTILINESTRING
+        elif self is PrimitiveType.POLYGON:
+            return GeometryType.MULTIPOLYGON
+        else:
+            raise Exception(f"No multitype implemented for: {self}")
 
 def collection_extract_polygon(
         geometry: sh_geom.base.BaseGeometry) -> Union[sh_geom.Polygon, sh_geom.MultiPolygon]:
@@ -231,6 +219,30 @@ def collect(
         return sh_geom.GeometryCollection(geometry_list)
     else:
         raise Exception(f"Unsupported geometry type: {result_collection_type}")
+
+'''
+def force_geometrytype(
+        geometry: sh_geom.base.BaseGeometry,
+        dest_geometrytype: GeometryType) -> sh_geom.base.BaseGeometry:
+    # Cast to destination geometrytype
+    if dest_geometrytype is GeometryType.MULTIPOLYGON:
+        gdf.geometry = [sh_geom.MultiPolygon([feature]) 
+                        if type(feature) == sh_geom.Polygon 
+                        else feature for feature in gdf.geometry]
+    elif dest_geometrytype is GeometryType.MULTIPOINT:
+        gdf.geometry = [sh_geom.MultiPoint([feature]) 
+                        if type(feature) == sh_geom.Point 
+                        else feature for feature in gdf.geometry]
+    elif dest_geometrytype is GeometryType.MULTILINESTRING:
+        gdf.geometry = [sh_geom.MultiLineString([feature]) 
+                        if type(feature) == sh_geom.LineString 
+                        else feature for feature in gdf.geometry]
+    elif dest_geometrytype in [
+            GeometryType.POLYGON, GeometryType.POINT, GeometryType.LINESTRING]:
+        logger.debug(f"geometrytype is {dest_geometrytype}, so no conversion is done")
+    else:
+        raise Exception(f"Unsupported geometrytype: {dest_geometrytype}")
+'''
 
 def make_valid(geometry: sh_geom.base.BaseGeometry) -> sh_geom.base.BaseGeometry:
     """

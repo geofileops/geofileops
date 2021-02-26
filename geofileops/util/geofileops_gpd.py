@@ -18,12 +18,14 @@ import geopandas as gpd
 import shapely.geometry as sh_geom
 
 from geofileops import geofile
+from geofileops.util import general_util
 from geofileops.util import geofileops_ogr
+from geofileops.util import geometry_util
+from geofileops.util.geometry_util import GeometryType, SimplifyAlgorithm 
+from geofileops.util import geoseries_util
+from geofileops.util import grid_util
+from geofileops.util import io_util
 from geofileops.util import ogr_util
-from . import general_util
-from . import io_util
-from . import vector_util
-from .vector_util import GeometryType 
 
 ################################################################################
 # Some init
@@ -108,7 +110,7 @@ def simplify(
         input_path: Path,
         output_path: Path,
         tolerance: float,
-        algorithm: vector_util.SimplifyAlgorithm = vector_util.SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER,
+        algorithm: SimplifyAlgorithm = SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER,
         lookahead: int = 8,
         input_layer: str = None,
         output_layer: str = None,
@@ -290,7 +292,7 @@ def _apply_geooperation_to_layer(
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
                     #calculate_pool.shutdown()
-                    logger.error(f"Error executing {batches[batch_id]}: {ex}")
+                    logger.exception(f"Error executing {batches[batch_id]}")
 
                 # Log the progress and prediction speed
                 nb_done += 1
@@ -345,17 +347,11 @@ def _apply_geooperation(
     elif operation is GeoOperation.CONVEXHULL:
         data_gdf.geometry = data_gdf.geometry.convex_hull
     elif operation is GeoOperation.SIMPLIFY:
-        # If ramer-douglas-peucker, use standard geopandas algorithm
-        if operation_params['algorithm'] is vector_util.SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER:
-            data_gdf.geometry = data_gdf.geometry.simplify(
-                    tolerance=operation_params['tolerance'])
-        else:
-            # For other algorithms, use vector_util.simplify_ext()
-            data_gdf.geometry = data_gdf.geometry.apply(
-                    lambda geom: vector_util.simplify_ext(
-                            geom, algorithm=operation_params['algorithm'], 
-                            tolerance=operation_params['tolerance'], 
-                            lookahead=operation_params['step']))
+        data_gdf.geometry = geoseries_util.simplify_ext(
+                data_gdf.geometry,
+                algorithm=operation_params['algorithm'], 
+                tolerance=operation_params['tolerance'], 
+                lookahead=operation_params['step'])
     else:
         raise Exception(f"Operation not supported: {operation}")     
 
@@ -441,7 +437,7 @@ def dissolve(
     else:
         # Else, create a grid based on the number of tiles wanted as result
         layerinfo = geofile.get_layerinfo(input_path, input_layer)
-        result_tiles_gdf = vector_util.create_grid2(layerinfo.total_bounds, nb_squarish_tiles, layerinfo.crs)
+        result_tiles_gdf = grid_util.create_grid2(layerinfo.total_bounds, nb_squarish_tiles, layerinfo.crs)
         if len(result_tiles_gdf) > 1:
             geofile.to_file(result_tiles_gdf, output_path.parent / f"{output_path.stem}_tiles.gpkg")
 
@@ -485,11 +481,11 @@ def dissolve(
                 last_pass = True
             elif len(result_tiles_gdf) == 1:
                 # Create a grid based on the ideal number of batches
-                tiles_gdf = vector_util.create_grid2(layerinfo.total_bounds, nb_batches_recommended, layerinfo.crs)
+                tiles_gdf = grid_util.create_grid2(layerinfo.total_bounds, nb_batches_recommended, layerinfo.crs)
             else:
                 # If a grid is specified already, add extra columns/rows instead of 
                 # creating new one...
-                tiles_gdf = vector_util.split_tiles(
+                tiles_gdf = grid_util.split_tiles(
                     result_tiles_gdf, nb_batches_recommended)
             geofile.to_file(tiles_gdf, tempdir / f"{output_path.stem}_{pass_id}_tiles.gpkg")
 
@@ -581,7 +577,7 @@ def _dissolve_pass(
     start_time = datetime.datetime.now()
     layerinfo = geofile.get_layerinfo(input_path, input_layer)
     nb_rows_total = layerinfo.featurecount
-    force_output_geometrytype = geofile.to_multigeometrytype(layerinfo.geometrytype)
+    force_output_geometrytype = layerinfo.geometrytype.to_multitype
 
     logger.info(f"Start dissolve pass to {len(tiles_gdf)} tiles (nb_parallel: {nb_parallel})")       
     with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
@@ -733,8 +729,8 @@ def _dissolve(
             raise Exception(message) from ex
 
         # TODO: also support other geometry types (points and lines)
-        union_geom_cleaned = vector_util.collection_extract(
-                union_geom, vector_util.to_primitivetype(force_output_geometrytype))
+        union_geom_cleaned = geometry_util.collection_extract(
+                union_geom, force_output_geometrytype.to_primitivetype)
         diss_gdf = gpd.GeoDataFrame(geometry=[union_geom_cleaned], crs=input_gdf.crs)
         perfinfo['time_unary_union'] = (datetime.datetime.now()-start_unary_union).total_seconds()
 
@@ -755,13 +751,10 @@ def _dissolve(
             diss_gdf = gpd.clip(diss_gdf, bbox_gdf)
 
             # Only keep geometries of the primitive type specified...
-            
             # assert to evade pyLance warning 
-            #assert isinstance(diss_gdf, gpd.GeoDataFrame)
-            
-            diss_gdf.geometry = diss_gdf.geometry.apply(
-                    lambda geom: vector_util.collection_extract(
-                            geom, vector_util.to_primitivetype(force_output_geometrytype)))
+            assert isinstance(diss_gdf, gpd.GeoDataFrame)
+            diss_gdf.geometry = geoseries_util.geometry_collection_extract(
+                    diss_gdf.geometry, force_output_geometrytype.to_primitivetype)
     
             perfinfo['time_clip'] = (datetime.datetime.now()-start_clip).total_seconds()
     else:
@@ -798,8 +791,10 @@ def _dissolve(
                 force_output_geometrytype=force_output_geometrytype, append=True)
     else:
         # If not, save the polygons on the border seperately
-        bbox_lines_gdf = vector_util.polygons_to_lines(
-                gpd.GeoDataFrame(geometry=[sh_geom.box(bbox[0], bbox[1], bbox[2], bbox[3])], crs=input_gdf.crs))
+        bbox_lines_gdf = gpd.GeoDataFrame(
+                geometry=geoseries_util.polygons_to_lines(
+                        gpd.GeoSeries([sh_geom.box(bbox[0], bbox[1], bbox[2], bbox[3])])), 
+                crs=input_gdf.crs)
         onborder_gdf = gpd.sjoin(diss_gdf, bbox_lines_gdf, op='intersects')
         onborder_gdf.drop('index_right', axis=1, inplace=True)
         if len(onborder_gdf) > 0:

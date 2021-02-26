@@ -6,6 +6,8 @@ Helper functions for all tests.
 from pathlib import Path
 import sys
 
+import shapely.geometry as sh_geom
+
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops.util import ogr_util
@@ -30,6 +32,20 @@ class GdalBin():
         if os.environ.get('GDAL_BIN') is not None:
             del os.environ['GDAL_BIN']
 
+class TestData:
+    point = sh_geom.Point((0, 0))
+    multipoint = sh_geom.MultiPoint([(0, 0), (10, 10), (20, 20)])
+    linestring = sh_geom.LineString([(0, 0), (10, 10), (20, 20)])
+    multilinestring = sh_geom.MultiLineString(
+            [linestring.coords, [(100, 100), (110, 110), (120, 120)]])
+    polygon = sh_geom.Polygon(
+            shell=[(0, 0), (0, 10), (1, 10), (10, 10), (10, 0), (0,0)], 
+            holes=[[(2,2), (2,8), (8,8), (8,2), (2,2)]])
+    polygon2 = sh_geom.Polygon(shell=[(100, 100), (100, 110), (110, 110), (110, 100), (100,100)])
+    multipolygon = sh_geom.MultiPolygon([polygon, polygon2])
+    geometrycollection = sh_geom.GeometryCollection([
+            point, multipoint, linestring, multilinestring, polygon, multipolygon])
+    
 def get_testdata_dir() -> Path:
     return Path(__file__).resolve().parent / 'data'
 
