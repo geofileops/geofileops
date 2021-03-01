@@ -275,18 +275,15 @@ def basetest_dissolve_polygons_groupby(
         output_basepath: Path):
     # Init
     layerinfo_input = geofile.get_layerinfo(input_path)
-    filesuffix = 0
 
     ### Test dissolve polygons without explodecollections ###
-    output_path = output_basepath.parent / f"{output_basepath.stem}_{filesuffix}{output_basepath.suffix}"
-    filesuffix +=1
+    output_path = output_basepath.parent / f"{output_basepath.stem}_group{output_basepath.suffix}"
     geofileops_gpd.dissolve(
             input_path=input_path,
             output_path=output_path,
             groupby_columns=['GEWASGROEP'],
             explodecollections=False,
-            nb_parallel=get_nb_parallel(),
-            force=True)
+            nb_parallel=get_nb_parallel())
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
@@ -305,15 +302,13 @@ def basetest_dissolve_polygons_groupby(
     assert output_gdf['geometry'][0] is not None
 
     ### Test dissolve polygons with explodecollections ###
-    output_path = output_basepath.parent / f"{output_basepath.stem}_{filesuffix}{output_basepath.suffix}"
-    filesuffix +=1
+    output_path = output_basepath.parent / f"{output_basepath.stem}_group_explode{output_basepath.suffix}"
     geofileops_gpd.dissolve(
             input_path=input_path,
             output_path=output_path,
             groupby_columns=['GEWASGROEP'],
             explodecollections=True,
-            nb_parallel=get_nb_parallel(),
-            force=True)
+            nb_parallel=get_nb_parallel())
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
@@ -332,16 +327,14 @@ def basetest_dissolve_polygons_groupby(
     assert output_gdf['geometry'][0] is not None
 
     ### Test dissolve polygons with explodecollections + all columns ###
-    output_path = output_basepath.parent / f"{output_basepath.stem}_{filesuffix}{output_basepath.suffix}"
-    filesuffix +=1
+    output_path = output_basepath.parent / f"{output_basepath.stem}_group_explode_allcolumns{output_basepath.suffix}"
     geofileops_gpd.dissolve(
             input_path=input_path,
             output_path=output_path,
             groupby_columns=['GEWASGROEP'],
             columns=None,
             explodecollections=True,
-            nb_parallel=get_nb_parallel(),
-            force=True)
+            nb_parallel=get_nb_parallel())
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
@@ -362,15 +355,13 @@ def basetest_dissolve_polygons_groupby(
     ### Test dissolve polygons with specified output layer ###
     # A different output layer is not supported for shapefile!!!
     try:
-        output_path = output_basepath.parent / f"{output_basepath.stem}_{filesuffix}{output_basepath.suffix}"
-        filesuffix +=1
+        output_path = output_basepath.parent / f"{output_basepath.stem}_group_outputlayer{output_basepath.suffix}"
         geofileops_gpd.dissolve(
                 input_path=input_path,
                 output_path=output_path,
                 groupby_columns=['GEWASGROEP'],
                 output_layer='banana',
-                nb_parallel=get_nb_parallel(),
-                force=True)
+                nb_parallel=get_nb_parallel())
     except Exception as ex:
         # A different output_layer is not supported for shapefile, so normal 
         # that an exception is thrown!
