@@ -6,7 +6,7 @@ Module containing utilities regarding low level vector operations.
 import enum
 import logging
 import math
-from typing import Any, List, Union
+from typing import Any, List, Optional, Union
 
 import geopandas as gpd
 import numpy as np
@@ -81,6 +81,8 @@ class GeometryType(enum.Enum):
             return PrimitiveType.LINESTRING
         elif self in [GeometryType.POLYGON, GeometryType.MULTIPOLYGON]:
             return PrimitiveType.POLYGON
+        elif self is GeometryType.GEOMETRYCOLLECTION:
+            return self
         else:
             raise Exception(f"No primitive type implemented for {self}")
     
@@ -111,7 +113,7 @@ class PrimitiveType(enum.Enum):
             raise Exception(f"No multitype implemented for: {self}")
 
 def collection_extract_polygon(
-        geometry: sh_geom.base.BaseGeometry) -> Union[sh_geom.Polygon, sh_geom.MultiPolygon]:
+        geometry: Optional[sh_geom.base.BaseGeometry]) -> Union[sh_geom.Polygon, sh_geom.MultiPolygon]:
     # Extract the polygons
     extracted = collection_extract(geometry=geometry, primitivetype=PrimitiveType.POLYGON)
 
@@ -120,8 +122,8 @@ def collection_extract_polygon(
     return extracted
 
 def collection_extract(
-        geometry: sh_geom.base.BaseGeometry,
-        primitivetype: PrimitiveType) -> sh_geom.base.BaseGeometry:
+        geometry: Optional[sh_geom.base.BaseGeometry],
+        primitivetype: PrimitiveType) -> Optional[sh_geom.base.BaseGeometry]:
     """
     Extracts the geometries from the input geom that comply with the 
     primitive_type specified and returns them as (Multi)geometry.
@@ -141,7 +143,9 @@ def collection_extract(
             containing the primitive type specified.
     """
     # Extract the polygons from the multipolygon, but store them as multipolygons anyway
-    if isinstance(geometry, sh_geom.Point) or isinstance(geometry, sh_geom.MultiPoint):
+    if geometry is None:
+        return None
+    elif isinstance(geometry, sh_geom.Point) or isinstance(geometry, sh_geom.MultiPoint):
         if primitivetype == PrimitiveType.POINT:
             return geometry
     elif isinstance(geometry, sh_geom.LineString) or isinstance(geometry, sh_geom.MultiLineString):
@@ -157,20 +161,13 @@ def collection_extract(
         if len(returngeoms) > 0:
             return collect(returngeoms)
     else:
-        raise Exception(f"Invalid geometry: {geometry}")
+        raise Exception(f"Invalid/unsupported geometry(type): {geometry}")
 
-    # Nothing found yet, so return empty geometry of the primitive type specified
-    if primitivetype is PrimitiveType.POINT:
-        return sh_geom.Point()
-    elif primitivetype is PrimitiveType.LINESTRING:
-        return sh_geom.LineString()
-    elif primitivetype is PrimitiveType.POLYGON:
-        return sh_geom.Polygon()
-    else:
-        raise Exception(f"Invalid primitive type: {primitivetype}")
+    # Nothing found yet, so return None
+    return None
 
 def collect(
-        geometry_list: List[sh_geom.base.BaseGeometry]) -> sh_geom.base.BaseGeometry:
+        geometry_list: List[sh_geom.base.BaseGeometry]) -> Optional[sh_geom.base.BaseGeometry]:
     """
     Collect a list of geometries to one geometry. 
     
@@ -189,19 +186,20 @@ def collect(
         sh_geom.base.BaseGeometry: the result
     """
     # First remove all None geometries in the input list
-    geometry_list = [geometry for geometry in geometry_list if geometry is not None]
+    geometry_list = [geometry for geometry in geometry_list 
+                     if geometry is not None and geometry.is_empty is False]
 
     # If the list is empty or contains only 1 element, it is easy...
     if geometry_list is None or len(geometry_list) == 0:
-        raise Exception(f"geometry_list should not be None or Empty")
+        return None
     elif len(geometry_list) == 1:
         return geometry_list[0]
     
     # Loop over all elements in the list, and determine the appropriate geometry type to create
-    result_collection_type = GeometryType[geometry_list[0].geom_type.upper()]
+    result_collection_type = GeometryType(geometry_list[0].geom_type).to_multitype
     for geom in geometry_list:
         # If it is the same as the collection_geom_type, continue checking
-        if geom.geom_type.upper() == result_collection_type.name:
+        if GeometryType(geom.geom_type).to_multitype == result_collection_type:
             continue
         else:
             # If multiple types in the list, result becomes a geometrycollection
@@ -209,12 +207,20 @@ def collect(
             break
     
     # Now we can create the collection
-    if result_collection_type == GeometryType.POINT:
-        return sh_geom.MultiPoint(geometry_list)
-    elif result_collection_type == GeometryType.LINESTRING:
-        return sh_geom.MultiLineString(geometry_list)
-    elif result_collection_type == GeometryType.POLYGON:
-        return sh_geom.MultiPolygon(geometry_list)
+    # Explode the multi-geometries to single ones
+    singular_geometry_list = []
+    for geom in geometry_list:
+        if isinstance(geom, sh_geom.base.BaseMultipartGeometry):
+            singular_geometry_list.extend(list(geom))
+        else:
+            singular_geometry_list.append(geom)
+
+    if result_collection_type == GeometryType.MULTIPOINT:
+        return sh_geom.MultiPoint(singular_geometry_list)
+    elif result_collection_type == GeometryType.MULTILINESTRING:
+        return sh_geom.MultiLineString(singular_geometry_list)
+    elif result_collection_type == GeometryType.MULTIPOLYGON:
+        return sh_geom.MultiPolygon(singular_geometry_list)
     elif result_collection_type == GeometryType.GEOMETRYCOLLECTION:
         return sh_geom.GeometryCollection(geometry_list)
     else:
@@ -244,7 +250,7 @@ def force_geometrytype(
         raise Exception(f"Unsupported geometrytype: {dest_geometrytype}")
 '''
 
-def make_valid(geometry: sh_geom.base.BaseGeometry) -> sh_geom.base.BaseGeometry:
+def make_valid(geometry: Optional[sh_geom.base.BaseGeometry]) -> Optional[sh_geom.base.BaseGeometry]:
     """
     Make a geometry valid.
 
@@ -254,9 +260,12 @@ def make_valid(geometry: sh_geom.base.BaseGeometry) -> sh_geom.base.BaseGeometry
     Returns:
         Optional[sh_geom.base.BaseGeometry]: The fixed geometry.
     """
-    return sh_wkb.loads(pygeos.io.to_wkb(pygeos.make_valid(pygeos.io.from_shapely(geometry))))
+    if geometry is None:
+        return None
+    else:
+        return sh_wkb.loads(pygeos.io.to_wkb(pygeos.make_valid(pygeos.io.from_shapely(geometry))))
 
-def numberpoints(geometry: sh_geom.base.BaseGeometry) -> int:
+def numberpoints(geometry: Optional[sh_geom.base.BaseGeometry]) -> int:
     """
     Calculates the total number of points in a geometry.
 
@@ -267,7 +276,9 @@ def numberpoints(geometry: sh_geom.base.BaseGeometry) -> int:
         int: the number of points in the geometry.
     """
     # If it is a multi-part, recursively call numberpoints for all parts. 
-    if isinstance(geometry, sh_geom.base.BaseMultipartGeometry):
+    if geometry is None:
+        return 0
+    elif isinstance(geometry, sh_geom.base.BaseMultipartGeometry):
         nb_points = 0
         for geom in geometry:
             nb_points += numberpoints(geom)
@@ -283,12 +294,12 @@ def numberpoints(geometry: sh_geom.base.BaseGeometry) -> int:
         return len(geometry.coords)
 
 def remove_inner_rings(
-        geometry: Union[sh_geom.Polygon, sh_geom.MultiPolygon],
-        min_area_to_keep: float = None) -> Union[sh_geom.Polygon, sh_geom.MultiPolygon]:
+        geometry: Union[sh_geom.Polygon, sh_geom.MultiPolygon, None],
+        min_area_to_keep: float = None) -> Union[sh_geom.Polygon, sh_geom.MultiPolygon, None]:
     
     # If input geom is None, just return.
     if geometry is None:
-        raise Exception("Input geom parameter cannot be None")
+        return None
     
     # Define function to treat simple polygons
     def remove_inner_rings_polygon(
@@ -336,12 +347,12 @@ class SimplifyAlgorithm(enum.Enum):
     VISVALINGAM_WHYATT = 'vw'
 
 def simplify_ext(
-        geometry: sh_geom.base.BaseGeometry,
+        geometry: Optional[sh_geom.base.BaseGeometry],
         tolerance: float,
         algorithm: SimplifyAlgorithm = SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER,
         lookahead: int = 8,
         preserve_topology: bool = True,
-        keep_points_on: sh_geom.base.BaseGeometry = None) -> sh_geom.base.BaseGeometry:
+        keep_points_on: sh_geom.base.BaseGeometry = None) -> Optional[sh_geom.base.BaseGeometry]:
     """
     Simplify the geometry, with extended options.
 
@@ -368,7 +379,9 @@ def simplify_ext(
     Returns:
         sh_geom.base.BaseGeometry: The simplified version of the geometry.
     """
-    # Init
+    # Init:
+    if geometry is None:
+        return None
     if algorithm in [SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER,
                      SimplifyAlgorithm.VISVALINGAM_WHYATT]:
         try:

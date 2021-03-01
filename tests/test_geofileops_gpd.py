@@ -6,15 +6,15 @@ Tests for operations using GeoPandas.
 from pathlib import Path
 import sys
 
+import geopandas as gpd
+
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
 from geofileops.geofile import GeometryType
 from geofileops.util import geofileops_gpd
 from geofileops.util.geometry_util import SimplifyAlgorithm
-
-def get_testdata_dir() -> Path:
-    return Path(__file__).resolve().parent / 'data'
+from tests.test_helper import TestData, get_testdata_dir
 
 def get_nb_parallel() -> int:
     # The number of parallel processes to use for these tests.
@@ -474,6 +474,43 @@ def basetest_dissolve_polygons_nogroupby(
         assert len(output_gdf) == layerinfo_output.featurecount
         assert output_gdf['geometry'][0] is not None
 
+def test_dissolve_multisinglepolygons_gpkg(tmpdir):
+    # Test to check if it is handled well that a file that results in single 
+    # and multipolygons during dissolve is treated correctly, as geopackage 
+    # doesn't support single and multi-polygons in one layer.
+    
+    # Init
+    tmpdir = Path(tmpdir)
+    
+    # Create test data
+    input_gdf = gpd.GeoDataFrame(geometry=[TestData.polygon, TestData.multipolygon])
+    input_path = tmpdir / 'test_polygon_input.gpkg'
+    geofile.to_file(input_gdf, input_path)
+    output_path = tmpdir / f"{input_path.stem}_diss.gpkg"
+    geofileops_gpd.dissolve(
+            input_path=input_path,
+            output_path=output_path,
+            explodecollections=True,
+            nb_squarish_tiles=2,
+            nb_parallel=get_nb_parallel(),
+            force=True)
+
+    # Now check if the result file is correctly created
+    assert output_path.exists() == True
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_output.featurecount == 3
+    assert len(layerinfo_output.columns) == 0
+
+    # Check geometry type
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
+
+    # Now check the contents of the result file
+    input_gdf = geofile.read_file(input_path)
+    output_gdf = geofile.read_file(output_path)
+    assert input_gdf.crs == output_gdf.crs
+    assert len(output_gdf) == layerinfo_output.featurecount
+    assert output_gdf['geometry'][0] is not None
+
 def test_simplify_gpkg(tmpdir):
     # Simplify polygon source to test dir
     input_path = get_testdata_dir() / 'polygons_parcels.gpkg'
@@ -590,7 +627,8 @@ if __name__ == '__main__':
     #test_buffer_various_options_gpkg(tmpdir)
     #test_dissolve_linestrings_nogroupby_gpkg(tmpdir)
     #test_dissolve_polygons_groupby_gpkg(tmpdir)
-    test_dissolve_polygons_groupby_shp(tmpdir)
+    #test_dissolve_polygons_groupby_shp(tmpdir)
     #test_dissolve_polygons_nogroupby_gpkg(tmpdir)
     #test_dissolve_polygons_nogroupby_shp(tmpdir)
+    test_dissolve_multisinglepolygons_gpkg(tmpdir)
     #test_simplify_gpkg(tmpdir)

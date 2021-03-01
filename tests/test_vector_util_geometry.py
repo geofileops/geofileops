@@ -413,12 +413,11 @@ def test_simplify_ext_no_simplification():
             del sys.modules['simplification']
 
 if __name__ == '__main__':
-    import os
     import tempfile
     tmpdir = Path(tempfile.gettempdir()) / "test_vector_util_geometry"
     if tmpdir.exists():
         shutil.rmtree(tmpdir)
-    os.makedirs(tmpdir, exist_ok=True)
+    tmpdir.mkdir(parents=True, exist_ok=True)
 
     #test_makevalid()
     #test_numberpoints()

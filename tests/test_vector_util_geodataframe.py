@@ -4,66 +4,140 @@ Tests for functionalities in geoseries_util.
 """
 
 from pathlib import Path
+import shutil
 import sys
 
 import geopandas as gpd
+import shapely.geometry as sh_geom
 
-from .test_helper import TestData 
-from .test_helper import get_testdata_dir 
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
-from geofileops.util import geometry_util
 from geofileops.util import geoseries_util
+from geofileops.util.geometry_util import GeometryType, PrimitiveType
+from tests.test_helper import TestData 
+from tests.test_helper import get_testdata_dir 
+
+def test_geometry_collection_extract():
+    # Test for gdf with all types of geometrytypes, extract!
+    test_gdf = gpd.GeoDataFrame(geometry=[
+            TestData.point, TestData.multipoint, TestData.polygon, 
+            TestData.polygon2, TestData.multipolygon, TestData.geometrycollection])
+    test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
+    assert len(test_geometrytypes) == 5
+    test_result_gdf = test_gdf.copy()
+    test_result_gdf.geometry = geoseries_util.geometry_collection_extract(
+            test_result_gdf.geometry, PrimitiveType.POLYGON)
+    test_result_geometrytypes = geoseries_util.get_geometrytypes(test_result_gdf.geometry)
+    assert len(test_result_geometrytypes) == 2
+    for index, geom in test_result_gdf.iteritems():
+        assert geom is not None
 
 def test_get_geometrytypes():
+    # None and empty geometries are by default ignored in get_geometrytypes
     test_gdf = gpd.GeoDataFrame(geometry=[
+            None, sh_geom.Point(), sh_geom.LineString(), sh_geom.Polygon(), 
             TestData.point, TestData.multipoint, TestData.polygon, TestData.polygon2, TestData.multipolygon, TestData.geometrycollection])
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 5
+    
+    # None and empty geometries are by default ignored in get_geometrytypes
+    test_gdf = gpd.GeoDataFrame(geometry=[
+            None, sh_geom.Point(), sh_geom.LineString(), sh_geom.Polygon(), 
+            TestData.point])
+    test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
+    assert len(test_geometrytypes) == 1
+    assert GeometryType.POINT in test_geometrytypes
+
+    # Empty geometries are counted with ignore_empty_geometries=False, but 
+    # are always treated as GeometryCollection in GeoPandas.
+    test_gdf = gpd.GeoDataFrame(geometry=[
+            None, sh_geom.Point(), sh_geom.LineString(), sh_geom.Polygon(), 
+            TestData.point])
+    test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry, ignore_empty_geometries=False)
+    assert len(test_geometrytypes) == 2
+    assert GeometryType.POINT in test_geometrytypes
+    assert GeometryType.GEOMETRYCOLLECTION in test_geometrytypes
 
 def test_harmonize_geometrytypes():
-    # Test for gdf with point + multipoint -> all multipoint
+    # Test for gdf with None + point + multipoint -> all multipoint
     test_gdf = gpd.GeoDataFrame(geometry=[
-            TestData.point, TestData.multipoint])
+            None, sh_geom.Point(), TestData.point, TestData.multipoint, TestData.point, TestData.multipoint])
     test_gdf_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_gdf_geometrytypes) == 2
-    test_harmonized_gdf = geoseries_util.harmonize_geometrytypes(test_gdf.geometry)
-    test_harmonized_geometrytypes = geoseries_util.get_geometrytypes(test_harmonized_gdf)
-    assert len(test_harmonized_geometrytypes) == 1
-    assert test_harmonized_geometrytypes[0] == geofile.GeometryType.MULTIPOINT
+    test_result_gdf = test_gdf.copy()
+    test_result_gdf.geometry = geoseries_util.harmonize_geometrytypes(test_result_gdf.geometry)
+    test_result_geometrytypes = geoseries_util.get_geometrytypes(test_result_gdf.geometry)
+    assert len(test_result_geometrytypes) == 1
+    assert test_result_geometrytypes[0] == geofile.GeometryType.MULTIPOINT
+    for index, geom in test_result_gdf.geometry.iteritems():
+        if index in [0, 1]:
+            assert geom is None
+        else:
+            assert geom is not None
 
     # Test for gdf with linestring + multilinestring -> all multilinestring
     test_gdf = gpd.GeoDataFrame(geometry=[
+            None, sh_geom.LineString(),
+            TestData.linestring, TestData.multilinestring, 
             TestData.linestring, TestData.multilinestring])
     test_gdf_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_gdf_geometrytypes) == 2
-    test_harmonized_gdf = geoseries_util.harmonize_geometrytypes(test_gdf.geometry)
-    test_harmonized_geometrytypes = geoseries_util.get_geometrytypes(test_harmonized_gdf)
-    assert len(test_harmonized_geometrytypes) == 1
-    assert test_harmonized_geometrytypes[0] == geofile.GeometryType.MULTILINESTRING
+    test_result_gdf = test_gdf.copy()
+    test_result_gdf.geometry = geoseries_util.harmonize_geometrytypes(test_result_gdf.geometry)
+    test_result_geometrytypes = geoseries_util.get_geometrytypes(test_result_gdf.geometry)
+    assert len(test_result_geometrytypes) == 1
+    assert test_result_geometrytypes[0] == geofile.GeometryType.MULTILINESTRING
+    for index, geom in test_result_gdf.geometry.iteritems():
+        if index in [0, 1]:
+            assert geom is None
+        else:
+            assert geom is not None
 
     # Test for gdf with linestring + multilinestring -> all multilinestring
     test_gdf = gpd.GeoDataFrame(geometry=[
-            TestData.polygon, TestData.multipolygon])
+            None, sh_geom.Polygon(),
+            TestData.polygon, TestData.multipolygon, 
+            TestData.polygon, TestData.multipolygon]) 
+    # Filter the gdf a bit to test that the indexes are retained properly in 
+    # harmonize_geometrytypes
     test_gdf_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_gdf_geometrytypes) == 2
-    test_harmonized_gdf = geoseries_util.harmonize_geometrytypes(test_gdf.geometry)
-    test_harmonized_geometrytypes = geoseries_util.get_geometrytypes(test_harmonized_gdf)
-    assert len(test_harmonized_geometrytypes) == 1
-    assert test_harmonized_geometrytypes[0] == geofile.GeometryType.MULTIPOLYGON
+    test_gdf = test_gdf.iloc[[0, 3]]
+    test_result_gdf = test_gdf.copy()
+    test_result_gdf.geometry = geoseries_util.harmonize_geometrytypes(test_result_gdf.geometry)
+    test_result_geometrytypes = geoseries_util.get_geometrytypes(test_result_gdf.geometry)
+    assert len(test_result_geometrytypes) == 1
+    assert test_result_geometrytypes[0] == geofile.GeometryType.MULTIPOLYGON
+    for index, geom in test_result_gdf.geometry.iteritems():
+        if index in [0, 1]:
+            assert geom is None
+        else:
+            assert geom is not None
 
     # Test for gdf with all types of geometrytypes -> no harmonization possible
     test_gdf = gpd.GeoDataFrame(geometry=[
-            TestData.point, TestData.multipoint, TestData.polygon, TestData.polygon2, TestData.multipolygon, TestData.geometrycollection])
+            None, sh_geom.Polygon(), TestData.point, TestData.multipoint, TestData.polygon, 
+            TestData.polygon2, TestData.multipolygon, TestData.geometrycollection])
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 5
-    test_harmonized_gdf = geoseries_util.harmonize_geometrytypes(test_gdf.geometry)
-    test_harmonized_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
-    assert len(test_harmonized_geometrytypes) == 5
-    
+    test_result_gdf = test_gdf.copy()
+    test_result_gdf.geometry = geoseries_util.harmonize_geometrytypes(test_result_gdf.geometry)
+    test_result_geometrytypes = geoseries_util.get_geometrytypes(test_result_gdf.geometry)
+    assert len(test_result_geometrytypes) == 5
+    for index, geom in test_result_gdf.geometry.iteritems():
+        if index in [0]:
+            # Only None is None, empty geometry is not changed!
+            assert geom is None
+        else:
+            assert geom is not None
+
 if __name__ == '__main__':
-    import os
     import tempfile
     tmpdir = Path(tempfile.gettempdir()) / "test_vector_util_geodataframe"
+    if tmpdir.exists():
+        shutil.rmtree(tmpdir)
     tmpdir.mkdir(parents=True, exist_ok=True)
+
+    #test_geometry_collection_extract()
+    test_harmonize_geometrytypes()

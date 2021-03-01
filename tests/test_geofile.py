@@ -11,11 +11,14 @@ from tempfile import tempdir
 
 import geopandas as gpd
 import pandas as pd
+import shapely.geometry as sh_geom
 
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
-from geofileops.geofile import GeometryType
+from geofileops.util import geoseries_util
+from geofileops.util.geometry_util import GeometryType
+from tests.test_helper import TestData
 
 def _get_testdata_dir() -> Path:
     return Path(__file__).resolve().parent / 'data'
@@ -360,6 +363,175 @@ def basetest_to_file(srcpath, tmppath):
     tmp_gdf = geofile.read_file(tmppath)
     assert 2*len(read_gdf) == len(tmp_gdf)
 
+def test_to_file_empty_gpkg(tmpdir):
+    # Read test file and write to tmpdir
+    srcpath = _get_testdata_dir() / 'polygons_parcels.gpkg'
+    output_suffix = '.gpkg'
+    basetest_to_file_empty(srcpath, Path(tmpdir), output_suffix)
+
+def test_to_file_empty_shp(tmpdir):
+    # Read test file and write to tmpdir
+    srcpath = _get_testdata_dir() / 'polygons_parcels.shp'
+    output_suffix = '.shp'
+    basetest_to_file_empty(srcpath, Path(tmpdir), output_suffix)
+
+def basetest_to_file_empty(
+        srcpath: Path, 
+        output_dir: Path,
+        output_suffix: str):
+    ### Test for gdf with a None geometry + a polygon ###
+    test_gdf = gpd.GeoDataFrame(geometry=[
+            None, TestData.polygon])
+    test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
+    assert len(test_geometrytypes) == 1
+    output_none_path = output_dir / f"{srcpath.stem}_none{output_suffix}"
+    geofile.to_file(test_gdf, output_none_path)
+    
+    # Now check the result if the data is still the same after being read again
+    test_read_gdf = geofile.read_file(output_none_path)
+    # Result is the same as the original input
+    assert test_read_gdf.geometry[0] is None
+    assert isinstance(test_read_gdf.geometry[1], sh_geom.Polygon)  
+    # The geometrytype of the column in the file is also the same as originaly
+    test_file_geometrytype = geofile.get_layerinfo(output_none_path).geometrytype
+    if output_suffix == '.shp':
+        assert test_file_geometrytype == GeometryType.MULTIPOLYGON
+    else:
+        assert test_file_geometrytype == test_geometrytypes[0]
+    # The result type in the geodataframe is also the same as originaly
+    test_read_geometrytypes = geoseries_util.get_geometrytypes(test_read_gdf.geometry)
+    assert len(test_gdf) == len(test_read_gdf)
+    assert test_read_geometrytypes == test_geometrytypes
+
+def test_to_file_none_gpkg(tmpdir):
+    # Read test file and write to tmpdir
+    srcpath = _get_testdata_dir() / 'polygons_parcels.gpkg'
+    output_suffix = '.gpkg'
+    basetest_to_file_none(srcpath, Path(tmpdir), output_suffix)
+
+def test_to_file_none_shp(tmpdir):
+    # Read test file and write to tmpdir
+    srcpath = _get_testdata_dir() / 'polygons_parcels.shp'
+    output_suffix = '.shp'
+    basetest_to_file_none(srcpath, Path(tmpdir), output_suffix)
+
+def basetest_to_file_none(
+        srcpath: Path, 
+        output_dir: Path,
+        output_suffix: str):
+    ### Test for gdf with a None geometry + a polygon ###
+    test_gdf = gpd.GeoDataFrame(geometry=[
+            None, TestData.polygon])
+    test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
+    assert len(test_geometrytypes) == 1
+    output_none_path = output_dir / f"{srcpath.stem}_none{output_suffix}"
+    geofile.to_file(test_gdf, output_none_path)
+    
+    # Now check the result if the data is still the same after being read again
+    test_read_gdf = geofile.read_file(output_none_path)
+    # Result is the same as the original input
+    assert test_read_gdf.geometry[0] is None
+    assert isinstance(test_read_gdf.geometry[1], sh_geom.Polygon)  
+    # The geometrytype of the column in the file is also the same as originaly
+    test_file_geometrytype = geofile.get_layerinfo(output_none_path).geometrytype
+    if output_suffix == '.shp':
+        assert test_file_geometrytype == GeometryType.MULTIPOLYGON
+    else:
+        assert test_file_geometrytype == test_geometrytypes[0]
+    # The result type in the geodataframe is also the same as originaly
+    test_read_geometrytypes = geoseries_util.get_geometrytypes(test_read_gdf.geometry)
+    assert len(test_gdf) == len(test_read_gdf)
+    assert test_read_geometrytypes == test_geometrytypes
+
+def test_to_file_gpd_empty_gpkg(tmpdir):
+    # Read test file and write to tmpdir
+    srcpath = _get_testdata_dir() / 'polygons_parcels.gpkg'
+    output_suffix = '.gpkg'
+    basetest_to_file_gpd_empty(srcpath, Path(tmpdir), output_suffix)
+
+def test_to_file_gpd_empty_shp(tmpdir):
+    # Read test file and write to tmpdir
+    srcpath = _get_testdata_dir() / 'polygons_parcels.shp'
+    output_suffix = '.shp'
+    basetest_to_file_gpd_empty(srcpath, Path(tmpdir), output_suffix)
+
+def basetest_to_file_gpd_empty(
+        srcpath: Path, 
+        output_dir: Path,
+        output_suffix: str):
+    ### Test for gdf with an empty polygon + a polygon ###
+    test_gdf = gpd.GeoDataFrame(geometry=[
+            sh_geom.Polygon(), TestData.polygon])
+    # By default, get_geometrytypes ignores the type of empty geometries, as 
+    # they are always stored as GeometryCollection in GeoPandas
+    test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
+    assert len(test_geometrytypes) == 1
+    test_geometrytypes_includingempty = geoseries_util.get_geometrytypes(
+            test_gdf.geometry, ignore_empty_geometries=False)
+    assert len(test_geometrytypes_includingempty) == 2
+    output_empty_path = output_dir / f"{srcpath.stem}_empty{output_suffix}"
+    test_gdf.to_file(output_empty_path, driver=geofile.get_driver_for_ext(output_suffix))
+    
+    # Now check the result if the data is still the same after being read again
+    test_read_gdf = geofile.read_file(output_empty_path)
+    test_read_geometrytypes = geoseries_util.get_geometrytypes(test_read_gdf.geometry)
+    assert len(test_gdf) == len(test_read_gdf)
+    if output_suffix == '.shp':
+        # When dataframe with "empty" gemetries is written to shapefile and 
+        # read again, shapefile becomes of type MULTILINESTRING!?!
+        assert len(test_read_geometrytypes) == 1
+        assert test_read_geometrytypes[0] is GeometryType.MULTILINESTRING
+    else:
+        # When written to Geopackage... the empty geometries are actually saved 
+        # as None, so when read again they are None as well.
+        assert test_read_gdf.geometry[0] is None
+        assert isinstance(test_read_gdf.geometry[1], sh_geom.Polygon)  
+
+        # So the geometrytype of the resulting GeoDataFrame is also POLYGON
+        assert len(test_read_geometrytypes) == 1
+        assert test_read_geometrytypes[0] is GeometryType.POLYGON
+
+def test_to_file_gpd_none_gpkg(tmpdir):
+    # Read test file and write to tmpdir
+    srcpath = _get_testdata_dir() / 'polygons_parcels.gpkg'
+    output_suffix = '.gpkg'
+    basetest_to_file_gpd_none(srcpath, Path(tmpdir), output_suffix)
+
+def test_to_file_gpd_none_shp(tmpdir):
+    # Read test file and write to tmpdir
+    srcpath = _get_testdata_dir() / 'polygons_parcels.shp'
+    output_suffix = '.shp'
+    basetest_to_file_gpd_none(srcpath, Path(tmpdir), output_suffix)
+
+def basetest_to_file_gpd_none(
+        srcpath: Path, 
+        output_dir: Path,
+        output_suffix: str):
+    ### Test for gdf with a None geometry + a polygon ###
+    test_gdf = gpd.GeoDataFrame(geometry=[
+            None, TestData.polygon])
+    test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
+    assert len(test_geometrytypes) == 1
+    output_none_path = output_dir / f"{srcpath.stem}_none{output_suffix}"
+    test_gdf.to_file(output_none_path, driver=geofile.get_driver_for_ext(output_suffix))
+    
+    # Now check the result if the data is still the same after being read again
+    test_read_gdf = geofile.read_file(output_none_path)
+    # Result is the same as the original input
+    assert test_read_gdf.geometry[0] is None
+    assert isinstance(test_read_gdf.geometry[1], sh_geom.Polygon)  
+    # The geometrytype of the column in the file is also the same as originaly
+    test_file_geometrytype = geofile.get_layerinfo(output_none_path).geometrytype
+    if output_suffix == '.shp':
+        # Geometrytype of shapefile always returns the multitype  
+        assert test_file_geometrytype == test_geometrytypes[0].to_multitype
+    else:
+        assert test_file_geometrytype == test_geometrytypes[0]
+    # The result type in the geodataframe is also the same as originaly
+    test_read_geometrytypes = geoseries_util.get_geometrytypes(test_read_gdf.geometry)
+    assert len(test_gdf) == len(test_read_gdf)
+    assert test_read_geometrytypes == test_geometrytypes
+
 def test_remove(tmpdir):
     # Copy test file to tmpdir
     src = _get_testdata_dir() / 'polygons_parcels.shp'
@@ -381,12 +553,15 @@ if __name__ == '__main__':
 
     # Run!
     #test_convert(tmpdir)
-    test_convert_force_output_geometrytype(tmpdir)
+    #test_convert_force_output_geometrytype(tmpdir)
     #test_get_layerinfo()
     #test_rename_layer(tmpdir)
     #test_listlayers()
     #test_add_column(tmpdir)
     #test_read_file()
-    #test_to_file_shp(tmpdir)
     #test_to_file_gpkg(tmpdir)
-    
+    #test_to_file_shp(tmpdir)
+    test_to_file_empty_gpkg(tmpdir)
+    test_to_file_empty_shp(tmpdir)
+    test_to_file_none_gpkg(tmpdir)
+    test_to_file_none_shp(tmpdir)

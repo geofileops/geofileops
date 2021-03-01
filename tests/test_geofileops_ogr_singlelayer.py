@@ -246,6 +246,20 @@ def basetest_makevalid(
         isvalid = geofileops_ogr.isvalid(input_path=output_path, output_path=output_new_isvalid_path)
         assert isvalid == True, "Output file shouldn't contain invalid features"
 
+def test_select_gpkg(tmpdir):
+    # Select some data from src to tmp file
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
+
+    basetest_select(input_path, output_path)
+
+def test_select_gpkg_to_shp(tmpdir):
+    # Select some data from src to tmp file
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
+    output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
+
+    basetest_select(input_path, output_path)
+
 def test_select_shp(tmpdir):
     # Select some data from src to tmp file
     input_path = test_helper.get_testdata_dir() / 'polygons_parcels.shp'
@@ -253,19 +267,19 @@ def test_select_shp(tmpdir):
 
     basetest_select(input_path, output_path)
 
-def test_select_gpkg(tmpdir):
+def test_select_shp_to_gpkg(tmpdir):
     # Select some data from src to tmp file
-    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.shp'
     output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
 
     basetest_select(input_path, output_path)
-    
+
 def basetest_select(
         input_path: Path, 
         output_path: Path):
 
-    layerinfo_orig = geofile.get_layerinfo(input_path)
-    sql_stmt = f'SELECT {layerinfo_orig.geometrycolumn}, oidn, uidn FROM {{input_layer}}'
+    layerinfo_input = geofile.get_layerinfo(input_path)
+    sql_stmt = 'SELECT {geometrycolumn}, oidn, uidn FROM {input_layer}'
     geofileops_ogr.select(
             input_path=input_path,
             output_path=output_path,
@@ -273,7 +287,7 @@ def basetest_select(
 
     # Now check if the tmp file is correctly created
     layerinfo_output = geofile.get_layerinfo(output_path)
-    assert layerinfo_orig.featurecount == layerinfo_output.featurecount
+    assert layerinfo_input.featurecount == layerinfo_output.featurecount
     assert 'OIDN' in layerinfo_output.columns
     assert 'UIDN' in layerinfo_output.columns
     assert len(layerinfo_output.columns) == 2
@@ -305,10 +319,10 @@ def basetest_select_various_options(
 
     ### Check if columns parameter works (case insensitive) ###
     columns = ['OIDN', 'uidn', 'HFDTLT', 'lblhfdtlt', 'GEWASGROEP', 'lengte', 'OPPERVL']
-    layerinfo_orig = geofile.get_layerinfo(input_path)
-    sql_stmt = f'''SELECT {layerinfo_orig.geometrycolumn}
-                         {{columns_to_select_str}} 
-                     FROM {{input_layer}} '''
+    layerinfo_input = geofile.get_layerinfo(input_path)
+    sql_stmt = '''SELECT {geometrycolumn}
+                        {columns_to_select_str} 
+                    FROM {input_layer} '''
     geofileops_ogr.select(
             input_path=input_path,
             output_path=output_path,
@@ -317,7 +331,7 @@ def basetest_select_various_options(
 
     # Now check if the tmp file is correctly created
     layerinfo_select = geofile.get_layerinfo(output_path)
-    assert layerinfo_orig.featurecount == layerinfo_select.featurecount
+    assert layerinfo_input.featurecount == layerinfo_select.featurecount
     assert 'OIDN' in layerinfo_select.columns
     assert 'UIDN' in layerinfo_select.columns
     assert len(layerinfo_select.columns) == len(columns)

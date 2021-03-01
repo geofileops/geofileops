@@ -176,7 +176,9 @@ def get_layerinfo(
             or geometrytypename.startswith('LINESTRING')
             or geometrytypename.startswith('POINT')):
                 geometrytypename = f"MULTI{geometrytypename}"
-        
+        if geometrytypename == 'UNKNOWN(ANY)':
+            geometrytypename = 'GEOMETRY'
+
         # Geometrytype
         geometrytype = GeometryType[geometrytypename]
         
@@ -691,7 +693,7 @@ def to_file(
         gdf: gpd.GeoDataFrame,
         path: Union[str, 'os.PathLike[Any]'],
         layer: str = None,
-        force_output_geometrytype: Union[GeometryType, str] = None, 
+        force_multitype: bool = False,
         append: bool = False,
         append_timeout_s: int = 600,
         index: bool = True):
@@ -703,8 +705,9 @@ def to_file(
         path (Union[str,): The file path to write to.
         layer (str, optional): The layer to read. If no layer is specified, 
             reads the only layer in the file or throws an Exception.
-        force_output_geometrytype (GeometryType, optional): force the geometry type to
-            the type specified. Defaults to None.
+        force_multitype (bool, optional): force the geometry type to a multitype
+            for file types that require one geometrytype per layer.
+            Defaults to False.
         append (bool, optional): True to append to the file. Defaults to False.
         append_timeout_s (int, optional): The maximum timeout to wait when the 
             output file is already being written to by another process. 
@@ -721,8 +724,6 @@ def to_file(
 
     # Check input parameters
     path_p = Path(path)
-    if force_output_geometrytype is not None:
-        force_output_geometrytype = to_geometrytype(force_output_geometrytype)
 
     # If no layer name specified, use the filename (without extension)
     if layer is None:
@@ -737,7 +738,7 @@ def to_file(
             path: Path, 
             layer: str, 
             index: bool = True,
-            force_output_geometrytype: GeometryType = None,
+            force_multitype: bool = False,
             append: bool = False):
 
         # Change mode if append is true
@@ -749,40 +750,27 @@ def to_file(
         else:
             mode = 'w'
 
-        # Apply force_output_geometrytype
-        if force_output_geometrytype is not None:
-            if force_output_geometrytype is GeometryType.MULTIPOLYGON:
-                gdf.geometry = [sh_geom.MultiPolygon([feature]) 
-                                if type(feature) == sh_geom.Polygon 
-                                else feature for feature in gdf.geometry]
-            elif force_output_geometrytype is GeometryType.MULTIPOINT:
-                gdf.geometry = [sh_geom.MultiPoint([feature]) 
-                                if type(feature) == sh_geom.Point 
-                                else feature for feature in gdf.geometry]
-            elif force_output_geometrytype is GeometryType.MULTILINESTRING:
-                gdf.geometry = [sh_geom.MultiLineString([feature]) 
-                                if type(feature) == sh_geom.LineString 
-                                else feature for feature in gdf.geometry]
-            elif force_output_geometrytype in [
-                    GeometryType.POLYGON, GeometryType.POINT, GeometryType.LINESTRING]:
-                logger.debug(f"force_output_geometrytype is {force_output_geometrytype}, so no conversion is done")
-            else:
-                raise Exception(f"Unsupported force_output_geometrytype: {force_output_geometrytype}")
-
         ext_lower = path.suffix.lower()
         if ext_lower == '.shp':
             if index is True:
-                gdf.reset_index(inplace=True, drop=True)
-            gdf.to_file(str(path), mode=mode)
+                gdf_to_write = gdf.reset_index(drop=True)
+            else:
+                gdf_to_write = gdf
+            gdf_to_write.to_file(str(path), mode=mode)
         elif ext_lower == '.gpkg':
-            gdf.to_file(str(path), layer=layer, driver="GPKG", mode=mode)
+            # Try to harmonize the geometrytype to one (multi)type, as GPKG
+            # doesn't like > 1 type in a layer
+            gdf_to_write = gdf.copy()
+            gdf_to_write.geometry = geoseries_util.harmonize_geometrytypes(
+                    gdf.geometry, force_multitype=force_multitype)
+            gdf_to_write.to_file(str(path), layer=layer, driver="GPKG", mode=mode)
         else:
             raise Exception(f"Not implemented for extension {ext_lower}")
 
     # If no append, just write to output path
     if append is False:
         write_to_file(gdf=gdf, path=path_p, layer=layer, index=index, 
-                force_output_geometrytype=force_output_geometrytype, append=False)
+                force_multitype=force_multitype, append=append)
     else:
         # If append is asked, check if the fiona driver supports appending. If
         # not, write to temporary output file 
@@ -802,7 +790,7 @@ def to_file(
                     suffix=path_p.suffix,
                     dirname='geofile_to_file')
             write_to_file(gdf, path=gdftemp_path, layer=layer, index=index, 
-                    force_output_geometrytype=force_output_geometrytype)  
+                    force_multitype=force_multitype)  
         
         # Files don't typically support having multiple processes writing 
         # simultanously to them, so use lock file to synchronize access.
@@ -814,7 +802,7 @@ def to_file(
                     # If gdf wasn't written to temp file, use standard write-to-file
                     if gdftemp_path is None:
                         write_to_file(gdf=gdf, path=path_p, layer=layer, index=index, 
-                                force_output_geometrytype=force_output_geometrytype, append=True)
+                                force_multitype=force_multitype, append=True)
                     else:
                         # If gdf was written to temp file, use append_to_nolock + cleanup
                         _append_to_nolock(src=gdftemp_path, dst=path_p, dst_layer=layer)

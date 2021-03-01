@@ -59,10 +59,6 @@ def buffer(
             'distance': distance,
             'quadrantsegments': quadrantsegments
         }
-    
-    # Buffer operation always results in polygons...
-    # TODO: test is some buffers don't result in geometrycollection, line, point,...
-    force_output_geometrytype = GeometryType.MULTIPOLYGON
 
     # Go!
     return _apply_geooperation_to_layer(
@@ -74,7 +70,6 @@ def buffer(
             output_layer=output_layer,
             columns=columns,
             explodecollections=explodecollections,
-            force_output_geometrytype=force_output_geometrytype,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
@@ -149,7 +144,6 @@ def _apply_geooperation_to_layer(
         columns: List[str] = None,
         output_layer: str = None,
         explodecollections: bool = False,
-        force_output_geometrytype: GeometryType = None,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -178,8 +172,6 @@ def _apply_geooperation_to_layer(
             specified. Defaults to None.
         explodecollections (bool, optional): True to convert all multi-geometries to 
             singular ones during the geooperation. Defaults to False.
-        force_output_geometrytype (GeometryType, optional): Geometrytype to 
-            force output to. Defaults to None.
         nb_parallel (int, optional): [description]. Defaults to -1.
         verbose (bool, optional): [description]. Defaults to False.
         force (bool, optional): [description]. Defaults to False.
@@ -248,7 +240,7 @@ def _apply_geooperation_to_layer(
                 else:
                     rows = slice(row_offset, nb_rows_total)
 
-                # Remark: this temp file doesn't need spatial index
+                #8 Remark: this temp file doesn't need spatial index
                 future = calculate_pool.submit(
                         _apply_geooperation,
                         input_path=input_path,
@@ -265,7 +257,11 @@ def _apply_geooperation_to_layer(
                 future_to_batch_id[future] = batch_id
                 row_offset += row_limit
             
-            # Loop till all parallel processes are ready, but process each one that is ready already
+            # Loop till all parallel processes are ready, but process each one 
+            # that is ready already
+            # REMARK: writing to temp file and than appending the result here 
+            # is 10 time faster than appending directly using geopandas to_file 
+            # (in geopandas 0.8)!
             for future in futures.as_completed(future_to_batch_id):
                 try:
                     result = future.result()
@@ -282,13 +278,12 @@ def _apply_geooperation_to_layer(
                         geofile.append_to(
                                 src=tmp_partial_output_path, 
                                 dst=output_tmp_path, 
-                                force_output_geometrytype=force_output_geometrytype,
                                 create_spatial_index=False)
                         geofile.remove(tmp_partial_output_path)
                     else:
                         if verbose:
                             logger.info(f"Result file {tmp_partial_output_path} was empty")
-
+                    
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
                     #calculate_pool.shutdown()
@@ -365,7 +360,11 @@ def _apply_geooperation(
     if len(data_gdf) > 0:
         # assert to evade pyLance warning
         assert isinstance(data_gdf, gpd.GeoDataFrame)
-        geofile.to_file(gdf=data_gdf, path=output_path, layer=output_layer, index=False)
+        # Use force_multitype, to evade warnings when some batches contain 
+        # singletype and some contain multitype geometries  
+        geofile.to_file(
+                gdf=data_gdf, path=output_path, layer=output_layer, index=False,
+                force_multitype=True)
 
     message = f"Took {datetime.datetime.now()-start_time} for {len(data_gdf)} rows ({rows})!"
     return message
@@ -543,7 +542,8 @@ def dissolve(
                         {columns_str} 
                     FROM "{output_layer}" 
                     ORDER BY temp_ordering_id'''
-            geofileops_ogr.select(output_tmp_path, output_path, sql_stmt, output_layer=output_layer)
+            geofileops_ogr.select(
+                    output_tmp_path, output_path, sql_stmt, output_layer=output_layer)
 
     finally:
         # Clean tmp dir if it exists...
@@ -575,9 +575,8 @@ def _dissolve_pass(
     start_time = datetime.datetime.now()
     result_info = {}
     start_time = datetime.datetime.now()
-    layerinfo = geofile.get_layerinfo(input_path, input_layer)
-    nb_rows_total = layerinfo.featurecount
-    force_output_geometrytype = layerinfo.geometrytype.to_multitype
+    input_layerinfo = geofile.get_layerinfo(input_path, input_layer)
+    nb_rows_total = input_layerinfo.featurecount
 
     logger.info(f"Start dissolve pass to {len(tiles_gdf)} tiles (nb_parallel: {nb_parallel})")       
     with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
@@ -599,7 +598,7 @@ def _dissolve_pass(
                     groupby_columns=groupby_columns,
                     columns=columns,
                     aggfunc=aggfunc,
-                    force_output_geometrytype=force_output_geometrytype,
+                    input_geometrytype=input_layerinfo.geometrytype,
                     clip_on_tiles=clip_on_tiles,
                     input_layer=input_layer,        
                     output_layer=output_layer,
@@ -642,7 +641,7 @@ def _dissolve(
         groupby_columns: List[str],
         columns: List[str],
         aggfunc: str,
-        force_output_geometrytype: GeometryType,
+        input_geometrytype: GeometryType,
         clip_on_tiles: bool,
         input_layer: Optional[str],        
         output_layer: Optional[str],
@@ -730,15 +729,15 @@ def _dissolve(
 
         # TODO: also support other geometry types (points and lines)
         union_geom_cleaned = geometry_util.collection_extract(
-                union_geom, force_output_geometrytype.to_primitivetype)
+                union_geom, input_geometrytype.to_primitivetype)
         diss_gdf = gpd.GeoDataFrame(geometry=[union_geom_cleaned], crs=input_gdf.crs)
         perfinfo['time_unary_union'] = (datetime.datetime.now()-start_unary_union).total_seconds()
 
         # For polygons, explode multi-geometries ...
         if(explodecollections is True 
-           or force_output_geometrytype in [GeometryType.POLYGON, GeometryType.MULTIPOLYGON]):
+           or input_geometrytype in [GeometryType.POLYGON, GeometryType.MULTIPOLYGON]):
             diss_gdf = diss_gdf.explode()
-            # Reset the index, and drop the level_0 and lavel_1 multiindex
+            # Reset the index, and drop the level_0 and level_1 multiindex
             diss_gdf.reset_index(drop=True, inplace=True)
 
         # If we want to keep the tiles, clip the result on the borders of the 
@@ -754,7 +753,7 @@ def _dissolve(
             # assert to evade pyLance warning 
             assert isinstance(diss_gdf, gpd.GeoDataFrame)
             diss_gdf.geometry = geoseries_util.geometry_collection_extract(
-                    diss_gdf.geometry, force_output_geometrytype.to_primitivetype)
+                    diss_gdf.geometry, input_geometrytype.to_primitivetype)
     
             perfinfo['time_clip'] = (datetime.datetime.now()-start_clip).total_seconds()
     else:
@@ -787,8 +786,11 @@ def _dissolve(
     if str(output_notonborder_path) == str(output_onborder_path):
         # assert to evade pyLance warning 
         assert isinstance(diss_gdf, gpd.GeoDataFrame)
-        geofile.to_file(diss_gdf, output_notonborder_path, layer=output_layer,
-                force_output_geometrytype=force_output_geometrytype, append=True)
+        # Use force_multitype, to evade warnings when some batches contain 
+        # singletype and some contain multitype geometries  
+        geofile.to_file(
+                diss_gdf, output_notonborder_path, layer=output_layer, 
+                append=True, force_multitype=True)
     else:
         # If not, save the polygons on the border seperately
         bbox_lines_gdf = gpd.GeoDataFrame(
@@ -799,16 +801,22 @@ def _dissolve(
         onborder_gdf.drop('index_right', axis=1, inplace=True)
         if len(onborder_gdf) > 0:
             # assert to evade pyLance warning 
-            assert isinstance(onborder_gdf, gpd.GeoDataFrame) 
-            geofile.to_file(onborder_gdf, output_onborder_path, layer=output_layer,
-                    force_output_geometrytype=force_output_geometrytype, append=True)
+            assert isinstance(onborder_gdf, gpd.GeoDataFrame)
+            # Use force_multitype, to evade warnings when some batches contain 
+            # singletype and some contain multitype geometries  
+            geofile.to_file(
+                    onborder_gdf, output_onborder_path, layer=output_layer, 
+                    append=True, force_multitype=True)
         
         notonborder_gdf = diss_gdf[~diss_gdf.index.isin(onborder_gdf.index)].dropna()
         if len(notonborder_gdf) > 0:
             # assert to evade pyLance warning 
             assert isinstance(notonborder_gdf, gpd.GeoDataFrame) 
-            geofile.to_file(notonborder_gdf, output_notonborder_path, layer=output_layer,
-                    force_output_geometrytype=force_output_geometrytype, append=True)
+            # Use force_multitype, to evade warnings when some batches contain 
+            # singletype and some contain multitype geometries  
+            geofile.to_file(
+                    notonborder_gdf, output_notonborder_path, layer=output_layer, 
+                    append=True, force_multitype=True)
     perfinfo['time_to_file'] = (datetime.datetime.now()-start_to_file).total_seconds()
 
     # Finalise...
