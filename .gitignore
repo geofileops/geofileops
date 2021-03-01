@@ -1,5 +1,5 @@
 
-.coverage
+.coverage*
 *.log
 *.pyc
 .vscode/
