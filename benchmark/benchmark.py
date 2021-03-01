@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops.util import geofileops_gpd
 from geofileops.util import geofileops_ogr
 from geofileops import geofileops
-import setup
+#import setup
 
 class BenchResult:
     def __init__(self, 
@@ -110,7 +110,9 @@ def _get_testdata_aiv(testdata_path: Path):
         shutil.rmtree(unzippedzip_dir)
 
 def _get_package_version():
-    return setup.version
+    version_path = Path(__file__).resolve().parent.parent / 'version.txt'
+    with open(version_path, mode='r') as file:
+        return file.readline()
 
 def benchmark_buffer(tmp_dir: Path) -> List[BenchResult]:
     
