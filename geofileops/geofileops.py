@@ -837,7 +837,8 @@ def split(
     Split the features in input1 with all features in input2.
 
     The result is the equivalent of an intersect between the two layers + layer 
-    1 erased with layer 2
+    1 erased with layer 2. 
+    In ArcMap and SAGA this operation is called "Identity".
     
     Args:
         input1_path (PathLike): the 1st input file

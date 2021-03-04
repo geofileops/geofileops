@@ -1475,7 +1475,7 @@ def _split_layer_features(
             sqlite_stmt = f'CREATE INDEX idx_batch_id ON "{input_layer}"(batch_id)' 
             ogr_util.vector_info(path=temp_path, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
         else:
-            # Determine the min_rowid and max_rowid to devide the batches as good as possible
+            # Determine the min_rowid and max_rowid to divide the batches as good as possible
             sql_stmt = f'SELECT MIN(rowid) as min_rowid, MAX(rowid) as max_rowid FROM "{input_layer}"'
             result = geofile.read_file_sql(path=temp_path, sql_stmt=sql_stmt, layer=input_layer)
             if len(result) == 1:
