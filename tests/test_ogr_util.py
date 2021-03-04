@@ -93,8 +93,8 @@ def basetest_st_area(
     assert test_ok is ok_expected, f"Test to run test <{sqlite_stmt}> failed for gdal_installation: {gdal_installation}, install_info: {ogr_util.get_gdal_install_info(gdal_installation)}"  
 
 if __name__ == '__main__':
-    import tempfile
-    tmpdir = tempfile.gettempdir()
+    # Init
+    tmpdir = test_helper.init_test_for_debug(__name__)
 
     # First print out some version info of the spatialite used
     print(f"gdal_default: {pprint.pformat(ogr_util.get_gdal_install_info('gdal_default'))}")

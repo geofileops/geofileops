@@ -534,11 +534,8 @@ def basetest_union(
     assert output_gdf['geometry'][0] is not None
 
 if __name__ == '__main__':
-    import tempfile
-    import shutil
-    tmpdir = Path(tempfile.gettempdir()) / 'test_geofileops_ogr_ogr'
-    if tmpdir.exists():
-        shutil.rmtree(tmpdir)
+    # Init
+    tmpdir = test_helper.init_test_for_debug(__name__)
 
     # Two layer operations
     #test_erase_gpkg(tmpdir)

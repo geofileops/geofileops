@@ -14,7 +14,7 @@ from geofileops import geofile
 from geofileops.geofile import GeometryType
 from geofileops.util import geofileops_gpd
 from geofileops.util.geometry_util import SimplifyAlgorithm
-from tests.test_helper import TestData, get_testdata_dir
+from tests import test_helper
 
 def get_nb_parallel() -> int:
     # The number of parallel processes to use for these tests.
@@ -22,23 +22,23 @@ def get_nb_parallel() -> int:
 
 def test_buffer_gpkg(tmpdir):
     # Buffer polygon source to test dir
-    input_path = get_testdata_dir() / 'polygons_parcels.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
     output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     basetest_buffer(input_path, output_path, GeometryType.MULTIPOLYGON)
 
     # Buffer point source to test dir
-    input_path = get_testdata_dir() / 'points.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'points.gpkg'
     output_path = Path(tmpdir) / 'points_output.gpkg'
     basetest_buffer(input_path, output_path, GeometryType.MULTIPOINT)
 
     # Buffer line source to test dir
-    input_path = get_testdata_dir() / 'linestrings_rows_of_trees.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'linestrings_rows_of_trees.gpkg'
     output_path = Path(tmpdir) / 'linestrings_rows_of_trees_output.gpkg'
     basetest_buffer(input_path, output_path, GeometryType.MULTILINESTRING)
 
 def test_buffer_shp(tmpdir):
     # Buffer to test dir
-    input_path = get_testdata_dir() / 'polygons_parcels.shp'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.shp'
     output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_buffer(input_path, output_path, GeometryType.MULTIPOLYGON)
 
@@ -126,13 +126,13 @@ def basetest_buffer(
 
 def test_buffer_various_options_gpkg(tmpdir):
     # Buffer to test dir
-    input_path = get_testdata_dir() / 'polygons_parcels.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
     output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     basetest_buffer_various_options(input_path, output_path)
 
 def test_buffer_various_options_shp(tmpdir):
     # Buffer to test dir
-    input_path = get_testdata_dir() / 'polygons_parcels.shp'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.shp'
     output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_buffer_various_options(input_path, output_path)
 
@@ -164,13 +164,13 @@ def basetest_buffer_various_options(input_path, output_path):
 
 def test_convexhull_gpkg(tmpdir):
     # Select some data from input to output file
-    input_path = get_testdata_dir() / 'polygons_parcels.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
     output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     basetest_convexhull(input_path, output_path)
 
 def test_convexhull_shp(tmpdir):
     # Select some data from input to output file
-    input_path = get_testdata_dir() / 'polygons_parcels.shp'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.shp'
     output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_convexhull(input_path, output_path)
 
@@ -196,14 +196,14 @@ def basetest_convexhull(input_path, output_path):
 
 def test_dissolve_linestrings_nogroupby_gpkg(tmpdir):
     # Apply operation
-    input_path = get_testdata_dir() / 'linestrings_watercourses.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'linestrings_watercourses.gpkg'
     output_path = Path(tmpdir) / 'linestrings_watercourses_output.gpkg'
     basetest_dissolve_linestrings_nogroupby(input_path, output_path)
 
 """
 def test_dissolve_linestrings_nogroupby_shp(tmpdir):
     # Apply operation
-    input_path = get_testdata_dir() / 'polygons_parcels.shp'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.shp'
     output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_dissolve_linestrings_nogroupby(input_path, output_path)
     """
@@ -260,13 +260,13 @@ def basetest_dissolve_linestrings_nogroupby(input_path, output_basepath):
 
 def test_dissolve_polygons_groupby_gpkg(tmpdir):
     # Buffer to test dir
-    input_path = get_testdata_dir() / 'polygons_parcels.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
     output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     basetest_dissolve_polygons_groupby(input_path, output_path)
 
 def test_dissolve_polygons_groupby_shp(tmpdir):
     # Buffer to test dir
-    input_path = get_testdata_dir() / 'polygons_parcels.shp'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.shp'
     output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_dissolve_polygons_groupby(input_path, output_path)
 
@@ -387,13 +387,13 @@ def basetest_dissolve_polygons_groupby(
 
 def test_dissolve_polygons_nogroupby_gpkg(tmpdir):
     # Buffer to test dir
-    input_path = get_testdata_dir() / 'polygons_parcels.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
     output_basepath = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     basetest_dissolve_polygons_nogroupby(input_path, output_basepath)
 
 def test_dissolve_polygons_nogroupby_shp(tmpdir):
     # Buffer to test dir
-    input_path = get_testdata_dir() / 'polygons_parcels.shp'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.shp'
     output_basepath = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_dissolve_polygons_nogroupby(input_path, output_basepath)
 
@@ -402,16 +402,14 @@ def basetest_dissolve_polygons_nogroupby(
         output_basepath: Path):
     # Init
     layerinfo_input = geofile.get_layerinfo(input_path)
-    filesuffix = 0
-
+    
     ### Test dissolve polygons ###
-    output_path = output_basepath.parent / f"{output_basepath.stem}_{filesuffix}{output_basepath.suffix}"
-    filesuffix +=1
+    output_path = output_basepath.parent / f"{output_basepath.stem}_defaults{output_basepath.suffix}"
     geofileops_gpd.dissolve(
             input_path=input_path,
             output_path=output_path,
-            explodecollections=True,
             nb_parallel=get_nb_parallel(),
+            parallelization_config=get_parallelization_config(),
             force=True)
 
     # Now check if the result file is correctly created
@@ -438,8 +436,7 @@ def basetest_dissolve_polygons_nogroupby(
     ### Test dissolve polygons, with output_layer ###
     # A different output layer is not supported for shapefile!!!
     try:
-        output_path = output_basepath.parent / f"{output_basepath.stem}_{filesuffix}{output_basepath.suffix}"
-        filesuffix +=1
+        output_path = output_basepath.parent / f"{output_basepath.stem}_outputlayer{output_basepath.suffix}"
         geofileops_gpd.dissolve(
                 input_path=input_path,
                 output_path=output_path,
@@ -483,7 +480,7 @@ def test_dissolve_multisinglepolygons_gpkg(tmpdir):
     tmpdir = Path(tmpdir)
     
     # Create test data
-    input_gdf = gpd.GeoDataFrame(geometry=[TestData.polygon, TestData.multipolygon])
+    input_gdf = gpd.GeoDataFrame(geometry=[test_helper.TestData.polygon, test_helper.TestData.multipolygon])
     input_path = tmpdir / 'test_polygon_input.gpkg'
     geofile.to_file(input_gdf, input_path)
     output_path = tmpdir / f"{input_path.stem}_diss.gpkg"
@@ -493,6 +490,7 @@ def test_dissolve_multisinglepolygons_gpkg(tmpdir):
             explodecollections=True,
             nb_squarish_tiles=2,
             nb_parallel=get_nb_parallel(),
+            parallelization_config=get_parallelization_config(),
             force=True)
 
     # Now check if the result file is correctly created
@@ -513,23 +511,23 @@ def test_dissolve_multisinglepolygons_gpkg(tmpdir):
 
 def test_simplify_gpkg(tmpdir):
     # Simplify polygon source to test dir
-    input_path = get_testdata_dir() / 'polygons_parcels.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
     output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     basetest_simplify(input_path, output_path, GeometryType.MULTIPOLYGON)
 
     # Simplify point source to test dir
-    input_path = get_testdata_dir() / 'points.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'points.gpkg'
     output_path = Path(tmpdir) / 'points_output.gpkg'
     basetest_simplify(input_path, output_path, GeometryType.MULTIPOINT)
 
     # Simplify line source to test dir
-    input_path = get_testdata_dir() / 'linestrings_rows_of_trees.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'linestrings_rows_of_trees.gpkg'
     output_path = Path(tmpdir) / 'linestrings_rows_of_trees_output.gpkg'
     basetest_simplify(input_path, output_path, GeometryType.MULTILINESTRING)
 
 def test_simplify_shp(tmpdir):
     # Buffer to test dir
-    input_path = get_testdata_dir() / 'polygons_parcels.shp'
+    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.shp'
     output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_simplify(input_path, output_path, GeometryType.MULTIPOLYGON)
 
@@ -614,13 +612,8 @@ def basetest_simplify(
     assert output_gdf['geometry'][0] is not None
 
 if __name__ == '__main__':
-    #Prepare tempdir
-    import tempfile
-    import shutil
-    tmpdir = Path(tempfile.gettempdir()) / 'test_geofileops_gpd'
-    if tmpdir.exists():
-        shutil.rmtree(tmpdir)
-    tmpdir.mkdir(parents=True, exist_ok=True)
+    # Init
+    tmpdir = test_helper.init_test_for_debug(__name__)
 
     # Run
     #test_buffer_gpkg(tmpdir)
@@ -628,7 +621,7 @@ if __name__ == '__main__':
     #test_dissolve_linestrings_nogroupby_gpkg(tmpdir)
     #test_dissolve_polygons_groupby_gpkg(tmpdir)
     #test_dissolve_polygons_groupby_shp(tmpdir)
-    #test_dissolve_polygons_nogroupby_gpkg(tmpdir)
+    test_dissolve_polygons_nogroupby_gpkg(tmpdir)
     #test_dissolve_polygons_nogroupby_shp(tmpdir)
-    test_dissolve_multisinglepolygons_gpkg(tmpdir)
+    #test_dissolve_multisinglepolygons_gpkg(tmpdir)
     #test_simplify_gpkg(tmpdir)

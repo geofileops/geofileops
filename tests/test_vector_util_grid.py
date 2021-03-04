@@ -10,9 +10,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
 from geofileops.util import grid_util
-
-def get_testdata_dir() -> Path:
-    return Path(__file__).resolve().parent / 'data'
+from tests import test_helper
 
 def test_create_grid2():
     # Test for small number of cells
@@ -32,7 +30,7 @@ def test_create_grid2():
     assert len(grid_gdf) == 96
 
 def test_split_tiles():
-    input_tiles_path = get_testdata_dir() / 'BEFL_kbl.gpkg'
+    input_tiles_path = test_helper.get_testdata_dir() / 'BEFL_kbl.gpkg'
     input_tiles = geofile.read_file(input_tiles_path)
     nb_tiles_wanted = len(input_tiles) * 8
     result = grid_util.split_tiles(
@@ -44,10 +42,9 @@ def test_split_tiles():
     assert len(result) == len(input_tiles) * 8
 
 if __name__ == '__main__':
-    import os
-    import tempfile
-    tmpdir = Path(tempfile.gettempdir()) / "test_vector_util_grid"
-    os.makedirs(tmpdir, exist_ok=True)
+    # Init
+    tmpdir = test_helper.init_test_for_debug(__name__)
+
     test_create_grid2()
     #test_split_tiles()
     

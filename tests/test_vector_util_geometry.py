@@ -4,7 +4,6 @@ Tests for functionalities in vector_util, regarding geometry operations.
 """
 
 from pathlib import Path
-import shutil
 import sys
 
 import geopandas as gpd
@@ -16,8 +15,7 @@ from geofileops import geofile
 from geofileops.util import geometry_util
 from geofileops.util.geometry_util import GeometryType
 from geofileops.util import grid_util
-from tests.test_helper import TestData 
-from tests.test_helper import get_testdata_dir 
+from tests import test_helper
 
 def test_geometrytype():
     geometrytype = GeometryType(3)
@@ -29,19 +27,19 @@ def test_geometrytype():
 
 def test_makevalid():
     # Test Point
-    point_valid = geometry_util.make_valid(TestData.point)
+    point_valid = geometry_util.make_valid(test_helper.TestData.point)
     assert isinstance(point_valid, sh_geom.Point)
 
     # Test MultiPoint
-    multipoint_valid = geometry_util.make_valid(TestData.multipoint)
+    multipoint_valid = geometry_util.make_valid(test_helper.TestData.multipoint)
     assert isinstance(multipoint_valid, sh_geom.MultiPoint)
 
     # Test LineString
-    linestring_valid = geometry_util.make_valid(TestData.linestring)
+    linestring_valid = geometry_util.make_valid(test_helper.TestData.linestring)
     assert isinstance(linestring_valid, sh_geom.LineString)
     
     # Test MultiLineString
-    multilinestring_valid = geometry_util.make_valid(TestData.multilinestring)
+    multilinestring_valid = geometry_util.make_valid(test_helper.TestData.multilinestring)
     assert isinstance(multilinestring_valid, sh_geom.MultiLineString)
 
     # Test Polygon, self-intersecting
@@ -54,50 +52,50 @@ def test_makevalid():
     assert len(poly_valid[0].interiors) == 1
 
     # Test MultiPolygon
-    multipolygon_invalid = sh_geom.MultiPolygon([polygon_invalid, TestData.polygon2])
+    multipolygon_invalid = sh_geom.MultiPolygon([polygon_invalid, test_helper.TestData.polygon2])
     multipoly_valid = geometry_util.make_valid(multipolygon_invalid)
     assert isinstance(multipoly_valid, sh_geom.MultiPolygon)
 
     # Test GeometryCollection (as combination of all previous ones)
     geometrycollection_invalid = sh_geom.GeometryCollection([
-            TestData.point, TestData.multipoint, TestData.linestring, 
-            TestData.multilinestring, polygon_invalid, multipolygon_invalid])
+            test_helper.TestData.point, test_helper.TestData.multipoint, test_helper.TestData.linestring, 
+            test_helper.TestData.multilinestring, polygon_invalid, multipolygon_invalid])
     geometrycollection_valid = geometry_util.make_valid(geometrycollection_invalid)
     assert isinstance(geometrycollection_valid, sh_geom.GeometryCollection)
 
 def test_numberpoints():
     # Test Point
-    numberpoints = geometry_util.numberpoints(TestData.point)
+    numberpoints = geometry_util.numberpoints(test_helper.TestData.point)
     numberpoints_geometrycollection = numberpoints
     assert numberpoints == 1
 
     # Test MultiPoint
-    numberpoints = geometry_util.numberpoints(TestData.multipoint)
+    numberpoints = geometry_util.numberpoints(test_helper.TestData.multipoint)
     numberpoints_geometrycollection += numberpoints
     assert numberpoints == 3
     
     # Test LineString
-    numberpoints = geometry_util.numberpoints(TestData.linestring)
+    numberpoints = geometry_util.numberpoints(test_helper.TestData.linestring)
     numberpoints_geometrycollection += numberpoints
     assert numberpoints == 3
     
     # Test MultiLineString
-    numberpoints = geometry_util.numberpoints(TestData.multilinestring)
+    numberpoints = geometry_util.numberpoints(test_helper.TestData.multilinestring)
     numberpoints_geometrycollection += numberpoints
     assert numberpoints == 6
 
     # Test Polygon
-    numberpoints = geometry_util.numberpoints(TestData.polygon)
+    numberpoints = geometry_util.numberpoints(test_helper.TestData.polygon)
     numberpoints_geometrycollection += numberpoints
     assert numberpoints == 11
 
     # Test MultiPolygon
-    numberpoints = geometry_util.numberpoints(TestData.multipolygon)
+    numberpoints = geometry_util.numberpoints(test_helper.TestData.multipolygon)
     numberpoints_geometrycollection += numberpoints
     assert numberpoints == 16
 
     # Test GeometryCollection (as combination of all previous ones)
-    numberpoints = geometry_util.numberpoints(TestData.geometrycollection)
+    numberpoints = geometry_util.numberpoints(test_helper.TestData.geometrycollection)
     assert numberpoints == numberpoints_geometrycollection
 
 def test_remove_inner_rings():
@@ -270,7 +268,7 @@ def test_simplify_ext_keep_points_on(tmpdir):
     
     ## First init some stuff ##
     # Read the test data
-    input_path = get_testdata_dir() / 'polygons_simplify_onborder_testcase.gpkg'
+    input_path = test_helper.get_testdata_dir() / 'polygons_simplify_onborder_testcase.gpkg'
     geofile.copy(input_path, tmpdir / input_path.name)
     input_gdf = geofile.read_file(input_path)
 
@@ -413,11 +411,8 @@ def test_simplify_ext_no_simplification():
             del sys.modules['simplification']
 
 if __name__ == '__main__':
-    import tempfile
-    tmpdir = Path(tempfile.gettempdir()) / "test_vector_util_geometry"
-    if tmpdir.exists():
-        shutil.rmtree(tmpdir)
-    tmpdir.mkdir(parents=True, exist_ok=True)
+    # Init
+    tmpdir = test_helper.init_test_for_debug(__name__)
 
     #test_makevalid()
     #test_numberpoints()

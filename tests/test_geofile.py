@@ -5,9 +5,7 @@ Tests for functionalities in geofileops.general.
 
 import os
 from pathlib import Path
-import shutil
 import sys
-from tempfile import tempdir
 
 import geopandas as gpd
 import pandas as pd
@@ -18,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
 from geofileops.util import geoseries_util
 from geofileops.util.geometry_util import GeometryType
-from tests.test_helper import TestData
+from tests import test_helper
 
 def _get_testdata_dir() -> Path:
     return Path(__file__).resolve().parent / 'data'
@@ -381,7 +379,7 @@ def basetest_to_file_empty(
         output_suffix: str):
     ### Test for gdf with a None geometry + a polygon ###
     test_gdf = gpd.GeoDataFrame(geometry=[
-            None, TestData.polygon])
+            None, test_helper.TestData.polygon])
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 1
     output_none_path = output_dir / f"{srcpath.stem}_none{output_suffix}"
@@ -421,7 +419,7 @@ def basetest_to_file_none(
         output_suffix: str):
     ### Test for gdf with a None geometry + a polygon ###
     test_gdf = gpd.GeoDataFrame(geometry=[
-            None, TestData.polygon])
+            None, test_helper.TestData.polygon])
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 1
     output_none_path = output_dir / f"{srcpath.stem}_none{output_suffix}"
@@ -461,7 +459,7 @@ def basetest_to_file_gpd_empty(
         output_suffix: str):
     ### Test for gdf with an empty polygon + a polygon ###
     test_gdf = gpd.GeoDataFrame(geometry=[
-            sh_geom.Polygon(), TestData.polygon])
+            sh_geom.Polygon(), test_helper.TestData.polygon])
     # By default, get_geometrytypes ignores the type of empty geometries, as 
     # they are always stored as GeometryCollection in GeoPandas
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
@@ -509,7 +507,7 @@ def basetest_to_file_gpd_none(
         output_suffix: str):
     ### Test for gdf with a None geometry + a polygon ###
     test_gdf = gpd.GeoDataFrame(geometry=[
-            None, TestData.polygon])
+            None, test_helper.TestData.polygon])
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 1
     output_none_path = output_dir / f"{srcpath.stem}_none{output_suffix}"
@@ -545,11 +543,7 @@ def test_remove(tmpdir):
 
 if __name__ == '__main__':
     # Init
-    import tempfile
-    tmpdir = Path(tempfile.gettempdir()) / 'test_geofile'
-    if tmpdir.exists():
-        shutil.rmtree(tmpdir)
-    tmpdir.mkdir(parents=True, exist_ok=True)
+    tmpdir = test_helper.init_test_for_debug(__name__)
 
     # Run!
     #test_convert(tmpdir)

@@ -3,8 +3,11 @@
 Helper functions for all tests.
 """
 
+import logging
 from pathlib import Path
+import shutil
 import sys
+import tempfile
 
 import shapely.geometry as sh_geom
 
@@ -48,6 +51,20 @@ class TestData:
     
 def get_testdata_dir() -> Path:
     return Path(__file__).resolve().parent / 'data'
+
+def init_test_for_debug(test_module_name: str) -> Path:
+    # Init logging
+    logging.basicConfig(
+            format="%(asctime)s.%(msecs)03d|%(levelname)s|%(name)s|%(message)s", 
+            datefmt="%H:%M:%S", level=logging.INFO)
+
+    # Prepare tempdir
+    tmpdir = Path(tempfile.gettempdir()) / test_module_name
+    if tmpdir.exists():
+        shutil.rmtree(tmpdir)
+    tmpdir.mkdir(parents=True, exist_ok=True)
+
+    return tmpdir
 
 def is_gdal_ok(operation: str, gdal_installation: str) -> bool:
     # Check if there are unsupported functions

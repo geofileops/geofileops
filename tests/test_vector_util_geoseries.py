@@ -15,14 +15,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
 from geofileops.util import geoseries_util
 from geofileops.util.geometry_util import GeometryType, PrimitiveType
-from tests.test_helper import TestData 
-from tests.test_helper import get_testdata_dir 
+from tests import test_helper 
 
 def test_geometry_collection_extract():
     # Test for gdf with all types of geometrytypes, extract!
     test_gdf = gpd.GeoDataFrame(geometry=[
-            TestData.point, TestData.multipoint, TestData.polygon, 
-            TestData.polygon2, TestData.multipolygon, TestData.geometrycollection])
+            test_helper.TestData.point, test_helper.TestData.multipoint, 
+            test_helper.TestData.polygon, test_helper.TestData.polygon2, 
+            test_helper.TestData.multipolygon, test_helper.TestData.geometrycollection])
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 5
     test_result_gdf = test_gdf.copy()
@@ -37,14 +37,16 @@ def test_get_geometrytypes():
     # None and empty geometries are by default ignored in get_geometrytypes
     test_gdf = gpd.GeoDataFrame(geometry=[
             None, sh_geom.Point(), sh_geom.LineString(), sh_geom.Polygon(), 
-            TestData.point, TestData.multipoint, TestData.polygon, TestData.polygon2, TestData.multipolygon, TestData.geometrycollection])
+            test_helper.TestData.point, test_helper.TestData.multipoint, 
+            test_helper.TestData.polygon, test_helper.TestData.polygon2, 
+            test_helper.TestData.multipolygon, test_helper.TestData.geometrycollection])
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 5
     
     # None and empty geometries are by default ignored in get_geometrytypes
     test_gdf = gpd.GeoDataFrame(geometry=[
             None, sh_geom.Point(), sh_geom.LineString(), sh_geom.Polygon(), 
-            TestData.point])
+            test_helper.TestData.point])
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 1
     assert GeometryType.POINT in test_geometrytypes
@@ -53,8 +55,9 @@ def test_get_geometrytypes():
     # are always treated as GeometryCollection in GeoPandas.
     test_gdf = gpd.GeoDataFrame(geometry=[
             None, sh_geom.Point(), sh_geom.LineString(), sh_geom.Polygon(), 
-            TestData.point])
-    test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry, ignore_empty_geometries=False)
+            test_helper.TestData.point])
+    test_geometrytypes = geoseries_util.get_geometrytypes(
+            test_gdf.geometry, ignore_empty_geometries=False)
     assert len(test_geometrytypes) == 2
     assert GeometryType.POINT in test_geometrytypes
     assert GeometryType.GEOMETRYCOLLECTION in test_geometrytypes
@@ -62,7 +65,8 @@ def test_get_geometrytypes():
 def test_harmonize_geometrytypes():
     # Test for gdf with None + point + multipoint -> all multipoint
     test_gdf = gpd.GeoDataFrame(geometry=[
-            None, sh_geom.Point(), TestData.point, TestData.multipoint, TestData.point, TestData.multipoint])
+            None, sh_geom.Point(), test_helper.TestData.point, test_helper.TestData.multipoint, 
+            test_helper.TestData.point, test_helper.TestData.multipoint])
     test_gdf_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_gdf_geometrytypes) == 2
     test_result_gdf = test_gdf.copy()
@@ -79,8 +83,8 @@ def test_harmonize_geometrytypes():
     # Test for gdf with linestring + multilinestring -> all multilinestring
     test_gdf = gpd.GeoDataFrame(geometry=[
             None, sh_geom.LineString(),
-            TestData.linestring, TestData.multilinestring, 
-            TestData.linestring, TestData.multilinestring])
+            test_helper.TestData.linestring, test_helper.TestData.multilinestring, 
+            test_helper.TestData.linestring, test_helper.TestData.multilinestring])
     test_gdf_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_gdf_geometrytypes) == 2
     test_result_gdf = test_gdf.copy()
@@ -97,8 +101,8 @@ def test_harmonize_geometrytypes():
     # Test for gdf with linestring + multilinestring -> all multilinestring
     test_gdf = gpd.GeoDataFrame(geometry=[
             None, sh_geom.Polygon(),
-            TestData.polygon, TestData.multipolygon, 
-            TestData.polygon, TestData.multipolygon]) 
+            test_helper.TestData.polygon, test_helper.TestData.multipolygon, 
+            test_helper.TestData.polygon, test_helper.TestData.multipolygon]) 
     # Filter the gdf a bit to test that the indexes are retained properly in 
     # harmonize_geometrytypes
     test_gdf_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
@@ -117,8 +121,9 @@ def test_harmonize_geometrytypes():
 
     # Test for gdf with all types of geometrytypes -> no harmonization possible
     test_gdf = gpd.GeoDataFrame(geometry=[
-            None, sh_geom.Polygon(), TestData.point, TestData.multipoint, TestData.polygon, 
-            TestData.polygon2, TestData.multipolygon, TestData.geometrycollection])
+            None, sh_geom.Polygon(), test_helper.TestData.point, test_helper.TestData.multipoint, 
+            test_helper.TestData.polygon, test_helper.TestData.polygon2, 
+            test_helper.TestData.multipolygon, test_helper.TestData.geometrycollection])
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 5
     test_result_gdf = test_gdf.copy()
@@ -133,11 +138,8 @@ def test_harmonize_geometrytypes():
             assert geom is not None
 
 if __name__ == '__main__':
-    import tempfile
-    tmpdir = Path(tempfile.gettempdir()) / "test_vector_util_geodataframe"
-    if tmpdir.exists():
-        shutil.rmtree(tmpdir)
-    tmpdir.mkdir(parents=True, exist_ok=True)
+    # Init
+    tmpdir = test_helper.init_test_for_debug(__name__)
 
     #test_geometry_collection_extract()
     test_harmonize_geometrytypes()
