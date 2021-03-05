@@ -5,12 +5,12 @@ Module containing utilities to create/manipulate grids.
 
 import logging
 import math
-from typing import Any, List, Tuple, Union
+from typing import List, Tuple, Union
 
 import geopandas as gpd
 import pyproj
-import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
+import shapely.geometry as sh_geom
 
 #-------------------------------------------------------------
 # First define/init some general variables/constants
@@ -40,6 +40,20 @@ def create_grid3(
         width: float,
         height: float,
         crs: Union[pyproj.CRS, str, None]) -> gpd.GeoDataFrame:
+    """
+    
+
+    Args:
+        total_bounds (Tuple[float, float, float, float]): [description]
+        width (float): [description]
+        height (float): [description]
+        crs (Union[pyproj.CRS, str, None]): [description]
+        number_decimals (int, optional): The number of decimals the coordinates 
+            of the grid will have. Defaults to None, so no rounding.
+
+    Returns:
+        gpd.GeoDataFrame: [description]
+    """
 
     xmin, ymin, xmax, ymax = total_bounds
     rows = int(math.ceil((ymax-ymin) / height))
@@ -68,7 +82,8 @@ def create_grid3(
 def create_grid2(
         total_bounds: Tuple[float, float, float, float], 
         nb_squarish_tiles: int,
-        crs: Union[pyproj.CRS, str, None]) -> gpd.GeoDataFrame:
+        crs: Union[pyproj.CRS, str, None],
+        nb_squarish_tiles_max: int = None) -> gpd.GeoDataFrame:
     """
     Creates a grid and tries to approximate the number of cells asked as
     good as possible with grid cells that as close to square as possible.
@@ -76,10 +91,16 @@ def create_grid2(
     Args:
         total_bounds (Tuple[float, float, float, float]): bounds of the grid to be created
         nb_squarish_cells (int): about the number of cells wanted
+        crs (CRS): the projection to create the grid in 
+        nb_squarish_tiles_max (int, optional): the maximum number of cells
 
     Returns:
         gpd.GeoDataFrame: geodataframe with the grid
     """
+    # Check input
+    if nb_squarish_tiles_max is not None and nb_squarish_tiles_max < 1:
+        raise Exception("The maximum nb of tiles should be larger than 1")
+
     # If more cells asked, calculate optimal number
     xmin, ymin, xmax, ymax = total_bounds
     total_width = xmax-xmin
@@ -88,10 +109,23 @@ def create_grid2(
     columns_vs_rows = total_width/total_height
     nb_rows = max(round(math.sqrt(nb_squarish_tiles/columns_vs_rows)), 1)
 
-    # Evade having too many cells if few cells are asked...
+    # Evade having too many cells (if few cells are asked)
     if nb_rows > nb_squarish_tiles:
         nb_rows = nb_squarish_tiles
     nb_columns = max(round(nb_squarish_tiles/nb_rows), 1)
+    # If a maximum number of tiles is specified, check it
+    if nb_squarish_tiles_max is not None:
+        while((nb_rows * nb_columns) > nb_squarish_tiles_max):
+            # If the number of cells became larger than the max number of cells,
+            # increase the number of cells in the direction of the longest side 
+            # of the resulting cells
+            if(nb_columns > 1
+            and (nb_rows == 1
+                 or total_width/nb_columns > total_height/nb_rows)):
+                # Cell width is larger than cell height
+                nb_columns -= 1
+            else:
+                nb_rows -= 1
     
     # Now we know everything to create the grid
     return create_grid(
