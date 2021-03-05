@@ -1,4 +1,11 @@
+# -*- coding: utf-8 -*-
+"""
+Module for benchmarking.
+"""
+
 import datetime
+import enum
+import logging
 import multiprocessing
 from pathlib import Path
 import shutil
@@ -15,7 +22,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops.util import geofileops_gpd
 from geofileops.util import geofileops_ogr
 from geofileops import geofileops
-#import setup
+
+class Benchmark(enum.Enum):
+    BUFFER = 'buffer'
+    INTERSECT = 'intersect'
+    UNION = 'union'
+    DISSOLVE = 'dissolve'
 
 class BenchResult:
     def __init__(self, 
@@ -157,6 +169,76 @@ def benchmark_buffer(tmp_dir: Path) -> List[BenchResult]:
 
     return bench_results
 
+def benchmark_dissolve(tmp_dir: Path) -> List[BenchResult]:
+    
+    bench_results = []
+    input_path = _get_testdata_dir() / 'Lbgbrprc19.gpkg'
+    
+    print('Dissolve without groupby: start')
+    start_time = datetime.datetime.now()
+    output_path = tmp_dir / f"{input_path.stem}_diss_nogroupby.gpkg"
+    geofileops_gpd.dissolve(
+            input_path, 
+            output_path, 
+            force=True)
+    secs_taken = (datetime.datetime.now()-start_time).total_seconds()
+    bench_results.append(BenchResult(
+            package_version=_get_package_version(),
+            operation='dissolve', 
+            tool_used='geopandas', 
+            params='',
+            nb_cpu=multiprocessing.cpu_count(),
+            secs_taken=secs_taken,
+            secs_expected_one_cpu=2000,
+            input1_filename=input_path.name, 
+            input2_filename=None))
+    print(f"Dissolve without groupby ready in {secs_taken:.2f} secs")
+    
+    print('Dissolve with groupby: start')
+    start_time = datetime.datetime.now()
+    output_path = tmp_dir / f"{input_path.stem}_diss_groupby.gpkg"
+    geofileops_gpd.dissolve(
+            input_path, 
+            output_path, 
+            groupby_columns=['GEWASGROEP'], 
+            force=True)
+    secs_taken = (datetime.datetime.now()-start_time).total_seconds()
+    bench_results.append(BenchResult(
+            package_version=_get_package_version(),
+            operation='dissolve', 
+            tool_used='geopandas', 
+            params='groupby_columns=[GEWASGROEP]',
+            nb_cpu=multiprocessing.cpu_count(),
+            secs_taken=secs_taken,
+            secs_expected_one_cpu=3000,
+            input1_filename=input_path.name, 
+            input2_filename=None))
+    print(f"Dissolve with groupby ready in {secs_taken:.2f} secs")
+
+    print('Dissolve with groupby + no explode: start')
+    start_time = datetime.datetime.now()
+    output_path = tmp_dir / f"{input_path.stem}_diss_groupby_noexplode.gpkg"
+    geofileops_gpd.dissolve(
+            input_path, 
+            output_path, 
+            groupby_columns=['GEWASGROEP'], 
+            explodecollections=False, 
+            force=True)
+    secs_taken = (datetime.datetime.now()-start_time).total_seconds()
+    bench_results.append(BenchResult(
+            package_version=_get_package_version(),
+            operation='dissolve', 
+            tool_used='geopandas', 
+            params='groupby_columns=[GEWASGROEP];explodecollection=False',
+            nb_cpu=multiprocessing.cpu_count(),
+            secs_taken=secs_taken,
+            secs_expected_one_cpu=3000,
+            input1_filename=input_path.name, 
+            input2_filename=None))
+    print(f"Dissolve with groupby + no explode ready in {secs_taken:.2f} secs")
+
+    return bench_results
+
 def benchmark_intersect(tmp_dir: Path) -> List[BenchResult]:
     # Init
     bench_results = []
@@ -218,7 +300,13 @@ def benchmark_union(tmp_dir: Path) -> List[BenchResult]:
 
     return bench_results
 
-def benchmark():
+def benchmark(benchmarks_to_run: List[Benchmark]):
+    """
+    Run the benchmarks specified.
+
+    Args:
+        benchmarks_to_run (List[Benchmark]): [description]
+    """
     
     # First make sure the testdata is present
     testdata_dir = _get_testdata_dir()
@@ -232,9 +320,14 @@ def benchmark():
     tmpdir = Path(tempfile.gettempdir()) / 'geofileops_benchmark'
 
     results = []
-    results.extend(benchmark_buffer(tmpdir))
-    results.extend(benchmark_intersect(tmpdir))
-    results.extend(benchmark_union(tmpdir))
+    if Benchmark.BUFFER in benchmarks_to_run:
+        results.extend(benchmark_buffer(tmpdir))
+    if Benchmark.INTERSECT in benchmarks_to_run:
+        results.extend(benchmark_intersect(tmpdir))
+    if Benchmark.UNION in benchmarks_to_run:
+        results.extend(benchmark_union(tmpdir))
+    if Benchmark.DISSOLVE in benchmarks_to_run:
+        results.extend(benchmark_dissolve(tmpdir))
     
     # Check and print results
     for result in results:
@@ -255,4 +348,15 @@ def benchmark():
         results_df.to_csv(results_path, index=False, mode='a', header=False)
 
 if __name__ == '__main__':
-    benchmark()
+    # Init logging
+    logging.basicConfig(
+            format="%(asctime)s.%(msecs)03d|%(levelname)s|%(name)s|%(message)s", 
+            datefmt="%H:%M:%S", level=logging.INFO)
+
+    #Go!
+    benchmark([
+            Benchmark.BUFFER,
+            Benchmark.UNION,
+            Benchmark.INTERSECT,
+            Benchmark.DISSOLVE,
+            ])

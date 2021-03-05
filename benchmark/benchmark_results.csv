@@ -13,3 +13,10 @@ datetime,package_version,operation,tool_used,params,nb_cpu,secs_taken,secs_expec
 2021-02-03 09:21:28.493934,0.2.0,buffer,ogr,,20,80.553449,1600,Lbgbrprc19.gpkg,
 2021-02-03 09:22:53.420793,0.2.0,intersect,ogr,,20,84.912886,1700,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
 2021-02-03 09:26:31.219814,0.2.0,union,ogr,,20,217.789125,4000,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
+2021-03-05 17:34:51.035511,0.2.1a1,buffer,geopandas,,20,49.595615,1000,Lbgbrprc19.gpkg,
+2021-03-05 17:36:04.581566,0.2.1a1,buffer,ogr,,20,73.545057,1600,Lbgbrprc19.gpkg,
+2021-03-05 17:37:28.602636,0.2.1a1,intersect,ogr,,20,84.019076,1700,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
+2021-03-05 17:40:59.131782,0.2.1a1,union,ogr,,20,210.529146,4000,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
+2021-03-05 17:42:42.505503,0.2.1a1,dissolve,geopandas,,20,103.361138,2000,Lbgbrprc19.gpkg,
+2021-03-05 17:45:24.626859,0.2.1a1,dissolve,geopandas,groupby_columns=[GEWASGROEP],20,162.121356,3000,Lbgbrprc19.gpkg,
+2021-03-05 17:47:58.201918,0.2.1a1,dissolve,geopandas,groupby_columns=[GEWASGROEP];explodecollection=False,20,153.575059,3000,Lbgbrprc19.gpkg,
