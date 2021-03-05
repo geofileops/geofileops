@@ -45,12 +45,32 @@ class TestData:
             shell=[(0, 0), (0, 10), (1, 10), (10, 10), (10, 0), (0,0)], 
             holes=[[(2,2), (2,8), (8,8), (8,2), (2,2)]])
     polygon2 = sh_geom.Polygon(shell=[(100, 100), (100, 110), (110, 110), (110, 100), (100,100)])
-    multipolygon = sh_geom.MultiPolygon([polygon, polygon2])
+    polygon3 = sh_geom.Polygon(
+            shell=[(20, 20), (20, 30), (21, 30), (30, 30), (30, 20), (20,20)], 
+            holes=[[(22,22), (22,28), (28,28), (28,22), (22,22)]])
+    multipolygon = sh_geom.MultiPolygon([polygon2, polygon3])
     geometrycollection = sh_geom.GeometryCollection([
             point, multipoint, linestring, multilinestring, polygon, multipolygon])
     
 def get_testdata_dir() -> Path:
     return Path(__file__).resolve().parent / 'data'
+
+def create_tempdir(
+        base_dirname: str,
+        parent_dir: Path = None) -> Path:
+    # Parent
+    if parent_dir is None:
+        parent_dir = Path(tempfile.gettempdir())
+
+    for i in range(1, 999999):
+        try:
+            tempdir = parent_dir / f"{base_dirname}_{i:06d}"
+            tempdir.mkdir(parents=True)
+            return Path(tempdir)
+        except FileExistsError:
+            continue
+
+    raise Exception(f"Wasn't able to create a temporary dir with basedir: {parent_dir / base_dirname}") 
 
 def init_test_for_debug(test_module_name: str) -> Path:
     # Init logging
@@ -58,11 +78,15 @@ def init_test_for_debug(test_module_name: str) -> Path:
             format="%(asctime)s.%(msecs)03d|%(levelname)s|%(name)s|%(message)s", 
             datefmt="%H:%M:%S", level=logging.INFO)
 
-    # Prepare tempdir
-    tmpdir = Path(tempfile.gettempdir()) / test_module_name
+    # Prepare tmpdir
+    tmp_basedir = Path(tempfile.gettempdir()) / test_module_name
+    tmpdir = create_tempdir(parent_dir=tmp_basedir, base_dirname='debugrun')
+    
+    """
     if tmpdir.exists():
         shutil.rmtree(tmpdir)
     tmpdir.mkdir(parents=True, exist_ok=True)
+    """
 
     return tmpdir
 

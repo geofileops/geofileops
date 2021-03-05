@@ -535,7 +535,7 @@ def basetest_union(
 
 if __name__ == '__main__':
     # Init
-    tmpdir = test_helper.init_test_for_debug(__name__)
+    tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
 
     # Two layer operations
     #test_erase_gpkg(tmpdir)

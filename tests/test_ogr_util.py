@@ -94,7 +94,7 @@ def basetest_st_area(
 
 if __name__ == '__main__':
     # Init
-    tmpdir = test_helper.init_test_for_debug(__name__)
+    tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
 
     # First print out some version info of the spatialite used
     print(f"gdal_default: {pprint.pformat(ogr_util.get_gdal_install_info('gdal_default'))}")

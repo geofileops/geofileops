@@ -200,14 +200,6 @@ def test_dissolve_linestrings_nogroupby_gpkg(tmpdir):
     output_path = Path(tmpdir) / 'linestrings_watercourses_output.gpkg'
     basetest_dissolve_linestrings_nogroupby(input_path, output_path)
 
-"""
-def test_dissolve_linestrings_nogroupby_shp(tmpdir):
-    # Apply operation
-    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.shp'
-    output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
-    basetest_dissolve_linestrings_nogroupby(input_path, output_path)
-    """
-    
 def basetest_dissolve_linestrings_nogroupby(input_path, output_basepath):
     # Apply dissolve with explodecollections
     output_path = (output_basepath.parent / 
@@ -613,7 +605,7 @@ def basetest_simplify(
 
 if __name__ == '__main__':
     # Init
-    tmpdir = test_helper.init_test_for_debug(__name__)
+    tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
 
     # Run
     #test_buffer_gpkg(tmpdir)

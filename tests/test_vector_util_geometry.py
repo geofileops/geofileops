@@ -412,7 +412,7 @@ def test_simplify_ext_no_simplification():
 
 if __name__ == '__main__':
     # Init
-    tmpdir = test_helper.init_test_for_debug(__name__)
+    tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
 
     #test_makevalid()
     #test_numberpoints()

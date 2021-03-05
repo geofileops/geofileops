@@ -139,7 +139,7 @@ def test_harmonize_geometrytypes():
 
 if __name__ == '__main__':
     # Init
-    tmpdir = test_helper.init_test_for_debug(__name__)
+    tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
 
     #test_geometry_collection_extract()
     test_harmonize_geometrytypes()
