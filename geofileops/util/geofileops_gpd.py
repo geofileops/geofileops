@@ -19,9 +19,10 @@ import shapely.geometry as sh_geom
 
 from geofileops import geofile
 from geofileops.util import general_util
+from geofileops.util.general_util import ParallelizationConfig
 from geofileops.util import geofileops_ogr
 from geofileops.util import geometry_util
-from geofileops.util.geometry_util import GeometryType, SimplifyAlgorithm 
+from geofileops.util.geometry_util import GeometryType, PrimitiveType, SimplifyAlgorithm 
 from geofileops.util import geoseries_util
 from geofileops.util import grid_util
 from geofileops.util import io_util
@@ -240,7 +241,7 @@ def _apply_geooperation_to_layer(
                 else:
                     rows = slice(row_offset, nb_rows_total)
 
-                #8 Remark: this temp file doesn't need spatial index
+                # Remark: this temp file doesn't need spatial index
                 future = calculate_pool.submit(
                         _apply_geooperation,
                         input_path=input_path,
@@ -378,10 +379,10 @@ def dissolve(
         explodecollections: bool = True,
         tiles_path: Path = None,
         nb_squarish_tiles: int = 1,
-        clip_on_tiles: bool = False,
         input_layer: str = None,
         output_layer: str = None,
         nb_parallel: int = -1,
+        parallelization_config: ParallelizationConfig = None,
         verbose: bool = False,
         force: bool = False) -> dict:
     """
@@ -399,11 +400,13 @@ def dissolve(
     if aggfunc != 'first':
         raise NotImplementedError(f"aggfunc != 'first' is not implemented")
     if groupby_columns is None and explodecollections == False:
-        raise NotImplementedError(f"The combination of groupby_columns is None AND explodecollections == False is not implemented")
-    if clip_on_tiles is True and tiles_path is None and nb_squarish_tiles == 1:
-        raise Exception(f"For clip_on_tiles to be True, tiles_path or nb_squarish_tiles needs to be specified")
+        raise Exception(f"The combination of groupby_columns is None AND explodecollections == False is not possible")
     if not input_path.exists():
         raise Exception(f"input_path does not exist: {input_path}")
+    layerinfo = geofile.get_layerinfo(input_path, input_layer)
+    if layerinfo.geometrytype.to_primitivetype in [PrimitiveType.POINT, PrimitiveType.LINESTRING]:
+        if tiles_path is not None or nb_squarish_tiles > 1:
+            raise Exception(f"Dissolve to tiles (tiles_path, nb_squarish_tiles) is not supported for {layerinfo.geometrytype}")
     if output_path.exists():
         if force is False:
             result_info['message'] = f"Stop {operation}: output exists already {output_path} and force is false"
@@ -413,10 +416,8 @@ def dissolve(
             geofile.remove(output_path)
     
     # Prepare columns to retain
-    layerinfo = None
     if columns is None:
         # If no columns specified, keep all columns
-        layerinfo = geofile.get_layerinfo(input_path, input_layer)
         columns_to_retain = layerinfo.columns
     else:
         # If columns specified, add groupby_columns if they are not specified
@@ -441,121 +442,190 @@ def dissolve(
             geofile.to_file(result_tiles_gdf, output_path.parent / f"{output_path.stem}_tiles.gpkg")
 
     ##### Now start dissolving... #####
-    # The dissolve is done in several passes, and after the first pass, only the 
-    # 'onborder' features are further dissolved, as the 'notonborder' features 
-    # are already OK.  
-    pass_input_path = input_path
-    if output_layer is None:
-        output_layer = geofile.get_default_layer(output_path)
-    tempdir = io_util.create_tempdir(operation)
-    output_tmp_path = tempdir / f"{output_path.stem}.gpkg"
-    prev_nb_batches = None
-    last_pass = False
-    pass_id = 0
-    current_clip_on_tiles = False
-    logger.info(f"Start dissolve on file {input_path}")
-    start_time = datetime.datetime.now()
+    # Line and point layers are:
+    #   * not so large (memory-wise)
+    #   * aren't computationally heavy
+    # Additionally line layers are a pain to handle correctly because of 
+    # rounding issues at the borders of tiles... so just dissolve them using 
+    # geopandas.   
+    if layerinfo.geometrytype.to_primitivetype in [PrimitiveType.POINT, PrimitiveType.LINESTRING]:
+        input_gdf = geofile.read_file(input_path, input_layer)
 
-    try:
-        while True:
-            
-            # Get some info of the file that needs to be dissolved
-            layerinfo = geofile.get_layerinfo(pass_input_path, input_layer)
-            nb_rows_total = layerinfo.featurecount
-            
-            # Calculate the best number of parallel processes and batches for 
-            # the available resources
-            nb_parallel, nb_batches_recommended, _ = general_util.get_parallellisation_params(
-                    nb_rows_total=nb_rows_total,
-                    nb_parallel=nb_parallel,
-                    prev_nb_batches=prev_nb_batches,
-                    verbose=verbose)
+        # Geopandas < 0.9 didn't support dissolving without groupby
+        if groupby_columns is None or len(groupby_columns) == 0:
+            union_geom = input_gdf.geometry.unary_union
 
-            # If the ideal number of batches is close to the nb. result tiles asked,  
-            # dissolve towards the asked result!
-            # If not, a temporary result is created using smaller tiles 
-            if nb_batches_recommended <= len(result_tiles_gdf)*1.1:
-                tiles_gdf = result_tiles_gdf
-                current_clip_on_tiles = clip_on_tiles
-                last_pass = True
-            elif len(result_tiles_gdf) == 1:
-                # Create a grid based on the ideal number of batches
-                tiles_gdf = grid_util.create_grid2(layerinfo.total_bounds, nb_batches_recommended, layerinfo.crs)
-            else:
-                # If a grid is specified already, add extra columns/rows instead of 
-                # creating new one...
-                tiles_gdf = grid_util.split_tiles(
-                    result_tiles_gdf, nb_batches_recommended)
-            geofile.to_file(tiles_gdf, tempdir / f"{output_path.stem}_{pass_id}_tiles.gpkg")
+            # Only keep geometries of primitive type of input 
+            union_geom_cleaned = geometry_util.collection_extract(
+                    union_geom, layerinfo.geometrytype.to_primitivetype)
+            diss_gdf = gpd.GeoDataFrame(geometry=[union_geom_cleaned], crs=input_gdf.crs)
+        else:
+            diss_gdf = input_gdf.dissolve(by=groupby_columns, aggfunc=aggfunc, as_index=False)
+            # assert to evade pyLance warning
+            assert isinstance(diss_gdf, gpd.GeoDataFrame)
 
-            # The notonborder rows are final immediately
-            # The onborder parcels will need extra processing still... 
-            output_tmp_onborder_path = tempdir / f"{output_path.stem}_{pass_id}_onborder.gpkg"
-            
-            result = _dissolve_pass(
-                    input_path=pass_input_path,
-                    output_notonborder_path=output_tmp_path,
-                    output_onborder_path=output_tmp_onborder_path,
-                    explodecollections=explodecollections,
-                    groupby_columns=groupby_columns,
-                    columns=columns_to_retain,
-                    aggfunc=aggfunc,
-                    tiles_gdf=tiles_gdf,
-                    clip_on_tiles=current_clip_on_tiles,
-                    input_layer=input_layer,        
-                    output_layer=output_layer,
-                    nb_parallel=nb_parallel,
-                    verbose=verbose,
-                    force=force)
+        # Explodecollections if needed
+        if explodecollections is True:
+            diss_gdf = diss_gdf.explode()
+            # Reset the index, and drop the level_0 and level_1 multiindex
+            diss_gdf.reset_index(drop=True, inplace=True)
+        
+        # Now write to file
+        geofile.to_file(diss_gdf, output_path, output_layer)
 
-            # If we are ready...
-            if last_pass is True:
-                break
-            
-            # Prepare the next pass...
-            # The input path are the onborder rows...
-            prev_nb_batches = len(tiles_gdf)
-            pass_input_path = output_tmp_onborder_path
-            pass_id += 1
+    elif layerinfo.geometrytype.to_primitivetype is PrimitiveType.POLYGON:
 
-        ##### Calculation ready! Now finalise output! #####
-        # If there is a result on border, append it to the rest
-        if output_tmp_onborder_path.exists():
-            geofile.append_to(output_tmp_onborder_path, output_tmp_path, dst_layer=output_layer)
+        # The dissolve for polygons is done in several passes, and after the first 
+        # pass, only the 'onborder' features are further dissolved, as the 
+        # 'notonborder' features are already OK.  
+        tempdir = io_util.create_tempdir(operation)
+        try:
+            pass_input_path = input_path
+            if output_layer is None:
+                output_layer = geofile.get_default_layer(output_path)
+            output_tmp_path = tempdir / f"{output_path.stem}.gpkg"
+            prev_nb_batches = None
+            last_pass = False
+            pass_id = 0
+            logger.info(f"Start dissolve on file {input_path}")
+            while True:
+                
+                # Get some info of the file that needs to be dissolved
+                layerinfo = geofile.get_layerinfo(pass_input_path, input_layer)
+                nb_rows_total = layerinfo.featurecount
+                
+                # Calculate the best number of parallel processes and batches for 
+                # the available resources
+                nb_parallel, nb_batches_recommended, _ = general_util.get_parallelization_params(
+                        nb_rows_total=nb_rows_total,
+                        nb_parallel=nb_parallel,
+                        prev_nb_batches=prev_nb_batches,
+                        parallelization_config=parallelization_config,
+                        verbose=verbose)
 
-        # If there is a result...
-        if output_tmp_path.exists():
-            # Now move tmp file to output location, but order the rows randomly
-            # to evade having all complex geometries together...   
-            # Add column to use for random ordering
-            geofile.add_column(path=output_tmp_path, layer=output_layer, 
-                    name='temp_ordering_id', type='REAL', expression=f"RANDOM()", force_update=True)
-            sqlite_stmt = f'CREATE INDEX idx_batch_id ON "{output_layer}"(temp_ordering_id)' 
-            ogr_util.vector_info(path=output_tmp_path, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
+                # If the ideal number of batches is close to the nb. result tiles asked,  
+                # dissolve towards the asked result!
+                # If not, a temporary result is created using smaller tiles 
+                if nb_batches_recommended <= len(result_tiles_gdf)*1.1:
+                    tiles_gdf = result_tiles_gdf
+                    last_pass = True
+                elif len(result_tiles_gdf) == 1:
+                    # Create a grid based on the ideal number of batches, but make 
+                    # sure the number is smaller than the maximum... 
+                    nb_squarish_tiles_max = None
+                    if prev_nb_batches is not None:
+                        nb_squarish_tiles_max = max(prev_nb_batches-1, 1)
+                    tiles_gdf = grid_util.create_grid2(
+                            total_bounds=layerinfo.total_bounds, 
+                            nb_squarish_tiles=nb_batches_recommended, 
+                            nb_squarish_tiles_max=nb_squarish_tiles_max, 
+                            crs=layerinfo.crs)
+                else:
+                    # If a grid is specified already, add extra columns/rows instead of 
+                    # creating new one...
+                    tiles_gdf = grid_util.split_tiles(
+                        result_tiles_gdf, nb_batches_recommended)
+                geofile.to_file(tiles_gdf, tempdir / f"{output_path.stem}_{pass_id}_tiles.gpkg")
 
-            # Get columns to keep and write final stuff
-            columns_str = ''
-            for column in columns_to_retain:
-                columns_str += f',"{column}"'
-            sql_stmt = f'''
-                    SELECT {{geometrycolumn}} 
-                        {columns_str} 
-                    FROM "{output_layer}" 
-                    ORDER BY temp_ordering_id'''
-            geofileops_ogr.select(
-                    output_tmp_path, output_path, sql_stmt, output_layer=output_layer)
+                # If the number of tiles ends up as 1, it is the last pass anyway...
+                if len(tiles_gdf) == 1:
+                    last_pass = True
 
-    finally:
-        # Clean tmp dir if it exists...
-        if tempdir.exists():
-            shutil.rmtree(tempdir)
+                # If we are not in the last pass, onborder parcels will need extra 
+                # processing still in further passes, so are saved in a seperate 
+                # file. The notonborder rows are final immediately 
+                if last_pass is not True:
+                    output_tmp_onborder_path = tempdir / f"{output_path.stem}_{pass_id}_onborder.gpkg"
+                else:
+                    output_tmp_onborder_path = output_tmp_path
+                
+                # Now go!
+                logger.info(f"Start dissolve pass {pass_id} to {len(tiles_gdf)} tiles (nb_parallel: {nb_parallel})")       
+                result = _dissolve_polygons_pass(
+                        input_path=pass_input_path,
+                        output_notonborder_path=output_tmp_path,
+                        output_onborder_path=output_tmp_onborder_path,
+                        explodecollections=explodecollections,
+                        groupby_columns=groupby_columns,
+                        columns=columns_to_retain,
+                        aggfunc=aggfunc,
+                        tiles_gdf=tiles_gdf,
+                        input_layer=input_layer,        
+                        output_layer=output_layer,
+                        nb_parallel=nb_parallel,
+                        verbose=verbose,
+                        force=force)
+
+                # Prepare the next pass...
+                # The input path are the onborder rows...
+                prev_nb_batches = len(tiles_gdf)
+                pass_input_path = output_tmp_onborder_path
+                pass_id += 1
+
+                # If we are ready...
+                if last_pass is True:
+                    break
+
+            ##### Calculation ready! Now finalise output! #####
+            # If there is a result on border, append it to the rest
+            if(str(output_tmp_onborder_path) != str(output_tmp_path) 
+            and output_tmp_onborder_path.exists()):
+                geofile.append_to(output_tmp_onborder_path, output_tmp_path, dst_layer=output_layer)
+
+            # If there is a result...
+            if output_tmp_path.exists():
+                # Prepare columns to keep 
+                columns_str = ''
+                for column in columns_to_retain:
+                    columns_str += f', "{column}"'
+                
+                # Now move tmp file to output location, but order the rows randomly
+                # to evade having all complex geometries together...   
+                geofile.add_column(path=output_tmp_path, layer=output_layer, 
+                        name='temp_ordering_id', type='REAL', expression=f"RANDOM()", force_update=True)
+                sqlite_stmt = f'CREATE INDEX idx_batch_id ON "{output_layer}"(temp_ordering_id)' 
+                ogr_util.vector_info(path=output_tmp_path, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
+
+                # Prepare SQL statement for final output file 
+                # If explodecollections is False and there are groupby columns...
+                if(explodecollections is False 
+                        and groupby_columns is not None 
+                        and len(groupby_columns) > 0):
+                    # All tiles are already dissolved to groups, but now the resuts 
+                    # from all tiles still need to be grouped/collected together.  
+                    groupby_columns_with_prefix = [f'"{column}"' for column in groupby_columns]
+                    groupby_columns_str = ", ".join(groupby_columns_with_prefix)
+                    sql_stmt = f'''
+                            SELECT ST_Collect({{geometrycolumn}}) AS {{geometrycolumn}} 
+                                {columns_str} 
+                            FROM "{output_layer}" 
+                            GROUP BY {groupby_columns_str}
+                            ORDER BY avg(temp_ordering_id)'''
+                else:
+                    # No group by columns, so only need to reorder output file
+                    sql_stmt = f'''
+                            SELECT {{geometrycolumn}} 
+                                {columns_str} 
+                            FROM "{output_layer}" 
+                            ORDER BY temp_ordering_id'''
+                # Go!
+                geofileops_ogr.select(
+                        output_tmp_path, output_path, sql_stmt, output_layer=output_layer,
+                        explodecollections=explodecollections)
+
+        finally:
+            # Clean tmp dir if it exists...
+            if tempdir.exists():
+                shutil.rmtree(tempdir)
+    else:
+        raise NotImplementedError(f"Unsupported input geometrytype: {layerinfo.geometrytype}")
 
     # Return result info
     result_info['message'] = f"Dissolve completely ready, took {datetime.datetime.now()-start_time}!"
     logger.info(result_info['message'])
     return result_info
 
-def _dissolve_pass(
+def _dissolve_polygons_pass(
         input_path: Path,  
         output_notonborder_path: Path,
         output_onborder_path: Path,
@@ -564,7 +634,6 @@ def _dissolve_pass(
         columns: List[str],
         aggfunc: str,
         tiles_gdf: gpd.GeoDataFrame,
-        clip_on_tiles: bool,
         input_layer: Optional[str],        
         output_layer: Optional[str],
         nb_parallel: int,
@@ -577,8 +646,6 @@ def _dissolve_pass(
     start_time = datetime.datetime.now()
     input_layerinfo = geofile.get_layerinfo(input_path, input_layer)
     nb_rows_total = input_layerinfo.featurecount
-
-    logger.info(f"Start dissolve pass to {len(tiles_gdf)} tiles (nb_parallel: {nb_parallel})")       
     with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
         batches = {}    
@@ -590,7 +657,7 @@ def _dissolve_pass(
             batches[batch_id]['layer'] = output_layer
             
             future = calculate_pool.submit(
-                    _dissolve,
+                    _dissolve_polygons,
                     input_path=input_path,
                     output_notonborder_path=output_notonborder_path,
                     output_onborder_path=output_onborder_path,
@@ -599,7 +666,6 @@ def _dissolve_pass(
                     columns=columns,
                     aggfunc=aggfunc,
                     input_geometrytype=input_layerinfo.geometrytype,
-                    clip_on_tiles=clip_on_tiles,
                     input_layer=input_layer,        
                     output_layer=output_layer,
                     bbox=tile.geometry.bounds,
@@ -633,7 +699,7 @@ def _dissolve_pass(
                 
     return result_info
 
-def _dissolve(
+def _dissolve_polygons(
         input_path: Path,
         output_notonborder_path: Path,
         output_onborder_path: Path,
@@ -642,7 +708,6 @@ def _dissolve(
         columns: List[str],
         aggfunc: str,
         input_geometrytype: GeometryType,
-        clip_on_tiles: bool,
         input_layer: Optional[str],        
         output_layer: Optional[str],
         bbox: Tuple[float, float, float, float],
@@ -688,35 +753,9 @@ def _dissolve(
         return_info['total_time'] = (datetime.datetime.now()-start_time).total_seconds()
         return return_info
 
-    # If the tiles don't need to be kept,
-    # evade geometries from being processed in multiple tiles.    
-    if clip_on_tiles is False:
-
-        # Geometries can be on the border of tiles, so can intersect with 
-        # multiple tiles. 
-        # For a dissolve with a groupby this would result in duplicated rows.  
-        # When no groupby_columns are specified but keep_tiles is False it 
-        # is inefficient to treat these border-geometries multiple times.
-        # So in these cases, retain only geometries where the first point of 
-        # the geometry is in the bbox. Geometries that don't comply now will be 
-        # treated in another tile.
-        start_filter = datetime.datetime.now()
-        representative_point_gs = input_gdf.geometry.representative_point()
-        input_gdf['representative_point_x'] = representative_point_gs.x
-        input_gdf['representative_point_y'] = representative_point_gs.y
-        input_gdf = input_gdf.loc[
-                (input_gdf['representative_point_x'] >= bbox[0]) &
-                (input_gdf['representative_point_y'] >= bbox[1]) &
-                (input_gdf['representative_point_x'] < bbox[2]) &
-                (input_gdf['representative_point_y'] < bbox[3])].copy() 
-        input_gdf.drop(['representative_point_x', 'representative_point_y'], axis=1, inplace=True)
-
-        # Nb. rows that will be processed is reduced...
-        return_info['nb_rows_done'] = len(input_gdf)
-        perfinfo['time_filter_repr_point'] = (datetime.datetime.now()-start_filter).total_seconds()
-            
     # Now the real processing
     # If no groupby_columns specified, perform unary_union
+    # TODO: from geopandas 0.9, dissolve without groupby_columns is supported
     if groupby_columns is None or len(groupby_columns) == 0:
         # unary union...
         start_unary_union = datetime.datetime.now()
@@ -727,49 +766,55 @@ def _dissolve(
             logger.exception(message)
             raise Exception(message) from ex
 
-        # TODO: also support other geometry types (points and lines)
+        # Only keep geometries of primitive type of input 
         union_geom_cleaned = geometry_util.collection_extract(
                 union_geom, input_geometrytype.to_primitivetype)
         diss_gdf = gpd.GeoDataFrame(geometry=[union_geom_cleaned], crs=input_gdf.crs)
         perfinfo['time_unary_union'] = (datetime.datetime.now()-start_unary_union).total_seconds()
-
-        # For polygons, explode multi-geometries ...
-        if(explodecollections is True 
-           or input_geometrytype in [GeometryType.POLYGON, GeometryType.MULTIPOLYGON]):
-            diss_gdf = diss_gdf.explode()
-            # Reset the index, and drop the level_0 and level_1 multiindex
-            diss_gdf.reset_index(drop=True, inplace=True)
-
-        # If we want to keep the tiles, clip the result on the borders of the 
-        # bbox not to have overlaps between the different tiles.
-        if clip_on_tiles is True and bbox is not None:
-            start_clip = datetime.datetime.now()
-            polygon = sh_geom.Polygon([(bbox[0], bbox[1]), (bbox[0], bbox[3]), (bbox[2], bbox[3]), (bbox[2], bbox[1]), (bbox[0], bbox[1])])
-            bbox_gdf = gpd.GeoDataFrame([1], geometry=[polygon], crs=input_gdf.crs)
-            # keep_geom_type=True gives errors, so replace by own implementation
-            diss_gdf = gpd.clip(diss_gdf, bbox_gdf)
-
-            # Only keep geometries of the primitive type specified...
-            # assert to evade pyLance warning 
-            assert isinstance(diss_gdf, gpd.GeoDataFrame)
-            diss_gdf.geometry = geoseries_util.geometry_collection_extract(
-                    diss_gdf.geometry, input_geometrytype.to_primitivetype)
-    
-            perfinfo['time_clip'] = (datetime.datetime.now()-start_clip).total_seconds()
     else:
         # If groupby_columns specified, dissolve
         start_dissolve = datetime.datetime.now()
         diss_gdf = input_gdf.dissolve(by=groupby_columns, aggfunc=aggfunc, as_index=False)
-        
-        # assert to evade pyLance werning 
-        assert isinstance(diss_gdf, gpd.GeoDataFrame)
-        # Explode multi-geometries if asked...
-        if explodecollections:
-            diss_gdf = diss_gdf.explode()
-            # Reset the index, and drop the level_0 and lavel_1 multiindex
-            diss_gdf.reset_index(drop=True, inplace=True)
-                
         perfinfo['time_dissolve'] = (datetime.datetime.now()-start_dissolve).total_seconds()
+
+    # If explodecollections is True and For polygons, explode multi-geometries.
+    # If needed they will be 'collected' afterwards to multipolygons again.
+    if(explodecollections is True 
+        or input_geometrytype in [GeometryType.POLYGON, GeometryType.MULTIPOLYGON]):
+        # assert to evade pyLance warning 
+        assert isinstance(diss_gdf, gpd.GeoDataFrame)
+        diss_gdf = diss_gdf.explode()
+        # Reset the index, and drop the level_0 and level_1 multiindex
+        diss_gdf.reset_index(drop=True, inplace=True)
+
+    # Clip the result on the borders of the bbox not to have overlaps 
+    # between the different tiles. 
+    # If this is not applied, this results in some geometries not being merged 
+    # or in duplicates.
+    # REMARK: for (multi)linestrings, the endpoints created by the clip are not 
+    # always the same due to rounding, so dissolving in a next pass doesn't 
+    # always result in linestrings being re-connected... Because dissolving 
+    # lines isn't so computationally heavy anyway, drop support here.    
+    if bbox is not None:
+        start_clip = datetime.datetime.now()
+        polygon = sh_geom.Polygon([(bbox[0], bbox[1]), (bbox[0], bbox[3]), (bbox[2], bbox[3]), (bbox[2], bbox[1]), (bbox[0], bbox[1])])
+        bbox_gdf = gpd.GeoDataFrame([1], geometry=[polygon], crs=input_gdf.crs)
+        # keep_geom_type=True gave errors, but seems fixed since geopandas 0.8.2
+        diss_gdf = gpd.clip(diss_gdf, bbox_gdf, keep_geom_type=True)
+
+        """
+        # Only keep geometries of the primitive type specified after clip...
+        # assert to evade pyLance warning 
+        assert isinstance(diss_gdf, gpd.GeoDataFrame)
+        diss_gdf.geometry = geoseries_util.geometry_collection_extract(
+                diss_gdf.geometry, input_geometrytype.to_primitivetype)
+        """
+
+        perfinfo['time_clip'] = (datetime.datetime.now()-start_clip).total_seconds()
+
+    # Drop rows with None/empty geometries 
+    diss_gdf = diss_gdf[~diss_gdf.geometry.isna()]
+    diss_gdf = diss_gdf[~diss_gdf.geometry.is_empty]
 
     # If there is no result, return
     if len(diss_gdf) == 0:
@@ -808,7 +853,7 @@ def _dissolve(
                     onborder_gdf, output_onborder_path, layer=output_layer, 
                     append=True, force_multitype=True)
         
-        notonborder_gdf = diss_gdf[~diss_gdf.index.isin(onborder_gdf.index)].dropna()
+        notonborder_gdf = diss_gdf[~diss_gdf.index.isin(onborder_gdf.index)]
         if len(notonborder_gdf) > 0:
             # assert to evade pyLance warning 
             assert isinstance(notonborder_gdf, gpd.GeoDataFrame) 

@@ -129,18 +129,22 @@ def dissolve(
         aggfunc: str = 'first',
         tiles_path: Union[str, 'os.PathLike[Any]'] = None,
         nb_squarish_tiles: int = 1,
-        clip_on_tiles: bool = False,
+        clip_on_tiles: bool = True,
         input_layer: str = None,        
         output_layer: str = None,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
     """
-    Applies a dissolve operation on geometry column of the input file.
-    
-    The result is written to the output file specified. 
+    Applies a dissolve operation on the geometry column of the input file. Only 
+    supports (Multi)Polygon files.
 
-    Remark: only aggfunc = 'first' is supported at the moment. 
+    If the output is tiled (by specifying a tiles_path or nb_squarish_tiles > 1), 
+    the result will be clipped  on the output tiles and the tile borders are 
+    never crossed.
+            
+    Remarks: 
+        * only aggfunc = 'first' is supported at the moment. 
 
     Args:
         input_path (PathLike): the input file
@@ -172,11 +176,13 @@ def dissolve(
             Can be used to evade huge geometries being created if the input 
             geometries are very interconnected. 
             Defaults to 1 (= the output is not tiled).
-        clip_on_tiles (bool, optional): if True, the result will be clipped 
-            on the output tiles, so the tile borders are never crossed. 
-            Only used if the output is tiled (by specifying a tiles_path 
-            or a nb_squarish_tiles > 1) and no groupby_columns are specified. 
-            Defaults to False.
+        clip_on_tiles (bool, optional): deprecated: should always be True! 
+            If the output is tiled (by specifying a tiles_path 
+            or a nb_squarish_tiles > 1), the result will be clipped 
+            on the output tiles and the tile borders are never crossed.
+            When False, a (scalable, fast) implementation always resulted in 
+            some geometries not being merged or in duplicates. 
+            Defaults to True.
         input_layer (str, optional): input layer name. Optional if the  
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the  
@@ -189,6 +195,10 @@ def dissolve(
             Defaults to False.
     """
     # Init
+    if clip_on_tiles is False:
+        logger.warn("The clip_on_tiles parameter is deprecated! It is ignored and always treated as True. When False, a fast implementation results in some geometries not being merged or in duplicates.")
+        if tiles_path is not None or nb_squarish_tiles > 1:
+            raise Exception("clip_on_tiles is deprecated, and the behaviour of clip_on_tiles is False is not supported anymore.")
     tiles_path_p = None
     if tiles_path is not None:
         tiles_path_p = Path(tiles_path)
@@ -203,7 +213,6 @@ def dissolve(
             aggfunc=aggfunc,
             tiles_path=tiles_path_p,
             nb_squarish_tiles=nb_squarish_tiles,
-            clip_on_tiles=clip_on_tiles,
             input_layer=input_layer,        
             output_layer=output_layer,
             nb_parallel=nb_parallel,

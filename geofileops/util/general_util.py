@@ -82,61 +82,85 @@ def formatbytes(bytes: float):
     elif TB <= bytes_float:
         return '{0:.2f} TB'.format(bytes_float/TB)
 
-ParallellisationParams = NamedTuple('result', [('nb_parallel', int), ('nb_batches_recommended', int), ('nb_rows_per_batch', int)])
-def get_parallellisation_params(
+class ParallelizationConfig():
+    def __init__(self, 
+            bytes_basefootprint: int = 50*1024*1024, 
+            bytes_per_row: int = 100, 
+            min_avg_rows_per_batch: int = 1000, 
+            max_avg_rows_per_batch: int = 10000, 
+            bytes_min_per_process = None, 
+            bytes_usable = None):
+        self.bytes_basefootprint = bytes_basefootprint
+        self.bytes_per_row = bytes_per_row
+        self.min_avg_rows_per_batch = min_avg_rows_per_batch
+        self.max_avg_rows_per_batch = max_avg_rows_per_batch
+        if bytes_min_per_process is None:
+            self.bytes_min_per_process = bytes_basefootprint + bytes_per_row * min_avg_rows_per_batch
+        else:
+            self.bytes_min_per_process = bytes_min_per_process
+        if bytes_usable is None: 
+            self.bytes_usable = psutil.virtual_memory().available * 0.9
+        else:
+            self.bytes_usable = bytes_usable
+
+parallelizationParams = NamedTuple('result', [('nb_parallel', int), ('nb_batches_recommended', int), ('nb_rows_per_batch', int)])
+def get_parallelization_params(
         nb_rows_total: int,
         nb_parallel: int = -1,
         prev_nb_batches: int = None,
-        verbose: bool = False) -> ParallellisationParams:
+        parallelization_config: ParallelizationConfig = None,
+        verbose: bool = False) -> parallelizationParams:
     """
-    Determines recommended parallellisation params.
+    Determines recommended parallelization params.
 
     Args:
         nb_rows_total (int): The total number of rows that will be processed
-        nb_parallel (int, optional): The level of parallellisation requested. 
+        nb_parallel (int, optional): The level of parallelization requested. 
             If -1, tries to use all resources available. Defaults to -1.
         prev_nb_batches (int, optional): If applicable, the number of batches 
             used in a previous pass of the calculation. Defaults to None.
         verbose (bool, optional): [description]. Defaults to False.
 
     Returns:
-        ParallellisationParams (NamedTuple('result', [('nb_parallel', int), ('nb_batches_recommended', int), ('nb_rows_per_batch', int)])): The recommended parameters.
+        parallelizationParams (NamedTuple('result', [('nb_parallel', int), ('nb_batches_recommended', int), ('nb_rows_per_batch', int)])): The recommended parameters.
     """
-    # Some initialisations
-    bytes_basefootprint = 50*1024*1024   # Base footprint of a python process
-    bytes_per_row = 100                  # Average memory needed per row in bytes. Remark: when running from VS code, 3 times higher!
-    min_avg_rows_per_batch = 1000
-    max_avg_rows_per_batch = 10000       # 60.000 on small test, but seems slow in larger
-    bytes_min_per_process = bytes_basefootprint + bytes_per_row * min_avg_rows_per_batch
-    bytes_usable = psutil.virtual_memory().available * 0.9
+    # Init parallelization config
+
+    # If config is None, set to empty dict
+    if parallelization_config is not None:
+        parallelization_config_local = parallelization_config
+    else:
+        parallelization_config_local = ParallelizationConfig()
     
     # If the number of rows is really low, just use one batch
     # TODO: for very complex features, possibly this limit is not a good idea
-    if nb_rows_total < min_avg_rows_per_batch:
-        return ParallellisationParams(1, 1, nb_rows_total)
+    if nb_rows_total < parallelization_config_local.min_avg_rows_per_batch:
+        return parallelizationParams(1, 1, nb_rows_total)
 
     if(nb_parallel == -1):
         nb_parallel = multiprocessing.cpu_count()
 
     # If the available memory is very small, check if we can use more swap 
-    if bytes_usable < 1024*1024:
+    if parallelization_config_local.bytes_usable < 1024*1024:
         bytes_usable = min(psutil.swap_memory().free, 1024*1024)
-    logger.debug(f"memory_usable: {formatbytes(bytes_usable)} with mem.available: {formatbytes(psutil.virtual_memory().available)} and swap.free: {formatbytes(psutil.swap_memory().free)}") 
+    logger.debug(f"memory_usable: {formatbytes(parallelization_config_local.bytes_usable)} with mem.available: {formatbytes(psutil.virtual_memory().available)} and swap.free: {formatbytes(psutil.swap_memory().free)}") 
 
     # If not enough memory for the amount of parallellism asked, reduce
-    if (nb_parallel * bytes_min_per_process) > bytes_usable:
-        nb_parallel = int(bytes_usable/bytes_min_per_process)
+    if (nb_parallel * parallelization_config_local.bytes_min_per_process) > parallelization_config_local.bytes_usable:
+        nb_parallel = int(parallelization_config_local.bytes_usable/parallelization_config_local.bytes_min_per_process)
         logger.debug(f"Nb_parallel reduced to {nb_parallel} to evade excessive memory usage")
 
     # Optimal number of batches and rows per batch based on memory usage
-    nb_batches = math.ceil((nb_rows_total*bytes_per_row*nb_parallel)/(bytes_usable-bytes_basefootprint*nb_parallel))
+    nb_batches = math.ceil(
+            (nb_rows_total*parallelization_config_local.bytes_per_row*nb_parallel)/
+            (parallelization_config_local.bytes_usable-parallelization_config_local.bytes_basefootprint*nb_parallel))
     
     # Make sure the average batch doesn't contain > max_avg_rows_per_batch
     batch_size = math.ceil(nb_rows_total/nb_batches)
-    if batch_size > max_avg_rows_per_batch:
-        batch_size = max_avg_rows_per_batch
+    if batch_size > parallelization_config_local.max_avg_rows_per_batch:
+        batch_size = parallelization_config_local.max_avg_rows_per_batch
         nb_batches = math.ceil(nb_rows_total/batch_size)
-    mem_predicted = (bytes_basefootprint + batch_size*bytes_per_row)*nb_batches
+    mem_predicted = (parallelization_config_local.bytes_basefootprint + batch_size*parallelization_config_local.bytes_per_row)*nb_batches
 
     # Make sure there are enough batches to use as much parallelism as possible
     if nb_batches > 1 and nb_batches < nb_parallel:
@@ -151,4 +175,4 @@ def get_parallellisation_params(
     if verbose:
         logger.info(f"nb_batches_recommended: {nb_batches}, rows_per_batch: {batch_size} for nb_rows_input_layer: {nb_rows_total} will result in mem_predicted: {formatbytes(mem_predicted)}")   
 
-    return ParallellisationParams(nb_parallel, nb_batches, batch_size)
+    return parallelizationParams(nb_parallel, nb_batches, batch_size)
