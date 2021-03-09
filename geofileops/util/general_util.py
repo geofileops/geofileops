@@ -22,16 +22,6 @@ logger = logging.getLogger(__name__)
 # The real work
 ################################################################################
 
-def initgdal():
-    # At least on windows, the init of this doensn't seem to work properly... 
-    # TODO: should be solved somewhere else?
-    if os.environ['PROJ_LIB'] is None:
-        os.environ['PROJ_LIB'] = r"C:\Tools\miniconda3\envs\orthoseg\Library\share\proj"
-        logger.warn(f"PROJ_LIB environment variable was not set, set to {os.environ['PROJ_LIB']}")
-    if os.environ['GDAL_DATA'] is None:
-        os.environ['GDAL_DATA'] = r"C:\Tools\miniconda3\envs\orthoseg\Library\share\gdal"
-        logger.warn(f"GDAL_DATA environment variable was not set, set to {os.environ['GDAL_DATA']}")
-
 def report_progress(
         start_time: datetime.datetime,
         nb_done: int,
@@ -72,7 +62,7 @@ def formatbytes(bytes: float):
     TB = float(KB ** 4) # 1,099,511,627,776
 
     if bytes_float < KB:
-        return '{0} {1}'.format(bytes_float,'Bytes' if 0 == bytes_float > 1 else 'Byte')
+        return '{0} {1}'.format(bytes_float, 'Bytes' if bytes_float > 1 else 'Byte')
     elif KB <= bytes_float < MB:
         return '{0:.2f} KB'.format(bytes_float/KB)
     elif MB <= bytes_float < GB:
