@@ -8,13 +8,29 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
-from typing import Optional, Tuple
+from typing import Tuple
 
 class CTError(Exception):
     def __init__(self, errors):
         self.errors = errors
 
 def create_tempdir(base_dirname: str) -> Path:
+    """
+    Creates a new tempdir in the default temp location.
+
+    Remark: the temp dir won't be cleaned up automatically!
+
+    Args:
+        base_dirname (str): The name the tempdir will start with. A number will
+            be attended to this to make the directory name unique.
+
+    Raises:
+        Exception: if it wasn't possible to create the temp dir because there 
+            wasn't found a unique directory name.
+
+    Returns:
+        Path: the path to the temp dir created.
+    """
     
     defaulttempdir = Path(tempfile.gettempdir())
 
@@ -30,9 +46,32 @@ def create_tempdir(base_dirname: str) -> Path:
 
 def get_tempfile_locked(
         base_filename: str,
-        suffix: str = None,
+        suffix: str = '.tmp',
         dirname: str = None,
         tempdir: Path = None) -> Tuple[Path, Path]:
+    """
+    Formats a temp file path, and creates a corresponding lock file so you can 
+    treat it immediately as being locked.
+
+    Args:
+        base_filename (str): The base filename to use. A numeric suffix will be 
+            appended to make the filename unique.
+        suffix (str, optional): The suffix/extension of the tempfile. 
+            Defaults to '.tmp'.
+        dirname (str, optional): Name of the subdir to put the tempfile in. 
+            Defaults to None, then the tempfile created is put directly in the 
+            root of the tempdir.
+        tempdir (Path, optional): Root temp dir to create the file in. If no 
+            tempdir is specified, the default temp dir will be used.
+            Defaults to None.
+
+    Raises:
+        Exception: if it wasn't possible to create the temp dir because there 
+            wasn't found a unique file name.
+
+    Returns:
+        Tuple[Path, Path]: First path is the temp file, second one is the lock file.
+    """
     # If no dir specified, use default temp dir
     if tempdir is None:
         tempdir = Path(tempfile.gettempdir())
@@ -51,8 +90,8 @@ def get_tempfile_locked(
                 # OK!
                 return (tempfile_path, tempfilelock_path)
             else:
-                # Apparently the lock file didn't exist, but the file did... so 
-                # delete lock file and try again
+                # Apparently the lock file didn't exist yet, but the file did. 
+                # So delete lock file and try again.
                 tempfilelock_path.unlink()
 
     raise Exception(f"Wasn't able to create a temporary file with base_filename: {base_filename}, dir: {dir}") 
@@ -84,33 +123,6 @@ def copyfile(src, dst):
              open(dst, 'wb') as fdest:
             shutil.copyfileobj(fsrc, fdest, buffer_size)
     
-def copytree(src, dst, symlinks=False, ignore=[]):
-    names = os.listdir(src)
-
-    if not os.path.exists(dst):
-        os.makedirs(dst)
-    errors = []
-    for name in names:
-        if name in ignore:
-            continue
-        srcname = os.path.join(src, name)
-        dstname = os.path.join(dst, name)
-        try:
-            if symlinks and os.path.islink(srcname):
-                linkto = os.readlink(srcname)
-                os.symlink(linkto, dstname)
-            elif os.path.isdir(srcname):
-                copytree(srcname, dstname, symlinks, ignore)
-            else:
-                copyfile(srcname, dstname)
-            # XXX What about devices, sockets etc.?
-        except (IOError, os.error) as ex:
-            errors.append((srcname, dstname, str(ex)))
-        except CTError as err:
-            errors.extend(err.errors)
-    if errors:
-        raise CTError(errors)
-
 def is_locked(filepath):
     """
     Checks if a file is locked by another process.
