@@ -930,7 +930,7 @@ def move(
         src: Union[str, 'os.PathLike[Any]'], 
         dst: Union[str, 'os.PathLike[Any]']):
     """
-    Moves the geofile from src to dst. Is the source file is a geofile containing
+    Moves the geofile from src to dst. If the source file is a geofile containing
     of multiple files (eg. .shp) all files are moved.
 
     Args:

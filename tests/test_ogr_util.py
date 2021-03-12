@@ -52,7 +52,7 @@ def basetest_st_area(
         sql_dialect: str):
     
     # try st_areag
-    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
+    input_path = test_helper.TestFiles.polygons_parcels_gpkg
     sqlite_stmt = 'SELECT round(ST_area(geom), 2) as area FROM "parcels"'
     test_ok = False
     ok_expected = test_helper.is_gdal_ok('', gdal_installation)
@@ -67,7 +67,7 @@ def basetest_st_area(
     assert result_gdf['area'][0] == 146.8
 
     # Try st_makevalid 
-    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
+    input_path = test_helper.TestFiles.polygons_parcels_gpkg
     sqlite_stmt = 'SELECT st_makevalid(geom) as geom FROM "parcels"'
     test_ok = False
     ok_expected = test_helper.is_gdal_ok('', gdal_installation)
@@ -80,7 +80,7 @@ def basetest_st_area(
     assert test_ok is ok_expected, f"Test to run test <{sqlite_stmt}> failed for gdal_installation: {gdal_installation}, install_info: {ogr_util.get_gdal_install_info(gdal_installation)}"  
     
     # Try st_isvalid 
-    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
+    input_path = test_helper.TestFiles.polygons_parcels_gpkg
     sqlite_stmt = 'SELECT st_isvalid(geom) as geom FROM "parcels"'
     test_ok = False
     ok_expected = test_helper.is_gdal_ok('', gdal_installation)

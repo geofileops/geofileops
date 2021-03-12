@@ -5,7 +5,6 @@ Helper functions for all tests.
 
 import logging
 from pathlib import Path
-import shutil
 import sys
 import tempfile
 
@@ -51,7 +50,26 @@ class TestData:
     multipolygon = sh_geom.MultiPolygon([polygon2, polygon3])
     geometrycollection = sh_geom.GeometryCollection([
             point, multipoint, linestring, multilinestring, polygon, multipolygon])
+
+class TestFiles:
+    testdata_dir = Path(__file__).resolve().parent / 'data'
+
+    BEFL_kbl_gpkg = testdata_dir / 'BEFL_kbl.gpkg'
+
+    linestrings_rows_of_trees_gpkg = testdata_dir / 'linestrings_rows_of_trees.gpkg'
+    linestrings_watercourses_gpkg = testdata_dir / 'linestrings_watercourses.gpkg'
+
+    polygons_parcels_gpkg = testdata_dir / 'polygons_parcels.gpkg'
+    polygons_parcels_shp = testdata_dir / 'polygons_parcels.shp'
+    polygons_invalid_geometries_gpkg = testdata_dir / 'polygons_invalid_geometries.gpkg'
+    polygons_invalid_geometries_shp = testdata_dir / 'polygons_invalid_geometries.shp'
+    polygons_simplify_onborder_testcase_gpkg = testdata_dir / 'polygons_simplify_onborder_testcase.gpkg'
+    polygons_twolayers_gpkg = testdata_dir / 'polygons_twolayers.gpkg'
+    polygons_zones_gpkg = testdata_dir / 'polygons_zones.gpkg'
+    polygons_zones_shp = testdata_dir / 'polygons_zones.shp'
     
+    points_gpkg = testdata_dir / 'points.gpkg'
+
 def get_testdata_dir() -> Path:
     return Path(__file__).resolve().parent / 'data'
 

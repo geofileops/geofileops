@@ -35,23 +35,23 @@ def get_parallelization_config() -> ParallelizationConfig:
 
 def test_buffer_gpkg(tmpdir):
     # Buffer polygon source to test dir
-    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
+    input_path = test_helper.TestFiles.polygons_parcels_gpkg
     output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     basetest_buffer(input_path, output_path, GeometryType.MULTIPOLYGON)
 
     # Buffer point source to test dir
-    input_path = test_helper.get_testdata_dir() / 'points.gpkg'
+    input_path = test_helper.TestFiles.points_gpkg
     output_path = Path(tmpdir) / 'points_output.gpkg'
     basetest_buffer(input_path, output_path, GeometryType.MULTIPOINT)
 
     # Buffer line source to test dir
-    input_path = test_helper.get_testdata_dir() / 'linestrings_rows_of_trees.gpkg'
+    input_path = test_helper.TestFiles.linestrings_rows_of_trees_gpkg
     output_path = Path(tmpdir) / 'linestrings_rows_of_trees_output.gpkg'
     basetest_buffer(input_path, output_path, GeometryType.MULTILINESTRING)
 
 def test_buffer_shp(tmpdir):
     # Buffer to test dir
-    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.shp'
+    input_path = test_helper.TestFiles.polygons_parcels_shp
     output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_buffer(input_path, output_path, GeometryType.MULTIPOLYGON)
 
@@ -139,13 +139,13 @@ def basetest_buffer(
 
 def test_buffer_various_options_gpkg(tmpdir):
     # Buffer to test dir
-    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
+    input_path = test_helper.TestFiles.polygons_parcels_gpkg
     output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     basetest_buffer_various_options(input_path, output_path)
 
 def test_buffer_various_options_shp(tmpdir):
     # Buffer to test dir
-    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.shp'
+    input_path = test_helper.TestFiles.polygons_parcels_shp
     output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_buffer_various_options(input_path, output_path)
 
@@ -177,13 +177,13 @@ def basetest_buffer_various_options(input_path, output_path):
 
 def test_convexhull_gpkg(tmpdir):
     # Select some data from input to output file
-    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
+    input_path = test_helper.TestFiles.polygons_parcels_gpkg
     output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     basetest_convexhull(input_path, output_path)
 
 def test_convexhull_shp(tmpdir):
     # Select some data from input to output file
-    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.shp'
+    input_path = test_helper.TestFiles.polygons_parcels_shp
     output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_convexhull(input_path, output_path)
 
@@ -209,7 +209,7 @@ def basetest_convexhull(input_path, output_path):
 
 def test_dissolve_linestrings_nogroupby_gpkg(tmpdir):
     # Apply operation
-    input_path = test_helper.get_testdata_dir() / 'linestrings_watercourses.gpkg'
+    input_path = test_helper.TestFiles.linestrings_watercourses_gpkg
     output_path = Path(tmpdir) / 'linestrings_watercourses_output.gpkg'
     basetest_dissolve_linestrings_nogroupby(input_path, output_path)
 
@@ -267,13 +267,13 @@ def basetest_dissolve_linestrings_nogroupby(input_path, output_basepath):
 
 def test_dissolve_polygons_groupby_gpkg(tmpdir):
     # Buffer to test dir
-    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
+    input_path = test_helper.TestFiles.polygons_parcels_gpkg
     output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     basetest_dissolve_polygons_groupby(input_path, output_path)
 
 def test_dissolve_polygons_groupby_shp(tmpdir):
     # Buffer to test dir
-    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.shp'
+    input_path = test_helper.TestFiles.polygons_parcels_shp
     output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_dissolve_polygons_groupby(input_path, output_path)
 
@@ -398,13 +398,13 @@ def basetest_dissolve_polygons_groupby(
 
 def test_dissolve_polygons_nogroupby_gpkg(tmpdir):
     # Buffer to test dir
-    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
+    input_path = test_helper.TestFiles.polygons_parcels_gpkg
     output_basepath = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     basetest_dissolve_polygons_nogroupby(input_path, output_basepath)
 
 def test_dissolve_polygons_nogroupby_shp(tmpdir):
     # Buffer to test dir
-    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.shp'
+    input_path = test_helper.TestFiles.polygons_parcels_shp
     output_basepath = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_dissolve_polygons_nogroupby(input_path, output_basepath)
 
@@ -523,23 +523,23 @@ def test_dissolve_multisinglepolygons_gpkg(tmpdir):
 
 def test_simplify_gpkg(tmpdir):
     # Simplify polygon source to test dir
-    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
+    input_path = test_helper.TestFiles.polygons_parcels_gpkg
     output_path = Path(tmpdir) / 'polygons_parcels_output.gpkg'
     basetest_simplify(input_path, output_path, GeometryType.MULTIPOLYGON)
 
     # Simplify point source to test dir
-    input_path = test_helper.get_testdata_dir() / 'points.gpkg'
+    input_path = test_helper.TestFiles.points_gpkg
     output_path = Path(tmpdir) / 'points_output.gpkg'
     basetest_simplify(input_path, output_path, GeometryType.MULTIPOINT)
 
     # Simplify line source to test dir
-    input_path = test_helper.get_testdata_dir() / 'linestrings_rows_of_trees.gpkg'
+    input_path = test_helper.TestFiles.linestrings_rows_of_trees_gpkg
     output_path = Path(tmpdir) / 'linestrings_rows_of_trees_output.gpkg'
     basetest_simplify(input_path, output_path, GeometryType.MULTILINESTRING)
 
 def test_simplify_shp(tmpdir):
     # Buffer to test dir
-    input_path = test_helper.get_testdata_dir() / 'polygons_parcels.shp'
+    input_path = test_helper.TestFiles.polygons_parcels_shp
     output_path = Path(tmpdir) / 'polygons_parcels_output.shp'
     basetest_simplify(input_path, output_path, GeometryType.MULTIPOLYGON)
 

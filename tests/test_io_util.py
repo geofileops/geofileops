@@ -14,7 +14,7 @@ from tests import test_helper
 
 def test_copyfile(tmpdir):
     tmpdir = Path(tmpdir)
-    src_file = test_helper.get_testdata_dir() / 'polygons_parcels.gpkg'
+    src_file = test_helper.TestFiles.polygons_parcels_gpkg
     dst_file = tmpdir / src_file.name
 
     assert src_file.exists() is True

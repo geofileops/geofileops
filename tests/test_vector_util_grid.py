@@ -30,7 +30,7 @@ def test_create_grid2():
     assert len(grid_gdf) == 96
 
 def test_split_tiles():
-    input_tiles_path = test_helper.get_testdata_dir() / 'BEFL_kbl.gpkg'
+    input_tiles_path = test_helper.TestFiles.BEFL_kbl_gpkg
     input_tiles = geofile.read_file(input_tiles_path)
     nb_tiles_wanted = len(input_tiles) * 8
     result = grid_util.split_tiles(

@@ -268,7 +268,7 @@ def test_simplify_ext_keep_points_on(tmpdir):
     
     ## First init some stuff ##
     # Read the test data
-    input_path = test_helper.get_testdata_dir() / 'polygons_simplify_onborder_testcase.gpkg'
+    input_path = test_helper.TestFiles.polygons_simplify_onborder_testcase_gpkg
     geofile.copy(input_path, tmpdir / input_path.name)
     input_gdf = geofile.read_file(input_path)
 
