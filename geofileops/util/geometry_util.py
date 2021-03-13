@@ -11,6 +11,7 @@ from typing import Any, List, Optional, Union
 import geopandas as gpd
 import numpy as np
 import pygeos
+from shapely.geometry.polygon import Polygon
 import shapely.wkb as sh_wkb
 import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
@@ -112,15 +113,6 @@ class PrimitiveType(enum.Enum):
         else:
             raise Exception(f"No multitype implemented for: {self}")
 
-def collection_extract_polygon(
-        geometry: Optional[sh_geom.base.BaseGeometry]) -> Union[sh_geom.Polygon, sh_geom.MultiPolygon]:
-    # Extract the polygons
-    extracted = collection_extract(geometry=geometry, primitivetype=PrimitiveType.POLYGON)
-
-    # Assert is to evade type warnings 
-    assert isinstance(extracted, sh_geom.Polygon) or isinstance(extracted, sh_geom.MultiPolygon)
-    return extracted
-
 def collection_extract(
         geometry: Optional[sh_geom.base.BaseGeometry],
         primitivetype: PrimitiveType) -> Optional[sh_geom.base.BaseGeometry]:
@@ -156,7 +148,7 @@ def collection_extract(
             return geometry
     elif isinstance(geometry, sh_geom.GeometryCollection):
         returngeoms = []
-        for geometry in sh_geom.GeometryCollection(geometry):
+        for geometry in list(sh_geom.GeometryCollection(geometry)):
             returngeoms.append(collection_extract(geometry, primitivetype=primitivetype))
         if len(returngeoms) > 0:
             return collect(returngeoms)
@@ -280,7 +272,7 @@ def numberpoints(geometry: Optional[sh_geom.base.BaseGeometry]) -> int:
         return 0
     elif isinstance(geometry, sh_geom.base.BaseMultipartGeometry):
         nb_points = 0
-        for geom in geometry:
+        for geom in list(geometry):
             nb_points += numberpoints(geom)
         return nb_points
     elif isinstance(geometry, sh_geom.Polygon):
@@ -335,7 +327,7 @@ def remove_inner_rings(
     elif isinstance(geometry, sh_geom.MultiPolygon):
         # If the input is a MultiPolygon, apply remove on each Polygon in it. 
         polys = []
-        for poly in geometry:
+        for poly in list(geometry):
             polys.append(remove_inner_rings_polygon(poly, min_area_to_keep))
         return sh_geom.MultiPolygon(polys)
     else:
@@ -391,7 +383,7 @@ def simplify_ext(
 
     # Define some inline funtions 
     # Apply the simplification (can result in multipolygons)
-    def simplify_polygon(polygon: sh_geom.Polygon) -> Union[sh_geom.Polygon, sh_geom.MultiPolygon]:
+    def simplify_polygon(polygon: sh_geom.Polygon) -> Union[sh_geom.Polygon, sh_geom.MultiPolygon, None]:
         # Simplify all rings
         exterior_simplified = simplify_coords(polygon.exterior.coords)
         interiors_simplified = []
@@ -409,7 +401,10 @@ def simplify_ext(
         result_poly = sh_geom.Polygon(exterior_simplified, interiors_simplified)
         if preserve_topology is True: 
             # Make the ring valid and only keep polygons
-            result_poly = collection_extract_polygon(make_valid(result_poly))
+            result_poly = collection_extract(make_valid(result_poly), primitivetype=PrimitiveType.POLYGON)
+        assert(result_poly is None
+               or isinstance(result_poly, sh_geom.Polygon)
+               or isinstance(result_poly, sh_geom.MultiPolygon))
         return result_poly
 
     def simplify_linestring(linestring: sh_geom.LineString) -> sh_geom.LineString:
@@ -465,7 +460,7 @@ def simplify_ext(
     elif isinstance(geometry, sh_geom.base.BaseMultipartGeometry):
         # If it is a multi-part, recursively call simplify for all parts. 
         simplified_geometries = []
-        for geom in geometry:
+        for geom in list(geometry):
             simplified_geometries.append(simplify_ext(geom, 
                     tolerance=tolerance, 
                     algorithm=algorithm, lookahead=lookahead, 
