@@ -104,7 +104,7 @@ conda create -y --name $envname
 conda activate $envname
 conda config --env --add channels conda-forge
 conda config --env --set channel_priority strict
-conda install -y python=3.8 pyproj "geopandas>=0.8" pygeos psutil
+conda install -y python=3.8 pyproj "geopandas>=0.8,<0.10" pygeos psutil
 
 # For the following packages, no conda package is available.
 if [[ ! $fordev =~ ^[Yy]$ ]]
