@@ -461,16 +461,18 @@ def dissolve(
             diss_gdf = gpd.GeoDataFrame(geometry=[union_geom_cleaned], crs=input_gdf.crs)
         else:
             diss_gdf = input_gdf.dissolve(by=groupby_columns, aggfunc=aggfunc, as_index=False)
-            # assert to evade pyLance warning
-            assert isinstance(diss_gdf, gpd.GeoDataFrame)
 
         # Explodecollections if needed
         if explodecollections is True:
+            # assert to evade pyLance warning
+            assert isinstance(diss_gdf, gpd.GeoDataFrame)
             diss_gdf = diss_gdf.explode()
             # Reset the index, and drop the level_0 and level_1 multiindex
             diss_gdf.reset_index(drop=True, inplace=True)
         
         # Now write to file
+        # assert to evade pyLance warning
+        assert isinstance(diss_gdf, gpd.GeoDataFrame)
         geofile.to_file(diss_gdf, output_path, output_layer)
 
     elif layerinfo.geometrytype.to_primitivetype is PrimitiveType.POLYGON:
