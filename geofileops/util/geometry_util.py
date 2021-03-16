@@ -384,8 +384,17 @@ def simplify_ext(
     # Define some inline funtions 
     # Apply the simplification (can result in multipolygons)
     def simplify_polygon(polygon: sh_geom.Polygon) -> Union[sh_geom.Polygon, sh_geom.MultiPolygon, None]:
-        # Simplify all rings
+        ### First simplify exterior ring ###
         exterior_simplified = simplify_coords(polygon.exterior.coords)
+        
+        # If topology needs to be preserved, keep original ring if simplify results in 
+        # None or not enough points   
+        if(preserve_topology is True
+           and(exterior_simplified is None 
+               or len(exterior_simplified) < 3)):
+            exterior_simplified = polygon.exterior.coords
+
+        ### Now simplify interior rings ###
         interiors_simplified = []
         for interior in polygon.interiors:
             interior_simplified = simplify_coords(interior.coords)
@@ -394,14 +403,20 @@ def simplify_ext(
             if(interior_simplified is not None 
                and len(interior_simplified) >= 3):
                 interiors_simplified.append(interior_simplified) 
-            elif preserve_topology:
-                # If topology needs to be preserved, keep original ring
+            elif preserve_topology is True:
+                # If result is no ring, but topology needs to be preserved, add original ring
                 interiors_simplified.append(interior.coords)              
 
         result_poly = sh_geom.Polygon(exterior_simplified, interiors_simplified)
-        if preserve_topology is True: 
-            # Make the ring valid and only keep polygons
-            result_poly = collection_extract(make_valid(result_poly), primitivetype=PrimitiveType.POLYGON)
+        
+        # Extract only polygons as result + try to make valid
+        result_poly = collection_extract(make_valid(result_poly), primitivetype=PrimitiveType.POLYGON)
+        
+        # If the result is None and the topology needs to be preserved, return original polygon
+        if preserve_topology is True and result_poly is None: 
+            return polygon
+        
+        # evade pyLance warning + return
         assert(result_poly is None
                or isinstance(result_poly, sh_geom.Polygon)
                or isinstance(result_poly, sh_geom.MultiPolygon))

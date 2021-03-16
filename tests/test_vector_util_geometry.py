@@ -219,6 +219,31 @@ def test_simplify_ext_lang_basic():
     assert isinstance(geom_simplified, sh_geom.GeometryCollection)
     assert len(geom_simplified) == 6
 
+def test_simplify_ext_lang_preservetopology():
+    
+    ### Test Polygon lookahead -1 ###
+    poly = sh_geom.Polygon(
+            shell=[(0, 0), (0, 10), (1, 10), (10, 10), (10, 0), (0,0)], 
+            holes=[[(2,2), (2,8), (8,8), (8,2), (2,2)]])
+    # If preserve_topology True, the original polygon is returned...
+    geom_simplified = geometry_util.simplify_ext(
+            geometry=poly, 
+            algorithm=geometry_util.SimplifyAlgorithm.LANG, 
+            tolerance=10,
+            preserve_topology=True,
+            lookahead=-1)
+    assert isinstance(geom_simplified, sh_geom.Polygon)
+    assert poly.equals(geom_simplified) is True
+
+    # If preserve_topology True, the original polygon is returned...
+    geom_simplified = geometry_util.simplify_ext(
+            geometry=poly, 
+            algorithm=geometry_util.SimplifyAlgorithm.LANG, 
+            tolerance=10,
+            preserve_topology=False,
+            lookahead=-1)
+    assert geom_simplified is None
+
 def test_simplify_ext_invalid():
     # Test Polygon simplification, with invalid exterior ring
     poly = sh_geom.Polygon(
@@ -418,6 +443,7 @@ if __name__ == '__main__':
     #test_numberpoints()
     #test_remove_inner_rings()
     #test_simplify_ext_lang_basic()
+    test_simplify_ext_lang_preservetopology()
     #test_simplify_ext_invalid()
-    test_simplify_ext_keep_points_on(tmpdir)
+    #test_simplify_ext_keep_points_on(tmpdir)
     #test_simplify_ext_no_simplification()
