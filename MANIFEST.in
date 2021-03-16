@@ -1,2 +1,3 @@
 include geofileops/util/test.gpkg
 include version.txt
+graft tests
