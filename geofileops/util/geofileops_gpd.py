@@ -13,6 +13,9 @@ from pathlib import Path
 import time
 import shutil
 from typing import List, Optional, Tuple
+import warnings 
+# Don't show this geopandas warning...
+warnings.filterwarnings('ignore', 'GeoSeries.isna', UserWarning)
 
 import geopandas as gpd
 import shapely.geometry as sh_geom
@@ -799,18 +802,16 @@ def _dissolve_polygons(
     # lines isn't so computationally heavy anyway, drop support here.    
     if bbox is not None:
         start_clip = datetime.datetime.now()
-        polygon = sh_geom.Polygon([(bbox[0], bbox[1]), (bbox[0], bbox[3]), (bbox[2], bbox[3]), (bbox[2], bbox[1]), (bbox[0], bbox[1])])
-        bbox_gdf = gpd.GeoDataFrame([1], geometry=[polygon], crs=input_gdf.crs)
-        # keep_geom_type=True gave errors, but seems fixed since geopandas 0.8.2
-        diss_gdf = gpd.clip(diss_gdf, bbox_gdf, keep_geom_type=True)
+        bbox_polygon = sh_geom.Polygon([(bbox[0], bbox[1]), (bbox[0], bbox[3]), (bbox[2], bbox[3]), (bbox[2], bbox[1]), (bbox[0], bbox[1])])
+        bbox_gdf = gpd.GeoDataFrame([1], geometry=[bbox_polygon], crs=input_gdf.crs)
+        
+        # keep_geom_type=True gaves sometimes error, and still does in 0.9.0
+        # so use own implementation of keep_geom_type 
+        diss_gdf = gpd.clip(diss_gdf, bbox_gdf) #, keep_geom_type=True)
 
-        """
         # Only keep geometries of the primitive type specified after clip...
-        # assert to evade pyLance warning 
-        assert isinstance(diss_gdf, gpd.GeoDataFrame)
         diss_gdf.geometry = geoseries_util.geometry_collection_extract(
                 diss_gdf.geometry, input_geometrytype.to_primitivetype)
-        """
 
         perfinfo['time_clip'] = (datetime.datetime.now()-start_clip).total_seconds()
 
