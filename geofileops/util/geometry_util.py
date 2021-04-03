@@ -549,8 +549,13 @@ def simplify_coords_lang_idx(
         If input coords is np.ndarray, returns np.ndarray, otherwise returns a list.  
     """
     
-    def point_line_distance(point_x, point_y, line_x1, line_y1, line_x2, line_y2):
-        return abs((line_x2-line_x1)*(line_y1-point_y)-(line_x1-point_x)*(line_y2-line_y1)) / math.sqrt((line_x2-line_x1)*(line_x2-line_x1)+(line_y2-line_y1)*(line_y2-line_y1))
+    def point_line_distance(point_x, point_y, line_x1, line_y1, line_x2, line_y2) -> float:
+        denominator = math.sqrt((line_x2-line_x1)*(line_x2-line_x1)+(line_y2-line_y1)*(line_y2-line_y1))
+        if denominator == 0:
+            return float('Inf')
+        else:
+            numerator = abs((line_x2-line_x1)*(line_y1-point_y)-(line_x1-point_x)*(line_y2-line_y1)) 
+            return numerator/denominator
 
     # Init variables 
     if isinstance(coords, np.ndarray):
@@ -583,7 +588,7 @@ def simplify_coords_lang_idx(
                     line_arr[window_start, 0], line_arr[window_start, 1],
                     line_arr[window_end, 0], line_arr[window_end, 1])
             # If distance is nan (= linepoint1 == linepoint2) or > tolerance
-            if math.isnan(distance) or distance > tolerance:
+            if distance > tolerance:
                 all_points_in_tolerance = False
                 break
 
