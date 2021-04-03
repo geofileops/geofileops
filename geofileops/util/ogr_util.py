@@ -101,7 +101,7 @@ class VectorTranslateInfo:
         self.verbose = verbose
 
 def vector_translate_by_info(info: VectorTranslateInfo):
-        
+
     return vector_translate( 
             input_path=info.input_path,
             output_path=info.output_path,
@@ -303,10 +303,11 @@ def vector_translate_exe(
         args.extend(['-dialect', sql_dialect])
 
     # Output file options
-    if append is True:
-        args.append('-append')
-    if update is True:
-        args.append('-update')
+    if output_path.exists() is True:
+        if append is True:
+            args.append('-append')
+        if update is True:
+            args.append('-update')
 
     # Files and input layer(s)
     args.append(str(output_path))
@@ -469,7 +470,6 @@ def vector_translate_py(
     # there are two columns named "geom" as he doesnt see the "geom" column  
     # in the select as a geometry column. Probably a version issue. Maybe 
     # try again later.
-
     args = []
 
     # Apparently, for shapefiles, having input_layers not None gives issues...
@@ -489,10 +489,11 @@ def vector_translate_py(
     '''
 
     # Output file options
-    if append is True:
-        args.append('-append')
-    if update is True:
-        args.append('-update')
+    if output_path.exists() is True:
+        if append is True:
+            args.append('-append')
+        if update is True:
+            args.append('-update')
 
     # Files
     #args.append(output_path)
@@ -552,7 +553,7 @@ def vector_translate_py(
             reproject=False, 
             SQLStatement=sql_stmt,
             SQLDialect=sql_dialect,
-            where=None, 
+            where=None, #"geom IS NOT NULL", 
             selectFields=None, 
             addFields=False, 
             forceNullable=False, 
