@@ -16,6 +16,7 @@ from typing import List, Optional
 from geofileops import geofile
 from . import io_util
 from . import ogr_util
+from . import sqlite_util
 from geofileops.geofile import GeometryType, PrimitiveType
 
 ################################################################################
@@ -484,6 +485,7 @@ def erase(
         erase_layer: str = None,
         output_layer: str = None,
         explodecollections: bool = False,
+        output_with_spatial_index: bool = True,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -509,10 +511,10 @@ def erase(
             WITH layer2_unioned AS (
               SELECT layer1.rowid AS layer1_rowid
                     ,ST_union(layer2.{{input2_geometrycolumn}}) AS geom
-                FROM "{{input1_tmp_layer}}" layer1
-                JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                JOIN "{{input2_tmp_layer}}" layer2
-                JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
+                JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                JOIN {{input2_databasename}}."{{input2_tmp_layer}}" layer2
+                JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
                WHERE 1=1
                  {{batch_filter}}
                  AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
@@ -525,7 +527,7 @@ def erase(
                         ELSE ST_CollectionExtract(ST_difference(layer1.{{input1_geometrycolumn}}, layer2_unioned.geom), {primitivetypeid})
                    END as geom
                   {{layer1_columns_prefix_alias_str}}
-              FROM "{{input1_tmp_layer}}" layer1
+              FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
               LEFT JOIN layer2_unioned ON layer1.rowid = layer2_unioned.layer1_rowid
              WHERE 1=1
                {{batch_filter}}
@@ -547,9 +549,10 @@ def erase(
             input2_layer=erase_layer,
             input2_columns=None,
             output_layer=output_layer,
-            nb_parallel=nb_parallel,
             explodecollections=explodecollections,
             force_output_geometrytype=force_output_geometrytype,
+            output_with_spatial_index=output_with_spatial_index,
+            nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
 
@@ -573,14 +576,14 @@ def export_by_location(
     sql_template = f'''
             SELECT layer1.{{input1_geometrycolumn}} AS geom 
                   {{layer1_columns_prefix_alias_str}}
-              FROM "{{input1_tmp_layer}}" layer1
-              JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+              FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
+              JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
              WHERE 1=1
                {{batch_filter}}
                AND EXISTS (
                   SELECT 1 
-                    FROM "{{input2_tmp_layer}}" layer2
-                    JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                    FROM {{input2_databasename}}."{{input2_tmp_layer}}" layer2
+                    JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
                    WHERE layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
                      AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
                      AND ST_intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
@@ -598,10 +601,10 @@ def export_by_location(
             SELECT ST_union(layer1.{{input1_geometrycolumn}}) as geom
                   {{layer1_columns_prefix_str}}
                   {area_inters_column_expression}
-              FROM "{{input1_tmp_layer}}" layer1
-              JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-              JOIN "{{input2_tmp_layer}}" layer2
-              JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+              FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
+              JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+              JOIN {{input2_databasename}}."{{input2_tmp_layer}}" layer2
+              JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
              WHERE 1=1
                {{batch_filter}}
                AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
@@ -655,14 +658,14 @@ def export_by_distance(
     sql_template = f'''
             SELECT geom
                   {{layer1_columns_prefix_alias_str}}
-                FROM "{{input1_tmp_layer}}" layer1
-                JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
+                JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
                 WHERE 1=1
                   {{batch_filter}}
                   AND EXISTS (
                       SELECT 1 
-                        FROM "{{input2_tmp_layer}}" layer2
-                        JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                        FROM {{input2_databasename}}."{{input2_tmp_layer}}" layer2
+                        JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
                         WHERE (layer1tree.minx-{max_distance}) <= layer2tree.maxx 
                           AND (layer1tree.maxx+{max_distance}) >= layer2tree.minx
                           AND (layer1tree.miny-{max_distance}) <= layer2tree.maxy 
@@ -726,10 +729,10 @@ def intersect(
                        {primitivetype_to_extract.value}) as geom
                     {{layer1_columns_prefix_alias_str}}
                     {{layer2_columns_prefix_alias_str}}
-                FROM "{{input1_tmp_layer}}" layer1
-                JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                JOIN "{{input2_tmp_layer}}" layer2
-                JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
+                JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                JOIN {{input2_databasename}}."{{input2_tmp_layer}}" layer2
+                JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
                WHERE 1=1
                  {{batch_filter}}
                  AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
@@ -774,6 +777,7 @@ def join_by_location(
         input2_columns: List[str] = None,
         input2_columns_prefix: str = 'l2_',
         output_layer: str = None,
+        explodecollections: bool = False,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -796,10 +800,10 @@ def join_by_location(
                       {area_inters_column_expression}
                       ,ST_intersection(layer1.{{input1_geometrycolumn}}, 
                                        layer2.{{input2_geometrycolumn}}) as geom_intersect
-                 FROM "{{input1_tmp_layer}}" layer1
-                 JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                 JOIN "{{input2_tmp_layer}}" layer2
-                 JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                 FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
+                 JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                 JOIN {{input2_databasename}}."{{input2_tmp_layer}}" layer2
+                 JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
                 WHERE 1=1
                   {{batch_filter}}
                   AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
@@ -815,10 +819,10 @@ def join_by_location(
                       {{layer2_columns_prefix_alias_str}}
                       {area_inters_column_expression}
                       ,ST_intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) as geom_intersect
-                 FROM "{{input1_tmp_layer}}" layer1
-                 JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                 JOIN "{{input2_tmp_layer}}" layer2
-                 JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                 FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
+                 JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                 JOIN {{input2_databasename}}."{{input2_tmp_layer}}" layer2
+                 JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
                 WHERE 1=1
                   {{batch_filter}}
                   AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
@@ -831,14 +835,14 @@ def join_by_location(
                       {{layer2_columns_prefix_alias_null_str}}
                       {area_inters_column_expression}
                       ,NULL as geom_intersect
-                 FROM "{{input1_tmp_layer}}" layer1
-                 JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                 FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
+                 JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
                  WHERE 1=1
                   {{batch_filter}}
                   AND NOT EXISTS (
                       SELECT 1 
-                        FROM "{{input2_tmp_layer}}" layer2
-                        JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                        FROM {{input2_databasename}}."{{input2_tmp_layer}}" layer2
+                        JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
                        WHERE layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
                          AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
                          AND ST_intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
@@ -854,6 +858,8 @@ def join_by_location(
                     ) sub
                  WHERE sub.{area_inters_column_name} >= {min_area_intersect}'''
 
+    input1_layer_info = geofile.get_layerinfo(input1_path, input1_layer)
+    
     # Go!
     return _two_layer_vector_operation(
             input1_path=input1_path,
@@ -868,6 +874,8 @@ def join_by_location(
             input2_columns=input2_columns,
             input2_columns_prefix=input2_columns_prefix,
             output_layer=output_layer,
+            force_output_geometrytype=input1_layer_info.geometrytype,
+            explodecollections=explodecollections,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
@@ -884,6 +892,7 @@ def select_two_layers(
         input2_columns: List[str] = None,
         input2_columns_prefix: str = 'l2_',
         output_layer: str = None,
+        force_output_geometrytype: GeometryType = None,
         explodecollections: bool = False,
         nb_parallel: int = 1,
         verbose: bool = False,
@@ -903,6 +912,7 @@ def select_two_layers(
             input2_columns=input2_columns,
             input2_columns_prefix=input2_columns_prefix,
             output_layer=output_layer,
+            force_output_geometrytype=force_output_geometrytype,
             explodecollections=explodecollections,
             nb_parallel=nb_parallel,
             verbose=verbose,
@@ -920,6 +930,7 @@ def split(
         input2_columns_prefix: str = 'l2_',
         output_layer: str = None,
         explodecollections: bool = False,
+        output_with_spatial_index: bool = True,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -939,10 +950,10 @@ def split(
               ( WITH layer2_unioned AS (
                   SELECT layer1.rowid AS layer1_rowid
                         ,ST_union(layer2.{{input2_geometrycolumn}}) AS geom
-                    FROM "{{input1_tmp_layer}}" layer1
-                    JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                    JOIN "{{input2_tmp_layer}}" layer2
-                    JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                    FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
+                    JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                    JOIN {{input2_databasename}}."{{input2_tmp_layer}}" layer2
+                    JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
                    WHERE 1=1
                      {{batch_filter}}
                      AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
@@ -957,10 +968,10 @@ def split(
                             {primitivetype_to_extract.value}) as geom
                       {{layer1_columns_prefix_alias_str}}
                       {{layer2_columns_prefix_alias_str}}
-                 FROM "{{input1_tmp_layer}}" layer1
-                 JOIN "rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                 JOIN "{{input2_tmp_layer}}" layer2
-                 JOIN "rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                 FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
+                 JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                 JOIN {{input2_databasename}}."{{input2_tmp_layer}}" layer2
+                 JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
                 WHERE 1=1
                   {{batch_filter}}
                   AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
@@ -976,7 +987,7 @@ def split(
                        END as geom
                        {{layer1_columns_prefix_alias_str}}
                        {{layer2_columns_prefix_alias_null_str}}
-                  FROM "{{input1_tmp_layer}}" layer1
+                  FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
                   LEFT JOIN layer2_unioned ON layer1.rowid = layer2_unioned.layer1_rowid
                  WHERE 1=1
                    {{batch_filter}}
@@ -1001,6 +1012,7 @@ def split(
             output_layer=output_layer,
             force_output_geometrytype=force_output_geometrytype,
             explodecollections=explodecollections,
+            output_with_spatial_index=output_with_spatial_index,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
@@ -1046,6 +1058,7 @@ def union(
                 input2_columns_prefix=input2_columns_prefix,
                 output_layer=output_layer,
                 explodecollections=explodecollections,
+                output_with_spatial_index=False,
                 nb_parallel=nb_parallel,
                 verbose=verbose,
                 force=force)
@@ -1061,6 +1074,7 @@ def union(
                 erase_layer=input1_layer,
                 output_layer=output_layer,
                 explodecollections=explodecollections,
+                output_with_spatial_index=False,
                 nb_parallel=nb_parallel,
                 verbose=verbose,
                 force=force)
@@ -1072,6 +1086,9 @@ def union(
             src_layer=output_layer,
             dst_layer=output_layer)
 
+        # Create spatial index
+        geofile.create_spatial_index(path=split_output_path, layer=output_layer)
+        
         # Now we are ready to move the result to the final spot...
         if output_path.exists():
             geofile.remove(output_path)
@@ -1095,13 +1112,12 @@ def _two_layer_vector_operation(
         output_layer: str = None,
         explodecollections: bool = False,
         force_output_geometrytype: GeometryType = None,
+        output_with_spatial_index: bool = True,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
-
-    # TODO: think about whether MULTIPOLYGON is a good default value for force_output_geometrytype!
     """
-    ...
+    Executes an operation that needs 2 input files.
     
     Args:
         input1_path (str): the file to export features from
@@ -1122,12 +1138,6 @@ def _two_layer_vector_operation(
     Raises:
         Exception: [description]
     """
-    # TODO: test the following syntax, maybe copying to the same gpkg becomes
-    # unnecessary that way:
-    #  ogr2ogr diff.shp file1.shp -dialect sqlite \
-    #      -sql "SELECT ST_Difference(a.Geometry, b.Geometry) AS Geometry, a.id \
-    #            FROM file1 a LEFT JOIN 'file2.shp'.file2 b USING (id) WHERE a.Geometry != b.Geometry"
-
     ##### Init #####
     if not input1_path.exists():
         raise Exception(f"Error {operation_name}: input1_path doesn't exist: {input1_path}")
@@ -1151,83 +1161,25 @@ def _two_layer_vector_operation(
         input2_layer = geofile.get_only_layer(input2_path)
     if output_layer is None:
         output_layer = geofile.get_default_layer(output_path)
-
-    # Prepare tmp layer/file names
     tempdir = io_util.create_tempdir(operation_name)
-    if(input1_layer != input2_layer):
-        input1_tmp_layer = input1_layer
-        input2_tmp_layer = input2_layer
-    else:
-        input1_tmp_layer = f"{input1_columns_prefix}{input1_layer}"
-        input2_tmp_layer = f"{input2_columns_prefix}{input2_layer}"
-    input_tmp_path = tempdir / "input_layers.gpkg" 
-
-    ##### Prepare tmp files #####
-    logger.info(f"Prepare temp input files for {operation_name} in {tempdir}")
 
     try:
-        # Get input2 data to temp gpkg file. 
-        # If it is the only layer in the input file, just copy file
-        if(input2_path.suffix.lower() == '.gpkg' 
-           and len(geofile.listlayers(input2_path)) == 1):
-            logger.debug(f"Copy {input2_path} to {input_tmp_path}")
-            geofile.copy(input2_path, input_tmp_path)
-
-            # If needed, rename layer
-            if input2_layer != input2_tmp_layer:
-                geofile.rename_layer(input_tmp_path, input2_layer, input2_tmp_layer)
-
-            # Make sure the layer has a spatial index
-            if not geofile.has_spatial_index(input_tmp_path, input2_tmp_layer):
-                geofile.create_spatial_index(input_tmp_path, input2_tmp_layer)
-        else:
-            # Copy the layer needed to a new gpkg
-            ogr_util.vector_translate(
-                    input_path=input2_path,
-                    output_path=input_tmp_path,
-                    input_layers=input2_layer,
-                    output_layer=input2_tmp_layer,
-                    verbose=verbose)
-        
-        # Spread input1 data over different layers to be able to calculate in parallel
-        if nb_parallel == -1:
-            # Default, put at least 100 rows in a batch for parallelisation
-            input1_layerinfo = geofile.get_layerinfo(input1_path, input1_layer)
-            max_parallel = int(input1_layerinfo.featurecount/100)
-            nb_parallel = min(multiprocessing.cpu_count(), max_parallel)
-
-            # Don't use all processors so the machine stays accessible 
-            if nb_parallel > 4:
-                nb_parallel -= 1
-            elif nb_parallel < 1:
-                nb_parallel = 1
-
-        # If we are processing in parallel... seperate work in batches
-        # Remark: especially for 'select' operation, if nb_parallel is 1 
-        #         nb_batches should be 1 (select might give wrong results)
-        if nb_parallel > 1:
-            nb_batches = nb_parallel * 4
-        else:
-            nb_batches = 1
-
-        # Now split the 1st input layer in batches... 
-        batches = _split_layer_features(
-                input_path=input1_path,
-                input_layer=input1_layer,
-                output_path=input_tmp_path,
-                output_baselayer=input1_tmp_layer,
-                nb_batches=nb_batches,
+        ##### Prepare tmp files/batches #####
+        logger.info(f"Prepare input (params) for {operation_name} with tempdir: {tempdir}")
+        processing_params = _prepare_processing_params(
+                input1_path=input1_path,
+                input1_layer=input1_layer,
+                input2_path=input2_path,
+                input2_layer=input2_layer,
+                tempdir=tempdir,
+                nb_parallel=nb_parallel,
                 verbose=verbose)
 
-        # No use starting more processes than the number of batches...            
-        if len(batches) < nb_parallel:
-            nb_parallel = len(batches)
-        
         ##### Calculate! #####
         # We need the input1 column names to format the select
-        input1_tmp_layerinfo = geofile.get_layerinfo(input_tmp_path, batches[0]['layer'])
+        input1_tmp_layerinfo = geofile.get_layerinfo(processing_params.input1_path, processing_params.input1_layer)
         if input1_columns is not None:
-            # Case-insinsitive check if input1_columns contains columns not in layer...
+            # Case-insensitive check if input1_columns contains columns not in layer...
             columns_orig_upper = [column.upper() for column in input1_tmp_layerinfo.columns]
             missing_columns = [col for col in input1_columns if (col.upper() not in columns_orig_upper)]                
             if len(missing_columns) > 0:
@@ -1247,7 +1199,7 @@ def _two_layer_vector_operation(
             layer1_columns_prefix_str = ',' + ", ".join(layer1_columns_prefix)
 
         # We need the input2 column names to format the select
-        input2_tmp_layerinfo = geofile.get_layerinfo(input_tmp_path, input2_tmp_layer)
+        input2_tmp_layerinfo = geofile.get_layerinfo(processing_params.input2_path, processing_params.input2_layer)
         if input2_columns is not None:
             # Case-insinsitive check if input1_columns contains columns not in layer...
             columns_orig_upper = [column.upper() for column in input2_tmp_layerinfo.columns]
@@ -1271,75 +1223,68 @@ def _two_layer_vector_operation(
             layer2_columns_from_subselect_str = ',' + ", ".join(layer2_columns_from_subselect)
             layer2_columns_prefix = [f'layer2."{column}"' for column in layer2_columns]
             layer2_columns_prefix_str = ',' + ", ".join(layer2_columns_prefix)
-            
-        # Fill out the geometry column name in geom_operation_sqlite
-        # TODO: check if geom column is always geom
-        #geom_operation_sqlite = geom_operation_sqlite.format(
-        #        geometrycolumn=layerinfo['geometry_column'])
-        # Calculate the number of features per thread
-        #nb_rows_input_layer = layerinfo['featurecount']
-        #row_limit = int(nb_rows_input_layer/nb_batches)
-        #row_offset = 0
 
         # Prepare output filename
         tmp_output_path = tempdir / output_path.name
+        tmp_output_path = output_path
         
         ##### Calculate #####
-        logger.info(f"Start {operation_name} in {nb_parallel} parallel processes")
+        logger.info(f"Start {operation_name} in {processing_params.nb_parallel} parallel processes")
 
         # Calculating can be done in parallel, but only one process can write to 
         # the same file at the time... 
-        with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
+        with futures.ProcessPoolExecutor(processing_params.nb_parallel) as calculate_pool:
 
             # Start looping
-            translate_jobs = {}    
+            processing_jobs = {}    
             future_to_batch_id = {}
-            for batch_id in batches:
+            for batch_id in processing_params.batches:
 
-                translate_jobs[batch_id] = {}
-                translate_jobs[batch_id]['layer'] = output_layer
+                processing_jobs[batch_id] = {}
+                processing_jobs[batch_id]['layer'] = output_layer
 
-                tmp_output_partial_path = tempdir / f"{output_path.stem}_{batch_id}{output_path.suffix}"
-                translate_jobs[batch_id]['tmp_partial_output_path'] = tmp_output_partial_path
+                tmp_output_partial_path = tempdir / f"{output_path.stem}_{batch_id}.gpkg"
+                processing_jobs[batch_id]['tmp_partial_output_path'] = tmp_output_partial_path
 
-                input1_tmp_curr_layer = batches[batch_id]['layer']
                 sql_stmt = sql_template.format(
+                        output_databasename='{output_databasename}',
+                        input1_databasename='{input1_databasename}',
+                        input2_databasename='{input2_databasename}',
                         layer1_columns_from_subselect_str=layer1_columns_from_subselect_str,
                         layer1_columns_prefix_alias_str=layer1_columns_prefix_alias_str,
-                        input1_tmp_layer=input1_tmp_curr_layer,
+                        input1_tmp_layer=processing_params.batches[batch_id]['layer'],
                         input1_geometrycolumn=input1_tmp_layerinfo.geometrycolumn,
                         layer2_columns_from_subselect_str=layer2_columns_from_subselect_str,
                         layer2_columns_prefix_alias_str=layer2_columns_prefix_alias_str,
                         layer2_columns_prefix_alias_null_str=layer2_columns_prefix_alias_null_str,
-                        input2_tmp_layer=input2_tmp_layer,
+                        input2_tmp_layer=processing_params.input2_layer,
                         input2_geometrycolumn=input2_tmp_layerinfo.geometrycolumn,
                         layer1_columns_prefix_str=layer1_columns_prefix_str,
                         layer2_columns_prefix_str=layer2_columns_prefix_str,
-                        batch_filter=batches[batch_id]['batch_filter'])
+                        batch_filter=processing_params.batches[batch_id]['batch_filter'])
 
-                translate_jobs[batch_id]['sqlite_stmt'] = sql_stmt
-                translate_description = f"Calculate {operation_name} between {batches[batch_id]['path']} and {tmp_output_partial_path}"
+                processing_jobs[batch_id]['sqlite_stmt'] = sql_stmt
+                translate_description = f"Calculate {operation_name} between {processing_params.batches[batch_id]['path']} and {tmp_output_partial_path}"
                 # Remark: this temp file doesn't need spatial index nor journalling mode
-                translate_info = ogr_util.VectorTranslateInfo(
-                        input_path=batches[batch_id]['path'],
+                future = calculate_pool.submit(
+                        sqlite_util.create_table_as_sql,
+                        input1_path=processing_params.batches[batch_id]['path'],
+                        input1_layer=processing_params.batches[batch_id]['layer'],
+                        input2_path=processing_params.input2_path, 
                         output_path=tmp_output_partial_path,
-                        translate_description=translate_description,
-                        output_layer=output_layer,
                         sql_stmt=sql_stmt,
-                        sql_dialect='SQLITE',
+                        output_layer=output_layer,
+                        output_geometrytype=force_output_geometrytype,
+                        append=False,
+                        update=False,
                         create_spatial_index=False,
-                        explodecollections=explodecollections,
-                        sqlite_journal_mode='OFF',
-                        force_output_geometrytype=force_output_geometrytype,
-                        verbose=verbose)
-                future = ogr_util.vector_translate_async(
-                        concurrent_pool=calculate_pool, info=translate_info)
+                        journal_mode='OFF')
                 future_to_batch_id[future] = batch_id
             
             # Loop till all parallel processes are ready, but process each one that is ready already
             nb_done = 0
 
-            general_util.report_progress(start_time, nb_done, nb_batches, operation_name)
+            general_util.report_progress(start_time, nb_done, len(processing_params.batches), operation_name)
             for future in futures.as_completed(future_to_batch_id):
                 try:
                     _ = future.result()
@@ -1347,19 +1292,20 @@ def _two_layer_vector_operation(
                     # Start copy of the result to a common file
                     # Remark: give higher priority, because this is the slowest factor
                     batch_id = future_to_batch_id[future]
-                    tmp_partial_output_path = translate_jobs[batch_id]['tmp_partial_output_path']
+                    tmp_partial_output_path = processing_jobs[batch_id]['tmp_partial_output_path']
 
                     # If there wasn't an exception, but the output file doesn't exist, the result was empty, so just skip.
                     if not tmp_partial_output_path.exists():
                         if verbose:
-                            logger.info(f"Temporary partial file was empty: {translate_jobs[batch_id]}")
+                            logger.info(f"Temporary partial file was empty: {processing_jobs[batch_id]}")
                         continue
                     
-                    translate_description = f"Copy result {batch_id} of {nb_batches} to {output_layer}"
+                    translate_description = f"Copy result {batch_id} of {len(processing_params.batches)} to {output_layer}"
                     translate_info = ogr_util.VectorTranslateInfo(
                             input_path=tmp_partial_output_path,
                             output_path=tmp_output_path,
                             translate_description=translate_description,
+                            input_layers=[output_layer],
                             output_layer=output_layer,
                             append=True,
                             update=True,
@@ -1367,25 +1313,35 @@ def _two_layer_vector_operation(
                             explodecollections=explodecollections,
                             force_output_geometrytype=force_output_geometrytype,
                             priority_class='NORMAL',
+                            #sqlite_journal_mode='OFF',
                             force_py=True,
                             verbose=verbose)
                     ogr_util.vector_translate_by_info(info=translate_info)
                     future_to_batch_id[future] = batch_id
-                    tmp_partial_output_path = translate_jobs[batch_id]['tmp_partial_output_path']
+                    tmp_partial_output_path = processing_jobs[batch_id]['tmp_partial_output_path']
                     geofile.remove(tmp_partial_output_path)
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
-                    raise Exception(f"Error executing {translate_jobs[batch_id]}") from ex
+                    raise Exception(f"Error executing {processing_jobs[batch_id]}") from ex
 
                 # Log the progress and prediction speed
                 nb_done += 1
-                general_util.report_progress(start_time, nb_done, nb_batches, operation_name)
+                general_util.report_progress(
+                        start_time, 
+                        nb_done, 
+                        len(processing_params.batches), 
+                        operation_name, 
+                        processing_params.nb_parallel)
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
         if tmp_output_path.exists():
-            geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
-            geofile.move(tmp_output_path, output_path)
+            if output_with_spatial_index is True:
+                geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
+            if tmp_output_path != output_path:
+                start_time_move = datetime.datetime.now()
+                geofile.move(tmp_output_path, output_path)
+                logger.info(f"move took {datetime.datetime.now()-start_time_move}!")
         else:
             logger.warning(f"Result of {operation_name} was empty!f")
 
@@ -1395,175 +1351,128 @@ def _two_layer_vector_operation(
     finally:
         shutil.rmtree(tempdir)
 
-def _split_layer_features(
-        input_path: Path,
-        input_layer: str,
-        output_path: Path,
-        output_baselayer: str,
-        nb_batches: int,
-        verbose: bool = False) -> dict:
+class ProcessingParams:
+    def __init__(self,
+            input1_path: Path = None,
+            input1_layer: str = None,
+            input2_path: Path = None,
+            input2_layer: str = None,
+            nb_parallel: int = -1,
+            batches: dict = None):
+        self.input1_path = input1_path
+        self.input1_layer = input1_layer
+        self.input2_path = input2_path
+        self.input2_layer = input2_layer
+        self.nb_parallel = nb_parallel
+        self.batches = batches
 
-    ##### Init #####
-    split_random = False
-    split_to_seperate_layers = False
-    seperate_working_file_created = False
-    temp_path = None
-    try:
-        # If we want to split to seperate layers using random allocation, 
-        # we need to create a temporary copy of the file to work on
-        if split_to_seperate_layers:
+def _prepare_processing_params(
+        input1_path: Path,
+        input1_layer: str,
+        input2_path: Path,
+        input2_layer: str,
+        tempdir: Path,
+        nb_parallel: int,
+        verbose: bool = False) -> ProcessingParams:
 
-            # If the batches should be split by random, we need a temp file to add
-            # the batch_id column to...
-            if split_random is True:
+    ### Init ###
+    returnvalue = ProcessingParams(nb_parallel=nb_parallel)
+    
+    ### Determine the optimal number of parallel processes + batches ###
+    if returnvalue.nb_parallel == -1:
+        # Default, put at least 100 rows in a batch for parallelisation
+        input1_layerinfo = geofile.get_layerinfo(input1_path, input1_layer)
+        max_parallel = int(input1_layerinfo.featurecount/100)
+        returnvalue.nb_parallel = min(multiprocessing.cpu_count(), max_parallel)
 
-                temp_path = output_path.parent / f"{input_path.stem}.gpkg"
-                seperate_working_file_created = True
+        # Don't use all processors so the machine stays accessible 
+        if returnvalue.nb_parallel > 4:
+            returnvalue.nb_parallel -= 1
+        elif returnvalue.nb_parallel < 1:
+            returnvalue.nb_parallel = 1
 
-                if input_path.suffix.lower() == '.gpkg':
-                    geofile.copy(input_path, temp_path)
-                else:
-                    ogr_util.vector_translate(
-                            input_path=input_path, 
-                            output_path=temp_path,
-                            output_layer=input_layer,
-                            transaction_size=200000,
-                            force_py=True,
-                            verbose=verbose)
-            else:
-                # Else we can just use the input file to copy the data from
-                temp_path = input_path
-        else:
-            # Else we can just add the layer tot the output path
-            temp_path = output_path
-            geofile.append_to(
-                    src=input_path, 
-                    dst=temp_path,
-                    dst_layer=input_layer,
-                    verbose=verbose)
+    # Determine optimal number of batches
+    # Remark: especially for 'select' operation, if nb_parallel is 1 
+    #         nb_batches should be 1 (select might give wrong results)
+    if returnvalue.nb_parallel > 1:
+        nb_batches = returnvalue.nb_parallel * 4
+    else:
+        nb_batches = 1
 
-        # TODO: test if it is still needed to copy data to seperate layers if index is present on batch_id
-        # TODO: maybe if a sequential number is added as column this can be used to create the batches,
-        #       because that way the number of items in a batch will be more correct...
-        # TODO: if the rowid is already +- sequential, use rowid filtering instead of a seperate column?
-        #       remark: for dissolve, it will be necessary (especially if multiple passes were used) that
-        #               the output file doen't group large objects as it does now...
+    ### Prepare input files for the calculation ###
+    returnvalue.input1_layer = input1_layer
+    returnvalue.input2_layer = input2_layer
+    
+    # If the input files is a geopackages, ok
+    if input1_path.suffix.lower() == '.gpkg':
+        returnvalue.input1_path = input1_path
+    else:
+        # If not geopackage copy the input layer to gpkg
+        returnvalue.input1_path = tempdir / f"{input1_path.stem}.gpkg"
+        ogr_util.vector_translate(
+                input_path=input1_path,
+                output_path=returnvalue.input1_path,
+                input_layers=input1_layer,
+                output_layer=returnvalue.input1_layer,
+                verbose=verbose)        
 
-        # Get column names and info
-        layerinfo = geofile.get_layerinfo(temp_path, input_layer)
-        columns_to_select_str = ''
-        if len(layerinfo.columns) > 0:
-            columns_to_select = [f'"{column}"' for column in layerinfo.columns]
-            columns_to_select_str = "," + ", ".join(columns_to_select)
-        if layerinfo.geometrycolumn == 'geom':
-            geometry_column_for_select = 'geom'
-        else:
-            geometry_column_for_select = f"{layerinfo.geometrycolumn} geom"
+    if input2_path.suffix.lower() == '.gpkg':
+        returnvalue.input2_path = input2_path
+    else:
+        # If not geopackage copy the input layer to gpkg
+        returnvalue.input2_path = tempdir / f"{input2_path.stem}.gpkg"
+        ogr_util.vector_translate(
+                input_path=input2_path,
+                output_path=returnvalue.input2_path,
+                input_layers=input2_layer,
+                output_layer=returnvalue.input2_layer,
+                verbose=verbose)
 
-        # Check number of batches + appoint rows to batches
-        nb_rows_input_layer = layerinfo.featurecount
-        if nb_batches > int(nb_rows_input_layer/10):
-            nb_batches = max(int(nb_rows_input_layer/10), 1)
+    ### Prepare batches to process ###
+    # Get column names and info
+    layer1_info = geofile.get_layerinfo(returnvalue.input1_path, returnvalue.input1_layer)
+    
+    # Check number of batches + appoint nb rows to batches
+    nb_rows_input_layer = layer1_info.featurecount
+    if nb_batches > int(nb_rows_input_layer/10):
+        nb_batches = max(int(nb_rows_input_layer/10), 1)
+    
+    # Determine the min_rowid and max_rowid to divide the batches as good as possible
+    sql_stmt = f'SELECT MIN(rowid) as min_rowid, MAX(rowid) as max_rowid FROM "{input1_layer}"'
+    result = geofile.read_file_sql(path=returnvalue.input1_path, sql_stmt=sql_stmt, layer=input1_layer)
+    if len(result) == 1:
+        min_rowid = result['min_rowid'].values[0]
+        max_rowid = result['max_rowid'].values[0]
+        nb_rowids_per_batch = (max_rowid - min_rowid)/nb_batches
+    else:
+        raise Exception(f"Error determining min_rowid and max_rowid for {returnvalue.input1_path}, layer {input1_layer}")
+
+    # Remark: adding data to a file in parallel using ogr2ogr gives locking 
+    # issues on the sqlite file, so needs to be done sequential!
+    batches = {}
+    offset = 0
+    for batch_id in range(nb_batches):
         
-        ##### Split to x batches/layers #####
-        # If needed, randomly determine the batch to be used for calculation in parallel 
-        # + add index for (big)increase of performance 
-        nb_rowids_per_batch = 0
-        if split_random is True:
-            geofile.add_column(path=temp_path, layer=input_layer, 
-                    name='batch_id', type='INTEGER', expression=f"ABS(RANDOM() % {nb_batches})")
-            sqlite_stmt = f'CREATE INDEX idx_batch_id ON "{input_layer}"(batch_id)' 
-            ogr_util.vector_info(path=temp_path, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
+        # If they are all still in the same layer
+        batches[batch_id] = {}
+        batches[batch_id]['layer'] = returnvalue.input1_layer
+        batches[batch_id]['path'] = returnvalue.input1_path
+        
+        # Use rowid filtering
+        if nb_batches == 1:
+            batches[batch_id]['batch_filter'] = ''
+        elif batch_id < nb_batches:
+            batches[batch_id]['batch_filter'] = f"AND (layer1.rowid >= {offset} AND layer1.rowid < {offset+nb_rowids_per_batch})"
+            offset += nb_rowids_per_batch
         else:
-            # Determine the min_rowid and max_rowid to divide the batches as good as possible
-            sql_stmt = f'SELECT MIN(rowid) as min_rowid, MAX(rowid) as max_rowid FROM "{input_layer}"'
-            result = geofile.read_file_sql(path=temp_path, sql_stmt=sql_stmt, layer=input_layer)
-            if len(result) == 1:
-                min_rowid = result['min_rowid'].values[0]
-                max_rowid = result['max_rowid'].values[0]
-                nb_rowids_per_batch = (max_rowid - min_rowid)/nb_batches
-            else:
-                raise Exception(f"Error determining min_rowid and max_rowid for {temp_path}, layer {input_layer}")
+            batches[batch_id]['batch_filter'] = f"AND layer1.rowid >= {offset}"
 
-        # Remark: adding data to a file in parallel using ogr2ogr gives locking 
-        # issues on the sqlite file, so needs to be done sequential!
-        logger.debug(f"Split the input file to {nb_batches} batches")
-        batches = {}
-        offset = 0
-        for batch_id in range(nb_batches):
-            
-            # If each batch should get its seperate layer... 
-            if split_to_seperate_layers is True:
-                output_baselayer_stripped = output_baselayer.strip("'\"")
-                output_layer_curr = f"{output_baselayer_stripped}_{batch_id}"
-                
-                # If random split, use the batch_id
-                if split_random is True:
-                    sql_stmt = f'''
-                            SELECT {geometry_column_for_select}{columns_to_select_str}  
-                              FROM "{input_layer}" layer1
-                             WHERE layer1.batch_id = {batch_id}'''
-                else:
-                    # If not random, use rowid filtering
-                    if batch_id < nb_batches:
-                        sql_stmt = f'''
-                            SELECT {geometry_column_for_select}{columns_to_select_str}  
-                              FROM "{input_layer}" layer1
-                             WHERE layer1.rowid >= {offset} 
-                               AND layer1.rowid < {offset+nb_rowids_per_batch}'''
-                        
-                    else:
-                        sql_stmt = f'''
-                            SELECT {geometry_column_for_select}{columns_to_select_str}  
-                              FROM "{input_layer}" layer1
-                             WHERE layer1.rowid >= {offset}'''
-
-                translate_description=f"Copy data from {input_path}.{input_layer} to {output_path}.{output_layer_curr}"
-                ogr_util.vector_translate(
-                        input_path=temp_path,
-                        output_path=output_path,
-                        translate_description=translate_description,
-                        output_layer=output_layer_curr,
-                        sql_stmt=sql_stmt,
-                        sql_dialect='SQLITE',
-                        transaction_size=200000,
-                        append=True,
-                        force_py=True,
-                        verbose=verbose)
-
-                # If items were actually added to the layer, add it to the list of jobs
-                if output_layer_curr in geofile.listlayers(output_path):
-                    batches[batch_id] = {}
-                    batches[batch_id]['layer'] = output_layer_curr
-                    batches[batch_id]['path'] = output_path
-                    batches[batch_id]['batch_filter'] = ''
-                else:
-                    logger.debug(f"Layer {output_layer_curr} is empty in geofile {output_path}")
-            else:
-                # If they are all still in the same layer
-                batches[batch_id] = {}
-                batches[batch_id]['layer'] = input_layer
-                batches[batch_id]['path'] = output_path
-                if split_random is True:
-                    batches[batch_id]['batch_filter'] = f"AND batch_id = {batch_id}"
-                else:
-                    # If not random, use rowid filtering
-                    if nb_batches == 1:
-                        batches[batch_id]['batch_filter'] = ''
-                    elif batch_id < nb_batches:
-                        batches[batch_id]['batch_filter'] = f"AND (layer1.rowid >= {offset} AND layer1.rowid < {offset+nb_rowids_per_batch})"
-                        offset += nb_rowids_per_batch
-                    else:
-                        batches[batch_id]['batch_filter'] = f"AND layer1.rowid >= {offset}"
+    # No use starting more processes than the number of batches...            
+    if len(batches) < returnvalue.nb_parallel:
+        returnvalue.nb_parallel = len(batches)
     
-    finally:
-        # Cleanup
-        if(seperate_working_file_created is True 
-           and temp_path is not None 
-           and temp_path.exists()):
-            geofile.remove(temp_path)
-    
-    return batches
+    returnvalue.batches = batches
+    return returnvalue
 
 def dissolve(
         input_path: Path,

@@ -7,8 +7,7 @@ import datetime
 import logging
 import math
 import multiprocessing
-import os
-from typing import NamedTuple, Optional
+from typing import NamedTuple
 
 import psutil
 
@@ -26,7 +25,8 @@ def report_progress(
         start_time: datetime.datetime,
         nb_done: int,
         nb_todo: int,
-        operation: Optional[str]):
+        operation: str = None,
+        nb_parallel: int = 1):
 
     # Init
     time_passed = (datetime.datetime.now()-start_time).total_seconds()
@@ -39,6 +39,9 @@ def report_progress(
     elif time_passed > 0:
         # Else, report progress properly...
         processed_per_hour = (nb_done/time_passed) * 3600
+        # Correct the nb processed per hour if running parallel 
+        if nb_done < nb_parallel:
+            processed_per_hour = round(processed_per_hour * nb_parallel / nb_done)
         hours_to_go = (int)((nb_todo - nb_done)/processed_per_hour)
         min_to_go = (int)((((nb_todo - nb_done)/processed_per_hour)%1)*60)
         pct_progress = 100.0-(nb_todo-nb_done)*100/nb_todo
