@@ -163,9 +163,8 @@ def get_layerinfo(
         layer_defn = datasource_layer.GetLayerDefn()
         for i in range(layer_defn.GetFieldCount()):
             columns.append(layer_defn.GetFieldDefn(i).GetName())
-        geometrycolumn = datasource_layer.GetGeometryColumn()
-        if geometrycolumn == '':
-            geometrycolumn = 'geometry'
+
+        # Get geometry column info...
         geometrytypename = gdal.ogr.GeometryTypeToName(datasource_layer.GetGeomType())
         geometrytypename = geometrytypename.replace(' ', '').upper()
         
@@ -178,19 +177,31 @@ def get_layerinfo(
                 geometrytypename = f"MULTI{geometrytypename}"
         if geometrytypename == 'UNKNOWN(ANY)':
             geometrytypename = 'GEOMETRY'
-
+            
         # Geometrytype
-        geometrytype = GeometryType[geometrytypename]
-        
-        # Convert gdal extent (xmin, xmax, ymin, ymax) to bounds (xmin, ymin, xmax, ymax)
         extent = datasource_layer.GetExtent()
-        total_bounds = (extent[0], extent[2], extent[1], extent[3])
+        if geometrytypename != 'NONE':
+            geometrytype = GeometryType[geometrytypename]
+        else:
+            geometrytype = None
 
-        # Get projection
+        # If the geometry type is not None, fill out the extra properties    
+        geometrycolumn = None
+        extent= None
         crs = None
-        spatialref = datasource_layer.GetSpatialRef()
-        if spatialref is not None:
-            crs = pyproj.CRS(spatialref.ExportToWkt())
+        total_bounds = None
+        if geometrytype is not None:
+            # Geometry column name
+            geometrycolumn = datasource_layer.GetGeometryColumn()
+            if geometrycolumn == '':
+                geometrycolumn = 'geometry'
+            # Convert gdal extent (xmin, xmax, ymin, ymax) to bounds (xmin, ymin, xmax, ymax)
+            extent = datasource_layer.GetExtent()
+            total_bounds = (extent[0], extent[2], extent[1], extent[3])
+            # CRS
+            spatialref = datasource_layer.GetSpatialRef()
+            if spatialref is not None:
+                crs = pyproj.CRS(spatialref.ExportToWkt())
 
         return LayerInfo(
                 name=datasource_layer.GetName(),
