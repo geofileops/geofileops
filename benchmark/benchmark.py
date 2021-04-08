@@ -91,8 +91,8 @@ def _get_testdata_aiv(testdata_path: Path):
         raise Exception(f"Unknown testdata file: {testdata_path}")
 
     # Download zip file if needed...  
-    zip_path = _get_testdata_dir(tmpdir) / f"{testdata_path.stem}.zip"
-    unzippedzip_dir = _get_testdata_dir(tmpdir) / zip_path.stem
+    zip_path = testdata_path.parent / f"{testdata_path.stem}.zip"
+    unzippedzip_dir = testdata_path.parent / zip_path.stem
     if not zip_path.exists() and not unzippedzip_dir.exists():
         # Download beschmark file
         print(f"Download test data {testdata_path}")
