@@ -40,15 +40,15 @@ gdal.UseExceptions()        # Enable exceptions
 #-------------------------------------------------------------
 
 '''
-def _buildOGRVrt(
-        output_path: Path,
-        input_layer_paths: dict):
+def write_vrt(
+        input_layer_paths: List[Tuple[Path, str]],
+        output_path: Path):
     """
-    Create a vrt file where all layers in the based on .
+    Create a vrt file where all layers in input_layer_paths.
 
     Args:
-        output_path (Path): [description]
         input_layer_paths (dict): [description]
+        output_path (Path): [description]
     """
 
     # Create vrt file
@@ -56,20 +56,23 @@ def _buildOGRVrt(
         vrt_file.write(f'<OGRVRTDataSource>\n')
 
         # Loop over all layers and add them to vrt file
-        for input_layer in input_layer_paths:
-            vrt_file.write(f'  <OGRVRTLayer name="{input_layer}">\n')
-            vrt_file.write(f'    <SrcDataSource>{input_layer_paths[input_layer]["path"]}</SrcDataSource>\n')
-            vrt_file.write(f'    <SrcLayer>{input_layer}</SrcLayer>\n')
+        for index, input_layer_path in enumerate(input_layer_paths):
+            vrt_file.write(f'  <OGRVRTLayer name="{input_layer_path[1]}">\n')
+            vrt_file.write(f'    <SrcDataSource>{input_layer_path[0]}</SrcDataSource>\n')
+            vrt_file.write(f'    <SrcLayer>{input_layer_path[1]}</SrcLayer>\n')
             vrt_file.write(f'  </OGRVRTLayer>\n')
 
             # layer index
-            """
-            vrt_file.write(f'  <OGRVRTLayer name="rtree_{input_layer}_geometry">\n')
-            vrt_file.write(f'    <SrcDataSource>{input_layer_paths[input_layer]["path"]}</SrcDataSource>\n')
-            vrt_file.write(f'    <SrcLayer>rtree_{input_layer}_geom</SrcLayer>\n')
+            vrt_file.write(f'  <OGRVRTLayer name="rtree_{input_layer_path[1]}_geom">\n')
+            vrt_file.write(f'    <SrcDataSource>{input_layer_path[0]}</SrcDataSource>\n')
+            vrt_file.write(f'    <SrcLayer>rtree_{input_layer_path[1]}_geom</SrcLayer>\n')
+            vrt_file.write(f'    <Field name="minx" />\n')
+            vrt_file.write(f'    <Field name="miny" />\n')
+            vrt_file.write(f'    <Field name="maxx" />\n')
+            vrt_file.write(f'    <Field name="maxy" />\n')
+            vrt_file.write(f'    <GeometryType>wkbNone</GeometryType>\n')
             vrt_file.write(f'  </OGRVRTLayer>\n')
-            """
-
+            
         vrt_file.write(f'</OGRVRTDataSource>\n')
 '''
 
