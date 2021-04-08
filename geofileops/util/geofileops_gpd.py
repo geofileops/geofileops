@@ -217,6 +217,19 @@ def _apply_geooperation_to_layer(
         #        nb_parallel=nb_parallel,
         #        verbose=verbose)
 
+        # TODO: determine the optimal batch sizes with min and max of rowid will 
+        # in some case improve performance
+        '''
+        sql_stmt = f'SELECT MIN(rowid) as min_rowid, MAX(rowid) as max_rowid FROM "{input_layer}"'
+        result = geofile.read_file_sql(path=temp_path, sql_stmt=sql_stmt, layer=input_layer)
+        if len(result) == 1:
+            min_rowid = result['min_rowid'].values[0]
+            max_rowid = result['max_rowid'].values[0]
+            nb_rowids_per_batch = (max_rowid - min_rowid)/nb_batches
+        else:
+            raise Exception(f"Error determining min_rowid and max_rowid for {temp_path}, layer {input_layer}")
+        '''
+
         with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
 
             # Prepare output filename
@@ -574,7 +587,7 @@ def dissolve(
             ##### Calculation ready! Now finalise output! #####
             # If there is a result on border, append it to the rest
             if(str(output_tmp_onborder_path) != str(output_tmp_path) 
-            and output_tmp_onborder_path.exists()):
+                    and output_tmp_onborder_path.exists()):
                 geofile.append_to(output_tmp_onborder_path, output_tmp_path, dst_layer=output_layer)
 
             # If there is a result...
@@ -597,7 +610,8 @@ def dissolve(
                         and groupby_columns is not None 
                         and len(groupby_columns) > 0):
                     # All tiles are already dissolved to groups, but now the resuts 
-                    # from all tiles still need to be grouped/collected together.  
+                    # from all tiles still need to be grouped/collected together.
+                    logger.info("Collect prepared features to multi* and write to output file")
                     groupby_columns_with_prefix = [f'"{column}"' for column in groupby_columns]
                     groupby_columns_str = ", ".join(groupby_columns_with_prefix)
                     sql_stmt = f'''
@@ -608,6 +622,7 @@ def dissolve(
                             ORDER BY avg(temp_ordering_id)'''
                 else:
                     # No group by columns, so only need to reorder output file
+                    logger.info("Write final result to output file")
                     sql_stmt = f'''
                             SELECT {{geometrycolumn}} 
                                 {columns_str} 
