@@ -182,7 +182,6 @@ def get_layerinfo(
             geometrytypename = 'GEOMETRY'
             
         # Geometrytype
-        extent = datasource_layer.GetExtent()
         if geometrytypename != 'NONE':
             geometrytype = GeometryType[geometrytypename]
         else:
@@ -206,15 +205,18 @@ def get_layerinfo(
             if spatialref is not None:
                 crs = pyproj.CRS(spatialref.ExportToWkt())
 
-        return LayerInfo(
-                name=datasource_layer.GetName(),
-                featurecount=datasource_layer.GetFeatureCount(),
-                total_bounds=total_bounds,
-                geometrycolumn=geometrycolumn, 
-                geometrytypename=geometrytypename,
-                geometrytype=geometrytype,
-                columns=columns,
-                crs=crs)
+            return LayerInfo(
+                    name=datasource_layer.GetName(),
+                    featurecount=datasource_layer.GetFeatureCount(),
+                    total_bounds=total_bounds,
+                    geometrycolumn=geometrycolumn, 
+                    geometrytypename=geometrytypename,
+                    geometrytype=geometrytype,
+                    columns=columns,
+                    crs=crs)
+        else:
+            raise Exception("Layer doesn't have a geometry column!")    
+
     finally:
         if datasource is not None:
             del datasource
