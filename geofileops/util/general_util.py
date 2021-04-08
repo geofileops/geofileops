@@ -17,6 +17,17 @@ import psutil
 
 logger = logging.getLogger(__name__)
 
+class MissingRuntimeDependencyError(Exception):
+    """
+    Exception raised when an unsupported SQL statement is passed.
+
+    Attributes:
+        message (str): Exception message
+    """
+    def __init__(self, message):
+        self.message = message
+        super().__init__(self.message)
+
 ################################################################################
 # The real work
 ################################################################################

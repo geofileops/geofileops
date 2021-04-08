@@ -10,6 +10,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
 from geofileops.geofile import GeometryType
+from geofileops.util.general_util import MissingRuntimeDependencyError 
 from geofileops.util import geofileops_ogr
 from geofileops.util import ogr_util
 from tests import test_helper
@@ -50,11 +51,11 @@ def basetest_buffer(
     # Do operation
     output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}{output_basepath.suffix}"
     with test_helper.GdalBin(gdal_installation):
-        ok_expected = test_helper.is_gdal_ok('buffer', gdal_installation)
+        ok_expected = test_helper.check_runtime_dependencies_ok('buffer', gdal_installation)
         try:
             geofileops_ogr.buffer(input_path=input_path, output_path=output_path, distance=1)
             test_ok = True
-        except ogr_util.SQLNotSupportedException:
+        except MissingRuntimeDependencyError:
             test_ok = False
     assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
 
@@ -102,11 +103,11 @@ def basetest_convexhull(
     # Do operation  
     output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}{output_basepath.suffix}"
     with test_helper.GdalBin(gdal_installation):
-        ok_expected = test_helper.is_gdal_ok('', gdal_installation)
+        ok_expected = test_helper.check_runtime_dependencies_ok('', gdal_installation)
         try:
             geofileops_ogr.convexhull(input_path=input_path, output_path=output_path)
             test_ok = True
-        except ogr_util.SQLNotSupportedException:
+        except MissingRuntimeDependencyError:
             test_ok = False
     assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
 
@@ -156,11 +157,11 @@ def basetest_isvalid(
     output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}{output_basepath.suffix}"
     with test_helper.GdalBin(gdal_installation):
         if ok_expected is None:
-            ok_expected = test_helper.is_gdal_ok('isvalid', gdal_installation)
+            ok_expected = test_helper.check_runtime_dependencies_ok('isvalid', gdal_installation)
         try:
             geofileops_ogr.isvalid(input_path=input_path, output_path=output_path, nb_parallel=2)
             test_ok = True
-        except ogr_util.SQLNotSupportedException:
+        except MissingRuntimeDependencyError:
             test_ok = False
     assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
 
@@ -210,11 +211,11 @@ def basetest_makevalid(
     output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}{output_basepath.suffix}"
     with test_helper.GdalBin(gdal_installation):
         if ok_expected is None:
-            ok_expected = test_helper.is_gdal_ok('makevalid', gdal_installation)
+            ok_expected = test_helper.check_runtime_dependencies_ok('makevalid', gdal_installation)
         try: 
             geofileops_ogr.makevalid(input_path=input_path, output_path=output_path, nb_parallel=2)
             test_ok = True
-        except ogr_util.SQLNotSupportedException:
+        except MissingRuntimeDependencyError:
             test_ok = False
         assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
 
@@ -395,13 +396,13 @@ def basetest_simplify(
     # Do operation
     output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}{output_basepath.suffix}"
     with test_helper.GdalBin(gdal_installation):
-        ok_expected = test_helper.is_gdal_ok('', gdal_installation)
+        ok_expected = test_helper.check_runtime_dependencies_ok('', gdal_installation)
         try:
             geofileops_ogr.simplify(
                     input_path=input_path, output_path=output_path,
                     tolerance=5)
             test_ok = True
-        except ogr_util.SQLNotSupportedException:
+        except MissingRuntimeDependencyError:
             test_ok = False
     assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
 
@@ -433,6 +434,8 @@ if __name__ == '__main__':
     #test_makevalid_gpkg(tmpdir)
     #test_isvalid_shp(tmpdir)
     #test_isvalid_gpkg(tmpdir)
-    #test_convexhull_shp(tmpdir)
     #test_convexhull_gpkg(tmpdir)
+    #test_convexhull_shp(tmpdir)
     #test_select_geos_version(tmpdir)
+    #test_simplify_gpkg(tmpdir)
+    

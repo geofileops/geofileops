@@ -27,6 +27,7 @@ gdal.UseExceptions()
 
 from geofileops import geofile
 from geofileops.util import general_util
+from geofileops.util.general_util import MissingRuntimeDependencyError
 from geofileops.util.geometry_util import GeometryType
 
 #-------------------------------------------------------------
@@ -46,17 +47,6 @@ global_spatiallite_versioninfo_alternative = None
 #-------------------------------------------------------------
 # The real work
 #-------------------------------------------------------------
-
-class SQLNotSupportedException(Exception):
-    """
-    Exception raised when an unsupported SQL statement is passed.
-
-    Attributes:
-        message (str): Exception message
-    """
-    def __init__(self, message):
-        self.message = message
-        super().__init__(self.message)
 
 class VectorTranslateInfo:
     def __init__(
@@ -770,7 +760,7 @@ def get_gdal_to_use(sqlite_stmt: str) -> Tuple[str, str]:
     # First check if there is an alternative gdal installation 
     gdal_bin_dir = os.getenv('GDAL_BIN')
     if gdal_bin_dir is None:
-        raise SQLNotSupportedException('sqlite_stmt not supported by default gdal, and no alternative gdal installation specified using GDAL_BIN')
+        raise MissingRuntimeDependencyError('sqlite_stmt not supported by default gdal, and no alternative gdal installation specified using GDAL_BIN')
 
     # Get spatiallite version info for the alternative gdal, if it isn't cached yet for this gdal_bin_dir
     global global_spatiallite_versioninfo_alternative
@@ -794,7 +784,7 @@ def get_gdal_to_use(sqlite_stmt: str) -> Tuple[str, str]:
     if unsupported_function_found is False:
         return ('gdal_bin', 'SQLITE')
     else:
-        raise SQLNotSupportedException(f"Alternative gdal in gdal_bin_dir {gdal_bin_dir} doesn't support sqlite_stmt either: {sqlite_stmt}")
+        raise MissingRuntimeDependencyError(f"Alternative gdal in gdal_bin_dir {gdal_bin_dir} doesn't support sqlite_stmt either: {sqlite_stmt}")
 
 def get_gdal_install_info(gdal_installation: str) -> dict:
 
@@ -835,7 +825,7 @@ def get_gdal_install_info(gdal_installation: str) -> dict:
                     'makevalid', 'st_makevalid', 'isvalid', 'st_isvalid', 
                     'isvalidreason', 'st_isvalidreason', 'isvaliddetail', 'st_isvaliddetail',
                     'st_area', 'area', 'st_npoints', 'npoints',
-                    'st_multi', 'collectionextract', 'st_intersection', 'st_union']
+                    'st_multi', 'collectionextract', 'st_intersection', 'st_union', 'st_collect']
         else:
             install_info['unsupported_functions'] = []
 

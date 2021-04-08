@@ -4,11 +4,13 @@ Module containing utilities regarding the usage of ogr functionalities.
 """
 
 import logging
+import os
 from pathlib import Path
 import sqlite3
 
 from geofileops.util.geometry_util import GeometryType
 from geofileops import geofile
+from .general_util import MissingRuntimeDependencyError
 
 #-------------------------------------------------------------
 # First define/init some general variables/constants
@@ -20,6 +22,11 @@ logger = logging.getLogger(__name__)
 #-------------------------------------------------------------
 # The real work
 #-------------------------------------------------------------
+
+def check_runtimedependencies():
+    test_path = Path(__file__).resolve().parent / "test.gpkg"
+    conn = sqlite3.connect(test_path)
+    load_spatialite(conn)
 
 def create_table_as_sql(
         input1_path: Path,
@@ -52,8 +59,8 @@ def create_table_as_sql(
         # Connect to output database file (by convention) + init
         output_databasename = 'main'
         conn = sqlite3.connect(output_path)
-        conn.enable_load_extension(True)
-        conn.load_extension('mod_spatialite')
+        load_spatialite(conn)
+        
         conn.execute('PRAGMA cache_size = 10000;')  # Number of cache pages (page = 4096 bytes)
         conn.execute('PRAGMA temp_store = MEMORY;')
         if journal_mode is not None:
@@ -120,5 +127,27 @@ def create_table_as_sql(
     except Exception as ex:
         raise Exception(f"Error executing {sql}") from ex
 
+def load_spatialite(conn):
+    """
+    Load mod_spatialite for an existing sqlite connection.
+
+    Args:
+        conn ([type]): Sqlite connection
+    """
+    conn.enable_load_extension(True)
+    try:
+        conn.load_extension('mod_spatialite')
+    except Exception as ex:
+        mod_spatialite_dir = os.environ.get('MOD_SPATIALITE_DIR')
+        if mod_spatialite_dir is not None:
+            if f"{mod_spatialite_dir};" not in os.environ['PATH']:
+                os.environ['PATH'] = f"{mod_spatialite_dir};{os.environ['PATH']}"
+            try:
+                conn.load_extension('mod_spatialite')
+            except Exception as ex:
+                raise MissingRuntimeDependencyError(f"Error trying to load mod_spatialite with MOD_SPATIALITE_DIR: {mod_spatialite_dir}") from ex
+        else:
+            raise MissingRuntimeDependencyError("Error trying to load mod_spatialite. You can specify the location of mod_spatialite using the MOD_SPATIALITE_DIR environment variable") from ex
+    
 if __name__ == '__main__':
     None

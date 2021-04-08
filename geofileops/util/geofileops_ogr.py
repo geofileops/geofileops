@@ -14,6 +14,7 @@ import shutil
 from typing import List, Optional
 
 from geofileops import geofile
+from .general_util import MissingRuntimeDependencyError
 from . import io_util
 from . import ogr_util
 from . import sqlite_util
@@ -140,6 +141,8 @@ def convexhull(
              WHERE 1=1 
                {{batch_filter}}'''
 
+    # Output geometry type same as input geometry type 
+    input_layer_info = geofile.get_layerinfo(input_path, input_layer)
     return _single_layer_vector_operation(
             input_path=input_path,
             output_path=output_path,
@@ -148,6 +151,7 @@ def convexhull(
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
+            force_output_geometrytype=input_layer_info.geometrytype,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
@@ -255,6 +259,8 @@ def simplify(
              WHERE 1=1 
                {{batch_filter}}'''
 
+    # Output geometry type same as input geometry type 
+    input_layer_info = geofile.get_layerinfo(input_path, input_layer)
     return _single_layer_vector_operation(
             input_path=input_path,
             output_path=output_path,
@@ -263,6 +269,7 @@ def simplify(
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
+            force_output_geometrytype=input_layer_info.geometrytype,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
@@ -424,8 +431,9 @@ def _single_layer_vector_operation(
                         explodecollections=explodecollections,
                         force_output_geometrytype=force_output_geometrytype,
                         verbose=verbose)
-                future = ogr_util.vector_translate_async(
-                        concurrent_pool=calculate_pool, info=translate_info)
+                future = calculate_pool.submit(
+                        ogr_util.vector_translate_by_info,
+                        info=translate_info)
                 future_to_batch_id[future] = batch_id
                 row_offset += row_limit
             
@@ -455,7 +463,8 @@ def _single_layer_vector_operation(
 
                 # Log the progress and prediction speed
                 nb_done += 1
-                general_util.report_progress(start_time, nb_done, nb_batches, operation_name)
+                general_util.report_progress(
+                        start_time, nb_done, nb_batches, operation_name, nb_parallel=nb_parallel)
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
@@ -1151,7 +1160,7 @@ def _two_layer_vector_operation(
             geofile.remove(output_path)
 
     # Check if spatialite is properly installed to execute this query
-    ogr_util.get_gdal_to_use(sql_template)
+    sqlite_util.check_runtimedependencies()
 
     # Init layer info
     start_time = datetime.datetime.now()
