@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Tests for operations using ogr on one layer.
+Tests for operations that are executed using a sql statement on one layer.
 """
 
 from pathlib import Path
@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
 from geofileops.geofile import GeometryType
 from geofileops.util.general_util import MissingRuntimeDependencyError 
-from geofileops.util import geofileops_ogr
+from geofileops.util import geofileops_sql
 from geofileops.util import ogr_util
 from tests import test_helper
 
@@ -53,7 +53,7 @@ def basetest_buffer(
     with test_helper.GdalBin(gdal_installation):
         ok_expected = test_helper.check_runtime_dependencies_ok('buffer', gdal_installation)
         try:
-            geofileops_ogr.buffer(input_path=input_path, output_path=output_path, distance=1)
+            geofileops_sql.buffer(input_path=input_path, output_path=output_path, distance=1)
             test_ok = True
         except MissingRuntimeDependencyError:
             test_ok = False
@@ -105,7 +105,7 @@ def basetest_convexhull(
     with test_helper.GdalBin(gdal_installation):
         ok_expected = test_helper.check_runtime_dependencies_ok('', gdal_installation)
         try:
-            geofileops_ogr.convexhull(input_path=input_path, output_path=output_path)
+            geofileops_sql.convexhull(input_path=input_path, output_path=output_path)
             test_ok = True
         except MissingRuntimeDependencyError:
             test_ok = False
@@ -159,7 +159,7 @@ def basetest_isvalid(
         if ok_expected is None:
             ok_expected = test_helper.check_runtime_dependencies_ok('isvalid', gdal_installation)
         try:
-            geofileops_ogr.isvalid(input_path=input_path, output_path=output_path, nb_parallel=2)
+            geofileops_sql.isvalid(input_path=input_path, output_path=output_path, nb_parallel=2)
             test_ok = True
         except MissingRuntimeDependencyError:
             test_ok = False
@@ -213,7 +213,7 @@ def basetest_makevalid(
         if ok_expected is None:
             ok_expected = test_helper.check_runtime_dependencies_ok('makevalid', gdal_installation)
         try: 
-            geofileops_ogr.makevalid(input_path=input_path, output_path=output_path, nb_parallel=2)
+            geofileops_sql.makevalid(input_path=input_path, output_path=output_path, nb_parallel=2)
             test_ok = True
         except MissingRuntimeDependencyError:
             test_ok = False
@@ -239,12 +239,12 @@ def basetest_makevalid(
 
         # Make sure the input file was not valid
         output_isvalid_path = output_path.parent / f"{output_path.stem}_isvalid{output_path.suffix}"
-        isvalid = geofileops_ogr.isvalid(input_path=input_path, output_path=output_isvalid_path)
+        isvalid = geofileops_sql.isvalid(input_path=input_path, output_path=output_isvalid_path)
         assert isvalid is False, "Input file should contain invalid features"
 
         # Check if the result file is valid
         output_new_isvalid_path = output_path.parent / f"{output_path.stem}_new_isvalid{output_path.suffix}"
-        isvalid = geofileops_ogr.isvalid(input_path=output_path, output_path=output_new_isvalid_path)
+        isvalid = geofileops_sql.isvalid(input_path=output_path, output_path=output_new_isvalid_path)
         assert isvalid == True, "Output file shouldn't contain invalid features"
 
 def test_select_gpkg(tmpdir):
@@ -281,7 +281,7 @@ def basetest_select(
 
     layerinfo_input = geofile.get_layerinfo(input_path)
     sql_stmt = 'SELECT {geometrycolumn}, oidn, uidn FROM {input_layer}'
-    geofileops_ogr.select(
+    geofileops_sql.select(
             input_path=input_path,
             output_path=output_path,
             sql_stmt=sql_stmt)
@@ -324,7 +324,7 @@ def basetest_select_various_options(
     sql_stmt = '''SELECT {geometrycolumn}
                         {columns_to_select_str} 
                     FROM {input_layer} '''
-    geofileops_ogr.select(
+    geofileops_sql.select(
             input_path=input_path,
             output_path=output_path,
             columns=columns,
@@ -398,7 +398,7 @@ def basetest_simplify(
     with test_helper.GdalBin(gdal_installation):
         ok_expected = test_helper.check_runtime_dependencies_ok('', gdal_installation)
         try:
-            geofileops_ogr.simplify(
+            geofileops_sql.simplify(
                     input_path=input_path, output_path=output_path,
                     tolerance=5)
             test_ok = True

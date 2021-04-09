@@ -20,7 +20,7 @@ import pandas as pd
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops.util import geofileops_gpd
-from geofileops.util import geofileops_ogr
+from geofileops.util import geofileops_sql
 from geofileops import geofileops
 
 class Benchmark(enum.Enum):
@@ -151,7 +151,7 @@ def benchmark_buffer(tmpdir: Path) -> List[BenchResult]:
 
     start_time = datetime.datetime.now()
     output_path = tmpdir / f"{input_path.stem}_buf_ogr.gpkg"
-    geofileops_ogr.buffer(input_path, output_path, distance=1, force=True)
+    geofileops_sql.buffer(input_path, output_path, distance=1, force=True)
     secs_taken = (datetime.datetime.now()-start_time).total_seconds()
     bench_results.append(BenchResult(
             package_version=_get_package_version(),
@@ -248,7 +248,7 @@ def benchmark_intersect(tmpdir: Path) -> List[BenchResult]:
         print('Start Intersect with ogr')
         start_time = datetime.datetime.now()
         output_path = tmpdir / f"{input1_path.stem}_inters_{input2_path.stem}.gpkg"
-        geofileops_ogr.intersect(
+        geofileops_sql.intersect(
                 input1_path=input1_path, 
                 input2_path=input2_path, 
                 output_path=output_path,
@@ -278,7 +278,7 @@ def benchmark_union(tmpdir: Path) -> List[BenchResult]:
         print('Start Union with ogr')
         start_time = datetime.datetime.now()
         output_path = tmpdir / f"{input1_path.stem}_union_{input2_path.stem}.gpkg"
-        geofileops_ogr.union(
+        geofileops_sql.union(
                 input1_path=input1_path, 
                 input2_path=input2_path, 
                 output_path=output_path,

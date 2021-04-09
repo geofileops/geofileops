@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Module containing the implementation of Geofile operations using ogr.
+Module containing the implementation of Geofile operations using a sql statement.
 """
 
 from concurrent import futures
@@ -14,7 +14,6 @@ import shutil
 from typing import List, Optional
 
 from geofileops import geofile
-from .general_util import MissingRuntimeDependencyError
 from . import io_util
 from . import ogr_util
 from . import sqlite_util

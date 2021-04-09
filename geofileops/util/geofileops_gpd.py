@@ -23,7 +23,7 @@ import shapely.geometry as sh_geom
 from geofileops import geofile
 from geofileops.util import general_util
 from geofileops.util.general_util import ParallelizationConfig
-from geofileops.util import geofileops_ogr
+from geofileops.util import geofileops_sql
 from geofileops.util import geometry_util
 from geofileops.util.geometry_util import GeometryType, PrimitiveType, SimplifyAlgorithm 
 from geofileops.util import geoseries_util
@@ -629,7 +629,7 @@ def dissolve(
                             FROM "{output_layer}" 
                             ORDER BY temp_ordering_id'''
                 # Go!
-                geofileops_ogr.select(
+                geofileops_sql.select(
                         output_tmp_path, output_path, sql_stmt, output_layer=output_layer,
                         explodecollections=explodecollections)
 

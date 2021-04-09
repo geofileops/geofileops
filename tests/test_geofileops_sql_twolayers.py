@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Tests for operations using ogr on two layers.
+Tests for operations that are executed using a sql statement on two layers.
 """
 
 from pathlib import Path
@@ -10,7 +10,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
 from geofileops.geofile import GeometryType
-from geofileops.util import geofileops_ogr
+from geofileops.util import geofileops_sql
 from geofileops.util.general_util import MissingRuntimeDependencyError
 from tests import test_helper
 
@@ -74,7 +74,7 @@ def basetest_erase(
     with test_helper.GdalBin(gdal_installation):
         ok_expected = test_helper.check_runtime_dependencies_ok('twolayer', gdal_installation)
         try:
-            geofileops_ogr.erase(
+            geofileops_sql.erase(
                     input_path=input_path, erase_path=erase_path,
                     output_path=output_path)
             test_ok = True
@@ -146,7 +146,7 @@ def basetest_export_by_location(
     with test_helper.GdalBin(gdal_installation):
         ok_expected = test_helper.check_runtime_dependencies_ok('twolayer', gdal_installation)
         try:
-            geofileops_ogr.export_by_location(
+            geofileops_sql.export_by_location(
                     input_to_select_from_path=input_to_select_from_path,
                     input_to_compare_with_path=input_to_compare_with_path,
                     output_path=output_path)
@@ -212,7 +212,7 @@ def basetest_export_by_distance(
     with test_helper.GdalBin(gdal_installation):
         ok_expected = test_helper.check_runtime_dependencies_ok('twolayer', gdal_installation)
         try:
-            geofileops_ogr.export_by_distance(
+            geofileops_sql.export_by_distance(
                     input_to_select_from_path=input_to_select_from_path,
                     input_to_compare_with_path=input_to_compare_with_path,
                     max_distance=10,
@@ -271,7 +271,7 @@ def basetest_intersect(
     with test_helper.GdalBin(gdal_installation):
         ok_expected = test_helper.check_runtime_dependencies_ok('twolayer', gdal_installation)
         try:
-            geofileops_ogr.intersect(
+            geofileops_sql.intersect(
                     input1_path=input1_path,
                     input2_path=input2_path,
                     output_path=output_path,
@@ -334,7 +334,7 @@ def basetest_join_by_location(
     with test_helper.GdalBin(gdal_installation):
         ok_expected = test_helper.check_runtime_dependencies_ok('twolayer', gdal_installation)
         try:
-            geofileops_ogr.join_by_location(
+            geofileops_sql.join_by_location(
                     input1_path=input1_path,
                     input2_path=input2_path,
                     output_path=output_path,
@@ -373,7 +373,7 @@ def basetest_join_by_location(
     with test_helper.GdalBin(gdal_installation):
         ok_expected = test_helper.check_runtime_dependencies_ok('twolayer', gdal_installation)
         try:
-            geofileops_ogr.join_by_location(
+            geofileops_sql.join_by_location(
                     input1_path=input1_path,
                     input2_path=input2_path,
                     output_path=output_path,
@@ -436,7 +436,7 @@ def basetest_split(
     with test_helper.GdalBin(gdal_installation):
         ok_expected = test_helper.check_runtime_dependencies_ok('twolayer', gdal_installation)
         try:
-            geofileops_ogr.split(
+            geofileops_sql.split(
                     input1_path=input1_path,
                     input2_path=input2_path,
                     output_path=output_path,
@@ -500,7 +500,7 @@ def basetest_union(
     with test_helper.GdalBin(gdal_installation):
         ok_expected = test_helper.check_runtime_dependencies_ok('twolayer', gdal_installation)
         try:
-            geofileops_ogr.union(
+            geofileops_sql.union(
                     input1_path=input1_path,
                     input2_path=input2_path,
                     output_path=output_path,

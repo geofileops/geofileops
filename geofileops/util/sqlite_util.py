@@ -58,72 +58,73 @@ def create_table_as_sql(
     try:
         # Connect to output database file (by convention) + init
         output_databasename = 'main'
-        conn = sqlite3.connect(output_path)
-        load_spatialite(conn)
-        
-        conn.execute('PRAGMA cache_size = 10000;')  # Number of cache pages (page = 4096 bytes)
-        conn.execute('PRAGMA temp_store = MEMORY;')
-        if journal_mode is not None:
-            conn.execute(f"PRAGMA journal_mode = {journal_mode};")
-        
-        # Init as gpkg
-        conn.execute('SELECT gpkgCreateBaseTables();')
-        conn.execute('SELECT EnableGpkgMode();')
-        if crs_epsg != -1:
-            conn.execute(f"SELECT gpkgInsertEpsgSRID({crs_epsg})")
+        with sqlite3.connect(output_path) as conn:
+            load_spatialite(conn)
+            
+            conn.execute('PRAGMA cache_size = 10000;')  # Number of cache pages (page = 4096 bytes)
+            conn.execute('PRAGMA temp_store = MEMORY;')
+            if journal_mode is not None:
+                conn.execute(f"PRAGMA journal_mode = {journal_mode};")
+            conn.execute('PRAGMA locking_mode = EXCLUSIVE;')
+            conn.execute('PRAGMA synchronous = OFF;')
+            
+            # Init as gpkg
+            conn.execute('SELECT gpkgCreateBaseTables();')
+            conn.execute('SELECT EnableGpkgMode();')
+            if crs_epsg != -1:
+                conn.execute(f"SELECT gpkgInsertEpsgSRID({crs_epsg})")
 
-        # If input1 isn't the same database as output, attach to it
-        if input1_path == output_path:
-            input1_databasename = output_databasename
-        else:
-            input1_databasename = 'input1'
-            sql = f"ATTACH DATABASE ? AS {input1_databasename}"
-            dbSpec = (str(input1_path),)
-            conn.execute(sql, dbSpec)
-        
-        # If input2 isn't the same database as output or as input1, attach to it
-        if input2_path == output_path:
-            input2_databasename = output_databasename
-        elif input2_path == input1_path:
-            input2_databasename = input1_databasename
-        else:
-            input2_databasename = 'input2'
-            sql = f"ATTACH DATABASE ? AS {input2_databasename}"
-            dbSpec = (str(input2_path),)
-            conn.execute(sql, dbSpec)
-        
-        # Prepare sql statement
-        sql_stmt = sql_stmt.format(
-                input1_databasename=input1_databasename,
-                input2_databasename=input2_databasename)
+            # If input1 isn't the same database as output, attach to it
+            if input1_path == output_path:
+                input1_databasename = output_databasename
+            else:
+                input1_databasename = 'input1'
+                sql = f"ATTACH DATABASE ? AS {input1_databasename}"
+                dbSpec = (str(input1_path),)
+                conn.execute(sql, dbSpec)
+            
+            # If input2 isn't the same database as output or as input1, attach to it
+            if input2_path == output_path:
+                input2_databasename = output_databasename
+            elif input2_path == input1_path:
+                input2_databasename = input1_databasename
+            else:
+                input2_databasename = 'input2'
+                sql = f"ATTACH DATABASE ? AS {input2_databasename}"
+                dbSpec = (str(input2_path),)
+                conn.execute(sql, dbSpec)
+            
+            # Prepare sql statement
+            sql_stmt = sql_stmt.format(
+                    input1_databasename=input1_databasename,
+                    input2_databasename=input2_databasename)
 
-        # Create temp table to get the date types
-        sql = f'CREATE TEMPORARY TABLE tmp AS \n{sql_stmt}\nLIMIT 0;'
-        conn.execute(sql)
+            # Create temp table to get the date types
+            sql = f'CREATE TEMPORARY TABLE tmp AS \n{sql_stmt}\nLIMIT 0;'
+            conn.execute(sql)
 
-        cur = conn.execute('PRAGMA TABLE_INFO(tmp)')
-        columns = cur.fetchall()
-        
-        #sql_stmt = f'CREATE TABLE {output_databasename}."{output_layer}" AS\n{sql_stmt}' 
-        columns_for_create = [f'"{column[1]}" {column[2]}\n' for column in columns if column[1] != 'geom']
-        sql = f'CREATE TABLE {output_databasename}."{output_layer}" ({", ".join(columns_for_create)})'
-        conn.execute(sql)
+            cur = conn.execute('PRAGMA TABLE_INFO(tmp)')
+            columns = cur.fetchall()
+            
+            #sql_stmt = f'CREATE TABLE {output_databasename}."{output_layer}" AS\n{sql_stmt}' 
+            columns_for_create = [f'"{column[1]}" {column[2]}\n' for column in columns if column[1] != 'geom']
+            sql = f'CREATE TABLE {output_databasename}."{output_layer}" ({", ".join(columns_for_create)})'
+            conn.execute(sql)
 
-        # Add geometry column
-        conn.execute(f"SELECT gpkgAddGeometryColumn('{output_layer}', 'geom', '{output_geometrytype.name}', 0, 0, {crs_epsg});")
-        
-        columns_for_insert = [f'"{column[1]}"' for column in columns]
-        sql = f'INSERT INTO {output_databasename}."{output_layer}" ({", ".join(columns_for_insert)})\n{sql_stmt}' 
-        conn.execute(sql)
-        cur.execute(f"SELECT gpkgAddGeometryTriggers('{output_layer}', 'geom');")
-        
-        # Create spatial index
-        if create_spatial_index is True:
-            cur.execute(f"SELECT UpdateLayerStatistics('{output_layer}', 'geom');")
-            cur.execute(f"SELECT gpkgAddSpatialIndex('{output_layer}', 'geom');")
-        conn.commit()
-
-        logger.info('End')
+            # Add geometry column
+            conn.execute(f"SELECT gpkgAddGeometryColumn('{output_layer}', 'geom', '{output_geometrytype.name}', 0, 0, {crs_epsg});")
+            
+            columns_for_insert = [f'"{column[1]}"' for column in columns]
+            sql = f'INSERT INTO {output_databasename}."{output_layer}" ({", ".join(columns_for_insert)})\n{sql_stmt}' 
+            conn.execute(sql)
+            cur.execute(f"SELECT gpkgAddGeometryTriggers('{output_layer}', 'geom');")
+            
+            # Create spatial index
+            if create_spatial_index is True:
+                cur.execute(f"SELECT UpdateLayerStatistics('{output_layer}', 'geom');")
+                cur.execute(f"SELECT gpkgAddSpatialIndex('{output_layer}', 'geom');")
+            conn.commit()
+            
     except Exception as ex:
         raise Exception(f"Error executing {sql}") from ex
 
