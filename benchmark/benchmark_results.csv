@@ -24,5 +24,5 @@ datetime,package_version,operation,tool_used,params,nb_cpu,secs_taken,secs_expec
 2021-04-03 09:20:34.170386,0.2.2a1,union,ogr,sqlite,20,214.029732,4000,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
 2021-04-03 10:54:05.627097,0.2.2a1,intersect,ogr,sqlite;journal_mode=OFF,20,68.928175,1700,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
 2021-04-03 10:57:32.693985,0.2.2a1,union,ogr,sqlite;journal_mode=OFF,20,207.066888,4000,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
-2021-04-09 22:24:36.624869,0.2.2a2,intersect,sql,sqlite;journal_mode=OFF;mmap,20,66.539662,1700,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
-2021-04-09 22:27:44.780073,0.2.2a2,union,sql,sqlite;journal_mode=OFF;mmap,20,188.155204,4000,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
+2021-04-10 17:18:54.786867,0.2.2a2,intersect,sql,sqlite;journal_mode=OFF;mmap,20,60.412638,1700,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
+2021-04-10 17:21:48.564592,0.2.2a2,union,sql,sqlite;journal_mode=OFF;mmap,20,173.776728,4000,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
