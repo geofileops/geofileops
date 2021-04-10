@@ -43,7 +43,8 @@ def test_exec_spatialite_sql(tmpdir):
             output_path=output_path,
             output_layer=output_path.stem,
             output_geometrytype=GeometryType.MULTIPOLYGON,
-            sql_stmt=sql_stmt)
+            sql_stmt=sql_stmt,
+            profile=sqlite_util.SqliteProfile.SPEED)
     
 if __name__ == '__main__':
     # Init

@@ -1286,7 +1286,7 @@ def _two_layer_vector_operation(
                         append=False,
                         update=False,
                         create_spatial_index=False,
-                        journal_mode='OFF')
+                        profile=sqlite_util.SqliteProfile.SPEED)
                 future_to_batch_id[future] = batch_id
             
             # Loop till all parallel processes are ready, but process each one that is ready already

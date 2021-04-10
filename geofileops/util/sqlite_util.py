@@ -3,6 +3,7 @@
 Module containing utilities regarding the usage of ogr functionalities.
 """
 
+import enum
 import logging
 import os
 from pathlib import Path
@@ -28,6 +29,10 @@ def check_runtimedependencies():
     conn = sqlite3.connect(test_path)
     load_spatialite(conn)
 
+class SqliteProfile(enum.Enum):
+    DEFAULT=0
+    SPEED=1
+
 def create_table_as_sql(
         input1_path: Path,
         input1_layer: str,
@@ -39,7 +44,7 @@ def create_table_as_sql(
         append: bool = False,
         update: bool = False,
         create_spatial_index: bool = True,
-        journal_mode: str = None):
+        profile: SqliteProfile = SqliteProfile.DEFAULT):
 
     if append is True or update is True:
         raise Exception('Not implemented') 
@@ -63,11 +68,18 @@ def create_table_as_sql(
             
             conn.execute('PRAGMA cache_size = 10000;')  # Number of cache pages (page = 4096 bytes)
             conn.execute('PRAGMA temp_store = MEMORY;')
-            if journal_mode is not None:
-                conn.execute(f"PRAGMA journal_mode = {journal_mode};")
-            conn.execute('PRAGMA locking_mode = EXCLUSIVE;')
-            conn.execute('PRAGMA synchronous = OFF;')
             
+            # Use the sqlite profile specified
+            if profile is SqliteProfile.SPEED:
+                conn.execute(f"PRAGMA journal_mode = OFF;")
+            
+                # These pragma's increase speed
+                conn.execute('PRAGMA locking_mode = EXCLUSIVE;')
+                conn.execute('PRAGMA synchronous = OFF;')
+                
+                # Use memory mapped IO = much faster (max 30GB)
+                conn.execute('PRAGMA mmap_size = 30000000000;')
+
             # Init as gpkg
             conn.execute('SELECT gpkgCreateBaseTables();')
             conn.execute('SELECT EnableGpkgMode();')
