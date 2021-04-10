@@ -147,16 +147,16 @@ def benchmark_buffer(tmpdir: Path) -> List[BenchResult]:
             input2_filename=None))
     print(f"Buffer with geopandas ready in {secs_taken:.2f} secs")
     
-    print('Start buffer with ogr')
+    print('Start buffer with sql')
 
     start_time = datetime.datetime.now()
-    output_path = tmpdir / f"{input_path.stem}_buf_ogr.gpkg"
+    output_path = tmpdir / f"{input_path.stem}_buf_sql.gpkg"
     geofileops_sql.buffer(input_path, output_path, distance=1, force=True)
     secs_taken = (datetime.datetime.now()-start_time).total_seconds()
     bench_results.append(BenchResult(
             package_version=_get_package_version(),
             operation='buffer', 
-            tool_used='ogr', 
+            tool_used='sql', 
             params='',
             nb_cpu=multiprocessing.cpu_count(),
             secs_taken=secs_taken,
@@ -164,7 +164,7 @@ def benchmark_buffer(tmpdir: Path) -> List[BenchResult]:
             input1_filename=input_path.name, 
             input2_filename=None))
 
-    print(f"Buffer with ogr ready in {secs_taken:.2f} secs")
+    print(f"Buffer with sql ready in {secs_taken:.2f} secs")
 
     return bench_results
 
@@ -245,7 +245,7 @@ def benchmark_intersect(tmpdir: Path) -> List[BenchResult]:
     input2_path = _get_testdata_dir(tmpdir) / 'Lbgbrprc18.gpkg'
     
     with GdalBin('gdal_bin'):
-        print('Start Intersect with ogr')
+        print('Start Intersect with sql')
         start_time = datetime.datetime.now()
         output_path = tmpdir / f"{input1_path.stem}_inters_{input2_path.stem}.gpkg"
         geofileops_sql.intersect(
@@ -257,14 +257,14 @@ def benchmark_intersect(tmpdir: Path) -> List[BenchResult]:
         bench_results.append(BenchResult(
                 package_version=_get_package_version(),
                 operation='intersect', 
-                tool_used='ogr', 
+                tool_used='sql', 
                 params='',
                 nb_cpu=multiprocessing.cpu_count(),
                 secs_taken=secs_taken,
                 secs_expected_one_cpu=1700,
                 input1_filename=input1_path.name, 
                 input2_filename=input2_path.name))
-        print(f"Intersect with ogr ready in {secs_taken:.2f} secs")
+        print(f"Intersect with sql ready in {secs_taken:.2f} secs")
 
     return bench_results
 
@@ -275,7 +275,7 @@ def benchmark_union(tmpdir: Path) -> List[BenchResult]:
     input2_path = _get_testdata_dir(tmpdir) / 'Lbgbrprc18.gpkg'
     
     with GdalBin('gdal_bin'):
-        print('Start Union with ogr')
+        print('Start Union with sql')
         start_time = datetime.datetime.now()
         output_path = tmpdir / f"{input1_path.stem}_union_{input2_path.stem}.gpkg"
         geofileops_sql.union(
@@ -287,7 +287,7 @@ def benchmark_union(tmpdir: Path) -> List[BenchResult]:
         bench_results.append(BenchResult(
                 package_version=_get_package_version(),
                 operation='union', 
-                tool_used='ogr', 
+                tool_used='sql', 
                 params='',
                 nb_cpu=multiprocessing.cpu_count(),
                 secs_taken=secs_taken,
@@ -295,7 +295,7 @@ def benchmark_union(tmpdir: Path) -> List[BenchResult]:
                 input1_filename=input1_path.name, 
                 input2_filename=input2_path.name))
         
-        print(f"Union with ogr ready in {secs_taken:.2f} secs")
+        print(f"Union with sql ready in {secs_taken:.2f} secs")
 
     return bench_results
 
