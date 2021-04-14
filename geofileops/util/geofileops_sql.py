@@ -1235,6 +1235,7 @@ def _two_layer_vector_operation(
         # Prepare output filename
         tmp_output_path = tempdir / output_path.name
         tmp_output_path = output_path
+        tmp_output_path.parent.mkdir(exist_ok=True, parents=True)
         
         ##### Calculate #####
         logger.info(f"Start {operation_name} in {processing_params.nb_parallel} parallel processes")
@@ -1244,15 +1245,15 @@ def _two_layer_vector_operation(
         with futures.ProcessPoolExecutor(processing_params.nb_parallel) as calculate_pool:
 
             # Start looping
-            processing_jobs = {}    
+            batches = {}    
             future_to_batch_id = {}
             for batch_id in processing_params.batches:
 
-                processing_jobs[batch_id] = {}
-                processing_jobs[batch_id]['layer'] = output_layer
+                batches[batch_id] = {}
+                batches[batch_id]['layer'] = output_layer
 
                 tmp_output_partial_path = tempdir / f"{output_path.stem}_{batch_id}.gpkg"
-                processing_jobs[batch_id]['tmp_partial_output_path'] = tmp_output_partial_path
+                batches[batch_id]['tmp_partial_output_path'] = tmp_output_partial_path
 
                 sql_stmt = sql_template.format(
                         output_databasename='{output_databasename}',
@@ -1271,9 +1272,10 @@ def _two_layer_vector_operation(
                         layer2_columns_prefix_str=layer2_columns_prefix_str,
                         batch_filter=processing_params.batches[batch_id]['batch_filter'])
 
-                processing_jobs[batch_id]['sqlite_stmt'] = sql_stmt
-                translate_description = f"Calculate {operation_name} between {processing_params.batches[batch_id]['path']} and {tmp_output_partial_path}"
-                # Remark: this temp file doesn't need spatial index nor journalling mode
+                batches[batch_id]['sqlite_stmt'] = sql_stmt
+                
+                # Remark: this temp file doesn't need spatial index and use an 
+                # aggressive speedy sqlite profile 
                 future = calculate_pool.submit(
                         sqlite_util.create_table_as_sql,
                         input1_path=processing_params.batches[batch_id]['path'],
@@ -1283,63 +1285,48 @@ def _two_layer_vector_operation(
                         sql_stmt=sql_stmt,
                         output_layer=output_layer,
                         output_geometrytype=force_output_geometrytype,
-                        append=False,
-                        update=False,
                         create_spatial_index=False,
                         profile=sqlite_util.SqliteProfile.SPEED)
                 future_to_batch_id[future] = batch_id
             
-            # Loop till all parallel processes are ready, but process each one that is ready already
+            # Loop till all parallel processes are ready, but process each one 
+            # that is ready already
             nb_done = 0
-
-            general_util.report_progress(start_time, nb_done, len(processing_params.batches), operation_name)
+            general_util.report_progress(
+                    start_time, nb_done, len(processing_params.batches), 
+                    operation_name, processing_params.nb_parallel)
             for future in futures.as_completed(future_to_batch_id):
                 try:
-                    _ = future.result()
+                    # Get the result
+                    result = future.result()
+                    if result is not None and verbose is True:
+                        logger.info(result)
 
                     # Start copy of the result to a common file
-                    # Remark: give higher priority, because this is the slowest factor
                     batch_id = future_to_batch_id[future]
-                    tmp_partial_output_path = processing_jobs[batch_id]['tmp_partial_output_path']
 
-                    # If there wasn't an exception, but the output file doesn't exist, the result was empty, so just skip.
-                    if not tmp_partial_output_path.exists():
+                    # If the calculate gave results, copy to output
+                    tmp_partial_output_path = batches[batch_id]['tmp_partial_output_path']
+                    if tmp_partial_output_path.exists() and tmp_partial_output_path.stat().st_size > 0:
+                        geofile.append_to(
+                                src=tmp_partial_output_path, 
+                                dst=tmp_output_path, 
+                                create_spatial_index=False)
+                        geofile.remove(tmp_partial_output_path)
+                    else:
                         if verbose:
-                            logger.info(f"Temporary partial file was empty: {processing_jobs[batch_id]}")
-                        continue
+                            logger.info(f"Result file {tmp_partial_output_path} was empty")
                     
-                    translate_description = f"Copy result {batch_id} of {len(processing_params.batches)} to {output_layer}"
-                    translate_info = ogr_util.VectorTranslateInfo(
-                            input_path=tmp_partial_output_path,
-                            output_path=tmp_output_path,
-                            translate_description=translate_description,
-                            input_layers=[output_layer],
-                            output_layer=output_layer,
-                            append=True,
-                            update=True,
-                            create_spatial_index=False,
-                            explodecollections=explodecollections,
-                            force_output_geometrytype=force_output_geometrytype,
-                            priority_class='NORMAL',
-                            #sqlite_journal_mode='OFF',
-                            force_py=True,
-                            verbose=verbose)
-                    ogr_util.vector_translate_by_info(info=translate_info)
-                    future_to_batch_id[future] = batch_id
-                    tmp_partial_output_path = processing_jobs[batch_id]['tmp_partial_output_path']
-                    geofile.remove(tmp_partial_output_path)
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
-                    raise Exception(f"Error executing {processing_jobs[batch_id]}") from ex
+                    #calculate_pool.shutdown()
+                    logger.exception(f"Error executing {batches[batch_id]}")
 
                 # Log the progress and prediction speed
                 nb_done += 1
                 general_util.report_progress(
-                        start_time, 
-                        nb_done, 
-                        len(processing_params.batches), 
-                        operation_name, 
-                        processing_params.nb_parallel)
+                        start_time, nb_done, len(processing_params.batches), 
+                        operation_name, processing_params.nb_parallel)
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
