@@ -158,6 +158,5 @@ def create_file_atomic(filename) -> bool:
     except IOError as ex:
         if ex.errno == 13:
             return False
-
-    # If we get here, return False anyway       
-    return False
+        else:
+            raise Exception("Error creating lock file {filename}") from ex
