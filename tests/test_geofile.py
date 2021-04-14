@@ -125,10 +125,10 @@ def test_get_crs():
     crs = geofile.get_crs(srcpath)
     assert crs.to_epsg() == 31370
 
-def test_get_default_layer():
+def test_get_default_layer_shp():
     srcpath = test_helper.TestFiles.polygons_parcels_shp
     layer = geofile.get_default_layer(srcpath)
-    assert layer == 'polygons_parcels'
+    assert layer == 'polygons_parcels-2020'
 
 def test_get_driver():
     # Test shapefile
@@ -147,7 +147,7 @@ def test_get_layerinfo():
         assert layerinfo.featurecount == 46
         if srcpath.suffix == '.shp':
             assert layerinfo.geometrycolumn == 'geometry'
-            assert layerinfo.name == 'polygons_parcels'
+            assert layerinfo.name == srcpath.stem
         elif srcpath.suffix == '.gpkg':
             assert layerinfo.geometrycolumn == 'geom'
             assert layerinfo.name == 'parcels'
@@ -174,7 +174,7 @@ def test_get_only_layer(tmpdir):
     assert layer == 'parcels'
     srcpath = test_helper.TestFiles.polygons_parcels_shp
     layer = geofile.get_only_layer(srcpath)
-    assert layer == 'polygons_parcels'
+    assert layer == srcpath.stem
 
     ### Test Geopackage with 2 layers ###
     srcpath = test_helper.TestFiles.polygons_twolayers_gpkg
@@ -193,7 +193,7 @@ def test_is_geofile():
     
 def test_listlayers():
     layers = geofile.listlayers(test_helper.TestFiles.polygons_parcels_shp)
-    assert layers[0] == 'polygons_parcels'
+    assert layers[0] == test_helper.TestFiles.polygons_parcels_shp.stem
     layers = geofile.listlayers(test_helper.TestFiles.polygons_parcels_gpkg)
     assert layers[0] == 'parcels'
     layers = geofile.listlayers(test_helper.TestFiles.polygons_twolayers_gpkg)

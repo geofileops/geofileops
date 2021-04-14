@@ -18,7 +18,7 @@ def test_erase_gpkg(tmpdir):
     # Erase from polygon layer, with and without gdal_bin set
     input_path = test_helper.TestFiles.polygons_parcels_gpkg
     erase_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels_erase_zones.gpkg'
+    output_path = Path(tmpdir) / 'parcels-2020_erase_zones.gpkg'
     basetest_erase(input_path, erase_path, output_path, 
             expected_output_geometrytype=GeometryType.MULTIPOLYGON,
             gdal_installation='gdal_bin')
@@ -52,7 +52,7 @@ def test_erase_shp(tmpdir):
     # Prepare input and output paths
     input_path = test_helper.TestFiles.polygons_parcels_shp
     erase_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels_erase_zones.shp'
+    output_path = Path(tmpdir) / 'parcels-2020_erase_zones.shp'
 
     # Try both with and without gdal_bin set
     basetest_erase(input_path, erase_path, output_path, 
@@ -111,7 +111,7 @@ def test_export_by_location_gpkg(tmpdir):
     # Prepare input and output paths
     input_to_select_from_path = test_helper.TestFiles.polygons_parcels_gpkg
     input_to_compare_with_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels_loc_zones.gpkg'
+    output_path = Path(tmpdir) / 'parcels-2020_loc_zones.gpkg'
 
     # Try both with and without gdal_bin set
     basetest_export_by_location(
@@ -125,7 +125,7 @@ def test_export_by_location_shp(tmpdir):
     # Prepare input and output paths
     input_to_select_from_path = test_helper.TestFiles.polygons_parcels_shp
     input_to_compare_with_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels_loc_zones.shp'
+    output_path = Path(tmpdir) / 'parcels-2020_loc_zones.shp'
 
     # Try both with and without gdal_bin set
     basetest_export_by_location(
@@ -177,7 +177,7 @@ def test_export_by_distance_gpkg(tmpdir):
     # Prepare input and output paths
     input_to_select_from_path = test_helper.TestFiles.polygons_parcels_gpkg
     input_to_compare_with_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels_distance_zones.gpkg'
+    output_path = Path(tmpdir) / 'parcels-2020_distance_zones.gpkg'
     
     # Try both with and without gdal_bin set
     basetest_export_by_location(
@@ -191,7 +191,7 @@ def test_export_by_distance_shp(tmpdir):
     # Prepare input and output paths
     input_to_select_from_path = test_helper.TestFiles.polygons_parcels_shp
     input_to_compare_with_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels_distance_zones.shp'
+    output_path = Path(tmpdir) / 'parcels-2020_distance_zones.shp'
 
     # Try both with and without gdal_bin set
     basetest_export_by_location(
@@ -244,7 +244,7 @@ def test_intersect_gpkg(tmpdir):
     # Prepare input and output paths
     input1_path = test_helper.TestFiles.polygons_parcels_gpkg
     input2_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels_intersect_zones.gpkg'
+    output_path = Path(tmpdir) / 'parcels-2020_intersect_zones.gpkg'
 
     # Try both with and without gdal_bin set
     basetest_intersect(input1_path, input2_path, output_path, gdal_installation='gdal_default')
@@ -254,7 +254,7 @@ def test_intersect_shp(tmpdir):
     # Prepare input and output paths
     input1_path = test_helper.TestFiles.polygons_parcels_shp
     input2_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels_intersect_zones.gpkg'
+    output_path = Path(tmpdir) / 'parcels-2020_intersect_zones.gpkg'
     
     # Try both with and without gdal_bin set
     basetest_intersect(input1_path, input2_path, output_path, gdal_installation='gdal_default')
@@ -308,7 +308,7 @@ def test_join_by_location_gpkg(tmpdir):
     # Prepare input and output paths
     input1_path = test_helper.TestFiles.polygons_parcels_gpkg
     input2_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels_join_zones.gpkg'
+    output_path = Path(tmpdir) / 'parcels-2020_join_zones.gpkg'
     
     # Try both with and without gdal_bin set
     basetest_join_by_location(input1_path, input2_path, output_path, gdal_installation='gdal_default')
@@ -318,7 +318,7 @@ def test_join_by_location_shp(tmpdir):
     # Prepare input and output paths
     input1_path = test_helper.TestFiles.polygons_parcels_shp
     input2_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels_join_zones.gpkg'
+    output_path = Path(tmpdir) / 'parcels-2020_join_zones.gpkg'
     
     # Try both with and without gdal_bin set
     basetest_join_by_location(input1_path, input2_path, output_path, gdal_installation='gdal_default')
@@ -409,7 +409,7 @@ def test_split_gpkg(tmpdir):
     # Prepare input and output paths
     input1_path = test_helper.TestFiles.polygons_parcels_gpkg
     input2_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels_split_zones.gpkg'
+    output_path = Path(tmpdir) / 'parcels-2020_split_zones.gpkg'
 
     # Try both with and without gdal_bin set
     basetest_split(input1_path, input2_path, output_path, gdal_installation='gdal_default')
@@ -419,7 +419,7 @@ def test_split_shp(tmpdir):
     # Prepare input and output paths
     input1_path = test_helper.TestFiles.polygons_parcels_shp
     input2_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels_split_zones.gpkg'
+    output_path = Path(tmpdir) / 'parcels-2020_split_zones.gpkg'
     
     # Try both with and without gdal_bin set
     basetest_split(input1_path, input2_path, output_path, gdal_installation='gdal_default')
@@ -473,7 +473,7 @@ def test_union_gpkg(tmpdir):
     # Prepare input and output paths
     input1_path = test_helper.TestFiles.polygons_parcels_gpkg
     input2_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels_union_zones.gpkg'
+    output_path = Path(tmpdir) / 'parcels-2020_union_zones.gpkg'
 
     # Try both with and without gdal_bin set
     basetest_union(input1_path, input2_path, output_path, gdal_installation='gdal_default')
@@ -483,7 +483,7 @@ def test_union_shp(tmpdir):
     # Prepare input and output paths
     input1_path = test_helper.TestFiles.polygons_parcels_shp
     input2_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels_union_zones.gpkg'
+    output_path = Path(tmpdir) / 'parcels-2020_union_zones.gpkg'
     
     # Try both with and without gdal_bin set
     basetest_union(input1_path, input2_path, output_path, gdal_installation='gdal_default')

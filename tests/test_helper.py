@@ -73,8 +73,8 @@ class TestFiles:
     linestrings_rows_of_trees_gpkg = testdata_dir / 'linestrings_rows_of_trees.gpkg'
     linestrings_watercourses_gpkg = testdata_dir / 'linestrings_watercourses.gpkg'
 
-    polygons_parcels_gpkg = testdata_dir / 'polygons_parcels.gpkg'
-    polygons_parcels_shp = testdata_dir / 'polygons_parcels.shp'
+    polygons_parcels_gpkg = testdata_dir / 'polygons_parcels-2020.gpkg'
+    polygons_parcels_shp = testdata_dir / 'polygons_parcels-2020.shp'
     polygons_invalid_geometries_gpkg = testdata_dir / 'polygons_invalid_geometries.gpkg'
     polygons_invalid_geometries_shp = testdata_dir / 'polygons_invalid_geometries.shp'
     polygons_simplify_onborder_testcase_gpkg = testdata_dir / 'polygons_simplify_onborder_testcase.gpkg'

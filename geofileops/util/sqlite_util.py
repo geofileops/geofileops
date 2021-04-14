@@ -59,14 +59,15 @@ def create_table_as_sql(
             else:
                 logger.warning(f"no epsg code found for crs, so -1 used: {input1_layerinfo.crs}")
 
-    sql = sql_stmt
+    sql = None
     try:
         # Connect to output database file (by convention) + init
         output_databasename = 'main'
         with sqlite3.connect(output_path) as conn:
             load_spatialite(conn)
             
-            conn.execute('PRAGMA cache_size = 10000;')  # Number of cache pages (page = 4096 bytes)
+            # Set number of cache pages (1 page = 4096 bytes)
+            conn.execute('PRAGMA cache_size = 10000;')
             conn.execute('PRAGMA temp_store = MEMORY;')
             
             # Use the sqlite profile specified
@@ -81,10 +82,13 @@ def create_table_as_sql(
                 conn.execute('PRAGMA mmap_size = 30000000000;')
 
             # Init as gpkg
-            conn.execute('SELECT gpkgCreateBaseTables();')
-            conn.execute('SELECT EnableGpkgMode();')
+            sql = 'SELECT gpkgCreateBaseTables();'
+            conn.execute(sql)
+            sql = 'SELECT EnableGpkgMode();'
+            conn.execute(sql)
             if crs_epsg != -1:
-                conn.execute(f"SELECT gpkgInsertEpsgSRID({crs_epsg})")
+                sql = f"SELECT gpkgInsertEpsgSRID({crs_epsg})"
+                conn.execute(sql)
 
             # If input1 isn't the same database as output, attach to it
             if input1_path == output_path:
@@ -118,23 +122,54 @@ def create_table_as_sql(
             cur = conn.execute('PRAGMA TABLE_INFO(tmp)')
             columns = cur.fetchall()
             
-            #sql_stmt = f'CREATE TABLE {output_databasename}."{output_layer}" AS\n{sql_stmt}' 
+            # Create output table using the gpkgAddGeometryColumn() function
+            # Problem: the spatialite function gpkgAddGeometryColumn() doesn't support 
+            # layer names with special characters (eg. '-')... 
+            # Solution: mimic the behaviour of gpkgAddGeometryColumn manually.
+            # Create table without geom column
+            '''
             columns_for_create = [f'"{column[1]}" {column[2]}\n' for column in columns if column[1] != 'geom']
             sql = f'CREATE TABLE {output_databasename}."{output_layer}" ({", ".join(columns_for_create)})'
             conn.execute(sql)
-
-            # Add geometry column
-            conn.execute(f"SELECT gpkgAddGeometryColumn('{output_layer}', 'geom', '{output_geometrytype.name}', 0, 0, {crs_epsg});")
+            # Add geom column with gpkgAddGeometryColumn()
+            sql = f"SELECT gpkgAddGeometryColumn('{output_layer}', 'geom', '{output_geometrytype.name}', 0, 0, {crs_epsg});"
+            conn.execute(sql)
+            '''
+            # Create table
+            columns_for_create = [
+                    f'"{column[1]}" {output_geometrytype.name}\n' if column[1] == 'geom' else f'"{column[1]}" {column[2]}\n' 
+                    for column in columns]
+            sql = f'CREATE TABLE {output_databasename}."{output_layer}" ({", ".join(columns_for_create)})'
+            conn.execute(sql)
+            # Add metadata (~ mimic behaviour of gpkgAddGeometryColumn())
+            sql = f"""
+                    INSERT INTO {output_databasename}.gpkg_contents (
+                            table_name, data_type, identifier, description, last_change, 
+                            min_x, min_y, max_x, max_y, srs_id)
+                        VALUES ('{output_layer}', 'features', NULL, '', DATETIME(),
+                            NULL, NULL, NULL, NULL, {crs_epsg});"""
+            conn.execute(sql)
+            sql = f"""
+                    INSERT INTO {output_databasename}.gpkg_geometry_columns (
+                            table_name, column_name, geometry_type_name, srs_id, z, m)
+                        VALUES ('{output_layer}', 'geom', '{output_geometrytype.name}', {crs_epsg}, 0, 0);"""
+            conn.execute(sql)
             
+            # Now add geom triggers
+            sql = f"SELECT gpkgAddGeometryTriggers('{output_layer}', 'geom');"
+            cur.execute(sql)
+    
+            # Insert data using the sql statement specified
             columns_for_insert = [f'"{column[1]}"' for column in columns]
             sql = f'INSERT INTO {output_databasename}."{output_layer}" ({", ".join(columns_for_insert)})\n{sql_stmt}' 
-            conn.execute(sql)
-            cur.execute(f"SELECT gpkgAddGeometryTriggers('{output_layer}', 'geom');")
-            
-            # Create spatial index
+            conn.execute(sql)           
+                    
+            # Create spatial index if needed
             if create_spatial_index is True:
-                cur.execute(f"SELECT UpdateLayerStatistics('{output_layer}', 'geom');")
-                cur.execute(f"SELECT gpkgAddSpatialIndex('{output_layer}', 'geom');")
+                sql = f"SELECT UpdateLayerStatistics('{output_layer}', 'geom');"
+                cur.execute(sql)
+                sql = f"SELECT gpkgAddSpatialIndex('{output_layer}', 'geom');"
+                cur.execute(sql)
             conn.commit()
             
     except Exception as ex:
