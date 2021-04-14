@@ -279,6 +279,7 @@ def _apply_geooperation_to_layer(
             # REMARK: writing to temp file and than appending the result here 
             # is 10 time faster than appending directly using geopandas to_file 
             # (in geopandas 0.8)!
+            general_util.report_progress(start_time, nb_done, nb_batches, operation.value, nb_parallel)
             for future in futures.as_completed(future_to_batch_id):
                 try:
                     result = future.result()
@@ -308,7 +309,7 @@ def _apply_geooperation_to_layer(
 
                 # Log the progress and prediction speed
                 nb_done += 1
-                general_util.report_progress(start_time, nb_done, nb_batches, operation.value)
+                general_util.report_progress(start_time, nb_done, nb_batches, operation.value, nb_parallel)
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
