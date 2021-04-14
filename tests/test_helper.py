@@ -32,7 +32,7 @@ class GdalBin():
             curr_script_dir = Path(__file__).resolve().parent
             mod_spatialite_dir = None
             if os.name == 'nt':
-                mod_spatialite_dir = curr_script_dir / 'mod_spatialite' / 'mod_spatialite-5.0.1-win-amd64' 
+                mod_spatialite_dir = curr_script_dir.parent / 'bin' / 'mod_spatialite' / 'mod_spatialite-5.0.1-win-amd64' 
             else: 
                 raise Exception(f"os.name not supported: {os.name}")
             if mod_spatialite_dir is not None:
