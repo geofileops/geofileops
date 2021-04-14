@@ -1,3 +1,8 @@
+# Include the test.gpkg as it is needed bu ogr_util.py
 include geofileops/util/test.gpkg
+
+# Include the version.txt file
 include version.txt
+
+# Include all tests so they can be run when packaging the conda package
 graft tests
