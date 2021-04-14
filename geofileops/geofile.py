@@ -977,7 +977,8 @@ def move(
 def remove(path: Union[str, 'os.PathLike[Any]']):
     """
     Removes the geofile. Is it is a geofile composed of multiple files 
-    (eg. .shp) all files are removed.
+    (eg. .shp) all files are removed. 
+    If .lock files are present, they are removed as well. 
 
     Args:
         path (PathLike): the file to remove
@@ -985,7 +986,11 @@ def remove(path: Union[str, 'os.PathLike[Any]']):
     # Check input parameters
     path_p = Path(path)
 
-    # For a shapefile, multiple files need to be copied
+    # If there is a lock file, remove it
+    lockfile_path = path_p.parent / f"{path_p.name}.lock"
+    lockfile_path.unlink(missing_ok=True)
+
+    # For a shapefile, multiple files need to be removed
     if path_p.suffix.lower() == '.shp':
         for ext in shapefile_suffixes:
             curr_path = path_p.parent / f"{path_p.stem}{ext}"
