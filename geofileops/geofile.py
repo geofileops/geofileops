@@ -1004,6 +1004,7 @@ def append_to(
         dst: Union[str, 'os.PathLike[Any]'],
         src_layer: str = None,
         dst_layer: str = None,
+        explodecollections: bool = False,
         force_output_geometrytype: Union[GeometryType, str] = None,
         create_spatial_index: bool = True,
         append_timeout_s: int = 600,
@@ -1019,6 +1020,8 @@ def append_to(
         dst (Union[str,): destination file path.
         src_layer (str, optional): source layer. Defaults to None.
         dst_layer (str, optional): destination layer. Defaults to None.
+        explodecollections (bool), optional): True to output only simple geometries. 
+            Defaults to False.
         force_output_geometrytype (GeometryType, optional): Geometry type. 
             to (try to) force the output to. Defaults to None.
         create_spatial_index (bool, optional): True to create a spatial index 
@@ -1038,8 +1041,19 @@ def append_to(
     # Files don't typically support having multiple processes writing 
     # simultanously to them, so use lock file to synchronize access.
     lockfile = Path(f"{str(dst_p)}.lock")
+
+    # If the destination file doesn't exist yet, but the lockfile does, 
+    # try removing the lockfile as it might be a ghost lockfile. 
+    if dst_p.exists() is False and lockfile.exists() is True:
+        try: 
+            lockfile.unlink()
+        except:
+            None
+
+    # Creating lockfile and append
     start_time = datetime.datetime.now()
     while(True):
+            
         if io_util.create_file_atomic(lockfile) is True:
             try:
                 # append
@@ -1048,6 +1062,7 @@ def append_to(
                         dst=dst_p,
                         src_layer=src_layer,
                         dst_layer=dst_layer,
+                        explodecollections=explodecollections,
                         force_output_geometrytype=force_output_geometrytype,
                         create_spatial_index=create_spatial_index,
                         verbose=verbose)
@@ -1067,10 +1082,11 @@ def _append_to_nolock(
         dst: Path,
         src_layer: str = None,
         dst_layer: str = None,
+        explodecollections: bool = False,
         force_output_geometrytype: GeometryType = None,
         create_spatial_index: bool = True,
         verbose: bool = False):
-    # append
+    # Append
     translate_info = ogr_util.VectorTranslateInfo(
             input_path=src,
             output_path=dst,
@@ -1080,6 +1096,7 @@ def _append_to_nolock(
             transaction_size=200000,
             append=True,
             update=True,
+            explodecollections=explodecollections,
             force_output_geometrytype=force_output_geometrytype,
             create_spatial_index=create_spatial_index,
             priority_class='NORMAL',
