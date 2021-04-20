@@ -1182,8 +1182,8 @@ def _two_layer_vector_operation(
                 tempdir=tempdir,
                 nb_parallel=nb_parallel,
                 verbose=verbose)
-
-        ##### Calculate! #####
+       
+        ##### Prepare column names,... to format the select #####
         # We need the input1 column names to format the select
         input1_tmp_layerinfo = geofile.get_layerinfo(processing_params.input1_path, processing_params.input1_layer)
         if input1_columns is not None:
@@ -1231,6 +1231,10 @@ def _two_layer_vector_operation(
             layer2_columns_from_subselect_str = ',' + ", ".join(layer2_columns_from_subselect)
             layer2_columns_prefix = [f'layer2."{column}"' for column in layer2_columns]
             layer2_columns_prefix_str = ',' + ", ".join(layer2_columns_prefix)
+
+        # Check input crs'es
+        if input1_tmp_layerinfo.crs != input2_tmp_layerinfo.crs:
+            logger.warning(f"input1 has a different crs than input2: {input1_tmp_layerinfo.crs} vs {input2_tmp_layerinfo.crs}")
 
         # Prepare output filename
         tmp_output_path = tempdir / output_path.name

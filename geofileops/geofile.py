@@ -205,6 +205,13 @@ def get_layerinfo(
             if spatialref is not None:
                 crs = pyproj.CRS(spatialref.ExportToWkt())
 
+                # Check if the spatial ref has an epsg, and if not, try to 
+                # find a corresponding CRS that has one...
+                crs_epsg = crs.to_epsg()
+                if crs_epsg is None:
+                    if crs.name == 'Belge 1972 / Belgian Lambert 72':
+                        crs = pyproj.CRS.from_epsg(31370)
+
             return LayerInfo(
                     name=datasource_layer.GetName(),
                     featurecount=datasource_layer.GetFeatureCount(),

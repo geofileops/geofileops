@@ -48,19 +48,21 @@ def create_table_as_sql(
 
     if append is True or update is True:
         raise Exception('Not implemented') 
-    # Use crs from input1_layer:
-    input1_layerinfo = geofile.get_layerinfo(input1_path, input1_layer)
-    crs_epsg = input1_layerinfo.crs.to_epsg()
-    if crs_epsg is None:
-        crs_epsg = -1        
-        if input1_layerinfo.crs is not None:
-            if input1_layerinfo.crs.name == 'Belge 1972 / Belgian Lambert 72':
-                crs_epsg = 31370
-            else:
-                logger.warning(f"no epsg code found for crs, so -1 used: {input1_layerinfo.crs}")
 
+    # Use crs epsg from input1_layer, if it has one
+    input1_layerinfo = geofile.get_layerinfo(input1_path, input1_layer)
+    crs_epsg = -1
+    if input1_layerinfo.crs is not None and input1_layerinfo.crs.to_epsg() is not None: 
+        crs_epsg = input1_layerinfo.crs.to_epsg()
+        
     sql = None
     try:
+        def to_string_for_sql(input) -> str:
+            if input is None:
+                return 'NULL'
+            else:
+                return str(input)
+
         # Connect to output database file (by convention) + init
         output_databasename = 'main'
         with sqlite3.connect(output_path) as conn:
@@ -86,7 +88,7 @@ def create_table_as_sql(
             conn.execute(sql)
             sql = 'SELECT EnableGpkgMode();'
             conn.execute(sql)
-            if crs_epsg != -1:
+            if crs_epsg is not None and crs_epsg not in [0, -1]:
                 sql = f"SELECT gpkgInsertEpsgSRID({crs_epsg})"
                 conn.execute(sql)
 
@@ -132,7 +134,7 @@ def create_table_as_sql(
             sql = f'CREATE TABLE {output_databasename}."{output_layer}" ({", ".join(columns_for_create)})'
             conn.execute(sql)
             # Add geom column with gpkgAddGeometryColumn()
-            sql = f"SELECT gpkgAddGeometryColumn('{output_layer}', 'geom', '{output_geometrytype.name}', 0, 0, {crs_epsg});"
+            sql = f"SELECT gpkgAddGeometryColumn('{output_layer}', 'geom', '{output_geometrytype.name}', 0, 0, {to_string_for_sql(crs_epsg)});"
             conn.execute(sql)
             '''
             # Create table
@@ -147,12 +149,12 @@ def create_table_as_sql(
                             table_name, data_type, identifier, description, last_change, 
                             min_x, min_y, max_x, max_y, srs_id)
                         VALUES ('{output_layer}', 'features', NULL, '', DATETIME(),
-                            NULL, NULL, NULL, NULL, {crs_epsg});"""
+                            NULL, NULL, NULL, NULL, {to_string_for_sql(crs_epsg)});"""
             conn.execute(sql)
             sql = f"""
                     INSERT INTO {output_databasename}.gpkg_geometry_columns (
                             table_name, column_name, geometry_type_name, srs_id, z, m)
-                        VALUES ('{output_layer}', 'geom', '{output_geometrytype.name}', {crs_epsg}, 0, 0);"""
+                        VALUES ('{output_layer}', 'geom', '{output_geometrytype.name}', {to_string_for_sql(crs_epsg)}, 0, 0);"""
             conn.execute(sql)
             
             # Now add geom triggers
