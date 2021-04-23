@@ -362,8 +362,8 @@ def vector_translate_exe(
         else: 
             raise Exception("Unsupported priority class: {priority_class}, use one of: 'NORMAL', 'LOW' or 'VERY_LOW'")
     else:
-        # On non-windows os'es, this needs to be 0
-        priority_class_windows = 0
+        # On non-windows os'es, this needs to be None
+        priority_class_windows = None
 
     # Geopackage/sqlite files are very sensitive for being locked, so retry till 
     # file is not locked anymore... 
