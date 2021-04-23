@@ -6,7 +6,6 @@ Tests for functionalities in geofileops.general.
 import os
 from pathlib import Path
 import sys
-from typing import Optional
 
 import geopandas as gpd
 import pandas as pd
