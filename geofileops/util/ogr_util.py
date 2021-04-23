@@ -374,14 +374,10 @@ def vector_translate_exe(
         if translate_description is not None:
             logger.debug(f"Start '{translate_description}' with retry_count: {retry_count}")
 
-        # Only pass creationflag if it is of a sensible value. If passed on linux -> error!
-        if creationflags != 0:
-            process = subprocess.Popen(args, 
-                    creationflags=creationflags,
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1, encoding='utf-8')
-        else:
-            process = subprocess.Popen(args, 
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1, encoding='utf-8')           
+        # Start process!
+        process = subprocess.Popen(args, 
+                creationflags=creationflags,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1, encoding='utf-8')
         output, err = process.communicate()
         returncode = process.returncode
 
@@ -670,8 +666,12 @@ def vector_info(
 
     # TODO: ideally, the child processes would die when the parent is killed!
     # Start on low priority, so computer stays responsive
-    #BELOW_NORMAL_PRIORITY_CLASS = 0x00004000
-    IDLE_PRIORITY_CLASS = 0x00000040
+    if os.name == 'nt':
+        #BELOW_NORMAL_PRIORITY_CLASS = 0x00004000
+        creationflags = 0x00000040
+    else:
+        # On linux, needs to be 0, otherwise error!
+        creationflags = 0
 
     ##### Run ogrinfo #####
     # Geopackage/sqlite files are very sensitive for being locked, so retry till 
@@ -680,7 +680,7 @@ def vector_info(
     returncode = None 
     for retry_count in range(10):
         process = subprocess.Popen(args, 
-                creationflags=IDLE_PRIORITY_CLASS,
+                creationflags=creationflags,
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1, encoding='utf-8')
         output, err = process.communicate()
         returncode = process.returncode
