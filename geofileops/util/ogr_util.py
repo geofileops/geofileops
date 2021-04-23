@@ -351,15 +351,19 @@ def vector_translate_exe(
     # Make sure the output dir exists
     os.makedirs(output_path.parent, exist_ok=True)
 
-    # Set priority of the process, so computer stays responsive
-    if priority_class is None or priority_class == 'NORMAL':
-        priority_class_windows = 0x00000020 # = NORMAL_PRIORITY_CLASS
-    elif priority_class == 'VERY_LOW':
-        priority_class_windows = 0x00000040 # =IDLE_PRIORITY_CLASS
-    elif priority_class == 'LOW':
-        priority_class_windows = 0x00004000 # =BELOW_NORMAL_PRIORITY_CLASS
-    else: 
-        raise Exception("Unsupported priority class: {priority_class}, use one of: 'NORMAL', 'LOW' or 'VERY_LOW'")
+    # Set priority of the process on Windows, so computer stays responsive
+    if os.name == 'nt':  
+        if priority_class is None or priority_class == 'NORMAL':
+            priority_class_windows = 0x00000020 # = NORMAL_PRIORITY_CLASS
+        elif priority_class == 'VERY_LOW':
+            priority_class_windows = 0x00000040 # =IDLE_PRIORITY_CLASS
+        elif priority_class == 'LOW':
+            priority_class_windows = 0x00004000 # =BELOW_NORMAL_PRIORITY_CLASS
+        else: 
+            raise Exception("Unsupported priority class: {priority_class}, use one of: 'NORMAL', 'LOW' or 'VERY_LOW'")
+    else:
+        # On non-windows os'es, this needs to be 0
+        priority_class_windows = 0
 
     # Geopackage/sqlite files are very sensitive for being locked, so retry till 
     # file is not locked anymore... 
@@ -367,27 +371,6 @@ def vector_translate_exe(
     returncode = None
     err = None
     for retry_count in range(10):
-
-        # Unsuccessfull test to print output constantly instead of only when the 
-        # process has ended. Because progress on a geopackage doesn't work 
-        # anyway the use case isn't relevant anymore either
-        # TODO: remove code after first check-in
-        '''
-        output = ""
-        err = ""
-        returncode = -1
-        with subprocess.Popen(args, 
-                creationflags=IDLE_PRIORITY_CLASS,
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1, 
-                encoding='utf-8', universal_newlines=True) as process:
-            for line in process.stdout.readline():
-                if verbose:
-                    logger.info(line)
-                else:
-                    output += line
-            err = process.stderr.read()
-            returncode = process.wait()
-        '''
         if translate_description is not None:
             logger.debug(f"Start '{translate_description}' with retry_count: {retry_count}")
         process = subprocess.Popen(args, 
