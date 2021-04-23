@@ -265,9 +265,12 @@ def vector_translate_exe(
     ##### Init #####
     if output_layer is None:
         output_layer = output_path.stem
+    if os.name == 'nt':
+        ogr2ogr_exe = 'ogr2ogr.exe'
+    else:
+        ogr2ogr_exe = 'ogr2ogr'
     
-    # If GDAL_BIN is set, use ogr2ogr.exe located there
-    ogr2ogr_exe = 'ogr2ogr.exe'
+    # If GDAL_BIN is set, use ogr2ogr located there
     gdal_bin_dir = os.getenv('GDAL_BIN')
     if gdal_bin_dir is not None:
         gdal_bin_dir = Path(gdal_bin_dir)
@@ -747,12 +750,12 @@ def vector_info(
     ##### Init #####
     if not path.exists():
         raise Exception(f"File does not exist: {path}")
-            
-    # If GDAL_BIN is set, use ogrinfo.exe located there
     if os.name == 'nt':
         ogrinfo_exe = 'ogrinfo.exe'
     else:
         ogrinfo_exe = 'ogrinfo'
+    
+    # If GDAL_BIN is set, use ogrinfo located there
     gdal_bin_dir = os.getenv('GDAL_BIN')
     if gdal_bin_dir is not None:
         gdal_bin_dir = Path(gdal_bin_dir)
