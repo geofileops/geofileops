@@ -26,7 +26,10 @@ class GdalBin():
         if gdal_installation == 'gdal_bin':
             # Init gdal_bin_dir
             if gdal_bin_dir is None:
-                self.gdal_bin_dir = Path(r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin")
+                if os.name == 'nt':
+                    self.gdal_bin_dir = Path(r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin")
+                else:
+                    logger.warning(f"gdal_bin installation init of gdal_bin_dir for tests not supported on os: {os.name}")
             else:
                 self.gdal_bin_dir = Path(gdal_bin_dir)
             
@@ -46,9 +49,9 @@ class GdalBin():
 
     def __exit__(self, type, value, traceback):
         #Exception handling here
-        if os.environ.get('GDAL_BIN') is not None:
+        if self.gdal_bin_dir is not None and os.environ.get('GDAL_BIN') is not None:
             del os.environ['GDAL_BIN']
-        if os.environ.get('MOD_SPATIALITE_DIR') is not None:
+        if self.mod_spatialite_dir is not None and os.environ.get('MOD_SPATIALITE_DIR') is not None:
             del os.environ['MOD_SPATIALITE_DIR']
 
 class TestData:

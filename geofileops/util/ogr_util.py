@@ -354,16 +354,16 @@ def vector_translate_exe(
     # Set priority of the process on Windows, so computer stays responsive
     if os.name == 'nt':  
         if priority_class is None or priority_class == 'NORMAL':
-            priority_class_windows = 0x00000020 # = NORMAL_PRIORITY_CLASS
+            creationflags = 0x00000020 # = NORMAL_PRIORITY_CLASS
         elif priority_class == 'VERY_LOW':
-            priority_class_windows = 0x00000040 # =IDLE_PRIORITY_CLASS
+            creationflags = 0x00000040 # =IDLE_PRIORITY_CLASS
         elif priority_class == 'LOW':
-            priority_class_windows = 0x00004000 # =BELOW_NORMAL_PRIORITY_CLASS
+            creationflags = 0x00004000 # =BELOW_NORMAL_PRIORITY_CLASS
         else: 
             raise Exception("Unsupported priority class: {priority_class}, use one of: 'NORMAL', 'LOW' or 'VERY_LOW'")
     else:
-        # On non-windows os'es, this needs to be None
-        priority_class_windows = None
+        # On non-windows os'es, creationflags cannot be used
+        creationflags = 0
 
     # Geopackage/sqlite files are very sensitive for being locked, so retry till 
     # file is not locked anymore... 
@@ -373,9 +373,15 @@ def vector_translate_exe(
     for retry_count in range(10):
         if translate_description is not None:
             logger.debug(f"Start '{translate_description}' with retry_count: {retry_count}")
-        process = subprocess.Popen(args, 
-                creationflags=priority_class_windows,
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1, encoding='utf-8')
+
+        # Only pass creationflag if it is of a sensible value. If passed on linux -> error!
+        if creationflags != 0:
+            process = subprocess.Popen(args, 
+                    creationflags=creationflags,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1, encoding='utf-8')
+        else:
+            process = subprocess.Popen(args, 
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1, encoding='utf-8')           
         output, err = process.communicate()
         returncode = process.returncode
 
