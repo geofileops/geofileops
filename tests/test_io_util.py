@@ -59,19 +59,6 @@ def test_get_tempfile_locked(tmpdir):
         if tempfile2lock_path is not None:
             tempfile2lock_path.unlink()
 
-def test_is_locked(tmpdir):
-    tmpdir = Path(tmpdir)
-    path = tmpdir / 'testje_atomic.txt'
-    try:
-        file_created = io_util.create_file_atomic(path)
-        assert file_created is True
-        # TODO: test is nonsense: file should be locked in another process!!! 
-        is_locked = io_util.is_locked(path)
-        assert is_locked is False
-    finally:
-        # Cleanup
-        path.unlink()
-
 if __name__ == '__main__':
     # Init
     tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)

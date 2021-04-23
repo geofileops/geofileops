@@ -1,0 +1,21 @@
+name: test
+channels:
+  - conda-forge
+dependencies:
+  - python=3.8
+  - pip
+  #- six
+  # required
+  - geopandas
+  - pyproj
+  - psutil
+  # testing
+  - pytest
+  - pytest-cov
+  # optional
+  - pygeos 
+  # TEMP: workaround until conda-forge fixes the issues with gdal
+  #- zstd
+  - pip:
+    #- codecov
+    - simplification

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, List, Optional, Union
 
 from geofileops.util import geofileops_gpd
-from geofileops.util import geofileops_ogr
+from geofileops.util import geofileops_sql
 from geofileops.util.geometry_util import SimplifyAlgorithm, GeometryType
 
 ################################################################################
@@ -263,7 +263,7 @@ def isvalid(
 
     # Go!
     logger.info(f"Start isvalid on {input_path}")
-    return geofileops_ogr.isvalid(
+    return geofileops_sql.isvalid(
             input_path=Path(input_path),
             output_path=output_path_p,
             only_invalid=only_invalid,
@@ -307,7 +307,7 @@ def makevalid(
     """
 
     logger.info(f"Start makevalid on {input_path}")
-    geofileops_ogr.makevalid(
+    geofileops_sql.makevalid(
             input_path=Path(input_path),
             output_path=Path(output_path),
             input_layer=input_layer,        
@@ -380,7 +380,7 @@ def select(
     if force_output_geometrytype is not None:
         force_output_geometrytype = GeometryType(force_output_geometrytype)
         
-    return geofileops_ogr.select(
+    return geofileops_sql.select(
             input_path=Path(input_path),
             output_path=Path(output_path),
             sql_stmt=sql_stmt,
@@ -493,7 +493,7 @@ def erase(
     """
 
     logger.info(f"Start erase on {input_path} with {erase_path} to {output_path}")
-    return geofileops_ogr.erase(
+    return geofileops_sql.erase(
         input_path=Path(input_path),
         erase_path=Path(erase_path),
         output_path=Path(output_path),
@@ -550,7 +550,7 @@ def export_by_location(
             Defaults to False.
     """
     logger.info(f"Start export_by_location: select from {input_to_select_from_path} interacting with {input_to_compare_with_path} to {output_path}")
-    return geofileops_ogr.export_by_location(
+    return geofileops_sql.export_by_location(
             input_to_select_from_path=Path(input_to_select_from_path),
             input_to_compare_with_path=Path(input_to_compare_with_path),
             output_path=Path(output_path),
@@ -602,7 +602,7 @@ def export_by_distance(
             Defaults to False.
     """
     logger.info(f"Start export_by_distance: select from {input_to_select_from_path} within max_distance of {max_distance} from {input_to_compare_with_path} to {output_path}")
-    return geofileops_ogr.export_by_distance(
+    return geofileops_sql.export_by_distance(
             input_to_select_from_path=Path(input_to_select_from_path),
             input_to_compare_with_path=Path(input_to_compare_with_path),
             output_path=Path(output_path),
@@ -658,7 +658,7 @@ def intersect(
             Defaults to False.
     """
     logger.info(f"Start intersect between {input1_path} and {input2_path} to {output_path}")
-    return geofileops_ogr.intersect(
+    return geofileops_sql.intersect(
             input1_path=Path(input1_path),
             input2_path=Path(input2_path),
             output_path=Path(output_path),
@@ -724,7 +724,7 @@ def join_by_location(
             Defaults to False.
     """
     logger.info(f"Start join_by_location: select from {input1_path} joined with {input2_path} to {output_path}")
-    return geofileops_ogr.join_by_location(
+    return geofileops_sql.join_by_location(
             input1_path=Path(input1_path),
             input2_path=Path(input2_path),
             output_path=Path(output_path),
@@ -810,7 +810,7 @@ def select_two_layers(
             Defaults to False.
     """
     logger.info(f"Start select_two_layers: select from {input1_path} and {input2_path} to {output_path}")
-    return geofileops_ogr.select_two_layers(
+    return geofileops_sql.select_two_layers(
             input1_path=Path(input1_path),
             input2_path=Path(input2_path),
             output_path=Path(output_path),
@@ -873,7 +873,7 @@ def split(
             Defaults to False.
     """
     logger.info(f"Start split between {input1_path} and {input2_path} to {output_path}")
-    return geofileops_ogr.split(
+    return geofileops_sql.split(
             input1_path=Path(input1_path),
             input2_path=Path(input2_path),
             output_path=Path(output_path),
@@ -931,7 +931,7 @@ def union(
             Defaults to False.
     """
     logger.info(f"Start union: select from {input1_path} and {input2_path} to {output_path}")
-    return geofileops_ogr.union(
+    return geofileops_sql.union(
             input1_path=Path(input1_path),
             input2_path=Path(input2_path),
             output_path=Path(output_path),

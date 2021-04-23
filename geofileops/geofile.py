@@ -40,15 +40,15 @@ gdal.UseExceptions()        # Enable exceptions
 #-------------------------------------------------------------
 
 '''
-def _buildOGRVrt(
-        output_path: Path,
-        input_layer_paths: dict):
+def write_vrt(
+        input_layer_paths: List[Tuple[Path, str]],
+        output_path: Path):
     """
-    Create a vrt file where all layers in the based on .
+    Create a vrt file where all layers in input_layer_paths.
 
     Args:
-        output_path (Path): [description]
         input_layer_paths (dict): [description]
+        output_path (Path): [description]
     """
 
     # Create vrt file
@@ -56,20 +56,23 @@ def _buildOGRVrt(
         vrt_file.write(f'<OGRVRTDataSource>\n')
 
         # Loop over all layers and add them to vrt file
-        for input_layer in input_layer_paths:
-            vrt_file.write(f'  <OGRVRTLayer name="{input_layer}">\n')
-            vrt_file.write(f'    <SrcDataSource>{input_layer_paths[input_layer]["path"]}</SrcDataSource>\n')
-            vrt_file.write(f'    <SrcLayer>{input_layer}</SrcLayer>\n')
+        for index, input_layer_path in enumerate(input_layer_paths):
+            vrt_file.write(f'  <OGRVRTLayer name="{input_layer_path[1]}">\n')
+            vrt_file.write(f'    <SrcDataSource>{input_layer_path[0]}</SrcDataSource>\n')
+            vrt_file.write(f'    <SrcLayer>{input_layer_path[1]}</SrcLayer>\n')
             vrt_file.write(f'  </OGRVRTLayer>\n')
 
             # layer index
-            """
-            vrt_file.write(f'  <OGRVRTLayer name="rtree_{input_layer}_geometry">\n')
-            vrt_file.write(f'    <SrcDataSource>{input_layer_paths[input_layer]["path"]}</SrcDataSource>\n')
-            vrt_file.write(f'    <SrcLayer>rtree_{input_layer}_geom</SrcLayer>\n')
+            vrt_file.write(f'  <OGRVRTLayer name="rtree_{input_layer_path[1]}_geom">\n')
+            vrt_file.write(f'    <SrcDataSource>{input_layer_path[0]}</SrcDataSource>\n')
+            vrt_file.write(f'    <SrcLayer>rtree_{input_layer_path[1]}_geom</SrcLayer>\n')
+            vrt_file.write(f'    <Field name="minx" />\n')
+            vrt_file.write(f'    <Field name="miny" />\n')
+            vrt_file.write(f'    <Field name="maxx" />\n')
+            vrt_file.write(f'    <Field name="maxy" />\n')
+            vrt_file.write(f'    <GeometryType>wkbNone</GeometryType>\n')
             vrt_file.write(f'  </OGRVRTLayer>\n')
-            """
-
+            
         vrt_file.write(f'</OGRVRTDataSource>\n')
 '''
 
@@ -163,9 +166,8 @@ def get_layerinfo(
         layer_defn = datasource_layer.GetLayerDefn()
         for i in range(layer_defn.GetFieldCount()):
             columns.append(layer_defn.GetFieldDefn(i).GetName())
-        geometrycolumn = datasource_layer.GetGeometryColumn()
-        if geometrycolumn == '':
-            geometrycolumn = 'geometry'
+
+        # Get geometry column info...
         geometrytypename = gdal.ogr.GeometryTypeToName(datasource_layer.GetGeomType())
         geometrytypename = geometrytypename.replace(' ', '').upper()
         
@@ -178,29 +180,50 @@ def get_layerinfo(
                 geometrytypename = f"MULTI{geometrytypename}"
         if geometrytypename == 'UNKNOWN(ANY)':
             geometrytypename = 'GEOMETRY'
-
+            
         # Geometrytype
-        geometrytype = GeometryType[geometrytypename]
-        
-        # Convert gdal extent (xmin, xmax, ymin, ymax) to bounds (xmin, ymin, xmax, ymax)
-        extent = datasource_layer.GetExtent()
-        total_bounds = (extent[0], extent[2], extent[1], extent[3])
+        if geometrytypename != 'NONE':
+            geometrytype = GeometryType[geometrytypename]
+        else:
+            geometrytype = None
 
-        # Get projection
+        # If the geometry type is not None, fill out the extra properties    
+        geometrycolumn = None
+        extent= None
         crs = None
-        spatialref = datasource_layer.GetSpatialRef()
-        if spatialref is not None:
-            crs = pyproj.CRS(spatialref.ExportToWkt())
+        total_bounds = None
+        if geometrytype is not None:
+            # Geometry column name
+            geometrycolumn = datasource_layer.GetGeometryColumn()
+            if geometrycolumn == '':
+                geometrycolumn = 'geometry'
+            # Convert gdal extent (xmin, xmax, ymin, ymax) to bounds (xmin, ymin, xmax, ymax)
+            extent = datasource_layer.GetExtent()
+            total_bounds = (extent[0], extent[2], extent[1], extent[3])
+            # CRS
+            spatialref = datasource_layer.GetSpatialRef()
+            if spatialref is not None:
+                crs = pyproj.CRS(spatialref.ExportToWkt())
 
-        return LayerInfo(
-                name=datasource_layer.GetName(),
-                featurecount=datasource_layer.GetFeatureCount(),
-                total_bounds=total_bounds,
-                geometrycolumn=geometrycolumn, 
-                geometrytypename=geometrytypename,
-                geometrytype=geometrytype,
-                columns=columns,
-                crs=crs)
+                # Check if the spatial ref has an epsg, and if not, try to 
+                # find a corresponding CRS that has one...
+                crs_epsg = crs.to_epsg()
+                if crs_epsg is None:
+                    if crs.name == 'Belge 1972 / Belgian Lambert 72':
+                        crs = pyproj.CRS.from_epsg(31370)
+
+            return LayerInfo(
+                    name=datasource_layer.GetName(),
+                    featurecount=datasource_layer.GetFeatureCount(),
+                    total_bounds=total_bounds,
+                    geometrycolumn=geometrycolumn, 
+                    geometrytypename=geometrytypename,
+                    geometrytype=geometrytype,
+                    columns=columns,
+                    crs=crs)
+        else:
+            raise Exception("Layer doesn't have a geometry column!")    
+
     finally:
         if datasource is not None:
             del datasource
@@ -961,7 +984,8 @@ def move(
 def remove(path: Union[str, 'os.PathLike[Any]']):
     """
     Removes the geofile. Is it is a geofile composed of multiple files 
-    (eg. .shp) all files are removed.
+    (eg. .shp) all files are removed. 
+    If .lock files are present, they are removed as well. 
 
     Args:
         path (PathLike): the file to remove
@@ -969,7 +993,11 @@ def remove(path: Union[str, 'os.PathLike[Any]']):
     # Check input parameters
     path_p = Path(path)
 
-    # For a shapefile, multiple files need to be copied
+    # If there is a lock file, remove it
+    lockfile_path = path_p.parent / f"{path_p.name}.lock"
+    lockfile_path.unlink(missing_ok=True)
+
+    # For a shapefile, multiple files need to be removed
     if path_p.suffix.lower() == '.shp':
         for ext in shapefile_suffixes:
             curr_path = path_p.parent / f"{path_p.stem}{ext}"
@@ -983,6 +1011,7 @@ def append_to(
         dst: Union[str, 'os.PathLike[Any]'],
         src_layer: str = None,
         dst_layer: str = None,
+        explodecollections: bool = False,
         force_output_geometrytype: Union[GeometryType, str] = None,
         create_spatial_index: bool = True,
         append_timeout_s: int = 600,
@@ -998,6 +1027,8 @@ def append_to(
         dst (Union[str,): destination file path.
         src_layer (str, optional): source layer. Defaults to None.
         dst_layer (str, optional): destination layer. Defaults to None.
+        explodecollections (bool), optional): True to output only simple geometries. 
+            Defaults to False.
         force_output_geometrytype (GeometryType, optional): Geometry type. 
             to (try to) force the output to. Defaults to None.
         create_spatial_index (bool, optional): True to create a spatial index 
@@ -1017,8 +1048,19 @@ def append_to(
     # Files don't typically support having multiple processes writing 
     # simultanously to them, so use lock file to synchronize access.
     lockfile = Path(f"{str(dst_p)}.lock")
+
+    # If the destination file doesn't exist yet, but the lockfile does, 
+    # try removing the lockfile as it might be a ghost lockfile. 
+    if dst_p.exists() is False and lockfile.exists() is True:
+        try: 
+            lockfile.unlink()
+        except:
+            None
+
+    # Creating lockfile and append
     start_time = datetime.datetime.now()
     while(True):
+            
         if io_util.create_file_atomic(lockfile) is True:
             try:
                 # append
@@ -1027,6 +1069,7 @@ def append_to(
                         dst=dst_p,
                         src_layer=src_layer,
                         dst_layer=dst_layer,
+                        explodecollections=explodecollections,
                         force_output_geometrytype=force_output_geometrytype,
                         create_spatial_index=create_spatial_index,
                         verbose=verbose)
@@ -1046,10 +1089,11 @@ def _append_to_nolock(
         dst: Path,
         src_layer: str = None,
         dst_layer: str = None,
+        explodecollections: bool = False,
         force_output_geometrytype: GeometryType = None,
         create_spatial_index: bool = True,
         verbose: bool = False):
-    # append
+    # Append
     translate_info = ogr_util.VectorTranslateInfo(
             input_path=src,
             output_path=dst,
@@ -1059,6 +1103,7 @@ def _append_to_nolock(
             transaction_size=200000,
             append=True,
             update=True,
+            explodecollections=explodecollections,
             force_output_geometrytype=force_output_geometrytype,
             create_spatial_index=create_spatial_index,
             priority_class='NORMAL',

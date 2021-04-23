@@ -7,6 +7,7 @@ import datetime
 import enum
 import logging
 import multiprocessing
+import os
 from pathlib import Path
 import shutil
 import sys
@@ -20,7 +21,7 @@ import pandas as pd
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops.util import geofileops_gpd
-from geofileops.util import geofileops_ogr
+from geofileops.util import geofileops_sql
 from geofileops import geofileops
 
 class Benchmark(enum.Enum):
@@ -55,28 +56,41 @@ class BenchResult:
         return f"{self.__class__}({self.__dict__})"
 
 class GdalBin():
-    def __init__(self, gdal_installation: str, gdal_bin_path: str = None):
+    def __init__(self, gdal_installation: str, gdal_bin_dir: str = None):
         self.gdal_installation = gdal_installation
+        
+        self.gdal_bin_dir = None
+        self.mod_spatialite_dir = None
         if gdal_installation == 'gdal_bin':
-            if gdal_bin_path is None:
-                self.gdal_bin_path = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
+            # Init gdal_bin_dir
+            if gdal_bin_dir is None:
+                self.gdal_bin_dir = Path(r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin")
             else:
-                self.gdal_bin_path = gdal_bin_path
+                self.gdal_bin_dir = Path(gdal_bin_dir)
+            
+            # Init mod_spatialite_dir
+            if os.name == 'nt':
+                curr_script_dir = Path(__file__).resolve().parent
+                self.mod_spatialite_dir = curr_script_dir.parent / 'bin' / 'mod_spatialite' / 'mod_spatialite-5.0.1-win-amd64'
+            else:
+                logger.warning(f"gdal_bin installation init of mod_spatialite_dir for tests not supported on os: {os.name}")
+                #raise Exception(f"os.name not supported: {os.name}")
 
     def __enter__(self):
-        if self.gdal_installation == 'gdal_bin':
-            import os
-            os.environ['GDAL_BIN'] = self.gdal_bin_path
+        if self.gdal_bin_dir is not None:
+            os.environ['GDAL_BIN'] = str(self.gdal_bin_dir)
+        if self.mod_spatialite_dir is not None:
+            os.environ['MOD_SPATIALITE_DIR'] = str(self.mod_spatialite_dir)
 
     def __exit__(self, type, value, traceback):
         #Exception handling here
-        import os
         if os.environ.get('GDAL_BIN') is not None:
             del os.environ['GDAL_BIN']
+        if os.environ.get('MOD_SPATIALITE_DIR') is not None:
+            del os.environ['MOD_SPATIALITE_DIR']
 
-def _get_testdata_dir() -> Path:
-    #return Path(__file__).resolve().parent / 'data'
-    testdata_dir = Path(tempfile.gettempdir()) / 'geofileops_benchmark_data'
+def _get_testdata_dir(tmpdir: Path) -> Path:
+    testdata_dir = tmpdir / 'data'
     return testdata_dir
 
 def _get_testdata_aiv(testdata_path: Path):
@@ -92,8 +106,8 @@ def _get_testdata_aiv(testdata_path: Path):
         raise Exception(f"Unknown testdata file: {testdata_path}")
 
     # Download zip file if needed...  
-    zip_path = _get_testdata_dir() / f"{testdata_path.stem}.zip"
-    unzippedzip_dir = _get_testdata_dir() / zip_path.stem
+    zip_path = testdata_path.parent / f"{testdata_path.stem}.zip"
+    unzippedzip_dir = testdata_path.parent / zip_path.stem
     if not zip_path.exists() and not unzippedzip_dir.exists():
         # Download beschmark file
         print(f"Download test data {testdata_path}")
@@ -126,14 +140,14 @@ def _get_package_version():
     with open(version_path, mode='r') as file:
         return file.readline()
 
-def benchmark_buffer(tmp_dir: Path) -> List[BenchResult]:
+def benchmark_buffer(tmpdir: Path) -> List[BenchResult]:
     
     bench_results = []
-    input_path = _get_testdata_dir() / 'Lbgbrprc19.gpkg'
+    input_path = _get_testdata_dir(tmpdir) / 'Lbgbrprc19.gpkg'
     
     print('Start buffer with geopandas')
     start_time = datetime.datetime.now()
-    output_path = tmp_dir / f"{input_path.stem}_buf_gpd.gpkg"
+    output_path = tmpdir / f"{input_path.stem}_buf_gpd.gpkg"
     geofileops_gpd.buffer(input_path, output_path, distance=1, force=True)
     secs_taken = (datetime.datetime.now()-start_time).total_seconds()
     bench_results.append(BenchResult(
@@ -148,16 +162,16 @@ def benchmark_buffer(tmp_dir: Path) -> List[BenchResult]:
             input2_filename=None))
     print(f"Buffer with geopandas ready in {secs_taken:.2f} secs")
     
-    print('Start buffer with ogr')
+    print('Start buffer with sql')
 
     start_time = datetime.datetime.now()
-    output_path = tmp_dir / f"{input_path.stem}_buf_ogr.gpkg"
-    geofileops_ogr.buffer(input_path, output_path, distance=1, force=True)
+    output_path = tmpdir / f"{input_path.stem}_buf_sql.gpkg"
+    geofileops_sql.buffer(input_path, output_path, distance=1, force=True)
     secs_taken = (datetime.datetime.now()-start_time).total_seconds()
     bench_results.append(BenchResult(
             package_version=_get_package_version(),
             operation='buffer', 
-            tool_used='ogr', 
+            tool_used='sql', 
             params='',
             nb_cpu=multiprocessing.cpu_count(),
             secs_taken=secs_taken,
@@ -165,18 +179,18 @@ def benchmark_buffer(tmp_dir: Path) -> List[BenchResult]:
             input1_filename=input_path.name, 
             input2_filename=None))
 
-    print(f"Buffer with ogr ready in {secs_taken:.2f} secs")
+    print(f"Buffer with sql ready in {secs_taken:.2f} secs")
 
     return bench_results
 
-def benchmark_dissolve(tmp_dir: Path) -> List[BenchResult]:
+def benchmark_dissolve(tmpdir: Path) -> List[BenchResult]:
     
     bench_results = []
-    input_path = _get_testdata_dir() / 'Lbgbrprc19.gpkg'
+    input_path = _get_testdata_dir(tmpdir) / 'Lbgbrprc19.gpkg'
     
     print('Dissolve without groupby: start')
     start_time = datetime.datetime.now()
-    output_path = tmp_dir / f"{input_path.stem}_diss_nogroupby.gpkg"
+    output_path = tmpdir / f"{input_path.stem}_diss_nogroupby.gpkg"
     geofileops_gpd.dissolve(
             input_path, 
             output_path, 
@@ -196,7 +210,7 @@ def benchmark_dissolve(tmp_dir: Path) -> List[BenchResult]:
     
     print('Dissolve with groupby: start')
     start_time = datetime.datetime.now()
-    output_path = tmp_dir / f"{input_path.stem}_diss_groupby.gpkg"
+    output_path = tmpdir / f"{input_path.stem}_diss_groupby.gpkg"
     geofileops_gpd.dissolve(
             input_path, 
             output_path, 
@@ -217,7 +231,7 @@ def benchmark_dissolve(tmp_dir: Path) -> List[BenchResult]:
 
     print('Dissolve with groupby + no explode: start')
     start_time = datetime.datetime.now()
-    output_path = tmp_dir / f"{input_path.stem}_diss_groupby_noexplode.gpkg"
+    output_path = tmpdir / f"{input_path.stem}_diss_groupby_noexplode.gpkg"
     geofileops_gpd.dissolve(
             input_path, 
             output_path, 
@@ -239,17 +253,17 @@ def benchmark_dissolve(tmp_dir: Path) -> List[BenchResult]:
 
     return bench_results
 
-def benchmark_intersect(tmp_dir: Path) -> List[BenchResult]:
+def benchmark_intersect(tmpdir: Path) -> List[BenchResult]:
     # Init
     bench_results = []
-    input1_path = _get_testdata_dir() / 'Lbgbrprc19.gpkg'
-    input2_path = _get_testdata_dir() / 'Lbgbrprc18.gpkg'
+    input1_path = _get_testdata_dir(tmpdir) / 'Lbgbrprc19.gpkg'
+    input2_path = _get_testdata_dir(tmpdir) / 'Lbgbrprc18.gpkg'
     
     with GdalBin('gdal_bin'):
-        print('Start Intersect with ogr')
+        print('Start Intersect with sql')
         start_time = datetime.datetime.now()
-        output_path = tmp_dir / f"{input1_path.stem}_inters_{input2_path.stem}.gpkg"
-        geofileops_ogr.intersect(
+        output_path = tmpdir / f"{input1_path.stem}_inters_{input2_path.stem}.gpkg"
+        geofileops_sql.intersect(
                 input1_path=input1_path, 
                 input2_path=input2_path, 
                 output_path=output_path,
@@ -258,28 +272,28 @@ def benchmark_intersect(tmp_dir: Path) -> List[BenchResult]:
         bench_results.append(BenchResult(
                 package_version=_get_package_version(),
                 operation='intersect', 
-                tool_used='ogr', 
+                tool_used='sql', 
                 params='',
                 nb_cpu=multiprocessing.cpu_count(),
                 secs_taken=secs_taken,
                 secs_expected_one_cpu=1700,
                 input1_filename=input1_path.name, 
                 input2_filename=input2_path.name))
-        print(f"Intersect with ogr ready in {secs_taken:.2f} secs")
+        print(f"Intersect with sql ready in {secs_taken:.2f} secs")
 
     return bench_results
 
-def benchmark_union(tmp_dir: Path) -> List[BenchResult]:
+def benchmark_union(tmpdir: Path) -> List[BenchResult]:
     # Init
     bench_results = []
-    input1_path = _get_testdata_dir() / 'Lbgbrprc19.gpkg'
-    input2_path = _get_testdata_dir() / 'Lbgbrprc18.gpkg'
+    input1_path = _get_testdata_dir(tmpdir) / 'Lbgbrprc19.gpkg'
+    input2_path = _get_testdata_dir(tmpdir) / 'Lbgbrprc18.gpkg'
     
     with GdalBin('gdal_bin'):
-        print('Start Union with ogr')
+        print('Start Union with sql')
         start_time = datetime.datetime.now()
-        output_path = tmp_dir / f"{input1_path.stem}_union_{input2_path.stem}.gpkg"
-        geofileops_ogr.union(
+        output_path = tmpdir / f"{input1_path.stem}_union_{input2_path.stem}.gpkg"
+        geofileops_sql.union(
                 input1_path=input1_path, 
                 input2_path=input2_path, 
                 output_path=output_path,
@@ -288,7 +302,7 @@ def benchmark_union(tmp_dir: Path) -> List[BenchResult]:
         bench_results.append(BenchResult(
                 package_version=_get_package_version(),
                 operation='union', 
-                tool_used='ogr', 
+                tool_used='sql', 
                 params='',
                 nb_cpu=multiprocessing.cpu_count(),
                 secs_taken=secs_taken,
@@ -296,20 +310,25 @@ def benchmark_union(tmp_dir: Path) -> List[BenchResult]:
                 input1_filename=input1_path.name, 
                 input2_filename=input2_path.name))
         
-        print(f"Union with ogr ready in {secs_taken:.2f} secs")
+        print(f"Union with sql ready in {secs_taken:.2f} secs")
 
     return bench_results
 
-def benchmark(benchmarks_to_run: List[Benchmark]):
+def benchmark(
+        benchmarks_to_run: List[Benchmark],
+        tmpdir: Path = None):
     """
     Run the benchmarks specified.
 
     Args:
         benchmarks_to_run (List[Benchmark]): [description]
     """
+    # Check input params
+    if tmpdir is None:
+        tmpdir = Path(tempfile.gettempdir()) / 'geofileops_benchmark'
     
     # First make sure the testdata is present
-    testdata_dir = _get_testdata_dir()
+    testdata_dir = _get_testdata_dir(tmpdir=tmpdir)
     testdata_dir.mkdir(parents=True, exist_ok=True)
     prc2019_path = testdata_dir / 'Lbgbrprc19.gpkg'
     _get_testdata_aiv(prc2019_path)
@@ -317,8 +336,6 @@ def benchmark(benchmarks_to_run: List[Benchmark]):
     _get_testdata_aiv(prc2018_path)
 
     # Now we can start benchmarking
-    tmpdir = Path(tempfile.gettempdir()) / 'geofileops_benchmark'
-
     results = []
     if Benchmark.BUFFER in benchmarks_to_run:
         results.extend(benchmark_buffer(tmpdir))
@@ -354,9 +371,13 @@ if __name__ == '__main__':
             datefmt="%H:%M:%S", level=logging.INFO)
 
     #Go!
-    benchmark([
-            Benchmark.BUFFER,
-            Benchmark.UNION,
-            Benchmark.INTERSECT,
-            Benchmark.DISSOLVE,
-            ])
+    tmpdir = None
+    #tmpdir = Path(r"X:\PerPersoon\PIEROG\Temp") / 'geofileops_benchmark'
+    benchmark(
+            benchmarks_to_run=[
+                #Benchmark.BUFFER,
+                Benchmark.UNION,
+                Benchmark.INTERSECT,
+                #Benchmark.DISSOLVE,
+            ],
+            tmpdir=tmpdir)

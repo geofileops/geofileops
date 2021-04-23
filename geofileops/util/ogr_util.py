@@ -27,6 +27,7 @@ gdal.UseExceptions()
 
 from geofileops import geofile
 from geofileops.util import general_util
+from geofileops.util.general_util import MissingRuntimeDependencyError
 from geofileops.util.geometry_util import GeometryType
 
 #-------------------------------------------------------------
@@ -46,17 +47,6 @@ global_spatiallite_versioninfo_alternative = None
 #-------------------------------------------------------------
 # The real work
 #-------------------------------------------------------------
-
-class SQLNotSupportedException(Exception):
-    """
-    Exception raised when an unsupported SQL statement is passed.
-
-    Attributes:
-        message (str): Exception message
-    """
-    def __init__(self, message):
-        self.message = message
-        super().__init__(self.message)
 
 class VectorTranslateInfo:
     def __init__(
@@ -101,7 +91,7 @@ class VectorTranslateInfo:
         self.verbose = verbose
 
 def vector_translate_by_info(info: VectorTranslateInfo):
-        
+
     return vector_translate( 
             input_path=info.input_path,
             output_path=info.output_path,
@@ -275,9 +265,12 @@ def vector_translate_exe(
     ##### Init #####
     if output_layer is None:
         output_layer = output_path.stem
+    if os.name == 'nt':
+        ogr2ogr_exe = 'ogr2ogr.exe'
+    else:
+        ogr2ogr_exe = 'ogr2ogr'
     
-    # If GDAL_BIN is set, use ogr2ogr.exe located there
-    ogr2ogr_exe = 'ogr2ogr.exe'
+    # If GDAL_BIN is set, use ogr2ogr located there
     gdal_bin_dir = os.getenv('GDAL_BIN')
     if gdal_bin_dir is not None:
         gdal_bin_dir = Path(gdal_bin_dir)
@@ -303,10 +296,11 @@ def vector_translate_exe(
         args.extend(['-dialect', sql_dialect])
 
     # Output file options
-    if append is True:
-        args.append('-append')
-    if update is True:
-        args.append('-update')
+    if output_path.exists() is True:
+        if append is True:
+            args.append('-append')
+        if update is True:
+            args.append('-update')
 
     # Files and input layer(s)
     args.append(str(output_path))
@@ -360,15 +354,19 @@ def vector_translate_exe(
     # Make sure the output dir exists
     os.makedirs(output_path.parent, exist_ok=True)
 
-    # Set priority of the process, so computer stays responsive
-    if priority_class is None or priority_class == 'NORMAL':
-        priority_class_windows = 0x00000020 # = NORMAL_PRIORITY_CLASS
-    elif priority_class == 'VERY_LOW':
-        priority_class_windows = 0x00000040 # =IDLE_PRIORITY_CLASS
-    elif priority_class == 'LOW':
-        priority_class_windows = 0x00004000 # =BELOW_NORMAL_PRIORITY_CLASS
-    else: 
-        raise Exception("Unsupported priority class: {priority_class}, use one of: 'NORMAL', 'LOW' or 'VERY_LOW'")
+    # Set priority of the process on Windows, so computer stays responsive
+    if os.name == 'nt':  
+        if priority_class is None or priority_class == 'NORMAL':
+            creationflags = 0x00000020 # = NORMAL_PRIORITY_CLASS
+        elif priority_class == 'VERY_LOW':
+            creationflags = 0x00000040 # =IDLE_PRIORITY_CLASS
+        elif priority_class == 'LOW':
+            creationflags = 0x00004000 # =BELOW_NORMAL_PRIORITY_CLASS
+        else: 
+            raise Exception("Unsupported priority class: {priority_class}, use one of: 'NORMAL', 'LOW' or 'VERY_LOW'")
+    else:
+        # On non-windows os'es, creationflags cannot be used
+        creationflags = 0
 
     # Geopackage/sqlite files are very sensitive for being locked, so retry till 
     # file is not locked anymore... 
@@ -376,31 +374,12 @@ def vector_translate_exe(
     returncode = None
     err = None
     for retry_count in range(10):
-
-        # Unsuccessfull test to print output constantly instead of only when the 
-        # process has ended. Because progress on a geopackage doesn't work 
-        # anyway the use case isn't relevant anymore either
-        # TODO: remove code after first check-in
-        '''
-        output = ""
-        err = ""
-        returncode = -1
-        with subprocess.Popen(args, 
-                creationflags=IDLE_PRIORITY_CLASS,
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1, 
-                encoding='utf-8', universal_newlines=True) as process:
-            for line in process.stdout.readline():
-                if verbose:
-                    logger.info(line)
-                else:
-                    output += line
-            err = process.stderr.read()
-            returncode = process.wait()
-        '''
         if translate_description is not None:
             logger.debug(f"Start '{translate_description}' with retry_count: {retry_count}")
+
+        # Start process!
         process = subprocess.Popen(args, 
-                creationflags=priority_class_windows,
+                creationflags=creationflags,
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1, encoding='utf-8')
         output, err = process.communicate()
         returncode = process.returncode
@@ -469,7 +448,6 @@ def vector_translate_py(
     # there are two columns named "geom" as he doesnt see the "geom" column  
     # in the select as a geometry column. Probably a version issue. Maybe 
     # try again later.
-
     args = []
 
     # Apparently, for shapefiles, having input_layers not None gives issues...
@@ -489,10 +467,11 @@ def vector_translate_py(
     '''
 
     # Output file options
-    if append is True:
-        args.append('-append')
-    if update is True:
-        args.append('-update')
+    if output_path.exists() is True:
+        if append is True:
+            args.append('-append')
+        if update is True:
+            args.append('-update')
 
     # Files
     #args.append(output_path)
@@ -552,7 +531,7 @@ def vector_translate_py(
             reproject=False, 
             SQLStatement=sql_stmt,
             SQLDialect=sql_dialect,
-            where=None, 
+            where=None, #"geom IS NOT NULL", 
             selectFields=None, 
             addFields=False, 
             forceNullable=False, 
@@ -631,6 +610,131 @@ def _getfileinfo(
 
     return result_dict
 
+'''
+def vector_info(
+        path: Path, 
+        task_description = None,
+        layer: str = None,
+        readonly: bool = False,
+        report_summary: bool = False,
+        sql_stmt: str = None,
+        sql_dialect: str = None, 
+        skip_health_check: bool = False,
+        force_py: bool = False,      
+        verbose: bool = False):
+    """Run a command"""
+
+    ##### Init #####
+    if not path.exists():
+        raise Exception(f"File does not exist: {path}")
+
+    sql_dialect_to_use = sql_dialect
+    if force_py:
+        gdal_to_use = 'gdal_default'
+    elif(sql_stmt is not None 
+       and sql_dialect is not None
+       and sql_dialect.upper() == 'SQLITE' 
+       and path.suffix.lower() == '.gpkg'):
+        gdal_to_use, sql_dialect_to_use = get_gdal_to_use(sql_stmt)
+    else:
+        gdal_to_use = 'gdal_default'
+
+    if gdal_to_use == 'gdal_default':
+        vector_info_py(
+                path=path, 
+                task_description=task_description,
+                layer=layer,
+                readonly=readonly,
+                report_summary=report_summary,
+                sql_stmt=sql_stmt,
+                sql_dialect=sql_dialect_to_use, 
+                skip_health_check=skip_health_check,      
+                verbose=verbose)
+    elif gdal_to_use == 'gdal_bin':
+        vector_info_exe(
+                path=path, 
+                task_description=task_description,
+                layer=layer,
+                readonly=readonly,
+                report_summary=report_summary,
+                sql_stmt=sql_stmt,
+                sql_dialect=sql_dialect, 
+                skip_health_check=skip_health_check,      
+                verbose=verbose)
+    else:
+        raise Exception(f"Unsupported gdal_to_use: {gdal_to_use}")
+
+def vector_info_py(
+        path: Path, 
+        task_description = None,
+        layer: str = None,
+        readonly: bool = False,
+        report_summary: bool = False,
+        sql_stmt: str = None,
+        sql_dialect: str = None, 
+        skip_health_check: bool = False,      
+        verbose: bool = False):
+    """"Run a command"""
+
+    ##### Init #####
+    if not path.exists():
+        raise Exception(f"File does not exist: {path}")
+
+    if(skip_health_check is False
+       and sql_stmt is not None 
+       and sql_dialect is not None
+       and sql_dialect.upper() == 'SQLITE' 
+       and path.suffix.lower() == '.gpkg'):
+        _, sql_dialect = get_gdal_to_use(sql_stmt)
+
+        # Warn that updates with 'INDIRECT_SQLITE' give terrible performance!
+        if sql_dialect == 'INDIRECT_SQLITE':
+            logger.warn(f"sql_stmt needs 'INDIRECT_SQLITE', but this is gonna be slow!\n\t{sql_stmt}")  
+
+    # Add all parameters to args list
+    args = []
+    #args.extend(['--config', 'OGR_SQLITE_PRAGMA', 'journal_mode=WAL'])  
+    if readonly is True:
+        args.append('-ro')
+    if report_summary is True:
+        args.append('-so')
+    if sql_stmt is not None:
+        args.extend(['-sql', sql_stmt])
+    if sql_dialect is not None:
+        args.extend(['-dialect', sql_dialect])
+
+    # File and optionally the layer
+    args.append(str(path))
+    if layer is not None:
+        # ogrinfo doesn't like + need quoted layer names, so remove single and double quotes
+        layer_stripped = layer.strip("'\"")
+        args.append(layer_stripped)
+
+    info_options = gdal.InfoOptions(
+            options=args, 
+            format='text', 
+            deserialize=True, 
+            computeMinMax=False, 
+            reportHistograms=False, 
+            reportProj4=False, 
+            stats=False, 
+            approxStats=False, 
+            computeChecksum=False, 
+            showGCPs=True, 
+            showMetadata=True, 
+            showRAT=True, 
+            showColorTable=True, 
+            listMDD=False, 
+            showFileList=True, 
+            allMetadata=False, 
+            extraMDDomains=None, 
+            wktFormat=None)
+
+    result = gdal.Info(
+            ds=str(path),
+            options=info_options)
+'''
+
 def vector_info(
         path: Path, 
         task_description = None,
@@ -646,9 +750,12 @@ def vector_info(
     ##### Init #####
     if not path.exists():
         raise Exception(f"File does not exist: {path}")
-            
-    # If GDAL_BIN is set, use ogrinfo.exe located there
-    ogrinfo_exe = 'ogrinfo.exe'
+    if os.name == 'nt':
+        ogrinfo_exe = 'ogrinfo.exe'
+    else:
+        ogrinfo_exe = 'ogrinfo'
+    
+    # If GDAL_BIN is set, use ogrinfo located there
     gdal_bin_dir = os.getenv('GDAL_BIN')
     if gdal_bin_dir is not None:
         gdal_bin_dir = Path(gdal_bin_dir)
@@ -690,8 +797,12 @@ def vector_info(
 
     # TODO: ideally, the child processes would die when the parent is killed!
     # Start on low priority, so computer stays responsive
-    #BELOW_NORMAL_PRIORITY_CLASS = 0x00004000
-    IDLE_PRIORITY_CLASS = 0x00000040
+    if os.name == 'nt':
+        #BELOW_NORMAL_PRIORITY_CLASS = 0x00004000
+        creationflags = 0x00000040
+    else:
+        # On linux, needs to be 0, otherwise error!
+        creationflags = 0
 
     ##### Run ogrinfo #####
     # Geopackage/sqlite files are very sensitive for being locked, so retry till 
@@ -700,7 +811,7 @@ def vector_info(
     returncode = None 
     for retry_count in range(10):
         process = subprocess.Popen(args, 
-                creationflags=IDLE_PRIORITY_CLASS,
+                creationflags=creationflags,
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1, encoding='utf-8')
         output, err = process.communicate()
         returncode = process.returncode
@@ -769,7 +880,7 @@ def get_gdal_to_use(sqlite_stmt: str) -> Tuple[str, str]:
     # First check if there is an alternative gdal installation 
     gdal_bin_dir = os.getenv('GDAL_BIN')
     if gdal_bin_dir is None:
-        raise SQLNotSupportedException('sqlite_stmt not supported by default gdal, and no alternative gdal installation specified using GDAL_BIN')
+        raise MissingRuntimeDependencyError('sqlite_stmt not supported by default gdal, and no alternative gdal installation specified using GDAL_BIN')
 
     # Get spatiallite version info for the alternative gdal, if it isn't cached yet for this gdal_bin_dir
     global global_spatiallite_versioninfo_alternative
@@ -793,7 +904,7 @@ def get_gdal_to_use(sqlite_stmt: str) -> Tuple[str, str]:
     if unsupported_function_found is False:
         return ('gdal_bin', 'SQLITE')
     else:
-        raise SQLNotSupportedException(f"Alternative gdal in gdal_bin_dir {gdal_bin_dir} doesn't support sqlite_stmt either: {sqlite_stmt}")
+        raise MissingRuntimeDependencyError(f"Alternative gdal in gdal_bin_dir {gdal_bin_dir} doesn't support sqlite_stmt either: {sqlite_stmt}")
 
 def get_gdal_install_info(gdal_installation: str) -> dict:
 
@@ -834,7 +945,7 @@ def get_gdal_install_info(gdal_installation: str) -> dict:
                     'makevalid', 'st_makevalid', 'isvalid', 'st_isvalid', 
                     'isvalidreason', 'st_isvalidreason', 'isvaliddetail', 'st_isvaliddetail',
                     'st_area', 'area', 'st_npoints', 'npoints',
-                    'st_multi', 'collectionextract', 'st_intersection', 'st_union']
+                    'st_multi', 'collectionextract', 'st_intersection', 'st_union', 'st_collect']
         else:
             install_info['unsupported_functions'] = []
 

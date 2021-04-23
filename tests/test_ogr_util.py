@@ -9,6 +9,7 @@ import sys
 
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from geofileops.util.general_util import MissingRuntimeDependencyError
 from geofileops.util import ogr_util
 from tests import test_helper
 
@@ -18,18 +19,18 @@ def test_get_gdal_to_use():
     try:
         ogr_util.get_gdal_to_use('ST_area()')
         test_ok = True
-    except ogr_util.SQLNotSupportedException:
+    except MissingRuntimeDependencyError:
         test_ok = False
-    assert test_ok is test_helper.is_gdal_ok('area', 'gdal_default')
+    assert test_ok is test_helper.check_runtime_dependencies_ok('area', 'gdal_default')
     
     # If GDAL_BIN set
     with test_helper.GdalBin('gdal_bin'):
         try:
             ogr_util.get_gdal_to_use('ST_area()')
             test_ok = True
-        except ogr_util.SQLNotSupportedException:
+        except MissingRuntimeDependencyError:
             test_ok = False
-        assert test_ok is test_helper.is_gdal_ok('area', 'gdal_bin')
+        assert test_ok is test_helper.check_runtime_dependencies_ok('area', 'gdal_bin')
 
 def test_gis_operations():
 
@@ -55,12 +56,12 @@ def basetest_st_area(
     input_path = test_helper.TestFiles.polygons_parcels_gpkg
     sqlite_stmt = 'SELECT round(ST_area(geom), 2) as area FROM "parcels"'
     test_ok = False
-    ok_expected = test_helper.is_gdal_ok('', gdal_installation)
+    ok_expected = test_helper.check_runtime_dependencies_ok('', gdal_installation)
     result_gdf = None
     try:
         result_gdf = ogr_util._execute_sql(input_path, sqlite_stmt, gdal_installation, sql_dialect)
         test_ok = True
-    except ogr_util.SQLNotSupportedException:
+    except MissingRuntimeDependencyError:
         test_ok = False
     assert test_ok is ok_expected, f"Result: {test_ok}, expected: {ok_expected}, with stmt <{sqlite_stmt}> and gdal_installation: {gdal_installation}, install_info: {ogr_util.get_gdal_install_info(gdal_installation)}"  
     assert result_gdf is not None
@@ -70,12 +71,12 @@ def basetest_st_area(
     input_path = test_helper.TestFiles.polygons_parcels_gpkg
     sqlite_stmt = 'SELECT st_makevalid(geom) as geom FROM "parcels"'
     test_ok = False
-    ok_expected = test_helper.is_gdal_ok('', gdal_installation)
+    ok_expected = test_helper.check_runtime_dependencies_ok('', gdal_installation)
     try:
         result_gdf = ogr_util._execute_sql(input_path, sqlite_stmt, gdal_installation, sql_dialect)
         if result_gdf['geometry'][0] is not None:
             test_ok = True
-    except ogr_util.SQLNotSupportedException:
+    except MissingRuntimeDependencyError:
         test_ok = False
     assert test_ok is ok_expected, f"Test to run test <{sqlite_stmt}> failed for gdal_installation: {gdal_installation}, install_info: {ogr_util.get_gdal_install_info(gdal_installation)}"  
     
@@ -83,12 +84,12 @@ def basetest_st_area(
     input_path = test_helper.TestFiles.polygons_parcels_gpkg
     sqlite_stmt = 'SELECT st_isvalid(geom) as geom FROM "parcels"'
     test_ok = False
-    ok_expected = test_helper.is_gdal_ok('', gdal_installation)
+    ok_expected = test_helper.check_runtime_dependencies_ok('', gdal_installation)
     try:
         result_gdf = ogr_util._execute_sql(input_path, sqlite_stmt, gdal_installation, sql_dialect)
         if result_gdf['geom'][0] is not None:
             test_ok = True
-    except ogr_util.SQLNotSupportedException:
+    except MissingRuntimeDependencyError:
         test_ok = False
     assert test_ok is ok_expected, f"Test to run test <{sqlite_stmt}> failed for gdal_installation: {gdal_installation}, install_info: {ogr_util.get_gdal_install_info(gdal_installation)}"  
 

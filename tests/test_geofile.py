@@ -3,10 +3,8 @@
 Tests for functionalities in geofileops.general.
 """
 
-import os
 from pathlib import Path
 import sys
-from typing import Optional
 
 import geopandas as gpd
 import pandas as pd
@@ -31,11 +29,8 @@ def test_add_column(tmpdir):
     assert 'AREA' not in layerinfo.columns
         
     ### Add area column ###
-    try: 
-        os.environ['GDAL_BIN'] = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
-        geofile.add_column(tmppath, layer='parcels', name='AREA', type='real', expression='ST_area(geom)')
-    finally:
-        del os.environ['GDAL_BIN']
+    #with test_helper.GdalBin(gdal_installation='gdal_default'):
+    geofile.add_column(tmppath, layer='parcels', name='AREA', type='real', expression='ST_area(geom)')
         
     layerinfo = geofile.get_layerinfo(path=tmppath, layer='parcels')
     assert 'AREA' in layerinfo.columns
@@ -125,10 +120,10 @@ def test_get_crs():
     crs = geofile.get_crs(srcpath)
     assert crs.to_epsg() == 31370
 
-def test_get_default_layer():
+def test_get_default_layer_shp():
     srcpath = test_helper.TestFiles.polygons_parcels_shp
     layer = geofile.get_default_layer(srcpath)
-    assert layer == 'polygons_parcels'
+    assert layer == 'polygons_parcels-2020'
 
 def test_get_driver():
     # Test shapefile
@@ -147,7 +142,7 @@ def test_get_layerinfo():
         assert layerinfo.featurecount == 46
         if srcpath.suffix == '.shp':
             assert layerinfo.geometrycolumn == 'geometry'
-            assert layerinfo.name == 'polygons_parcels'
+            assert layerinfo.name == srcpath.stem
         elif srcpath.suffix == '.gpkg':
             assert layerinfo.geometrycolumn == 'geom'
             assert layerinfo.name == 'parcels'
@@ -174,7 +169,7 @@ def test_get_only_layer(tmpdir):
     assert layer == 'parcels'
     srcpath = test_helper.TestFiles.polygons_parcels_shp
     layer = geofile.get_only_layer(srcpath)
-    assert layer == 'polygons_parcels'
+    assert layer == srcpath.stem
 
     ### Test Geopackage with 2 layers ###
     srcpath = test_helper.TestFiles.polygons_twolayers_gpkg
@@ -193,7 +188,7 @@ def test_is_geofile():
     
 def test_listlayers():
     layers = geofile.listlayers(test_helper.TestFiles.polygons_parcels_shp)
-    assert layers[0] == 'polygons_parcels'
+    assert layers[0] == test_helper.TestFiles.polygons_parcels_shp.stem
     layers = geofile.listlayers(test_helper.TestFiles.polygons_parcels_gpkg)
     assert layers[0] == 'parcels'
     layers = geofile.listlayers(test_helper.TestFiles.polygons_twolayers_gpkg)
@@ -225,13 +220,10 @@ def test_update_column(tmpdir):
     assert 'area' not in layerinfo.columns
         
     ### Add area column ###
-    try: 
-        os.environ['GDAL_BIN'] = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
-        geofile.add_column(tmppath, layer='parcels', name='AREA', type='real', expression='ST_area(geom)')
-        geofile.update_column(tmppath, name='AreA', expression='ST_area(geom)')
-    finally:
-        del os.environ['GDAL_BIN']
-        
+    #with test_helper.GdalBin(gdal_installation='gdal_default'):
+    geofile.add_column(tmppath, layer='parcels', name='AREA', type='real', expression='ST_area(geom)')
+    geofile.update_column(tmppath, name='AreA', expression='ST_area(geom)')
+
     layerinfo = geofile.get_layerinfo(path=tmppath, layer='parcels')
     assert 'AREA' in layerinfo.columns
     gdf = geofile.read_file(tmppath)

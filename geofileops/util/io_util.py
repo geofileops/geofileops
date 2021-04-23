@@ -122,26 +122,31 @@ def copyfile(src, dst):
         with open(src, 'rb') as fsrc, \
              open(dst, 'wb') as fdest:
             shutil.copyfileobj(fsrc, fdest, buffer_size)
-    
+
+'''
 def is_locked(filepath):
     """
     Checks if a file is locked by another process.
     """
-    import msvcrt
-    try:
-        fd = os.open(filepath, os.O_APPEND | os.O_EXCL | os.O_RDWR)
-    except OSError:
-        return True
+    if os.name == 'nt':
+        import msvcrt
+        try:
+            fd = os.open(filepath, os.O_APPEND | os.O_EXCL | os.O_RDWR)
+        except OSError:
+            return True
 
-    try:
-        filesize = os.path.getsize(filepath)
-        msvcrt.locking(fd, msvcrt.LK_NBLCK, filesize)
-        msvcrt.locking(fd, msvcrt.LK_UNLCK, filesize)
-        os.close(fd)
-        return False
-    except (OSError, IOError):
-        os.close(fd)
-        return True
+        try:
+            filesize = os.path.getsize(filepath)
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, filesize)
+            msvcrt.locking(fd, msvcrt.LK_UNLCK, filesize)
+            os.close(fd)
+            return False
+        except (OSError, IOError):
+            os.close(fd)
+            return True
+    else:
+        raise Exception(f"Not implemented on os: {os.name}")
+'''
 
 def create_file_atomic(filename) -> bool:
     """
@@ -158,6 +163,5 @@ def create_file_atomic(filename) -> bool:
     except IOError as ex:
         if ex.errno == 13:
             return False
-
-    # If we get here, return False anyway       
-    return False
+        else:
+            raise Exception("Error creating lock file {filename}") from ex
