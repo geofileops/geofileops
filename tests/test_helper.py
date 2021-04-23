@@ -18,34 +18,40 @@ from geofileops.util import ogr_util
 from geofileops.util import sqlite_util
 
 class GdalBin():
-    def __init__(self, gdal_installation: str, gdal_bin_path: str = None):
+    def __init__(self, gdal_installation: str, gdal_bin_dir: str = None):
         self.gdal_installation = gdal_installation
+        
+        self.gdal_bin_dir = None
+        self.mod_spatialite_dir = None
         if gdal_installation == 'gdal_bin':
-            if gdal_bin_path is None:
-                self.gdal_bin_path = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
+            # Init gdal_bin_dir
+            if gdal_bin_dir is None:
+                if os.name == 'nt':
+                    self.gdal_bin_dir = Path(r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin")
+                else:
+                    print(f"Warning: gdal_bin installation init of gdal_bin_dir for tests not supported on os: {os.name}")
             else:
-                self.gdal_bin_path = gdal_bin_path
+                self.gdal_bin_dir = Path(gdal_bin_dir)
+            
+            # Init mod_spatialite_dir
+            if os.name == 'nt':
+                curr_script_dir = Path(__file__).resolve().parent
+                self.mod_spatialite_dir = curr_script_dir.parent / 'bin' / 'mod_spatialite' / 'mod_spatialite-5.0.1-win-amd64'
+            else:
+                print(f"Warning: gdal_bin installation init of mod_spatialite_dir for tests not supported on os: {os.name}")
+                #raise Exception(f"os.name not supported: {os.name}")
 
     def __enter__(self):
-        if self.gdal_installation == 'gdal_bin':
-            os.environ['GDAL_BIN'] = self.gdal_bin_path
-            curr_script_dir = Path(__file__).resolve().parent
-            mod_spatialite_dir = None
-            if os.name == 'nt':
-                mod_spatialite_dir = curr_script_dir.parent / 'bin' / 'mod_spatialite' / 'mod_spatialite-5.0.1-win-amd64' 
-            else: 
-                raise Exception(f"os.name not supported: {os.name}")
-            if mod_spatialite_dir is not None:
-                os.environ['MOD_SPATIALITE_DIR'] = str(mod_spatialite_dir)
-        else:
-            if os.environ.get('MOD_SPATIALITE_DIR') is not None:
-                del os.environ['MOD_SPATIALITE_DIR']
+        if self.gdal_bin_dir is not None:
+            os.environ['GDAL_BIN'] = str(self.gdal_bin_dir)
+        if self.mod_spatialite_dir is not None:
+            os.environ['MOD_SPATIALITE_DIR'] = str(self.mod_spatialite_dir)
 
     def __exit__(self, type, value, traceback):
         #Exception handling here
-        if os.environ.get('GDAL_BIN') is not None:
+        if self.gdal_bin_dir is not None and os.environ.get('GDAL_BIN') is not None:
             del os.environ['GDAL_BIN']
-        if os.environ.get('MOD_SPATIALITE_DIR') is not None:
+        if self.mod_spatialite_dir is not None and os.environ.get('MOD_SPATIALITE_DIR') is not None:
             del os.environ['MOD_SPATIALITE_DIR']
 
 class TestData:

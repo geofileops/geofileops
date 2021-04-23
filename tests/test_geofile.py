@@ -3,10 +3,8 @@
 Tests for functionalities in geofileops.general.
 """
 
-import os
 from pathlib import Path
 import sys
-from typing import Optional
 
 import geopandas as gpd
 import pandas as pd
@@ -31,11 +29,8 @@ def test_add_column(tmpdir):
     assert 'AREA' not in layerinfo.columns
         
     ### Add area column ###
-    try: 
-        os.environ['GDAL_BIN'] = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
-        geofile.add_column(tmppath, layer='parcels', name='AREA', type='real', expression='ST_area(geom)')
-    finally:
-        del os.environ['GDAL_BIN']
+    #with test_helper.GdalBin(gdal_installation='gdal_default'):
+    geofile.add_column(tmppath, layer='parcels', name='AREA', type='real', expression='ST_area(geom)')
         
     layerinfo = geofile.get_layerinfo(path=tmppath, layer='parcels')
     assert 'AREA' in layerinfo.columns
@@ -225,13 +220,10 @@ def test_update_column(tmpdir):
     assert 'area' not in layerinfo.columns
         
     ### Add area column ###
-    try: 
-        os.environ['GDAL_BIN'] = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
-        geofile.add_column(tmppath, layer='parcels', name='AREA', type='real', expression='ST_area(geom)')
-        geofile.update_column(tmppath, name='AreA', expression='ST_area(geom)')
-    finally:
-        del os.environ['GDAL_BIN']
-        
+    #with test_helper.GdalBin(gdal_installation='gdal_default'):
+    geofile.add_column(tmppath, layer='parcels', name='AREA', type='real', expression='ST_area(geom)')
+    geofile.update_column(tmppath, name='AreA', expression='ST_area(geom)')
+
     layerinfo = geofile.get_layerinfo(path=tmppath, layer='parcels')
     assert 'AREA' in layerinfo.columns
     gdf = geofile.read_file(tmppath)
