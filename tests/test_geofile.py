@@ -3,7 +3,6 @@
 Tests for functionalities in geofileops.general.
 """
 
-import os
 from pathlib import Path
 import sys
 

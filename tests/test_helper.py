@@ -29,7 +29,7 @@ class GdalBin():
                 if os.name == 'nt':
                     self.gdal_bin_dir = Path(r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin")
                 else:
-                    logger.warning(f"gdal_bin installation init of gdal_bin_dir for tests not supported on os: {os.name}")
+                    print(f"Warning: gdal_bin installation init of gdal_bin_dir for tests not supported on os: {os.name}")
             else:
                 self.gdal_bin_dir = Path(gdal_bin_dir)
             
@@ -38,7 +38,7 @@ class GdalBin():
                 curr_script_dir = Path(__file__).resolve().parent
                 self.mod_spatialite_dir = curr_script_dir.parent / 'bin' / 'mod_spatialite' / 'mod_spatialite-5.0.1-win-amd64'
             else:
-                logger.warning(f"gdal_bin installation init of mod_spatialite_dir for tests not supported on os: {os.name}")
+                print(f"Warning: gdal_bin installation init of mod_spatialite_dir for tests not supported on os: {os.name}")
                 #raise Exception(f"os.name not supported: {os.name}")
 
     def __enter__(self):
