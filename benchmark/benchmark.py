@@ -7,6 +7,7 @@ import datetime
 import enum
 import logging
 import multiprocessing
+import os
 from pathlib import Path
 import shutil
 import sys
@@ -55,24 +56,38 @@ class BenchResult:
         return f"{self.__class__}({self.__dict__})"
 
 class GdalBin():
-    def __init__(self, gdal_installation: str, gdal_bin_path: str = None):
+    def __init__(self, gdal_installation: str, gdal_bin_dir: str = None):
         self.gdal_installation = gdal_installation
+        
+        self.gdal_bin_dir = None
+        self.mod_spatialite_dir = None
         if gdal_installation == 'gdal_bin':
-            if gdal_bin_path is None:
-                self.gdal_bin_path = r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin"
+            # Init gdal_bin_dir
+            if gdal_bin_dir is None:
+                self.gdal_bin_dir = Path(r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin")
             else:
-                self.gdal_bin_path = gdal_bin_path
+                self.gdal_bin_dir = Path(gdal_bin_dir)
+            
+            # Init mod_spatialite_dir
+            if os.name == 'nt':
+                curr_script_dir = Path(__file__).resolve().parent
+                self.mod_spatialite_dir = curr_script_dir.parent / 'bin' / 'mod_spatialite' / 'mod_spatialite-5.0.1-win-amd64'
+            else:
+                logger.warning(f"gdal_bin installation init of mod_spatialite_dir for tests not supported on os: {os.name}")
+                #raise Exception(f"os.name not supported: {os.name}")
 
     def __enter__(self):
-        if self.gdal_installation == 'gdal_bin':
-            import os
-            os.environ['GDAL_BIN'] = self.gdal_bin_path
+        if self.gdal_bin_dir is not None:
+            os.environ['GDAL_BIN'] = str(self.gdal_bin_dir)
+        if self.mod_spatialite_dir is not None:
+            os.environ['MOD_SPATIALITE_DIR'] = str(self.mod_spatialite_dir)
 
     def __exit__(self, type, value, traceback):
         #Exception handling here
-        import os
         if os.environ.get('GDAL_BIN') is not None:
             del os.environ['GDAL_BIN']
+        if os.environ.get('MOD_SPATIALITE_DIR') is not None:
+            del os.environ['MOD_SPATIALITE_DIR']
 
 def _get_testdata_dir(tmpdir: Path) -> Path:
     testdata_dir = tmpdir / 'data'
