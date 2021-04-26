@@ -426,7 +426,8 @@ def add_column(
     Args:
         path (PathLike): Path to the geofile
         name (str): Name for the new column
-        type (str): Column type.
+        type (str): Column type. Possible values: 'TEXT', 'NUMERIC', 'INTEGER', 
+            'REAL', 'BLOB'
         expression (str, optional): SQLite expression to use to update 
             the value. Defaults to None.
         layer (str, optional): The layer name. If None and the geofile
@@ -1116,6 +1117,7 @@ def convert(
         dst: Union[str, 'os.PathLike[Any]'],
         src_layer: str = None,
         dst_layer: str = None,
+        explodecollections: bool = False,
         force_output_geometrytype: GeometryType = None):
     """
     Convert the source file to the destination file. File types will be 
@@ -1133,7 +1135,9 @@ def convert(
         remove(dst_p)
 
     # Convert
-    _append_to_nolock(src_p, dst_p, src_layer, dst_layer, force_output_geometrytype)
+    _append_to_nolock(src_p, dst_p, src_layer, dst_layer, 
+            explodecollections=explodecollections, 
+            force_output_geometrytype=force_output_geometrytype)
 
 def get_driver(path: Union[str, 'os.PathLike[Any]']) -> str:
     """
