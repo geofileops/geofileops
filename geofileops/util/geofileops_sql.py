@@ -971,8 +971,8 @@ def split(
                    GROUP BY layer1.rowid
                 )
                 SELECT ST_CollectionExtract(
-                            ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}), 
-                                            ST_union(layer2.{{input2_geometrycolumn}})), 
+                            ST_intersection(layer1.{{input1_geometrycolumn}}, 
+                                            layer2.{{input2_geometrycolumn}}), 
                             {primitivetype_to_extract.value}) as geom
                       {{layer1_columns_prefix_alias_str}}
                       {{layer2_columns_prefix_alias_str}}
@@ -986,7 +986,6 @@ def split(
                   AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
                   AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
                   AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
-                GROUP BY layer1.rowid {{layer1_columns_prefix_str}}
                 UNION ALL
                 SELECT CASE WHEN layer2_unioned.geom IS NULL THEN layer1.{{input1_geometrycolumn}}
                             ELSE ST_CollectionExtract(

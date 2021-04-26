@@ -79,6 +79,9 @@ class TestFiles:
     linestrings_rows_of_trees_gpkg = testdata_dir / 'linestrings_rows_of_trees.gpkg'
     linestrings_watercourses_gpkg = testdata_dir / 'linestrings_watercourses.gpkg'
 
+    polygons_overlappingcircles_all_gpkg = testdata_dir / 'polygons_overlappingcircles_all.gpkg'
+    polygons_overlappingcircles_one_gpkg = testdata_dir / 'polygons_overlappingcircles_one.gpkg'
+    polygons_overlappingcircles_twothree_gpkg = testdata_dir / 'polygons_overlappingcircles_two+three.gpkg'
     polygons_parcels_gpkg = testdata_dir / 'polygons_parcels-2020.gpkg'
     polygons_parcels_shp = testdata_dir / 'polygons_parcels-2020.shp'
     polygons_invalid_geometries_gpkg = testdata_dir / 'polygons_invalid_geometries.gpkg'
