@@ -906,6 +906,12 @@ def select_two_layers(
         verbose: bool = False,
         force: bool = False):
 
+    # If output geometry type is not specified... use the one of the first layer
+    if force_output_geometrytype is None:
+        layer1info = geofile.get_layerinfo(input1_path, input1_layer)
+        force_output_geometrytype = layer1info.geometrytype
+        logger.warning(f"force_output_geometrytype was not specified, so defaults to input1 layer geometrytype: {force_output_geometrytype}")
+
     # Go!
     return _two_layer_vector_operation(
             input1_path=input1_path,

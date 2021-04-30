@@ -9,7 +9,7 @@ import sys
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
-from geofileops.geofile import GeometryType
+from geofileops.geofile import GeometryType, PrimitiveType
 from geofileops.util import geofileops_sql
 from geofileops.util.general_util import MissingRuntimeDependencyError
 from tests import test_helper
@@ -405,6 +405,101 @@ def basetest_join_by_location(
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
+def test_select_two_layers_gpkg(tmpdir):
+    # Prepare input and output paths
+    input1_path = test_helper.TestFiles.polygons_parcels_gpkg
+    input2_path = test_helper.TestFiles.polygons_zones_gpkg
+    output_path = Path(tmpdir) / 'parcels-2020_select_zones.gpkg'
+
+    # Try both with and without gdal_bin set
+    basetest_select_two_layers(input1_path, input2_path, output_path, gdal_installation='gdal_default')
+    basetest_select_two_layers(input1_path, input2_path, output_path, gdal_installation='gdal_bin')
+    
+def test_select_two_layers_shp(tmpdir):
+    # Prepare input and output paths
+    input1_path = test_helper.TestFiles.polygons_parcels_shp
+    input2_path = test_helper.TestFiles.polygons_zones_gpkg
+    output_path = Path(tmpdir) / 'parcels-2020_select_zones.gpkg'
+    
+    # Try both with and without gdal_bin set
+    basetest_select_two_layers(input1_path, input2_path, output_path, gdal_installation='gdal_default')
+    basetest_select_two_layers(input1_path, input2_path, output_path, gdal_installation='gdal_bin')
+    
+def basetest_select_two_layers(
+        input1_path: Path, 
+        input2_path: Path, 
+        output_basepath: Path, 
+        gdal_installation: str):
+
+    # Prepare query to execute. At the moment this is just the query for the 
+    # intersect() operation.
+    input1_layer_info = geofile.get_layerinfo(input1_path)
+    input2_layer_info = geofile.get_layerinfo(input2_path)
+    primitivetype_to_extract = PrimitiveType(min(
+            input1_layer_info.geometrytype.to_primitivetype.value, 
+            input2_layer_info.geometrytype.to_primitivetype.value))
+    sql_stmt = f'''
+            SELECT sub.geom
+                {{layer1_columns_from_subselect_str}}
+                {{layer2_columns_from_subselect_str}} 
+            FROM
+                ( SELECT ST_CollectionExtract(
+                        ST_Intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}), 
+                        {primitivetype_to_extract.value}) as geom
+                        {{layer1_columns_prefix_alias_str}}
+                        {{layer2_columns_prefix_alias_str}}
+                    FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
+                    JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                    JOIN {{input2_databasename}}."{{input2_tmp_layer}}" layer2
+                    JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                WHERE 1=1
+                    {{batch_filter}}
+                    AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
+                    AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
+                    AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
+                    AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
+                ) sub
+            WHERE sub.geom IS NOT NULL
+            '''
+
+    output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}{output_basepath.suffix}"
+    with test_helper.GdalBin(gdal_installation):
+        ok_expected = test_helper.check_runtime_dependencies_ok('twolayer', gdal_installation)
+        try:
+            geofileops_sql.select_two_layers(
+                    input1_path=input1_path,
+                    input2_path=input2_path,
+                    output_path=output_path,
+                    sql_stmt=sql_stmt,
+                    verbose=True)
+            test_ok = True
+        except MissingRuntimeDependencyError:
+            test_ok = False
+    assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
+
+    # If it is expected not to be OK, don't do other checks
+    if ok_expected is False:
+        return
+
+    # Now check if the tmp file is correctly created
+    assert output_path.exists() == True
+    layerinfo_input1 = geofile.get_layerinfo(input1_path)
+    layerinfo_input2 = geofile.get_layerinfo(input2_path)
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_output.featurecount == 28
+    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_output.columns)
+
+    # Check geometry type
+    if output_path.suffix.lower() == '.shp':
+        # For shapefiles the type stays POLYGON anyway 
+        assert layerinfo_output.geometrytype == GeometryType.POLYGON 
+    elif output_path.suffix.lower() == '.gpkg':
+        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
+
+    # Now check the contents of the result file
+    output_gdf = geofile.read_file(output_path)
+    assert output_gdf['geometry'][0] is not None
+
 def test_split_gpkg(tmpdir):
     # Prepare input and output paths
     input1_path = test_helper.TestFiles.polygons_parcels_gpkg
@@ -412,8 +507,8 @@ def test_split_gpkg(tmpdir):
     output_path = Path(tmpdir) / 'parcels-2020_split_zones.gpkg'
 
     # Try both with and without gdal_bin set
-    basetest_split(input1_path, input2_path, output_path, gdal_installation='gdal_default')
-    basetest_split(input1_path, input2_path, output_path, gdal_installation='gdal_bin')
+    basetest_split_layers(input1_path, input2_path, output_path, gdal_installation='gdal_default')
+    basetest_split_layers(input1_path, input2_path, output_path, gdal_installation='gdal_bin')
     
 def test_split_shp(tmpdir):
     # Prepare input and output paths
@@ -422,10 +517,10 @@ def test_split_shp(tmpdir):
     output_path = Path(tmpdir) / 'parcels-2020_split_zones.gpkg'
     
     # Try both with and without gdal_bin set
-    basetest_split(input1_path, input2_path, output_path, gdal_installation='gdal_default')
-    basetest_split(input1_path, input2_path, output_path, gdal_installation='gdal_bin')
+    basetest_split_layers(input1_path, input2_path, output_path, gdal_installation='gdal_default')
+    basetest_split_layers(input1_path, input2_path, output_path, gdal_installation='gdal_bin')
     
-def basetest_split(
+def basetest_split_layers(
         input1_path: Path, 
         input2_path: Path, 
         output_basepath: Path, 
@@ -603,6 +698,7 @@ if __name__ == '__main__':
     #test_intersect_gpkg(tmpdir)
     #test_export_by_distance_shp(tmpdir)
     #test_join_by_location_gpkg(tmpdir)
+    test_select_two_layers_gpkg(tmpdir)
     #test_split_gpkg(tmpdir)
-    test_union_gpkg(tmpdir)
+    #test_union_gpkg(tmpdir)
     

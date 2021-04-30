@@ -755,6 +755,7 @@ def select_two_layers(
         input2_columns_prefix: str = 'l2_',
         output_layer: str = None,
         explodecollections: bool = False,
+        force_output_geometrytype: GeometryType = None,
         nb_parallel: int = 1,
         verbose: bool = False,
         force: bool = False):
@@ -802,6 +803,9 @@ def select_two_layers(
             file only contains one layer.
         explodecollections (bool, optional): True to convert all multi-geometries to 
             singular ones after the dissolve. Defaults to False.
+        force_output_geometrytype (GeometryType, optional): The output geometry 
+            type to force. Defaults to None, and then the geometry type of the 
+            input1 layer is used.
         nb_parallel (int, optional): the number of parallel processes to use. 
             If not specified, 1 parallel process will be used.
         verbose (bool, optional): write more info to the output. 
@@ -823,6 +827,7 @@ def select_two_layers(
             input2_columns_prefix=input2_columns_prefix,
             output_layer=output_layer,
             explodecollections=explodecollections,
+            force_output_geometrytype=force_output_geometrytype,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
