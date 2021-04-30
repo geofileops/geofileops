@@ -293,6 +293,36 @@ def execute_sql(
             sql_dialect=sql_dialect, 
             readonly=False)
 
+def create_spatial_index(
+        path: Union[str, 'os.PathLike[Any]'],
+        layer: str = None):
+    """
+    Create a spatial index on the layer specified.
+
+    Args:
+        path (PathLike): The file path.
+        layer (str, optional): The layer. If not specified, and there is only 
+            one layer in the file, this layer is used. Otherwise exception.
+    """
+    # Init
+    path_p = Path(path)
+    layerinfo = get_layerinfo(path_p, layer)
+
+    # Now really add index
+    datasource = None
+    try:
+        datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
+        driver = get_driver(path_p)    
+        if driver == 'GPKG':
+            datasource.ExecuteSQL(
+                    f"SELECT CreateSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",                
+                    dialect='SQLITE') 
+        else:
+            datasource.ExecuteSQL(f'CREATE SPATIAL INDEX ON "{layerinfo.name}"')
+    finally:
+        if datasource is not None:
+            del datasource
+
 def has_spatial_index(
         path: Union[str, 'os.PathLike[Any]'],
         layer: str = None,
@@ -337,36 +367,6 @@ def has_spatial_index(
         return index_path.exists()
     else:
         raise Exception(f"has_spatial_index not supported for {path_p}")
-
-def create_spatial_index(
-        path: Union[str, 'os.PathLike[Any]'],
-        layer: str = None):
-    """
-    Create a spatial index on the layer specified.
-
-    Args:
-        path (PathLike): The file path.
-        layer (str, optional): The layer. If not specified, and there is only 
-            one layer in the file, this layer is used. Otherwise exception.
-    """
-    # Init
-    path_p = Path(path)
-    layerinfo = get_layerinfo(path_p, layer)
-
-    # Now really add index
-    datasource = None
-    try:
-        datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
-        driver = get_driver(path_p)    
-        if driver == 'GPKG':
-            datasource.ExecuteSQL(
-                    f"SELECT CreateSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",                
-                    dialect='SQLITE') 
-        else:
-            datasource.ExecuteSQL(f'CREATE SPATIAL INDEX ON "{layerinfo.name}"')
-    finally:
-        if datasource is not None:
-            del datasource
 
 def remove_spatial_index(
         path: Union[str, 'os.PathLike[Any]'],
@@ -551,7 +551,8 @@ def read_file(
         layer: str = None,
         columns: List[str] = None,
         bbox = None,
-        rows = None) -> gpd.GeoDataFrame:
+        rows = None,
+        ignore_geometry: bool = False) -> gpd.GeoDataFrame:
     """
     Reads a file to a geopandas GeoDataframe. 
     
@@ -567,8 +568,9 @@ def read_file(
             Defaults to None, then all rows are read.
         rows ([type], optional): Read only the rows specified. 
             Defaults to None, then all rows are read.
-        ignore_geometry (bool, optional): True not to read/return the geomatry. 
-            Defaults to False.
+        ignore_geometry (bool, optional): True not to read/return the geometry. 
+            Is retained for backwards compatibility, but it is recommended to 
+            use read_file_nogeom for improved type checking. Defaults to False.
 
     Raises:
         Exception: [description]
@@ -583,8 +585,10 @@ def read_file(
             columns=columns,
             bbox=bbox,
             rows=rows,
-            ignore_geometry=False)
-    assert isinstance(result_gdf, gpd.GeoDataFrame)
+            ignore_geometry=ignore_geometry)
+
+    # No assert to keep backwards compatibility
+    #assert isinstance(result_gdf, gpd.GeoDataFrame)
     return result_gdf
 
 def read_file_nogeom(
