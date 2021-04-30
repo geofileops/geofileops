@@ -267,6 +267,32 @@ def get_default_layer(path: Union[str, 'os.PathLike[Any]']) -> str:
     """
     return Path(path).stem
 
+def execute_sql(
+        path: Union[str, 'os.PathLike[Any]'],
+        sql_stmt: str,
+        sql_dialect: str = None):
+    """
+    Execute a sql statement (DML or DDL) on the file. Is equivalent to running 
+    ogrinfo on a file with the -sql parameter. 
+    More info here: https://gdal.org/programs/ogrinfo.html 
+
+    To run SELECT statements on a file, use read_file_sql().
+    
+    Args:
+        path (PathLike): The path to the file.
+        sql_stmt (str): The sql statement to execute.
+        sql_dialect (str): The sql dialect to use: 
+            * None: use the native SQL dialect of the geofile.
+            * 'OGRSQL': force the use of the OGR SQL dialect.
+            * 'SQLITE': force the use of the SQLITE dialect.
+            Defaults to None.
+    """
+    ogr_util.vector_info(
+            path=Path(path),
+            sql_stmt=sql_stmt, 
+            sql_dialect=sql_dialect, 
+            readonly=False)
+
 def has_spatial_index(
         path: Union[str, 'os.PathLike[Any]'],
         layer: str = None,

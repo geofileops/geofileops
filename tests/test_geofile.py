@@ -291,6 +291,19 @@ def test_rename_layer(tmpdir):
     except Exception as ex:
         assert 'rename_layer is not possible' in str(ex) 
 
+def test_execute_sql(tmpdir):
+    # First copy test file to tmpdir
+    src = test_helper.TestFiles.polygons_parcels_gpkg
+    tmppath = Path(tmpdir) / 'polygons_parcels.gpkg'
+    geofile.copy(src, tmppath)
+
+    ### Test using execute_sql for creating/dropping indexes ###
+    # Create index
+    geofile.execute_sql(path=tmppath, sql_stmt='CREATE INDEX idx_parcels_oidn ON "parcels"("oidn")')
+
+    # Drop index
+    geofile.execute_sql(path=tmppath, sql_stmt='DROP INDEX idx_parcels_oidn')
+
 def test_spatial_index_gpkg(tmpdir):
     # First copy test file to tmpdir
     src = test_helper.TestFiles.polygons_parcels_gpkg
@@ -299,19 +312,19 @@ def test_spatial_index_gpkg(tmpdir):
 
     # Check if spatial index present
     has_spatial_index = geofile.has_spatial_index(
-        path=tmppath, layer='parcels')
+            path=tmppath, layer='parcels')
     assert has_spatial_index is True
 
     # Remove spatial index
     geofile.remove_spatial_index(path=tmppath, layer='parcels')
     has_spatial_index = geofile.has_spatial_index(
-        path=tmppath, layer='parcels')
+            path=tmppath, layer='parcels')
     assert has_spatial_index is False
 
     # Create spatial index
     geofile.create_spatial_index(path=tmppath, layer='parcels')
     has_spatial_index = geofile.has_spatial_index(
-        path=tmppath, layer='parcels')
+            path=tmppath, layer='parcels')
     assert has_spatial_index is True
 
 def test_spatial_index_shp(tmpdir):
@@ -546,10 +559,11 @@ if __name__ == '__main__':
     #test_convert(tmpdir)
     #test_convert_force_output_geometrytype(tmpdir)
     #test_get_layerinfo()
-    test_get_only_layer(tmpdir)
+    #test_get_only_layer(tmpdir)
     #test_rename_layer(tmpdir)
     #test_listlayers()
     #test_add_column(tmpdir)
+    test_execute_sql(tmpdir)
     #test_read_file()
     #test_to_file_gpkg(tmpdir)
     #test_to_file_shp(tmpdir)
