@@ -439,27 +439,25 @@ def basetest_select_two_layers(
             input1_layer_info.geometrytype.to_primitivetype.value, 
             input2_layer_info.geometrytype.to_primitivetype.value))
     sql_stmt = f'''
-            SELECT sub.geom
-                {{layer1_columns_from_subselect_str}}
-                {{layer2_columns_from_subselect_str}} 
-            FROM
-                ( SELECT ST_CollectionExtract(
-                        ST_Intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}), 
-                        {primitivetype_to_extract.value}) as geom
-                        {{layer1_columns_prefix_alias_str}}
-                        {{layer2_columns_prefix_alias_str}}
-                    FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
-                    JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                    JOIN {{input2_databasename}}."{{input2_tmp_layer}}" layer2
-                    JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
-                WHERE 1=1
-                    {{batch_filter}}
-                    AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
-                    AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
-                    AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
-                    AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
-                ) sub
-            WHERE sub.geom IS NOT NULL
+            SELECT ST_CollectionExtract(
+                    ST_Intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}), 
+                    {primitivetype_to_extract.value}) as geom
+                    {{layer1_columns_prefix_alias_str}}
+                    {{layer2_columns_prefix_alias_str}}
+                    ,CASE 
+                        WHEN layer2.naam = 'zone1' THEN 'in_zone1'
+                        ELSE 'niet_in_zone1'
+                        END AS category
+                FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
+                JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                JOIN {{input2_databasename}}."{{input2_tmp_layer}}" layer2
+                JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+            WHERE 1=1
+                {{batch_filter}}
+                AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
+                AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
+                AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
+                AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
             '''
 
     output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}{output_basepath.suffix}"
@@ -487,7 +485,7 @@ def basetest_select_two_layers(
     layerinfo_input2 = geofile.get_layerinfo(input2_path)
     layerinfo_output = geofile.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 28
-    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_output.columns)
+    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns) + 1) == len(layerinfo_output.columns)
 
     # Check geometry type
     if output_path.suffix.lower() == '.shp':

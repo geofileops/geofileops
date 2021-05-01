@@ -3,6 +3,7 @@
 Module containing utilities regarding the usage of ogr functionalities.
 """
 
+import datetime
 import enum
 import logging
 import os
@@ -46,8 +47,9 @@ def create_table_as_sql(
         create_spatial_index: bool = True,
         profile: SqliteProfile = SqliteProfile.DEFAULT):
 
+    # Check input parameters
     if append is True or update is True:
-        raise Exception('Not implemented') 
+        raise Exception('Not implemented')
 
     # Use crs epsg from input1_layer, if it has one
     input1_layerinfo = geofile.get_layerinfo(input1_path, input1_layer)
@@ -65,7 +67,7 @@ def create_table_as_sql(
 
         # Connect to output database file (by convention) + init
         output_databasename = 'main'
-        with sqlite3.connect(output_path) as conn:
+        with sqlite3.connect(output_path, detect_types=sqlite3.PARSE_DECLTYPES) as conn:
             load_spatialite(conn)
             
             # Set number of cache pages (1 page = 4096 bytes)
@@ -117,30 +119,68 @@ def create_table_as_sql(
                     input1_databasename=input1_databasename,
                     input2_databasename=input2_databasename)
 
-            # Create temp table to get the date types
+            ### Determine columns/datatypes to create the table ###
+            # Create temp table to get the column names + general data types
             sql = f'CREATE TEMPORARY TABLE tmp AS \n{sql_stmt}\nLIMIT 0;'
             conn.execute(sql)
-
-            cur = conn.execute('PRAGMA TABLE_INFO(tmp)')
-            columns = cur.fetchall()
+            sql = 'PRAGMA TABLE_INFO(tmp)'
+            cur = conn.execute(sql)
+            tmpcolumns = cur.fetchall()
+                        
+            # Fetch one row to try to get more detailed data types
+            sql = sql_stmt
+            tmpdata = conn.execute(sql).fetchone()
             
+            # Loop over all columns to determine the data type
+            column_types = {}
+            for column_index, column in enumerate(tmpcolumns):
+                columnname = column[1]
+                columntype = column[2]
+
+                if columnname == 'geom':
+                    # PRAGMA TABLE_INFO gives None as column type for a 
+                    # geometry column. So if output_geometrytype not specified, 
+                    # Use ST_GeometryType to get the type
+                    # based on the data + apply to_multitype to be sure
+                    if output_geometrytype is None:
+                        sql = f'SELECT ST_GeometryType({columnname}) FROM tmp;'
+                        column_geometrytypename = conn.execute(sql).fetchall()[0][0]
+                        output_geometrytype = GeometryType[column_geometrytypename].to_multitype
+                    column_types[columnname] = output_geometrytype.name
+                else:
+                    # If PRAGMA TABLE_INFO doesn't specify the datatype, 
+                    # determine based on data
+                    if columntype is None or columntype == '':
+                        sql = f'SELECT typeof({columnname}) FROM tmp;'
+                        column_types[columnname] = conn.execute(sql).fetchall()[0][0]
+                    elif columntype == 'NUM':
+                        # PRAGMA TABLE_INFO sometimes returns 'NUM', but 
+                        # apparently this cannot be used in "CREATE TABLE" 
+                        if isinstance(tmpdata[column_index], datetime.date): 
+                            column_types[columnname] = 'DATE'
+                        elif isinstance(tmpdata[column_index], datetime.datetime): 
+                            column_types[columnname] = 'DATETIME'
+                        else:
+                            column_types[columnname] = 'DECIMAL'
+                    else:
+                        column_types[columnname] = columntype
+
+            ### Now we can create the table ###
             # Create output table using the gpkgAddGeometryColumn() function
             # Problem: the spatialite function gpkgAddGeometryColumn() doesn't support 
             # layer names with special characters (eg. '-')... 
             # Solution: mimic the behaviour of gpkgAddGeometryColumn manually.
             # Create table without geom column
-            '''
-            columns_for_create = [f'"{column[1]}" {column[2]}\n' for column in columns if column[1] != 'geom']
+            ''' 
+            columns_for_create = [f"{columnname} {column_types[columnname]}\n" for columnname in column_types if columnname != 'geom']
             sql = f'CREATE TABLE {output_databasename}."{output_layer}" ({", ".join(columns_for_create)})'
             conn.execute(sql)
             # Add geom column with gpkgAddGeometryColumn()
+            # Remark: output_geometrytype.name should be detemined from data if needed, see above...
             sql = f"SELECT gpkgAddGeometryColumn('{output_layer}', 'geom', '{output_geometrytype.name}', 0, 0, {to_string_for_sql(crs_epsg)});"
             conn.execute(sql)
             '''
-            # Create table
-            columns_for_create = [
-                    f'"{column[1]}" {output_geometrytype.name}\n' if column[1] == 'geom' else f'"{column[1]}" {column[2]}\n' 
-                    for column in columns]
+            columns_for_create = [f"{columnname} {column_types[columnname]}\n" for columnname in column_types]
             sql = f'CREATE TABLE {output_databasename}."{output_layer}" ({", ".join(columns_for_create)})'
             conn.execute(sql)
             # Add metadata (~ mimic behaviour of gpkgAddGeometryColumn())
@@ -162,7 +202,7 @@ def create_table_as_sql(
             cur.execute(sql)
     
             # Insert data using the sql statement specified
-            columns_for_insert = [f'"{column[1]}"' for column in columns]
+            columns_for_insert = [f'"{column[1]}"' for column in tmpcolumns]
             sql = f'INSERT INTO {output_databasename}."{output_layer}" ({", ".join(columns_for_insert)})\n{sql_stmt}' 
             conn.execute(sql)           
                     
