@@ -543,7 +543,7 @@ def dissolve(
                     # If a grid is specified already, add extra columns/rows instead of 
                     # creating new one...
                     tiles_gdf = grid_util.split_tiles(
-                        result_tiles_gdf, nb_batches_recommended)
+                            result_tiles_gdf, nb_batches_recommended)
                 geofile.to_file(tiles_gdf, tempdir / f"{output_path.stem}_{pass_id}_tiles.gpkg")
 
                 # If the number of tiles ends up as 1, it is the last pass anyway...
