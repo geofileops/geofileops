@@ -3,12 +3,11 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - geopandas=0.8.1
-  - psutil
-  - pytest
-  - pylint
   - python=3.8
   - pip
+  - geopandas=0.9
+  - pygeos
+  - psutil
   - pydata-sphinx-theme
   - pip:
     - sphinx-automodapi==0.13
