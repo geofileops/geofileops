@@ -209,7 +209,10 @@ def get_layerinfo(
                 # find a corresponding CRS that has one...
                 crs_epsg = crs.to_epsg()
                 if crs_epsg is None:
-                    if crs.name == 'Belge 1972 / Belgian Lambert 72':
+                    if crs.name in [
+                            'Belge 1972 / Belgian Lambert 72',
+                            'Belge_1972_Belgian_Lambert_72',
+                            'Belge_Lambert_1972']:
                         crs = pyproj.CRS.from_epsg(31370)
 
             return LayerInfo(
