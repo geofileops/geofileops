@@ -306,6 +306,14 @@ def vector_translate_exe(
     args.append(str(output_path))
     args.append(str(input_path))
     if input_layers is not None:
+    # Treat input_layers variable
+    # Remarks: 
+    #   * For shapefiles, having input_layers not None gives issues
+    #   * If a sql statement is passed, the input layers are not relevant,
+    #     and ogr2ogr will give a warning, so clear it.
+    if(input_layers is not None 
+       and input_path.suffix.lower() != '.shp'
+       and sql_stmt is None):
         if isinstance(input_layers, str):
             args.append(input_layers)
         else:
@@ -450,10 +458,15 @@ def vector_translate_py(
     # try again later.
     args = []
 
-    # Apparently, for shapefiles, having input_layers not None gives issues...
-    if input_path.suffix == '.shp':
+    # Cleanup the input_layers variable.
+    if input_path.suffix.lower() == '.shp':
+        # For shapefiles, having input_layers not None gives issues
         input_layers = None
-
+    elif sql_stmt is not None:
+        # If a sql statement is passed, the input layers are not relevant,
+        # and ogr2ogr will give a warning, so clear it.
+        input_layers = None
+     
     # Sql'ing, Filtering, clipping  
     if spatial_filter is not None:
         args.extend(['-spat', str(spatial_filter[0]), str(spatial_filter[1]), 
