@@ -907,6 +907,11 @@ def join_nearest(
         force: bool = False):
 
     # Init some things...
+    # Because there is preprocessing done in this function, check output path
+    # here already
+    if output_path.exists() and force is False:
+            logger.info(f"Stop join_nearest: output exists already {output_path}")
+            return
     if input1_layer is None:
         input1_layer = geofile.get_only_layer(input1_path)
     if input2_layer is None:
