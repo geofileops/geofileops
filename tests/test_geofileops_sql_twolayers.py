@@ -275,7 +275,7 @@ def basetest_intersect(
                     input1_path=input1_path,
                     input2_path=input2_path,
                     output_path=output_path,
-                    verbose=True)
+                    nb_parallel=2)
             test_ok = True
         except MissingRuntimeDependencyError:
             test_ok = False
@@ -759,11 +759,11 @@ if __name__ == '__main__':
     # Two layer operations
     #test_erase_gpkg(tmpdir)
     #test_erase_shp(tmpdir)
-    test_intersect_gpkg(tmpdir)
+    #test_intersect_gpkg(tmpdir)
     #test_export_by_distance_shp(tmpdir)
     #test_export_by_location_gpkg(tmpdir)
     #test_join_by_location_gpkg(tmpdir)
     #test_select_two_layers_gpkg(tmpdir)
     #test_split_gpkg(tmpdir)
-    #test_union_gpkg(tmpdir)
+    test_union_gpkg(tmpdir)
     
