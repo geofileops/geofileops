@@ -247,7 +247,7 @@ def test_intersect_gpkg(tmpdir):
     output_path = Path(tmpdir) / 'parcels-2020_intersect_zones.gpkg'
 
     # Try both with and without gdal_bin set
-    basetest_intersect(input1_path, input2_path, output_path, gdal_installation='gdal_default')
+    #basetest_intersect(input1_path, input2_path, output_path, gdal_installation='gdal_default')
     basetest_intersect(input1_path, input2_path, output_path, gdal_installation='gdal_bin')
     
 def test_intersect_shp(tmpdir):
@@ -400,6 +400,72 @@ def basetest_join_by_location(
         assert layerinfo_output.geometrytype == GeometryType.POLYGON 
     elif output_path.suffix.lower() == '.gpkg':
         assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
+
+    # Now check the contents of the result file
+    output_gdf = geofile.read_file(output_path)
+    assert output_gdf['geometry'][0] is not None
+
+def test_join_nearest_gpkg(tmpdir):
+    # Prepare input and output paths
+    input1_path = test_helper.TestFiles.polygons_parcels_gpkg
+    input2_path = test_helper.TestFiles.polygons_zones_gpkg
+    output_path = Path(tmpdir) / 'parcels-2020_nearest_zones.gpkg'
+    
+    # Try both with and without gdal_bin set
+    basetest_join_nearest(input1_path, input2_path, output_path, gdal_installation='gdal_default')
+    basetest_join_nearest(input1_path, input2_path, output_path, gdal_installation='gdal_bin')
+    
+def test_join_nearest_shp(tmpdir):
+    # Prepare input and output paths
+    input1_path = test_helper.TestFiles.polygons_parcels_shp
+    input2_path = test_helper.TestFiles.polygons_zones_gpkg
+    output_path = Path(tmpdir) / 'parcels-2020_nearest_zones.gpkg'
+    
+    # Try both with and without gdal_bin set
+    basetest_join_nearest(input1_path, input2_path, output_path, gdal_installation='gdal_default')
+    basetest_join_nearest(input1_path, input2_path, output_path, gdal_installation='gdal_bin')
+    
+def basetest_join_nearest(
+        input1_path: Path, 
+        input2_path: Path,
+        output_basepath: Path, 
+        gdal_installation: str):
+        
+    ### Test 1: inner join, intersect
+    nb_nearest = 2
+    output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}_test1_{output_basepath.suffix}"
+    with test_helper.GdalBin(gdal_installation):
+        ok_expected = test_helper.check_runtime_dependencies_ok('twolayer', gdal_installation)
+        try:
+            geofileops_sql.join_nearest(
+                    input1_path=input1_path,
+                    input2_path=input2_path,
+                    output_path=output_path,
+                    nb_nearest=nb_nearest,
+                    force=True)
+            test_ok = True
+        except MissingRuntimeDependencyError:
+            test_ok = False
+    assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
+
+    # If it is expected not to be OK, don't do other checks
+    if ok_expected is False:
+        return
+
+    # Now check if the output file is correctly created
+    assert output_path.exists() == True
+    layerinfo_input1 = geofile.get_layerinfo(input1_path)
+    layerinfo_input2 = geofile.get_layerinfo(input2_path)
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_output.featurecount == nb_nearest * layerinfo_input1.featurecount
+    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns) + 2) == len(layerinfo_output.columns)
+
+    # Check geometry type
+    if output_path.suffix.lower() == '.shp':
+        # For shapefiles the type stays POLYGON anyway 
+        assert layerinfo_output.geometrytype == GeometryType.POLYGON 
+    elif output_path.suffix.lower() == '.gpkg':
+        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
@@ -693,9 +759,9 @@ if __name__ == '__main__':
     # Two layer operations
     #test_erase_gpkg(tmpdir)
     #test_erase_shp(tmpdir)
-    #test_intersect_gpkg(tmpdir)
+    test_intersect_gpkg(tmpdir)
     #test_export_by_distance_shp(tmpdir)
-    test_export_by_location_gpkg(tmpdir)
+    #test_export_by_location_gpkg(tmpdir)
     #test_join_by_location_gpkg(tmpdir)
     #test_select_two_layers_gpkg(tmpdir)
     #test_split_gpkg(tmpdir)

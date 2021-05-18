@@ -24,6 +24,7 @@ from geofileops.util.geometry_util import GeometryType, PrimitiveType
 from geofileops.util import geoseries_util
 from geofileops.util import io_util
 from geofileops.util import ogr_util
+from geofileops.util.geofiletype import GeofileType
 
 #-------------------------------------------------------------
 # First define/init some general variables/constants
@@ -32,7 +33,6 @@ from geofileops.util import ogr_util
 logger = logging.getLogger(__name__)
 #logger.setLevel(logging.DEBUG)
 
-shapefile_suffixes = ['.shp', '.dbf', '.shx', '.prj', '.qix', '.sbn', '.sbx']
 gdal.UseExceptions()        # Enable exceptions
 
 #-------------------------------------------------------------
@@ -147,19 +147,20 @@ def get_layerinfo(
         LayerInfo: the information about the layer
     """        
     ##### Init #####
+    path_p = Path(path)
     datasource = None
     try:
-        datasource = gdal.OpenEx(str(path))
+        datasource = gdal.OpenEx(str(path_p))
         if layer is not None:
             datasource_layer = datasource.GetLayer(layer)
         elif datasource.GetLayerCount() == 1:
             datasource_layer = datasource.GetLayerByIndex(0)
         else:
-            raise Exception(f"No layer specified, and file has <> 1 layer: {path}")
+            raise Exception(f"No layer specified, and file has <> 1 layer: {path_p}")
 
         # If the layer doesn't exist, return 
         if datasource_layer is None:
-            raise Exception(f"Layer {layer} not found in file: {path}")
+            raise Exception(f"Layer {layer} not found in file: {path_p}")
 
         # Get column info
         columns = []
@@ -173,7 +174,7 @@ def get_layerinfo(
         
         # For shape files, the difference between the 'MULTI' variant and the 
         # single one doesn't exists... so always report MULTI variant by convention.
-        if Path(path).suffix.lower() == '.shp':
+        if GeofileType(path_p) == GeofileType.ESRIShapefile:
             if(geometrytypename.startswith('POLYGON')
             or geometrytypename.startswith('LINESTRING')
             or geometrytypename.startswith('POINT')):
@@ -315,13 +316,19 @@ def create_spatial_index(
     datasource = None
     try:
         datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
-        driver = get_driver(path_p)    
-        if driver == 'GPKG':
+        geofiletype = GeofileType(path_p)    
+        if geofiletype == GeofileType.GPKG:
+            datasource.ExecuteSQL(
+                    f"SELECT CreateSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",                
+                    dialect='SQLITE') 
+        elif geofiletype == GeofileType.SQLite:
             datasource.ExecuteSQL(
                     f"SELECT CreateSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",                
                     dialect='SQLITE') 
         else:
             datasource.ExecuteSQL(f'CREATE SPATIAL INDEX ON "{layerinfo.name}"')
+    except Exception as ex:
+        raise Exception(f"Error adding spatial index to {path_p}.{layerinfo.name}") from ex
     finally:
         if datasource is not None:
             del datasource
@@ -349,8 +356,8 @@ def has_spatial_index(
     path_p = Path(path)
 
     # Now check the index
-    driver = get_driver(path_p)    
-    if driver == 'GPKG':
+    geofiletype = GeofileType(path_p)    
+    if geofiletype.is_spatialite_based:
         layerinfo = get_layerinfo(path_p, layer)
 
         datasource = None
@@ -365,7 +372,7 @@ def has_spatial_index(
         finally:
             if datasource is not None:
                 del datasource
-    elif driver == 'ESRI Shapefile':
+    elif geofiletype == GeofileType.ESRIShapefile:
         index_path = path_p.parent / f"{path_p.stem}.qix" 
         return index_path.exists()
     else:
@@ -388,19 +395,19 @@ def remove_spatial_index(
 
     # Now really remove index
     datasource = None
+    geofiletype = GeofileType(path_p)  
     try:
-        suffix_lower = path_p.suffix.lower()  
-        if suffix_lower == '.gpkg':
+        if geofiletype.is_spatialite_based:
             datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
             datasource.ExecuteSQL(
                     f"SELECT DisableSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",
                     dialect='SQLITE') 
-        elif suffix_lower == '.shp':
+        elif geofiletype == GeofileType.ESRIShapefile:
             # DROP SPATIAL INDEX ON ... command gives an error, so just remove .qix
             index_path = path_p.parent / f"{path_p.stem}.qix" 
             index_path.unlink()
         else:
-            raise Exception(f"remove_spatial_index is not supported for {suffix_lower} file")
+            raise Exception(f"remove_spatial_index is not supported for {path_p.suffix} file")
             #datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
             #datasource.ExecuteSQL(f'DROP SPATIAL INDEX ON "{layerinfo.name}"')
     finally:
@@ -428,16 +435,16 @@ def rename_layer(
 
     # Now really rename
     datasource = None
+    geofiletype = GeofileType(path_p)  
     try:
-        suffix_lower = path_p.suffix.lower()  
-        if suffix_lower == '.gpkg':
+        if geofiletype.is_spatialite_based:
             datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
             sql_stmt = f'ALTER TABLE "{layer}" RENAME TO "{new_layer}"'
             datasource.ExecuteSQL(sql_stmt)
-        elif suffix_lower == '.shp':
-            raise Exception(f"rename_layer is not possible for {suffix_lower} file")
+        elif geofiletype == GeofileType.ESRIShapefile:
+            raise Exception(f"rename_layer is not possible for {geofiletype} file")
         else:
-            raise Exception(f"rename_layer is not implemented for {suffix_lower} file")
+            raise Exception(f"rename_layer is not implemented for {path_p.suffix} file")
     finally:
         if datasource is not None:
             del datasource
@@ -669,26 +676,23 @@ def _read_file_base(
     """
     # Init
     path_p = Path(path)
-    ext_lower = path_p.suffix.lower()
+    if path_p.exists() is False:
+        raise Exception(f"File doesnt't exist: {path}")
+    geofiletype = GeofileType(path_p)
 
-    # For file multilayer types, if no layer name specified, check if there is only one layer in the file.
-    if(ext_lower in ['.gpkg'] 
-       and layer is None):
-        listlayers = fiona.listlayers(str(path_p))
-        if len(listlayers) == 1:
-            layer = listlayers[0]
-        else:
-            raise Exception(f"File contains {len(listlayers)} layers: {listlayers}, but layer is not specified: {path}")
+    # If no layer name specified, check if there is only one layer in the file.
+    if layer is None:
+        layer = get_only_layer(path_p)
 
     # Depending on the extension... different implementations
-    if ext_lower == '.shp':
+    if geofiletype == GeofileType.ESRIShapefile:
         result_gdf = gpd.read_file(str(path_p), bbox=bbox, rows=rows, ignore_geometry=ignore_geometry)
-    elif ext_lower == '.geojson':
+    elif geofiletype == GeofileType.GeoJSON:
         result_gdf = gpd.read_file(str(path_p), bbox=bbox, rows=rows, ignore_geometry=ignore_geometry)
-    elif ext_lower == '.gpkg':
+    elif geofiletype.is_spatialite_based:
         result_gdf = gpd.read_file(str(path_p), layer=layer, bbox=bbox, rows=rows, ignore_geometry=ignore_geometry)
     else:
-        raise Exception(f"Not implemented for extension {ext_lower}")
+        raise Exception(f"Not implemented for geofiletype {geofiletype}")
 
     # If columns to read are specified... filter non-geometry columns 
     # case-insensitive 
@@ -807,22 +811,24 @@ def to_file(
         else:
             mode = 'w'
 
-        ext_lower = path.suffix.lower()
-        if ext_lower == '.shp':
+        geofiletype = GeofileType(path)
+        if geofiletype == GeofileType.ESRIShapefile:
             if index is True:
                 gdf_to_write = gdf.reset_index(drop=True)
             else:
                 gdf_to_write = gdf
             gdf_to_write.to_file(str(path), mode=mode)
-        elif ext_lower == '.gpkg':
+        elif geofiletype == GeofileType.GPKG:
             # Try to harmonize the geometrytype to one (multi)type, as GPKG
             # doesn't like > 1 type in a layer
             gdf_to_write = gdf.copy()
             gdf_to_write.geometry = geoseries_util.harmonize_geometrytypes(
                     gdf.geometry, force_multitype=force_multitype)
-            gdf_to_write.to_file(str(path), layer=layer, driver="GPKG", mode=mode)
+            gdf_to_write.to_file(str(path), layer=layer, driver=geofiletype.ogrdriver, mode=mode)
+        elif geofiletype == GeofileType.SQLite:
+            gdf.to_file(str(path), layer=layer, driver=geofiletype.ogrdriver, mode=mode)
         else:
-            raise Exception(f"Not implemented for extension {ext_lower}")
+            raise Exception(f"Not implemented for geofiletype {geofiletype}")
 
     # If no append, just write to output path
     if append is False:
@@ -835,10 +841,10 @@ def to_file(
         # Remark: fiona pre-1.8.14 didn't support appending to geopackage. Once 
         # older versions becomes rare, dependency can be put to this version, and 
         # this code can be cleaned up...
-        driver = get_driver(path_p)
+        geofiletype = GeofileType(path_p)
         gdftemp_path = None
         gdftemp_lockpath = None
-        if 'a' not in fiona.supported_drivers[driver]:
+        if 'a' not in fiona.supported_drivers[geofiletype.ogrdriver]:
             # Get a unique temp file path. The file cannot be created yet, so 
             # only create a lock file to evade other processes using the same 
             # temp file name 
@@ -912,10 +918,11 @@ def is_geofile_ext(file_ext: str) -> bool:
     Returns:
         bool: True if it is a geofile.
     """
-    file_ext_lower = file_ext.lower()
-    if file_ext_lower in ('.shp', '.gpkg', '.geojson'):
+    try:
+        # If the driver can be determined, it is a (supported) geo file. 
+        _ = GeofileType(file_ext)
         return True
-    else:
+    except:
         return False
 
 def cmp(path1: Union[str, 'os.PathLike[Any]'], 
@@ -965,23 +972,25 @@ def copy(
     # Check input parameters
     src_p = Path(src)
     dst_p = Path(dst)
+    geofiletype = GeofileType(src_p)
 
-    # For a shapefile, multiple files need to be copied
-    if src_p.suffix.lower() == '.shp':
-        # If dest is a dir, just use move. Otherwise concat dest filepaths
+    # Copy the main file
+    shutil.copy(str(src_p), dst_p)
+
+    # For some file types, extra files need to be copied
+    # If dest is a dir, just use move. Otherwise concat dest filepaths
+    if geofiletype.suffixes_extrafiles is not None:
         if dst_p.is_dir():
-            for ext in shapefile_suffixes:
-                srcfile = src_p.parent / f"{src_p.stem}{ext}"
+            for suffix in geofiletype.suffixes_extrafiles:
+                srcfile = src_p.parent / f"{src_p.stem}{suffix}"
                 if srcfile.exists():
                     shutil.copy(str(srcfile), dst_p)
         else:
-            for ext in shapefile_suffixes:
-                srcfile = src_p.parent / f"{src_p.stem}{ext}"
-                dstfile = dst_p.parent / f"{dst_p.stem}{ext}"
+            for suffix in geofiletype.suffixes_extrafiles:
+                srcfile = src_p.parent / f"{src_p.stem}{suffix}"
+                dstfile = dst_p.parent / f"{dst_p.stem}{suffix}"
                 if srcfile.exists():
                     shutil.copy(str(srcfile), dstfile)                
-    else:
-        return shutil.copy(str(src_p), dst_p)
 
 def move(
         src: Union[str, 'os.PathLike[Any]'], 
@@ -997,23 +1006,25 @@ def move(
     # Check input parameters
     src_p = Path(src)
     dst_p = Path(dst)
+    geofiletype = GeofileType(src_p)
 
-    # For a shapefile, multiple files need to be copied
-    if src_p.suffix.lower() == '.shp':
-        # If dest is a dir, just use move. Otherwise concat dest filepaths
+    # Move the main file
+    shutil.move(str(src_p), dst_p, copy_function=io_util.copyfile)
+
+    # For some file types, extra files need to be moved
+    # If dest is a dir, just use move. Otherwise concat dest filepaths
+    if geofiletype.suffixes_extrafiles is not None:
         if dst_p.is_dir():
-            for ext in shapefile_suffixes:
-                srcfile = src_p.parent / f"{src_p.stem}{ext}"
+            for suffix in geofiletype.suffixes_extrafiles:
+                srcfile = src_p.parent / f"{src_p.stem}{suffix}"
                 if srcfile.exists():
                     shutil.move(str(srcfile), dst_p, copy_function=io_util.copyfile)
         else:
-            for ext in shapefile_suffixes:
-                srcfile = src_p.parent / f"{src_p.stem}{ext}"
-                dstfile = dst_p.parent / f"{dst_p.stem}{ext}"
+            for suffix in geofiletype.suffixes_extrafiles:
+                srcfile = src_p.parent / f"{src_p.stem}{suffix}"
+                dstfile = dst_p.parent / f"{dst_p.stem}{suffix}"
                 if srcfile.exists():
-                    shutil.move(str(srcfile), dstfile, copy_function=io_util.copyfile)                
-    else:
-        return shutil.move(str(src_p), dst_p, copy_function=io_util.copyfile)
+                    shutil.move(str(srcfile), dstfile, copy_function=io_util.copyfile)
 
 def remove(path: Union[str, 'os.PathLike[Any]']):
     """
@@ -1026,19 +1037,22 @@ def remove(path: Union[str, 'os.PathLike[Any]']):
     """
     # Check input parameters
     path_p = Path(path)
-
+    geofiletype = GeofileType(path_p)
+    
     # If there is a lock file, remove it
     lockfile_path = path_p.parent / f"{path_p.name}.lock"
     lockfile_path.unlink(missing_ok=True)
 
-    # For a shapefile, multiple files need to be removed
-    if path_p.suffix.lower() == '.shp':
-        for ext in shapefile_suffixes:
-            curr_path = path_p.parent / f"{path_p.stem}{ext}"
+    # Remove the main file
+    if path_p.exists():
+        path_p.unlink()
+
+    # For some file types, extra files need to be removed
+    if geofiletype.suffixes_extrafiles is not None:
+        for suffix in geofiletype.suffixes_extrafiles:
+            curr_path = path_p.parent / f"{path_p.stem}{suffix}"
             if curr_path.exists():
                 curr_path.unlink()
-    else:
-        path_p.unlink()
 
 def append_to(
         src: Union[str, 'os.PathLike[Any]'], 
@@ -1182,7 +1196,7 @@ def get_driver(path: Union[str, 'os.PathLike[Any]']) -> str:
     Returns:
         str: The OGR driver name.
     """
-    return get_driver_for_ext(Path(path).suffix)
+    return GeofileType(Path(path)).ogrdriver 
 
 def get_driver_for_ext(file_ext: str) -> str:
     """
@@ -1197,15 +1211,7 @@ def get_driver_for_ext(file_ext: str) -> str:
     Returns:
         str: The OGR driver name.
     """
-    file_ext_lower = file_ext.lower()
-    if file_ext_lower == '.shp':
-        return 'ESRI Shapefile'
-    elif file_ext_lower == '.geojson':
-        return 'GeoJSON'
-    elif file_ext_lower == '.gpkg':
-        return 'GPKG'
-    else:
-        raise Exception(f"Not implemented for extension {file_ext_lower}")        
+    return GeofileType(file_ext).ogrdriver      
 
 def to_multi_type(geometrytypename: str) -> str:
     """

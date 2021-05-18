@@ -8,18 +8,18 @@ Module containing utilities regarding the usage of ogr functionalities.
 #-------------------------------------
 from concurrent import futures
 from datetime import datetime
+from io import StringIO
 import logging
 import multiprocessing
 import os
 from pathlib import Path
 import pprint
+import re
 import subprocess
 import tempfile
 from threading import Lock
 import time
-from typing import Any, List, Optional, Tuple, Union
-from io import StringIO
-import re
+from typing import List, Optional, Tuple, Union
 
 import geopandas as gpd
 from osgeo import gdal
@@ -336,7 +336,12 @@ def vector_translate_exe(
     if transaction_size is not None:
         args.extend(['-gt', str(transaction_size)])
     
-    # Sqlite specific options
+    # Sqlite specific options:
+    output_filetype = geofile.GeofileType(output_path)
+    if output_filetype == geofile.GeofileType.SQLite:
+        # Use the spatialite type of sqlite
+        args.extend(['-dsco', 'SPATIALITE=YES'])
+
     '''
     # Try if the busy_timeout isn't giving problems rather than solving them...
     if sqlite_journal_mode is not None:
@@ -510,13 +515,17 @@ def vector_translate_py(
                 layerCreationOptions.extend(['SPATIAL_INDEX=YES'])
             else:
                 layerCreationOptions.extend(['SPATIAL_INDEX=NO'])
+    
     # Get output format from the filename
-    # TODO: better te remove if not needed
-    output_format = geofile.get_driver(output_path)
+    output_filetype = geofile.GeofileType(output_path)
 
     # Sqlite specific options
     datasetCreationOptions = []
-
+    if output_filetype == geofile.GeofileType.SQLite:
+        # Use the spatialite type of sqlite
+        #datasetCreationOptions.extend(['-dsco', 'SPATIALITE=YES'])
+        datasetCreationOptions.append('SPATIALITE=YES')
+      
     '''
     # Try if the busy_timeout isn't giving problems rather than solving them...
     if sqlite_journal_mode is not None:
@@ -537,7 +546,7 @@ def vector_translate_py(
 
     options = gdal.VectorTranslateOptions(
             options=args, 
-            format=output_format, 
+            format=output_filetype.ogrdriver, 
             accessMode=None, 
             srcSRS=None, 
             dstSRS=None, 
@@ -578,14 +587,14 @@ def vector_translate_py(
                 #SQLStatement=sql_stmt,
                 #SQLDialect=sql_dialect,
                 #layerName=output_layer
-                options=options
-                )
+                options=options)
         if result_ds is None:
             raise Exception("BOEM")
         else:
             if result_ds.GetLayerCount() == 0:
                 del result_ds
-                geofile.remove(output_path)
+                if output_path.exists():
+                    geofile.remove(output_path)
     except Exception as ex:
         message = f"Error executing {sql_stmt}"
         logger.exception(message)

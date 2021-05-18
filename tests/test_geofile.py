@@ -109,6 +109,37 @@ def test_copy(tmpdir):
     geofile.copy(src, dst)
     assert dst.exists() == True
 
+def test_driver_enum():
+    ### Test ESRIShapefile Driver ###
+    # Test getting a driver for a suffix 
+    geofiletype = geofile.GeofileType('.shp')
+    assert geofiletype == geofile.GeofileType.ESRIShapefile
+
+    # Test getting a driver for a Path
+    path = Path("/testje/path_naar_file.sHp") 
+    geofiletype = geofile.GeofileType(path)
+    assert geofiletype == geofile.GeofileType.ESRIShapefile
+
+    ### GPKG Driver ###
+    # Test getting a driver for a suffix 
+    geofiletype = geofile.GeofileType('.gpkg')
+    assert geofiletype == geofile.GeofileType.GPKG
+
+    # Test getting a driver for a Path
+    path = Path("/testje/path_naar_file.gPkG") 
+    geofiletype = geofile.GeofileType(path)
+    assert geofiletype == geofile.GeofileType.GPKG
+
+    ### SQLite Driver ###
+    # Test getting a driver for a suffix 
+    geofiletype = geofile.GeofileType('.sqlite')
+    assert geofiletype == geofile.GeofileType.SQLite
+
+    # Test getting a driver for a Path
+    path = Path("/testje/path_naar_file.sQlItE") 
+    geofiletype = geofile.GeofileType(path)
+    assert geofiletype == geofile.GeofileType.SQLite
+
 def test_get_crs():
     # Test shapefile
     srcpath = test_helper.TestFiles.polygons_parcels_shp
@@ -185,6 +216,8 @@ def test_get_only_layer(tmpdir):
 def test_is_geofile():
     assert geofile.is_geofile(test_helper.TestFiles.polygons_parcels_shp) == True
     assert geofile.is_geofile(test_helper.TestFiles.polygons_parcels_gpkg) == True
+
+    assert geofile.is_geofile("/test/testje.txt") == False
     
 def test_listlayers():
     layers = geofile.listlayers(test_helper.TestFiles.polygons_parcels_shp)
@@ -563,8 +596,9 @@ if __name__ == '__main__':
     #test_rename_layer(tmpdir)
     #test_listlayers()
     #test_add_column(tmpdir)
-    test_execute_sql(tmpdir)
+    #test_execute_sql(tmpdir)
     #test_read_file()
+    test_copy(tmpdir)
     #test_to_file_gpkg(tmpdir)
     #test_to_file_shp(tmpdir)
     #test_to_file_empty_gpkg(tmpdir)

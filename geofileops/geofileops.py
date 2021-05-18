@@ -742,6 +742,65 @@ def join_by_location(
             verbose=verbose,
             force=force)
 
+def join_nearest(
+        input1_path: Path,
+        input2_path: Path,
+        output_path: Path,
+        nb_nearest: int,
+        input1_layer: str = None,
+        input1_columns: List[str] = None,
+        input1_columns_prefix: str = 'l1_',
+        input2_layer: str = None,
+        input2_columns: List[str] = None,
+        input2_columns_prefix: str = 'l2_',
+        output_layer: str = None,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+    """
+    Joins features in input1 with the nb_nearest features that are closest to 
+    them in input2.
+    
+    Args:
+        input1_path (PathLike): the 1st input file
+        input2_path (PathLike): the 2nd input file
+        output_path (PathLike): the file to write the result to
+        nb_nearest (int): the number of nearest features from input 2 to join 
+            to input1. 
+        input1_layer (str, optional): input layer name. Optional if the  
+            file only contains one layer.
+        input1_columns (List[str], optional): columns to select. If no columns
+            specified, all columns are selected.
+        input2_layer (str, optional): input layer name. Optional if the  
+            file only contains one layer.
+        input2_columns (List[str], optional): columns to select. If no columns
+            specified, all columns are selected.
+        output_layer (str, optional): output layer name. Optional if the  
+            file only contains one layer.
+        nb_parallel (int, optional): the number of parallel processes to use. 
+            If not specified, all available processors will be used.
+        verbose (bool, optional): write more info to the output. 
+            Defaults to False.
+        force (bool, optional): overwrite existing output file(s). 
+            Defaults to False.
+    """
+    logger.info(f"Start join_nearest: select from {input1_path} joined with {input2_path} to {output_path}")
+    return geofileops_sql.join_nearest(
+            input1_path=Path(input1_path),
+            input2_path=Path(input2_path),
+            output_path=Path(output_path),
+            nb_nearest=nb_nearest,
+            input1_layer=input1_layer,
+            input1_columns=input1_columns,
+            input1_columns_prefix=input1_columns_prefix,
+            input2_layer=input2_layer,
+            input2_columns=input2_columns,
+            input2_columns_prefix=input2_columns_prefix,
+            output_layer=output_layer,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
+
 def select_two_layers(
         input1_path: Path,
         input2_path: Path,
