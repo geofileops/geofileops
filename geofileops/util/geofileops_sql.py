@@ -889,6 +889,98 @@ def join_by_location(
             verbose=verbose,
             force=force)
 
+def join_nearest(
+        input1_path: Path,
+        input2_path: Path,
+        output_path: Path,
+        nb_nearest: int,
+        input1_layer: str = None,
+        input1_columns: List[str] = None,
+        input1_columns_prefix: str = 'l1_',
+        input2_layer: str = None,
+        input2_columns: List[str] = None,
+        input2_columns_prefix: str = 'l2_',
+        output_layer: str = None,
+        explodecollections: bool = False,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+
+    # Init some things...
+    if input1_layer is None:
+        input1_layer = geofile.get_only_layer(input1_path)
+    if input2_layer is None:
+        input2_layer = geofile.get_only_layer(input2_path)
+
+    # Prepare input files
+    # To use knn index, the input layers need to be in sqlite file format
+    # (not a .gpkg!), so prepare this
+    if(input1_path == input2_path 
+       and geofile.GeofileType(input1_path) == geofile.GeofileType.SQLite):
+        # Input files already ok...
+        input1_tmp_path = input1_path
+        input1_tmp_layer = input1_layer
+        input2_tmp_path = input2_path
+        input2_tmp_layer = input2_layer
+    else:
+        # Put input2 layer in sqlite file...
+        tempdir = io_util.create_tempdir("join_nearest")
+        input1_tmp_path = tempdir / f"both_input_layers.sqlite"
+        input1_tmp_layer = 'input1_layer'
+        geofile.convert(
+                src=input1_path, 
+                src_layer=input1_layer, 
+                dst=input1_tmp_path,
+                dst_layer=input1_tmp_layer)
+
+        # Add input2 layer to sqlite file... 
+        input2_tmp_path = input1_tmp_path
+        input2_tmp_layer = 'input2_layer'
+        geofile.append_to(
+                src=input2_path, 
+                src_layer=input2_layer, 
+                dst=input2_tmp_path,
+                dst_layer=input2_tmp_layer)
+
+    # Remark: the 2 input layers need to be in one file! 
+    sql_template = f'''
+            SELECT layer1.{{input1_geometrycolumn}} as geom
+                  {{layer1_columns_prefix_alias_str}}
+                  {{layer2_columns_prefix_alias_str}}
+                  ,k.pos, k.distance
+              FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
+              JOIN {{input2_databasename}}.knn k  
+              JOIN {{input2_databasename}}."{{input2_tmp_layer}}" layer2 ON layer2.rowid = k.fid
+             WHERE k.f_table_name = '{{input2_layer}}'
+                AND k.f_geometry_column = '{{input2_geometrycolumn}}'
+                AND k.ref_geometry = layer1.{{input1_geometrycolumn}}
+                AND k.max_items = {nb_nearest}
+                {{batch_filter}}
+            '''
+
+    input1_layer_info = geofile.get_layerinfo(input1_path, input1_layer)
+
+    # Go!
+    return _two_layer_vector_operation(
+            input1_path=input1_tmp_path,
+            input2_path=input2_tmp_path,
+            output_path=output_path,
+            sql_template=sql_template,
+            operation_name='join_nearest',
+            input1_layer=input1_tmp_layer,
+            input1_columns=input1_columns,
+            input1_columns_prefix=input1_columns_prefix,
+            input2_layer=input2_tmp_layer,
+            input2_columns=input2_columns,
+            input2_columns_prefix=input2_columns_prefix,
+            output_layer=output_layer,
+            force_output_geometrytype=input1_layer_info.geometrytype,
+            explodecollections=explodecollections,
+            use_ogr=True,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
+
 def select_two_layers(
         input1_path: Path,
         input2_path: Path,
@@ -1121,6 +1213,7 @@ def _two_layer_vector_operation(
         explodecollections: bool = False,
         force_output_geometrytype: GeometryType = None,
         output_with_spatial_index: bool = True,
+        use_ogr: bool = False,
         nb_parallel: int = -1,
         verbose: bool = False,
         force: bool = False):
@@ -1140,6 +1233,10 @@ def _two_layer_vector_operation(
         output_layer (str, optional): [description]. Defaults to None.
         explodecollections (bool, optional): Explode collecions in output. Defaults to False.
         force_output_geometrytype (GeometryType, optional): Defaults to None.
+        use_ogr (bool, optional): If True, ogr is used to do the processing, 
+            In this case different input files (input1_path, input2_path) are 
+            NOT supported. If False, sqlite3 is used directly. 
+            Defaults to False.
         nb_parallel (int, optional): [description]. Defaults to -1.
         force (bool, optional): [description]. Defaults to False.
     
@@ -1151,6 +1248,8 @@ def _two_layer_vector_operation(
         raise Exception(f"Error {operation_name}: input1_path doesn't exist: {input1_path}")
     if not input2_path.exists():
         raise Exception(f"Error {operation_name}: input2_path doesn't exist: {input2_path}")
+    if use_ogr is True and input1_path != input2_path:
+         raise Exception(f"Error {operation_name}: is use_ogr is True, input1_path must equal input2_path!")
     if output_path.exists():
         if force is False:
             logger.info(f"Stop {operation_name}: output exists already {output_path}")
@@ -1258,18 +1357,21 @@ def _two_layer_vector_operation(
 
                 tmp_output_partial_path = tempdir / f"{output_path.stem}_{batch_id}.gpkg"
                 batches[batch_id]['tmp_partial_output_path'] = tmp_output_partial_path
-
+                        
+                # Keep input1_tmp_layer and input2_tmp_layer for backwards 
+                # compatibility
                 sql_stmt = sql_template.format(
-                        output_databasename='{output_databasename}',
                         input1_databasename='{input1_databasename}',
                         input2_databasename='{input2_databasename}',
                         layer1_columns_from_subselect_str=layer1_columns_from_subselect_str,
                         layer1_columns_prefix_alias_str=layer1_columns_prefix_alias_str,
+                        input1_layer=processing_params.batches[batch_id]['layer'],
                         input1_tmp_layer=processing_params.batches[batch_id]['layer'],
                         input1_geometrycolumn=input1_tmp_layerinfo.geometrycolumn,
                         layer2_columns_from_subselect_str=layer2_columns_from_subselect_str,
                         layer2_columns_prefix_alias_str=layer2_columns_prefix_alias_str,
                         layer2_columns_prefix_alias_null_str=layer2_columns_prefix_alias_null_str,
+                        input2_layer=processing_params.input2_layer,
                         input2_tmp_layer=processing_params.input2_layer,
                         input2_geometrycolumn=input2_tmp_layerinfo.geometrycolumn,
                         layer1_columns_prefix_str=layer1_columns_prefix_str,
@@ -1278,21 +1380,40 @@ def _two_layer_vector_operation(
 
                 batches[batch_id]['sqlite_stmt'] = sql_stmt
                 
-                # Remark: this temp file doesn't need spatial index and use an 
-                # aggressive speedy sqlite profile 
-                future = calculate_pool.submit(
-                        sqlite_util.create_table_as_sql,
-                        input1_path=processing_params.batches[batch_id]['path'],
-                        input1_layer=processing_params.batches[batch_id]['layer'],
-                        input2_path=processing_params.input2_path, 
-                        output_path=tmp_output_partial_path,
-                        sql_stmt=sql_stmt,
-                        output_layer=output_layer,
-                        output_geometrytype=force_output_geometrytype,
-                        create_spatial_index=False,
-                        profile=sqlite_util.SqliteProfile.SPEED)
+                # Remark: this temp file doesn't need spatial index
+                if use_ogr is False:
+                    # Use an aggressive speedy sqlite profile 
+                    future = calculate_pool.submit(
+                            sqlite_util.create_table_as_sql,
+                            input1_path=processing_params.batches[batch_id]['path'],
+                            input1_layer=processing_params.batches[batch_id]['layer'],
+                            input2_path=processing_params.input2_path, 
+                            output_path=tmp_output_partial_path,
+                            sql_stmt=sql_stmt,
+                            output_layer=output_layer,
+                            output_geometrytype=force_output_geometrytype,
+                            create_spatial_index=False,
+                            profile=sqlite_util.SqliteProfile.SPEED)
+                    future_to_batch_id[future] = batch_id
+                else:    
+                    # Use ogr to run the query
+                    # Remark: input2 path (= using attach) doesn't seem to work 
+
+                    # Ogr cannot fill out database names, so fill out now
+                    sql_stmt = sql_stmt.format(
+                            input1_databasename=processing_params.input1_databasename,
+                            input2_databasename=processing_params.input2_databasename)
+
+                    future = calculate_pool.submit(
+                            ogr_util.vector_translate,
+                            input_path=processing_params.batches[batch_id]['path'],
+                            output_path=tmp_output_partial_path,
+                            sql_stmt=sql_stmt,
+                            output_layer=output_layer,
+                            force_output_geometrytype=force_output_geometrytype,
+                            create_spatial_index=False)
                 future_to_batch_id[future] = batch_id
-            
+                
             # Loop till all parallel processes are ready, but process each one 
             # that is ready already
             nb_done = 0
