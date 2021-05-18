@@ -45,12 +45,28 @@ class GeometryType(enum.Enum):
 
     @classmethod
     def _missing_(cls, value: Union[str, int]):
+        """
+        Expand options in the Geometrytype() constructor.
+        
+        Args:
+            value (Union[str, int, GeometryType]): 
+                * string: lookup using case insensitive name
+                * GeometryType: create the same GeometryType as the one passed in
+
+        Returns:
+            [GeometryType]: The corresponding GeometryType. 
+        """
         if value is None:
             return None
         elif isinstance(value, str):
+            # If a string is passed in, try lookup based on case insensitive 
+            # enum name
             return cls(GeometryType[value.upper()])
         elif isinstance(value, GeometryType):
+            # If a Geometry type is passed in, return same GeometryType
+            # TODO: why create a new one?
             return cls(value.value)
+        # Default behaviour (= lookup based on value)
         return super()._missing_(value)
 
     @property
