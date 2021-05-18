@@ -4,8 +4,8 @@ Module containing the implementation of Geofile operations using a sql statement
 """
 
 from concurrent import futures
+from dataclasses import dataclass
 import datetime
-
 import logging
 import logging.config
 import multiprocessing
@@ -14,7 +14,7 @@ import shutil
 from typing import List, Optional
 
 from geofileops import geofile
-from geofileops.geofile import GeometryType, PrimitiveType
+from geofileops.geofile import GeofileType, GeometryType, PrimitiveType
 from . import io_util
 from . import ogr_util
 from . import sqlite_util
@@ -299,17 +299,11 @@ def _single_layer_vector_operation(
     # Check/get layer names
     if input_layer is None:
         input_layer = geofile.get_only_layer(input_path)
-    elif input_path.suffix.lower() == '.shp' and input_path.stem != input_layer:
-        # For shapefiles, the file stem and the layer name should be the same!
-        raise Exception(f"For Shapefiles, layername needs to be the same as file stem: input_path: {input_path.name} != input_layer: {input_layer}")   
     if output_layer is None:
         output_layer = geofile.get_default_layer(output_path)
-    elif output_path.suffix.lower() == '.shp' and output_path.stem != output_layer:
-        # For shapefiles, the file stem and the layer name should be the same!
-        raise Exception(f"For Shapefiles, layername needs to be the same as file stem: output_path: {output_path.name} != output_layer: {output_layer}")
 
     # Check if spatialite is properly installed to execute this query
-    if input_path.suffix.lower() == '.gpkg':
+    if GeofileType(input_path).is_spatialite_based:
         ogr_util.get_gdal_to_use(sql_template)
 
     # If output file exists already, either clean up or return...
@@ -324,89 +318,42 @@ def _single_layer_vector_operation(
     tempdir = io_util.create_tempdir(operation_name.replace(' ', '_'))
     
     try:
-        input_tmp_path = input_path
-
         ##### Calculate #####
-        # Calculating can be done in parallel, but only one process can write to 
-        # the same file at the time... 
+        processing_params = _prepare_processing_params(
+                input1_path=input_path,
+                input1_layer=input_layer,
+                tempdir=tempdir,
+                nb_parallel=nb_parallel,
+                convert_to_spatialite_based=False)
+        
+        # Format column string for use in select
         layerinfo = geofile.get_layerinfo(input_path, input_layer)  
-        if nb_parallel == -1:
-            # Default, put at lease 100 rows in a batch for parallelisation
-            max_parallel = int(layerinfo.featurecount/100)
-            nb_parallel = min(multiprocessing.cpu_count(), max_parallel)
-
-            # Don't use all processors so the machine stays accessible 
-            if nb_parallel > 4:
-                nb_parallel -= 1
-            elif nb_parallel < 1:
-                nb_parallel = 1                
-
-        # If we are processing in parallel... seperate work in batches
-        # Remark: especially for 'select' operation, if nb_parallel is 1 
-        #         nb_batches should be 1 (select might give wrong results)
-        if nb_parallel > 1:
-            nb_batches = nb_parallel
-        else:
-            nb_batches = 1
+        formatted_column_strings = format_column_strings(
+                columns_specified=columns, 
+                columns_available=layerinfo.columns)
+        
+        # Prepare output filename
+        tmp_output_path = tempdir / output_path.name
 
         nb_done = 0
-        with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
+        with futures.ProcessPoolExecutor(processing_params.nb_parallel) as calculate_pool:
 
-            # Prepare columns to select
-            columns_to_select_str = ''
-            if columns is not None:
-                # Case-insinsitive check if columns contains columns not in input layer...
-                columns_orig_upper = [column.upper() for column in layerinfo.columns]
-                missing_columns = [col for col in columns if (col.upper() not in columns_orig_upper)]
-                if len(missing_columns) > 0:
-                    raise Exception(f"Error, parameter columns contains columns not in input layer: {missing_columns}. Existing columns: {layerinfo.columns}")
-
-                # Now concat columns
-                columns_quoted = [f'"{col}"' for col in columns] 
-                columns_to_select_str = f", {', '.join(columns_quoted)}"
-            elif len(layerinfo.columns) > 0:
-                # No columns specified, so take all columns of the layer 
-                columns_quoted = [f'"{col}"' for col in layerinfo.columns]
-                columns_to_select_str = f", {', '.join(columns_quoted)}"
-            
-            # Calculate the number of features per thread
-            # Determine the min_rowid and max_rowid to devide the batches as good as possible
-            sql_stmt = f'SELECT MIN(rowid) as min_rowid, MAX(rowid) as max_rowid FROM "{input_layer}"'
-            result = geofile.read_file_sql(path=input_path, sql_stmt=sql_stmt, layer=input_layer)
-            if len(result) == 1:
-                min_rowid = result['min_rowid'].values[0]
-                max_rowid = result['max_rowid'].values[0]
-                nb_rowids_per_batch = (max_rowid - min_rowid)/nb_batches
-            else:
-                raise Exception(f"Error determining min_rowid and max_rowid for {input_path}, layer {input_layer}")
-            row_limit = int(nb_rowids_per_batch/nb_batches)
-            row_offset = 0
-
-            # Prepare output filename
-            tmp_output_path = tempdir / output_path.name
-
-            translate_jobs = {}    
+            batches = {}    
             future_to_batch_id = {}
-            for batch_id in range(nb_batches):
+            for batch_id in processing_params.batches:
 
-                translate_jobs[batch_id] = {}
-                translate_jobs[batch_id]['layer'] = output_layer
+                batches[batch_id] = {}
+                batches[batch_id]['layer'] = output_layer
 
-                output_tmp_partial_path = tempdir / f"{output_path.stem}_{batch_id}{output_path.suffix}"
-                translate_jobs[batch_id]['tmp_partial_output_path'] = output_tmp_partial_path
-
-                # For the last batch_id, take all rowid's left...
-                if batch_id < nb_batches-1:
-                    batch_filter = f"AND (rowid >= {row_offset} AND rowid < {row_offset + row_limit})"
-                else:
-                    batch_filter = f"AND rowid >= {row_offset}"
+                tmp_partial_output_path = tempdir / f"{output_path.stem}_{batch_id}{output_path.suffix}"
+                batches[batch_id]['tmp_partial_output_path'] = tmp_partial_output_path
 
                 # Now we have everything to format sql statement
                 sql_stmt = sql_template.format(
                         geometrycolumn=layerinfo.geometrycolumn,
-                        columns_to_select_str=columns_to_select_str,
-                        input_layer=input_layer,
-                        batch_filter=batch_filter)
+                        columns_to_select_str=formatted_column_strings.columns,
+                        input_layer=processing_params.batches[batch_id]['layer'],
+                        batch_filter=processing_params.batches[batch_id]['batch_filter'])
 
                 # Make sure no NULL geoms are outputted...
                 if filter_null_geoms is True:
@@ -417,12 +364,12 @@ def _single_layer_vector_operation(
                                 ) sub
                             WHERE sub.geom IS NOT NULL'''
 
-                translate_jobs[batch_id]['sql_stmt'] = sql_stmt
-                translate_description = f"Async {operation_name} {batch_id} of {nb_batches}"
+                batches[batch_id]['sql_stmt'] = sql_stmt
+                translate_description = f"Async {operation_name} {batch_id} of {len(batches)}"
                 # Remark: this temp file doesn't need spatial index
                 translate_info = ogr_util.VectorTranslateInfo(
-                        input_path=input_tmp_path,
-                        output_path=output_tmp_partial_path,
+                        input_path=processing_params.batches[batch_id]['path'],
+                        output_path=tmp_partial_output_path,
                         translate_description=translate_description,
                         output_layer=output_layer,
                         sql_stmt=sql_stmt,
@@ -435,7 +382,6 @@ def _single_layer_vector_operation(
                         ogr_util.vector_translate_by_info,
                         info=translate_info)
                 future_to_batch_id[future] = batch_id
-                row_offset += row_limit
             
             # Loop till all parallel processes are ready, but process each one that is ready already
             for future in futures.as_completed(future_to_batch_id):
@@ -443,12 +389,12 @@ def _single_layer_vector_operation(
                     _ = future.result()
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
-                    raise Exception(f"Error executing {translate_jobs[batch_id]}") from ex
+                    raise Exception(f"Error executing {batches[batch_id]}") from ex
 
                 # Start copy of the result to a common file
                 # Remark: give higher priority, because this is the slowest factor
                 batch_id = future_to_batch_id[future]
-                tmp_partial_output_path = translate_jobs[batch_id]['tmp_partial_output_path']
+                tmp_partial_output_path = batches[batch_id]['tmp_partial_output_path']
                 
                 if tmp_partial_output_path.exists():
                     geofile.append_to(
@@ -464,7 +410,7 @@ def _single_layer_vector_operation(
                 # Log the progress and prediction speed
                 nb_done += 1
                 general_util.report_progress(
-                        start_time, nb_done, nb_batches, operation_name, nb_parallel=nb_parallel)
+                        start_time, nb_done, len(batches), operation_name, nb_parallel=nb_parallel)
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
@@ -921,7 +867,7 @@ def join_nearest(
     # To use knn index, the input layers need to be in sqlite file format
     # (not a .gpkg!), so prepare this
     if(input1_path == input2_path 
-       and geofile.GeofileType(input1_path) == geofile.GeofileType.SQLite):
+       and GeofileType(input1_path) == GeofileType.SQLite):
         # Input files already ok...
         input1_tmp_path = input1_path
         input1_tmp_layer = input1_layer
@@ -1281,60 +1227,30 @@ def _two_layer_vector_operation(
         processing_params = _prepare_processing_params(
                 input1_path=input1_path,
                 input1_layer=input1_layer,
+                input1_layer_alias='layer1',
                 input2_path=input2_path,
                 input2_layer=input2_layer,
                 tempdir=tempdir,
                 nb_parallel=nb_parallel,
-                verbose=verbose)
+                convert_to_spatialite_based=True)
        
         ##### Prepare column names,... to format the select #####
-        # We need the input1 column names to format the select
-        input1_tmp_layerinfo = geofile.get_layerinfo(processing_params.input1_path, processing_params.input1_layer)
-        if input1_columns is not None:
-            # Case-insensitive check if input1_columns contains columns not in layer...
-            columns_orig_upper = [column.upper() for column in input1_tmp_layerinfo.columns]
-            missing_columns = [col for col in input1_columns if (col.upper() not in columns_orig_upper)]                
-            if len(missing_columns) > 0:
-                raise Exception(f"Error, input1_columns contains columns not in input1_layer: {missing_columns}. Existing columns: {input1_tmp_layerinfo.columns}")
-            layer1_columns = input1_columns
-        else:
-            layer1_columns = input1_tmp_layerinfo.columns
-        layer1_columns_prefix_alias_str = ''
-        layer1_columns_from_subselect_str = ''
-        layer1_columns_prefix_str = ''
-        if len(layer1_columns) > 0:
-            layer1_columns_prefix_alias = [f'layer1."{column}" "{input1_columns_prefix}{column}"' for column in layer1_columns]
-            layer1_columns_prefix_alias_str = ',' + ", ".join(layer1_columns_prefix_alias)
-            layer1_columns_from_subselect = [f'sub."{input1_columns_prefix}{column}"' for column in layer1_columns]
-            layer1_columns_from_subselect_str = ',' + ", ".join(layer1_columns_from_subselect)
-            layer1_columns_prefix = [f'layer1."{column}"' for column in layer1_columns]
-            layer1_columns_prefix_str = ',' + ", ".join(layer1_columns_prefix)
-
-        # We need the input2 column names to format the select
-        input2_tmp_layerinfo = geofile.get_layerinfo(processing_params.input2_path, processing_params.input2_layer)
-        if input2_columns is not None:
-            # Case-insinsitive check if input1_columns contains columns not in layer...
-            columns_orig_upper = [column.upper() for column in input2_tmp_layerinfo.columns]
-            missing_columns = [col for col in input2_columns if (col.upper() not in columns_orig_upper)]                
-            if len(missing_columns) > 0:
-                raise Exception(f"Error, input2_columns contains columns not in input2_layer: {missing_columns}. Existing columns: {input2_tmp_layerinfo.columns}")
-            layer2_columns = input2_columns
-        else:
-            layer2_columns = input2_tmp_layerinfo.columns
-        layer2_columns_prefix_alias_str = ''
-        layer2_columns_prefix_alias_null_str = ''
-        layer2_columns_from_subselect_str = ''
-        layer2_columns_prefix_str = ''
-        
-        if len(layer2_columns) > 0:
-            layer2_columns_prefix_alias = [f'layer2."{column}" "{input2_columns_prefix}{column}"' for column in layer2_columns]
-            layer2_columns_prefix_alias_str = ',' + ", ".join(layer2_columns_prefix_alias)
-            layer2_columns_prefix_alias_null = [f'NULL "{input2_columns_prefix}{column}"' for column in layer2_columns]
-            layer2_columns_prefix_alias_null_str = ',' + ", ".join(layer2_columns_prefix_alias_null)
-            layer2_columns_from_subselect = [f'sub."{input2_columns_prefix}{column}"' for column in layer2_columns]
-            layer2_columns_from_subselect_str = ',' + ", ".join(layer2_columns_from_subselect)
-            layer2_columns_prefix = [f'layer2."{column}"' for column in layer2_columns]
-            layer2_columns_prefix_str = ',' + ", ".join(layer2_columns_prefix)
+        # Format column strings for use in select
+        input1_tmp_layerinfo = geofile.get_layerinfo(
+                processing_params.input1_path, processing_params.input1_layer)
+        input1_columnstrings = format_column_strings(
+                columns_specified=input1_columns, 
+                columns_available=input1_tmp_layerinfo.columns,
+                table_alias='layer1',
+                columnname_prefix=input1_columns_prefix)
+        assert processing_params.input2_path is not None
+        input2_tmp_layerinfo = geofile.get_layerinfo(
+                processing_params.input2_path, processing_params.input2_layer)
+        input2_columnstrings = format_column_strings(
+                columns_specified=input2_columns, 
+                columns_available=input2_tmp_layerinfo.columns,
+                table_alias='layer2',
+                columnname_prefix=input2_columns_prefix)
 
         # Check input crs'es
         if input1_tmp_layerinfo.crs != input2_tmp_layerinfo.crs:
@@ -1360,27 +1276,27 @@ def _two_layer_vector_operation(
                 batches[batch_id] = {}
                 batches[batch_id]['layer'] = output_layer
 
-                tmp_output_partial_path = tempdir / f"{output_path.stem}_{batch_id}.gpkg"
-                batches[batch_id]['tmp_partial_output_path'] = tmp_output_partial_path
+                tmp_partial_output_path = tempdir / f"{output_path.stem}_{batch_id}.gpkg"
+                batches[batch_id]['tmp_partial_output_path'] = tmp_partial_output_path
                         
                 # Keep input1_tmp_layer and input2_tmp_layer for backwards 
                 # compatibility
                 sql_stmt = sql_template.format(
                         input1_databasename='{input1_databasename}',
                         input2_databasename='{input2_databasename}',
-                        layer1_columns_from_subselect_str=layer1_columns_from_subselect_str,
-                        layer1_columns_prefix_alias_str=layer1_columns_prefix_alias_str,
+                        layer1_columns_from_subselect_str=input1_columnstrings.columns_from_subselect,
+                        layer1_columns_prefix_alias_str=input1_columnstrings.columns_prefix_alias,
+                        layer1_columns_prefix_str=input1_columnstrings.columns_prefix,
                         input1_layer=processing_params.batches[batch_id]['layer'],
                         input1_tmp_layer=processing_params.batches[batch_id]['layer'],
                         input1_geometrycolumn=input1_tmp_layerinfo.geometrycolumn,
-                        layer2_columns_from_subselect_str=layer2_columns_from_subselect_str,
-                        layer2_columns_prefix_alias_str=layer2_columns_prefix_alias_str,
-                        layer2_columns_prefix_alias_null_str=layer2_columns_prefix_alias_null_str,
+                        layer2_columns_from_subselect_str=input2_columnstrings.columns_from_subselect,
+                        layer2_columns_prefix_alias_str=input2_columnstrings.columns_prefix_alias,
+                        layer2_columns_prefix_str=input2_columnstrings.columns_prefix,
+                        layer2_columns_prefix_alias_null_str=input2_columnstrings.columns_prefix_alias_null,
                         input2_layer=processing_params.input2_layer,
                         input2_tmp_layer=processing_params.input2_layer,
                         input2_geometrycolumn=input2_tmp_layerinfo.geometrycolumn,
-                        layer1_columns_prefix_str=layer1_columns_prefix_str,
-                        layer2_columns_prefix_str=layer2_columns_prefix_str,
                         batch_filter=processing_params.batches[batch_id]['batch_filter'])
 
                 batches[batch_id]['sqlite_stmt'] = sql_stmt
@@ -1393,7 +1309,7 @@ def _two_layer_vector_operation(
                             input1_path=processing_params.batches[batch_id]['path'],
                             input1_layer=processing_params.batches[batch_id]['layer'],
                             input2_path=processing_params.input2_path, 
-                            output_path=tmp_output_partial_path,
+                            output_path=tmp_partial_output_path,
                             sql_stmt=sql_stmt,
                             output_layer=output_layer,
                             output_geometrytype=force_output_geometrytype,
@@ -1402,9 +1318,8 @@ def _two_layer_vector_operation(
                     future_to_batch_id[future] = batch_id
                 else:    
                     # Use ogr to run the query
-                    # Remark: input2 path (= using attach) doesn't seem to work 
-
-                    # Ogr cannot fill out database names, so fill out now
+                    #   * input2 path (= using attach) doesn't seem to work 
+                    #   * ogr doesn't fill out database names, so do it now
                     sql_stmt = sql_stmt.format(
                             input1_databasename=processing_params.input1_databasename,
                             input2_databasename=processing_params.input2_databasename)
@@ -1412,7 +1327,7 @@ def _two_layer_vector_operation(
                     future = calculate_pool.submit(
                             ogr_util.vector_translate,
                             input_path=processing_params.batches[batch_id]['path'],
-                            output_path=tmp_output_partial_path,
+                            output_path=tmp_partial_output_path,
                             sql_stmt=sql_stmt,
                             output_layer=output_layer,
                             force_output_geometrytype=force_output_geometrytype,
@@ -1481,8 +1396,8 @@ class ProcessingParams:
             input1_path: Path = None,
             input1_layer: str = None,
             input1_databasename: str = None,
-            input2_path: Path = None,
-            input2_layer: str = None,
+            input2_path: Optional[Path] = None,
+            input2_layer: Optional[str] = None,
             input2_databasename: str = None,
             nb_parallel: int = -1,
             batches: dict = None):
@@ -1498,11 +1413,12 @@ class ProcessingParams:
 def _prepare_processing_params(
         input1_path: Path,
         input1_layer: str,
-        input2_path: Path,
-        input2_layer: str,
         tempdir: Path,
+        convert_to_spatialite_based: bool,
         nb_parallel: int,
-        verbose: bool = False) -> ProcessingParams:
+        input1_layer_alias: str = None,
+        input2_path: Path = None,
+        input2_layer: str = None) -> ProcessingParams:
 
     ### Init ###
     returnvalue = ProcessingParams(nb_parallel=nb_parallel)
@@ -1532,33 +1448,43 @@ def _prepare_processing_params(
     returnvalue.input1_layer = input1_layer
     returnvalue.input2_layer = input2_layer
 
-    # Check if the input files are of the correct geofiletype
-    input1_geofiletype = geofile.GeofileType(input1_path)
-    input2_geofiletype = geofile.GeofileType(input2_path)
-    
-    # If input files are of the same format + are spatialite compatible, 
-    # just use them
-    if input1_geofiletype == input2_geofiletype and input1_geofiletype.is_spatialite_based:
+    if convert_to_spatialite_based is False:
         returnvalue.input1_path = input1_path
-    else:
-        # If not spatialite compatible, copy the input layer to gpkg
-        returnvalue.input1_path = tempdir / f"{input1_path.stem}.gpkg"
-        geofile.convert(
-                src=input1_path,
-                src_layer=input1_layer,
-                dst=returnvalue.input1_path,
-                dst_layer=returnvalue.input1_layer)        
-
-    if input2_geofiletype == input1_geofiletype and input2_geofiletype.is_spatialite_based:
         returnvalue.input2_path = input2_path
     else:
-        # If not spatialite compatible, copy the input layer to gpkg
-        returnvalue.input2_path = tempdir / f"{input2_path.stem}.gpkg"
-        geofile.convert(
-                src=input2_path,
-                src_layer=input2_layer,
-                dst=returnvalue.input2_path,
-                dst_layer=returnvalue.input2_layer)
+        # Check if the input files are of the correct geofiletype
+        input1_geofiletype = GeofileType(input1_path)
+        input2_geofiletype = None
+        if input2_path is not None:
+            input2_geofiletype = GeofileType(input2_path)
+        
+        # If input files are of the same format + are spatialite compatible, 
+        # just use them
+        if(input1_geofiletype.is_spatialite_based 
+           and (input2_geofiletype is None
+                or input1_geofiletype == input2_geofiletype)):
+            returnvalue.input1_path = input1_path
+        else:
+            # If not ok, copy the input layer to gpkg
+            returnvalue.input1_path = tempdir / f"{input1_path.stem}.gpkg"
+            geofile.convert(
+                    src=input1_path,
+                    src_layer=input1_layer,
+                    dst=returnvalue.input1_path,
+                    dst_layer=returnvalue.input1_layer)        
+
+        if input2_path is not None:
+            if(input2_geofiletype == input1_geofiletype 
+               and input2_geofiletype.is_spatialite_based):
+                returnvalue.input2_path = input2_path
+            else:
+                # If not spatialite compatible, copy the input layer to gpkg
+                returnvalue.input2_path = tempdir / f"{input2_path.stem}.gpkg"
+                geofile.convert(
+                        src=input2_path,
+                        src_layer=input2_layer,
+                        dst=returnvalue.input2_path,
+                        dst_layer=returnvalue.input2_layer)
 
     # Fill out the database names to use in the sql statements
     returnvalue.input1_databasename = 'main'
@@ -1576,35 +1502,48 @@ def _prepare_processing_params(
     if nb_batches > int(nb_rows_input_layer/10):
         nb_batches = max(int(nb_rows_input_layer/10), 1)
     
-    # Determine the min_rowid and max_rowid to divide the batches as good as possible
-    sql_stmt = f'SELECT MIN(rowid) as min_rowid, MAX(rowid) as max_rowid FROM "{input1_layer}"'
-    result = geofile.read_file_sql(path=returnvalue.input1_path, sql_stmt=sql_stmt, layer=input1_layer)
-    if len(result) == 1:
-        min_rowid = result['min_rowid'].values[0]
-        max_rowid = result['max_rowid'].values[0]
-        nb_rowids_per_batch = (max_rowid - min_rowid)/nb_batches
-    else:
-        raise Exception(f"Error determining min_rowid and max_rowid for {returnvalue.input1_path}, layer {input1_layer}")
-
-    # Remark: adding data to a file in parallel using ogr2ogr gives locking 
-    # issues on the sqlite file, so needs to be done sequential!
     batches = {}
-    offset = 0
-    for batch_id in range(nb_batches):
+    if nb_batches == 1:
+        # If only one batch, no filtering is needed
+        batches[0] = {}
+        batches[0]['layer'] = returnvalue.input1_layer
+        batches[0]['path'] = returnvalue.input1_path
+        batches[0]['batch_filter'] = ''
+    else:
+        # Determine the optimal rowid ranges for each batch so each batch has 
+        # same number of elements
+        sql_stmt = f'''
+                SELECT batch_id AS id
+                      ,COUNT(*) AS nb_rows
+                      ,MIN(rowid) AS start_rowid
+                      ,MAX(rowid) AS end_rowid
+                FROM (SELECT rowid
+                            ,NTILE({nb_batches}) OVER (ORDER BY rowid) batch_id
+                        FROM "{layer1_info.name}"
+                    )
+                GROUP BY batch_id;
+                '''
+        batch_info_df = geofile.read_file_sql(path=returnvalue.input1_path, sql_stmt=sql_stmt, layer=input1_layer)       
         
-        # If they are all still in the same layer
-        batches[batch_id] = {}
-        batches[batch_id]['layer'] = returnvalue.input1_layer
-        batches[batch_id]['path'] = returnvalue.input1_path
-        
-        # Use rowid filtering
-        if nb_batches == 1:
-            batches[batch_id]['batch_filter'] = ''
-        elif batch_id < nb_batches:
-            batches[batch_id]['batch_filter'] = f"AND (layer1.rowid >= {offset} AND layer1.rowid < {offset+nb_rowids_per_batch})"
-            offset += nb_rowids_per_batch
-        else:
-            batches[batch_id]['batch_filter'] = f"AND layer1.rowid >= {offset}"
+        # Prepare the layer alias to use in the batch filter
+        layer_alias_d = ''
+        if input1_layer_alias is not None:
+            layer_alias_d = f"{input1_layer_alias}."
+
+        # Now loop over all batch ranges to build up the necessary filters
+        for batch_info in batch_info_df.itertuples():    
+            # Fill out the batch properties
+            batches[batch_info.id] = {}
+            batches[batch_info.id]['layer'] = returnvalue.input1_layer
+            batches[batch_info.id]['path'] = returnvalue.input1_path
+            
+            # The batch filter
+            if batch_info.id < nb_batches:
+                batches[batch_info.id]['batch_filter'] = (
+                        f"AND ({layer_alias_d}rowid >= {batch_info.start_rowid} AND {layer_alias_d}rowid <= {batch_info.end_rowid}) ")
+            else:
+                batches[batch_info.id]['batch_filter'] = (
+                        f"AND {layer_alias_d}rowid >= {batch_info.start_rowid} ")
 
     # No use starting more processes than the number of batches...            
     if len(batches) < returnvalue.nb_parallel:
@@ -1612,6 +1551,60 @@ def _prepare_processing_params(
     
     returnvalue.batches = batches
     return returnvalue
+
+@dataclass
+class FormattedColumnStrings:
+    columns: str
+    columns_prefix: str
+    columns_prefix_alias: str
+    columns_prefix_alias_null: str
+    columns_from_subselect: str
+
+def format_column_strings(
+        columns_specified: Optional[List[str]],
+        columns_available: List[str],
+        table_alias: str = '',
+        columnname_prefix: str = '') -> FormattedColumnStrings:
+
+    # First prepare the actual column list to use
+    if columns_specified is not None:
+        # Case-insensitive check if input1_columns contains columns not in layer...
+        columns_available_upper = [column.upper() for column in columns_available]
+        missing_columns = [col for col in columns_specified if (col.upper() not in columns_available_upper)]                
+        if len(missing_columns) > 0:
+            raise Exception(f"Error, columns_specified contains following columns not in columns_available: {missing_columns}. Existing columns: {columns_available}")
+        columns = columns_specified
+    else:
+        columns = columns_available
+
+    # Now format the column strings
+    columns_quoted_str = ''
+    columns_prefix_alias_null_str = ''
+    columns_prefix_str = ''
+    columns_prefix_alias_str = ''
+    columns_from_subselect_str = ''
+    if len(columns) > 0:
+        if table_alias is not None and table_alias != '':
+            table_alias_d = f"{table_alias}."
+        else:
+            table_alias_d = ''
+        columns_quoted = [f'"{column}"' for column in columns]
+        columns_quoted_str = ',' + ", ".join(columns_quoted)
+        columns_prefix_alias_null = [f'NULL "{columnname_prefix}{column}"' for column in columns]
+        columns_prefix_alias_null_str = ',' + ", ".join(columns_prefix_alias_null)
+        columns_prefix = [f'{table_alias_d}"{column}"' for column in columns]
+        columns_prefix_str = ',' + ", ".join(columns_prefix)
+        columns_table_aliased_column_aliased = [f'{table_alias_d}"{column}" "{columnname_prefix}{column}"' for column in columns]
+        columns_prefix_alias_str = ',' + ", ".join(columns_table_aliased_column_aliased)
+        columns_from_subselect = [f'sub."{columnname_prefix}{column}"' for column in columns]
+        columns_from_subselect_str = ',' + ", ".join(columns_from_subselect)
+                    
+    return FormattedColumnStrings(
+            columns=columns_quoted_str,
+            columns_prefix=columns_prefix_str,
+            columns_prefix_alias=columns_prefix_alias_str,
+            columns_prefix_alias_null=columns_prefix_alias_null_str,
+            columns_from_subselect=columns_from_subselect_str)
 
 def dissolve(
         input_path: Path,
@@ -1650,8 +1643,8 @@ def dissolve(
         groupby_columns_for_groupby_str = "'1'"
         groupby_columns_for_select_str = ""
 
-    # Remark: calculating the area in the enclosing selects halves the processing time
-
+    # Remark: calculating the area in the enclosing selects halves the 
+    # processing time
     sql_stmt = f"""
             SELECT sub.*, ST_area(sub.geom) AS area 
               FROM (SELECT ST_union(t.geom) AS geom{groupby_columns_for_select_str}
