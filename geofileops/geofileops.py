@@ -692,8 +692,8 @@ def join_by_location(
         verbose: bool = False,
         force: bool = False):
     """
-    Exports all features in input_to_select_from_path that are within the 
-    distance specified of any features in input_to_compare_with_path.
+    Joins all features in input1 that intersect with any 
+    features in input2.
     
     Args:
         input1_path (PathLike): the 1st input file
