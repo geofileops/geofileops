@@ -305,7 +305,6 @@ def vector_translate_exe(
     # Files and input layer(s)
     args.append(str(output_path))
     args.append(str(input_path))
-    if input_layers is not None:
     # Treat input_layers variable
     # Remarks: 
     #   * For shapefiles, having input_layers not None gives issues

@@ -5,7 +5,7 @@ Module containing the implementation of Geofile operations using a sql statement
 
 from concurrent import futures
 import datetime
-from geofileops.util import general_util
+
 import logging
 import logging.config
 import multiprocessing
@@ -14,10 +14,11 @@ import shutil
 from typing import List, Optional
 
 from geofileops import geofile
+from geofileops.geofile import GeometryType, PrimitiveType
 from . import io_util
 from . import ogr_util
 from . import sqlite_util
-from geofileops.geofile import GeometryType, PrimitiveType
+from . import general_util
 
 ################################################################################
 # Some init
@@ -1353,14 +1354,18 @@ class ProcessingParams:
     def __init__(self,
             input1_path: Path = None,
             input1_layer: str = None,
+            input1_databasename: str = None,
             input2_path: Path = None,
             input2_layer: str = None,
+            input2_databasename: str = None,
             nb_parallel: int = -1,
             batches: dict = None):
         self.input1_path = input1_path
         self.input1_layer = input1_layer
+        self.input1_databasename = input1_databasename
         self.input2_path = input2_path
         self.input2_layer = input2_layer
+        self.input2_databasename = input2_databasename
         self.nb_parallel = nb_parallel
         self.batches = batches
 
@@ -1403,19 +1408,25 @@ def _prepare_processing_params(
 
     # Check if the input files are of the correct geofiletype
     input1_geofiletype = geofile.GeofileType(input1_path)
+    input2_geofiletype = geofile.GeofileType(input2_path)
     
     # If input files are of the same format + are spatialite compatible, 
     # just use them
+    if input1_geofiletype == input2_geofiletype and input1_geofiletype.is_spatialite_based:
         returnvalue.input1_path = input1_path
     else:
+        # If not spatialite compatible, copy the input layer to gpkg
         returnvalue.input1_path = tempdir / f"{input1_path.stem}.gpkg"
         geofile.convert(
                 src=input1_path,
                 src_layer=input1_layer,
                 dst=returnvalue.input1_path,
+                dst_layer=returnvalue.input1_layer)        
 
+    if input2_geofiletype == input1_geofiletype and input2_geofiletype.is_spatialite_based:
         returnvalue.input2_path = input2_path
     else:
+        # If not spatialite compatible, copy the input layer to gpkg
         returnvalue.input2_path = tempdir / f"{input2_path.stem}.gpkg"
         geofile.convert(
                 src=input2_path,
@@ -1428,6 +1439,7 @@ def _prepare_processing_params(
     if input2_path is None or input1_path == input2_path:
         returnvalue.input2_databasename = returnvalue.input1_databasename
     else:
+        returnvalue.input2_databasename = 'input2'
 
     ### Prepare batches to process ###
     # Get column names and info
