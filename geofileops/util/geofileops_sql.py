@@ -1400,31 +1400,34 @@ def _prepare_processing_params(
     ### Prepare input files for the calculation ###
     returnvalue.input1_layer = input1_layer
     returnvalue.input2_layer = input2_layer
+
+    # Check if the input files are of the correct geofiletype
+    input1_geofiletype = geofile.GeofileType(input1_path)
     
-    # If the input files is a geopackages, ok
-    if input1_path.suffix.lower() == '.gpkg':
+    # If input files are of the same format + are spatialite compatible, 
+    # just use them
         returnvalue.input1_path = input1_path
     else:
-        # If not geopackage copy the input layer to gpkg
         returnvalue.input1_path = tempdir / f"{input1_path.stem}.gpkg"
-        ogr_util.vector_translate(
-                input_path=input1_path,
-                output_path=returnvalue.input1_path,
-                input_layers=input1_layer,
-                output_layer=returnvalue.input1_layer,
-                verbose=verbose)        
+        geofile.convert(
+                src=input1_path,
+                src_layer=input1_layer,
+                dst=returnvalue.input1_path,
 
-    if input2_path.suffix.lower() == '.gpkg':
         returnvalue.input2_path = input2_path
     else:
-        # If not geopackage copy the input layer to gpkg
         returnvalue.input2_path = tempdir / f"{input2_path.stem}.gpkg"
-        ogr_util.vector_translate(
-                input_path=input2_path,
-                output_path=returnvalue.input2_path,
-                input_layers=input2_layer,
-                output_layer=returnvalue.input2_layer,
-                verbose=verbose)
+        geofile.convert(
+                src=input2_path,
+                src_layer=input2_layer,
+                dst=returnvalue.input2_path,
+                dst_layer=returnvalue.input2_layer)
+
+    # Fill out the database names to use in the sql statements
+    returnvalue.input1_databasename = 'main'
+    if input2_path is None or input1_path == input2_path:
+        returnvalue.input2_databasename = returnvalue.input1_databasename
+    else:
 
     ### Prepare batches to process ###
     # Get column names and info
