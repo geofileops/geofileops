@@ -35,6 +35,12 @@ logger = logging.getLogger(__name__)
 
 gdal.UseExceptions()        # Enable exceptions
 
+# Disable this annoying warning in fiona
+warnings.filterwarnings(
+        action="ignore", 
+        category=RuntimeWarning, 
+        message="Sequential read of iterator was interrupted. Resetting iterator. This can negatively impact the performance.")
+    
 #-------------------------------------------------------------
 # The real work
 #-------------------------------------------------------------
