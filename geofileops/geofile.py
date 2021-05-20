@@ -13,6 +13,7 @@ import shutil
 import tempfile
 import time
 from typing import Any, List, Optional, Tuple, Union
+import warnings
 
 import fiona
 import geopandas as gpd
@@ -29,11 +30,13 @@ from geofileops.util.geofiletype import GeofileType
 #-------------------------------------------------------------
 # First define/init some general variables/constants
 #-------------------------------------------------------------
+
 # Get a logger...
 logger = logging.getLogger(__name__)
 #logger.setLevel(logging.DEBUG)
 
-gdal.UseExceptions()        # Enable exceptions
+# Enable exceptions for GDAL
+gdal.UseExceptions()
 
 # Disable this annoying warning in fiona
 warnings.filterwarnings(
@@ -172,7 +175,12 @@ def get_layerinfo(
         columns = []
         layer_defn = datasource_layer.GetLayerDefn()
         for i in range(layer_defn.GetFieldCount()):
-            columns.append(layer_defn.GetFieldDefn(i).GetName())
+            name = layer_defn.GetFieldDefn(i).GetName()
+            illegal_column_chars = ['"']
+            for illegal_char in illegal_column_chars:
+                if illegal_char in name:
+                    raise Exception(f"Column name {name} contains illegal char: {illegal_char} in file {path_p}, layer {layer}")
+            columns.append(name)
 
         # Get geometry column info...
         geometrytypename = gdal.ogr.GeometryTypeToName(datasource_layer.GetGeomType())
