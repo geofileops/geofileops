@@ -13,6 +13,8 @@ from pathlib import Path
 import shutil
 from typing import List, Optional
 
+import pandas as pd
+
 from geofileops import geofile
 from geofileops.geofile import GeofileType, GeometryType, PrimitiveType
 from . import io_util
@@ -1440,7 +1442,7 @@ def _prepare_processing_params(
     # Remark: especially for 'select' operation, if nb_parallel is 1 
     #         nb_batches should be 1 (select might give wrong results)
     if returnvalue.nb_parallel > 1:
-        nb_batches = returnvalue.nb_parallel * 4
+        nb_batches = returnvalue.nb_parallel * 2
     else:
         nb_batches = 1
 
@@ -1510,20 +1512,50 @@ def _prepare_processing_params(
         batches[0]['path'] = returnvalue.input1_path
         batches[0]['batch_filter'] = ''
     else:
-        # Determine the optimal rowid ranges for each batch so each batch has 
-        # same number of elements
-        sql_stmt = f'''
-                SELECT batch_id AS id
-                      ,COUNT(*) AS nb_rows
-                      ,MIN(rowid) AS start_rowid
-                      ,MAX(rowid) AS end_rowid
-                FROM (SELECT rowid
-                            ,NTILE({nb_batches}) OVER (ORDER BY rowid) batch_id
-                        FROM "{layer1_info.name}"
-                    )
-                GROUP BY batch_id;
-                '''
-        batch_info_df = geofile.read_file_sql(path=returnvalue.input1_path, sql_stmt=sql_stmt, layer=input1_layer)       
+        # Determine the min_rowid and max_rowid 
+        sql_stmt = f'SELECT MIN(rowid) as min_rowid, MAX(rowid) as max_rowid FROM "{layer1_info.name}"'
+        batch_info_df = geofile.read_file_sql(path=returnvalue.input1_path, sql_stmt=sql_stmt)
+        min_rowid = pd.to_numeric(batch_info_df['min_rowid'][0])
+        max_rowid = pd.to_numeric(batch_info_df['max_rowid'][0])
+ 
+        # Determine the exact batches to use
+        if ((max_rowid-min_rowid) / nb_rows_input_layer) < 1.1:
+            # If the rowid's are quite consecutive, use an imperfect, but 
+            # fast distribution in batches 
+            batch_info_list = []
+            nb_rows_per_batch = round(nb_rows_input_layer/nb_batches)
+            offset = 0
+            offset_per_batch = round((max_rowid-min_rowid)/nb_batches)
+            for batch_id in range(nb_batches):
+                start_rowid = offset
+                if batch_id < (nb_batches-1):
+                    # End rowid for this batch is the next start_rowid - 1
+                    end_rowid = offset+offset_per_batch-1
+                else:
+                    # For the last batch, take the max_rowid so no rowid's are 
+                    # 'lost' due to rounding errors
+                    end_rowid = max_rowid
+                batch_info_list.append(
+                        (batch_id, nb_rows_per_batch, start_rowid, end_rowid))
+                offset += offset_per_batch
+            batch_info_df = pd.DataFrame(batch_info_list, 
+                    columns=['id', 'nb_rows', 'start_rowid', 'end_rowid'])
+        else:
+            # The rowids are not consecutive, so determine the optimal rowid 
+            # ranges for each batch so each batch has same number of elements
+            # Remark: this might take some seconds for larger datasets!
+            sql_stmt = f'''
+                    SELECT batch_id AS id
+                        ,COUNT(*) AS nb_rows
+                        ,MIN(rowid) AS start_rowid
+                        ,MAX(rowid) AS end_rowid
+                    FROM (SELECT rowid
+                                ,NTILE({nb_batches}) OVER (ORDER BY rowid) batch_id
+                            FROM "{layer1_info.name}"
+                        )
+                    GROUP BY batch_id;
+                    '''
+            batch_info_df = geofile.read_file_sql(path=returnvalue.input1_path, sql_stmt=sql_stmt)       
         
         # Prepare the layer alias to use in the batch filter
         layer_alias_d = ''
