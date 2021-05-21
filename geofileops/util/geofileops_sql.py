@@ -304,10 +304,6 @@ def _single_layer_vector_operation(
     if output_layer is None:
         output_layer = geofile.get_default_layer(output_path)
 
-    # Check if spatialite is properly installed to execute this query
-    if GeofileType(input_path).is_spatialite_based:
-        ogr_util.get_gdal_to_use(sql_template)
-
     # If output file exists already, either clean up or return...
     if output_path.exists():
         if force is False:
@@ -904,7 +900,7 @@ def join_nearest(
               FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
               JOIN {{input2_databasename}}.knn k  
               JOIN {{input2_databasename}}."{{input2_tmp_layer}}" layer2 ON layer2.rowid = k.fid
-             WHERE k.f_table_name = '{{input2_layer}}'
+             WHERE k.f_table_name = '{{input2_tmp_layer}}'
                 AND k.f_geometry_column = '{{input2_geometrycolumn}}'
                 AND k.ref_geometry = layer1.{{input1_geometrycolumn}}
                 AND k.max_items = {nb_nearest}
@@ -1835,8 +1831,9 @@ def dissolve_cardsheets(
                         explodecollections=True,
                         force_output_geometrytype=force_output_geometrytype,
                         verbose=verbose)
-                future = ogr_util.vector_translate_async(
-                        concurrent_pool=calculate_pool, info=translate_info)
+                future = calculate_pool.submit(
+                        ogr_util.vector_translate_by_info,
+                        info=translate_info)
                 future_to_batch_id[future] = batch_id
             
             # Loop till all parallel processes are ready, but process each one that is ready already

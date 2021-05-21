@@ -55,40 +55,6 @@ class BenchResult:
     def __repr__(self):
         return f"{self.__class__}({self.__dict__})"
 
-class GdalBin():
-    def __init__(self, gdal_installation: str, gdal_bin_dir: str = None):
-        self.gdal_installation = gdal_installation
-        
-        self.gdal_bin_dir = None
-        self.mod_spatialite_dir = None
-        if gdal_installation == 'gdal_bin':
-            # Init gdal_bin_dir
-            if gdal_bin_dir is None:
-                self.gdal_bin_dir = Path(r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin")
-            else:
-                self.gdal_bin_dir = Path(gdal_bin_dir)
-            
-            # Init mod_spatialite_dir
-            if os.name == 'nt':
-                curr_script_dir = Path(__file__).resolve().parent
-                self.mod_spatialite_dir = curr_script_dir.parent / 'bin' / 'mod_spatialite' / 'mod_spatialite-5.0.1-win-amd64'
-            else:
-                logger.warning(f"gdal_bin installation init of mod_spatialite_dir for tests not supported on os: {os.name}")
-                #raise Exception(f"os.name not supported: {os.name}")
-
-    def __enter__(self):
-        if self.gdal_bin_dir is not None:
-            os.environ['GDAL_BIN'] = str(self.gdal_bin_dir)
-        if self.mod_spatialite_dir is not None:
-            os.environ['MOD_SPATIALITE_DIR'] = str(self.mod_spatialite_dir)
-
-    def __exit__(self, type, value, traceback):
-        #Exception handling here
-        if os.environ.get('GDAL_BIN') is not None:
-            del os.environ['GDAL_BIN']
-        if os.environ.get('MOD_SPATIALITE_DIR') is not None:
-            del os.environ['MOD_SPATIALITE_DIR']
-
 def _get_testdata_dir(tmpdir: Path) -> Path:
     testdata_dir = tmpdir / 'data'
     return testdata_dir
@@ -259,27 +225,26 @@ def benchmark_intersect(tmpdir: Path) -> List[BenchResult]:
     input1_path = _get_testdata_dir(tmpdir) / 'Lbgbrprc19.gpkg'
     input2_path = _get_testdata_dir(tmpdir) / 'Lbgbrprc18.gpkg'
     
-    with GdalBin('gdal_bin'):
-        print('Start Intersect with sql')
-        start_time = datetime.datetime.now()
-        output_path = tmpdir / f"{input1_path.stem}_inters_{input2_path.stem}.gpkg"
-        geofileops_sql.intersect(
-                input1_path=input1_path, 
-                input2_path=input2_path, 
-                output_path=output_path,
-                force=True)
-        secs_taken = (datetime.datetime.now()-start_time).total_seconds()
-        bench_results.append(BenchResult(
-                package_version=_get_package_version(),
-                operation='intersect', 
-                tool_used='sql', 
-                params='',
-                nb_cpu=multiprocessing.cpu_count(),
-                secs_taken=secs_taken,
-                secs_expected_one_cpu=1700,
-                input1_filename=input1_path.name, 
-                input2_filename=input2_path.name))
-        print(f"Intersect with sql ready in {secs_taken:.2f} secs")
+    print('Start Intersect with sql')
+    start_time = datetime.datetime.now()
+    output_path = tmpdir / f"{input1_path.stem}_inters_{input2_path.stem}.gpkg"
+    geofileops_sql.intersect(
+            input1_path=input1_path, 
+            input2_path=input2_path, 
+            output_path=output_path,
+            force=True)
+    secs_taken = (datetime.datetime.now()-start_time).total_seconds()
+    bench_results.append(BenchResult(
+            package_version=_get_package_version(),
+            operation='intersect', 
+            tool_used='sql', 
+            params='',
+            nb_cpu=multiprocessing.cpu_count(),
+            secs_taken=secs_taken,
+            secs_expected_one_cpu=1700,
+            input1_filename=input1_path.name, 
+            input2_filename=input2_path.name))
+    print(f"Intersect with sql ready in {secs_taken:.2f} secs")
 
     return bench_results
 
@@ -289,28 +254,27 @@ def benchmark_union(tmpdir: Path) -> List[BenchResult]:
     input1_path = _get_testdata_dir(tmpdir) / 'Lbgbrprc19.gpkg'
     input2_path = _get_testdata_dir(tmpdir) / 'Lbgbrprc18.gpkg'
     
-    with GdalBin('gdal_bin'):
-        print('Start Union with sql')
-        start_time = datetime.datetime.now()
-        output_path = tmpdir / f"{input1_path.stem}_union_{input2_path.stem}.gpkg"
-        geofileops_sql.union(
-                input1_path=input1_path, 
-                input2_path=input2_path, 
-                output_path=output_path,
-                force=True)
-        secs_taken = (datetime.datetime.now()-start_time).total_seconds()
-        bench_results.append(BenchResult(
-                package_version=_get_package_version(),
-                operation='union', 
-                tool_used='sql', 
-                params='',
-                nb_cpu=multiprocessing.cpu_count(),
-                secs_taken=secs_taken,
-                secs_expected_one_cpu=4000,
-                input1_filename=input1_path.name, 
-                input2_filename=input2_path.name))
-        
-        print(f"Union with sql ready in {secs_taken:.2f} secs")
+    print('Start Union with sql')
+    start_time = datetime.datetime.now()
+    output_path = tmpdir / f"{input1_path.stem}_union_{input2_path.stem}.gpkg"
+    geofileops_sql.union(
+            input1_path=input1_path, 
+            input2_path=input2_path, 
+            output_path=output_path,
+            force=True)
+    secs_taken = (datetime.datetime.now()-start_time).total_seconds()
+    bench_results.append(BenchResult(
+            package_version=_get_package_version(),
+            operation='union', 
+            tool_used='sql', 
+            params='',
+            nb_cpu=multiprocessing.cpu_count(),
+            secs_taken=secs_taken,
+            secs_expected_one_cpu=4000,
+            input1_filename=input1_path.name, 
+            input2_filename=input2_path.name))
+    
+    print(f"Union with sql ready in {secs_taken:.2f} secs")
 
     return bench_results
 

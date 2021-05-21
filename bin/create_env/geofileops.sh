@@ -104,7 +104,14 @@ conda create -y --name $envname
 conda activate $envname
 conda config --env --add channels conda-forge
 conda config --env --set channel_priority strict
-conda install -y python=3.8 pyproj "geopandas>=0.8,<0.10" pygeos psutil
+
+# List of dependencies + reasons for specific versions.
+#
+# python: 3.8, possibly 3.8 features are used, not sure
+#
+# geopandas: > 0.8 because then pygeos is used under the hood for better 
+# performance. Tested till 0.9
+conda install -y python=3.8 "geopandas>=0.8,<0.10" "libspatialite>=5.0" psutil pygeos pyproj
 
 # For the following packages, no conda package is available.
 if [[ ! $fordev =~ ^[Yy]$ ]]

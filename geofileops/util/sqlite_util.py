@@ -400,16 +400,7 @@ def load_spatialite(conn):
     try:
         conn.load_extension('mod_spatialite')
     except Exception as ex:
-        mod_spatialite_dir = os.environ.get('MOD_SPATIALITE_DIR')
-        if mod_spatialite_dir is not None:
-            if f"{mod_spatialite_dir};" not in os.environ['PATH']:
-                os.environ['PATH'] = f"{mod_spatialite_dir};{os.environ['PATH']}"
-            try:
-                conn.load_extension('mod_spatialite')
-            except Exception as ex:
-                raise MissingRuntimeDependencyError(f"Error trying to load mod_spatialite with MOD_SPATIALITE_DIR: {mod_spatialite_dir}") from ex
-        else:
-            raise MissingRuntimeDependencyError("Error trying to load mod_spatialite. You can specify the location of mod_spatialite using the MOD_SPATIALITE_DIR environment variable") from ex
+        raise MissingRuntimeDependencyError("Error trying to load mod_spatialite.") from ex
     
 if __name__ == '__main__':
     None

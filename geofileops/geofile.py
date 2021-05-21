@@ -1169,7 +1169,6 @@ def _append_to_nolock(
             force_output_geometrytype=force_output_geometrytype,
             create_spatial_index=create_spatial_index,
             priority_class='NORMAL',
-            force_py=True,
             verbose=verbose)
     ogr_util.vector_translate_by_info(info=translate_info)
 
