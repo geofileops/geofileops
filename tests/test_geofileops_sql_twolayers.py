@@ -355,10 +355,10 @@ def basetest_select_two_layers(
                         WHEN layer2.naam = 'zone1' THEN 'in_zone1'
                         ELSE 'niet_in_zone1'
                         END AS category
-                FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
-                JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                JOIN {{input2_databasename}}."{{input2_tmp_layer}}" layer2
-                JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
             WHERE 1=1
                 {{batch_filter}}
                 AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx

@@ -825,12 +825,12 @@ def select_two_layers(
     will be automatically replaced for you:
       * {layer1_columns_from_subselect_str}: 
       * {layer1_columns_prefix_alias_str}: 
-      * {input1_tmp_layer}: 
+      * {input1_layer}: 
       * {input1_geometrycolumn}: 
       * {layer2_columns_from_subselect_str$}: 
       * {layer2_columns_prefix_alias_str}: 
       * {layer2_columns_prefix_alias_null_str}: 
-      * {input2_tmp_layer}: 
+      * {input2_layer}: 
       * {input2_geometrycolumn}: 
       * {layer1_columns_prefix_str}: 
       * {layer2_columns_prefix_str}: 

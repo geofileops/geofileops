@@ -464,10 +464,10 @@ def erase(
             WITH layer2_unioned AS (
               SELECT layer1.rowid AS layer1_rowid
                     ,ST_union(layer2.{{input2_geometrycolumn}}) AS geom
-                FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
-                JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                JOIN {{input2_databasename}}."{{input2_tmp_layer}}" layer2
-                JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
                WHERE 1=1
                  {{batch_filter}}
                  AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
@@ -480,7 +480,7 @@ def erase(
                         ELSE ST_CollectionExtract(ST_difference(layer1.{{input1_geometrycolumn}}, layer2_unioned.geom), {primitivetypeid})
                    END as geom
                   {{layer1_columns_prefix_alias_str}}
-              FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
+              FROM {{input1_databasename}}."{{input1_layer}}" layer1
               LEFT JOIN layer2_unioned ON layer1.rowid = layer2_unioned.layer1_rowid
              WHERE 1=1
                {{batch_filter}}
@@ -529,14 +529,14 @@ def export_by_location(
     sql_template = f'''
             SELECT layer1.{{input1_geometrycolumn}} AS geom 
                   {{layer1_columns_prefix_alias_str}}
-              FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
-              JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+              FROM {{input1_databasename}}."{{input1_layer}}" layer1
+              JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
              WHERE 1=1
                {{batch_filter}}
                AND EXISTS (
                   SELECT 1 
-                    FROM {{input2_databasename}}."{{input2_tmp_layer}}" layer2
-                    JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                    FROM {{input2_databasename}}."{{input2_layer}}" layer2
+                    JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
                    WHERE layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
                      AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
                      AND ST_intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
@@ -554,10 +554,10 @@ def export_by_location(
             SELECT ST_union(layer1.{{input1_geometrycolumn}}) as geom
                   {{layer1_columns_prefix_str}}
                   {area_inters_column_expression}
-              FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
-              JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-              JOIN {{input2_databasename}}."{{input2_tmp_layer}}" layer2
-              JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+              FROM {{input1_databasename}}."{{input1_layer}}" layer1
+              JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+              JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+              JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
              WHERE 1=1
                {{batch_filter}}
                AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
@@ -611,14 +611,14 @@ def export_by_distance(
     sql_template = f'''
             SELECT geom
                   {{layer1_columns_prefix_alias_str}}
-                FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
-                JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
                 WHERE 1=1
                   {{batch_filter}}
                   AND EXISTS (
                       SELECT 1 
-                        FROM {{input2_databasename}}."{{input2_tmp_layer}}" layer2
-                        JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                        FROM {{input2_databasename}}."{{input2_layer}}" layer2
+                        JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
                         WHERE (layer1tree.minx-{max_distance}) <= layer2tree.maxx 
                           AND (layer1tree.maxx+{max_distance}) >= layer2tree.minx
                           AND (layer1tree.miny-{max_distance}) <= layer2tree.maxy 
@@ -682,10 +682,10 @@ def intersect(
                        {primitivetype_to_extract.value}) as geom
                     {{layer1_columns_prefix_alias_str}}
                     {{layer2_columns_prefix_alias_str}}
-                FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
-                JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                JOIN {{input2_databasename}}."{{input2_tmp_layer}}" layer2
-                JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
                WHERE 1=1
                  {{batch_filter}}
                  AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
@@ -753,10 +753,10 @@ def join_by_location(
                       {area_inters_column_expression}
                       ,ST_intersection(layer1.{{input1_geometrycolumn}}, 
                                        layer2.{{input2_geometrycolumn}}) as geom_intersect
-                 FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
-                 JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                 JOIN {{input2_databasename}}."{{input2_tmp_layer}}" layer2
-                 JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                 FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                 JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                 JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                 JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
                 WHERE 1=1
                   {{batch_filter}}
                   AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
@@ -772,10 +772,10 @@ def join_by_location(
                       {{layer2_columns_prefix_alias_str}}
                       {area_inters_column_expression}
                       ,ST_intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) as geom_intersect
-                 FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
-                 JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                 JOIN {{input2_databasename}}."{{input2_tmp_layer}}" layer2
-                 JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                 FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                 JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                 JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                 JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
                 WHERE 1=1
                   {{batch_filter}}
                   AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
@@ -788,14 +788,14 @@ def join_by_location(
                       {{layer2_columns_prefix_alias_null_str}}
                       {area_inters_column_expression}
                       ,NULL as geom_intersect
-                 FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
-                 JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                 FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                 JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
                  WHERE 1=1
                   {{batch_filter}}
                   AND NOT EXISTS (
                       SELECT 1 
-                        FROM {{input2_databasename}}."{{input2_tmp_layer}}" layer2
-                        JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                        FROM {{input2_databasename}}."{{input2_layer}}" layer2
+                        JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
                        WHERE layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
                          AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
                          AND ST_intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
@@ -897,10 +897,10 @@ def join_nearest(
                   {{layer1_columns_prefix_alias_str}}
                   {{layer2_columns_prefix_alias_str}}
                   ,k.pos, k.distance
-              FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
+              FROM {{input1_databasename}}."{{input1_layer}}" layer1
               JOIN {{input2_databasename}}.knn k  
-              JOIN {{input2_databasename}}."{{input2_tmp_layer}}" layer2 ON layer2.rowid = k.fid
-             WHERE k.f_table_name = '{{input2_tmp_layer}}'
+              JOIN {{input2_databasename}}."{{input2_layer}}" layer2 ON layer2.rowid = k.fid
+             WHERE k.f_table_name = '{{input2_layer}}'
                 AND k.f_geometry_column = '{{input2_geometrycolumn}}'
                 AND k.ref_geometry = layer1.{{input1_geometrycolumn}}
                 AND k.max_items = {nb_nearest}
@@ -1000,10 +1000,10 @@ def split(
               ( WITH layer2_unioned AS (
                   SELECT layer1.rowid AS layer1_rowid
                         ,ST_union(layer2.{{input2_geometrycolumn}}) AS geom
-                    FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
-                    JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                    JOIN {{input2_databasename}}."{{input2_tmp_layer}}" layer2
-                    JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                    FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                    JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                    JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                    JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
                    WHERE 1=1
                      {{batch_filter}}
                      AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
@@ -1018,10 +1018,10 @@ def split(
                             {primitivetype_to_extract.value}) as geom
                       {{layer1_columns_prefix_alias_str}}
                       {{layer2_columns_prefix_alias_str}}
-                 FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
-                 JOIN {{input1_databasename}}."rtree_{{input1_tmp_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                 JOIN {{input2_databasename}}."{{input2_tmp_layer}}" layer2
-                 JOIN {{input2_databasename}}."rtree_{{input2_tmp_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                 FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                 JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                 JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                 JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
                 WHERE 1=1
                   {{batch_filter}}
                   AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
@@ -1036,7 +1036,7 @@ def split(
                        END as geom
                        {{layer1_columns_prefix_alias_str}}
                        {{layer2_columns_prefix_alias_null_str}}
-                  FROM {{input1_databasename}}."{{input1_tmp_layer}}" layer1
+                  FROM {{input1_databasename}}."{{input1_layer}}" layer1
                   LEFT JOIN layer2_unioned ON layer1.rowid = layer2_unioned.layer1_rowid
                  WHERE 1=1
                    {{batch_filter}}
