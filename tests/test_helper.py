@@ -3,9 +3,7 @@
 Helper functions for all tests.
 """
 
-from geofileops.util.general_util import MissingRuntimeDependencyError
 import logging
-import os
 from pathlib import Path
 import sys
 import tempfile
@@ -14,45 +12,6 @@ import shapely.geometry as sh_geom
 
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from geofileops.util import ogr_util
-from geofileops.util import sqlite_util
-
-class GdalBin():
-    def __init__(self, gdal_installation: str, gdal_bin_dir: str = None):
-        self.gdal_installation = gdal_installation
-        
-        self.gdal_bin_dir = None
-        self.mod_spatialite_dir = None
-        if gdal_installation == 'gdal_bin':
-            # Init gdal_bin_dir
-            if gdal_bin_dir is None:
-                if os.name == 'nt':
-                    self.gdal_bin_dir = Path(r"X:\GIS\Software\_Progs\OSGeo4W64_2020-05-29\bin")
-                else:
-                    print(f"Warning: gdal_bin installation init of gdal_bin_dir for tests not supported on os: {os.name}")
-            else:
-                self.gdal_bin_dir = Path(gdal_bin_dir)
-            
-            # Init mod_spatialite_dir
-            if os.name == 'nt':
-                curr_script_dir = Path(__file__).resolve().parent
-                self.mod_spatialite_dir = curr_script_dir.parent / 'bin' / 'mod_spatialite' / 'mod_spatialite-5.0.1-win-amd64'
-            else:
-                print(f"Warning: gdal_bin installation init of mod_spatialite_dir for tests not supported on os: {os.name}")
-                #raise Exception(f"os.name not supported: {os.name}")
-
-    def __enter__(self):
-        if self.gdal_bin_dir is not None:
-            os.environ['GDAL_BIN'] = str(self.gdal_bin_dir)
-        if self.mod_spatialite_dir is not None:
-            os.environ['MOD_SPATIALITE_DIR'] = str(self.mod_spatialite_dir)
-
-    def __exit__(self, type, value, traceback):
-        #Exception handling here
-        if self.gdal_bin_dir is not None and os.environ.get('GDAL_BIN') is not None:
-            del os.environ['GDAL_BIN']
-        if self.mod_spatialite_dir is not None and os.environ.get('MOD_SPATIALITE_DIR') is not None:
-            del os.environ['MOD_SPATIALITE_DIR']
 
 class TestData:
     point = sh_geom.Point((0, 0))
@@ -130,28 +89,3 @@ def init_test_for_debug(test_module_name: str) -> Path:
     """
 
     return tmpdir
-
-def check_runtime_dependencies_ok(operation: str, gdal_installation: str) -> bool:
-    # Operations on two layers use sqlite directly to run sql -> check sqlite
-    if operation in ['twolayer']:
-        try:
-            sqlite_util.check_runtimedependencies()
-            return True
-        except MissingRuntimeDependencyError:
-            return False
-    else:
-        # Operations that use gdal to run sql -> check gdal
-        # Check if there are unsupported functions
-        install_info = ogr_util.get_gdal_install_info(gdal_installation)
-        if install_info['spatialite_version()'] >= '5.0.0':
-            return True
-        elif install_info['spatialite_version()'] >= '4.3.0':
-            if install_info['lwgeom_version()'] is None:
-                if operation in ['twolayer']:
-                    return False
-                else:
-                    return True
-            else:
-                return True
-        return False
-        

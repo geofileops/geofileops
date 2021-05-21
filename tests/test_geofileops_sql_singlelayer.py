@@ -12,56 +12,36 @@ from geofileops import geofile
 from geofileops.geofile import GeometryType
 from geofileops.util.general_util import MissingRuntimeDependencyError 
 from geofileops.util import geofileops_sql
-from geofileops.util import ogr_util
 from tests import test_helper
 
 def test_buffer_gpkg(tmpdir):
-    # Buffer to test dir, and try with and without gdal_bin set
+    # Buffer to test dir
     input_path = test_helper.TestFiles.polygons_parcels_gpkg
     output_path = Path(tmpdir) / 'polygons_parcels-output.gpkg'
-    basetest_buffer(input_path, output_path, gdal_installation='gdal_default')
-    basetest_buffer(input_path, output_path, gdal_installation='gdal_bin')
+    basetest_buffer(input_path, output_path)
 
     # Buffer point source to test dir
     input_path = test_helper.TestFiles.points_gpkg
     output_path = Path(tmpdir) / 'points-output.gpkg'
-    basetest_buffer(input_path, output_path, gdal_installation='gdal_default')
-    basetest_buffer(input_path, output_path, gdal_installation='gdal_bin')
+    basetest_buffer(input_path, output_path)
 
     # Buffer line source to test dir
     input_path = test_helper.TestFiles.linestrings_rows_of_trees_gpkg
     output_path = Path(tmpdir) / 'linestrings_rows_of_trees-output.gpkg'
-    basetest_buffer(input_path, output_path, gdal_installation='gdal_default')
-    basetest_buffer(input_path, output_path, gdal_installation='gdal_bin')
+    basetest_buffer(input_path, output_path)
 
 def test_buffer_shp(tmpdir):
     # Buffer to test dir
     input_path = test_helper.TestFiles.polygons_parcels_shp
     output_path = Path(tmpdir) / 'polygons_parcels-output.shp'
-
-    # Try both with and without gdal_bin set
-    basetest_buffer(input_path, output_path, gdal_installation='gdal_default')
-    basetest_buffer(input_path, output_path, gdal_installation='gdal_bin')
+    basetest_buffer(input_path, output_path)
     
 def basetest_buffer(
         input_path: Path, 
-        output_basepath: Path, 
-        gdal_installation: str):
+        output_path: Path):
     
     # Do operation
-    output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}{output_basepath.suffix}"
-    with test_helper.GdalBin(gdal_installation):
-        ok_expected = test_helper.check_runtime_dependencies_ok('buffer', gdal_installation)
-        try:
-            geofileops_sql.buffer(input_path=input_path, output_path=output_path, distance=1)
-            test_ok = True
-        except MissingRuntimeDependencyError:
-            test_ok = False
-    assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
-
-    # If it is expected not to be OK, don't do other checks
-    if ok_expected is False:
-        return
+    geofileops_sql.buffer(input_path=input_path, output_path=output_path, distance=1)
 
     # Now check if the tmp file is correctly created
     layerinfo_orig = geofile.get_layerinfo(input_path)
@@ -81,39 +61,20 @@ def test_convexhull_gpkg(tmpdir):
     # Execute to test dir
     input_path = test_helper.TestFiles.polygons_parcels_gpkg
     output_path = Path(tmpdir) / 'polygons_parcels-output.gpkg'
-    
-    # Try both with and without gdal_bin set
-    basetest_convexhull(input_path, output_path, gdal_installation='gdal_bin')
-    basetest_convexhull(input_path, output_path, gdal_installation='gdal_default')
+    basetest_convexhull(input_path, output_path)
 
 def test_convexhull_shp(tmpdir):
     # Select some data from src to tmp file
     input_path = test_helper.TestFiles.polygons_parcels_shp
     output_path = Path(tmpdir) / 'polygons_parcels-output.shp'
-
-    # Try both with and without gdal_bin set
-    basetest_convexhull(input_path, output_path, gdal_installation='gdal_bin')
-    basetest_convexhull(input_path, output_path, gdal_installation='gdal_default')
+    basetest_convexhull(input_path, output_path)
 
 def basetest_convexhull(
         input_path: Path, 
-        output_basepath: Path, 
-        gdal_installation: str):
+        output_path: Path):
     
     # Do operation  
-    output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}{output_basepath.suffix}"
-    with test_helper.GdalBin(gdal_installation):
-        ok_expected = test_helper.check_runtime_dependencies_ok('', gdal_installation)
-        try:
-            geofileops_sql.convexhull(input_path=input_path, output_path=output_path)
-            test_ok = True
-        except MissingRuntimeDependencyError:
-            test_ok = False
-    assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
-
-    # If it is expected not to be OK, don't do other checks
-    if ok_expected is False:
-        return
+    geofileops_sql.convexhull(input_path=input_path, output_path=output_path)
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
@@ -133,41 +94,20 @@ def test_isvalid_gpkg(tmpdir):
     # Buffer to test dir
     input_path = test_helper.TestFiles.polygons_parcels_gpkg
     output_path = Path(tmpdir) / 'polygons_parcels-output.gpkg'
-
-    # Try both with and without gdal_bin set
-    basetest_isvalid(input_path, output_path, gdal_installation='gdal_bin')
-    basetest_isvalid(input_path, output_path, gdal_installation='gdal_default')
+    basetest_isvalid(input_path, output_path)
 
 def test_isvalid_shp(tmpdir):
     # Select some data from src to tmp file
     input_path = test_helper.TestFiles.polygons_parcels_shp
     output_path = Path(tmpdir) / 'polygons_parcels-output.gpkg'
-    
-    # Try both with and without gdal_bin set
-    basetest_isvalid(input_path, output_path, gdal_installation='gdal_bin')
-    basetest_isvalid(input_path, output_path, gdal_installation='gdal_default')
+    basetest_isvalid(input_path, output_path)
     
 def basetest_isvalid(
         input_path: Path, 
-        output_basepath: Path, 
-        gdal_installation: str,
-        ok_expected: bool = None):
+        output_path: Path):
     
     # Do operation
-    output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}{output_basepath.suffix}"
-    with test_helper.GdalBin(gdal_installation):
-        if ok_expected is None:
-            ok_expected = test_helper.check_runtime_dependencies_ok('isvalid', gdal_installation)
-        try:
-            geofileops_sql.isvalid(input_path=input_path, output_path=output_path, nb_parallel=2)
-            test_ok = True
-        except MissingRuntimeDependencyError:
-            test_ok = False
-    assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
-
-    # If it is expected not to be OK, don't do other checks
-    if ok_expected is False:
-        return
+    geofileops_sql.isvalid(input_path=input_path, output_path=output_path, nb_parallel=2)
 
     '''
     # Now check if the tmp file is correctly created
@@ -187,65 +127,44 @@ def test_makevalid_gpkg(tmpdir):
     # makevalid to test dir
     input_path = test_helper.TestFiles.polygons_invalid_geometries_gpkg
     output_path = Path(tmpdir) / f"{input_path.stem}_valid-output.gpkg"
-    
-    # Try both with and without gdal_bin set
-    basetest_makevalid(input_path, output_path, gdal_installation='gdal_bin')
-    basetest_makevalid(input_path, output_path, gdal_installation='gdal_default')
+    basetest_makevalid(input_path, output_path)
 
 def test_makevalid_shp(tmpdir):
     # makevalid to test dir
     input_path = test_helper.TestFiles.polygons_invalid_geometries_shp
     output_path = Path(tmpdir) / f"{input_path.stem}_valid-output.shp"
-    
-    # Try both with and without gdal_bin set
-    basetest_makevalid(input_path, output_path, gdal_installation='gdal_bin')
-    basetest_makevalid(input_path, output_path, gdal_installation='gdal_default')
+    basetest_makevalid(input_path, output_path)
            
 def basetest_makevalid(
         input_path: Path, 
-        output_basepath: Path, 
-        gdal_installation: str,
-        ok_expected: bool = None):
+        output_path: Path):
 
     # Do operation
-    output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}{output_basepath.suffix}"
-    with test_helper.GdalBin(gdal_installation):
-        if ok_expected is None:
-            ok_expected = test_helper.check_runtime_dependencies_ok('makevalid', gdal_installation)
-        try: 
-            geofileops_sql.makevalid(input_path=input_path, output_path=output_path, nb_parallel=2)
-            test_ok = True
-        except MissingRuntimeDependencyError:
-            test_ok = False
-        assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
+    geofileops_sql.makevalid(input_path=input_path, output_path=output_path, nb_parallel=2)
 
-        # If it is expected not to be OK, don't do other checks
-        if ok_expected is False:
-            return
+    # Now check if the output file is correctly created
+    assert output_path.exists() == True
+    layerinfo_orig = geofile.get_layerinfo(input_path)
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_orig.featurecount == layerinfo_output.featurecount
+    assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
-        # Now check if the output file is correctly created
-        assert output_path.exists() == True
-        layerinfo_orig = geofile.get_layerinfo(input_path)
-        layerinfo_output = geofile.get_layerinfo(output_path)
-        assert layerinfo_orig.featurecount == layerinfo_output.featurecount
-        assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
-    
-        # Check geometry type
-        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
+    # Check geometry type
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
-        # Now check the contents of the result file
-        output_gdf = geofile.read_file(output_path)
-        assert output_gdf['geometry'][0] is not None
+    # Now check the contents of the result file
+    output_gdf = geofile.read_file(output_path)
+    assert output_gdf['geometry'][0] is not None
 
-        # Make sure the input file was not valid
-        output_isvalid_path = output_path.parent / f"{output_path.stem}_is-valid{output_path.suffix}"
-        isvalid = geofileops_sql.isvalid(input_path=input_path, output_path=output_isvalid_path)
-        assert isvalid is False, "Input file should contain invalid features"
+    # Make sure the input file was not valid
+    output_isvalid_path = output_path.parent / f"{output_path.stem}_is-valid{output_path.suffix}"
+    isvalid = geofileops_sql.isvalid(input_path=input_path, output_path=output_isvalid_path)
+    assert isvalid is False, "Input file should contain invalid features"
 
-        # Check if the result file is valid
-        output_new_isvalid_path = output_path.parent / f"{output_path.stem}_new_is-valid{output_path.suffix}"
-        isvalid = geofileops_sql.isvalid(input_path=output_path, output_path=output_new_isvalid_path)
-        assert isvalid == True, "Output file shouldn't contain invalid features"
+    # Check if the result file is valid
+    output_new_isvalid_path = output_path.parent / f"{output_path.stem}_new_is-valid{output_path.suffix}"
+    isvalid = geofileops_sql.isvalid(input_path=output_path, output_path=output_new_isvalid_path)
+    assert isvalid == True, "Output file shouldn't contain invalid features"
 
 def test_select_gpkg(tmpdir):
     # Select some data from src to tmp file
@@ -344,71 +263,40 @@ def basetest_select_various_options(
     # TODO: increase test coverage of other options...
 
 def test_simplify_gpkg(tmpdir):
-    # Simplify polygon source to test dir, with and without gdal_bin set
+    # Simplify polygon source to test dir
     input_path = test_helper.TestFiles.polygons_parcels_gpkg
     output_path = Path(tmpdir) / input_path.name
     basetest_simplify(input_path, output_path, 
-            expected_output_geometrytype=GeometryType.MULTIPOLYGON,
-            gdal_installation='gdal_default')
-    basetest_simplify(input_path, output_path, 
-            expected_output_geometrytype=GeometryType.MULTIPOLYGON,
-            gdal_installation='gdal_bin')
+            expected_output_geometrytype=GeometryType.MULTIPOLYGON)
 
     # Simplify point source to test dir
     input_path = test_helper.TestFiles.points_gpkg
     output_path = Path(tmpdir) / 'points-output.gpkg'
     basetest_simplify(input_path, output_path, 
-            expected_output_geometrytype=GeometryType.MULTIPOINT,
-            gdal_installation='gdal_default')
-    basetest_simplify(input_path, output_path, 
-            expected_output_geometrytype=GeometryType.MULTIPOINT,
-            gdal_installation='gdal_bin')
+            expected_output_geometrytype=GeometryType.MULTIPOINT)
 
     # Simplify line source to test dir
     input_path = test_helper.TestFiles.linestrings_rows_of_trees_gpkg
     output_path = Path(tmpdir) / 'linestrings_rows_of_trees-output.gpkg'
     basetest_simplify(input_path, output_path, 
-            expected_output_geometrytype=GeometryType.MULTILINESTRING,
-            gdal_installation='gdal_default')
-    basetest_simplify(input_path, output_path, 
-            expected_output_geometrytype=GeometryType.MULTILINESTRING,
-            gdal_installation='gdal_bin')
+            expected_output_geometrytype=GeometryType.MULTILINESTRING)
 
 def test_simplify_shp(tmpdir):
     # Simplify to test dir
     input_path = test_helper.TestFiles.polygons_parcels_shp
     output_path = Path(tmpdir) / 'polygons_parcels-output.shp'
-
-    # Try both with and without gdal_bin set
     basetest_simplify(input_path, output_path, 
-            expected_output_geometrytype=GeometryType.MULTIPOLYGON,
-            gdal_installation='gdal_default')
-    basetest_simplify(input_path, output_path, 
-            expected_output_geometrytype=GeometryType.MULTIPOLYGON,
-            gdal_installation='gdal_bin')
+            expected_output_geometrytype=GeometryType.MULTIPOLYGON)
     
 def basetest_simplify(
         input_path: Path, 
-        output_basepath: Path,
-        expected_output_geometrytype: GeometryType,
-        gdal_installation: str):
+        output_path: Path,
+        expected_output_geometrytype: GeometryType):
 
     # Do operation
-    output_path = output_basepath.parent / f"{output_basepath.stem}_{gdal_installation}{output_basepath.suffix}"
-    with test_helper.GdalBin(gdal_installation):
-        ok_expected = test_helper.check_runtime_dependencies_ok('', gdal_installation)
-        try:
-            geofileops_sql.simplify(
-                    input_path=input_path, output_path=output_path,
-                    tolerance=5)
-            test_ok = True
-        except MissingRuntimeDependencyError:
-            test_ok = False
-    assert test_ok is ok_expected, f"Error: for {gdal_installation}, test_ok: {test_ok}, expected: {ok_expected}"
-
-    # If it is expected not to be OK, don't do other checks
-    if ok_expected is False:
-        return
+    geofileops_sql.simplify(
+            input_path=input_path, output_path=output_path,
+            tolerance=5)
 
     # Now check if the output file is correctly created
     assert output_path.exists() == True
