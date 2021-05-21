@@ -6,7 +6,6 @@ Module containing utilities regarding the usage of ogr functionalities.
 import datetime
 import enum
 import logging
-import os
 from pathlib import Path
 import sqlite3
 from typing import Any, List

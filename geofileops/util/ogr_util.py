@@ -6,11 +6,8 @@ Module containing utilities regarding the usage of ogr functionalities.
 #-------------------------------------
 # Import/init needed modules
 #-------------------------------------
-from concurrent import futures
-from datetime import datetime
 from io import StringIO
 import logging
-import multiprocessing
 import os
 from pathlib import Path
 import pprint
@@ -26,8 +23,6 @@ from osgeo import gdal
 gdal.UseExceptions() 
 
 from geofileops import geofile
-from geofileops.util import general_util
-from geofileops.util.general_util import MissingRuntimeDependencyError
 from geofileops.util.geometry_util import GeometryType
 
 #-------------------------------------------------------------
