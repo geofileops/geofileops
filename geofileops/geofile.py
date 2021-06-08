@@ -3,6 +3,7 @@
 Module with helper functions for geo files.
 """
 
+import enum
 import datetime
 import filecmp
 import logging
@@ -463,10 +464,31 @@ def rename_layer(
         if datasource is not None:
             del datasource
 
+class DataType(enum.Enum):
+    """
+    This enum defines the standard data types that can be used for columns. 
+    """
+    TEXT = 'TEXT'           
+    """Column with text data: ~ string, char, varchar, clob."""
+    INTEGER = 'INTEGER'     
+    """Column with integer data."""
+    REAL = 'REAL'           
+    """Column with floating point data: ~ float, double."""
+    DATE = 'DATE'           
+    """Column with date data."""
+    TIMESTAMP = 'TIMESTAMP' 
+    """Column with timestamp data: ~ datetime."""
+    BOOLEAN = 'BOOLEAN'     
+    """Column with boolean data."""
+    BLOB = 'BLOB'           
+    """Column with binary data."""
+    NUMERIC = 'NUMERIC'     
+    """Column with numeric data: exact decimal data."""
+    
 def add_column(
         path: Union[str, 'os.PathLike[Any]'],
         name: str,
-        type: str,
+        type: Union[DataType, str],
         expression: Union[str, int, float] = None, 
         layer: str = None,
         force_update: bool = False):
@@ -476,8 +498,7 @@ def add_column(
     Args:
         path (PathLike): Path to the geofile
         name (str): Name for the new column
-        type (str): Column type. Possible values: 'TEXT', 'NUMERIC', 'INTEGER', 
-            'REAL', 'BLOB'
+        type (DataType, str): Column type of the new column.
         expression (str, optional): SQLite expression to use to update 
             the value. Defaults to None.
         layer (str, optional): The layer name. If None and the geofile
@@ -490,8 +511,10 @@ def add_column(
     """
 
     ##### Init #####
-    if type.upper() not in ['TEXT', 'NUMERIC', 'INTEGER', 'REAL', 'BLOB']:
-        raise Exception(f"Type specified is not supported: {type}")
+    if isinstance(type, DataType):
+        type_str = type.value
+    else:
+        type_str = type
     path_p = Path(path)
     if layer is None:
         layer = get_only_layer(path_p)
@@ -505,7 +528,7 @@ def add_column(
         if name.upper() not in columns_upper:
             # If column doesn't exist yet, create it
             #if name not in getlayerinfo(path_p, layer=layer).columns:
-            sqlite_stmt = f'ALTER TABLE "{layer}" ADD COLUMN "{name}" {type}'
+            sqlite_stmt = f'ALTER TABLE "{layer}" ADD COLUMN "{name}" {type_str}'
             ogr_util.vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
             #datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
         else:
