@@ -10,10 +10,12 @@ import logging
 import logging.config
 import multiprocessing
 from pathlib import Path
+import pyproj 
 import time
 import shutil
 from typing import List, Optional, Tuple
-import warnings 
+import warnings
+
 # Don't show this geopandas warning...
 warnings.filterwarnings('ignore', 'GeoSeries.isna', UserWarning)
 
@@ -599,12 +601,11 @@ def dissolve(
                     columns_str += f', "{column}"'
                 
                 # Now move tmp file to output location, but order the rows randomly
-                # to evade having all complex geometries together...   
-                geofile.add_column(path=output_tmp_path, layer=output_layer, 
-                        name='temp_ordering_id', type='REAL', expression=f"RANDOM()", force_update=True)
-                sqlite_stmt = f'CREATE INDEX idx_batch_id ON "{output_layer}"(temp_ordering_id)' 
-                ogr_util.vector_info(path=output_tmp_path, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
-
+                # to evade having all complex geometries together...
+                orderby_column = 'temp_ordercolumn_geohash'
+                _add_orderby_column(
+                        path=output_tmp_path, layer=output_layer, name=orderby_column)
+                
                 # Prepare SQL statement for final output file 
                 # If explodecollections is False and there are groupby columns...
                 if(explodecollections is False 
@@ -620,7 +621,7 @@ def dissolve(
                                 {columns_str} 
                             FROM "{output_layer}" 
                             GROUP BY {groupby_columns_str}
-                            ORDER BY avg(temp_ordering_id)'''
+                            ORDER BY MAX({orderby_column})'''
                 else:
                     # No group by columns, so only need to reorder output file
                     logger.info("Write final result to output file")
@@ -628,7 +629,7 @@ def dissolve(
                             SELECT {{geometrycolumn}} 
                                 {columns_str} 
                             FROM "{output_layer}" 
-                            ORDER BY temp_ordering_id'''
+                            ORDER BY {orderby_column}'''
                 # Go!
                 geofileops_sql.select(
                         output_tmp_path, output_path, sql_stmt, output_layer=output_layer,
@@ -903,6 +904,39 @@ def _dissolve_polygons(
     return_info['perfstring'] = perfstring
     return_info['message'] = message
     return return_info
+
+def _add_orderby_column(
+        path: Path,
+        layer: str,
+        name: str):
+
+    ### Prepare the expression to calculate the orderby column. ###
+    # In a spatial file, a spatial order will make later use more efficiënt, 
+    # so use a geohash.
+    layerinfo = geofile.get_layerinfo(path)
+    if layerinfo.crs is not None and layerinfo.crs.is_geographic:
+        # If the coordinates are geographic (in lat/lon degrees), ok
+        expression = f"ST_GeoHash({layerinfo.geometrycolumn}, 10)"
+    else:
+        # If they are not geographic (in lat/lon degrees), they need to be  
+        # converted to ~ degrees to be able to calculate a geohash.
+
+        # Properly calculating the transformation to eg. WGS is terribly slow... 
+        # expression = f"""ST_GeoHash(ST_Transform(MakePoint(
+        #       (MbrMaxX(geom)+MbrMinX(geom))/2, 
+        #       (MbrMinY(geom)+MbrMaxY(geom))/2, ST_SRID(geom)), 4326), 10)"""
+        # So, do something else that's faster and still gives a good 
+        # geographic clustering.
+        to_geographic_factor_approx = 90/max(layerinfo.total_bounds)
+        expression = f"""ST_GeoHash(MakePoint(
+                ((MbrMaxX({layerinfo.geometrycolumn})+MbrMinX({layerinfo.geometrycolumn}))/2)*{to_geographic_factor_approx}, 
+                ((MbrMinY({layerinfo.geometrycolumn})+MbrMaxY({layerinfo.geometrycolumn}))/2)*{to_geographic_factor_approx}, 4326), 10)"""      
+    
+    ### Now we can actually add the column. ###
+    geofile.add_column(
+            path=path, name=name, type=geofile.DataType.TEXT, expression=expression)
+    sqlite_stmt = f'CREATE INDEX {name}_idx ON "{layer}"({name})' 
+    ogr_util.vector_info(path=path, sql_stmt=sqlite_stmt, readonly=False)
 
 if __name__ == '__main__':
     raise Exception("Not implemented!")
