@@ -7,14 +7,10 @@ import datetime
 import enum
 import logging
 import multiprocessing
-import os
 from pathlib import Path
-import shutil
 import sys
 import tempfile
 from typing import List, Optional
-import urllib.request
-import zipfile
 
 import pandas as pd 
 
@@ -22,7 +18,18 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops.util import geofileops_gpd
 from geofileops.util import geofileops_sql
-from geofileops import geofileops
+from geofileops.util import sampledata_util
+from geofileops.util.sampledata_util import SampleGeofile 
+
+################################################################################
+# Some init
+################################################################################
+
+logger = logging.getLogger(__name__)
+
+################################################################################
+# The real work
+################################################################################
 
 class Benchmark(enum.Enum):
     BUFFER = 'buffer'
@@ -55,53 +62,7 @@ class BenchResult:
     def __repr__(self):
         return f"{self.__class__}({self.__dict__})"
 
-def _get_testdata_dir(tmpdir: Path) -> Path:
-    testdata_dir = tmpdir / 'data'
-    return testdata_dir
-
-def _get_testdata_aiv(testdata_path: Path):
-
-    # If the testdata file already exists... just return
-    if testdata_path.exists():
-        return
-    elif testdata_path.name.lower() == 'Lbgbrprc19.gpkg'.lower():
-        url = r"https://downloadagiv.blob.core.windows.net/landbouwgebruikspercelen/2019/Landbouwgebruikspercelen_LV_2019_GewVLA_Shapefile.zip"
-    elif testdata_path.name.lower() == 'Lbgbrprc18.gpkg'.lower():
-        url = r"https://downloadagiv.blob.core.windows.net/landbouwgebruikspercelen/2018/Landbouwgebruikspercelen_LV_2018_GewVLA_Shape.zip"
-    else:
-        raise Exception(f"Unknown testdata file: {testdata_path}")
-
-    # Download zip file if needed...  
-    zip_path = testdata_path.parent / f"{testdata_path.stem}.zip"
-    unzippedzip_dir = testdata_path.parent / zip_path.stem
-    if not zip_path.exists() and not unzippedzip_dir.exists():
-        # Download beschmark file
-        print(f"Download test data {testdata_path}")
-        urllib.request.urlretrieve(str(url), zip_path)
-    
-    # Unzip zip file if needed... 
-    if not unzippedzip_dir.exists():
-        # Unzip file
-        print('Unzip test data')
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(unzippedzip_dir)
-            
-    # Convert shapefile to geopackage
-    shp_dir = unzippedzip_dir / 'Shapefile'
-    shp_paths = list(shp_dir.glob('Lbgbrprc*.shp'))
-    if len(shp_paths) != 1:
-        raise Exception(f"Should find 1 shapefile, found {len(shp_paths)}")
-
-    print('Make shapefile valid to gpkg')
-    geofileops.makevalid(shp_paths[0], testdata_path)
-    
-    # Cleanup
-    if zip_path.exists():
-        zip_path.unlink()
-    if unzippedzip_dir.exists():
-        shutil.rmtree(unzippedzip_dir)
-
-def _get_package_version():
+def get_geofileops_version():
     version_path = Path(__file__).resolve().parent.parent / 'version.txt'
     with open(version_path, mode='r') as file:
         return file.readline()
@@ -109,7 +70,7 @@ def _get_package_version():
 def benchmark_buffer(tmpdir: Path) -> List[BenchResult]:
     
     bench_results = []
-    input_path = _get_testdata_dir(tmpdir) / 'Lbgbrprc19.gpkg'
+    input_path = SampleGeofile.POLYGON_AGRI_PARCEL_2019.custompath(tmpdir)
     
     print('Start buffer with geopandas')
     start_time = datetime.datetime.now()
@@ -117,7 +78,7 @@ def benchmark_buffer(tmpdir: Path) -> List[BenchResult]:
     geofileops_gpd.buffer(input_path, output_path, distance=1, force=True)
     secs_taken = (datetime.datetime.now()-start_time).total_seconds()
     bench_results.append(BenchResult(
-            package_version=_get_package_version(),
+            package_version=get_geofileops_version(),
             operation='buffer', 
             tool_used='geopandas', 
             params='',
@@ -135,7 +96,7 @@ def benchmark_buffer(tmpdir: Path) -> List[BenchResult]:
     geofileops_sql.buffer(input_path, output_path, distance=1, force=True)
     secs_taken = (datetime.datetime.now()-start_time).total_seconds()
     bench_results.append(BenchResult(
-            package_version=_get_package_version(),
+            package_version=get_geofileops_version(),
             operation='buffer', 
             tool_used='sql', 
             params='',
@@ -152,7 +113,7 @@ def benchmark_buffer(tmpdir: Path) -> List[BenchResult]:
 def benchmark_dissolve(tmpdir: Path) -> List[BenchResult]:
     
     bench_results = []
-    input_path = _get_testdata_dir(tmpdir) / 'Lbgbrprc19.gpkg'
+    input_path = SampleGeofile.POLYGON_AGRI_PARCEL_2019.custompath(tmpdir)
     
     print('Dissolve without groupby: start')
     start_time = datetime.datetime.now()
@@ -163,7 +124,7 @@ def benchmark_dissolve(tmpdir: Path) -> List[BenchResult]:
             force=True)
     secs_taken = (datetime.datetime.now()-start_time).total_seconds()
     bench_results.append(BenchResult(
-            package_version=_get_package_version(),
+            package_version=get_geofileops_version(),
             operation='dissolve', 
             tool_used='geopandas', 
             params='',
@@ -184,7 +145,7 @@ def benchmark_dissolve(tmpdir: Path) -> List[BenchResult]:
             force=True)
     secs_taken = (datetime.datetime.now()-start_time).total_seconds()
     bench_results.append(BenchResult(
-            package_version=_get_package_version(),
+            package_version=get_geofileops_version(),
             operation='dissolve', 
             tool_used='geopandas', 
             params='groupby_columns=[GEWASGROEP]',
@@ -206,7 +167,7 @@ def benchmark_dissolve(tmpdir: Path) -> List[BenchResult]:
             force=True)
     secs_taken = (datetime.datetime.now()-start_time).total_seconds()
     bench_results.append(BenchResult(
-            package_version=_get_package_version(),
+            package_version=get_geofileops_version(),
             operation='dissolve', 
             tool_used='geopandas', 
             params='groupby_columns=[GEWASGROEP];explodecollection=False',
@@ -222,8 +183,8 @@ def benchmark_dissolve(tmpdir: Path) -> List[BenchResult]:
 def benchmark_intersect(tmpdir: Path) -> List[BenchResult]:
     # Init
     bench_results = []
-    input1_path = _get_testdata_dir(tmpdir) / 'Lbgbrprc19.gpkg'
-    input2_path = _get_testdata_dir(tmpdir) / 'Lbgbrprc18.gpkg'
+    input1_path = SampleGeofile.POLYGON_AGRI_PARCEL_2019.custompath(tmpdir)
+    input2_path = SampleGeofile.POLYGON_AGRI_PARCEL_2018.custompath(tmpdir)
     
     print('Start Intersect with sql')
     start_time = datetime.datetime.now()
@@ -235,7 +196,7 @@ def benchmark_intersect(tmpdir: Path) -> List[BenchResult]:
             force=True)
     secs_taken = (datetime.datetime.now()-start_time).total_seconds()
     bench_results.append(BenchResult(
-            package_version=_get_package_version(),
+            package_version=get_geofileops_version(),
             operation='intersect', 
             tool_used='sql', 
             params='',
@@ -251,8 +212,8 @@ def benchmark_intersect(tmpdir: Path) -> List[BenchResult]:
 def benchmark_union(tmpdir: Path) -> List[BenchResult]:
     # Init
     bench_results = []
-    input1_path = _get_testdata_dir(tmpdir) / 'Lbgbrprc19.gpkg'
-    input2_path = _get_testdata_dir(tmpdir) / 'Lbgbrprc18.gpkg'
+    input1_path = SampleGeofile.POLYGON_AGRI_PARCEL_2019.custompath(tmpdir)
+    input2_path = SampleGeofile.POLYGON_AGRI_PARCEL_2018.custompath(tmpdir)
     
     print('Start Union with sql')
     start_time = datetime.datetime.now()
@@ -264,7 +225,7 @@ def benchmark_union(tmpdir: Path) -> List[BenchResult]:
             force=True)
     secs_taken = (datetime.datetime.now()-start_time).total_seconds()
     bench_results.append(BenchResult(
-            package_version=_get_package_version(),
+            package_version=get_geofileops_version(),
             operation='union', 
             tool_used='sql', 
             params='',
@@ -292,13 +253,9 @@ def benchmark(
         tmpdir = Path(tempfile.gettempdir()) / 'geofileops_benchmark'
     
     # First make sure the testdata is present
-    testdata_dir = _get_testdata_dir(tmpdir=tmpdir)
-    testdata_dir.mkdir(parents=True, exist_ok=True)
-    prc2019_path = testdata_dir / 'Lbgbrprc19.gpkg'
-    _get_testdata_aiv(prc2019_path)
-    prc2018_path = testdata_dir / 'Lbgbrprc18.gpkg'
-    _get_testdata_aiv(prc2018_path)
-
+    sampledata_util.download_samplefile(SampleGeofile.POLYGON_AGRI_PARCEL_2018, tmpdir)
+    sampledata_util.download_samplefile(SampleGeofile.POLYGON_AGRI_PARCEL_2019, tmpdir)
+    
     # Now we can start benchmarking
     results = []
     if Benchmark.BUFFER in benchmarks_to_run:
@@ -340,8 +297,8 @@ if __name__ == '__main__':
     benchmark(
             benchmarks_to_run=[
                 #Benchmark.BUFFER,
-                Benchmark.UNION,
-                Benchmark.INTERSECT,
-                #Benchmark.DISSOLVE,
+                #Benchmark.UNION,
+                #Benchmark.INTERSECT,
+                Benchmark.DISSOLVE,
             ],
             tmpdir=tmpdir)
