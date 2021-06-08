@@ -30,7 +30,8 @@ def test_add_column(tmpdir):
         
     ### Add area column ###
     #with test_helper.GdalBin(gdal_installation='gdal_default'):
-    geofile.add_column(tmppath, layer='parcels', name='AREA', type='real', expression='ST_area(geom)')
+    geofile.add_column(tmppath, layer='parcels', name='AREA', type='real', 
+            expression='ST_area(geom)')
         
     layerinfo = geofile.get_layerinfo(path=tmppath, layer='parcels')
     assert 'AREA' in layerinfo.columns
@@ -38,14 +39,16 @@ def test_add_column(tmpdir):
     gdf = geofile.read_file(tmppath)
     assert round(gdf['AREA'].astype('float')[0], 1) == round(gdf['OPPERVL'].astype('float')[0], 1)
 
-    ### Add invalid column type -> should raise an exception
-    test_ok = False
-    try: 
-        geofile.add_column(tmppath, layer='parcels', name='joske', type='joske', expression='ST_area(geom)')
-        test_ok = False
-    except:
-        test_ok = True
-    assert test_ok is True
+    ### Add perimeter column ###
+    #with test_helper.GdalBin(gdal_installation='gdal_default'):
+    geofile.add_column(tmppath, layer='parcels', name='PERIMETER', type=geofile.DataType.REAL, 
+            expression='ST_perimeter(geom)')
+        
+    layerinfo = geofile.get_layerinfo(path=tmppath, layer='parcels')
+    assert 'AREA' in layerinfo.columns
+    
+    gdf = geofile.read_file(tmppath)
+    assert round(gdf['AREA'].astype('float')[0], 1) == round(gdf['OPPERVL'].astype('float')[0], 1)
 
 def test_cmp(tmpdir):
     # Copy test file to tmpdir
