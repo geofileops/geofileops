@@ -796,7 +796,7 @@ def _dissolve_polygons(
     else:
         # If groupby_columns specified, dissolve
         start_dissolve = datetime.datetime.now()
-        diss_gdf = input_gdf.dissolve(by=groupby_columns, aggfunc=aggfunc, as_index=False)
+        diss_gdf = input_gdf.dissolve(by=groupby_columns, aggfunc=aggfunc, as_index=False, dropna=False)
         perfinfo['time_dissolve'] = (datetime.datetime.now()-start_dissolve).total_seconds()
 
     # If explodecollections is True and For polygons, explode multi-geometries.
