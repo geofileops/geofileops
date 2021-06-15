@@ -340,14 +340,43 @@ def select(
       * {columns_to_select_str}: if 'columns' is not None, those columns, 
         otherwise all columns of the layer.
       * {input_layer}: the layer name of the input layer.
-      * {batch_filter}: the filter use to process in parallel per batch. 
+      * {batch_filter}: the filter used to process in parallel per batch. 
     
-    Because some sql statement won't give the same result when parallellized 
-    (eg. when using a group by statement), nb_parallel is 1 by default. 
-    If you do want to use parallel processing, 
-    specify nb_parallel + make sure to include the placeholder {batch_filter} 
-    in your sql_stmt. This placeholder will be replaced with a filter
-    of the form 'AND rowid >= x AND rowid < y'.
+    Example: Copy all rows with a certain minimum area to the output file. 
+    ::        
+    
+        from geofileops import geofileops
+
+        minimum_area = 100
+        sql_stmt = f'''
+                SELECT {{geometrycolumn}}
+                      {{columns_to_select_str}}
+                  FROM "{{input_layer}}"
+                 WHERE 1=1
+                   {{batch_filter}}
+                   AND ST_Area({{geometrycolumn}}) > {minimum_area}
+                '''
+        geofileops.select(
+                input_path=...,
+                output_path=...,
+                sql_stmt=sql_stmt)
+
+    Some important remarks:
+
+    * Because some sql statement won't give the same result when parallellized 
+      (eg. when using a group by statement), nb_parallel is 1 by default. 
+      If you do want to use parallel processing, specify nb_parallel + make 
+      sure to include the placeholder {batch_filter} in your sql_stmt. 
+      This placeholder will be replaced with a filter of the form 
+      'AND rowid >= x AND rowid < y'.
+    * Table names are best double quoted as in the example, because some 
+      characters are otherwise not supported in the table name, eg. '-'.
+    * Besides the standard sqlite sql syntacs, you can use the spatialite 
+      functions as documented here: |sqlite_reference_link|   
+
+    .. |sqlite_reference_link| raw:: html
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
 
     The result is written to the output file specified.
 
@@ -823,26 +852,69 @@ def select_two_layers(
 
     By convention, the sqlite query can contain following placeholders that
     will be automatically replaced for you:
-      * {layer1_columns_from_subselect_str}: 
-      * {layer1_columns_prefix_alias_str}: 
-      * {input1_layer}: 
-      * {input1_geometrycolumn}: 
-      * {layer2_columns_from_subselect_str$}: 
-      * {layer2_columns_prefix_alias_str}: 
-      * {layer2_columns_prefix_alias_null_str}: 
-      * {input2_layer}: 
-      * {input2_geometrycolumn}: 
-      * {layer1_columns_prefix_str}: 
-      * {layer2_columns_prefix_str}: 
+      * {input1_layer}: name of input layer 1 
+      * {input1_geometrycolumn}: name of input geometry column 1
+      * {layer1_columns_prefix_str}: komma seperated columns of 
+        layer 1, prefixed with "layer1"
+      * {layer1_columns_prefix_alias_str}: komma seperated columns of 
+        layer 1, prefixed with "layer1" and with column name aliases
+      * {layer1_columns_from_subselect_str}: komma seperated columns of 
+        layer 1, prefixed with "sub"
+      * {input1_databasename}: the database alias for input 1   
+      * {input2_layer}: name of input layer 1 
+      * {input2_geometrycolumn}: name of input geometry column 2
+      * {layer2_columns_prefix_str}: komma seperated columns of 
+        layer 2, prefixed with "layer2"
+      * {layer2_columns_prefix_alias_str}: komma seperated columns of 
+        layer 2, prefixed with "layer2" and with column name aliases
+      * {layer2_columns_from_subselect_str}: komma seperated columns of 
+        layer 2, prefixed with "sub"
+      * {layer2_columns_prefix_alias_null_str}: komma seperated columns of 
+        layer 2, but with NULL for all values and with column aliases
+      * {input2_databasename}: the database alias for input 2   
       * {batch_filter}: the filter to be applied per batch when using 
-        parallel processing.
+        parallel processing
     
-    Because some sql statement won't give the same result when parallellized 
-    (eg. when using a group by statement), nb_parallel is 1 by default. 
-    If you do want to use parallel processing, 
-    specify nb_parallel + make sure to include the placeholder {batch_filter} 
-    in your sql_stmt. This placeholder will be replaced with a filter
-    of the form 'AND rowid >= x AND rowid < y'.
+    Example: left outer join all features in input1 layer with all rows 
+    in input2 on join_id. 
+    ::        
+    
+        from geofileops import geofileops
+
+        minimum_area = 100
+        sql_stmt = f'''
+                SELECT layer1.{{input1_geometrycolumn}}
+                      {{layer1_columns_prefix_alias_str}}
+                      {{layer2_columns_prefix_alias_str}}
+                  FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                  LEFT OUTER JOIN {{input2_databasename}}."{{input2_layer}}" layer2 
+                    ON layer1.join_id = layer2.join_id
+                 WHERE 1=1
+                   {{batch_filter}}
+                   AND ST_Area(layer1.{{input1_geometrycolumn}}) > {minimum_area}
+                '''
+        geofileops.select_two_layers(
+                input1_path=...,
+                input2_path=...,
+                output_path=...,
+                sql_stmt=sql_stmt)
+
+    Some important remarks:
+
+    * Because some sql statement won't give the same result when parallellized 
+      (eg. when using a group by statement), nb_parallel is 1 by default. 
+      If you do want to use parallel processing, specify nb_parallel + make 
+      sure to include the placeholder {batch_filter} in your sql_stmt. 
+      This placeholder will be replaced with a filter of the form 
+      'AND rowid >= x AND rowid < y'.
+    * Table names are best double quoted as in the example, because some 
+      characters are otherwise not supported in the table name, eg. '-'.
+    * Besides the standard sqlite sql syntacs, you can use the spatialite 
+      functions as documented here: |sqlite_reference_link|   
+
+    .. |sqlite_reference_link| raw:: html
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
 
     The result is written to the output file specified.
     
@@ -871,6 +943,42 @@ def select_two_layers(
             Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
             Defaults to False.
+
+    **Some more advanced example queries**
+
+    An ideal place to get inspiration to write you own advanced queries 
+    is in the following source code file: |geofileops_sql_link|.
+
+    Additionally, there are some examples listed here that highlight 
+    other features/possibilities.  
+
+    .. |geofileops_sql_link| raw:: html
+
+        <a href="https://github.com/theroggy/geofileops/blob/master/geofileops/util/geofileops_sql.py" target="_blank">geofileops_sql.py</a>
+
+    *Join nearest features*
+
+    For each feature in layer1, get the nearest feature of layer2 with the 
+    same values for the column join_id.
+
+        .. code-block:: SqliteConsoleLexer
+
+            WITH join_with_dist AS (
+                SELECT layer2.{{input2_geometrycolumn}}
+                      {{layer1_columns_prefix_alias_str}}
+                      {{layer2_columns_prefix_alias_str}}
+                      ,ST_Distance(layer2.{{input2_geometrycolumn}}
+                      ,layer1.{{input1_geometrycolumn}}) AS distance
+                 FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                 JOIN {{input2_databasename}}."{{input2_layer}}" layer2 
+                   ON layer1.join_id = layer2.join_id
+                )
+            SELECT * 
+              FROM join_with_dist jwd
+             WHERE distance = (
+                   SELECT MIN(distance) FROM join_with_dist jwd_sub 
+                    WHERE jwd_sub.l1_join_id = jwd.l1_join_id)
+             ORDER BY distance DESC
     """
     logger.info(f"Start select_two_layers: select from {input1_path} and {input2_path} to {output_path}")
     return geofileops_sql.select_two_layers(
