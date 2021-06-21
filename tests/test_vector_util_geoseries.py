@@ -107,7 +107,7 @@ def test_harmonize_geometrytypes():
     # harmonize_geometrytypes
     test_gdf_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_gdf_geometrytypes) == 2
-    test_gdf = test_gdf.iloc[[0, 3]]
+    test_gdf = test_gdf.iloc[[0, 3]]    # type: ignore
     test_result_gdf = test_gdf.copy()
     test_result_gdf.geometry = geoseries_util.harmonize_geometrytypes(test_result_gdf.geometry)
     test_result_geometrytypes = geoseries_util.get_geometrytypes(test_result_gdf.geometry)

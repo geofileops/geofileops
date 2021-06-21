@@ -636,7 +636,7 @@ def read_file(
 
     # No assert to keep backwards compatibility
     #assert isinstance(result_gdf, gpd.GeoDataFrame)
-    return result_gdf
+    return result_gdf    # type: ignore
 
 def read_file_nogeom(
         path: Union[str, 'os.PathLike[Any]'],

@@ -419,7 +419,7 @@ def test_simplify_ext_no_simplification():
         _temp_simplification = sys.modules['simplification']
     try:
         # Fake that the module is not available
-        sys.modules['simplification'] = None
+        sys.modules['simplification'] = None    # type: ignore
 
         # Using RDP needs simplification module, so should give ImportError
         geometry_util.simplify_ext(
