@@ -392,7 +392,7 @@ def _apply_geooperation(
 def dissolve(
         input_path: Path,  
         output_path: Path,
-        groupby_columns: List[str] = [],
+        groupby_columns: List[str] = None,
         columns: Optional[List[str]] = [],
         aggfunc: str = 'first',
         explodecollections: bool = True,
@@ -417,9 +417,9 @@ def dissolve(
     
     # Check input parameters
     if aggfunc != 'first':
-        raise NotImplementedError(f"aggfunc != 'first' is not implemented")
-    if groupby_columns is None and explodecollections == False:
-        raise Exception(f"The combination of groupby_columns is None AND explodecollections == False is not possible")
+        raise NotImplementedError(f"aggfunc != 'first' is not implemented: {aggfunc}")
+    if groupby_columns is not None and len(groupby_columns) == 0:
+        raise Exception(f"groupby_columns == [] is not supported. It should be None in this case")
     if not input_path.exists():
         raise Exception(f"input_path does not exist: {input_path}")
     layerinfo = geofile.get_layerinfo(input_path, input_layer)
@@ -441,9 +441,10 @@ def dissolve(
     else:
         # If columns specified, add groupby_columns if they are not specified
         columns_to_retain = columns.copy()
-        for column in groupby_columns:
-            if column not in columns_to_retain:
-                columns_to_retain.append(column)
+        if groupby_columns is not None:
+            for column in groupby_columns:
+                if column not in columns_to_retain:
+                    columns_to_retain.append(column)
 
     # If a tiles_path is specified, read those tiles... 
     result_tiles_gdf = None
@@ -607,27 +608,34 @@ def dissolve(
                         path=output_tmp_path, layer=output_layer, name=orderby_column)
                 
                 # Prepare SQL statement for final output file 
-                # If explodecollections is False and there are groupby columns...
-                if(explodecollections is False 
-                        and groupby_columns is not None 
-                        and len(groupby_columns) > 0):
-                    # All tiles are already dissolved to groups, but now the resuts 
-                    # from all tiles still need to be grouped/collected together.
+                # If there is a groupby and explodedecollections is False...
+                if explodecollections is False and groupby_columns is not None:
+                    # All tiles are already dissolved to groups, but now the 
+                    # results from all tiles still need to be 
+                    # grouped/collected together
+                    # Remark: if explodecollections is true, it is useless to 
+                    # first group them here, as they will be exploded again 
+                    # in the select() call later on.
                     logger.info("Collect prepared features to multi* and write to output file")
                     groupby_columns_with_prefix = [f'"{column}"' for column in groupby_columns]
                     groupby_columns_str = ", ".join(groupby_columns_with_prefix)
                     sql_stmt = f'''
-                            SELECT ST_Collect({{geometrycolumn}}) AS {{geometrycolumn}} 
-                                {columns_str} 
+                            SELECT ST_Collect({{geometrycolumn}}) AS {{geometrycolumn}}
+                                  {columns_str} 
                             FROM "{output_layer}" 
                             GROUP BY {groupby_columns_str}
                             ORDER BY MAX({orderby_column})'''
                 else:
-                    # No group by columns, so only need to reorder output file
+                    # No group by columns, so only need to reorder output file 
+                    # and possibly collect all featurs together. 
+                    if explodecollections is True:
+                        geom_select = '{geometrycolumn}'
+                    else:
+                        geom_select = 'ST_Collect({geometrycolumn}) AS {geometrycolumn}'
                     logger.info("Write final result to output file")
                     sql_stmt = f'''
-                            SELECT {{geometrycolumn}} 
-                                {columns_str} 
+                            SELECT {geom_select} 
+                                  {columns_str} 
                             FROM "{output_layer}" 
                             ORDER BY {orderby_column}'''
                 # Go!
@@ -652,7 +660,7 @@ def _dissolve_polygons_pass(
         output_notonborder_path: Path,
         output_onborder_path: Path,
         explodecollections: bool,
-        groupby_columns: List[str],
+        groupby_columns: Optional[List[str]],
         columns: List[str],
         aggfunc: str,
         tiles_gdf: gpd.GeoDataFrame,
@@ -777,27 +785,9 @@ def _dissolve_polygons(
 
     # Now the real processing
     # If no groupby_columns specified, perform unary_union
-    # TODO: from geopandas 0.9, dissolve without groupby_columns is supported
-    if groupby_columns is None or len(groupby_columns) == 0:
-        # unary union...
-        start_unary_union = datetime.datetime.now()
-        try:
-            union_geom = input_gdf.geometry.unary_union
-        except Exception as ex:
-            message = f"Exception processing bbox {bbox}"
-            logger.exception(message)
-            raise Exception(message) from ex
-
-        # Only keep geometries of primitive type of input 
-        union_geom_cleaned = geometry_util.collection_extract(
-                union_geom, input_geometrytype.to_primitivetype)
-        diss_gdf = gpd.GeoDataFrame(geometry=[union_geom_cleaned], crs=input_gdf.crs)
-        perfinfo['time_unary_union'] = (datetime.datetime.now()-start_unary_union).total_seconds()
-    else:
-        # If groupby_columns specified, dissolve
-        start_dissolve = datetime.datetime.now()
-        diss_gdf = input_gdf.dissolve(by=groupby_columns, aggfunc=aggfunc, as_index=False, dropna=False)
-        perfinfo['time_dissolve'] = (datetime.datetime.now()-start_dissolve).total_seconds()
+    start_dissolve = datetime.datetime.now()
+    diss_gdf = input_gdf.dissolve(by=groupby_columns, aggfunc=aggfunc, as_index=False, dropna=False)
+    perfinfo['time_dissolve'] = (datetime.datetime.now()-start_dissolve).total_seconds()
 
     # If explodecollections is True and For polygons, explode multi-geometries.
     # If needed they will be 'collected' afterwards to multipolygons again.

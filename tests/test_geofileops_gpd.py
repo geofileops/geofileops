@@ -242,6 +242,7 @@ def basetest_dissolve_linestrings_nogroupby(input_path, output_basepath):
     # Apply dissolve without explodecollections
     output_path = (output_basepath.parent / 
             f"{output_basepath.stem}_noexpl{output_basepath.suffix}")
+    # explodecollections=False only supported if 
     geofileops_gpd.dissolve(
             input_path=input_path,
             output_path=output_path,
@@ -283,7 +284,7 @@ def basetest_dissolve_polygons_groupby(
     # Init
     layerinfo_input = geofile.get_layerinfo(input_path)
 
-    ### Test dissolve polygons without explodecollections ###
+    ### Test dissolve polygons with groupby + without explodecollections ###
     output_path = output_basepath.parent / f"{output_basepath.stem}_group{output_basepath.suffix}"
     geofileops_gpd.dissolve(
             input_path=input_path,
@@ -414,7 +415,7 @@ def basetest_dissolve_polygons_nogroupby(
     # Init
     layerinfo_input = geofile.get_layerinfo(input_path)
     
-    ### Test dissolve polygons ###
+    ### Test dissolve polygons with explodecollections=True (= default) ###
     output_path = output_basepath.parent / f"{output_basepath.stem}_defaults{output_basepath.suffix}"
     geofileops_gpd.dissolve(
             input_path=input_path,
@@ -427,6 +428,37 @@ def basetest_dissolve_polygons_nogroupby(
     assert output_path.exists() == True
     layerinfo_output = geofile.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 23
+    if output_basepath.suffix == '.shp':
+        # Shapefile always has an FID field
+        # TODO: think about whether this should also be the case for geopackage??? 
+        assert len(layerinfo_output.columns) == 1
+    else:
+        assert len(layerinfo_output.columns) == 0
+
+    # Check geometry type
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
+
+    # Now check the contents of the result file
+    input_gdf = geofile.read_file(input_path)
+    output_gdf = geofile.read_file(output_path)
+    assert input_gdf.crs == output_gdf.crs
+    assert len(output_gdf) == layerinfo_output.featurecount
+    assert output_gdf['geometry'][0] is not None
+
+    ### Test dissolve polygons with explodecollections=False ###
+    output_path = output_basepath.parent / f"{output_basepath.stem}_defaults{output_basepath.suffix}"
+    geofileops_gpd.dissolve(
+            input_path=input_path,
+            output_path=output_path,
+            explodecollections=False,
+            nb_parallel=get_nb_parallel(),
+            parallelization_config=get_parallelization_config(),
+            force=True)
+
+    # Now check if the result file is correctly created
+    assert output_path.exists() == True
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_output.featurecount == 1
     if output_basepath.suffix == '.shp':
         # Shapefile always has an FID field
         # TODO: think about whether this should also be the case for geopackage??? 
@@ -630,9 +662,9 @@ if __name__ == '__main__':
     # Run
     #test_buffer_gpkg(tmpdir)
     #test_buffer_various_options_gpkg(tmpdir)
-    test_dissolve_linestrings_nogroupby_gpkg(tmpdir)
+    #test_dissolve_linestrings_nogroupby_gpkg(tmpdir)
     #test_dissolve_linestrings_nogroupby_shp(tmpdir)
-    #test_dissolve_polygons_groupby_gpkg(tmpdir)
+    test_dissolve_polygons_groupby_gpkg(tmpdir)
     #test_dissolve_polygons_groupby_shp(tmpdir)
     #test_dissolve_polygons_nogroupby_gpkg(tmpdir)
     #test_dissolve_polygons_nogroupby_shp(tmpdir)

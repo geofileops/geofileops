@@ -124,7 +124,7 @@ def dissolve(
         input_path: Union[str, 'os.PathLike[Any]'],  
         output_path: Union[str, 'os.PathLike[Any]'],
         explodecollections: bool,
-        groupby_columns: List[str] = [],
+        groupby_columns: Optional[List[str]] = None,
         columns: Optional[List[str]] = [],
         aggfunc: str = 'first',
         tiles_path: Union[str, 'os.PathLike[Any]'] = None,
@@ -153,7 +153,7 @@ def dissolve(
             False is specified, this can result in huge geometries for large 
             files, so beware...   
         groupby_columns (List[str], optional): columns to group on while 
-            aggregating. Defaults to [], resulting in a spatial union of all 
+            aggregating. Defaults to None, resulting in a spatial union of all 
             geometries that touch.
         columns (List[str], optional): columns to retain in the output file. 
             The columns in parameter groupby_columns are always retained. The
@@ -202,6 +202,11 @@ def dissolve(
     tiles_path_p = None
     if tiles_path is not None:
         tiles_path_p = Path(tiles_path)
+    
+    # If an empty list of geometry columns is passed, convert it to None to 
+    # simplify the rest of the code 
+    if groupby_columns is not None and len(groupby_columns) == 0:
+        groupby_columns = None
 
     logger.info(f"Start dissolve on {input_path} to {output_path}")
     return geofileops_gpd.dissolve(
