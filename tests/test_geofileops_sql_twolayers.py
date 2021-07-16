@@ -52,7 +52,8 @@ def basetest_erase(
 
     # Do operation
     geofileops_sql.erase(
-            input_path=input_path, erase_path=erase_path,
+            input_path=input_path, 
+            erase_path=erase_path,
             output_path=output_path)
 
     # Now check if the tmp file is correctly created
@@ -69,6 +70,70 @@ def basetest_erase(
         assert layerinfo_output.featurecount == 47
     elif expected_output_geometrytype == GeometryType.MULTILINESTRING:
         assert layerinfo_output.featurecount == 12
+    else:
+        raise Exception(f"Unsupported expected_output_geometrytype: {expected_output_geometrytype}")
+
+    # Now check the contents of the result file
+    output_gdf = geofile.read_file(output_path)
+    assert output_gdf['geometry'][0] is not None
+
+def test_erase_various_options_gpkg(tmpdir):
+    # Erase from polygon layer
+    input_path = test_helper.TestFiles.polygons_parcels_gpkg
+    erase_path = test_helper.TestFiles.polygons_zones_gpkg
+    output_path = Path(tmpdir) / 'parcels-2020_erase_zones.gpkg'
+    basetest_erase_various_options(input_path, erase_path, output_path, 
+            expected_output_geometrytype=GeometryType.MULTIPOLYGON)
+
+    # Erase from point layer
+    input_path = test_helper.TestFiles.points_gpkg
+    erase_path = test_helper.TestFiles.polygons_zones_gpkg
+    output_path = Path(tmpdir) / 'points_erase_zones.gpkg'
+    basetest_erase_various_options(input_path, erase_path, output_path, 
+            expected_output_geometrytype=GeometryType.MULTIPOINT)
+
+    # Erase from line layer
+    input_path = test_helper.TestFiles.linestrings_rows_of_trees_gpkg
+    erase_path = test_helper.TestFiles.polygons_zones_gpkg
+    output_path = Path(tmpdir) / 'rows_of_trees_erase_zones.gpkg'
+    basetest_erase_various_options(input_path, erase_path, output_path, 
+            expected_output_geometrytype=GeometryType.MULTILINESTRING)
+
+def test_erase_various_options_shp(tmpdir):
+    # Prepare input and output paths
+    input_path = test_helper.TestFiles.polygons_parcels_shp
+    erase_path = test_helper.TestFiles.polygons_zones_gpkg
+    output_path = Path(tmpdir) / 'parcels-2020_erase_zones.shp'
+    basetest_erase_various_options(input_path, erase_path, output_path, 
+            expected_output_geometrytype=GeometryType.MULTIPOLYGON)
+
+def basetest_erase_various_options(
+        input_path: Path,
+        erase_path: Path, 
+        output_path: Path,
+        expected_output_geometrytype: GeometryType):
+
+    # Do operation with explodecollections=True
+    geofileops_sql.erase(
+            input_path=input_path, 
+            erase_path=erase_path,
+            output_path=output_path,
+            explodecollections=True)
+
+    # Now check if the tmp file is correctly created
+    assert output_path.exists() == True
+    layerinfo_orig = geofile.get_layerinfo(input_path)
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
+
+    # Checks depending on geometry type
+    assert layerinfo_output.geometrytype == expected_output_geometrytype
+    if expected_output_geometrytype == GeometryType.MULTIPOLYGON:
+        assert layerinfo_output.featurecount == 40
+    elif expected_output_geometrytype == GeometryType.MULTIPOINT:
+        assert layerinfo_output.featurecount == 47
+    elif expected_output_geometrytype == GeometryType.MULTILINESTRING:
+        assert layerinfo_output.featurecount == 13
     else:
         raise Exception(f"Unsupported expected_output_geometrytype: {expected_output_geometrytype}")
 
@@ -547,11 +612,13 @@ if __name__ == '__main__':
     # Two layer operations
     #test_erase_gpkg(tmpdir)
     #test_erase_shp(tmpdir)
+    test_erase_various_options_gpkg(tmpdir)
+    #test_erase_various_options_shp(tmpdir)
     #test_intersect_gpkg(tmpdir)
     #test_export_by_distance_shp(tmpdir)
     #test_export_by_location_gpkg(tmpdir)
     #test_join_by_location_gpkg(tmpdir)
     #test_select_two_layers_gpkg(tmpdir)
     #test_split_gpkg(tmpdir)
-    test_union_gpkg(tmpdir)
+    #test_union_gpkg(tmpdir)
     
