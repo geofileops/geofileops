@@ -1198,7 +1198,7 @@ def _two_layer_vector_operation(
     if not input2_path.exists():
         raise Exception(f"Error {operation_name}: input2_path doesn't exist: {input2_path}")
     if use_ogr is True and input1_path != input2_path:
-         raise Exception(f"Error {operation_name}: is use_ogr is True, input1_path must equal input2_path!")
+         raise Exception(f"Error {operation_name}: if use_ogr is True, input1_path must equal input2_path!")
     if output_path.exists():
         if force is False:
             logger.info(f"Stop {operation_name}: output exists already {output_path}")
@@ -1328,8 +1328,9 @@ def _two_layer_vector_operation(
                             output_path=tmp_partial_output_path,
                             sql_stmt=sql_stmt,
                             output_layer=output_layer,
-                            force_output_geometrytype=force_output_geometrytype,
-                            create_spatial_index=False)
+                            create_spatial_index=False,
+                            explodecollections=explodecollections,
+                            force_output_geometrytype=force_output_geometrytype)
                 future_to_batch_id[future] = batch_id
                 
             # Loop till all parallel processes are ready, but process each one 
@@ -1354,7 +1355,9 @@ def _two_layer_vector_operation(
                         geofile.append_to(
                                 src=tmp_partial_output_path, 
                                 dst=tmp_output_path, 
-                                create_spatial_index=False)
+                                create_spatial_index=False,
+                                explodecollections=explodecollections,
+                                force_output_geometrytype=force_output_geometrytype)
                         geofile.remove(tmp_partial_output_path)
                     else:
                         if verbose:
