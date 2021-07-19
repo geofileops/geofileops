@@ -635,7 +635,6 @@ def read_file(
             ignore_geometry=ignore_geometry)
 
     # No assert to keep backwards compatibility
-    #assert isinstance(result_gdf, gpd.GeoDataFrame)
     return result_gdf    # type: ignore
 
 def read_file_nogeom(
