@@ -289,12 +289,15 @@ def create_table_as_sql(
     
     except EmptyResultError as ex:
         logger.info(f"Query didn't return any rows: {sql_stmt}")
+        conn.close()
+        conn = None
         if output_path.exists():
             output_path.unlink()
     except Exception as ex:
         raise Exception(f"Error executing {sql}") from ex
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
         
 def execute_sql(
         path: Path,
