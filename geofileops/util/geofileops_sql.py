@@ -1423,11 +1423,11 @@ def _prepare_processing_params(
 
     ### Init ###
     returnvalue = ProcessingParams(nb_parallel=nb_parallel)
-    
+    input1_layerinfo = geofile.get_layerinfo(input1_path, input1_layer)
+        
     ### Determine the optimal number of parallel processes + batches ###
     if returnvalue.nb_parallel == -1:
         # Default, put at least 100 rows in a batch for parallelisation
-        input1_layerinfo = geofile.get_layerinfo(input1_path, input1_layer)
         max_parallel = int(input1_layerinfo.featurecount/100)
         returnvalue.nb_parallel = min(multiprocessing.cpu_count(), max_parallel)
 
@@ -1441,7 +1441,11 @@ def _prepare_processing_params(
     # Remark: especially for 'select' operation, if nb_parallel is 1 
     #         nb_batches should be 1 (select might give wrong results)
     if returnvalue.nb_parallel > 1:
-        nb_batches = returnvalue.nb_parallel * 2
+        max_rows_parallel = 500000
+        if input1_layerinfo.featurecount > max_rows_parallel:
+            nb_batches = int(input1_layerinfo.featurecount/(max_rows_parallel/returnvalue.nb_parallel))
+        else:
+            nb_batches = returnvalue.nb_parallel * 2
     else:
         nb_batches = 1
 
