@@ -79,7 +79,7 @@ def download_samplefile(
     unzippedzip_dir = dst_path.parent / zip_path.stem
     if not zip_path.exists() and not unzippedzip_dir.exists():
         # Download beschmark file
-        logger.info(f"Download sample data {dst_path}")
+        logger.info(f"Download sample data to {dst_path}")
         urllib.request.urlretrieve(str(samplegeofile.url), zip_path)
     
     # Unzip zip file if needed... 
@@ -95,7 +95,7 @@ def download_samplefile(
     if len(shp_paths) != 1:
         raise Exception(f"Should find 1 shapefile, found {len(shp_paths)}")
 
-    logger.info('Make shapefile valid and save to dst_path')
+    logger.info(f"Make shapefile valid and save to {dst_path}")
     geofileops.makevalid(shp_paths[0], dst_path)
     
     # Cleanup

@@ -143,6 +143,8 @@ def test_simplify_ext_lang_basic():
             tolerance=1,
             lookahead=-1)
     assert isinstance(geom_simplified, sh_geom.Polygon)
+    assert geom_simplified.exterior is not None
+    assert poly.exterior is not None
     assert len(geom_simplified.exterior.coords) < len(poly.exterior.coords)
     assert len(geom_simplified.exterior.coords) == 5
 
