@@ -57,7 +57,6 @@ class VectorTranslateInfo:
             create_spatial_index: bool = None,
             explodecollections: bool = False,
             force_output_geometrytype: GeometryType = None,
-            priority_class: str = 'VERY_LOW',
             sqlite_journal_mode: str = None,
             verbose: bool = False):
         self.input_path = input_path
@@ -75,7 +74,6 @@ class VectorTranslateInfo:
         self.create_spatial_index = create_spatial_index
         self.explodecollections = explodecollections
         self.force_output_geometrytype = force_output_geometrytype
-        self.priority_class = priority_class
         self.sqlite_journal_mode = sqlite_journal_mode
         self.verbose = verbose
 
@@ -97,7 +95,6 @@ def vector_translate_by_info(info: VectorTranslateInfo):
             create_spatial_index=info.create_spatial_index,
             explodecollections=info.explodecollections,
             force_output_geometrytype=info.force_output_geometrytype,
-            priority_class=info.priority_class,    
             sqlite_journal_mode=info.sqlite_journal_mode,
             verbose=info.verbose)
 
@@ -117,7 +114,6 @@ def vector_translate(
         create_spatial_index: bool = None,
         explodecollections: bool = False,
         force_output_geometrytype: GeometryType = None,
-        priority_class: str = 'VERY_LOW',
         sqlite_journal_mode: str = None,
         verbose: bool = False) -> bool:
 
@@ -240,7 +236,9 @@ def vector_translate(
     try: 
         # In some cases gdal only raises the last exception instead of the stack in VectorTranslate, 
         # so you lose necessary details! -> uncomment gdal.DontUseExceptions() when debugging!
-        #gdal.DontUseExceptions()
+        
+        gdal.DontUseExceptions()
+        #gdal.UseExceptions() 
         logger.debug(f"Execute {sql_stmt} on {input_path}")
         input_ds = gdal.OpenEx(str(input_path))
 
@@ -285,7 +283,6 @@ def vector_translate_exe(
         create_spatial_index: bool = None,
         explodecollections: bool = False,
         force_output_geometrytype: GeometryType = None,
-        priority_class: str = 'VERY_LOW',
         sqlite_journal_mode: str = None,
         verbose: bool = False) -> bool:
 
@@ -386,20 +383,6 @@ def vector_translate_exe(
     # Make sure the output dir exists
     os.makedirs(output_path.parent, exist_ok=True)
 
-    # Set priority of the process on Windows, so computer stays responsive
-    if os.name == 'nt':  
-        if priority_class is None or priority_class == 'NORMAL':
-            creationflags = 0x00000020 # = NORMAL_PRIORITY_CLASS
-        elif priority_class == 'VERY_LOW':
-            creationflags = 0x00000040 # =IDLE_PRIORITY_CLASS
-        elif priority_class == 'LOW':
-            creationflags = 0x00004000 # =BELOW_NORMAL_PRIORITY_CLASS
-        else: 
-            raise Exception("Unsupported priority class: {priority_class}, use one of: 'NORMAL', 'LOW' or 'VERY_LOW'")
-    else:
-        # On non-windows os'es, creationflags cannot be used
-        creationflags = 0
-
     # Geopackage/sqlite files are very sensitive for being locked, so retry till 
     # file is not locked anymore... 
     # TODO: ideally, the child processes would die when the parent is killed!
@@ -411,7 +394,6 @@ def vector_translate_exe(
 
         # Start process!
         process = subprocess.Popen(args, 
-                creationflags=creationflags,
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1, encoding='utf-8')
         output, err = process.communicate()
         returncode = process.returncode
@@ -563,7 +545,7 @@ def vector_info(
         report_summary: bool = False,
         sql_stmt: str = None,
         sql_dialect: str = None, 
-        skip_health_check: bool = False,      
+        skip_health_check: bool = False,
         verbose: bool = False):
     """"Run a command"""
 
@@ -595,13 +577,6 @@ def vector_info(
         args.append(layer_stripped)
 
     # TODO: ideally, the child processes would die when the parent is killed!
-    # Start on low priority, so computer stays responsive
-    if os.name == 'nt':
-        #BELOW_NORMAL_PRIORITY_CLASS = 0x00004000
-        creationflags = 0x00000040
-    else:
-        # On linux, needs to be 0, otherwise error!
-        creationflags = 0
 
     ##### Run ogrinfo #####
     # Geopackage/sqlite files are very sensitive for being locked, so retry till 
@@ -610,8 +585,8 @@ def vector_info(
     returncode = None 
     for retry_count in range(10):
         process = subprocess.Popen(args, 
-                creationflags=creationflags,
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1, encoding='utf-8')
+             
         output, err = process.communicate()
         returncode = process.returncode
 

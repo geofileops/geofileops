@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
 from geofileops.geofile import GeometryType
 from geofileops.util import geofileops_gpd
-from geofileops.util.general_util import ParallelizationConfig
+from geofileops.util.geofileops_gpd import ParallelizationConfig
 from geofileops.util.geometry_util import SimplifyAlgorithm
 from tests import test_helper
 
