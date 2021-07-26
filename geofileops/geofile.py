@@ -158,6 +158,9 @@ def get_layerinfo(
     """        
     ##### Init #####
     path_p = Path(path)
+    if not path_p.exists():
+        raise Exception(f"File does not exist: {path_p}")
+        
     datasource = None
     try:
         datasource = gdal.OpenEx(str(path_p))
@@ -906,7 +909,8 @@ def to_file(
                         # If gdf was written to temp file, use append_to_nolock + cleanup
                         _append_to_nolock(src=gdftemp_path, dst=path_p, dst_layer=layer)
                         remove(gdftemp_path)
-                        gdftemp_lockpath.unlink()
+                        if gdftemp_lockpath is not None:
+                            gdftemp_lockpath.unlink()
                 finally:
                     lockfile.unlink()
                     return

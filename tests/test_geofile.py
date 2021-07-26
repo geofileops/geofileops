@@ -184,6 +184,7 @@ def test_get_layerinfo():
         assert layerinfo.geometrytype == geofile.GeometryType.MULTIPOLYGON
         assert len(layerinfo.columns) == 10
         assert layerinfo.total_bounds is not None
+        assert layerinfo.crs is not None
         assert layerinfo.crs.to_epsg() == 31370
 
     # Test shapefile
