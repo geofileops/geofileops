@@ -175,7 +175,7 @@ def makevalid(
             SELECT ST_MakeValid({{geometrycolumn}}) AS geom
                   {{columns_to_select_str}} 
               FROM "{{input_layer}}"
-             WHERE 1=1 
+             WHERE 1=1
                {{batch_filter}}'''
     
     # Specify output_geomatrytype, because otherwise makevalid results in 
@@ -334,7 +334,9 @@ def _single_layer_vector_operation(
         tmp_output_path = tempdir / output_path.name
 
         nb_done = 0
-        with futures.ProcessPoolExecutor(processing_params.nb_parallel) as calculate_pool:
+        with futures.ProcessPoolExecutor(
+                max_workers=processing_params.nb_parallel, 
+                initializer=general_util.initialize_worker()) as calculate_pool:
 
             batches = {}    
             future_to_batch_id = {}
@@ -387,6 +389,7 @@ def _single_layer_vector_operation(
                     _ = future.result()
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
+                    logger.exception(f"Error executing {batches[batch_id]}")
                     raise Exception(f"Error executing {batches[batch_id]}") from ex
 
                 # Start copy of the result to a common file
@@ -417,7 +420,7 @@ def _single_layer_vector_operation(
             output_path.parent.mkdir(parents=True, exist_ok=True)
             geofile.move(tmp_output_path, output_path)
         else:
-            logger.warning(f"Result of {operation_name} was empty!f")
+            logger.warning(f"Result of {operation_name} was empty!")
 
     finally:
         # Clean tmp dir
@@ -1264,7 +1267,9 @@ def _two_layer_vector_operation(
 
         # Calculating can be done in parallel, but only one process can write to 
         # the same file at the time... 
-        with futures.ProcessPoolExecutor(processing_params.nb_parallel) as calculate_pool:
+        with futures.ProcessPoolExecutor(
+                max_workers=processing_params.nb_parallel, 
+                initializer=general_util.initialize_worker()) as calculate_pool:
 
             # Start looping
             batches = {}    
@@ -1428,19 +1433,14 @@ def _prepare_processing_params(
     ### Determine the optimal number of parallel processes + batches ###
     if returnvalue.nb_parallel == -1:
         # Default, put at least 100 rows in a batch for parallelisation
-        max_parallel = int(input1_layerinfo.featurecount/100)
+        max_parallel = max(int(input1_layerinfo.featurecount/100), 1)
         returnvalue.nb_parallel = min(multiprocessing.cpu_count(), max_parallel)
-
-        # Don't use all processors so the machine stays accessible 
-        if returnvalue.nb_parallel > 4:
-            returnvalue.nb_parallel -= 1
-        elif returnvalue.nb_parallel < 1:
-            returnvalue.nb_parallel = 1
 
     # Determine optimal number of batches
     # Remark: especially for 'select' operation, if nb_parallel is 1 
     #         nb_batches should be 1 (select might give wrong results)
     if returnvalue.nb_parallel > 1:
+        # Limit number of rows processed in parallel to limit memory use
         max_rows_parallel = 500000
         if input1_layerinfo.featurecount > max_rows_parallel:
             nb_batches = int(input1_layerinfo.featurecount/(max_rows_parallel/returnvalue.nb_parallel))
@@ -1448,6 +1448,9 @@ def _prepare_processing_params(
             nb_batches = returnvalue.nb_parallel * 2
     else:
         nb_batches = 1
+
+    # TODO PIEROG: terug weg
+    #nb_batches = input1_layerinfo.featurecount
 
     ### Prepare input files for the calculation ###
     returnvalue.input1_layer = input1_layer
@@ -1741,8 +1744,6 @@ def dissolve_cardsheets(
             geofile.remove(output_path)
     if nb_parallel == -1:
         nb_parallel = multiprocessing.cpu_count()
-        if nb_parallel > 4:
-            nb_parallel -= 1
 
     # Get input data to temp gpkg file
     tempdir = io_util.create_tempdir("dissolve_cardsheets")
@@ -1790,7 +1791,9 @@ def dissolve_cardsheets(
         logger.info(f"Start calculation of dissolves in file {input_tmp_path} to partial files")
         tmp_output_path = tempdir / output_path.name
 
-        with futures.ProcessPoolExecutor(nb_parallel) as calculate_pool:
+        with futures.ProcessPoolExecutor(
+                max_workers=nb_parallel, 
+                initializer=general_util.initialize_worker()) as calculate_pool:
 
             translate_jobs = {}    
             future_to_batch_id = {}    
@@ -1865,7 +1868,6 @@ def dissolve_cardsheets(
                                 update=True,
                                 create_spatial_index=False,
                                 force_output_geometrytype=GeometryType.MULTIPOLYGON,
-                                priority_class='NORMAL',
                                 verbose=verbose)
                         ogr_util.vector_translate_by_info(info=translate_info)
                         geofile.remove(tmp_partial_output_path)
