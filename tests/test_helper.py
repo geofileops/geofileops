@@ -38,6 +38,7 @@ class TestFiles:
     linestrings_rows_of_trees_gpkg = testdata_dir / 'linestrings_rows_of_trees.gpkg'
     linestrings_watercourses_gpkg = testdata_dir / 'linestrings_watercourses.gpkg'
 
+    polygons_no_rows_gpkg = testdata_dir / 'polygons_no_rows.gpkg'
     polygons_overlappingcircles_all_gpkg = testdata_dir / 'polygons_overlappingcircles_all.gpkg'
     polygons_overlappingcircles_one_gpkg = testdata_dir / 'polygons_overlappingcircles_one.gpkg'
     polygons_overlappingcircles_twothree_gpkg = testdata_dir / 'polygons_overlappingcircles_two+three.gpkg'
