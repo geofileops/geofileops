@@ -323,7 +323,10 @@ def _single_layer_vector_operation(
                 tempdir=tempdir,
                 nb_parallel=nb_parallel,
                 convert_to_spatialite_based=False)
-        
+        # If None is returned, just stop.
+        if processing_params is None:
+            return
+
         # Format column string for use in select
         layerinfo = geofile.get_layerinfo(input_path, input_layer)  
         formatted_column_strings = format_column_strings(
@@ -1424,11 +1427,15 @@ def _prepare_processing_params(
         nb_parallel: int,
         input1_layer_alias: str = None,
         input2_path: Path = None,
-        input2_layer: str = None) -> ProcessingParams:
+        input2_layer: str = None) -> Optional[ProcessingParams]:
 
     ### Init ###
     returnvalue = ProcessingParams(nb_parallel=nb_parallel)
     input1_layerinfo = geofile.get_layerinfo(input1_path, input1_layer)
+
+    if input1_layerinfo.featurecount == 0:
+        logger.info(f"The input layer doesn't contain any rows. File: {input1_path}, layer: {input1_layer}")
+        return None
         
     ### Determine the optimal number of parallel processes + batches ###
     if returnvalue.nb_parallel == -1:
