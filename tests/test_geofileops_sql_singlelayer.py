@@ -91,13 +91,17 @@ def basetest_convexhull(
     assert output_gdf['geometry'][0] is not None
 
 def test_isvalid_gpkg(tmpdir):
-    # Buffer to test dir
+    # Run test
     input_path = test_helper.TestFiles.polygons_parcels_gpkg
     output_path = Path(tmpdir) / 'polygons_parcels-output.gpkg'
     basetest_isvalid(input_path, output_path)
 
+    # Run test on empty file
+    input_path = test_helper.TestFiles.polygons_no_rows_gpkg
+    basetest_isvalid(input_path, output_path)
+
 def test_isvalid_shp(tmpdir):
-    # Select some data from src to tmp file
+    # Run test
     input_path = test_helper.TestFiles.polygons_parcels_shp
     output_path = Path(tmpdir) / 'polygons_parcels-output.gpkg'
     basetest_isvalid(input_path, output_path)
@@ -317,11 +321,11 @@ if __name__ == '__main__':
     tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
 
     # Single layer operations
-    test_buffer_gpkg(tmpdir)
+    #test_buffer_gpkg(tmpdir)
     #test_makevalid_shp(tmpdir)
     #test_makevalid_gpkg(tmpdir)
     #test_isvalid_shp(tmpdir)
-    #test_isvalid_gpkg(tmpdir)
+    test_isvalid_gpkg(tmpdir)
     #test_convexhull_gpkg(tmpdir)
     #test_convexhull_shp(tmpdir)
     #test_select_geos_version(tmpdir)
