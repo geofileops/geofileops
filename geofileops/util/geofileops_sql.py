@@ -1374,7 +1374,8 @@ def _two_layer_vector_operation(
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
                     #calculate_pool.shutdown()
-                    logger.exception(f"Error executing {batches[batch_id]}")
+                    #logger.exception(f"Error executing {batches[batch_id]}")
+                    raise Exception(f"Error executing {batches[batch_id]}, so stop")
 
                 # Log the progress and prediction speed
                 nb_done += 1
@@ -1448,7 +1449,7 @@ def _prepare_processing_params(
     #         nb_batches should be 1 (select might give wrong results)
     if returnvalue.nb_parallel > 1:
         # Limit number of rows processed in parallel to limit memory use
-        max_rows_parallel = 500000
+        max_rows_parallel = 200000
         if input1_layerinfo.featurecount > max_rows_parallel:
             nb_batches = int(input1_layerinfo.featurecount/(max_rows_parallel/returnvalue.nb_parallel))
         else:
