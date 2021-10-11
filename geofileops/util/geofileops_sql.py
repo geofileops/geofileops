@@ -117,8 +117,18 @@ def isvalid(
             verbose=verbose,
             force=force)
     
-    # If no invalid geoms are found, there won't be an output file and we can return True
+    # If no invalid geoms are found, there won't be an output file
     if not output_path.exists():
+        # If output is a geopackage, check if all data can be read
+        try:
+            input_geofiletype = GeofileType(input_path)   
+            if input_geofiletype.is_spatialite_based:
+                sqlite_util.test_data_integrity(path=input_path)
+                logger.debug("test_data_integrity was succesfull")
+        except Exception as ex:
+            logger.exception("No invalid geometries found, but some attributes could not be read")
+            return False
+            
         return True
     else:
         layerinfo = geofile.get_layerinfo(output_path)
@@ -183,7 +193,7 @@ def makevalid(
     if force_output_geometrytype is None:
         force_output_geometrytype = geofile.get_layerinfo(input_path, input_layer).geometrytype
     
-    return _single_layer_vector_operation(
+    _single_layer_vector_operation(
             input_path=input_path,
             output_path=output_path,
             sql_template=sql_template,
@@ -196,6 +206,11 @@ def makevalid(
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
+
+    # If output is a geopackage, check if all data can be read
+    output_geofiletype = GeofileType(input_path)   
+    if output_geofiletype.is_spatialite_based:
+        sqlite_util.test_data_integrity(path=input_path)
 
 def select(
         input_path: Path,
@@ -386,7 +401,8 @@ def _single_layer_vector_operation(
                         info=translate_info)
                 future_to_batch_id[future] = batch_id
             
-            # Loop till all parallel processes are ready, but process each one that is ready already
+            # Loop till all parallel processes are ready, but process each one 
+            # that is ready already
             for future in futures.as_completed(future_to_batch_id):
                 try:
                     _ = future.result()
@@ -1225,6 +1241,12 @@ def _two_layer_vector_operation(
         output_layer = geofile.get_default_layer(output_path)
     tempdir = io_util.create_tempdir(operation_name)
 
+    # Prepare output filename
+    # TODO: determine best approach: to temp dir or to temp file in final dir!!!
+    #tmp_output_path = tempdir / output_path.name
+    tmp_output_path = output_path.parent / f"{output_path.stem}_BUSY{output_path.suffix}"
+    tmp_output_path.parent.mkdir(exist_ok=True, parents=True)
+
     try:
         ##### Prepare tmp files/batches #####
         logger.info(f"Prepare input (params) for {operation_name} with tempdir: {tempdir}")
@@ -1259,11 +1281,6 @@ def _two_layer_vector_operation(
         # Check input crs'es
         if input1_tmp_layerinfo.crs != input2_tmp_layerinfo.crs:
             logger.warning(f"input1 has a different crs than input2: {input1_tmp_layerinfo.crs} vs {input2_tmp_layerinfo.crs}")
-
-        # Prepare output filename
-        tmp_output_path = tempdir / output_path.name
-        tmp_output_path = output_path
-        tmp_output_path.parent.mkdir(exist_ok=True, parents=True)
         
         ##### Calculate #####
         logger.info(f"Start {operation_name} in {processing_params.nb_parallel} parallel processes")
@@ -1397,7 +1414,11 @@ def _two_layer_vector_operation(
 
         logger.info(f"{operation_name} ready, took {datetime.datetime.now()-start_time}!")
     except Exception as ex:
-        logger.exception(f"{operation_name} ready with ERROR, took {datetime.datetime.now()-start_time}!")
+        if output_path.exists():
+            geofile.remove(output_path)
+        if tmp_output_path.exists():
+            geofile.remove(tmp_output_path)
+        raise
     finally:
         shutil.rmtree(tempdir)
 

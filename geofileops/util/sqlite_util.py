@@ -361,6 +361,47 @@ def execute_select_sql(
     finally:
         conn.close()
 
+def test_data_integrity(
+        path: Path,
+        use_spatialite: bool = True):
+
+    # Get list of layers in database 
+    layers = geofile.listlayers(path=path)
+
+    # Connect to database file
+    conn = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
+    sql = None
+    
+    try:    
+        if use_spatialite is True:
+            load_spatialite(conn)
+        if path.suffix.lower() == '.gpkg':
+            sql = 'SELECT EnableGpkgMode();'
+            conn.execute(sql)
+        
+        # Set number of cache pages (1 page = 4096 bytes)
+        sql = 'PRAGMA cache_size = 10000;'
+        conn.execute(sql)
+        # Use memory mapped IO = much faster (max 30GB)
+        conn.execute('PRAGMA mmap_size = 30000000000;')
+        
+        # Loop over all layers to check if all data is readable
+        for layer in layers:
+            sql = f'SELECT * FROM "{layer}"'
+            cursor = conn.execute(sql)
+
+            # Fetch the data in chunks to evade excessive memory usage
+            while True:
+                result = cursor.fetchmany(10000)
+                if not result:
+                    # All data was fetched from layer
+                    break
+
+    except Exception as ex:
+        raise Exception(f"Error executing {sql}") from ex
+    finally:
+        conn.close()
+
 def execute_select_sql_df(
         path: Path,
         sql_stmt: str,
