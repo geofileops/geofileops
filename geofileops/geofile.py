@@ -44,7 +44,10 @@ warnings.filterwarnings(
         action="ignore", 
         category=RuntimeWarning, 
         message="Sequential read of iterator was interrupted. Resetting iterator. This can negatively impact the performance.")
-    
+
+# Hardcoded prj string to replace faulty ones
+PRJ_EPSG_31370 = 'PROJCS["Belge_1972_Belgian_Lambert_72",GEOGCS["Belge 1972",DATUM["D_Belge_1972",SPHEROID["International_1924",6378388,297]],PRIMEM["Greenwich",0],UNIT["Degree",0.017453292519943295]],PROJECTION["Lambert_Conformal_Conic"],PARAMETER["standard_parallel_1",51.16666723333333],PARAMETER["standard_parallel_2",49.8333339],PARAMETER["latitude_of_origin",90],PARAMETER["central_meridian",4.367486666666666],PARAMETER["false_easting",150000.013],PARAMETER["false_northing",5400088.438],UNIT["Meter",1],AUTHORITY["EPSG",31370]]'
+
 #-------------------------------------------------------------
 # The real work
 #-------------------------------------------------------------
@@ -224,15 +227,26 @@ def get_layerinfo(
             if spatialref is not None:
                 crs = pyproj.CRS(spatialref.ExportToWkt())
 
-                # Check if the spatial ref has an epsg, and if not, try to 
-                # find a corresponding CRS that has one...
+                # If spatial ref has no epsg, try to find corresponding one
                 crs_epsg = crs.to_epsg()
                 if crs_epsg is None:
                     if crs.name in [
                             'Belge 1972 / Belgian Lambert 72',
                             'Belge_1972_Belgian_Lambert_72',
                             'Belge_Lambert_1972']:
+                        # Belgian Lambert in name, so assume 31370
                         crs = pyproj.CRS.from_epsg(31370)
+
+                        # If shapefile, add correct 31370 .prj file
+                        if GeofileType(path_p) == GeofileType.ESRIShapefile:
+                            prj_path = path_p.parent / f"{path_p.stem}.prj"
+                            if prj_path.exists():
+                                prj_rename_path = path_p.parent / f"{path_p.stem}_orig.prj"
+                                if not prj_rename_path.exists():
+                                    prj_path.rename(prj_rename_path)
+                                else:
+                                    prj_path.unlink()
+                                prj_path.write_text(PRJ_EPSG_31370)
 
             return LayerInfo(
                     name=datasource_layer.GetName(),
@@ -917,7 +931,7 @@ def to_file(
             else:
                 time_waiting = (datetime.datetime.now()-start_time).total_seconds()
                 if time_waiting > append_timeout_s:
-                    raise Exception(f"append_to_layer timeout of {append_timeout_s} reached, so stop trying!")
+                    raise Exception(f"to_file timeout of {append_timeout_s} reached, so stop trying append to {path_p}!")
             
             # Sleep for a second before trying again
             time.sleep(1)
@@ -934,6 +948,7 @@ def get_crs(path: Union[str, 'os.PathLike[Any]']) -> pyproj.CRS:
     """
     # TODO: seems like support for multiple layers in the file isn't here yet??? 
     with fiona.open(str(path), 'r') as geofile:
+        assert geofile is not None
         return pyproj.CRS(geofile.crs)
 
 def is_geofile(path: Union[str, 'os.PathLike[Any]']) -> bool:
@@ -1167,7 +1182,7 @@ def append_to(
         else:
             time_waiting = (datetime.datetime.now()-start_time).total_seconds()
             if time_waiting > append_timeout_s:
-                raise Exception(f"append_to_layer timeout of {append_timeout_s} reached, so stop trying!")
+                raise Exception(f"append_to timeout of {append_timeout_s} reached, so stop trying to write to {dst_p}!")
         
         # Sleep for a second before trying again
         time.sleep(1)
