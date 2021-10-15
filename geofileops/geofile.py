@@ -9,6 +9,7 @@ import filecmp
 import logging
 import os
 from pathlib import Path
+import pprint
 import pyproj
 import shutil
 import tempfile
@@ -121,7 +122,9 @@ class LayerInfo:
         geometrytype (GeometryType): the geometry type of the geometrycolumn.
         columns (List[str]): the columns (other than the geometry column) that 
             are available on the layer.
-        crs (pyproj.CRS): the spatial reference of the layer. 
+        crs (pyproj.CRS): the spatial reference of the layer.
+        errors (List[str]): list of errors in the layer, eg. invalid column 
+            names,... 
     """
     def __init__(self, 
             name: str,
@@ -131,7 +134,8 @@ class LayerInfo:
             geometrytypename: str,
             geometrytype: GeometryType,
             columns: List[str],
-            crs: Optional[pyproj.CRS]):
+            crs: Optional[pyproj.CRS],
+            errors: List[str]):
         self.name = name
         self.featurecount = featurecount
         self.total_bounds = total_bounds
@@ -140,6 +144,7 @@ class LayerInfo:
         self.geometrytype = geometrytype
         self.columns = columns
         self.crs = crs
+        self.errors = errors
 
     def __repr__(self):
         return f"{self.__class__}({self.__dict__})"
@@ -150,19 +155,22 @@ def get_layerinfo(
     """
     Get information about a layer in the geofile.
 
+    Raises an exception if the layer definition has errors like invalid column 
+    names,...
+
     Args:
         path (PathLike): path to the file to get info about
         layer (str): the layer you want info about. Doesn't need to be 
-            specified if there is only one layer in the geofile. 
-        verbose (bool, optional): True to enable verbose logging. Defaults to False.
+            specified if there is only one layer in the geofile.
 
     Returns:
-        LayerInfo: the information about the layer
+        LayerInfo: the information about the layer.
     """        
     ##### Init #####
     path_p = Path(path)
     if not path_p.exists():
         raise Exception(f"File does not exist: {path_p}")
+    
         
     datasource = None
     try:
@@ -180,14 +188,19 @@ def get_layerinfo(
 
         # Get column info
         columns = []
+        errors = []
+        geofiletype = GeofileType(path_p)
         layer_defn = datasource_layer.GetLayerDefn()
         for i in range(layer_defn.GetFieldCount()):
             name = layer_defn.GetFieldDefn(i).GetName()
             illegal_column_chars = ['"']
             for illegal_char in illegal_column_chars:
                 if illegal_char in name:
-                    raise Exception(f"Column name {name} contains illegal char: {illegal_char} in file {path_p}, layer {layer}")
+                    errors.append(f"Column name {name} contains illegal char: {illegal_char} in file {path_p}, layer {layer}")
             columns.append(name)
+            if geofiletype == GeofileType.ESRIShapefile:
+                if name.casefold() == "geometry":
+                    errors.append(f"An attribute column named 'geometry' is not supported in a shapefile")
 
         # Get geometry column info...
         geometrytypename = gdal.ogr.GeometryTypeToName(datasource_layer.GetGeomType())
@@ -249,20 +262,24 @@ def get_layerinfo(
                                 prj_path.write_text(PRJ_EPSG_31370)
 
             return LayerInfo(
-                    name=datasource_layer.GetName(),
-                    featurecount=datasource_layer.GetFeatureCount(),
-                    total_bounds=total_bounds,
-                    geometrycolumn=geometrycolumn, 
-                    geometrytypename=geometrytypename,
-                    geometrytype=geometrytype,
-                    columns=columns,
-                    crs=crs)
+                name=datasource_layer.GetName(),
+                featurecount=datasource_layer.GetFeatureCount(),
+                total_bounds=total_bounds,
+                geometrycolumn=geometrycolumn, 
+                geometrytypename=geometrytypename,
+                geometrytype=geometrytype,
+                columns=columns,
+                crs=crs,
+                errors=errors)
         else:
-            raise Exception("Layer doesn't have a geometry column!")    
+            errors.append("Layer doesn't have a geometry column!")    
 
     finally:
         if datasource is not None:
-            del datasource
+            del datasource    
+
+    # If we didn't return or raise yet here, there must have been errors
+    raise Exception(f"Errors found in layer definition of file {path_p}, layer {layer}: \n{pprint.pprint(errors)}")
 
 def get_only_layer(path: Union[str, 'os.PathLike[Any]']) -> str:
     """

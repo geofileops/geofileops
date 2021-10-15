@@ -237,8 +237,8 @@ def vector_translate(
         # In some cases gdal only raises the last exception instead of the stack in VectorTranslate, 
         # so you lose necessary details! -> uncomment gdal.DontUseExceptions() when debugging!
         
-        gdal.DontUseExceptions()
-        #gdal.UseExceptions() 
+        #gdal.DontUseExceptions()
+        gdal.UseExceptions() 
         logger.debug(f"Execute {sql_stmt} on {input_path}")
         input_ds = gdal.OpenEx(str(input_path))
 

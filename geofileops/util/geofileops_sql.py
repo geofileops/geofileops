@@ -203,6 +203,7 @@ def makevalid(
             columns=columns,
             explodecollections=explodecollections,
             force_output_geometrytype=force_output_geometrytype,
+            #filter_null_geoms=False,
             nb_parallel=nb_parallel,
             verbose=verbose,
             force=force)
@@ -327,6 +328,9 @@ def _single_layer_vector_operation(
         else:
             geofile.remove(output_path)
 
+    # Get layer info of the input layer
+    input_layerinfo = geofile.get_layerinfo(input_path, input_layer)
+            
     ##### Calculate #####
     tempdir = io_util.create_tempdir(operation_name.replace(' ', '_'))
     
@@ -343,10 +347,9 @@ def _single_layer_vector_operation(
             return
 
         # Format column string for use in select
-        layerinfo = geofile.get_layerinfo(input_path, input_layer)  
         formatted_column_strings = format_column_strings(
                 columns_specified=columns, 
-                columns_available=layerinfo.columns)
+                columns_available=input_layerinfo.columns)
         
         # Prepare output filename
         tmp_output_path = tempdir / output_path.name
@@ -368,7 +371,7 @@ def _single_layer_vector_operation(
 
                 # Now we have everything to format sql statement
                 sql_stmt = sql_template.format(
-                        geometrycolumn=layerinfo.geometrycolumn,
+                        geometrycolumn=input_layerinfo.geometrycolumn,
                         columns_to_select_str=formatted_column_strings.columns,
                         input_layer=processing_params.batches[batch_id]['layer'],
                         batch_filter=processing_params.batches[batch_id]['batch_filter'])
@@ -1241,6 +1244,10 @@ def _two_layer_vector_operation(
         output_layer = geofile.get_default_layer(output_path)
     tempdir = io_util.create_tempdir(operation_name)
 
+    # Use get_layerinfo to check if the input files are valid
+    geofile.get_layerinfo(input1_path, input1_layer)
+    geofile.get_layerinfo(input2_path, input2_layer)
+    
     # Prepare output filename
     # TODO: determine best approach: to temp dir or to temp file in final dir!!!
     #tmp_output_path = tempdir / output_path.name
@@ -1259,7 +1266,9 @@ def _two_layer_vector_operation(
                 tempdir=tempdir,
                 nb_parallel=nb_parallel,
                 convert_to_spatialite_based=True)
-       
+        if processing_params is None:
+            return
+
         ##### Prepare column names,... to format the select #####
         # Format column strings for use in select
         input1_tmp_layerinfo = geofile.get_layerinfo(
@@ -1510,7 +1519,7 @@ def _prepare_processing_params(
                     dst=returnvalue.input1_path,
                     dst_layer=returnvalue.input1_layer)        
 
-        if input2_path is not None:
+        if input2_path is not None and input2_geofiletype is not None:
             if(input2_geofiletype == input1_geofiletype 
                and input2_geofiletype.is_spatialite_based):
                 returnvalue.input2_path = input2_path
@@ -1692,11 +1701,15 @@ def dissolve(
         else:
             geofile.remove(output_path)
 
+    # Check layer names
     if input_layer is None:
         input_layer = geofile.get_only_layer(input_path)
     if output_layer is None:
         output_layer = geofile.get_default_layer(output_path)
 
+    # Use get_layerinfo to check if the layer definition is OK 
+    geofile.get_layerinfo(input_path, input_layer)
+    
     # Prepare the strings to use in the select statement
     if groupby_columns is not None:
         # Because the query uses a subselect, the groupby columns need to be prefixed
