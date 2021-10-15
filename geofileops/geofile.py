@@ -481,6 +481,42 @@ def rename_layer(
         if datasource is not None:
             del datasource
 
+def rename_column(
+        path: Union[str, 'os.PathLike[Any]'],
+        column_name: str,
+        new_column_name: str,
+        layer: str = None):
+    """
+    Rename the column specified.
+
+    Args:
+        path (PathLike): The file path.
+        column_name (str): the current column name.
+        new_column_name (str): the new column name.
+        layer (Optional[str]): The layer name. If not specified, and there is only 
+            one layer in the file, this layer is used. Otherwise exception.
+    """
+    # Check input parameters
+    path_p = Path(path)
+    if layer is None:
+        layer = get_only_layer(path_p)
+
+    # Now really rename
+    datasource = None
+    geofiletype = GeofileType(path_p)  
+    try:
+        if geofiletype.is_spatialite_based:
+            datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
+            sql_stmt = f'ALTER TABLE "{layer}" RENAME COLUMN "{column_name}" TO "{new_column_name}"'
+            datasource.ExecuteSQL(sql_stmt)
+        elif geofiletype == GeofileType.ESRIShapefile:
+            raise Exception(f"rename_layer is not possible for {geofiletype} file")
+        else:
+            raise Exception(f"rename_layer is not implemented for {path_p.suffix} file")
+    finally:
+        if datasource is not None:
+            del datasource
+            
 class DataType(enum.Enum):
     """
     This enum defines the standard data types that can be used for columns. 
