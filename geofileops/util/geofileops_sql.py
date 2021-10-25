@@ -130,7 +130,7 @@ def delete_duplicate_geometries(
     sql_template = f'''
             SELECT {{geometrycolumn}} AS geom
                   {{columns_to_select_str}} 
-              FROM "{{input_layer}}" input_layer
+              FROM "{{input_layer}}"
              WHERE input_layer.rowid IN ( 
                     SELECT MIN(input_layer_sub.rowid) AS rowid_to_keep 
                       FROM "{{input_layer}}" input_layer_sub
@@ -379,7 +379,7 @@ def _single_layer_vector_operation(
         processing_params = _prepare_processing_params(
                 input1_path=input_path,
                 input1_layer=input_layer,
-                input1_layer_alias="input_layer",
+                #input1_layer_alias="input_layer",
                 tempdir=tempdir,
                 nb_parallel=nb_parallel,
                 convert_to_spatialite_based=False)
