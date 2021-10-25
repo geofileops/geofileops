@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
 from geofileops.util import geoseries_util
 from geofileops.util.geometry_util import GeometryType
-from tests import test_helper
+import test_helper
 
 def test_add_column(tmpdir):
     # First copy test file to tmpdir

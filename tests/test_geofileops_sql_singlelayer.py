@@ -12,7 +12,7 @@ from geofileops import geofile
 from geofileops.geofile import GeometryType
 from geofileops.util.general_util import MissingRuntimeDependencyError 
 from geofileops.util import geofileops_sql
-from tests import test_helper
+import test_helper
 
 def test_buffer_gpkg(tmpdir):
     # Buffer to test dir

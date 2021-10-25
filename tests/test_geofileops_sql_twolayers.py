@@ -12,7 +12,7 @@ from geofileops import geofile
 from geofileops.geofile import GeometryType, PrimitiveType
 from geofileops.util import geofileops_sql
 from geofileops.util.general_util import MissingRuntimeDependencyError
-from tests import test_helper
+import test_helper
 
 def test_erase_gpkg(tmpdir):
     # Erase from polygon layer

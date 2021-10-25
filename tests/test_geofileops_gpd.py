@@ -15,7 +15,7 @@ from geofileops.geofile import GeometryType
 from geofileops.util import geofileops_gpd
 from geofileops.util.geofileops_gpd import ParallelizationConfig
 from geofileops.util.geometry_util import SimplifyAlgorithm
-from tests import test_helper
+import test_helper
 
 def get_nb_parallel() -> int:
     # The number of parallel processes to use for these tests.

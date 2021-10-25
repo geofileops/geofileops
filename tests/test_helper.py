@@ -10,9 +10,6 @@ import tempfile
 
 import shapely.geometry as sh_geom
 
-# Add path so the local geofileops packages are found 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
 class TestData:
     point = sh_geom.Point((0, 0))
     multipoint = sh_geom.MultiPoint([(0, 0), (10, 10), (20, 20)])

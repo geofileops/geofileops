@@ -4,7 +4,6 @@ Tests for functionalities in geoseries_util.
 """
 
 from pathlib import Path
-import shutil
 import sys
 
 import geopandas as gpd
@@ -15,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
 from geofileops.util import geoseries_util
 from geofileops.util.geometry_util import GeometryType, PrimitiveType
-from tests import test_helper 
+import test_helper 
 
 def test_geometry_collection_extract():
     # Test for gdf with all types of geometrytypes, extract!

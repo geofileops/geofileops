@@ -15,7 +15,7 @@ from geofileops import geofile
 from geofileops.util import geometry_util
 from geofileops.util.geometry_util import GeometryType
 from geofileops.util import grid_util
-from tests import test_helper
+import test_helper
 
 def test_geometrytype():
     geometrytype = GeometryType(3)
