@@ -197,6 +197,8 @@ def test_simplify_ext_lang_basic():
             algorithm=geometry_util.SimplifyAlgorithm.LANG, 
             tolerance=1)
     assert isinstance(geom_simplified, sh_geom.Polygon)
+    assert geom_simplified.exterior is not None
+    assert poly.exterior is not None
     assert len(geom_simplified.exterior.coords) < len(poly.exterior.coords)
     assert len(geom_simplified.exterior.coords) == 5
 
@@ -256,6 +258,7 @@ def test_simplify_ext_invalid():
             algorithm=geometry_util.SimplifyAlgorithm.LANG, 
             tolerance=1)
     assert isinstance(geom_simplified, sh_geom.MultiPolygon)
+    assert poly.exterior is not None
     assert len(geom_simplified[0].exterior.coords) < len(poly.exterior.coords)
     assert len(geom_simplified[0].exterior.coords) == 7
     assert len(geom_simplified[0].interiors) == len(poly.interiors)
@@ -270,6 +273,7 @@ def test_simplify_ext_invalid():
             geometry=poly_m_touch,
             algorithm=geometry_util.SimplifyAlgorithm.LANG, 
             tolerance=1)
+    assert geom_simplified is not None
     assert geom_simplified.is_valid
     assert isinstance(geom_simplified, sh_geom.MultiPolygon)
     assert len(geom_simplified) == 2
@@ -285,6 +289,7 @@ def test_simplify_ext_invalid():
             geometry=poly_m_cross,
             algorithm=geometry_util.SimplifyAlgorithm.LANG, 
             tolerance=1)
+    assert geom_simplified is not None
     assert geom_simplified.is_valid
     assert isinstance(geom_simplified, sh_geom.MultiPolygon)
     assert len(geom_simplified) == 3
