@@ -170,12 +170,11 @@ def get_layerinfo(
     path_p = Path(path)
     if not path_p.exists():
         raise Exception(f"File does not exist: {path_p}")
-    
         
     datasource = None
     try:
         datasource = gdal.OpenEx(str(path_p))
-        if layer is not None:
+        if layer is not None and GeofileType(path_p).is_singlelayer is False:
             datasource_layer = datasource.GetLayer(layer)
         elif datasource.GetLayerCount() == 1:
             datasource_layer = datasource.GetLayerByIndex(0)
