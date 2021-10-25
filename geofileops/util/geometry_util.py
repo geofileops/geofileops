@@ -11,7 +11,6 @@ from typing import Any, List, Optional, Union
 import geopandas as gpd
 import numpy as np
 import pygeos
-from shapely.geometry.polygon import Polygon
 import shapely.wkb as sh_wkb
 import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
@@ -99,7 +98,7 @@ class GeometryType(enum.Enum):
         elif self in [GeometryType.POLYGON, GeometryType.MULTIPOLYGON]:
             return PrimitiveType.POLYGON
         elif self is GeometryType.GEOMETRYCOLLECTION:
-            return self
+            raise Exception(f"Geometrycollection doesn't have a primitive type")
         else:
             raise Exception(f"No primitive type implemented for {self}")
     
@@ -293,6 +292,7 @@ def numberpoints(geometry: Optional[sh_geom.base.BaseGeometry]) -> int:
         return nb_points
     elif isinstance(geometry, sh_geom.Polygon):
         # If it is a polygon, calculate number for exterior and interior rings. 
+        assert geometry.exterior is not None
         nb_points = len(geometry.exterior.coords)
         for ring in geometry.interiors:
             nb_points += len(ring.coords)
@@ -335,6 +335,7 @@ def remove_inner_rings(
         if small_ring_found == False:
             return geom_poly
         else:
+            assert geom_poly.exterior is not None
             return sh_ops.Polygon(geom_poly.exterior.coords, ring_coords_to_keep)
     
     # If the input is a simple Polygon, apply remove on it and return.
@@ -401,6 +402,7 @@ def simplify_ext(
     # Apply the simplification (can result in multipolygons)
     def simplify_polygon(polygon: sh_geom.Polygon) -> Union[sh_geom.Polygon, sh_geom.MultiPolygon, None]:
         ### First simplify exterior ring ###
+        assert polygon.exterior is not None
         exterior_simplified = simplify_coords(polygon.exterior.coords)
         
         # If topology needs to be preserved, keep original ring if simplify results in 
