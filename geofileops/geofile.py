@@ -517,6 +517,10 @@ def rename_column(
     path_p = Path(path)
     if layer is None:
         layer = get_only_layer(path_p)
+    info = get_layerinfo(path_p)
+    if column_name not in info.columns and new_column_name in info.columns:
+        logger.info(f"Column {column_name} seems to be renamed already to {new_column_name}, so just return")
+        return
 
     # Now really rename
     datasource = None
