@@ -112,6 +112,13 @@ class GeofileType(enum.Enum):
     def suffixes_extrafiles(self):
         return geofiletypes[self.name].suffixes_extrafiles
 
+    @property
+    def is_singlelayer(self):
+        if self.is_spatialite_based:
+            return False
+        else:
+            return True
+
 # Init!
 init_geofiletypes()
 
