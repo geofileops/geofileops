@@ -120,6 +120,45 @@ def convexhull(
             verbose=verbose,
             force=force)
 
+def delete_duplicate_geometries(
+        input_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
+        input_layer: str = None,
+        output_layer: str = None,
+        columns: List[str] = None,
+        explodecollections: bool = False,
+        verbose: bool = False,
+        force: bool = False):
+    """
+    Copy all rows to the output file, except for duplicate geometries.
+
+    Args:
+        input_path (PathLike): the input file
+        output_path (PathLike): the file to write the result to
+        input_layer (str, optional): input layer name. Optional if the input 
+            file only contains one layer.
+        output_layer (str, optional): input layer name. Optional if the input 
+            file only contains one layer.
+        columns (List[str], optional): If not None, only output the columns 
+            specified. Defaults to None.
+        explodecollections (bool, optional): True to output only simple geometries. 
+            Defaults to False.
+        verbose (bool, optional): write more info to the output. 
+            Defaults to False.
+        force (bool, optional): overwrite existing output file(s). 
+            Defaults to False.
+    """
+    logger.info(f"Start delete_duplicate_geometries on {input_path}")
+    return geofileops_sql.delete_duplicate_geometries(
+            input_path=Path(input_path),
+            output_path=Path(output_path),
+            input_layer=input_layer,
+            output_layer=output_layer,
+            columns=columns,
+            explodecollections=explodecollections,
+            verbose=verbose,
+            force=force)
+    
 def dissolve(
         input_path: Union[str, 'os.PathLike[Any]'],  
         output_path: Union[str, 'os.PathLike[Any]'],

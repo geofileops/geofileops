@@ -82,6 +82,79 @@ def buffer(
             verbose=verbose,
             force=force)
 
+def convexhull(
+        input_path: Path,
+        output_path: Path,
+        input_layer: str = None,
+        output_layer: str = None,
+        columns: Optional[List[str]] = None,
+        nb_parallel: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+
+    # Prepare sql template for this operation 
+    sql_template = f'''
+            SELECT ST_ConvexHull({{geometrycolumn}}) AS geom
+                  {{columns_to_select_str}} 
+              FROM "{{input_layer}}"
+             WHERE 1=1 
+               {{batch_filter}}'''
+
+    # Output geometry type same as input geometry type 
+    input_layer_info = geofile.get_layerinfo(input_path, input_layer)
+    return _single_layer_vector_operation(
+            input_path=input_path,
+            output_path=output_path,
+            sql_template=sql_template,
+            operation_name='convexhull',
+            input_layer=input_layer,
+            output_layer=output_layer,
+            columns=columns,
+            force_output_geometrytype=input_layer_info.geometrytype,
+            nb_parallel=nb_parallel,
+            verbose=verbose,
+            force=force)
+
+def delete_duplicate_geometries(
+        input_path: Path,
+        output_path: Path,
+        input_layer: str = None,
+        output_layer: str = None,
+        columns: List[str] = None,
+        explodecollections: bool = False,
+        verbose: bool = False,
+        force: bool = False):
+
+    # The query as written doesn't give correct results when parallellized,
+    # but it isn't useful to do it for this operation.
+    sql_template = f'''
+            SELECT {{geometrycolumn}} AS geom
+                  {{columns_to_select_str}} 
+              FROM "{{input_layer}}" input_layer
+             WHERE input_layer.rowid IN ( 
+                    SELECT MIN(input_layer_sub.rowid) AS rowid_to_keep 
+                      FROM "{{input_layer}}" input_layer_sub
+                     GROUP BY input_layer_sub.{{geometrycolumn}}
+                )
+            '''
+    
+    # Go!
+    input_layer_info = geofile.get_layerinfo(input_path, input_layer)
+    return _single_layer_vector_operation(
+            input_path=input_path,
+            output_path=output_path,
+            sql_template=sql_template,
+            operation_name='delete_duplicate_geometries',
+            input_layer=input_layer,
+            output_layer=output_layer,
+            columns=columns,
+            explodecollections=explodecollections,
+            force_output_geometrytype=input_layer_info.geometrytype,
+            filter_null_geoms=True,
+            nb_parallel=1,
+            verbose=verbose,
+            force=force)
+
 def isvalid(
         input_path: Path,
         output_path: Path,
@@ -134,39 +207,6 @@ def isvalid(
         layerinfo = geofile.get_layerinfo(output_path)
         logger.info(f"Found {layerinfo.featurecount} invalid geometries in {output_path}")
         return False
-
-def convexhull(
-        input_path: Path,
-        output_path: Path,
-        input_layer: str = None,
-        output_layer: str = None,
-        columns: Optional[List[str]] = None,
-        nb_parallel: int = -1,
-        verbose: bool = False,
-        force: bool = False):
-
-    # Prepare sql template for this operation 
-    sql_template = f'''
-            SELECT ST_ConvexHull({{geometrycolumn}}) AS geom
-                  {{columns_to_select_str}} 
-              FROM "{{input_layer}}"
-             WHERE 1=1 
-               {{batch_filter}}'''
-
-    # Output geometry type same as input geometry type 
-    input_layer_info = geofile.get_layerinfo(input_path, input_layer)
-    return _single_layer_vector_operation(
-            input_path=input_path,
-            output_path=output_path,
-            sql_template=sql_template,
-            operation_name='convexhull',
-            input_layer=input_layer,
-            output_layer=output_layer,
-            columns=columns,
-            force_output_geometrytype=input_layer_info.geometrytype,
-            nb_parallel=nb_parallel,
-            verbose=verbose,
-            force=force)
 
 def makevalid(
         input_path: Path,
@@ -339,6 +379,7 @@ def _single_layer_vector_operation(
         processing_params = _prepare_processing_params(
                 input1_path=input_path,
                 input1_layer=input_layer,
+                input1_layer_alias="input_layer",
                 tempdir=tempdir,
                 nb_parallel=nb_parallel,
                 convert_to_spatialite_based=False)
