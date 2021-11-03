@@ -772,9 +772,9 @@ def join_by_location(
         input1_path (PathLike): the 1st input file
         input2_path (PathLike): the 2nd input file
         output_path (PathLike): the file to write the result to
-        discard_nonmatching (bool, optional): pass True to keep rows in the 
+        discard_nonmatching (bool, optional): pass False to keep rows in the 
             "select layer" if they don't compy to the spatial operation anyway 
-            (=outer join). Defaults to False (=inner join). 
+            (=outer join). Defaults to True (=inner join). 
         min_area_intersect (float, optional): minimum area of the intersection.
             Defaults to None.
         area_inters_column_name (str, optional): column name of the intersect 
