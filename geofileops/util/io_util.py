@@ -37,7 +37,7 @@ def create_tempdir(base_dirname: str) -> Path:
     for i in range(1, 999999):
         try:
             tempdir = defaulttempdir / f"{base_dirname}_{i:06d}"
-            os.mkdir(tempdir)
+            tempdir.mkdir(parents=True)
             return Path(tempdir)
         except FileExistsError:
             continue

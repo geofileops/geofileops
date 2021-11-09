@@ -297,7 +297,7 @@ def _apply_geooperation_to_layer(
         output_layer = geofile.get_default_layer(output_path)
 
     ##### Prepare tmp files #####
-    tempdir = io_util.create_tempdir(operation.value)
+    tempdir = io_util.create_tempdir(f"geofileops/{operation.value}")
     logger.info(f"Start calculation to temp files in {tempdir}")
 
     try:
@@ -601,7 +601,7 @@ def dissolve(
         # The dissolve for polygons is done in several passes, and after the first 
         # pass, only the 'onborder' features are further dissolved, as the 
         # 'notonborder' features are already OK.  
-        tempdir = io_util.create_tempdir(operation)
+        tempdir = io_util.create_tempdir(f"geofileops/{operation}")
         try:
             pass_input_path = input_path
             if output_layer is None:

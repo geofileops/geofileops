@@ -372,7 +372,7 @@ def _single_layer_vector_operation(
     input_layerinfo = geofile.get_layerinfo(input_path, input_layer)
             
     ##### Calculate #####
-    tempdir = io_util.create_tempdir(operation_name.replace(' ', '_'))
+    tempdir = io_util.create_tempdir(f"geofileops/{operation_name.replace(' ', '_')}")
     
     try:
         ##### Calculate #####
@@ -939,7 +939,7 @@ def join_nearest(
         input2_tmp_layer = input2_layer
     else:
         # Put input2 layer in sqlite file...
-        tempdir = io_util.create_tempdir("join_nearest")
+        tempdir = io_util.create_tempdir("geofileops/join_nearest")
         input1_tmp_path = tempdir / f"both_input_layers.sqlite"
         input1_tmp_layer = 'input1_layer'
         geofile.convert(
@@ -1158,7 +1158,7 @@ def union(
     if output_layer is None:
         output_layer = geofile.get_default_layer(output_path)
 
-    tempdir = io_util.create_tempdir('union')
+    tempdir = io_util.create_tempdir("geofileops/union")
     try:
         # First split input1 with input2 to a temporary output file...
         split_output_path = tempdir / "split_output.gpkg"
@@ -1283,7 +1283,7 @@ def _two_layer_vector_operation(
         input2_layer = geofile.get_only_layer(input2_path)
     if output_layer is None:
         output_layer = geofile.get_default_layer(output_path)
-    tempdir = io_util.create_tempdir(operation_name)
+    tempdir = io_util.create_tempdir(f"geofileops/{operation_name}")
 
     # Use get_layerinfo to check if the input files are valid
     geofile.get_layerinfo(input1_path, input1_layer)
@@ -1829,7 +1829,7 @@ def dissolve_cardsheets(
         nb_parallel = multiprocessing.cpu_count()
 
     # Get input data to temp gpkg file
-    tempdir = io_util.create_tempdir("dissolve_cardsheets")
+    tempdir = io_util.create_tempdir("geofileops/dissolve_cardsheets")
     input_tmp_path = tempdir / "input_layers.gpkg"
     if(input_path.suffix.lower() == '.gpkg'):
         logger.info(f"Copy {input_path} to {input_tmp_path}")
