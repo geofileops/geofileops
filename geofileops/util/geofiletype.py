@@ -56,7 +56,7 @@ class GeofileType(enum.Enum):
     @classmethod
     def _missing_(cls, value: Union[str, int, Path]):
         """
-        Expand options in the Driver() constructor.
+        Expand options in the GeofileType() constructor.
         
         Args:
             value (Union[str, int, Driver]): 

@@ -1291,9 +1291,10 @@ def _two_layer_vector_operation(
     
     # Prepare output filename
     # TODO: determine best approach: to temp dir or to temp file in final dir!!!
-    #tmp_output_path = tempdir / output_path.name
-    tmp_output_path = output_path.parent / f"{output_path.stem}_BUSY{output_path.suffix}"
+    tmp_output_path = tempdir / output_path.name
+    #tmp_output_path = output_path.parent / f"{output_path.stem}_BUSY{output_path.suffix}"
     tmp_output_path.parent.mkdir(exist_ok=True, parents=True)
+    geofile.remove(tmp_output_path)
 
     try:
         ##### Prepare tmp files/batches #####
@@ -1464,10 +1465,8 @@ def _two_layer_vector_operation(
 
         logger.info(f"{operation_name} ready, took {datetime.datetime.now()-start_time}!")
     except Exception as ex:
-        if output_path.exists():
-            geofile.remove(output_path)
-        if tmp_output_path.exists():
-            geofile.remove(tmp_output_path)
+        geofile.remove(output_path)
+        geofile.remove(tmp_output_path)
         raise
     finally:
         shutil.rmtree(tempdir)
