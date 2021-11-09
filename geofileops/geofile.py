@@ -1275,7 +1275,8 @@ def convert(
         src_layer: str = None,
         dst_layer: str = None,
         explodecollections: bool = False,
-        force_output_geometrytype: GeometryType = None):
+        force_output_geometrytype: GeometryType = None,
+        force: bool = False):
     """
     Convert the source file to the destination file. File types will be 
     detected based on the file extensions.
@@ -1283,15 +1284,30 @@ def convert(
     Args:
         src (PathLike): The source file path.
         dst (PathLike): The destination file path.
+        src_layer (str, optional): The source layer. If None and there is only  
+            one layer in the src file, that layer is taken. Defaults to None.
+        dst_layer (str, optional): The destination layer. If None, the file 
+            stem is taken as layer name. Defaults to None.
+        explodecollections (bool), optional): True to output only simple 
+            geometries. Defaults to False.
+        force_output_geometrytype (GeometryType, optional): Geometry type. 
+            to (try to) force the output to. Defaults to None.
+        force (bool, optional): overwrite existing output file(s). 
+            Defaults to False.
     """
     src_p = Path(src)
     dst_p = Path(dst)
 
     # If dest file exists already, remove it
     if dst_p.exists():
-        remove(dst_p)
+        if force is True:
+            remove(dst_p)
+        else:
+            logger.info(f"Output file exists already, so stop: {dst_p}")
+            return
 
     # Convert
+    logger.info(f"Convert {src_p} to {dst_p}")
     _append_to_nolock(src_p, dst_p, src_layer, dst_layer, 
             explodecollections=explodecollections, 
             force_output_geometrytype=force_output_geometrytype)
