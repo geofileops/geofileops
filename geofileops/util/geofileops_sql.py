@@ -61,7 +61,7 @@ def buffer(
         sql_template = f'''
             SELECT ST_Buffer({{geometrycolumn}}, {distance}, {quadrantsegments}) AS geom
                   {{columns_to_select_str}} 
-              FROM "{{input_layer}}"
+              FROM "{{input_layer}}" layer
              WHERE 1=1 
                {{batch_filter}}'''
 
@@ -96,7 +96,7 @@ def convexhull(
     sql_template = f'''
             SELECT ST_ConvexHull({{geometrycolumn}}) AS geom
                   {{columns_to_select_str}} 
-              FROM "{{input_layer}}"
+              FROM "{{input_layer}}" layer
              WHERE 1=1 
                {{batch_filter}}'''
 
@@ -130,11 +130,11 @@ def delete_duplicate_geometries(
     sql_template = f'''
             SELECT {{geometrycolumn}} AS geom
                   {{columns_to_select_str}} 
-              FROM "{{input_layer}}"
-             WHERE input_layer.rowid IN ( 
-                    SELECT MIN(input_layer_sub.rowid) AS rowid_to_keep 
-                      FROM "{{input_layer}}" input_layer_sub
-                     GROUP BY input_layer_sub.{{geometrycolumn}}
+              FROM "{{input_layer}}" layer
+             WHERE layer.rowid IN ( 
+                    SELECT MIN(layer_sub.rowid) AS rowid_to_keep 
+                      FROM "{{input_layer}}" layer_sub
+                     GROUP BY layer_sub.{{geometrycolumn}}
                 )
             '''
     
@@ -174,7 +174,7 @@ def isvalid(
                   ,ST_IsValid({{geometrycolumn}}) AS isvalid
                   ,ST_IsValidReason({{geometrycolumn}}) AS isvalidreason
                   {{columns_to_select_str}} 
-              FROM "{{input_layer}}"
+              FROM "{{input_layer}}" layer
              WHERE 1=1 
                {only_invalid_filter}
                {{batch_filter}}'''
@@ -224,7 +224,7 @@ def makevalid(
     sql_template = f'''
             SELECT ST_MakeValid({{geometrycolumn}}) AS geom
                   {{columns_to_select_str}} 
-              FROM "{{input_layer}}"
+              FROM "{{input_layer}}" layer
              WHERE 1=1
                {{batch_filter}}'''
     
@@ -313,7 +313,7 @@ def simplify(
     sql_template = f'''
             SELECT ST_Simplify({{geometrycolumn}}, {tolerance}) AS geom
                   {{columns_to_select_str}} 
-              FROM "{{input_layer}}"
+              FROM "{{input_layer}}" layer
              WHERE 1=1 
                {{batch_filter}}'''
 
@@ -379,7 +379,7 @@ def _single_layer_vector_operation(
         processing_params = _prepare_processing_params(
                 input1_path=input_path,
                 input1_layer=input_layer,
-                #input1_layer_alias="input_layer",
+                input1_layer_alias="layer",
                 tempdir=tempdir,
                 nb_parallel=nb_parallel,
                 convert_to_spatialite_based=False)
