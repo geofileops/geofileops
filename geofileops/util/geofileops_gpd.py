@@ -955,7 +955,7 @@ def _dissolve_polygons(
                 geometry=geoseries_util.polygons_to_lines(
                         gpd.GeoSeries([sh_geom.box(bbox[0], bbox[1], bbox[2], bbox[3])])), 
                 crs=input_gdf.crs)
-        onborder_gdf = gpd.sjoin(diss_gdf, bbox_lines_gdf, op='intersects')
+        onborder_gdf = gpd.sjoin(diss_gdf, bbox_lines_gdf, predicate='intersects')
         onborder_gdf.drop('index_right', axis=1, inplace=True)
         if len(onborder_gdf) > 0:
             # assert to evade pyLance warning 
