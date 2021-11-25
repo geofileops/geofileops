@@ -20,6 +20,8 @@ import warnings
 warnings.filterwarnings('ignore', 'GeoSeries.isna', UserWarning)
 
 import geopandas as gpd
+import numpy as np
+import pandas as pd
 import psutil
 import shapely.geometry as sh_geom
 
@@ -495,7 +497,7 @@ def dissolve(
         output_path: Path,
         groupby_columns: List[str] = None,
         columns: Optional[List[str]] = [],
-        aggfunc: str = 'first',
+        aggfunc: str = 'max',
         explodecollections: bool = True,
         tiles_path: Path = None,
         nb_squarish_tiles: int = 1,
@@ -517,8 +519,10 @@ def dissolve(
     result_info = {}
     
     # Check input parameters
-    if aggfunc != 'first':
-        raise NotImplementedError(f"aggfunc != 'first' is not implemented: {aggfunc}")
+    supported_aggfuncs = ['min', 'max', 'first', 'to_json']
+    if aggfunc not in supported_aggfuncs:
+        logger.warn(f"Unknown aggfunc: {aggfunc}. Only these are supported: {supported_aggfuncs}")
+        #raise NotImplementedError(f"aggfunc's not in {supported_aggfuncs} are not implemented: {aggfunc}")
     if groupby_columns is not None and len(groupby_columns) == 0:
         raise Exception(f"groupby_columns == [] is not supported. It should be None in this case")
     if not input_path.exists():
@@ -571,17 +575,7 @@ def dissolve(
     # geopandas.   
     if layerinfo.geometrytype.to_primitivetype in [PrimitiveType.POINT, PrimitiveType.LINESTRING]:
         input_gdf = geofile.read_file(input_path, input_layer)
-
-        # Geopandas < 0.9 didn't support dissolving without groupby
-        if groupby_columns is None or len(groupby_columns) == 0:
-            union_geom = input_gdf.geometry.unary_union
-
-            # Only keep geometries of primitive type of input 
-            union_geom_cleaned = geometry_util.collection_extract(
-                    union_geom, layerinfo.geometrytype.to_primitivetype)
-            diss_gdf = gpd.GeoDataFrame(geometry=[union_geom_cleaned], crs=input_gdf.crs)
-        else:
-            diss_gdf = input_gdf.dissolve(by=groupby_columns, aggfunc=aggfunc, as_index=False)
+        diss_gdf = input_gdf.dissolve(by=groupby_columns, aggfunc=aggfunc, as_index=False)
 
         # Explodecollections if needed
         if explodecollections is True:
@@ -697,10 +691,15 @@ def dissolve(
 
             # If there is a result...
             if output_tmp_path.exists():
-                # Prepare columns to keep 
+                # Prepare columns to keep
                 columns_str = ''
-                for column in columns_to_retain:
-                    columns_str += f', "{column}"'
+                if isinstance(aggfunc, str) and aggfunc == 'to_json' and groupby_columns is not None:
+                    # The aggregation is to a json column, to this is the one to keep
+                    for column in groupby_columns + ['to_json']:
+                        columns_str += f', "{column}"'
+                else:
+                    for column in columns_to_retain:
+                        columns_str += f', "{column}"'
                 
                 # Now move tmp file to output location, but order the rows randomly
                 # to evade having all complex geometries together...
@@ -887,9 +886,9 @@ def _dissolve_polygons(
         return return_info
 
     # Now the real processing
-    # If no groupby_columns specified, perform unary_union
     start_dissolve = datetime.datetime.now()
-    diss_gdf = input_gdf.dissolve(by=groupby_columns, aggfunc=aggfunc, as_index=False, dropna=False)
+    diss_gdf = _dissolve(
+            df=input_gdf, by=groupby_columns, aggfunc=aggfunc, as_index=False, dropna=False)
     perfinfo['time_dissolve'] = (datetime.datetime.now()-start_dissolve).total_seconds()
 
     # If explodecollections is True and For polygons, explode multi-geometries.
@@ -898,9 +897,7 @@ def _dissolve_polygons(
         or input_geometrytype in [GeometryType.POLYGON, GeometryType.MULTIPOLYGON]):
         # assert to evade pyLance warning 
         assert isinstance(diss_gdf, gpd.GeoDataFrame)
-        diss_gdf = diss_gdf.explode()
-        # Reset the index, and drop the level_0 and level_1 multiindex
-        diss_gdf.reset_index(drop=True, inplace=True)
+        diss_gdf = diss_gdf.explode(ignore_index=True)
 
     # Clip the result on the borders of the bbox not to have overlaps 
     # between the different tiles. 
@@ -909,7 +906,7 @@ def _dissolve_polygons(
     # REMARK: for (multi)linestrings, the endpoints created by the clip are not 
     # always the same due to rounding, so dissolving in a next pass doesn't 
     # always result in linestrings being re-connected... Because dissolving 
-    # lines isn't so computationally heavy anyway, drop support here.    
+    # lines isn't so computationally heavy anyway, drop support here.  
     if bbox is not None:
         start_clip = datetime.datetime.now()
         bbox_polygon = sh_geom.Polygon([(bbox[0], bbox[1]), (bbox[0], bbox[3]), (bbox[2], bbox[3]), (bbox[2], bbox[1]), (bbox[0], bbox[1])])
@@ -918,14 +915,15 @@ def _dissolve_polygons(
         # keep_geom_type=True gaves sometimes error, and still does in 0.9.0
         # so use own implementation of keep_geom_type 
         diss_gdf = gpd.clip(diss_gdf, bbox_gdf) #, keep_geom_type=True)
-
+        assert isinstance(diss_gdf, gpd.GeoDataFrame) 
+    
         # Only keep geometries of the primitive type specified after clip...
         diss_gdf.geometry = geoseries_util.geometry_collection_extract(
                 diss_gdf.geometry, input_geometrytype.to_primitivetype)
 
         perfinfo['time_clip'] = (datetime.datetime.now()-start_clip).total_seconds()
 
-    # Drop rows with None/empty geometries 
+    # Drop rows with None/empty geometries
     diss_gdf = diss_gdf[~diss_gdf.geometry.isna()]
     diss_gdf = diss_gdf[~diss_gdf.geometry.is_empty]
 
@@ -997,6 +995,128 @@ def _dissolve_polygons(
     return_info['perfstring'] = perfstring
     return_info['message'] = message
     return return_info
+
+def _dissolve(
+        df: gpd.GeoDataFrame,
+        by=None,
+        aggfunc="first",
+        as_index=True,
+        level=None,
+        sort=True,
+        observed=False,
+        dropna=True) -> gpd.GeoDataFrame:
+    """
+    Dissolve geometries within `groupby` into single observation.
+    This is accomplished by applying the `unary_union` method
+    to all geometries within a groupself.
+    Observations associated with each `groupby` group will be aggregated
+    using the `aggfunc`.
+    Parameters
+    ----------
+    by : string, default None
+        Column whose values define groups to be dissolved. If None,
+        whole GeoDataFrame is considered a single group.
+    aggfunc : function or string, default "first"
+        Aggregation function for manipulation of data associated
+        with each group. Passed to pandas `groupby.agg` method.
+    as_index : boolean, default True
+        If true, groupby columns become index of result.
+    level : int or str or sequence of int or sequence of str, default None
+        If the axis is a MultiIndex (hierarchical), group by a
+        particular level or levels.
+        .. versionadded:: 0.9.0
+    sort : bool, default True
+        Sort group keys. Get better performance by turning this off.
+        Note this does not influence the order of observations within
+        each group. Groupby preserves the order of rows within each group.
+        .. versionadded:: 0.9.0
+    observed : bool, default False
+        This only applies if any of the groupers are Categoricals.
+        If True: only show observed values for categorical groupers.
+        If False: show all values for categorical groupers.
+        .. versionadded:: 0.9.0
+    dropna : bool, default True
+        If True, and if group keys contain NA values, NA values
+        together with row/column will be dropped. If False, NA
+        values will also be treated as the key in groups.
+        This parameter is not supported for pandas < 1.1.0.
+        A warning will be emitted for earlier pandas versions
+        if a non-default value is given for this parameter.
+        .. versionadded:: 0.9.0
+    Returns
+    -------
+    GeoDataFrame
+    Examples
+    --------
+    >>> from shapely.geometry import Point
+    >>> d = {
+    ...     "col1": ["name1", "name2", "name1"],
+    ...     "geometry": [Point(1, 2), Point(2, 1), Point(0, 1)],
+    ... }
+    >>> gdf = geopandas.GeoDataFrame(d, crs=4326)
+    >>> gdf
+        col1                 geometry
+    0  name1  POINT (1.00000 2.00000)
+    1  name2  POINT (2.00000 1.00000)
+    2  name1  POINT (0.00000 1.00000)
+    >>> dissolved = gdf.dissolve('col1')
+    >>> dissolved  # doctest: +SKIP
+                                                geometry
+    col1
+    name1  MULTIPOINT (0.00000 1.00000, 1.00000 2.00000)
+    name2                        POINT (2.00000 1.00000)
+    See also
+    --------
+    GeoDataFrame.explode : explode multi-part geometries into single geometries
+    """
+
+    if by is None and level is None:
+        by = np.zeros(len(df), dtype="int64")
+
+    groupby_kwargs = dict(
+        by=by, level=level, sort=sort, observed=observed, dropna=dropna
+    )
+    '''
+    if not compat.PANDAS_GE_11:
+        groupby_kwargs.pop("dropna")
+
+        if not dropna:  # If they passed a non-default dropna value
+            warnings.warn("dropna kwarg is not supported for pandas < 1.1.0")
+    '''
+
+    # Process non-spatial component
+    data = df.drop(columns=df.geometry.name)
+
+    if isinstance(aggfunc, str) is True and aggfunc == 'to_json':
+        #orient='records' ???
+        aggregated_data = data.groupby(**groupby_kwargs).apply(lambda g: g.to_json(orient='index')).to_frame(name='to_json')
+    else:
+        aggregated_data = data.groupby(**groupby_kwargs).agg(aggfunc)
+        # Check if all columns were properly aggregated
+        columns_to_agg = [column for column in data.columns if column not in by]
+        if len(columns_to_agg) != len(aggregated_data.columns):
+            dropped_columns = [column for column in columns_to_agg if column not in aggregated_data.columns]
+            raise Exception(f"Column(s) {dropped_columns} are not supported for aggregation, stop") 
+    
+    # Process spatial component
+    def merge_geometries(block):
+        merged_geom = block.unary_union
+        return merged_geom
+
+    g = df.groupby(group_keys=False, **groupby_kwargs)[df.geometry.name].agg(
+            merge_geometries)
+
+    # Aggregate
+    aggregated_geometry = gpd.GeoDataFrame(g, geometry=df.geometry.name, crs=df.crs)
+    # Recombine
+    aggregated = aggregated_geometry.join(aggregated_data)
+
+    # Reset if requested
+    if not as_index:
+        aggregated = aggregated.reset_index()
+
+    assert isinstance(aggregated, gpd.GeoDataFrame)
+    return aggregated
 
 def _add_orderby_column(
         path: Path,

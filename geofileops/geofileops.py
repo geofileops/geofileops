@@ -165,7 +165,7 @@ def dissolve(
         explodecollections: bool,
         groupby_columns: Optional[List[str]] = None,
         columns: Optional[List[str]] = [],
-        aggfunc: str = 'first',
+        aggfunc: str = 'max',
         tiles_path: Union[str, 'os.PathLike[Any]'] = None,
         nb_squarish_tiles: int = 1,
         clip_on_tiles: bool = True,
@@ -182,8 +182,8 @@ def dissolve(
     the result will be clipped  on the output tiles and the tile borders are 
     never crossed.
             
-    Remarks: 
-        * only aggfunc = 'first' is supported at the moment. 
+    Remarks: there is only a limited set of aggregation functions supported at 
+    the moment.
 
     Args:
         input_path (PathLike): the input file
@@ -200,7 +200,7 @@ def dissolve(
             aggfunc. If None is specified, all columns are retained.
             Defaults to [] (= only the groupby_columns are retained).
         aggfunc (str, optional): aggregation function to apply to columns not 
-            grouped on. Defaults to 'first'.
+            grouped on. Supported: 'max', 'min'. Defaults to 'max'.
         tiles_path (PathLike, optional): a path to a geofile containing tiles. 
             If specified, the output will be dissolved/unioned only within the 
             tiles provided. 

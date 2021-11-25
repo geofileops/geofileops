@@ -343,6 +343,7 @@ def basetest_dissolve_polygons_groupby(
             output_path=output_path,
             groupby_columns=['GEWASGROEP'],
             columns=None,
+            aggfunc='first',
             explodecollections=True,
             nb_parallel=get_nb_parallel(),
             parallelization_config=get_parallelization_config())
