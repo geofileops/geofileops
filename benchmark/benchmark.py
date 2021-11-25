@@ -119,8 +119,8 @@ def benchmark_dissolve(tmpdir: Path) -> List[BenchResult]:
     start_time = datetime.datetime.now()
     output_path = tmpdir / f"{input_path.stem}_diss_nogroupby.gpkg"
     geofileops_gpd.dissolve(
-            input_path, 
-            output_path, 
+            input_path=input_path, 
+            output_path=output_path, 
             force=True)
     secs_taken = (datetime.datetime.now()-start_time).total_seconds()
     bench_results.append(BenchResult(
@@ -292,8 +292,8 @@ if __name__ == '__main__':
             datefmt="%H:%M:%S", level=logging.INFO)
 
     #Go!
-    tmpdir = None
-    #tmpdir = Path(r"X:\PerPersoon\PIEROG\Temp") / 'geofileops_benchmark'
+    #tmpdir = None
+    tmpdir = Path(r"C:\Temp") / 'geofileops_benchmark'
     benchmark(
             benchmarks_to_run=[
                 #Benchmark.BUFFER,
