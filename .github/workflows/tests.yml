@@ -9,6 +9,10 @@ on:
   pull_request:
     branches: [ master, 0.** ]
 
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
 
   Test:
