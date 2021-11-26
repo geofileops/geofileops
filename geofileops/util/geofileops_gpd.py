@@ -476,7 +476,7 @@ def _apply_geooperation(
     data_gdf = data_gdf[~data_gdf.isna()] 
     
     if explodecollections:
-        data_gdf = data_gdf.explode().reset_index(drop=True)
+        data_gdf = data_gdf.explode(ignore_index=True)
 
     if len(data_gdf) > 0:
         # assert to evade pyLance warning
@@ -587,9 +587,7 @@ def dissolve(
         if explodecollections is True:
             # assert to evade pyLance warning
             assert isinstance(diss_gdf, gpd.GeoDataFrame)
-            diss_gdf = diss_gdf.explode()
-            # Reset the index, and drop the level_0 and level_1 multiindex
-            diss_gdf.reset_index(drop=True, inplace=True)
+            diss_gdf = diss_gdf.explode(ignore_index=True)
         
         # Now write to file
         # assert to evade pyLance warning
@@ -887,7 +885,6 @@ def _dissolve_polygons(
         return return_info
 
     # Now the real processing
-    # If no groupby_columns specified, perform unary_union
     start_dissolve = datetime.datetime.now()
     diss_gdf = input_gdf.dissolve(by=groupby_columns, aggfunc=aggfunc, as_index=False, dropna=False)
     perfinfo['time_dissolve'] = (datetime.datetime.now()-start_dissolve).total_seconds()
