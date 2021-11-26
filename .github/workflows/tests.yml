@@ -9,9 +9,9 @@ on:
   pull_request:
     branches: [ master, 0.** ]
 
-concurrency: 
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+#concurrency: 
+#  group: ${{ github.workflow }}-${{ github.ref }}
+#  cancel-in-progress: true
 
 jobs:
 
@@ -46,7 +46,7 @@ jobs:
 
       - name: Test
         run: |
-          pytest -v -r s -n auto --color=yes --cov=geofileops --cov-append --cov-report term-missing --cov-report xml 
+          pytest --color=yes --cov=geofileops --cov-append --cov-report term-missing --cov-report xml tests/
 
       - uses: codecov/codecov-action@v2
       
