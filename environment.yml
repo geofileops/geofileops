@@ -5,7 +5,7 @@ channels:
 dependencies:
   - python=3.8
   - pip
-  - geopandas=0.9
+  - geopandas=0.10.2
   - pygeos
   - psutil
   - pydata-sphinx-theme
