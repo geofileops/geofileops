@@ -898,9 +898,7 @@ def _dissolve_polygons(
         or input_geometrytype in [GeometryType.POLYGON, GeometryType.MULTIPOLYGON]):
         # assert to evade pyLance warning 
         assert isinstance(diss_gdf, gpd.GeoDataFrame)
-        diss_gdf = diss_gdf.explode()
-        # Reset the index, and drop the level_0 and level_1 multiindex
-        diss_gdf.reset_index(drop=True, inplace=True)
+        diss_gdf = diss_gdf.explode(ignore_index=True)
 
     # Clip the result on the borders of the bbox not to have overlaps 
     # between the different tiles. 
