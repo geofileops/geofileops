@@ -5,13 +5,14 @@ if [ -z "$var" ]
 then
   echo
   echo Hello! If you want to override some default options this is possible as such:
-  echo 'install_geofileops.sh --envname geofileopsdev --envname_backup geofileopsdev_bck_2020-01-01 --condadir "/home/Miniconda3" --fordev Y'
+  echo 'install_geofileops.sh --envname geofileopsdev --envname_backup geofileopsdev_bck_2020-01-01 --condadir "/ProgramData/Miniconda3" --condaenvsdir "/home/.conda/envs" --fordev Y'
   echo 
   echo The parameters can be used as such:
   echo     - envname: the name the new environment will be given 
   echo     - envname_backup: if the environment already exist, it will be 
   echo       backupped to this environment
-  echo     - condadir: the directory where cona is installed
+  echo     - condadir: the directory where conda is installed
+  echo     - condaenvsdir: the directory where conda environments are created
   echo     - fordev: for development: if Y is passed, only the dependencies 
   echo       for geofileops will be installed, not the geofileops package itself
 fi
@@ -21,6 +22,7 @@ while [[ "$#" -gt 0 ]]; do
     case $1 in
         -e|--envname) envname="$2"; shift ;;
         -cd|--condadir) condadir="$2"; shift ;;
+        -ced|--condaenvsdir) condaenvsdir="$2"; shift ;;
         -eb|--envname_backup) envname_backup="$2"; shift ;;
         -od|--fordev) fordev="$2"; shift ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
@@ -34,7 +36,8 @@ today=$(date +%F)
 # If not provided, init parameters with default values
 if [ -z "$envname" ]; then envname="geofileops" ; fi
 if [ -z "$envname_backup" ]; then envname_backup="${envname}_bck_${today}" ; fi
-if [ -z "$condadir" ]; then condadir="$HOME/Miniconda3" ; fi
+if [ -z "$condadir" ]; then condadir="/c/ProgramData/Miniconda3" ; fi
+if [ -z "$condaenvsdir" ]; then condaenvsdir="$HOME/.conda/envs" ; fi
 if [ -z "$fordev" ]; then fordev="N" ; fi
 
 # If no parameters are given, ask if it is ok to use defaults
@@ -43,6 +46,7 @@ echo "The script will be ran with the following parameters:"
 echo "   - envname=$envname"
 echo "   - envname_backup=$envname_backup"
 echo "   - condadir=$condadir"
+echo "   - condaenvsdir=$condaenvsdir"
 echo "   - fordev=$fordev"
 echo
 
@@ -65,10 +69,10 @@ echo -------------------------------------
 
 if [[ ! -z "$envname_backup" ]]
 then
-  if [[ -d "$condadir/envs/$envname/" ]]
+  if [[ -d "$condaenvsdir/$envname/" ]]
   then
     echo "Do you want to take a backup from $envname?"
-    if [[ -d "$condadir/envs/$envname_backup/" ]]
+    if [[ -d "$condaenvsdir/$envname_backup/" ]]
     then
       echo "REMARK: $envname_backup exists already, so will be overwritten by a new backup!"
     fi
@@ -90,13 +94,13 @@ fi
 echo
 echo Create/overwrite environment
 echo -------------------------------------
-if [[ -d "$condadir/envs/$envname/" ]]
+if [[ -d "$condaenvsdir/$envname/" ]]
 then
   echo "First remove conda environment $envname"
   conda env remove -y --name $envname
 
   echo "Also really delete the env directory, to evade locked file errors"
-  rm -rf $condadir/envs/$envname
+  rm -rf $condaenvsdir/$envname
 fi
 
 echo "Create and install conda environment $envname"
