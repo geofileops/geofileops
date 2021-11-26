@@ -163,7 +163,7 @@ def collection_extract(
             return geometry
     elif isinstance(geometry, sh_geom.GeometryCollection):
         returngeoms = []
-        for geometry in list(sh_geom.GeometryCollection(geometry)):
+        for geometry in sh_geom.GeometryCollection(geometry).geoms:
             returngeoms.append(collection_extract(geometry, primitivetype=primitivetype))
         if len(returngeoms) > 0:
             return collect(returngeoms)
@@ -218,7 +218,7 @@ def collect(
     singular_geometry_list = []
     for geom in geometry_list:
         if isinstance(geom, sh_geom.base.BaseMultipartGeometry):
-            singular_geometry_list.extend(list(geom))
+            singular_geometry_list.extend(geom.geoms)
         else:
             singular_geometry_list.append(geom)
 
@@ -287,7 +287,7 @@ def numberpoints(geometry: Optional[sh_geom.base.BaseGeometry]) -> int:
         return 0
     elif isinstance(geometry, sh_geom.base.BaseMultipartGeometry):
         nb_points = 0
-        for geom in list(geometry):
+        for geom in geometry.geoms:
             nb_points += numberpoints(geom)
         return nb_points
     elif isinstance(geometry, sh_geom.Polygon):
@@ -344,7 +344,7 @@ def remove_inner_rings(
     elif isinstance(geometry, sh_geom.MultiPolygon):
         # If the input is a MultiPolygon, apply remove on each Polygon in it. 
         polys = []
-        for poly in list(geometry):
+        for poly in geometry.geoms:
             polys.append(remove_inner_rings_polygon(poly, min_area_to_keep))
         return sh_geom.MultiPolygon(polys)
     else:
@@ -468,7 +468,7 @@ def simplify_ext(
 
         coords_on_border_idx = []
         if keep_points_on is not None:
-            coords_gdf = gpd.GeoDataFrame(geometry=list(sh_geom.MultiPoint(coords)))
+            coords_gdf = gpd.GeoDataFrame(geometry=sh_geom.MultiPoint(coords).geoms)
             coords_on_border_series = coords_gdf.intersects(keep_points_on)
             coords_on_border_idx = np.array(coords_on_border_series.index[coords_on_border_series]).tolist()
 
@@ -493,7 +493,7 @@ def simplify_ext(
     elif isinstance(geometry, sh_geom.base.BaseMultipartGeometry):
         # If it is a multi-part, recursively call simplify for all parts. 
         simplified_geometries = []
-        for geom in list(geometry):
+        for geom in geometry.geoms:
             simplified_geometries.append(simplify_ext(geom, 
                     tolerance=tolerance, 
                     algorithm=algorithm, lookahead=lookahead, 
