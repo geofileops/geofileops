@@ -1455,7 +1455,9 @@ def _two_layer_vector_operation(
         # Now create spatial index and move to output location
         if tmp_output_path.exists():
             if output_with_spatial_index is True:
+                start_time_spat = datetime.datetime.now()
                 geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
+                logger.info(f"create spatial index took {datetime.datetime.now()-start_time_spat}!")
             if tmp_output_path != output_path:
                 start_time_move = datetime.datetime.now()
                 geofile.move(tmp_output_path, output_path)
