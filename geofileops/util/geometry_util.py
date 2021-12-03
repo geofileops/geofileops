@@ -28,6 +28,20 @@ logger = logging.getLogger(__name__)
 #logger.setLevel(logging.DEBUG)
 
 #-------------------------------------------------------------
+# Buffer helpers
+#-------------------------------------------------------------
+
+class BufferJoinStyle(enum.Enum):
+    ROUND = 1
+    MITRE = 2
+    BEVEL = 3
+
+class BufferCapStyle(enum.Enum):
+    ROUND = 1
+    FLAT = 2
+    SQUARE = 3
+
+#-------------------------------------------------------------
 # Geometry helpers
 #-------------------------------------------------------------
 
@@ -349,6 +363,10 @@ def remove_inner_rings(
         return sh_geom.MultiPolygon(polys)
     else:
         raise Exception(f"remove_inner_rings is not possible with geometrytype: {geometry.type}, geometry: {geometry}")
+
+#-------------------------------------------------------------
+# Simplify helpers
+#-------------------------------------------------------------
 
 class SimplifyAlgorithm(enum.Enum):
     RAMER_DOUGLAS_PEUCKER = 'rdp'
