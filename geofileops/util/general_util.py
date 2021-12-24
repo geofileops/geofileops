@@ -37,6 +37,10 @@ def report_progress(
         operation: str = None,
         nb_parallel: int = 1):
 
+    # If logging level not enabled for INFO, no progress reporting...
+    if logger.isEnabledFor(logging.INFO) is False:
+        return
+
     # Init
     time_passed = (datetime.datetime.now()-start_time).total_seconds()
     pct_progress = 100.0-(nb_todo-nb_done)*100/nb_todo
