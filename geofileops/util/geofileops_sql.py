@@ -500,7 +500,7 @@ def _single_layer_vector_operation(
             output_path.parent.mkdir(parents=True, exist_ok=True)
             geofile.move(tmp_output_path, output_path)
         else:
-            logger.warning(f"Result of {operation_name} was empty!")
+            logger.info(f"Result of {operation_name} was empty!")
 
     finally:
         # Clean tmp dir
