@@ -351,6 +351,8 @@ def _apply_geooperation_to_layer(
                 batches[batch_id] = {}
                 batches[batch_id]['layer'] = output_layer
 
+                # Output each batch to a seperate temporary file, otherwise there 
+                # are timeout issues when processing large files
                 output_tmp_partial_path = tempdir / f"{output_path.stem}_{batch_id}{output_path.suffix}"
                 batches[batch_id]['tmp_partial_output_path'] = output_tmp_partial_path
 
@@ -379,9 +381,6 @@ def _apply_geooperation_to_layer(
             
             # Loop till all parallel processes are ready, but process each one 
             # that is ready already
-            # REMARK: writing to temp file and than appending the result here 
-            # is 10 time faster than appending directly using geopandas to_file 
-            # (in geopandas 0.8)!
             general_util.report_progress(start_time, nb_done, nb_batches, operation.value, nb_parallel)
             for future in futures.as_completed(future_to_batch_id):
                 try:
@@ -779,6 +778,9 @@ def _dissolve_polygons_pass(
             max_workers=nb_parallel, 
             initializer=general_util.initialize_worker()) as calculate_pool:
 
+        # Prepare output filename
+        tempdir = output_onborder_path.parent
+
         batches = {}    
         future_to_batch_id = {}    
         nb_rows_done = 0
@@ -786,12 +788,19 @@ def _dissolve_polygons_pass(
     
             batches[batch_id] = {}
             batches[batch_id]['layer'] = output_layer
+
+            # Output each batch to a seperate temporary file, otherwise there 
+            # are timeout issues when processing large files
+            output_notonborder_tmp_partial_path = tempdir / f"{output_notonborder_path.stem}_{batch_id}{output_notonborder_path.suffix}"
+            batches[batch_id]['output_notonborder_tmp_partial_path'] = output_notonborder_tmp_partial_path
+            output_onborder_tmp_partial_path = tempdir / f"{output_onborder_path.stem}_{batch_id}{output_onborder_path.suffix}"
+            batches[batch_id]['output_onborder_tmp_partial_path'] = output_onborder_tmp_partial_path
             
             future = calculate_pool.submit(
                     _dissolve_polygons,
                     input_path=input_path,
-                    output_notonborder_path=output_notonborder_path,
-                    output_onborder_path=output_onborder_path,
+                    output_notonborder_path=output_notonborder_tmp_partial_path,
+                    output_onborder_path=output_onborder_tmp_partial_path,
                     explodecollections=explodecollections,
                     groupby_columns=groupby_columns,
                     columns=columns,
@@ -803,12 +812,15 @@ def _dissolve_polygons_pass(
                     verbose=verbose)
             future_to_batch_id[future] = batch_id
         
-        # Loop till all parallel processes are ready, but process each one that is ready already
+        # Loop till all parallel processes are ready, but process each one 
+        # that is ready already
+        general_util.report_progress(start_time, nb_rows_done, nb_rows_total, 'dissolve')
         for future in futures.as_completed(future_to_batch_id):
             try:
                 # If the calculate gave results
                 batch_id = future_to_batch_id[future]
                 result = future.result()
+
                 if result is not None:
                     nb_rows_done += result['nb_rows_done']
                     if verbose and result['nb_rows_done'] > 0 and result['total_time'] > 0:
@@ -816,6 +828,26 @@ def _dissolve_polygons_pass(
                         logger.info(f"Batch {batch_id} ready, processed {result['nb_rows_done']} rows in {rows_per_sec} rows/sec")
                         if 'perfstring' in result:
                             logger.info(f"Perfstring: {result['perfstring']}")
+                    
+                    # Start copy of the result to a common file
+                    batch_id = future_to_batch_id[future]
+
+                    # If the calculate gave results, copy to output
+                    output_notonborder_tmp_partial_path = batches[batch_id]['output_notonborder_tmp_partial_path']
+                    if output_notonborder_tmp_partial_path.exists() and output_notonborder_tmp_partial_path.stat().st_size > 0:
+                        geofile.append_to(
+                                src=output_notonborder_tmp_partial_path, 
+                                dst=output_notonborder_path)
+                        geofile.remove(output_notonborder_tmp_partial_path)
+                            
+                    # If the calculate gave results, copy to output
+                    output_onborder_tmp_partial_path = batches[batch_id]['output_onborder_tmp_partial_path']
+                    if output_onborder_tmp_partial_path.exists() and output_onborder_tmp_partial_path.stat().st_size > 0:
+                        geofile.append_to(
+                                src=output_onborder_tmp_partial_path, 
+                                dst=output_onborder_path)
+                        geofile.remove(output_onborder_tmp_partial_path)
+
             except Exception as ex:
                 batch_id = future_to_batch_id[future]
                 message = f"Error executing {batches[batch_id]}: {ex}"
@@ -824,8 +856,8 @@ def _dissolve_polygons_pass(
                 raise Exception(message) from ex
 
             # Log the progress and prediction speed
-            general_util.report_progress(start_time, nb_rows_done, nb_rows_total, 'dissolve')
-
+            general_util.report_progress(start_time, nb_rows_done, nb_rows_total, 'dissolve')   
+    
     logger.info(f"Dissolve pass ready, took {datetime.datetime.now()-start_time}!")
                 
     return result_info
@@ -942,8 +974,8 @@ def _dissolve_polygons(
         # Use force_multitype, to evade warnings when some batches contain 
         # singletype and some contain multitype geometries  
         geofile.to_file(
-                diss_gdf, output_notonborder_path, layer=output_layer, 
-                append=True, force_multitype=True)
+                diss_gdf, output_notonborder_path, 
+                layer=output_layer, force_multitype=True)
     else:
         # If not, save the polygons on the border seperately
         bbox_lines_gdf = gpd.GeoDataFrame(
@@ -958,8 +990,8 @@ def _dissolve_polygons(
             # Use force_multitype, to evade warnings when some batches contain 
             # singletype and some contain multitype geometries  
             geofile.to_file(
-                    onborder_gdf, output_onborder_path, layer=output_layer, 
-                    append=True, force_multitype=True)
+                    onborder_gdf, output_onborder_path, 
+                    layer=output_layer, force_multitype=True)
         
         notonborder_gdf = diss_gdf[~diss_gdf.index.isin(onborder_gdf.index)]
         if len(notonborder_gdf) > 0:
@@ -968,8 +1000,8 @@ def _dissolve_polygons(
             # Use force_multitype, to evade warnings when some batches contain 
             # singletype and some contain multitype geometries  
             geofile.to_file(
-                    notonborder_gdf, output_notonborder_path, layer=output_layer, 
-                    append=True, force_multitype=True)
+                    notonborder_gdf, output_notonborder_path, 
+                    layer=output_layer, force_multitype=True)
     perfinfo['time_to_file'] = (datetime.datetime.now()-start_to_file).total_seconds()
 
     # Finalise...
