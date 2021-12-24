@@ -14,7 +14,7 @@ setuptools.setup(
     description='Package to do spatial operations on geo files.',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/theroggy/geofileops',
+    url='https://github.com/geofileops/geofileops',
     include_package_data=True,
     packages=setuptools.find_packages(),
     install_requires=['geopandas>=0.10', 'pygeos', 'pyproj', 'psutil'],
