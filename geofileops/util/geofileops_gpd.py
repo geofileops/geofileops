@@ -309,15 +309,13 @@ def _apply_geooperation_to_layer(
         # the available resources
         layerinfo = geofile.get_layerinfo(input_path, input_layer)
         nb_rows_total = layerinfo.featurecount
-        if(nb_parallel == -1):
-            nb_parallel = multiprocessing.cpu_count()
-        nb_batches = nb_parallel
+        nb_parallel, nb_batches, _ = get_parallelization_params(
+                nb_rows_total=nb_rows_total,
+                nb_parallel=nb_parallel,
+                parallelization_config=ParallelizationConfig(max_avg_rows_per_batch=50000), 
+                verbose=verbose)
         batch_size = int(nb_rows_total/nb_batches)
-        #nb_parallel, nb_batches, batch_size = get_parallellisation_params(
-        #        nb_rows_total=nb_rows_total,
-        #        nb_parallel=nb_parallel,
-        #        verbose=verbose)
-
+        
         # TODO: determine the optimal batch sizes with min and max of rowid will 
         # in some case improve performance
         '''
