@@ -152,6 +152,10 @@ def buffer(
         output_path: Path,
         distance: float,
         quadrantsegments: int = 5,
+        endcap_style: geometry_util.BufferJoinStyle = geometry_util.BufferCapStyle.ROUND,
+        join_style: geometry_util.BufferJoinStyle = geometry_util.BufferJoinStyle.ROUND,
+        mitre_limit: float = 5.0,
+        single_sided: bool = False,
         input_layer: str = None,
         output_layer: str = None,
         columns: List[str] = None,
@@ -161,8 +165,12 @@ def buffer(
         force: bool = False):
     # Init
     operation_params = {
-            'distance': distance,
-            'quadrantsegments': quadrantsegments
+            "distance": distance,
+            "quadrantsegments": quadrantsegments,
+            "endcap_style": endcap_style,
+            "join_style": join_style,
+            "mitre_limit": mitre_limit,
+            "single_sided": single_sided
         }
 
     # Go!
@@ -259,6 +267,24 @@ def _apply_geooperation_to_layer(
       - BUFFER: apply a buffer. Operation parameters:
           - distance: distance to buffer
           - quadrantsegments: number of points used to represent 1/4 of a circle
+          - endcap_style: buffer style to use for a point or the end points of 
+            a line:
+            - ROUND: for points and lines the ends are buffered rounded. 
+            - FLAT: a point stays a point, a buffered line will end flat 
+              at the end points
+            - SQUARE: a point becomes a square, a buffered line will end 
+              flat at the end points, but elongated by "distance" 
+        - join_style: buffer style to use for corners in a line or a polygon 
+          boundary:
+            - ROUND: corners in the result are rounded
+            - MITRE: corners in the result are sharp
+            - BEVEL: are flattened
+        - mitre_limit: in case of join_style MITRE, if the 
+            spiky result for a sharp angle becomes longer than this limit, it 
+            is "beveled" at this distance. Defaults to 5.0.
+        - single_sided: only one side of the line is buffered, 
+            if distance is negative, the left side, if distance is positive, 
+            the right hand side. Only relevant for line geometries. 
       - CONVEXHULL: appy a convex hull.
       - SIMPLIFY: simplify the geometry. Operation parameters:
           - algorithm: vector_util.SimplifyAlgorithm
@@ -384,13 +410,8 @@ def _apply_geooperation_to_layer(
                 try:
                     result = future.result()
 
-                    if result is not None and verbose is True:
-                        logger.info(result)
-
-                    # Start copy of the result to a common file
-                    batch_id = future_to_batch_id[future]
-
                     # If the calculate gave results, copy to output
+                    batch_id = future_to_batch_id[future]
                     tmp_partial_output_path = batches[batch_id]['tmp_partial_output_path']
                     if tmp_partial_output_path.exists() and tmp_partial_output_path.stat().st_size > 0:
                         geofile.append_to(
@@ -398,9 +419,6 @@ def _apply_geooperation_to_layer(
                                 dst=output_tmp_path, 
                                 create_spatial_index=False)
                         geofile.remove(tmp_partial_output_path)
-                    else:
-                        if verbose:
-                            logger.info(f"Result file {tmp_partial_output_path} was empty")
                     
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
@@ -455,7 +473,11 @@ def _apply_geooperation(
     if operation is GeoOperation.BUFFER:
         data_gdf.geometry = data_gdf.geometry.buffer(
                 distance=operation_params['distance'], 
-                resolution=operation_params['quadrantsegments'])
+                resolution=operation_params['quadrantsegments'],
+                cap_style=operation_params['endcap_style'].value,
+                join_style=operation_params['join_style'].value,
+                mitre_limit=operation_params['mitre_limit'],
+                single_sided=operation_params['single_sided'])
         #data_gdf['geometry'] = [sh_geom.Polygon(sh_geom.mapping(x)['coordinates']) for x in data_gdf.geometry]
     elif operation is GeoOperation.CONVEXHULL:
         data_gdf.geometry = data_gdf.geometry.convex_hull
