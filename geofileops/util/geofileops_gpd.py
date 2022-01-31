@@ -27,7 +27,7 @@ from geofileops import geofile
 from geofileops.util import general_util
 from geofileops.util import geofileops_sql
 from geofileops.util import geometry_util
-from geofileops.util.geometry_util import BufferCapStyle, BufferJoinStyle, GeometryType, PrimitiveType, SimplifyAlgorithm 
+from geofileops.util.geometry_util import GeometryType, PrimitiveType, SimplifyAlgorithm 
 from geofileops.util import geoseries_util
 from geofileops.util import grid_util
 from geofileops.util import io_util
