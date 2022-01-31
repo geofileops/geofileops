@@ -69,8 +69,7 @@ def get_parallelization_params(
         nb_rows_total: int,
         nb_parallel: int = -1,
         prev_nb_batches: int = None,
-        parallelization_config: ParallelizationConfig = None,
-        verbose: bool = False) -> parallelizationParams:
+        parallelization_config: ParallelizationConfig = None) -> parallelizationParams:
     """
     Determines recommended parallelization params.
 
@@ -161,6 +160,7 @@ def buffer(
         columns: List[str] = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     # Init
@@ -184,6 +184,7 @@ def buffer(
             columns=columns,
             explodecollections=explodecollections,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -195,6 +196,7 @@ def convexhull(
         columns: List[str] = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     # Init
@@ -209,8 +211,9 @@ def convexhull(
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
-            nb_parallel=nb_parallel,
             explodecollections=explodecollections,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -225,6 +228,7 @@ def simplify(
         columns: List[str] = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     # Init
@@ -245,6 +249,7 @@ def simplify(
             columns=columns,
             explodecollections=explodecollections,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -258,6 +263,7 @@ def _apply_geooperation_to_layer(
         output_layer: str = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     """
@@ -304,6 +310,10 @@ def _apply_geooperation_to_layer(
         explodecollections (bool, optional): True to convert all multi-geometries to 
             singular ones during the geooperation. Defaults to False.
         nb_parallel (int, optional): [description]. Defaults to -1.
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
         verbose (bool, optional): [description]. Defaults to False.
         force (bool, optional): [description]. Defaults to False.
     """
@@ -335,12 +345,14 @@ def _apply_geooperation_to_layer(
         # the available resources
         layerinfo = geofile.get_layerinfo(input_path, input_layer)
         nb_rows_total = layerinfo.featurecount
-        nb_parallel, nb_batches, _ = get_parallelization_params(
+        if batchsize > 0:
+            parallellization_config = ParallelizationConfig(max_avg_rows_per_batch=batchsize)
+        else:
+            parallellization_config = ParallelizationConfig(max_avg_rows_per_batch=50000)
+        nb_parallel, nb_batches, real_batchsize = get_parallelization_params(
                 nb_rows_total=nb_rows_total,
                 nb_parallel=nb_parallel,
-                parallelization_config=ParallelizationConfig(max_avg_rows_per_batch=50000), 
-                verbose=verbose)
-        batch_size = int(nb_rows_total/nb_batches)
+                parallelization_config=parallellization_config)
         
         # TODO: determine the optimal batch sizes with min and max of rowid will 
         # in some case improve performance
@@ -362,13 +374,12 @@ def _apply_geooperation_to_layer(
             # Prepare output filename
             output_tmp_path = tempdir / output_path.name
 
-            row_limit = batch_size
             row_offset = 0
             batches = {}    
             future_to_batch_id = {}
             nb_done = 0
             if verbose:
-                logger.info(f"Start calculation on {nb_rows_total} rows in {nb_batches} batches, so {row_limit} per batch")
+                logger.info(f"Start calculation on {nb_rows_total} rows in {nb_batches} batches, so {real_batchsize} per batch")
 
             for batch_id in range(nb_batches):
 
@@ -382,7 +393,7 @@ def _apply_geooperation_to_layer(
 
                 # For the last translate_id, take all rowid's left...
                 if batch_id < nb_batches-1:
-                    rows = slice(row_offset, row_offset + row_limit)
+                    rows = slice(row_offset, row_offset + real_batchsize)
                 else:
                     rows = slice(row_offset, nb_rows_total)
 
@@ -401,7 +412,7 @@ def _apply_geooperation_to_layer(
                         verbose=verbose,
                         force=force)
                 future_to_batch_id[future] = batch_id
-                row_offset += row_limit
+                row_offset += real_batchsize
             
             # Loop till all parallel processes are ready, but process each one 
             # that is ready already
@@ -521,7 +532,7 @@ def dissolve(
         input_layer: str = None,
         output_layer: str = None,
         nb_parallel: int = -1,
-        parallelization_config: ParallelizationConfig = None,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False) -> dict:
     """
@@ -636,12 +647,15 @@ def dissolve(
                 
                 # Calculate the best number of parallel processes and batches for 
                 # the available resources
+                if batchsize > 0:
+                    parallelization_config = ParallelizationConfig(max_avg_rows_per_batch=batchsize)
+                else:
+                    parallelization_config = ParallelizationConfig()
                 nb_parallel, nb_batches_recommended, _ = get_parallelization_params(
                         nb_rows_total=nb_rows_total,
                         nb_parallel=nb_parallel,
                         prev_nb_batches=prev_nb_batches,
-                        parallelization_config=parallelization_config,
-                        verbose=verbose)
+                        parallelization_config=parallelization_config)
 
                 # If the ideal number of batches is close to the nb. result tiles asked,  
                 # dissolve towards the asked result!
