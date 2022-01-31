@@ -1175,6 +1175,7 @@ def append_to(
         force_output_geometrytype: Union[GeometryType, str] = None,
         create_spatial_index: bool = True,
         append_timeout_s: int = 600,
+        transaction_size: int = 50000,
         verbose: bool = False):
     """
     Append src file to the dst file.
@@ -1189,12 +1190,14 @@ def append_to(
         dst_layer (str, optional): destination layer. Defaults to None.
         explodecollections (bool), optional): True to output only simple geometries. 
             Defaults to False.
-        force_output_geometrytype (GeometryType, optional): Geometry type. 
+        force_output_geometrytype (GeometryType, optional): geometry type. 
             to (try to) force the output to. Defaults to None.
         create_spatial_index (bool, optional): True to create a spatial index 
             on the destination file/layer. Defaults to True.
-        append_timeout_s (int, optional): Timeout to use if the output file is
+        append_timeout_s (int, optional): timeout to use if the output file is
             being written to by another process already. Defaults to 600.
+        transaction_size (int, optional): Transaction size. 
+            Defaults to 50000.
         verbose (bool, optional): True to write verbose output. Defaults to False.
 
     Raises:
@@ -1232,6 +1235,7 @@ def append_to(
                         explodecollections=explodecollections,
                         force_output_geometrytype=force_output_geometrytype,
                         create_spatial_index=create_spatial_index,
+                        transaction_size=transaction_size,
                         verbose=verbose)
             finally:
                 lockfile.unlink()
@@ -1252,6 +1256,7 @@ def _append_to_nolock(
         explodecollections: bool = False,
         force_output_geometrytype: GeometryType = None,
         create_spatial_index: bool = True,
+        transaction_size: int = 50000,
         verbose: bool = False):
     # Append
     translate_info = ogr_util.VectorTranslateInfo(
@@ -1260,7 +1265,7 @@ def _append_to_nolock(
             translate_description=None,
             input_layers=src_layer,
             output_layer=dst_layer,
-            transaction_size=200000,
+            transaction_size=transaction_size,
             append=True,
             update=True,
             explodecollections=explodecollections,

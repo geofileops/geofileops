@@ -66,7 +66,7 @@ def download_samplefile(
     """
 
     # If the destination path is a directory, use the default file name
-    if dst_path is None or dst_path.is_dir():
+    if dst_path is None or (dst_path.is_dir() or (dst_path.exists() is False and dst_path.suffix == '')):
         dst_path = samplegeofile.custompath(dst_path)
     # If the sample file already exists, return
     if dst_path.exists():
