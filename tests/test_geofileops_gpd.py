@@ -21,17 +21,8 @@ def get_nb_parallel() -> int:
     # The number of parallel processes to use for these tests.
     return 2
 
-def get_parallelization_config() -> ParallelizationConfig:
-    #default_config = ParallelizationConfig()
-    test_config = ParallelizationConfig(
-            #bytes_basefootprint: int = 50*1024*1024, 
-            #bytes_per_row: int = 100, 
-            min_avg_rows_per_batch=1, 
-            max_avg_rows_per_batch=5, 
-            #bytes_min_per_process=None, 
-            #bytes_usable=None
-            )
-    return test_config
+def get_batchsize() -> int:
+    return 5
 
 def test_buffer_gpkg(tmpdir):
     # Buffer polygon source to test dir
@@ -248,7 +239,7 @@ def basetest_dissolve_linestrings_nogroupby(input_path, output_basepath):
             output_path=output_path,
             explodecollections=True,
             nb_parallel=get_nb_parallel(),
-            parallelization_config=get_parallelization_config())
+            batchsize=5)
 
     # Check if the result file is correctly created
     assert output_path.exists() == True
@@ -274,7 +265,7 @@ def basetest_dissolve_linestrings_nogroupby(input_path, output_basepath):
             output_path=output_path,
             explodecollections=False,
             nb_parallel=get_nb_parallel(),
-            parallelization_config=get_parallelization_config())
+            batchsize=5)
 
     # Check if the result file is correctly created
     assert output_path.exists() == True
@@ -318,7 +309,7 @@ def basetest_dissolve_polygons_groupby(
             groupby_columns=['GEWASGROEP'],
             explodecollections=False,
             nb_parallel=get_nb_parallel(),
-            parallelization_config=get_parallelization_config())
+            batchsize=get_batchsize())
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
@@ -344,7 +335,7 @@ def basetest_dissolve_polygons_groupby(
             groupby_columns=['GEWASGROEP'],
             explodecollections=True,
             nb_parallel=get_nb_parallel(),
-            parallelization_config=get_parallelization_config())
+            batchsize=get_batchsize())
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
@@ -371,7 +362,7 @@ def basetest_dissolve_polygons_groupby(
             columns=None,
             explodecollections=True,
             nb_parallel=get_nb_parallel(),
-            parallelization_config=get_parallelization_config())
+            batchsize=get_batchsize())
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
@@ -399,7 +390,7 @@ def basetest_dissolve_polygons_groupby(
                 groupby_columns=['GEWASGROEP'],
                 output_layer='banana',
                 nb_parallel=get_nb_parallel(),
-                parallelization_config=get_parallelization_config())
+                batchsize=get_batchsize())
     except Exception as ex:
         # A different output_layer is not supported for shapefile, so normal 
         # that an exception is thrown!
@@ -447,7 +438,7 @@ def basetest_dissolve_polygons_nogroupby(
             input_path=input_path,
             output_path=output_path,
             nb_parallel=get_nb_parallel(),
-            parallelization_config=get_parallelization_config(),
+            batchsize=get_batchsize(),
             force=True)
 
     # Now check if the result file is correctly created
@@ -478,7 +469,7 @@ def basetest_dissolve_polygons_nogroupby(
             output_path=output_path,
             explodecollections=False,
             nb_parallel=get_nb_parallel(),
-            parallelization_config=get_parallelization_config(),
+            batchsize=get_batchsize(),
             force=True)
 
     # Now check if the result file is correctly created
@@ -512,7 +503,7 @@ def basetest_dissolve_polygons_nogroupby(
                 output_layer='banana',
                 explodecollections=True,
                 nb_parallel=get_nb_parallel(),
-                parallelization_config=get_parallelization_config(),
+                batchsize=get_batchsize(),
                 force=True)
     except Exception as ex:
         # A different output_layer is not supported for shapefile, so normal 
@@ -560,7 +551,7 @@ def test_dissolve_multisinglepolygons_gpkg(tmpdir):
             explodecollections=True,
             nb_squarish_tiles=2,
             nb_parallel=get_nb_parallel(),
-            parallelization_config=get_parallelization_config(),
+            batchsize=get_batchsize(),
             force=True)
 
     # Now check if the result file is correctly created

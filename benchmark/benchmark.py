@@ -298,9 +298,9 @@ if __name__ == '__main__':
     #tmpdir = Path(r"C:\Temp") / 'geofileops_benchmark'
     benchmark(
             benchmarks_to_run=[
-                #Benchmark.BUFFER,
-                #Benchmark.UNION,
-                #Benchmark.INTERSECT,
+                Benchmark.BUFFER,
+                Benchmark.UNION,
+                Benchmark.INTERSECT,
                 Benchmark.DISSOLVE,
             ],
             tmpdir=tmpdir)
