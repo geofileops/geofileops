@@ -2,7 +2,7 @@
 Development
 ===========
 
-The source code can be found on the `GeofileOps git repositry`_.
+The source code can be found on the `GeofileOps git repository`_.
 
 If you want to do feature requests or file bug reports, that's the place to 
 be as well.
@@ -20,10 +20,10 @@ dependencies::
     conda activate geofileopsdev
     conda config --env --add channels conda-forge
     conda config --env --set channel_priority strict
-    conda install python=3.8 geopandas=0.8 psutil
+    conda install python=3.9 geopandas=0.10 psutil
     conda install pylint pytest rope pydata-sphinx-theme sphinx-automodapi
 
 Now, if you fork the `GeofileOps git repositry`_, you should be able to run/debug the code.
 
 .. _miniconda installer : https://conda.io/projects/conda/en/latest/user-guide/install/index.html
-.. _GeofileOps git repositry : https://github.com/theroggy/geofileops
+.. _GeofileOps git repository : https://github.com/geofileops/geofileops
