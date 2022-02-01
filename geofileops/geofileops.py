@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Module exposing all supported operations on geomatries in geofiles.
+:noindex: Module exposing all supported operations on geomatries in geofiles.
+
 """
 
 import logging
@@ -52,19 +53,19 @@ def buffer(
         quadrantsegments (int): the number of points a quadrant needs to be 
             approximated with for rounded styles. Defaults to 5.
         endcap_style (BufferJoinStyle, optional): buffer style to use for a 
-            point or the end points of a line:
-                - ROUND: for points and lines the ends are buffered rounded. 
-                - FLAT: a point stays a point, a buffered line will end flat 
-                  at the end points
-                - SQUARE: a point becomes a square, a buffered line will end 
-                  flat at the end points, but elongated by "distance" 
-            Defaults to ROUND.
+            point or the end points of a line. Defaults to ROUND.
+
+              * ROUND: for points and lines the ends are buffered rounded. 
+              * FLAT: a point stays a point, a buffered line will end flat 
+                at the end points
+              * SQUARE: a point becomes a square, a buffered line will end 
+                flat at the end points, but elongated by "distance" 
         join_style (BufferJoinStyle, optional): buffer style to use for 
-            corners in a line or a polygon boundary:
-                - ROUND: corners in the result are rounded
-                - MITRE: corners in the result are sharp
-                - BEVEL: are flattened
-            Defaults to ROUND.
+            corners in a line or a polygon boundary. Defaults to ROUND.
+
+              * ROUND: corners in the result are rounded
+              * MITRE: corners in the result are sharp
+              * BEVEL: are flattened
         mitre_limit (float, optional): in case of join_style MITRE, if the 
             spiky result for a sharp angle becomes longer than this limit, it 
             is "beveled" at this distance. Defaults to 5.0.
@@ -449,6 +450,7 @@ def select(
     
     By convention, the sqlite query can contain following placeholders that
     will be automatically replaced for you:
+
       * {geometrycolumn}: the column where the primary geometry is stored.
       * {columns_to_select_str}: if 'columns' is not None, those columns, 
         otherwise all columns of the layer.
@@ -1013,6 +1015,7 @@ def select_two_layers(
 
     By convention, the sqlite query can contain following placeholders that
     will be automatically replaced for you:
+
       * {input1_layer}: name of input layer 1 
       * {input1_geometrycolumn}: name of input geometry column 1
       * {layer1_columns_prefix_str}: komma seperated columns of 
