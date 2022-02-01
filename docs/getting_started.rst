@@ -26,7 +26,7 @@ versions of the dependencies::
 Now the conda environment is prepared, you can install the geofileops 
 dependencies that are available as conda packages::
 
-    conda install --channel conda-forge python=3.8 geofileops
+    conda install --channel conda-forge python=3.9 geofileops
 
 The hard way
 ------------
