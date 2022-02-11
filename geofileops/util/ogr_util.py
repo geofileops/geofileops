@@ -41,6 +41,13 @@ logger = logging.getLogger(__name__)
 # The real work
 #-------------------------------------------------------------
 
+def get_drivers() -> dict:
+    drivers = {}
+    for i in range(gdal.GetDriverCount()):
+        driver = gdal.GetDriver(i)
+        drivers[driver.ShortName] = driver.GetDescription()
+    return drivers
+
 class VectorTranslateInfo:
     def __init__(
             self,
