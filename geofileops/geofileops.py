@@ -29,7 +29,7 @@ def buffer(
         output_path: Union[str, 'os.PathLike[Any]'],
         distance: float,
         quadrantsegments: int = 5,
-        endcap_style: BufferJoinStyle = BufferCapStyle.ROUND,
+        endcap_style: BufferCapStyle = BufferCapStyle.ROUND,
         join_style: BufferJoinStyle = BufferJoinStyle.ROUND,
         mitre_limit: float = 5.0,
         single_sided: bool = False,
@@ -52,7 +52,7 @@ def buffer(
         distance (float): the buffer size to apply
         quadrantsegments (int): the number of points a quadrant needs to be 
             approximated with for rounded styles. Defaults to 5.
-        endcap_style (BufferJoinStyle, optional): buffer style to use for a 
+        endcap_style (BufferCapStyle, optional): buffer style to use for a 
             point or the end points of a line. Defaults to ROUND.
 
               * ROUND: for points and lines the ends are buffered rounded. 
