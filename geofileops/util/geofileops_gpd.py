@@ -151,7 +151,7 @@ def buffer(
         output_path: Path,
         distance: float,
         quadrantsegments: int = 5,
-        endcap_style: geometry_util.BufferJoinStyle = geometry_util.BufferCapStyle.ROUND,
+        endcap_style: geometry_util.BufferCapStyle = geometry_util.BufferCapStyle.ROUND,
         join_style: geometry_util.BufferJoinStyle = geometry_util.BufferJoinStyle.ROUND,
         mitre_limit: float = 5.0,
         single_sided: bool = False,
