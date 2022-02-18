@@ -42,10 +42,11 @@ def buffer(
         columns: List[str] = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
 
-    # If buffer distance < 0, necessary to apply a make_valid to evade invalid geometries 
+    # If buffer distance < 0, necessary to apply a makevalid to evade invalid geometries 
     if distance < 0:
         # A negative buffer is only relevant for polygon types, so only keep polygon results
         # Negative buffer creates invalid stuff, and the st_simplify(geom, 0) seems the only function fixing this!
@@ -79,6 +80,7 @@ def buffer(
             explodecollections=explodecollections,
             force_output_geometrytype=force_output_geometrytype,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -89,6 +91,7 @@ def convexhull(
         output_layer: str = None,
         columns: Optional[List[str]] = None,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
 
@@ -112,6 +115,7 @@ def convexhull(
             columns=columns,
             force_output_geometrytype=input_layer_info.geometrytype,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -162,6 +166,7 @@ def isvalid(
         input_layer: str = None,        
         output_layer: str = None,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False) -> bool:
 
@@ -187,6 +192,7 @@ def isvalid(
             input_layer=input_layer,
             output_layer=output_layer,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
     
@@ -216,23 +222,41 @@ def makevalid(
         columns: Optional[List[str]] = None,
         explodecollections: bool = False,
         force_output_geometrytype: GeometryType = None,
+        precision: float = None,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
 
-    # Prepare sql template for this operation 
-    sql_template = f'''
-            SELECT ST_MakeValid({{geometrycolumn}}) AS geom
-                  {{columns_to_select_str}} 
-              FROM "{{input_layer}}" layer
-             WHERE 1=1
-               {{batch_filter}}'''
-    
     # Specify output_geomatrytype, because otherwise makevalid results in 
     # column type 'GEOMETRY'/'UNKNOWN(ANY)' 
+    layerinfo = geofile.get_layerinfo(input_path, input_layer)
     if force_output_geometrytype is None:
-        force_output_geometrytype = geofile.get_layerinfo(input_path, input_layer).geometrytype
+        force_output_geometrytype = layerinfo.geometrytype
     
+    # First compose the operation to be done on the geometries 
+    # If the number of decimals of coordinates should be limited 
+    if precision is not None:
+        operation = f"SnapToGrid({{geometrycolumn}}, {precision})"     
+    else:
+        operation = "{geometrycolumn}"
+    
+    # Prepare sql template for this operation
+    operation = f"ST_MakeValid({operation})"
+
+    # If we want a specific geometrytype as result, extract it
+    if force_output_geometrytype is not GeometryType.GEOMETRYCOLLECTION:
+        primitivetypeid = force_output_geometrytype.to_primitivetype.value
+        operation = f"ST_CollectionExtract({operation}, {primitivetypeid})"
+    
+    # Now we can prepare the entire statement
+    sql_template = f'''
+            SELECT {operation} AS geom
+                {{columns_to_select_str}} 
+            FROM "{{input_layer}}" layer
+            WHERE 1=1
+                {{batch_filter}}'''
+
     _single_layer_vector_operation(
             input_path=input_path,
             output_path=output_path,
@@ -245,6 +269,7 @@ def makevalid(
             force_output_geometrytype=force_output_geometrytype,
             #filter_null_geoms=False,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -264,6 +289,7 @@ def select(
         explodecollections: bool = False,
         force_output_geometrytype: GeometryType = None,
         nb_parallel: int = 1,
+        batchsize: int = 1,
         verbose: bool = False,
         force: bool = False):
 
@@ -295,6 +321,7 @@ def select(
             force_output_geometrytype=force_output_geometrytype,
             filter_null_geoms=False,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -306,6 +333,7 @@ def simplify(
         output_layer: str = None,
         columns: Optional[List[str]] = None,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
 
@@ -329,6 +357,7 @@ def simplify(
             columns=columns,
             force_output_geometrytype=input_layer_info.geometrytype,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -344,6 +373,7 @@ def _single_layer_vector_operation(
         force_output_geometrytype: GeometryType = None,
         filter_null_geoms: bool = True,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
 
@@ -382,6 +412,7 @@ def _single_layer_vector_operation(
                 input1_layer_alias="layer",
                 tempdir=tempdir,
                 nb_parallel=nb_parallel,
+                batchsize=batchsize,
                 convert_to_spatialite_based=False)
         # If None is returned, just stop.
         if processing_params is None:
@@ -483,7 +514,7 @@ def _single_layer_vector_operation(
             output_path.parent.mkdir(parents=True, exist_ok=True)
             geofile.move(tmp_output_path, output_path)
         else:
-            logger.warning(f"Result of {operation_name} was empty!")
+            logger.info(f"Result of {operation_name} was empty!")
 
     finally:
         # Clean tmp dir
@@ -506,6 +537,7 @@ def erase(
         explodecollections: bool = False,
         output_with_spatial_index: bool = True,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
 
@@ -572,6 +604,7 @@ def erase(
             force_output_geometrytype=force_output_geometrytype,
             output_with_spatial_index=output_with_spatial_index,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -587,6 +620,7 @@ def export_by_location(
         input2_columns: List[str] = None,
         output_layer: str = None,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     
@@ -657,6 +691,7 @@ def export_by_location(
             output_layer=output_layer,
             force_output_geometrytype=input_layer_info.geometrytype,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -670,6 +705,7 @@ def export_by_distance(
         input2_layer: str = None,
         output_layer: str = None,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
 
@@ -706,6 +742,7 @@ def export_by_distance(
             output_layer=output_layer,
             force_output_geometrytype=input_layer_info.geometrytype,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -722,6 +759,7 @@ def intersect(
         output_layer: str = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
 
@@ -779,6 +817,7 @@ def intersect(
             explodecollections=explodecollections,
             force_output_geometrytype=force_output_geometrytype,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -798,6 +837,7 @@ def join_by_location(
         output_layer: str = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     
@@ -896,6 +936,7 @@ def join_by_location(
             force_output_geometrytype=input1_layer_info.geometrytype,
             explodecollections=explodecollections,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -913,6 +954,7 @@ def join_nearest(
         output_layer: str = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
 
@@ -993,6 +1035,7 @@ def join_nearest(
             explodecollections=explodecollections,
             use_ogr=True,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -1011,6 +1054,7 @@ def select_two_layers(
         force_output_geometrytype: GeometryType = None,
         explodecollections: bool = False,
         nb_parallel: int = 1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
 
@@ -1031,6 +1075,7 @@ def select_two_layers(
             force_output_geometrytype=force_output_geometrytype,
             explodecollections=explodecollections,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -1048,6 +1093,7 @@ def split(
         explodecollections: bool = False,
         output_with_spatial_index: bool = True,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
 
@@ -1129,6 +1175,7 @@ def split(
             explodecollections=explodecollections,
             output_with_spatial_index=output_with_spatial_index,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -1145,6 +1192,7 @@ def union(
         output_layer: str = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
 
@@ -1175,6 +1223,7 @@ def union(
                 explodecollections=explodecollections,
                 output_with_spatial_index=False,
                 nb_parallel=nb_parallel,
+                batchsize=batchsize,
                 verbose=verbose,
                 force=force)
 
@@ -1191,6 +1240,7 @@ def union(
                 explodecollections=explodecollections,
                 output_with_spatial_index=False,
                 nb_parallel=nb_parallel,
+                batchsize=batchsize,
                 verbose=verbose,
                 force=force)
         
@@ -1230,6 +1280,7 @@ def _two_layer_vector_operation(
         output_with_spatial_index: bool = True,
         use_ogr: bool = False,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     """
@@ -1253,6 +1304,10 @@ def _two_layer_vector_operation(
             NOT supported. If False, sqlite3 is used directly. 
             Defaults to False.
         nb_parallel (int, optional): [description]. Defaults to -1.
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): [description]. Defaults to False.
     
     Raises:
@@ -1307,6 +1362,7 @@ def _two_layer_vector_operation(
                 input2_layer=input2_layer,
                 tempdir=tempdir,
                 nb_parallel=nb_parallel,
+                batchsize=batchsize,
                 convert_to_spatialite_based=True)
         if processing_params is None:
             return
@@ -1331,7 +1387,7 @@ def _two_layer_vector_operation(
 
         # Check input crs'es
         if input1_tmp_layerinfo.crs != input2_tmp_layerinfo.crs:
-            logger.warning(f"input1 has a different crs than input2: {input1_tmp_layerinfo.crs} vs {input2_tmp_layerinfo.crs}")
+            logger.warning(f"input1 has a different crs than input2: \n\tinput1: {input1_tmp_layerinfo.crs} \n\tinput2: {input2_tmp_layerinfo.crs}")
         
         ##### Calculate #####
         logger.info(f"Start {operation_name} in {processing_params.nb_parallel} parallel processes")
@@ -1455,7 +1511,9 @@ def _two_layer_vector_operation(
         # Now create spatial index and move to output location
         if tmp_output_path.exists():
             if output_with_spatial_index is True:
+                start_time_spat = datetime.datetime.now()
                 geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
+                logger.info(f"create spatial index took {datetime.datetime.now()-start_time_spat}!")
             if tmp_output_path != output_path:
                 start_time_move = datetime.datetime.now()
                 geofile.move(tmp_output_path, output_path)
@@ -1496,6 +1554,7 @@ def _prepare_processing_params(
         tempdir: Path,
         convert_to_spatialite_based: bool,
         nb_parallel: int,
+        batchsize: int = -1,
         input1_layer_alias: str = None,
         input2_path: Path = None,
         input2_layer: str = None) -> Optional[ProcessingParams]:
@@ -1519,16 +1578,16 @@ def _prepare_processing_params(
     #         nb_batches should be 1 (select might give wrong results)
     if returnvalue.nb_parallel > 1:
         # Limit number of rows processed in parallel to limit memory use
-        max_rows_parallel = 200000
+        if batchsize > 0:
+            max_rows_parallel = batchsize * nb_parallel
+        else:
+            max_rows_parallel = 200000
         if input1_layerinfo.featurecount > max_rows_parallel:
             nb_batches = int(input1_layerinfo.featurecount/(max_rows_parallel/returnvalue.nb_parallel))
         else:
             nb_batches = returnvalue.nb_parallel * 2
     else:
         nb_batches = 1
-
-    # TODO PIEROG: terug weg
-    #nb_batches = input1_layerinfo.featurecount
 
     ### Prepare input files for the calculation ###
     returnvalue.input1_layer = input1_layer
@@ -1813,6 +1872,7 @@ def dissolve_cardsheets(
         input_layer: str = None,        
         output_layer: str = None,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
 

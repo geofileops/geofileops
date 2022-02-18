@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Module exposing all supported operations on geomatries in geofiles.
+:noindex: Module exposing all supported operations on geomatries in geofiles.
+
 """
 
 import logging
@@ -11,7 +12,7 @@ from typing import Any, List, Optional, Union
 
 from geofileops.util import geofileops_gpd
 from geofileops.util import geofileops_sql
-from geofileops.util.geometry_util import SimplifyAlgorithm, GeometryType
+from geofileops.util.geometry_util import BufferCapStyle, BufferJoinStyle, SimplifyAlgorithm, GeometryType 
 
 ################################################################################
 # Some init
@@ -28,11 +29,16 @@ def buffer(
         output_path: Union[str, 'os.PathLike[Any]'],
         distance: float,
         quadrantsegments: int = 5,
+        endcap_style: BufferCapStyle = BufferCapStyle.ROUND,
+        join_style: BufferJoinStyle = BufferJoinStyle.ROUND,
+        mitre_limit: float = 5.0,
+        single_sided: bool = False,
         input_layer: str = None,
         output_layer: str = None,
         columns: List[str] = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     """
@@ -44,8 +50,29 @@ def buffer(
         input_path (PathLike): the input file
         output_path (PathLike): the file to write the result to
         distance (float): the buffer size to apply
-        quadrantsegments (int): the number of points an arc needs to be 
-            approximated with. Defaults to 5.
+        quadrantsegments (int): the number of points a quadrant needs to be 
+            approximated with for rounded styles. Defaults to 5.
+        endcap_style (BufferCapStyle, optional): buffer style to use for a 
+            point or the end points of a line. Defaults to ROUND.
+
+              * ROUND: for points and lines the ends are buffered rounded. 
+              * FLAT: a point stays a point, a buffered line will end flat 
+                at the end points
+              * SQUARE: a point becomes a square, a buffered line will end 
+                flat at the end points, but elongated by "distance" 
+        join_style (BufferJoinStyle, optional): buffer style to use for 
+            corners in a line or a polygon boundary. Defaults to ROUND.
+
+              * ROUND: corners in the result are rounded
+              * MITRE: corners in the result are sharp
+              * BEVEL: are flattened
+        mitre_limit (float, optional): in case of join_style MITRE, if the 
+            spiky result for a sharp angle becomes longer than this limit, it 
+            is "beveled" at this distance. Defaults to 5.0.
+        single_sided (bool, optional): only one side of the line is buffered, 
+            if distance is negative, the left side, if distance is positive, 
+            the right hand side. Only relevant for line geometries. 
+            Defaults to False.
         input_layer (str, optional): input layer name. Optional if the input 
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input 
@@ -55,7 +82,11 @@ def buffer(
         explodecollections (bool, optional): True to output only simple geometries. 
             Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use. 
-            If not specified, all available processors will be used.
+            Defaults to -1: use all available processors.
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
         verbose (bool, optional): write more info to the output. 
             Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
@@ -67,11 +98,16 @@ def buffer(
             output_path=Path(output_path),
             distance=distance,
             quadrantsegments=quadrantsegments,
+            endcap_style=endcap_style,
+            join_style=join_style,
+            mitre_limit=mitre_limit,
+            single_sided=single_sided,
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
             explodecollections=explodecollections,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -83,6 +119,7 @@ def convexhull(
         columns: List[str] = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     """
@@ -102,7 +139,11 @@ def convexhull(
         explodecollections (bool, optional): True to output only simple geometries. 
             Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use. 
-            If not specified, all available processors will be used.
+            Defaults to -1: use all available processors.
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
         verbose (bool, optional): write more info to the output. 
             Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
@@ -117,6 +158,7 @@ def convexhull(
             columns=columns,
             explodecollections=explodecollections,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -172,6 +214,7 @@ def dissolve(
         input_layer: str = None,        
         output_layer: str = None,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     """
@@ -227,7 +270,11 @@ def dissolve(
         output_layer (str, optional): input layer name. Optional if the  
             file only contains one layer.
         nb_parallel (int, optional): the number of parallel processes to use. 
-            If not specified, all available processors will be used.
+            Defaults to -1: use all available processors.
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
         verbose (bool, optional): write more info to the output. 
             Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
@@ -260,6 +307,7 @@ def dissolve(
             input_layer=input_layer,        
             output_layer=output_layer,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -270,6 +318,7 @@ def isvalid(
         input_layer: str = None,        
         output_layer: str = None,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False) -> bool:
     """
@@ -288,7 +337,11 @@ def isvalid(
         output_layer (str, optional): input layer name. Optional if the  
             file only contains one layer.
         nb_parallel (int, optional): the number of parallel processes to use. 
-            If not specified, all available processors will be used.
+            Defaults to -1: use all available processors.
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
         verbose (bool, optional): write more info to the output. 
             Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
@@ -314,6 +367,7 @@ def isvalid(
             input_layer=input_layer, 
             output_layer=output_layer,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -324,7 +378,10 @@ def makevalid(
         output_layer: str = None,
         columns: List[str] = None,
         explodecollections: bool = False, 
+        force_output_geometrytype: GeometryType = None,
+        precision: float = None,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     """
@@ -342,8 +399,17 @@ def makevalid(
             specified. Defaults to None.
         explodecollections (bool, optional): True to output only simple geometries. 
             Defaults to False.
+        force_output_geometrytype (GeometryType, optional): The output geometry type to 
+            force. Defaults to None, and then the geometry type of the input is used 
+        precision (floas, optional): the precision to keep in the coordinates. 
+            Eg. 0.001 to keep 3 decimals. None doesn't change the precision.
+            Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use. 
-            If not specified, all available processors will be used.
+            Defaults to -1: use all available processors.
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
         verbose (bool, optional): write more info to the output. 
             Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
@@ -358,7 +424,10 @@ def makevalid(
             output_layer=output_layer,
             columns=columns,
             explodecollections=explodecollections,
+            force_output_geometrytype=force_output_geometrytype,
+            precision=precision,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -367,12 +436,13 @@ def select(
         output_path: Union[str, 'os.PathLike[Any]'],
         sql_stmt: str,
         sql_dialect: str = 'SQLITE',
-        input_layer: str = None,        
+        input_layer: str = None,
         output_layer: str = None,
         columns: List[str] = None,
         explodecollections: bool = False,
         force_output_geometrytype: Union[GeometryType, str] = None,
         nb_parallel: int = 1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     """
@@ -380,6 +450,7 @@ def select(
     
     By convention, the sqlite query can contain following placeholders that
     will be automatically replaced for you:
+
       * {geometrycolumn}: the column where the primary geometry is stored.
       * {columns_to_select_str}: if 'columns' is not None, those columns, 
         otherwise all columns of the layer.
@@ -444,6 +515,10 @@ def select(
             force. Defaults to None, and then the geometry type of the input is used 
         nb_parallel (int, optional): the number of parallel processes to use. 
             Defaults to 1. To use all available cores, pass -1. 
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
         verbose (bool, optional): write more info to the output. Defaults to False.
         force (bool, optional): overwrite existing output file(s). Defaults to False.
     """
@@ -464,6 +539,7 @@ def select(
             explodecollections=explodecollections,
             force_output_geometrytype=force_output_geometrytype,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -478,6 +554,7 @@ def simplify(
         columns: List[str] = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
+        batchsize: bool = -1,
         verbose: bool = False,
         force: bool = False):
     """
@@ -504,7 +581,11 @@ def simplify(
         explodecollections (bool, optional): True to output only simple geometries. 
             Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use. 
-            If not specified, all available processors will be used.
+            Defaults to -1: use all available processors.
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
         verbose (bool, optional): write more info to the output. 
             Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
@@ -522,6 +603,7 @@ def simplify(
             columns=columns,
             explodecollections=explodecollections,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -535,6 +617,7 @@ def erase(
         output_layer: str = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     """
@@ -555,7 +638,11 @@ def erase(
         explodecollections (bool, optional): True to convert all multi-geometries to 
             singular ones after the dissolve. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use. 
-            If not specified, all available processors will be used.
+            Defaults to -1: use all available processors.
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
         verbose (bool, optional): write more info to the output. 
              Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
@@ -576,6 +663,7 @@ def erase(
         output_layer=output_layer,
         explodecollections=explodecollections,
         nb_parallel=nb_parallel,
+        batchsize=batchsize,
         verbose=verbose,
         force=force)
 
@@ -591,6 +679,7 @@ def export_by_location(
         input2_columns: List[str] = None,
         output_layer: str = None,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     """
@@ -616,7 +705,11 @@ def export_by_location(
         output_layer (str, optional): output layer name. Optional if the  
             file only contains one layer.
         nb_parallel (int, optional): the number of parallel processes to use. 
-            If not specified, all available processors will be used.
+            Defaults to -1: use all available processors.
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
         verbose (bool, optional): write more info to the output. 
             Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
@@ -635,6 +728,7 @@ def export_by_location(
             input2_columns=input2_columns,
             output_layer=output_layer,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -648,6 +742,7 @@ def export_by_distance(
         input2_layer: str = None,
         output_layer: str = None,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     """
@@ -668,7 +763,11 @@ def export_by_distance(
         output_layer (str, optional): output layer name. Optional if the  
             file only contains one layer.
         nb_parallel (int, optional): the number of parallel processes to use. 
-            If not specified, all available processors will be used.
+            Defaults to -1: use all available processors.
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
         verbose (bool, optional): write more info to the output. 
             Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
@@ -685,6 +784,7 @@ def export_by_distance(
             input2_layer=input2_layer,
             output_layer=output_layer,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -701,6 +801,7 @@ def intersect(
         output_layer: str = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     """
@@ -724,7 +825,11 @@ def intersect(
         explodecollections (bool, optional): True to convert all multi-geometries to 
             singular ones after the dissolve. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use. 
-            If not specified, all available processors will be used.
+            Defaults to -1: use all available processors.
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
         verbose (bool, optional): write more info to the output. 
             Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
@@ -744,6 +849,7 @@ def intersect(
             output_layer=output_layer,
             explodecollections=explodecollections,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -762,6 +868,7 @@ def join_by_location(
         input2_columns_prefix: str = 'l2_',
         output_layer: str = None,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     """
@@ -790,7 +897,11 @@ def join_by_location(
         output_layer (str, optional): output layer name. Optional if the  
             file only contains one layer.
         nb_parallel (int, optional): the number of parallel processes to use. 
-            If not specified, all available processors will be used.
+            Defaults to -1: use all available processors.
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
         verbose (bool, optional): write more info to the output. 
             Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
@@ -812,6 +923,7 @@ def join_by_location(
             input2_columns_prefix=input2_columns_prefix,
             output_layer=output_layer,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -828,6 +940,7 @@ def join_nearest(
         input2_columns_prefix: str = 'l2_',
         output_layer: str = None,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     """
@@ -851,7 +964,11 @@ def join_nearest(
         output_layer (str, optional): output layer name. Optional if the  
             file only contains one layer.
         nb_parallel (int, optional): the number of parallel processes to use. 
-            If not specified, all available processors will be used.
+            Defaults to -1: use all available processors.
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
         verbose (bool, optional): write more info to the output. 
             Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
@@ -871,6 +988,7 @@ def join_nearest(
             input2_columns_prefix=input2_columns_prefix,
             output_layer=output_layer,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -889,6 +1007,7 @@ def select_two_layers(
         explodecollections: bool = False,
         force_output_geometrytype: GeometryType = None,
         nb_parallel: int = 1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     """
@@ -896,6 +1015,7 @@ def select_two_layers(
 
     By convention, the sqlite query can contain following placeholders that
     will be automatically replaced for you:
+
       * {input1_layer}: name of input layer 1 
       * {input1_geometrycolumn}: name of input geometry column 1
       * {layer1_columns_prefix_str}: komma seperated columns of 
@@ -982,7 +1102,11 @@ def select_two_layers(
             type to force. Defaults to None, and then the geometry type of the 
             input1 layer is used.
         nb_parallel (int, optional): the number of parallel processes to use. 
-            If not specified, 1 parallel process will be used.
+            Defaults to -1: use all available processors.
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
         verbose (bool, optional): write more info to the output. 
             Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
@@ -1040,6 +1164,7 @@ def select_two_layers(
             explodecollections=explodecollections,
             force_output_geometrytype=force_output_geometrytype,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -1056,6 +1181,7 @@ def split(
         output_layer: str = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     """
@@ -1082,7 +1208,11 @@ def split(
         explodecollections (bool, optional): True to convert all multi-geometries to 
             singular ones after the dissolve. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use. 
-            If not specified, all available processors will be used.
+            Defaults to -1: use all available processors.
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
         verbose (bool, optional): write more info to the output. 
             Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
@@ -1102,6 +1232,7 @@ def split(
             output_layer=output_layer,
             explodecollections=explodecollections,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -1118,6 +1249,7 @@ def union(
         output_layer: str = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     """
@@ -1140,7 +1272,11 @@ def union(
         explodecollections (bool, optional): True to convert all multi-geometries to 
             singular ones after the dissolve. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use. 
-            If not specified, all available processors will be used.
+            Defaults to -1: use all available processors.
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
         verbose (bool, optional): write more info to the output. 
             Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
@@ -1160,6 +1296,7 @@ def union(
             output_layer=output_layer,
             explodecollections=explodecollections,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
             

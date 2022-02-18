@@ -13,6 +13,7 @@ from pathlib import Path
 import pprint
 import re
 import subprocess
+import sys
 import tempfile
 from threading import Lock
 import time
@@ -21,6 +22,7 @@ from typing import List, Optional, Tuple, Union
 import geopandas as gpd
 from osgeo import gdal
 gdal.UseExceptions() 
+gdal.ConfigurePythonLogging(logger_name='gdal', enable_debug=False)
 
 from geofileops import geofile
 from geofileops.util.geometry_util import GeometryType
@@ -38,6 +40,13 @@ logger = logging.getLogger(__name__)
 #-------------------------------------------------------------
 # The real work
 #-------------------------------------------------------------
+
+def get_drivers() -> dict:
+    drivers = {}
+    for i in range(gdal.GetDriverCount()):
+        driver = gdal.GetDriver(i)
+        drivers[driver.ShortName] = driver.GetDescription()
+    return drivers
 
 class VectorTranslateInfo:
     def __init__(
@@ -77,6 +86,26 @@ class VectorTranslateInfo:
         self.sqlite_journal_mode = sqlite_journal_mode
         self.verbose = verbose
 
+class StdOutSuppressor():
+    # Written to try to get rid of the RTTOPO warnings during makevalid, 
+    # didn't work :-(.
+    def __init__(self, suppress: bool = True):
+        self.suppress = suppress
+          
+    def __enter__(self):
+        if self.suppress is True:
+            self._original_stdout = sys.stdout
+            sys.stdout = open(os.devnull, 'w')
+            self._original_stderr = sys.stderr
+            sys.stderr = open(os.devnull, 'w')
+            
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.suppress is True:
+            sys.stdout.close()
+            sys.stdout = self._original_stdout
+            sys.stderr.close()
+            sys.stderr = self._original_stderr
+  
 def vector_translate_by_info(info: VectorTranslateInfo):
 
     return vector_translate( 
@@ -99,7 +128,7 @@ def vector_translate_by_info(info: VectorTranslateInfo):
             verbose=info.verbose)
 
 def vector_translate(
-        input_path: Path, 
+        input_path: Union[Path, str], 
         output_path: Path,
         translate_description: str = None,
         input_layers: Union[Optional[List[str]], str] = None,
@@ -124,7 +153,7 @@ def vector_translate(
     args = []
 
     # Cleanup the input_layers variable.
-    if input_path.suffix.lower() == '.shp':
+    if isinstance(input_path, Path) and input_path.suffix.lower() == '.shp':
         # For shapefiles, having input_layers not None gives issues
         input_layers = None
     elif sql_stmt is not None:
@@ -239,9 +268,11 @@ def vector_translate(
         
         #gdal.DontUseExceptions()
         gdal.UseExceptions() 
+        gdal.ConfigurePythonLogging(logger_name='gdal', enable_debug=False)
+
         logger.debug(f"Execute {sql_stmt} on {input_path}")
         input_ds = gdal.OpenEx(str(input_path))
-
+        
         # TODO: memory output support might be interesting to support
         result_ds = gdal.VectorTranslate(
                 destNameOrDestDS=str(output_path),
@@ -250,6 +281,7 @@ def vector_translate(
                 #SQLDialect=sql_dialect,
                 #layerName=output_layer
                 options=options)
+
         if result_ds is None:
             raise Exception("BOEM")
         else:

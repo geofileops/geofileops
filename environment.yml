@@ -3,9 +3,9 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.8
+  - python=3.9
   - pip
-  - geopandas=0.9
+  - geopandas=0.10.2
   - pygeos
   - psutil
   - pydata-sphinx-theme

@@ -28,6 +28,20 @@ logger = logging.getLogger(__name__)
 #logger.setLevel(logging.DEBUG)
 
 #-------------------------------------------------------------
+# Buffer helpers
+#-------------------------------------------------------------
+
+class BufferJoinStyle(enum.Enum):
+    ROUND = 1
+    MITRE = 2
+    BEVEL = 3
+
+class BufferCapStyle(enum.Enum):
+    ROUND = 1
+    FLAT = 2
+    SQUARE = 3
+
+#-------------------------------------------------------------
 # Geometry helpers
 #-------------------------------------------------------------
 
@@ -350,6 +364,10 @@ def remove_inner_rings(
     else:
         raise Exception(f"remove_inner_rings is not possible with geometrytype: {geometry.type}, geometry: {geometry}")
 
+#-------------------------------------------------------------
+# Simplify helpers
+#-------------------------------------------------------------
+
 class SimplifyAlgorithm(enum.Enum):
     RAMER_DOUGLAS_PEUCKER = 'rdp'
     LANG = 'lang'
@@ -468,7 +486,7 @@ def simplify_ext(
 
         coords_on_border_idx = []
         if keep_points_on is not None:
-            coords_gdf = gpd.GeoDataFrame(geometry=sh_geom.MultiPoint(coords).geoms)
+            coords_gdf = gpd.GeoDataFrame(geometry=list(sh_geom.MultiPoint(coords).geoms))
             coords_on_border_series = coords_gdf.intersects(keep_points_on)
             coords_on_border_idx = np.array(coords_on_border_series.index[coords_on_border_series]).tolist()
 

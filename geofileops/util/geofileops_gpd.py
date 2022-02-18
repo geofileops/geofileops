@@ -71,8 +71,7 @@ def get_parallelization_params(
         nb_rows_total: int,
         nb_parallel: int = -1,
         prev_nb_batches: int = None,
-        parallelization_config: ParallelizationConfig = None,
-        verbose: bool = False) -> parallelizationParams:
+        parallelization_config: ParallelizationConfig = None) -> parallelizationParams:
     """
     Determines recommended parallelization params.
 
@@ -154,17 +153,26 @@ def buffer(
         output_path: Path,
         distance: float,
         quadrantsegments: int = 5,
+        endcap_style: geometry_util.BufferCapStyle = geometry_util.BufferCapStyle.ROUND,
+        join_style: geometry_util.BufferJoinStyle = geometry_util.BufferJoinStyle.ROUND,
+        mitre_limit: float = 5.0,
+        single_sided: bool = False,
         input_layer: str = None,
         output_layer: str = None,
         columns: List[str] = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     # Init
     operation_params = {
-            'distance': distance,
-            'quadrantsegments': quadrantsegments
+            "distance": distance,
+            "quadrantsegments": quadrantsegments,
+            "endcap_style": endcap_style,
+            "join_style": join_style,
+            "mitre_limit": mitre_limit,
+            "single_sided": single_sided
         }
 
     # Go!
@@ -178,6 +186,7 @@ def buffer(
             columns=columns,
             explodecollections=explodecollections,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -189,6 +198,7 @@ def convexhull(
         columns: List[str] = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     # Init
@@ -203,8 +213,9 @@ def convexhull(
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
-            nb_parallel=nb_parallel,
             explodecollections=explodecollections,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -219,6 +230,7 @@ def simplify(
         columns: List[str] = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     # Init
@@ -239,6 +251,7 @@ def simplify(
             columns=columns,
             explodecollections=explodecollections,
             nb_parallel=nb_parallel,
+            batchsize=batchsize,
             verbose=verbose,
             force=force)
 
@@ -252,6 +265,7 @@ def _apply_geooperation_to_layer(
         output_layer: str = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     """
@@ -261,6 +275,24 @@ def _apply_geooperation_to_layer(
       - BUFFER: apply a buffer. Operation parameters:
           - distance: distance to buffer
           - quadrantsegments: number of points used to represent 1/4 of a circle
+          - endcap_style: buffer style to use for a point or the end points of 
+            a line:
+            - ROUND: for points and lines the ends are buffered rounded. 
+            - FLAT: a point stays a point, a buffered line will end flat 
+              at the end points
+            - SQUARE: a point becomes a square, a buffered line will end 
+              flat at the end points, but elongated by "distance" 
+        - join_style: buffer style to use for corners in a line or a polygon 
+          boundary:
+            - ROUND: corners in the result are rounded
+            - MITRE: corners in the result are sharp
+            - BEVEL: are flattened
+        - mitre_limit: in case of join_style MITRE, if the 
+            spiky result for a sharp angle becomes longer than this limit, it 
+            is "beveled" at this distance. Defaults to 5.0.
+        - single_sided: only one side of the line is buffered, 
+            if distance is negative, the left side, if distance is positive, 
+            the right hand side. Only relevant for line geometries. 
       - CONVEXHULL: appy a convex hull.
       - SIMPLIFY: simplify the geometry. Operation parameters:
           - algorithm: vector_util.SimplifyAlgorithm
@@ -280,6 +312,10 @@ def _apply_geooperation_to_layer(
         explodecollections (bool, optional): True to convert all multi-geometries to 
             singular ones during the geooperation. Defaults to False.
         nb_parallel (int, optional): [description]. Defaults to -1.
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
         verbose (bool, optional): [description]. Defaults to False.
         force (bool, optional): [description]. Defaults to False.
     """
@@ -311,15 +347,15 @@ def _apply_geooperation_to_layer(
         # the available resources
         layerinfo = geofile.get_layerinfo(input_path, input_layer)
         nb_rows_total = layerinfo.featurecount
-        if(nb_parallel == -1):
-            nb_parallel = multiprocessing.cpu_count()
-        nb_batches = nb_parallel
-        batch_size = int(nb_rows_total/nb_batches)
-        #nb_parallel, nb_batches, batch_size = get_parallellisation_params(
-        #        nb_rows_total=nb_rows_total,
-        #        nb_parallel=nb_parallel,
-        #        verbose=verbose)
-
+        if batchsize > 0:
+            parallellization_config = ParallelizationConfig(max_avg_rows_per_batch=batchsize)
+        else:
+            parallellization_config = ParallelizationConfig(max_avg_rows_per_batch=50000)
+        nb_parallel, nb_batches, real_batchsize = get_parallelization_params(
+                nb_rows_total=nb_rows_total,
+                nb_parallel=nb_parallel,
+                parallelization_config=parallellization_config)
+        
         # TODO: determine the optimal batch sizes with min and max of rowid will 
         # in some case improve performance
         '''
@@ -340,25 +376,26 @@ def _apply_geooperation_to_layer(
             # Prepare output filename
             output_tmp_path = tempdir / output_path.name
 
-            row_limit = batch_size
             row_offset = 0
             batches = {}    
             future_to_batch_id = {}
             nb_done = 0
             if verbose:
-                logger.info(f"Start calculation on {nb_rows_total} rows in {nb_batches} batches, so {row_limit} per batch")
+                logger.info(f"Start calculation on {nb_rows_total} rows in {nb_batches} batches, so {real_batchsize} per batch")
 
             for batch_id in range(nb_batches):
 
                 batches[batch_id] = {}
                 batches[batch_id]['layer'] = output_layer
 
+                # Output each batch to a seperate temporary file, otherwise there 
+                # are timeout issues when processing large files
                 output_tmp_partial_path = tempdir / f"{output_path.stem}_{batch_id}{output_path.suffix}"
                 batches[batch_id]['tmp_partial_output_path'] = output_tmp_partial_path
 
                 # For the last translate_id, take all rowid's left...
                 if batch_id < nb_batches-1:
-                    rows = slice(row_offset, row_offset + row_limit)
+                    rows = slice(row_offset, row_offset + real_batchsize)
                 else:
                     rows = slice(row_offset, nb_rows_total)
 
@@ -377,25 +414,17 @@ def _apply_geooperation_to_layer(
                         verbose=verbose,
                         force=force)
                 future_to_batch_id[future] = batch_id
-                row_offset += row_limit
+                row_offset += real_batchsize
             
             # Loop till all parallel processes are ready, but process each one 
             # that is ready already
-            # REMARK: writing to temp file and than appending the result here 
-            # is 10 time faster than appending directly using geopandas to_file 
-            # (in geopandas 0.8)!
             general_util.report_progress(start_time, nb_done, nb_batches, operation.value, nb_parallel)
             for future in futures.as_completed(future_to_batch_id):
                 try:
                     result = future.result()
 
-                    if result is not None and verbose is True:
-                        logger.info(result)
-
-                    # Start copy of the result to a common file
-                    batch_id = future_to_batch_id[future]
-
                     # If the calculate gave results, copy to output
+                    batch_id = future_to_batch_id[future]
                     tmp_partial_output_path = batches[batch_id]['tmp_partial_output_path']
                     if tmp_partial_output_path.exists() and tmp_partial_output_path.stat().st_size > 0:
                         geofile.append_to(
@@ -403,9 +432,6 @@ def _apply_geooperation_to_layer(
                                 dst=output_tmp_path, 
                                 create_spatial_index=False)
                         geofile.remove(tmp_partial_output_path)
-                    else:
-                        if verbose:
-                            logger.info(f"Result file {tmp_partial_output_path} was empty")
                     
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
@@ -460,7 +486,11 @@ def _apply_geooperation(
     if operation is GeoOperation.BUFFER:
         data_gdf.geometry = data_gdf.geometry.buffer(
                 distance=operation_params['distance'], 
-                resolution=operation_params['quadrantsegments'])
+                resolution=operation_params['quadrantsegments'],
+                cap_style=operation_params['endcap_style'].value,
+                join_style=operation_params['join_style'].value,
+                mitre_limit=operation_params['mitre_limit'],
+                single_sided=operation_params['single_sided'])
         #data_gdf['geometry'] = [sh_geom.Polygon(sh_geom.mapping(x)['coordinates']) for x in data_gdf.geometry]
     elif operation is GeoOperation.CONVEXHULL:
         data_gdf.geometry = data_gdf.geometry.convex_hull
@@ -478,7 +508,7 @@ def _apply_geooperation(
     data_gdf = data_gdf[~data_gdf.isna()] 
     
     if explodecollections:
-        data_gdf = data_gdf.explode().reset_index(drop=True)
+        data_gdf = data_gdf.explode(ignore_index=True)
 
     if len(data_gdf) > 0:
         # assert to evade pyLance warning
@@ -504,7 +534,7 @@ def dissolve(
         input_layer: str = None,
         output_layer: str = None,
         nb_parallel: int = -1,
-        parallelization_config: ParallelizationConfig = None,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False) -> dict:
     """
@@ -581,9 +611,7 @@ def dissolve(
         if explodecollections is True:
             # assert to evade pyLance warning
             assert isinstance(diss_gdf, gpd.GeoDataFrame)
-            diss_gdf = diss_gdf.explode()
-            # Reset the index, and drop the level_0 and level_1 multiindex
-            diss_gdf.reset_index(drop=True, inplace=True)
+            diss_gdf = diss_gdf.explode(ignore_index=True)
         
         # Now write to file
         # assert to evade pyLance warning
@@ -613,12 +641,15 @@ def dissolve(
                 
                 # Calculate the best number of parallel processes and batches for 
                 # the available resources
+                if batchsize > 0:
+                    parallelization_config = ParallelizationConfig(max_avg_rows_per_batch=batchsize)
+                else:
+                    parallelization_config = ParallelizationConfig()
                 nb_parallel, nb_batches_recommended, _ = get_parallelization_params(
                         nb_rows_total=nb_rows_total,
                         nb_parallel=nb_parallel,
                         prev_nb_batches=prev_nb_batches,
-                        parallelization_config=parallelization_config,
-                        verbose=verbose)
+                        parallelization_config=parallelization_config)
 
                 # If the ideal number of batches is close to the nb. result tiles asked,  
                 # dissolve towards the asked result!
@@ -780,6 +811,9 @@ def _dissolve_polygons_pass(
             max_workers=nb_parallel, 
             initializer=general_util.initialize_worker()) as calculate_pool:
 
+        # Prepare output filename
+        tempdir = output_onborder_path.parent
+
         batches = {}    
         future_to_batch_id = {}    
         nb_rows_done = 0
@@ -787,12 +821,19 @@ def _dissolve_polygons_pass(
     
             batches[batch_id] = {}
             batches[batch_id]['layer'] = output_layer
+
+            # Output each batch to a seperate temporary file, otherwise there 
+            # are timeout issues when processing large files
+            output_notonborder_tmp_partial_path = tempdir / f"{output_notonborder_path.stem}_{batch_id}{output_notonborder_path.suffix}"
+            batches[batch_id]['output_notonborder_tmp_partial_path'] = output_notonborder_tmp_partial_path
+            output_onborder_tmp_partial_path = tempdir / f"{output_onborder_path.stem}_{batch_id}{output_onborder_path.suffix}"
+            batches[batch_id]['output_onborder_tmp_partial_path'] = output_onborder_tmp_partial_path
             
             future = calculate_pool.submit(
                     _dissolve_polygons,
                     input_path=input_path,
-                    output_notonborder_path=output_notonborder_path,
-                    output_onborder_path=output_onborder_path,
+                    output_notonborder_path=output_notonborder_tmp_partial_path,
+                    output_onborder_path=output_onborder_tmp_partial_path,
                     explodecollections=explodecollections,
                     groupby_columns=groupby_columns,
                     columns=columns,
@@ -804,12 +845,15 @@ def _dissolve_polygons_pass(
                     verbose=verbose)
             future_to_batch_id[future] = batch_id
         
-        # Loop till all parallel processes are ready, but process each one that is ready already
+        # Loop till all parallel processes are ready, but process each one 
+        # that is ready already
+        general_util.report_progress(start_time, nb_rows_done, nb_rows_total, 'dissolve')
         for future in futures.as_completed(future_to_batch_id):
             try:
                 # If the calculate gave results
                 batch_id = future_to_batch_id[future]
                 result = future.result()
+
                 if result is not None:
                     nb_rows_done += result['nb_rows_done']
                     if verbose and result['nb_rows_done'] > 0 and result['total_time'] > 0:
@@ -817,6 +861,26 @@ def _dissolve_polygons_pass(
                         logger.info(f"Batch {batch_id} ready, processed {result['nb_rows_done']} rows in {rows_per_sec} rows/sec")
                         if 'perfstring' in result:
                             logger.info(f"Perfstring: {result['perfstring']}")
+                    
+                    # Start copy of the result to a common file
+                    batch_id = future_to_batch_id[future]
+
+                    # If the calculate gave results, copy to output
+                    output_notonborder_tmp_partial_path = batches[batch_id]['output_notonborder_tmp_partial_path']
+                    if output_notonborder_tmp_partial_path.exists() and output_notonborder_tmp_partial_path.stat().st_size > 0:
+                        geofile.append_to(
+                                src=output_notonborder_tmp_partial_path, 
+                                dst=output_notonborder_path)
+                        geofile.remove(output_notonborder_tmp_partial_path)
+                            
+                    # If the calculate gave results, copy to output
+                    output_onborder_tmp_partial_path = batches[batch_id]['output_onborder_tmp_partial_path']
+                    if output_onborder_tmp_partial_path.exists() and output_onborder_tmp_partial_path.stat().st_size > 0:
+                        geofile.append_to(
+                                src=output_onborder_tmp_partial_path, 
+                                dst=output_onborder_path)
+                        geofile.remove(output_onborder_tmp_partial_path)
+
             except Exception as ex:
                 batch_id = future_to_batch_id[future]
                 message = f"Error executing {batches[batch_id]}: {ex}"
@@ -825,8 +889,8 @@ def _dissolve_polygons_pass(
                 raise Exception(message) from ex
 
             # Log the progress and prediction speed
-            general_util.report_progress(start_time, nb_rows_done, nb_rows_total, 'dissolve')
-
+            general_util.report_progress(start_time, nb_rows_done, nb_rows_total, 'dissolve')   
+    
     logger.info(f"Dissolve pass ready, took {datetime.datetime.now()-start_time}!")
                 
     return result_info
@@ -945,8 +1009,8 @@ def _dissolve_polygons(
         # Use force_multitype, to evade warnings when some batches contain 
         # singletype and some contain multitype geometries  
         geofile.to_file(
-                diss_gdf, output_notonborder_path, layer=output_layer, 
-                append=True, force_multitype=True)
+                diss_gdf, output_notonborder_path, 
+                layer=output_layer, force_multitype=True)
     else:
         # If not, save the polygons on the border seperately
         bbox_lines_gdf = gpd.GeoDataFrame(
@@ -961,8 +1025,8 @@ def _dissolve_polygons(
             # Use force_multitype, to evade warnings when some batches contain 
             # singletype and some contain multitype geometries  
             geofile.to_file(
-                    onborder_gdf, output_onborder_path, layer=output_layer, 
-                    append=True, force_multitype=True)
+                    onborder_gdf, output_onborder_path, 
+                    layer=output_layer, force_multitype=True)
         
         notonborder_gdf = diss_gdf[~diss_gdf.index.isin(onborder_gdf.index)]
         if len(notonborder_gdf) > 0:
@@ -971,8 +1035,8 @@ def _dissolve_polygons(
             # Use force_multitype, to evade warnings when some batches contain 
             # singletype and some contain multitype geometries  
             geofile.to_file(
-                    notonborder_gdf, output_notonborder_path, layer=output_layer, 
-                    append=True, force_multitype=True)
+                    notonborder_gdf, output_notonborder_path, 
+                    layer=output_layer, force_multitype=True)
     perfinfo['time_to_file'] = (datetime.datetime.now()-start_to_file).total_seconds()
 
     # Finalise...

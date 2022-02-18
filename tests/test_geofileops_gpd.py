@@ -14,24 +14,15 @@ from geofileops import geofile
 from geofileops.geofile import GeometryType
 from geofileops.util import geofileops_gpd
 from geofileops.util.geofileops_gpd import ParallelizationConfig
-from geofileops.util.geometry_util import SimplifyAlgorithm
+from geofileops.util import geometry_util
 import test_helper
 
 def get_nb_parallel() -> int:
     # The number of parallel processes to use for these tests.
     return 2
 
-def get_parallelization_config() -> ParallelizationConfig:
-    #default_config = ParallelizationConfig()
-    test_config = ParallelizationConfig(
-            #bytes_basefootprint: int = 50*1024*1024, 
-            #bytes_per_row: int = 100, 
-            min_avg_rows_per_batch=1, 
-            max_avg_rows_per_batch=5, 
-            #bytes_min_per_process=None, 
-            #bytes_usable=None
-            )
-    return test_config
+def get_batchsize() -> int:
+    return 5
 
 def test_buffer_gpkg(tmpdir):
     # Buffer polygon source to test dir
@@ -161,9 +152,9 @@ def basetest_buffer_various_options(input_path, output_path):
             nb_parallel=get_nb_parallel())
 
     # Now check if the tmp file is correctly created
-    layerinfo_orig = geofile.get_layerinfo(input_path)
+    layerinfo_input = geofile.get_layerinfo(input_path)
     layerinfo_output = geofile.get_layerinfo(output_path)
-    assert layerinfo_orig.featurecount == layerinfo_output.featurecount
+    assert layerinfo_input.featurecount == layerinfo_output.featurecount
     assert 'OIDN' in layerinfo_output.columns
     assert 'UIDN' in layerinfo_output.columns
     assert len(layerinfo_output.columns) == len(columns)
@@ -171,6 +162,32 @@ def basetest_buffer_various_options(input_path, output_path):
     # Read result for some more detailed checks
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
+    area_default_buffer = sum(output_gdf.area)
+    
+    ### Test polygon buffer with square endcaps ###
+    output_path = output_path.parent / f"{output_path.stem}_endcap_join{output_path.suffix}"
+    geofileops_gpd.buffer(
+            input_path=input_path,
+            output_path=output_path,
+            distance=1,
+            endcap_style=geometry_util.BufferCapStyle.SQUARE,
+            join_style=geometry_util.BufferJoinStyle.MITRE,
+            nb_parallel=get_nb_parallel())
+
+    # Now check if the output file is correctly created
+    assert output_path.exists() == True
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_input.featurecount == layerinfo_output.featurecount
+    assert len(layerinfo_output.columns) == len(layerinfo_input.columns)
+    
+    # Check geometry type
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
+
+    # Read result for some more detailed checks
+    output_gdf = geofile.read_file(output_path)
+    assert output_gdf['geometry'][0] is not None
+    area_square_buffer = sum(output_gdf.area)
+    assert area_square_buffer > area_default_buffer
 
     ### Check if ... parameter works ###
     # TODO: increase test coverage of other options...
@@ -222,7 +239,7 @@ def basetest_dissolve_linestrings_nogroupby(input_path, output_basepath):
             output_path=output_path,
             explodecollections=True,
             nb_parallel=get_nb_parallel(),
-            parallelization_config=get_parallelization_config())
+            batchsize=5)
 
     # Check if the result file is correctly created
     assert output_path.exists() == True
@@ -248,7 +265,7 @@ def basetest_dissolve_linestrings_nogroupby(input_path, output_basepath):
             output_path=output_path,
             explodecollections=False,
             nb_parallel=get_nb_parallel(),
-            parallelization_config=get_parallelization_config())
+            batchsize=5)
 
     # Check if the result file is correctly created
     assert output_path.exists() == True
@@ -292,7 +309,7 @@ def basetest_dissolve_polygons_groupby(
             groupby_columns=['GEWASGROEP'],
             explodecollections=False,
             nb_parallel=get_nb_parallel(),
-            parallelization_config=get_parallelization_config())
+            batchsize=get_batchsize())
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
@@ -318,7 +335,7 @@ def basetest_dissolve_polygons_groupby(
             groupby_columns=['GEWASGROEP'],
             explodecollections=True,
             nb_parallel=get_nb_parallel(),
-            parallelization_config=get_parallelization_config())
+            batchsize=get_batchsize())
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
@@ -346,7 +363,7 @@ def basetest_dissolve_polygons_groupby(
             aggfunc='first',
             explodecollections=True,
             nb_parallel=get_nb_parallel(),
-            parallelization_config=get_parallelization_config())
+            batchsize=get_batchsize())
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
@@ -374,7 +391,7 @@ def basetest_dissolve_polygons_groupby(
                 groupby_columns=['GEWASGROEP'],
                 output_layer='banana',
                 nb_parallel=get_nb_parallel(),
-                parallelization_config=get_parallelization_config())
+                batchsize=get_batchsize())
     except Exception as ex:
         # A different output_layer is not supported for shapefile, so normal 
         # that an exception is thrown!
@@ -422,7 +439,7 @@ def basetest_dissolve_polygons_nogroupby(
             input_path=input_path,
             output_path=output_path,
             nb_parallel=get_nb_parallel(),
-            parallelization_config=get_parallelization_config(),
+            batchsize=get_batchsize(),
             force=True)
 
     # Now check if the result file is correctly created
@@ -453,7 +470,7 @@ def basetest_dissolve_polygons_nogroupby(
             output_path=output_path,
             explodecollections=False,
             nb_parallel=get_nb_parallel(),
-            parallelization_config=get_parallelization_config(),
+            batchsize=get_batchsize(),
             force=True)
 
     # Now check if the result file is correctly created
@@ -487,7 +504,7 @@ def basetest_dissolve_polygons_nogroupby(
                 output_layer='banana',
                 explodecollections=True,
                 nb_parallel=get_nb_parallel(),
-                parallelization_config=get_parallelization_config(),
+                batchsize=get_batchsize(),
                 force=True)
     except Exception as ex:
         # A different output_layer is not supported for shapefile, so normal 
@@ -535,7 +552,7 @@ def test_dissolve_multisinglepolygons_gpkg(tmpdir):
             explodecollections=True,
             nb_squarish_tiles=2,
             nb_parallel=get_nb_parallel(),
-            parallelization_config=get_parallelization_config(),
+            batchsize=get_batchsize(),
             force=True)
 
     # Now check if the result file is correctly created
@@ -611,7 +628,7 @@ def basetest_simplify(
             input_path=input_path,
             output_path=output_path,
             tolerance=5,
-            algorithm=SimplifyAlgorithm.VISVALINGAM_WHYATT,
+            algorithm=geometry_util.SimplifyAlgorithm.VISVALINGAM_WHYATT,
             nb_parallel=get_nb_parallel())
 
     # Now check if the tmp file is correctly created
@@ -636,7 +653,7 @@ def basetest_simplify(
             input_path=input_path,
             output_path=output_path,
             tolerance=5,
-            algorithm=SimplifyAlgorithm.LANG,
+            algorithm=geometry_util.SimplifyAlgorithm.LANG,
             lookahead=8,
             nb_parallel=get_nb_parallel())
 
@@ -662,10 +679,10 @@ if __name__ == '__main__':
 
     # Run
     #test_buffer_gpkg(tmpdir)
-    #test_buffer_various_options_gpkg(tmpdir)
+    test_buffer_various_options_gpkg(tmpdir)
     #test_dissolve_linestrings_nogroupby_gpkg(tmpdir)
     #test_dissolve_linestrings_nogroupby_shp(tmpdir)
-    test_dissolve_polygons_groupby_gpkg(tmpdir)
+    #test_dissolve_polygons_groupby_gpkg(tmpdir)
     #test_dissolve_polygons_groupby_shp(tmpdir)
     #test_dissolve_polygons_nogroupby_gpkg(tmpdir)
     #test_dissolve_polygons_nogroupby_shp(tmpdir)

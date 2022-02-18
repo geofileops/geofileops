@@ -113,9 +113,8 @@ conda config --env --set channel_priority strict
 #
 # python: 3.8, possibly 3.8 features are used, not sure
 #
-# geopandas: > 0.9 because in dissolve a parameter is used that is only available 
-#     from 0.9.
-conda install -y python=3.8 "geopandas>=0.9,<0.10" "libspatialite>=5.0" psutil pygeos pyproj
+# geopandas: > 0.10 because in sjoin a parameter renamed
+conda install -y python=3.8 "geopandas>=0.10,<0.11" "libspatialite>=5.0" psutil pygeos pyproj
 
 # For the following packages, no conda package is available.
 if [[ ! $fordev =~ ^[Yy]$ ]]

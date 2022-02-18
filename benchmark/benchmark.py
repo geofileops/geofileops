@@ -251,6 +251,8 @@ def benchmark(
     # Check input params
     if tmpdir is None:
         tmpdir = Path(tempfile.gettempdir()) / 'geofileops_benchmark'
+        logger.info(f"tmpdir: {tmpdir}")
+    tmpdir.mkdir(parents=True, exist_ok=True)
     
     # First make sure the testdata is present
     sampledata_util.download_samplefile(SampleGeofile.POLYGON_AGRI_PARCEL_2018, tmpdir)
@@ -292,13 +294,13 @@ if __name__ == '__main__':
             datefmt="%H:%M:%S", level=logging.INFO)
 
     #Go!
-    #tmpdir = None
-    tmpdir = Path(r"C:\Temp") / 'geofileops_benchmark'
+    tmpdir = None
+    #tmpdir = Path(r"C:\Temp") / 'geofileops_benchmark'
     benchmark(
             benchmarks_to_run=[
-                #Benchmark.BUFFER,
-                #Benchmark.UNION,
-                #Benchmark.INTERSECT,
+                Benchmark.BUFFER,
+                Benchmark.UNION,
+                Benchmark.INTERSECT,
                 Benchmark.DISSOLVE,
             ],
             tmpdir=tmpdir)
