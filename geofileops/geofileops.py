@@ -8,7 +8,9 @@ import logging
 import logging.config
 import os
 from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import Any, Callable, List, Optional, Union
+
+import shapely.geometry as sh_geom
 
 from geofileops.util import geofileops_gpd
 from geofileops.util import geofileops_sql
@@ -23,6 +25,78 @@ logger = logging.getLogger(__name__)
 ################################################################################
 # The real work
 ################################################################################
+
+def apply(
+        input_path: Path,
+        output_path: Path,
+        func: Callable[[Any], Any],
+        apply_only_geom: bool = True,
+        input_layer: str = None,
+        output_layer: str = None,
+        columns: List[str] = None,
+        explodecollections: bool = False,
+        nb_parallel: int = -1,
+        batchsize: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+    """
+    Applies a python lambda function the input file. 
+
+    The result is written to the output file specified.
+
+    Examples for func:
+        * if apply_only_geom is True 
+            ```
+            func=lambda geom: geometry_util.remove_inner_rings(
+                    geom, min_area_to_keep=1)  
+            ```
+        * if apply_only_geom is False 
+            ```
+            func=lambda row: geometry_util.remove_inner_rings(
+                    row.geometry, min_area_to_keep=1) 
+                    if row.name == "geometry" else row  
+            ```
+
+    Args:
+        input_path (PathLike): the input file
+        output_path (PathLike): the file to write the result to
+        func (Callable): lambda function to apply to the geometry column.
+        apply_only_geom (bool, optional): If True, only the geometry column is 
+            available. If False, the entire row will/can be used/updated. 
+            Remark: when False, the operation is 50% slower. Defaults to True.
+        input_layer (str, optional): input layer name. Optional if the input 
+            file only contains one layer.
+        output_layer (str, optional): input layer name. Optional if the input 
+            file only contains one layer.
+        columns (List[str], optional): list of columns to return. If None,
+            all columns are returned.
+        explodecollections (bool, optional): True to output only simple geometries. 
+            Defaults to False.
+        nb_parallel (int, optional): the number of parallel processes to use. 
+            Defaults to -1: use all available processors.
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
+        verbose (bool, optional): write more info to the output. 
+            Defaults to False.
+        force (bool, optional): overwrite existing output file(s). 
+            Defaults to False.
+    """
+    logger.info(f"Start apply on {input_path}")
+    return geofileops_gpd.apply(
+            input_path=Path(input_path),
+            output_path=Path(output_path),
+            func=func,
+            apply_only_geom=apply_only_geom,
+            input_layer=input_layer,
+            output_layer=output_layer,
+            columns=columns,
+            explodecollections=explodecollections,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+            verbose=verbose,
+            force=force)
 
 def buffer(
         input_path: Union[str, 'os.PathLike[Any]'],
