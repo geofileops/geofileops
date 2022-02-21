@@ -8,7 +8,7 @@ import enum
 import logging
 from pathlib import Path
 import sqlite3
-from typing import Any, List
+from typing import Any, List, Optional
 
 import pandas as pd
 
@@ -91,7 +91,7 @@ def create_table_as_sql(
         output_path: Path,
         sql_stmt: str,
         output_layer: str,
-        output_geometrytype: GeometryType,
+        output_geometrytype: Optional[GeometryType],
         append: bool = False,
         update: bool = False,
         create_spatial_index: bool = True,
@@ -244,6 +244,7 @@ def create_table_as_sql(
             conn.execute(sql)
 
             # Add metadata 
+            assert output_geometrytype is not None
             if output_suffix_lower == '.gpkg':
                 # ~ mimic behaviour of gpkgAddGeometryColumn()
                 sql = f"""

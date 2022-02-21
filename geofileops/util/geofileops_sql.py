@@ -415,9 +415,9 @@ def _single_layer_vector_operation(
                 batchsize=batchsize,
                 convert_to_spatialite_based=False)
         # If None is returned, just stop.
-        if processing_params is None:
+        if processing_params is None or processing_params.batches is None:
             return
-
+        
         # Format column string for use in select
         formatted_column_strings = format_column_strings(
                 columns_specified=columns, 
@@ -1364,11 +1364,12 @@ def _two_layer_vector_operation(
                 nb_parallel=nb_parallel,
                 batchsize=batchsize,
                 convert_to_spatialite_based=True)
-        if processing_params is None:
+        if processing_params is None or processing_params.batches is None:
             return
 
         ##### Prepare column names,... to format the select #####
         # Format column strings for use in select
+        assert processing_params.input1_path is not None
         input1_tmp_layerinfo = geofile.get_layerinfo(
                 processing_params.input1_path, processing_params.input1_layer)
         input1_columnstrings = format_column_strings(
