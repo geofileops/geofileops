@@ -426,7 +426,7 @@ def basetest_to_file_empty(
         output_suffix: str):
     ### Test for gdf with a None geometry + a polygon ###
     test_gdf = gpd.GeoDataFrame(geometry=[
-            None, test_helper.TestData.polygon])
+            None, test_helper.TestData.polygon_with_island])
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 1
     output_none_path = output_dir / f"{srcpath.stem}_none{output_suffix}"
@@ -466,7 +466,7 @@ def basetest_to_file_none(
         output_suffix: str):
     ### Test for gdf with a None geometry + a polygon ###
     test_gdf = gpd.GeoDataFrame(geometry=[
-            None, test_helper.TestData.polygon])
+            None, test_helper.TestData.polygon_with_island])
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 1
     output_none_path = output_dir / f"{srcpath.stem}_none{output_suffix}"
@@ -506,7 +506,7 @@ def basetest_to_file_gpd_empty(
         output_suffix: str):
     ### Test for gdf with an empty polygon + a polygon ###
     test_gdf = gpd.GeoDataFrame(geometry=[
-            sh_geom.Polygon(), test_helper.TestData.polygon])
+            sh_geom.Polygon(), test_helper.TestData.polygon_with_island])
     # By default, get_geometrytypes ignores the type of empty geometries, as 
     # they are always stored as GeometryCollection in GeoPandas
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
@@ -554,7 +554,7 @@ def basetest_to_file_gpd_none(
         output_suffix: str):
     ### Test for gdf with a None geometry + a polygon ###
     test_gdf = gpd.GeoDataFrame(geometry=[
-            None, test_helper.TestData.polygon])
+            None, test_helper.TestData.polygon_with_island])
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 1
     output_none_path = output_dir / f"{srcpath.stem}_none{output_suffix}"

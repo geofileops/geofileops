@@ -52,7 +52,7 @@ def test_makevalid():
     assert len(poly_valid[0].interiors) == 1
 
     # Test MultiPolygon
-    multipolygon_invalid = sh_geom.MultiPolygon([polygon_invalid, test_helper.TestData.polygon2])
+    multipolygon_invalid = sh_geom.MultiPolygon([polygon_invalid, test_helper.TestData.polygon_no_islands])
     multipoly_valid = geometry_util.make_valid(multipolygon_invalid)
     assert isinstance(multipoly_valid, sh_geom.MultiPolygon)
 
@@ -85,7 +85,7 @@ def test_numberpoints():
     assert numberpoints == 6
 
     # Test Polygon
-    numberpoints = geometry_util.numberpoints(test_helper.TestData.polygon)
+    numberpoints = geometry_util.numberpoints(test_helper.TestData.polygon_with_island)
     numberpoints_geometrycollection += numberpoints
     assert numberpoints == 11
 

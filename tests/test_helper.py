@@ -5,7 +5,6 @@ Helper functions for all tests.
 
 import logging
 from pathlib import Path
-import sys
 import tempfile
 
 import shapely.geometry as sh_geom
@@ -16,17 +15,20 @@ class TestData:
     linestring = sh_geom.LineString([(0, 0), (10, 10), (20, 20)])
     multilinestring = sh_geom.MultiLineString(
             [linestring.coords, [(100, 100), (110, 110), (120, 120)]])
-    polygon = sh_geom.Polygon(
+    polygon_with_island = sh_geom.Polygon(
             shell=[(0, 0), (0, 10), (1, 10), (10, 10), (10, 0), (0,0)], 
             holes=[[(2,2), (2,8), (8,8), (8,2), (2,2)]])
-    polygon2 = sh_geom.Polygon(shell=[(100, 100), (100, 110), (110, 110), (110, 100), (100,100)])
-    polygon3 = sh_geom.Polygon(
+    polygon_no_islands = sh_geom.Polygon(shell=[(100, 100), (100, 110), (110, 110), (110, 100), (100,100)])
+    polygon_with_island2 = sh_geom.Polygon(
             shell=[(20, 20), (20, 30), (21, 30), (30, 30), (30, 20), (20,20)], 
             holes=[[(22,22), (22,28), (28,28), (28,22), (22,22)]])
-    multipolygon = sh_geom.MultiPolygon([polygon2, polygon3])
+    multipolygon = sh_geom.MultiPolygon([polygon_no_islands, polygon_with_island2])
     geometrycollection = sh_geom.GeometryCollection([
-            point, multipoint, linestring, multilinestring, polygon, multipolygon])
-
+            point, multipoint, linestring, multilinestring, polygon_with_island, multipolygon])
+    polygon_small_island = sh_geom.Polygon(
+            shell=[(0, 0), (0, 10), (1, 10), (10, 10), (10, 0), (0,0)], 
+            holes=[[(2,2), (2,3), (3,3), (3,2), (2,2)]])
+    
 class TestFiles:
     testdata_dir = Path(__file__).resolve().parent / 'data'
 

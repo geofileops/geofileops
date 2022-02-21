@@ -109,22 +109,28 @@ conda activate $envname
 conda config --env --add channels conda-forge
 conda config --env --set channel_priority strict
 
-# List of dependencies + reasons for specific versions.
-#
-# python: 3.8, possibly 3.8 features are used, not sure
-#
-# geopandas: > 0.10 because in sjoin a parameter renamed
-conda install -y python=3.8 "geopandas>=0.10,<0.11" "libspatialite>=5.0" psutil pygeos pyproj
-
-# For the following packages, no conda package is available.
+# Now install what needs to be installed
 if [[ ! $fordev =~ ^[Yy]$ ]]
 then
-  pip install geofileops
+  # Conda install
+  conda install geofileops
+  # For the following packages, no conda package is available.
+  pip install simplification
 else
+  # Dev install...
+  echo
+  echo Development install: conda install dependencies
+  echo
+  # List of dependencies + reasons for specific versions.
+  # python: 3.8, possibly 3.8 features are used, not sure
+  # geopandas: > 0.10 because in sjoin a parameter renamed
+  conda install -y python=3.8 cloudpickle "geopandas>=0.10,<0.11" "libspatialite>=5.0" psutil pygeos pyproj
+
   echo
   echo Prepare for development: conda install dev tools
   echo
   conda install -y pylint pytest pytest-cov rope pydata-sphinx-theme sphinx-automodapi
+
   echo
   echo Prepare for development: pip install needed dependencies
   echo

@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 
 import geopandas as gpd
+import shapely.geometry as sh_geom
 
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -23,6 +24,99 @@ def get_nb_parallel() -> int:
 
 def get_batchsize() -> int:
     return 5
+
+def test_apply_gpkg(tmpdir):
+    basetest_apply(
+            tmpdir=Path(tmpdir), 
+            suffix=".gpkg")
+
+def test_apply_shp(tmpdir):
+    basetest_apply(
+            tmpdir=Path(tmpdir),
+            suffix=".shp")
+
+def basetest_apply(
+        tmpdir: Path,
+        suffix: str):
+    
+    ### Write test file ###
+    test_gdf = gpd.GeoDataFrame(geometry=[
+            test_helper.TestData.polygon_small_island, 
+            test_helper.TestData.polygon_with_island, 
+            None])
+    input_path = tmpdir / f"polygons_small_holes{suffix}"
+    geofile.to_file(test_gdf, input_path)
+    layerinfo_input = geofile.get_layerinfo(input_path)
+    output_path = tmpdir / f"{input_path.stem}-output{suffix}"
+    
+    ### Test apply with apply_only_geom = True ###
+    geofileops_gpd.apply(
+            input_path=input_path,
+            output_path=output_path,
+            func=lambda geom: geometry_util.remove_inner_rings(geom, min_area_to_keep=2),
+            apply_only_geom=True,
+            nb_parallel=get_nb_parallel())
+
+    # Now check if the output file is correctly created
+    assert output_path.exists() == True
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_input.featurecount == layerinfo_output.featurecount
+    assert len(layerinfo_output.columns) == len(layerinfo_input.columns)
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
+
+    # Read result for some more detailed checks
+    output_gdf = geofile.read_file(output_path)
+
+    # In the 1st polygon the island should be removed 
+    output_geometry = output_gdf['geometry'][0]
+    assert output_geometry is not None
+    if isinstance(output_geometry, sh_geom.MultiPolygon):
+        assert len(output_geometry.geoms) == 1
+        output_geometry = output_geometry[0]
+    assert isinstance(output_geometry, sh_geom.Polygon)
+    assert len(output_geometry.interiors) == 0
+
+    # In the 2nd polygon the island is too large, so should still be there 
+    output_geometry = output_gdf['geometry'][1]
+    assert output_geometry is not None
+    if isinstance(output_geometry, sh_geom.MultiPolygon):
+        assert len(output_geometry.geoms) == 1
+        output_geometry = output_geometry[0]
+    assert isinstance(output_geometry, sh_geom.Polygon)
+    assert len(output_geometry.interiors) == 1
+
+    ### Test apply with apply_only_geom = False ###
+    geofileops_gpd.apply(
+            input_path=input_path,
+            output_path=output_path,
+            func=lambda row: geometry_util.remove_inner_rings(
+                    row.geometry, min_area_to_keep=1) if row.name == "geometry" else row,
+            apply_only_geom=False,
+            nb_parallel=get_nb_parallel())
+
+    # Now check if the output file is correctly created
+    assert output_path.exists() == True
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_input.featurecount == layerinfo_output.featurecount
+    assert len(layerinfo_output.columns) == len(layerinfo_input.columns)
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
+
+    # Read result for some more detailed checks
+    output_gdf = geofile.read_file(output_path)
+    for index in range(0, 2):
+        output_geometry = output_gdf['geometry'][index]
+        assert output_geometry is not None
+        if isinstance(output_geometry, sh_geom.MultiPolygon):
+            assert len(output_geometry.geoms) == 1
+            output_geometry = output_geometry[0]
+        assert isinstance(output_geometry, sh_geom.Polygon)
+        
+        if index == 0:
+            # In the 1st polygon the island must be removed 
+            assert len(output_geometry.interiors) == 0
+        elif index == 1:
+            # In the 2nd polygon the island is larger, so should be there 
+            assert len(output_geometry.interiors) == 1
 
 def test_buffer_gpkg(tmpdir):
     # Buffer polygon source to test dir
@@ -541,7 +635,7 @@ def test_dissolve_multisinglepolygons_gpkg(tmpdir):
     tmpdir = Path(tmpdir)
     
     # Create test data
-    input_gdf = gpd.GeoDataFrame(geometry=[test_helper.TestData.polygon, test_helper.TestData.multipolygon])
+    input_gdf = gpd.GeoDataFrame(geometry=[test_helper.TestData.polygon_with_island, test_helper.TestData.multipolygon])
     input_path = tmpdir / 'test_polygon_input.gpkg'
     geofile.to_file(input_gdf, input_path)
     output_path = tmpdir / f"{input_path.stem}_diss.gpkg"
@@ -677,8 +771,10 @@ if __name__ == '__main__':
     tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
 
     # Run
+    #test_apply_gpkg(tmpdir)
+    test_apply_shp(tmpdir)
     #test_buffer_gpkg(tmpdir)
-    test_buffer_various_options_gpkg(tmpdir)
+    #test_buffer_various_options_gpkg(tmpdir)
     #test_dissolve_linestrings_nogroupby_gpkg(tmpdir)
     #test_dissolve_linestrings_nogroupby_shp(tmpdir)
     #test_dissolve_polygons_groupby_gpkg(tmpdir)

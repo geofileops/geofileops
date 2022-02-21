@@ -41,6 +41,13 @@ logger = logging.getLogger(__name__)
 # The real work
 #-------------------------------------------------------------
 
+def get_drivers() -> dict:
+    drivers = {}
+    for i in range(gdal.GetDriverCount()):
+        driver = gdal.GetDriver(i)
+        drivers[driver.ShortName] = driver.GetDescription()
+    return drivers
+
 class VectorTranslateInfo:
     def __init__(
             self,
@@ -121,7 +128,7 @@ def vector_translate_by_info(info: VectorTranslateInfo):
             verbose=info.verbose)
 
 def vector_translate(
-        input_path: Path, 
+        input_path: Union[Path, str], 
         output_path: Path,
         translate_description: str = None,
         input_layers: Union[Optional[List[str]], str] = None,
@@ -146,7 +153,7 @@ def vector_translate(
     args = []
 
     # Cleanup the input_layers variable.
-    if input_path.suffix.lower() == '.shp':
+    if isinstance(input_path, Path) and input_path.suffix.lower() == '.shp':
         # For shapefiles, having input_layers not None gives issues
         input_layers = None
     elif sql_stmt is not None:
@@ -265,7 +272,7 @@ def vector_translate(
 
         logger.debug(f"Execute {sql_stmt} on {input_path}")
         input_ds = gdal.OpenEx(str(input_path))
-
+        
         # TODO: memory output support might be interesting to support
         result_ds = gdal.VectorTranslate(
                 destNameOrDestDS=str(output_path),

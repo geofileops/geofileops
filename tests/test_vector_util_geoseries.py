@@ -20,7 +20,7 @@ def test_geometry_collection_extract():
     # Test for gdf with all types of geometrytypes, extract!
     test_gdf = gpd.GeoDataFrame(geometry=[
             test_helper.TestData.point, test_helper.TestData.multipoint, 
-            test_helper.TestData.polygon, test_helper.TestData.polygon2, 
+            test_helper.TestData.polygon_with_island, test_helper.TestData.polygon_no_islands, 
             test_helper.TestData.multipolygon, test_helper.TestData.geometrycollection])
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 5
@@ -37,7 +37,7 @@ def test_get_geometrytypes():
     test_gdf = gpd.GeoDataFrame(geometry=[
             None, sh_geom.Point(), sh_geom.LineString(), sh_geom.Polygon(), 
             test_helper.TestData.point, test_helper.TestData.multipoint, 
-            test_helper.TestData.polygon, test_helper.TestData.polygon2, 
+            test_helper.TestData.polygon_with_island, test_helper.TestData.polygon_no_islands, 
             test_helper.TestData.multipolygon, test_helper.TestData.geometrycollection])
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 5
@@ -100,8 +100,8 @@ def test_harmonize_geometrytypes():
     # Test for gdf with linestring + multilinestring -> all multilinestring
     test_gdf = gpd.GeoDataFrame(geometry=[
             None, sh_geom.Polygon(),
-            test_helper.TestData.polygon, test_helper.TestData.multipolygon, 
-            test_helper.TestData.polygon, test_helper.TestData.multipolygon]) 
+            test_helper.TestData.polygon_with_island, test_helper.TestData.multipolygon, 
+            test_helper.TestData.polygon_with_island, test_helper.TestData.multipolygon]) 
     # Filter the gdf a bit to test that the indexes are retained properly in 
     # harmonize_geometrytypes
     test_gdf_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
@@ -121,7 +121,7 @@ def test_harmonize_geometrytypes():
     # Test for gdf with all types of geometrytypes -> no harmonization possible
     test_gdf = gpd.GeoDataFrame(geometry=[
             None, sh_geom.Polygon(), test_helper.TestData.point, test_helper.TestData.multipoint, 
-            test_helper.TestData.polygon, test_helper.TestData.polygon2, 
+            test_helper.TestData.polygon_with_island, test_helper.TestData.polygon_no_islands, 
             test_helper.TestData.multipolygon, test_helper.TestData.geometrycollection])
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 5
