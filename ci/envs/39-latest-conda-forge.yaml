@@ -6,6 +6,7 @@ dependencies:
   - pip
   #- six
   # required
+  - cloudpickle
   - geopandas
   - pyproj
   - psutil

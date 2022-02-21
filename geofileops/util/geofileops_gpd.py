@@ -11,14 +11,16 @@ import logging.config
 import math
 import multiprocessing
 from pathlib import Path
+import pickle
 import time
 import shutil
-from typing import List, Optional, Tuple, NamedTuple
+from typing import Any, Callable, List, Optional, Tuple, NamedTuple
 import warnings
 
 # Don't show this geopandas warning...
 warnings.filterwarnings('ignore', 'GeoSeries.isna', UserWarning)
 
+import cloudpickle
 import geopandas as gpd
 import psutil
 import shapely.geometry as sh_geom
@@ -138,13 +140,48 @@ def get_parallelization_params(
     return parallelizationParams(nb_parallel, nb_batches, batch_size)
 
 class GeoOperation(enum.Enum):
-    SIMPLIFY = 'simplify'
-    BUFFER = 'buffer'
-    CONVEXHULL = 'convexhull'
+    SIMPLIFY = "simplify"
+    BUFFER = "buffer"
+    CONVEXHULL = "convexhull"
+    APPLY = "apply"
 
 ################################################################################
 # The real stuff
 ################################################################################
+
+def apply(
+        input_path: Path,
+        output_path: Path,
+        func: Callable[[Any], Any],
+        apply_only_geom: bool = True,
+        input_layer: str = None,
+        output_layer: str = None,
+        columns: List[str] = None,
+        explodecollections: bool = False,
+        nb_parallel: int = -1,
+        batchsize: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+    # Init
+    operation_params = {
+            "apply_only_geom": apply_only_geom,
+            "pickled_func": cloudpickle.dumps(func)
+        }
+
+    # Go!
+    return _apply_geooperation_to_layer(
+            input_path=input_path,
+            output_path=output_path,
+            operation=GeoOperation.APPLY,
+            operation_params=operation_params,
+            input_layer=input_layer,
+            output_layer=output_layer,
+            columns=columns,
+            explodecollections=explodecollections,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+            verbose=verbose,
+            force=force)
 
 def buffer(
         input_path: Path,
@@ -296,6 +333,10 @@ def _apply_geooperation_to_layer(
           - algorithm: vector_util.SimplifyAlgorithm
           - tolerance: maximum distance to simplify.
           - lookahead: for LANG, the number of points to forward-look
+      - APPLY: apply a lambda function. Operation parameter:
+          - pickled_func: lambda function to apply, pickled to bytes.
+          - apply_only_geom: if True, only the geometry is updated. If false,
+            all columns are updated.  
 
     Args:
         input_path (Path): [description]
@@ -498,6 +539,12 @@ def _apply_geooperation(
                 algorithm=operation_params['algorithm'], 
                 tolerance=operation_params['tolerance'], 
                 lookahead=operation_params['step'])
+    elif operation is GeoOperation.APPLY:
+        func = pickle.loads(operation_params["pickled_func"])
+        if operation_params["apply_only_geom"] is True:
+            data_gdf.geometry = data_gdf.geometry.apply(func)
+        else:
+            data_gdf = data_gdf.apply(func, axis=1)
     else:
         raise Exception(f"Operation not supported: {operation}")     
 
