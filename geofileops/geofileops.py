@@ -554,7 +554,7 @@ def simplify(
         columns: List[str] = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
-        batchsize: bool = -1,
+        batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
     """

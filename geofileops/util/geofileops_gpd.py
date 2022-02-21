@@ -901,7 +901,7 @@ def _dissolve_polygons(
         output_notonborder_path: Path,
         output_onborder_path: Path,
         explodecollections: bool,
-        groupby_columns: List[str],
+        groupby_columns: Optional[List[str]],
         columns: List[str],
         aggfunc: str,
         input_geometrytype: GeometryType,
