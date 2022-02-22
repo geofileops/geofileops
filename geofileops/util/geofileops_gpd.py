@@ -553,7 +553,7 @@ def _apply_geooperation(
     data_gdf = data_gdf[~data_gdf.isna()] 
     
     if explodecollections:
-        data_gdf = data_gdf.explode(ignore_index=True)
+        data_gdf = data_gdf.explode(ignore_index=True) # type: ignore
 
     if len(data_gdf) > 0:
         # assert to evade pyLance warning
@@ -948,7 +948,7 @@ def _dissolve_polygons(
         output_notonborder_path: Path,
         output_onborder_path: Path,
         explodecollections: bool,
-        groupby_columns: List[str],
+        groupby_columns: Optional[List[str]],
         columns: List[str],
         aggfunc: str,
         input_geometrytype: GeometryType,
@@ -1028,6 +1028,7 @@ def _dissolve_polygons(
         diss_gdf = gpd.clip(diss_gdf, bbox_gdf) #, keep_geom_type=True)
 
         # Only keep geometries of the primitive type specified after clip...
+        assert isinstance(diss_gdf, gpd.GeoDataFrame)
         diss_gdf.geometry = geoseries_util.geometry_collection_extract(
                 diss_gdf.geometry, input_geometrytype.to_primitivetype)
 
