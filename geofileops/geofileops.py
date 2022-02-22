@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-:noindex: Module exposing all supported operations on geomatries in geofiles.
-
+Module exposing all supported operations on geomatries in geofiles.
 """
 
 import logging
@@ -9,8 +8,6 @@ import logging.config
 import os
 from pathlib import Path
 from typing import Any, Callable, List, Optional, Union
-
-import shapely.geometry as sh_geom
 
 from geofileops.util import geofileops_gpd
 from geofileops.util import geofileops_sql
@@ -40,23 +37,19 @@ def apply(
         verbose: bool = False,
         force: bool = False):
     """
-    Applies a python lambda function the input file. 
+    Apply a python lambda function on the geometry column of the input file. 
 
     The result is written to the output file specified.
 
-    Examples for func:
-        * if apply_only_geom is True 
-            ```
-            func=lambda geom: geometry_util.remove_inner_rings(
-                    geom, min_area_to_keep=1)  
-            ```
-        * if apply_only_geom is False 
-            ```
-            func=lambda row: geometry_util.remove_inner_rings(
-                    row.geometry, min_area_to_keep=1) 
-                    if row.name == "geometry" else row  
-            ```
-
+    Examples for the func parameter:
+        * if only_geom_input is True:
+            ``func=lambda geom: geometry_util.remove_inner_rings(``
+                    ``geom, min_area_to_keep=1)``
+            
+        * if only_geom_input is False:
+            ``func=lambda row: geometry_util.remove_inner_rings(``
+                    ``row.geometry, min_area_to_keep=1)``
+            
     Args:
         input_path (PathLike): the input file
         output_path (PathLike): the file to write the result to
@@ -292,15 +285,13 @@ def dissolve(
         verbose: bool = False,
         force: bool = False):
     """
-    Applies a dissolve operation on the geometry column of the input file. Only 
-    supports (Multi)Polygon files.
+    Applies a dissolve operation on the geometry column of the input file.
+
+    For the other columns, only aggfunc = 'first' is supported at the moment. 
 
     If the output is tiled (by specifying a tiles_path or nb_squarish_tiles > 1), 
-    the result will be clipped  on the output tiles and the tile borders are 
+    the result will be clipped on the output tiles and the tile borders are 
     never crossed.
-            
-    Remarks: 
-        * only aggfunc = 'first' is supported at the moment. 
 
     Args:
         input_path (PathLike): the input file
