@@ -153,7 +153,7 @@ def apply(
         input_path: Path,
         output_path: Path,
         func: Callable[[Any], Any],
-        apply_only_geom: bool = True,
+        only_geom_input: bool = True,
         input_layer: str = None,
         output_layer: str = None,
         columns: List[str] = None,
@@ -164,7 +164,7 @@ def apply(
         force: bool = False):
     # Init
     operation_params = {
-            "apply_only_geom": apply_only_geom,
+            "only_geom_input": only_geom_input,
             "pickled_func": cloudpickle.dumps(func)
         }
 
@@ -335,8 +335,8 @@ def _apply_geooperation_to_layer(
           - lookahead: for LANG, the number of points to forward-look
       - APPLY: apply a lambda function. Operation parameter:
           - pickled_func: lambda function to apply, pickled to bytes.
-          - apply_only_geom: if True, only the geometry is updated. If false,
-            all columns are updated.  
+          - only_geom_input: if True, only the geometry is available as 
+            input for the lambda function. If false, the row is the input.  
 
     Args:
         input_path (Path): [description]
@@ -541,10 +541,10 @@ def _apply_geooperation(
                 lookahead=operation_params['step'])
     elif operation is GeoOperation.APPLY:
         func = pickle.loads(operation_params["pickled_func"])
-        if operation_params["apply_only_geom"] is True:
+        if operation_params["only_geom_input"] is True:
             data_gdf.geometry = data_gdf.geometry.apply(func)
         else:
-            data_gdf = data_gdf.apply(func, axis=1)
+            data_gdf.geometry = data_gdf.apply(func, axis=1)
     else:
         raise Exception(f"Operation not supported: {operation}")     
 

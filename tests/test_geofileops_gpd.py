@@ -47,14 +47,14 @@ def basetest_apply(
     input_path = tmpdir / f"polygons_small_holes{suffix}"
     geofile.to_file(test_gdf, input_path)
     layerinfo_input = geofile.get_layerinfo(input_path)
-    output_path = tmpdir / f"{input_path.stem}-output{suffix}"
     
-    ### Test apply with apply_only_geom = True ###
+    ### Test apply with only_geom_input = True ###
+    output_path = tmpdir / f"{input_path.stem}-output{suffix}"
     geofileops_gpd.apply(
             input_path=input_path,
             output_path=output_path,
             func=lambda geom: geometry_util.remove_inner_rings(geom, min_area_to_keep=2),
-            apply_only_geom=True,
+            only_geom_input=True,
             nb_parallel=get_nb_parallel())
 
     # Now check if the output file is correctly created
@@ -85,13 +85,14 @@ def basetest_apply(
     assert isinstance(output_geometry, sh_geom.Polygon)
     assert len(output_geometry.interiors) == 1
 
-    ### Test apply with apply_only_geom = False ###
+    ### Test apply with only_geom_input = False ###
+    output_path = tmpdir / f"{input_path.stem}-output2{suffix}"
     geofileops_gpd.apply(
             input_path=input_path,
             output_path=output_path,
             func=lambda row: geometry_util.remove_inner_rings(
-                    row.geometry, min_area_to_keep=1) if row.name == "geometry" else row,
-            apply_only_geom=False,
+                    row.geometry, min_area_to_keep=2),
+            only_geom_input=False,
             nb_parallel=get_nb_parallel())
 
     # Now check if the output file is correctly created
