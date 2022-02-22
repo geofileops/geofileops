@@ -30,7 +30,7 @@ def apply(
         input_path: Path,
         output_path: Path,
         func: Callable[[Any], Any],
-        apply_only_geom: bool = True,
+        only_geom_input: bool = True,
         input_layer: str = None,
         output_layer: str = None,
         columns: List[str] = None,
@@ -45,24 +45,23 @@ def apply(
     The result is written to the output file specified.
 
     Examples for func:
-        * if apply_only_geom is True 
+        * if only_geom_input is True 
             ```
             func=lambda geom: geometry_util.remove_inner_rings(
                     geom, min_area_to_keep=1)  
             ```
-        * if apply_only_geom is False 
+        * if only_geom_input is False 
             ```
             func=lambda row: geometry_util.remove_inner_rings(
-                    row.geometry, min_area_to_keep=1) 
-                    if row.name == "geometry" else row  
+                    row.geometry, min_area_to_keep=1)  
             ```
 
     Args:
         input_path (PathLike): the input file
         output_path (PathLike): the file to write the result to
         func (Callable): lambda function to apply to the geometry column.
-        apply_only_geom (bool, optional): If True, only the geometry column is 
-            available. If False, the entire row will/can be used/updated. 
+        only_geom_input (bool, optional): If True, only the geometry 
+            column is available. If False, the entire row is input. 
             Remark: when False, the operation is 50% slower. Defaults to True.
         input_layer (str, optional): input layer name. Optional if the input 
             file only contains one layer.
@@ -88,7 +87,7 @@ def apply(
             input_path=Path(input_path),
             output_path=Path(output_path),
             func=func,
-            apply_only_geom=apply_only_geom,
+            only_geom_input=only_geom_input,
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
