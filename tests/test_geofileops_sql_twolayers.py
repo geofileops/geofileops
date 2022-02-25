@@ -11,38 +11,47 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
 from geofileops.geofile import GeometryType, PrimitiveType
 from geofileops.util import geofileops_sql
-from geofileops.util.general_util import MissingRuntimeDependencyError
+from geofileops.util import io_util
 import test_helper
 
-def test_erase_gpkg(tmpdir):
-    # Erase from polygon layer
-    input_path = test_helper.TestFiles.polygons_parcels_gpkg
-    erase_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels-2020_erase_zones.gpkg'
-    basetest_erase(input_path, erase_path, output_path, 
-            expected_output_geometrytype=GeometryType.MULTIPOLYGON)
+def test_erase(tmpdir):
+    # Init
+    tmp_dir = Path(tmpdir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
 
-    # Erase from point layer
-    input_path = test_helper.TestFiles.points_gpkg
-    erase_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'points_erase_zones.gpkg'
-    basetest_erase(input_path, erase_path, output_path, 
-            expected_output_geometrytype=GeometryType.MULTIPOINT)
+    test_inputs = []
+    test_inputs.append({
+            "input_path": test_helper.TestFiles.polygons_parcels_gpkg,
+            "geometrytype": GeometryType.MULTIPOLYGON})
+    test_inputs.append({
+            "input_path": test_helper.TestFiles.points_gpkg,
+            "geometrytype": GeometryType.MULTIPOINT})
+    test_inputs.append({
+            "input_path": test_helper.TestFiles.linestrings_rows_of_trees_gpkg,
+            "geometrytype": GeometryType.MULTILINESTRING})
 
-    # Erase from line layer
-    input_path = test_helper.TestFiles.linestrings_rows_of_trees_gpkg
-    erase_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'rows_of_trees_erase_zones.gpkg'
-    basetest_erase(input_path, erase_path, output_path, 
-            expected_output_geometrytype=GeometryType.MULTILINESTRING)
+    # Prepare test data + run tests
+    for suffix in test_helper.get_test_suffix_list():
+        for crs_epsg in test_helper.get_test_crs_epsg_list():
+            for test_input in test_inputs: 
+                # If test input file is in wrong format, convert it
+                input_path = test_helper.prepare_test_file(
+                        path=test_input['input_path'],
+                        tmp_dir=tmp_dir,
+                        suffix=suffix,
+                        crs_epsg=crs_epsg)
 
-def test_erase_shp(tmpdir):
-    # Prepare input and output paths
-    input_path = test_helper.TestFiles.polygons_parcels_shp
-    erase_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels-2020_erase_zones.shp'
-    basetest_erase(input_path, erase_path, output_path, 
-            expected_output_geometrytype=GeometryType.MULTIPOLYGON)
+                # If test input file is in wrong format, convert it
+                erase_path = test_helper.prepare_test_file(
+                        path=test_helper.TestFiles.polygons_zones_gpkg,
+                        tmp_dir=tmp_dir,
+                        suffix=suffix,
+                        crs_epsg=crs_epsg)
+            
+                # Now run test
+                output_path = tmp_dir / f"{input_path.stem}-output{suffix}"
+                print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}, geometrytype {test_input['geometrytype']}")
+                basetest_erase(input_path, erase_path, output_path, test_input['geometrytype'])
 
 def basetest_erase(
         input_path: Path,
@@ -50,7 +59,7 @@ def basetest_erase(
         output_path: Path,
         expected_output_geometrytype: GeometryType):
 
-    # Do operation
+    ### Do standard operation ###
     geofileops_sql.erase(
             input_path=input_path, 
             erase_path=erase_path,
@@ -77,43 +86,8 @@ def basetest_erase(
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
-def test_erase_various_options_gpkg(tmpdir):
-    # Erase from polygon layer
-    input_path = test_helper.TestFiles.polygons_parcels_gpkg
-    erase_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels-2020_erase_zones.gpkg'
-    basetest_erase_various_options(input_path, erase_path, output_path, 
-            expected_output_geometrytype=GeometryType.MULTIPOLYGON)
-
-    # Erase from point layer
-    input_path = test_helper.TestFiles.points_gpkg
-    erase_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'points_erase_zones.gpkg'
-    basetest_erase_various_options(input_path, erase_path, output_path, 
-            expected_output_geometrytype=GeometryType.MULTIPOINT)
-
-    # Erase from line layer
-    input_path = test_helper.TestFiles.linestrings_rows_of_trees_gpkg
-    erase_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'rows_of_trees_erase_zones.gpkg'
-    basetest_erase_various_options(input_path, erase_path, output_path, 
-            expected_output_geometrytype=GeometryType.MULTILINESTRING)
-
-def test_erase_various_options_shp(tmpdir):
-    # Prepare input and output paths
-    input_path = test_helper.TestFiles.polygons_parcels_shp
-    erase_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels-2020_erase_zones.shp'
-    basetest_erase_various_options(input_path, erase_path, output_path, 
-            expected_output_geometrytype=GeometryType.MULTIPOLYGON)
-
-def basetest_erase_various_options(
-        input_path: Path,
-        erase_path: Path, 
-        output_path: Path,
-        expected_output_geometrytype: GeometryType):
-
-    # Do operation with explodecollections=True
+    ### Do operation with explodecollections=True ###
+    output_path = io_util.with_stem(output_path, f"{output_path.stem}_exploded")
     geofileops_sql.erase(
             input_path=input_path, 
             erase_path=erase_path,
@@ -140,22 +114,31 @@ def basetest_erase_various_options(
     # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
-
-def test_export_by_location_gpkg(tmpdir):
-    # Prepare input and output paths
-    input_to_select_from_path = test_helper.TestFiles.polygons_parcels_gpkg
-    input_to_compare_with_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels-2020_loc_zones.gpkg'
-    basetest_export_by_location(
-            input_to_select_from_path, input_to_compare_with_path, output_path)
         
-def test_export_by_location_shp(tmpdir):
-    # Prepare input and output paths
-    input_to_select_from_path = test_helper.TestFiles.polygons_parcels_shp
-    input_to_compare_with_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels-2020_loc_zones.shp'
-    basetest_export_by_location(
-            input_to_select_from_path, input_to_compare_with_path, output_path)
+def test_export_by_location(tmpdir):
+    # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    for suffix in test_helper.get_test_suffix_list():
+        for crs_epsg in test_helper.get_test_crs_epsg_list():
+            # If test input file is in wrong format, convert it
+            input_to_select_from_path = test_helper.prepare_test_file(
+                    path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    tmp_dir=tmp_dir,
+                    suffix=suffix,
+                    crs_epsg=crs_epsg)
+
+            # If test input file is in wrong format, convert it
+            input_to_compare_with_path = test_helper.prepare_test_file(
+                    path=test_helper.TestFiles.polygons_zones_gpkg,
+                    tmp_dir=tmp_dir,
+                    suffix=suffix,
+                    crs_epsg=crs_epsg)
+        
+            # Now run test
+            output_path = tmp_dir / f"{input_to_select_from_path.stem}-output{suffix}"
+            print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}")
+            basetest_export_by_location(input_to_select_from_path, input_to_compare_with_path, output_path)
 
 def basetest_export_by_location(
         input_to_select_from_path: Path, 
@@ -181,21 +164,33 @@ def basetest_export_by_location(
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
-def test_export_by_distance_gpkg(tmpdir):
-    # Prepare input and output paths
-    input_to_select_from_path = test_helper.TestFiles.polygons_parcels_gpkg
-    input_to_compare_with_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels-2020_distance_zones.gpkg'
-    basetest_export_by_location(
-            input_to_select_from_path, input_to_compare_with_path, output_path)
-    
-def test_export_by_distance_shp(tmpdir):
-    # Prepare input and output paths
-    input_to_select_from_path = test_helper.TestFiles.polygons_parcels_shp
-    input_to_compare_with_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels-2020_distance_zones.shp'
-    basetest_export_by_location(
-            input_to_select_from_path, input_to_compare_with_path, output_path)
+def test_export_by_distance(tmpdir):
+    # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    for suffix in test_helper.get_test_suffix_list():
+        for crs_epsg in test_helper.get_test_crs_epsg_list():
+            # If test input file is in wrong format, convert it
+            input_to_select_from_path = test_helper.prepare_test_file(
+                    path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    tmp_dir=tmp_dir,
+                    suffix=suffix,
+                    crs_epsg=crs_epsg)
+
+            # If test input file is in wrong format, convert it
+            input_to_compare_with_path = test_helper.prepare_test_file(
+                    path=test_helper.TestFiles.polygons_zones_gpkg,
+                    tmp_dir=tmp_dir,
+                    suffix=suffix,
+                    crs_epsg=crs_epsg)
+        
+            # Now run test
+            output_path = tmp_dir / f"{input_to_select_from_path.stem}-output{suffix}"
+            print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}")
+            basetest_export_by_distance(
+                    input_to_select_from_path, 
+                    input_to_compare_with_path, 
+                    output_path)
 
 def basetest_export_by_distance(
         input_to_select_from_path: Path, 
@@ -222,19 +217,30 @@ def basetest_export_by_distance(
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
-def test_intersect_gpkg(tmpdir):
-    # Prepare input and output paths
-    input1_path = test_helper.TestFiles.polygons_parcels_gpkg
-    input2_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels-2020_intersect_zones.gpkg'
-    basetest_intersect(input1_path, input2_path, output_path)
-    
-def test_intersect_shp(tmpdir):
-    # Prepare input and output paths
-    input1_path = test_helper.TestFiles.polygons_parcels_shp
-    input2_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels-2020_intersect_zones.gpkg'
-    basetest_intersect(input1_path, input2_path, output_path)
+def test_intersect(tmpdir):
+    # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    for suffix in test_helper.get_test_suffix_list():
+        for crs_epsg in test_helper.get_test_crs_epsg_list():
+            # If test input file is in wrong format, convert it
+            input1_path = test_helper.prepare_test_file(
+                    path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    tmp_dir=tmp_dir,
+                    suffix=suffix,
+                    crs_epsg=crs_epsg)
+
+            # If test input file is in wrong format, convert it
+            input2_path = test_helper.prepare_test_file(
+                    path=test_helper.TestFiles.polygons_zones_gpkg,
+                    tmp_dir=tmp_dir,
+                    suffix=suffix,
+                    crs_epsg=crs_epsg)
+        
+            # Now run test
+            output_path = tmp_dir / f"{input1_path.stem}-output{suffix}"
+            print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}")
+            basetest_intersect(input1_path, input2_path, output_path)
     
 def basetest_intersect(
         input1_path: Path, 
@@ -255,34 +261,40 @@ def basetest_intersect(
     layerinfo_output = geofile.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 28
     assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_output.columns)
-
-    # Check geometry type
-    if output_path.suffix.lower() == '.shp':
-        # For shapefiles the type stays POLYGON anyway 
-        assert layerinfo_output.geometrytype == GeometryType.POLYGON 
-    elif output_path.suffix.lower() == '.gpkg':
-        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
-
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
+    
     # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
-def test_join_by_location_gpkg(tmpdir):
-    # Prepare input and output paths
-    input1_path = test_helper.TestFiles.polygons_parcels_gpkg
-    input2_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels-2020_join_zones.gpkg'
-    basetest_join_by_location(input1_path, input2_path, output_path)
-    
-def test_join_by_location_shp(tmpdir):
-    # Prepare input and output paths
-    input1_path = test_helper.TestFiles.polygons_parcels_shp
-    input2_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels-2020_join_zones.gpkg'
-    basetest_join_by_location(input1_path, input2_path, output_path)
+def test_join_by_location(tmpdir):
+    # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    for suffix in test_helper.get_test_suffix_list():
+        for crs_epsg in test_helper.get_test_crs_epsg_list():
+            # If test input file is in wrong format, convert it
+            input1_path = test_helper.prepare_test_file(
+                    path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    tmp_dir=tmp_dir,
+                    suffix=suffix,
+                    crs_epsg=crs_epsg)
+
+            # If test input file is in wrong format, convert it
+            input2_path = test_helper.prepare_test_file(
+                    path=test_helper.TestFiles.polygons_zones_gpkg,
+                    tmp_dir=tmp_dir,
+                    suffix=suffix,
+                    crs_epsg=crs_epsg)
+        
+            # Now run test
+            output_path = tmp_dir / f"{input1_path.stem}-output{suffix}"
+            print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}")
+            basetest_join_by_location(input1_path, input2_path, output_path)
     
 def basetest_join_by_location(
-        input1_path: Path, input2_path: Path,
+        input1_path: Path, 
+        input2_path: Path,
         output_path: Path):
         
     ### Test 1: inner join, intersect
@@ -299,14 +311,11 @@ def basetest_join_by_location(
     layerinfo_input2 = geofile.get_layerinfo(input2_path)
     layerinfo_output = geofile.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 28
-    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns) + 1) == len(layerinfo_output.columns)
-
-    # Check geometry type
-    if output_path.suffix.lower() == '.shp':
-        # For shapefiles the type stays POLYGON anyway 
-        assert layerinfo_output.geometrytype == GeometryType.POLYGON 
-    elif output_path.suffix.lower() == '.gpkg':
-        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
+    if input1_path.suffix == ".shp":
+        assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_output.columns)
+    else:
+        assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns) + 1) == len(layerinfo_output.columns)
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
@@ -324,32 +333,40 @@ def basetest_join_by_location(
     assert output_path.exists() == True
     layerinfo_output = geofile.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 48
-    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns) + 1) == len(layerinfo_output.columns)
-
-    # Check geometry type
-    if output_path.suffix.lower() == '.shp':
-        # For shapefiles the type stays POLYGON anyway 
-        assert layerinfo_output.geometrytype == GeometryType.POLYGON 
-    elif output_path.suffix.lower() == '.gpkg':
-        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
+    if input1_path.suffix == ".shp":
+        assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_output.columns)
+    else:
+        assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns) + 1) == len(layerinfo_output.columns)
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
     # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
-def test_join_nearest_gpkg(tmpdir):
-    # Prepare input and output paths
-    input1_path = test_helper.TestFiles.polygons_parcels_gpkg
-    input2_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels-2020_nearest_zones.gpkg'
-    basetest_join_nearest(input1_path, input2_path, output_path)
-    
-def test_join_nearest_shp(tmpdir):
-    # Prepare input and output paths
-    input1_path = test_helper.TestFiles.polygons_parcels_shp
-    input2_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels-2020_nearest_zones.gpkg'
-    basetest_join_nearest(input1_path, input2_path, output_path)
+def test_join_nearest(tmpdir):
+    # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    for suffix in test_helper.get_test_suffix_list():
+        for crs_epsg in test_helper.get_test_crs_epsg_list():
+            # If test input file is in wrong format, convert it
+            input1_path = test_helper.prepare_test_file(
+                    path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    tmp_dir=tmp_dir,
+                    suffix=suffix,
+                    crs_epsg=crs_epsg)
+
+            # If test input file is in wrong format, convert it
+            input2_path = test_helper.prepare_test_file(
+                    path=test_helper.TestFiles.polygons_zones_gpkg,
+                    tmp_dir=tmp_dir,
+                    suffix=suffix,
+                    crs_epsg=crs_epsg)
+        
+            # Now run test
+            output_path = tmp_dir / f"{input1_path.stem}-output{suffix}"
+            print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}")
+            basetest_join_nearest(input1_path, input2_path, output_path)
     
 def basetest_join_nearest(
         input1_path: Path, 
@@ -374,29 +391,36 @@ def basetest_join_nearest(
     assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns) + 2) == len(layerinfo_output.columns)
 
     # Check geometry type
-    if output_path.suffix.lower() == '.shp':
-        # For shapefiles the type stays POLYGON anyway 
-        assert layerinfo_output.geometrytype == GeometryType.POLYGON 
-    elif output_path.suffix.lower() == '.gpkg':
-        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
-def test_select_two_layers_gpkg(tmpdir):
-    # Prepare input and output paths
-    input1_path = test_helper.TestFiles.polygons_parcels_gpkg
-    input2_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels-2020_select_zones.gpkg'
-    basetest_select_two_layers(input1_path, input2_path, output_path)
-    
-def test_select_two_layers_shp(tmpdir):
-    # Prepare input and output paths
-    input1_path = test_helper.TestFiles.polygons_parcels_shp
-    input2_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels-2020_select_zones.gpkg'
-    basetest_select_two_layers(input1_path, input2_path, output_path)
+def test_select_two_layers(tmpdir):
+    # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    for suffix in test_helper.get_test_suffix_list():
+        for crs_epsg in test_helper.get_test_crs_epsg_list():
+            # If test input file is in wrong format, convert it
+            input1_path = test_helper.prepare_test_file(
+                    path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    tmp_dir=tmp_dir,
+                    suffix=suffix,
+                    crs_epsg=crs_epsg)
+
+            # If test input file is in wrong format, convert it
+            input2_path = test_helper.prepare_test_file(
+                    path=test_helper.TestFiles.polygons_zones_gpkg,
+                    tmp_dir=tmp_dir,
+                    suffix=suffix,
+                    crs_epsg=crs_epsg)
+        
+            # Now run test
+            output_path = tmp_dir / f"{input1_path.stem}-output{suffix}"
+            print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}")
+            basetest_select_two_layers(input1_path, input2_path, output_path)
     
 def basetest_select_two_layers(
         input1_path: Path, 
@@ -444,31 +468,36 @@ def basetest_select_two_layers(
     layerinfo_output = geofile.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 28
     assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns) + 1) == len(layerinfo_output.columns)
-
-    # Check geometry type
-    if output_path.suffix.lower() == '.shp':
-        # For shapefiles the type stays POLYGON anyway 
-        assert layerinfo_output.geometrytype == GeometryType.POLYGON 
-    elif output_path.suffix.lower() == '.gpkg':
-        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
     # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
-def test_split_gpkg(tmpdir):
-    # Prepare input and output paths
-    input1_path = test_helper.TestFiles.polygons_parcels_gpkg
-    input2_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels-2020_split_zones.gpkg'
-    basetest_split_layers(input1_path, input2_path, output_path)
-    
-def test_split_shp(tmpdir):
-    # Prepare input and output paths
-    input1_path = test_helper.TestFiles.polygons_parcels_shp
-    input2_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels-2020_split_zones.gpkg'
-    basetest_split_layers(input1_path, input2_path, output_path)
+def test_split(tmpdir):
+   # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    for suffix in test_helper.get_test_suffix_list():
+        for crs_epsg in test_helper.get_test_crs_epsg_list():
+            # If test input file is in wrong format, convert it
+            input1_path = test_helper.prepare_test_file(
+                    path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    tmp_dir=tmp_dir,
+                    suffix=suffix,
+                    crs_epsg=crs_epsg)
+
+            # If test input file is in wrong format, convert it
+            input2_path = test_helper.prepare_test_file(
+                    path=test_helper.TestFiles.polygons_zones_gpkg,
+                    tmp_dir=tmp_dir,
+                    suffix=suffix,
+                    crs_epsg=crs_epsg)
+        
+            # Now run test
+            output_path = tmp_dir / f"{input1_path.stem}-output{suffix}"
+            print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}")
+            basetest_split_layers(input1_path, input2_path, output_path)
     
 def basetest_split_layers(
         input1_path: Path, 
@@ -488,91 +517,36 @@ def basetest_split_layers(
     layerinfo_output = geofile.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 65
     assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_output.columns)
-
-    # Check geometry type
-    if output_path.suffix.lower() == '.shp':
-        # For shapefiles the type stays POLYGON anyway 
-        assert layerinfo_output.geometrytype == GeometryType.POLYGON 
-    elif output_path.suffix.lower() == '.gpkg':
-        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
     # Now check the contents of the result file
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
-def test_union_gpkg(tmpdir):
-    ##### Run some tests on parcels versus zones #####
-    # Prepare input and output paths
-    input1_path = test_helper.TestFiles.polygons_parcels_gpkg
-    input2_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels-2020_union_zones.gpkg'
-    basetest_union(input1_path, input2_path, output_path)
-    
-    ##### Also run some tests on basic data with circles #####
-    ### Union the single circle towards the 2 circles ###
-    input1_path = test_helper.TestFiles.polygons_overlappingcircles_one_gpkg
-    input2_path = test_helper.TestFiles.polygons_overlappingcircles_twothree_gpkg
-    output_path = Path(tmpdir) / f"{input1_path.stem}_union_{input2_path.stem}.gpkg"
-    geofileops_sql.union( 
-            input1_path=input1_path,
-            input2_path=input2_path,
-            output_path=output_path,
-            verbose=True)
+def test_union(tmpdir):
+    # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    for suffix in test_helper.get_test_suffix_list():
+        for crs_epsg in test_helper.get_test_crs_epsg_list():
+            # If test input file is in wrong format, convert it
+            input1_path = test_helper.prepare_test_file(
+                    path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    tmp_dir=tmp_dir,
+                    suffix=suffix,
+                    crs_epsg=crs_epsg)
 
-    # Now check if the tmp file is correctly created
-    assert output_path.exists() == True
-    layerinfo_input1 = geofile.get_layerinfo(input1_path)
-    layerinfo_input2 = geofile.get_layerinfo(input2_path)
-    layerinfo_output = geofile.get_layerinfo(output_path)
-    assert layerinfo_output.featurecount == 5
-    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_output.columns)
-
-    # Check geometry type
-    if output_path.suffix.lower() == '.shp':
-        # For shapefiles the type stays POLYGON anyway 
-        assert layerinfo_output.geometrytype == GeometryType.POLYGON 
-    elif output_path.suffix.lower() == '.gpkg':
-        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
-
-    # Now check the contents of the result file
-    output_gdf = geofile.read_file(output_path)
-    assert output_gdf['geometry'][0] is not None
-
-    ### Union the two circles towards the single circle ###
-    input1_path = test_helper.TestFiles.polygons_overlappingcircles_twothree_gpkg
-    input2_path = test_helper.TestFiles.polygons_overlappingcircles_one_gpkg
-    output_path = Path(tmpdir) / f"{input1_path.stem}_union_{input2_path.stem}.gpkg"
-    geofileops_sql.union( 
-            input1_path=input1_path,
-            input2_path=input2_path,
-            output_path=output_path,
-            verbose=True)
-
-    # Now check if the tmp file is correctly created
-    assert output_path.exists() == True
-    layerinfo_input1 = geofile.get_layerinfo(input1_path)
-    layerinfo_input2 = geofile.get_layerinfo(input2_path)
-    layerinfo_output = geofile.get_layerinfo(output_path)
-    assert layerinfo_output.featurecount == 5
-    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_output.columns)
-
-    # Check geometry type
-    if output_path.suffix.lower() == '.shp':
-        # For shapefiles the type stays POLYGON anyway 
-        assert layerinfo_output.geometrytype == GeometryType.POLYGON 
-    elif output_path.suffix.lower() == '.gpkg':
-        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
-
-    # Now check the contents of the result file
-    output_gdf = geofile.read_file(output_path)
-    assert output_gdf['geometry'][0] is not None
-
-def test_union_shp(tmpdir):
-    # Prepare input and output paths
-    input1_path = test_helper.TestFiles.polygons_parcels_shp
-    input2_path = test_helper.TestFiles.polygons_zones_gpkg
-    output_path = Path(tmpdir) / 'parcels-2020_union_zones.gpkg'
-    basetest_union(input1_path, input2_path, output_path)
+            # If test input file is in wrong format, convert it
+            input2_path = test_helper.prepare_test_file(
+                    path=test_helper.TestFiles.polygons_zones_gpkg,
+                    tmp_dir=tmp_dir,
+                    suffix=suffix,
+                    crs_epsg=crs_epsg)
+        
+            # Now run test
+            output_path = tmp_dir / f"{input1_path.stem}-output{suffix}"
+            print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}")
+            basetest_union(input1_path, input2_path, output_path)
     
 def basetest_union(
         input1_path: Path, 
@@ -593,6 +567,84 @@ def basetest_union(
     layerinfo_output = geofile.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 69
     assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_output.columns)
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
+
+    # Now check the contents of the result file
+    output_gdf = geofile.read_file(output_path)
+    assert output_gdf['geometry'][0] is not None
+
+def test_union_circles(tmpdir):
+
+    # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    for suffix in test_helper.get_test_suffix_list():
+        for crs_epsg in test_helper.get_test_crs_epsg_list():
+            # If test input file is in wrong format, convert it
+            input1_path = test_helper.prepare_test_file(
+                    path=test_helper.TestFiles.polygons_overlappingcircles_one_gpkg,
+                    tmp_dir=tmp_dir,
+                    suffix=suffix,
+                    crs_epsg=crs_epsg)
+
+            # If test input file is in wrong format, convert it
+            input2_path = test_helper.prepare_test_file(
+                    path=test_helper.TestFiles.polygons_overlappingcircles_twothree_gpkg,
+                    tmp_dir=tmp_dir,
+                    suffix=suffix,
+                    crs_epsg=crs_epsg)
+        
+            # Now run test
+            output_path = tmp_dir / f"{input1_path.stem}-output{suffix}"
+            print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}")
+            basetest_union_circles(tmp_dir, input1_path, input2_path, output_path)
+    
+def basetest_union_circles(
+        tmp_dir: Path,
+        input1_path: Path,
+        input2_path: Path,
+        output_path: Path):
+    
+    ##### Also run some tests on basic data with circles #####
+    ### Union the single circle towards the 2 circles ###
+    geofileops_sql.union( 
+            input1_path=input1_path,
+            input2_path=input2_path,
+            output_path=output_path,
+            verbose=True)
+
+    # Now check if the tmp file is correctly created
+    assert output_path.exists() == True
+    layerinfo_input1 = geofile.get_layerinfo(input1_path)
+    layerinfo_input2 = geofile.get_layerinfo(input2_path)
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_output.featurecount == 5
+    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_output.columns)
+
+    # Check geometry type
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
+
+    # Now check the contents of the result file
+    output_gdf = geofile.read_file(output_path)
+    assert output_gdf['geometry'][0] is not None
+
+    ### Union the two circles towards the single circle ###
+    input1_path = test_helper.TestFiles.polygons_overlappingcircles_twothree_gpkg
+    input2_path = test_helper.TestFiles.polygons_overlappingcircles_one_gpkg
+    output_path = Path(tmp_dir) / f"{input1_path.stem}_union_{input2_path.stem}.gpkg"
+    geofileops_sql.union( 
+            input1_path=input1_path,
+            input2_path=input2_path,
+            output_path=output_path,
+            verbose=True)
+
+    # Now check if the tmp file is correctly created
+    assert output_path.exists() == True
+    layerinfo_input1 = geofile.get_layerinfo(input1_path)
+    layerinfo_input2 = geofile.get_layerinfo(input2_path)
+    layerinfo_output = geofile.get_layerinfo(output_path)
+    assert layerinfo_output.featurecount == 5
+    assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_output.columns)
 
     # Check geometry type
     if output_path.suffix.lower() == '.shp':
@@ -610,15 +662,12 @@ if __name__ == '__main__':
     tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
 
     # Two layer operations
-    #test_erase_gpkg(tmpdir)
-    #test_erase_shp(tmpdir)
-    test_erase_various_options_gpkg(tmpdir)
-    #test_erase_various_options_shp(tmpdir)
-    #test_intersect_gpkg(tmpdir)
-    #test_export_by_distance_shp(tmpdir)
-    #test_export_by_location_gpkg(tmpdir)
-    #test_join_by_location_gpkg(tmpdir)
-    #test_select_two_layers_gpkg(tmpdir)
-    #test_split_gpkg(tmpdir)
-    #test_union_gpkg(tmpdir)
+    #test_erase(tmpdir)
+    #test_export_by_distance(tmpdir)
+    #test_export_by_location(tmpdir)
+    #test_intersect(tmpdir)
+    #test_join_by_location(tmpdir)
+    #test_select_two_layers(tmpdir)
+    #test_split(tmpdir)
+    test_union(tmpdir)
     
