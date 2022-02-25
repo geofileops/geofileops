@@ -6,7 +6,7 @@ Helper functions for all tests.
 import logging
 from pathlib import Path
 import tempfile
-from typing import List
+from typing import List, Optional
 import sys
 
 import geopandas as gpd
@@ -50,13 +50,10 @@ class TestFiles:
     polygons_overlappingcircles_one_gpkg = testdata_dir / 'polygons_overlappingcircles_one.gpkg'
     polygons_overlappingcircles_twothree_gpkg = testdata_dir / 'polygons_overlappingcircles_two+three.gpkg'
     polygons_parcels_gpkg = testdata_dir / 'polygons_parcels-2020.gpkg'
-    polygons_parcels_shp = testdata_dir / 'polygons_parcels-2020.shp'
     polygons_invalid_geometries_gpkg = testdata_dir / 'polygons_invalid_geometries.gpkg'
-    polygons_invalid_geometries_shp = testdata_dir / 'polygons_invalid_geometries.shp'
     polygons_simplify_onborder_testcase_gpkg = testdata_dir / 'polygons_simplify_onborder_testcase.gpkg'
     polygons_twolayers_gpkg = testdata_dir / 'polygons_twolayers.gpkg'
     polygons_zones_gpkg = testdata_dir / 'polygons_zones.gpkg'
-    polygons_zones_shp = testdata_dir / 'polygons_zones.shp'
     
     points_gpkg = testdata_dir / 'points.gpkg'
 
@@ -108,23 +105,27 @@ def prepare_test_file(
         path: Path,
         tmp_dir: Path,
         suffix: str,
-        crs_epsg: int) -> Path:
+        crs_epsg: Optional[int] = None) -> Path:
 
-    if path.suffix != suffix:
-        new_input_path = tmp_dir / f"{path.stem}{suffix}"
-        geofile.convert(path, new_input_path)
-        path = new_input_path
+    # If sufixx the same, copy to tmp_dir, if not, convert
+    new_path = tmp_dir / f"{path.stem}{suffix}"
+    if path.suffix == suffix:    
+        geofile.copy(path, new_path)
+    else:
+        geofile.convert(path, new_path)
+    path = new_path
 
-    # If test input file is in wrong crs_epsg, convert it
-    input_layerinfo = geofile.get_layerinfo(path)
-    assert input_layerinfo.crs is not None
-    if input_layerinfo.crs.to_epsg() != crs_epsg:
-        new_input_path = tmp_dir / f"{path.stem}_{crs_epsg}{suffix}"
-        if new_input_path.exists() is False:
-            test_gdf = geofile.read_file(path)
-            test_gdf = test_gdf.to_crs(crs_epsg)
-            assert isinstance(test_gdf, gpd.GeoDataFrame)
-            geofile.to_file(test_gdf, new_input_path)
-        path = new_input_path
+    # If crs_epsg specified and test input file in wrong crs_epsg, reproject
+    if crs_epsg is not None:
+        input_layerinfo = geofile.get_layerinfo(path)
+        assert input_layerinfo.crs is not None
+        if input_layerinfo.crs.to_epsg() != crs_epsg:
+            new_path = tmp_dir / f"{path.stem}_{crs_epsg}{suffix}"
+            if new_path.exists() is False:
+                test_gdf = geofile.read_file(path)
+                test_gdf = test_gdf.to_crs(crs_epsg)
+                assert isinstance(test_gdf, gpd.GeoDataFrame)
+                geofile.to_file(test_gdf, new_path)
+            path = new_path
 
     return path
