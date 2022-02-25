@@ -116,7 +116,9 @@ def buffer(
     Args:
         input_path (PathLike): the input file
         output_path (PathLike): the file to write the result to
-        distance (float): the buffer size to apply
+        distance (float): the buffer size to apply. In projected coordinate 
+            systems this is typically in meter, in geodetic systems this is 
+            typically in degrees.
         quadrantsegments (int): the number of points a quadrant needs to be 
             approximated with for rounded styles. Defaults to 5.
         endcap_style (BufferCapStyle, optional): buffer style to use for a 
@@ -631,9 +633,13 @@ def simplify(
         input_path (PathLike): the input file
         output_path (PathLike): the file to write the result to
         tolerance (float): mandatory for the following algorithms:  
-            * RAMER_DOUGLAS_PEUCKER: distance to use as tolerance.
-            * LANG: distance to use as tolerance.
-            * VISVALINGAM_WHYATT: area to use as tolerance.
+
+                * RAMER_DOUGLAS_PEUCKER: distance to use as tolerance.
+                * LANG: distance to use as tolerance.
+                * VISVALINGAM_WHYATT: area to use as tolerance.
+
+            In projected coordinate systems this tolerance will typically be 
+            in meter, in geodetic systems this is typically in degrees.
         algorithm (SimplifyAlgorithm, optional): algorithm to use.
             Defaults to SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER.
         lookahead (int, optional): used for LANG algorithm. Defaults to 8.

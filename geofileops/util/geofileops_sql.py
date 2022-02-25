@@ -1345,9 +1345,7 @@ def _two_layer_vector_operation(
     geofile.get_layerinfo(input2_path, input2_layer)
     
     # Prepare output filename
-    # TODO: determine best approach: to temp dir or to temp file in final dir!!!
     tmp_output_path = tempdir / output_path.name
-    #tmp_output_path = output_path.parent / f"{output_path.stem}_BUSY{output_path.suffix}"
     tmp_output_path.parent.mkdir(exist_ok=True, parents=True)
     geofile.remove(tmp_output_path)
 
