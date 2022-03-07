@@ -347,8 +347,9 @@ def remove_inner_rings(
     # Define function to treat simple polygons
     def remove_inner_rings_polygon(
             geom_poly: sh_geom.Polygon,
-            min_area_to_keep: float = None,
-            crs: pyproj.CRS = None) -> sh_geom.Polygon:
+            min_area_to_keep: Optional[float] = None,
+            crs: Optional[pyproj.CRS] = None) -> sh_geom.Polygon:
+            
         # If all inner rings need to be removed...
         if min_area_to_keep is None or min_area_to_keep == 0.0:
             # If there are no interior rings anyway, just return input
@@ -413,7 +414,7 @@ def simplify_ext(
         algorithm: SimplifyAlgorithm = SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER,
         lookahead: int = 8,
         preserve_topology: bool = True,
-        keep_points_on: sh_geom.base.BaseGeometry = None) -> Optional[sh_geom.base.BaseGeometry]:
+        keep_points_on: Optional[sh_geom.base.BaseGeometry] = None) -> Optional[sh_geom.base.BaseGeometry]:
     """
     Simplify the geometry, with extended options.
 

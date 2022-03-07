@@ -59,7 +59,7 @@ class TestFiles:
 
 def create_tempdir(
         base_dirname: str,
-        parent_dir: Path = None) -> Path:
+        parent_dir: Optional[Path] = None) -> Path:
     # Parent
     if parent_dir is None:
         parent_dir = Path(tempfile.gettempdir())

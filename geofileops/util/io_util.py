@@ -8,7 +8,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
-from typing import Tuple
+from typing import Optional, Tuple
 
 class CTError(Exception):
     def __init__(self, errors):
@@ -47,8 +47,8 @@ def create_tempdir(base_dirname: str) -> Path:
 def get_tempfile_locked(
         base_filename: str,
         suffix: str = '.tmp',
-        dirname: str = None,
-        tempdir: Path = None) -> Tuple[Path, Path]:
+        dirname: Optional[str] = None,
+        tempdir: Optional[Path] = None) -> Tuple[Path, Path]:
     """
     Formats a temp file path, and creates a corresponding lock file so you can 
     treat it immediately as being locked.

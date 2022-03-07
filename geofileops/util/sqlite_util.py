@@ -49,7 +49,7 @@ class SqliteProfile(enum.Enum):
 
 def create_new_spatialdb(
         path: Path, 
-        crs_epsg: int = None):
+        crs_epsg: Optional[int] = None):
 
     # Connect to sqlite
     conn = sqlite3.connect(path)
