@@ -151,7 +151,7 @@ class LayerInfo:
 
 def get_layerinfo(
         path: Union[str, 'os.PathLike[Any]'],
-        layer: str = None) -> LayerInfo:
+        layer: Optional[str] = None) -> LayerInfo:
     """
     Get information about a layer in the geofile.
 
@@ -323,7 +323,7 @@ def get_default_layer(path: Union[str, 'os.PathLike[Any]']) -> str:
 def execute_sql(
         path: Union[str, 'os.PathLike[Any]'],
         sql_stmt: str,
-        sql_dialect: str = None):
+        sql_dialect: Optional[str] = None):
     """
     Execute a sql statement (DML or DDL) on the file. Is equivalent to running 
     ogrinfo on a file with the -sql parameter. 
@@ -348,7 +348,7 @@ def execute_sql(
 
 def create_spatial_index(
         path: Union[str, 'os.PathLike[Any]'],
-        layer: str = None):
+        layer: Optional[str] = None):
     """
     Create a spatial index on the layer specified.
 
@@ -384,8 +384,8 @@ def create_spatial_index(
 
 def has_spatial_index(
         path: Union[str, 'os.PathLike[Any]'],
-        layer: str = None,
-        geometrycolumn: str = None) -> bool:
+        layer: Optional[str] = None,
+        geometrycolumn: Optional[str] = None) -> bool:
     """
     Check if the layer/column has a spatial index.
 
@@ -429,7 +429,7 @@ def has_spatial_index(
 
 def remove_spatial_index(
         path: Union[str, 'os.PathLike[Any]'],
-        layer: str = None):
+        layer: Optional[str] = None):
     """
     Remove the spatial index from the layer specified.
 
@@ -502,7 +502,7 @@ def rename_column(
         path: Union[str, 'os.PathLike[Any]'],
         column_name: str,
         new_column_name: str,
-        layer: str = None):
+        layer: Optional[str] = None):
     """
     Rename the column specified.
 
@@ -563,8 +563,8 @@ def add_column(
         path: Union[str, 'os.PathLike[Any]'],
         name: str,
         type: Union[DataType, str],
-        expression: Union[str, int, float] = None, 
-        layer: str = None,
+        expression: Union[str, int, float, None] = None, 
+        layer: Optional[str] = None,
         force_update: bool = False):
     """
     Add a column to a layer of the geofile.
@@ -623,8 +623,8 @@ def update_column(
         path: Union[str, 'os.PathLike[Any]'],
         name: str, 
         expression: str,
-        layer: str = None,
-        where: str = None):
+        layer: Optional[str] = None,
+        where: Optional[str] = None):
     """
     Update a column from a layer of the geofile.
 
@@ -669,8 +669,8 @@ def update_column(
 
 def read_file(
         path: Union[str, 'os.PathLike[Any]'],
-        layer: str = None,
-        columns: List[str] = None,
+        layer: Optional[str] = None,
+        columns: Optional[List[str]] = None,
         bbox = None,
         rows = None,
         ignore_geometry: bool = False) -> gpd.GeoDataFrame:
@@ -713,8 +713,8 @@ def read_file(
 
 def read_file_nogeom(
         path: Union[str, 'os.PathLike[Any]'],
-        layer: str = None,
-        columns: List[str] = None,
+        layer: Optional[str] = None,
+        columns: Optional[List[str]] = None,
         bbox = None,
         rows = None) -> pd.DataFrame:
     """
@@ -754,8 +754,8 @@ def read_file_nogeom(
 
 def _read_file_base(
         path: Union[str, 'os.PathLike[Any]'],
-        layer: str = None,
-        columns: List[str] = None,
+        layer: Optional[str] = None,
+        columns: Optional[List[str]] = None,
         bbox = None,
         rows = None,
         ignore_geometry: bool = False) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
@@ -820,7 +820,7 @@ def read_file_sql(
         path: Union[str, 'os.PathLike[Any]'],
         sql_stmt: str,
         sql_dialect: str = 'SQLITE',
-        layer: str = None,
+        layer: Optional[str] = None,
         ignore_geometry: bool = False) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
     """
     Reads a file to a GeoPandas GeoDataFrame, using an sql statement to filter 
@@ -863,7 +863,7 @@ def read_file_sql(
 def to_file(
         gdf: gpd.GeoDataFrame,
         path: Union[str, 'os.PathLike[Any]'],
-        layer: str = None,
+        layer: Optional[str] = None,
         force_multitype: bool = False,
         append: bool = False,
         append_timeout_s: int = 600,
@@ -1169,10 +1169,10 @@ def remove(path: Union[str, 'os.PathLike[Any]']):
 def append_to(
         src: Union[str, 'os.PathLike[Any]'], 
         dst: Union[str, 'os.PathLike[Any]'],
-        src_layer: str = None,
-        dst_layer: str = None,
+        src_layer: Optional[str] = None,
+        dst_layer: Optional[str] = None,
         explodecollections: bool = False,
-        force_output_geometrytype: Union[GeometryType, str] = None,
+        force_output_geometrytype: Union[GeometryType, str, None] = None,
         create_spatial_index: bool = True,
         append_timeout_s: int = 600,
         transaction_size: int = 50000,
@@ -1251,10 +1251,10 @@ def append_to(
 def _append_to_nolock(
         src: Path, 
         dst: Path,
-        src_layer: str = None,
-        dst_layer: str = None,
+        src_layer: Optional[str] = None,
+        dst_layer: Optional[str] = None,
         explodecollections: bool = False,
-        force_output_geometrytype: GeometryType = None,
+        force_output_geometrytype: Optional[GeometryType] = None,
         create_spatial_index: bool = True,
         transaction_size: int = 50000,
         verbose: bool = False):
@@ -1277,10 +1277,10 @@ def _append_to_nolock(
 def convert(
         src: Union[str, 'os.PathLike[Any]'], 
         dst: Union[str, 'os.PathLike[Any]'],
-        src_layer: str = None,
-        dst_layer: str = None,
+        src_layer: Optional[str] = None,
+        dst_layer: Optional[str] = None,
         explodecollections: bool = False,
-        force_output_geometrytype: GeometryType = None,
+        force_output_geometrytype: Optional[GeometryType] = None,
         force: bool = False):
     """
     Convert the source file to the destination file. File types will be 
