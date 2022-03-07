@@ -165,3 +165,8 @@ def create_file_atomic(filename) -> bool:
             return False
         else:
             raise Exception("Error creating lock file {filename}") from ex
+
+def with_stem(path: Path, new_stem) -> Path:
+    # Remark: from python 3.9 this is available on any Path, but to evade 
+    # having to require 3.9 for this, this hack...  
+    return path.parent / f"{new_stem}{path.suffix}"

@@ -11,6 +11,7 @@ from typing import Any, List, Optional, Union
 import geopandas as gpd
 import numpy as np
 import pygeos
+import pyproj
 import shapely.wkb as sh_wkb
 import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
@@ -317,8 +318,28 @@ def numberpoints(geometry: Optional[sh_geom.base.BaseGeometry]) -> int:
 
 def remove_inner_rings(
         geometry: Union[sh_geom.Polygon, sh_geom.MultiPolygon, None],
-        min_area_to_keep: float = None) -> Union[sh_geom.Polygon, sh_geom.MultiPolygon, None]:
-    
+        min_area_to_keep: float,
+        crs: Optional[pyproj.CRS]) -> Union[sh_geom.Polygon, sh_geom.MultiPolygon, None]:
+    """
+    Remove (small) inner rings from a (multi)polygon.
+
+    Args:
+        geometry (Union[sh_geom.Polygon, sh_geom.MultiPolygon, None]): polygon
+        min_area_to_keep (float, optional): keep the inner rings with at least 
+            this area in the coordinate units (typically m). If 0.0, 
+            no inner rings are kept.
+        crs (pyproj.CRS, optional): the projection of the geometry. Passing 
+            None is fine if min_area_to_keep and/or the geometry is in a 
+            projected crs (not in degrees). Otherwise the/a crs should be 
+            passed.
+
+    Raises:
+        Exception: if the input geometry is no (multi)polygon.
+
+    Returns:
+        Union[sh_geom.Polygon, sh_geom.MultiPolygon, None]: the resulting 
+            (multi)polygon.
+    """
     # If input geom is None, just return.
     if geometry is None:
         return None
@@ -326,7 +347,8 @@ def remove_inner_rings(
     # Define function to treat simple polygons
     def remove_inner_rings_polygon(
             geom_poly: sh_geom.Polygon,
-            min_area_to_keep: float = None) -> sh_geom.Polygon:
+            min_area_to_keep: float = None,
+            crs: pyproj.CRS = None) -> sh_geom.Polygon:
         # If all inner rings need to be removed...
         if min_area_to_keep is None or min_area_to_keep == 0.0:
             # If there are no interior rings anyway, just return input
@@ -340,7 +362,19 @@ def remove_inner_rings(
         ring_coords_to_keep = []
         small_ring_found = False
         for ring in geom_poly.interiors:
-            if abs(sh_ops.Polygon(ring).area) <= min_area_to_keep:
+            
+            # Calculate area
+            if crs is None:
+                ring_area = sh_ops.Polygon(ring).area
+            elif crs.is_projected is True:
+                ring_area = sh_ops.Polygon(ring).area
+            else:
+                geod = crs.get_geod()
+                assert geod is not None 
+                ring_area, ring_perimeter = geod.geometry_area_perimeter(ring)
+
+            # If ring area small, skip it, otherwise keep it
+            if abs(ring_area) <= min_area_to_keep:
                 small_ring_found = True
             else:
                 ring_coords_to_keep.append(ring.coords)
@@ -354,12 +388,12 @@ def remove_inner_rings(
     
     # If the input is a simple Polygon, apply remove on it and return.
     if isinstance(geometry, sh_geom.Polygon):
-        return remove_inner_rings_polygon(geometry, min_area_to_keep)
+        return remove_inner_rings_polygon(geometry, min_area_to_keep, crs=crs)
     elif isinstance(geometry, sh_geom.MultiPolygon):
         # If the input is a MultiPolygon, apply remove on each Polygon in it. 
         polys = []
         for poly in geometry.geoms:
-            polys.append(remove_inner_rings_polygon(poly, min_area_to_keep))
+            polys.append(remove_inner_rings_polygon(poly, min_area_to_keep, crs=crs))
         return sh_geom.MultiPolygon(polys)
     else:
         raise Exception(f"remove_inner_rings is not possible with geometrytype: {geometry.type}, geometry: {geometry}")

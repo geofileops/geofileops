@@ -10,32 +10,42 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
 from geofileops.geofile import GeometryType
-from geofileops.util.general_util import MissingRuntimeDependencyError 
 from geofileops.util import geofileops_sql
 import test_helper
 
-def test_buffer_gpkg(tmpdir):
-    # Buffer to test dir
-    input_path = test_helper.TestFiles.polygons_parcels_gpkg
-    output_path = Path(tmpdir) / 'polygons_parcels-output.gpkg'
-    basetest_buffer(input_path, output_path)
+def test_buffer(tmpdir):
+    # Init
+    tmp_dir = Path(tmpdir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
 
-    # Buffer point source to test dir
-    input_path = test_helper.TestFiles.points_gpkg
-    output_path = Path(tmpdir) / 'points-output.gpkg'
-    basetest_buffer(input_path, output_path)
+    test_inputs = []
+    test_inputs.append({
+            "input_path": test_helper.TestFiles.polygons_parcels_gpkg,
+            "geometrytype": GeometryType.MULTIPOLYGON})
+    test_inputs.append({
+            "input_path": test_helper.TestFiles.points_gpkg,
+            "geometrytype": GeometryType.MULTIPOINT})
+    test_inputs.append({
+            "input_path": test_helper.TestFiles.linestrings_rows_of_trees_gpkg,
+            "geometrytype": GeometryType.MULTILINESTRING})
 
-    # Buffer line source to test dir
-    input_path = test_helper.TestFiles.linestrings_rows_of_trees_gpkg
-    output_path = Path(tmpdir) / 'linestrings_rows_of_trees-output.gpkg'
-    basetest_buffer(input_path, output_path)
+    # Prepare test data + run tests
+    for suffix in test_helper.get_test_suffix_list():
+        # Buffer on not-projected data is weird, so not tested (at the moment)  
+        for crs_epsg in [31370]:
+            for test_input in test_inputs: 
+                # If test input file is in wrong format, convert it
+                input_path = test_helper.prepare_test_file(
+                        path=test_input['input_path'],
+                        tmp_dir=tmp_dir,
+                        suffix=suffix,
+                        crs_epsg=crs_epsg)
 
-def test_buffer_shp(tmpdir):
-    # Buffer to test dir
-    input_path = test_helper.TestFiles.polygons_parcels_shp
-    output_path = Path(tmpdir) / 'polygons_parcels-output.shp'
-    basetest_buffer(input_path, output_path)
-    
+                # Now run test
+                output_path = tmp_dir / f"{input_path.stem}-output{suffix}"
+                print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}, geometrytype {test_input['geometrytype']}")
+                basetest_buffer(input_path, output_path)
+
 def basetest_buffer(
         input_path: Path, 
         output_path: Path):
@@ -49,7 +59,7 @@ def basetest_buffer(
     assert layerinfo_orig.featurecount == layerinfo_output.featurecount
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
-    # Check geometry type
+    # Buffer operations always result in a polygon
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Now check the contents of the result file
@@ -57,17 +67,23 @@ def basetest_buffer(
     assert output_gdf['geometry'][0] is not None
     geofile.remove(output_path)
 
-def test_convexhull_gpkg(tmpdir):
-    # Execute to test dir
-    input_path = test_helper.TestFiles.polygons_parcels_gpkg
-    output_path = Path(tmpdir) / 'polygons_parcels-output.gpkg'
-    basetest_convexhull(input_path, output_path)
+def test_convexhull(tmpdir):
+    # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    for suffix in test_helper.get_test_suffix_list():
+        for crs_epsg in test_helper.get_test_crs_epsg_list():
+            # If test input file is in wrong format, convert it
+            input_path = test_helper.prepare_test_file(
+                    path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    tmp_dir=tmp_dir,
+                    suffix=suffix,
+                    crs_epsg=crs_epsg)
 
-def test_convexhull_shp(tmpdir):
-    # Select some data from src to tmp file
-    input_path = test_helper.TestFiles.polygons_parcels_shp
-    output_path = Path(tmpdir) / 'polygons_parcels-output.shp'
-    basetest_convexhull(input_path, output_path)
+            # Now run test
+            output_path = tmp_dir / f"{input_path.stem}-output{suffix}"
+            print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}")
+            basetest_convexhull(input_path, output_path)    
 
 def basetest_convexhull(
         input_path: Path, 
@@ -90,22 +106,29 @@ def basetest_convexhull(
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
-def test_isvalid_gpkg(tmpdir):
-    # Run test
-    input_path = test_helper.TestFiles.polygons_parcels_gpkg
-    output_path = Path(tmpdir) / 'polygons_parcels-output.gpkg'
-    basetest_isvalid(input_path, output_path)
+def test_isvalid(tmpdir):
+    # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    for suffix in test_helper.get_test_suffix_list():
+        for crs_epsg in test_helper.get_test_crs_epsg_list():
+            # If test input file is in wrong format, convert it
+            input_path = test_helper.prepare_test_file(
+                    path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    tmp_dir=tmp_dir,
+                    suffix=suffix,
+                    crs_epsg=crs_epsg)
 
+            # Now run test
+            output_path = tmp_dir / f"{input_path.stem}-output{suffix}"
+            print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}")
+            basetest_isvalid(input_path, output_path)   
+    
     # Run test on empty file
     input_path = test_helper.TestFiles.polygons_no_rows_gpkg
+    output_path = tmp_dir / f"{input_path.stem}-output.gpkg"
     basetest_isvalid(input_path, output_path)
 
-def test_isvalid_shp(tmpdir):
-    # Run test
-    input_path = test_helper.TestFiles.polygons_parcels_shp
-    output_path = Path(tmpdir) / 'polygons_parcels-output.gpkg'
-    basetest_isvalid(input_path, output_path)
-    
 def basetest_isvalid(
         input_path: Path, 
         output_path: Path):
@@ -127,17 +150,23 @@ def basetest_isvalid(
     assert output_gdf['isvalidreason'][0] == 'Valid Geometry'
     '''
 
-def test_makevalid_gpkg(tmpdir):
-    # makevalid to test dir
-    input_path = test_helper.TestFiles.polygons_invalid_geometries_gpkg
-    output_path = Path(tmpdir) / f"{input_path.stem}_valid-output.gpkg"
-    basetest_makevalid(input_path, output_path)
+def test_makevalid(tmpdir):
+    # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    for suffix in test_helper.get_test_suffix_list():
+        for crs_epsg in test_helper.get_test_crs_epsg_list():
+            # If test input file is in wrong format, convert it
+            input_path = test_helper.prepare_test_file(
+                    path=test_helper.TestFiles.polygons_invalid_geometries_gpkg,
+                    tmp_dir=tmp_dir,
+                    suffix=suffix,
+                    crs_epsg=crs_epsg)
 
-def test_makevalid_shp(tmpdir):
-    # makevalid to test dir
-    input_path = test_helper.TestFiles.polygons_invalid_geometries_shp
-    output_path = Path(tmpdir) / f"{input_path.stem}_valid-output.shp"
-    basetest_makevalid(input_path, output_path)
+            # Now run test
+            output_path = tmp_dir / f"{input_path.stem}-output{suffix}"
+            print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}")
+            basetest_makevalid(input_path, output_path)
            
 def basetest_makevalid(
         input_path: Path, 
@@ -170,38 +199,30 @@ def basetest_makevalid(
     isvalid = geofileops_sql.isvalid(input_path=output_path, output_path=output_new_isvalid_path)
     assert isvalid == True, "Output file shouldn't contain invalid features"
 
-def test_select_gpkg(tmpdir):
-    # Select some data from src to tmp file
-    input_path = test_helper.TestFiles.polygons_parcels_gpkg
-    output_path = Path(tmpdir) / 'polygons_parcels-output.gpkg'
+def test_select(tmpdir):
+    # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    for input_suffix in test_helper.get_test_suffix_list():
+        for output_suffix in test_helper.get_test_suffix_list():
+            for crs_epsg in test_helper.get_test_crs_epsg_list():
+                # If test input file is in wrong format, convert it
+                input_path = test_helper.prepare_test_file(
+                        path=test_helper.TestFiles.polygons_parcels_gpkg,
+                        tmp_dir=tmp_dir,
+                        suffix=input_suffix,
+                        crs_epsg=crs_epsg)
 
-    basetest_select(input_path, output_path)
-
-def test_select_gpkg_to_shp(tmpdir):
-    # Select some data from src to tmp file
-    input_path = test_helper.TestFiles.polygons_parcels_gpkg
-    output_path = Path(tmpdir) / 'polygons_parcels-output.shp'
-
-    basetest_select(input_path, output_path)
-
-def test_select_shp(tmpdir):
-    # Select some data from src to tmp file
-    input_path = test_helper.TestFiles.polygons_parcels_shp
-    output_path = Path(tmpdir) / 'polygons_parcels-output.shp'
-
-    basetest_select(input_path, output_path)
-
-def test_select_shp_to_gpkg(tmpdir):
-    # Select some data from src to tmp file
-    input_path = test_helper.TestFiles.polygons_parcels_shp
-    output_path = Path(tmpdir) / 'polygons_parcels-output.gpkg'
-
-    basetest_select(input_path, output_path)
+                # Now run test
+                output_path = tmp_dir / f"{input_path.stem}-{input_suffix.replace('.', '')}-output{output_suffix}"
+                print(f"Run test for input_suffix {input_suffix}, output_suffix {output_suffix}, crs_epsg {crs_epsg}")
+                basetest_select(input_path, output_path)
 
 def basetest_select(
         input_path: Path, 
         output_path: Path):
 
+    # Run test
     layerinfo_input = geofile.get_layerinfo(input_path)
     sql_stmt = 'SELECT {geometrycolumn}, oidn, uidn FROM "{input_layer}"'
     geofileops_sql.select(
@@ -223,19 +244,23 @@ def basetest_select(
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
-def test_select_various_options_shp(tmpdir):
-    # Select some data from src to tmp file
-    input_path = test_helper.TestFiles.polygons_parcels_shp
-    output_path = Path(tmpdir) / 'polygons_parcels-output.shp'
+def test_select_various_options(tmpdir):
+    # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    for suffix in test_helper.get_test_suffix_list():
+        for crs_epsg in test_helper.get_test_crs_epsg_list():
+            # If test input file is in wrong format, convert it
+            input_path = test_helper.prepare_test_file(
+                    path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    tmp_dir=tmp_dir,
+                    suffix=suffix,
+                    crs_epsg=crs_epsg)
 
-    basetest_select_various_options(input_path, output_path)
-
-def test_select_various_options_gpkg(tmpdir):
-    # Select some data from src to tmp file
-    input_path = test_helper.TestFiles.polygons_parcels_gpkg
-    output_path = Path(tmpdir) / 'polygons_parcels-output.gpkg'
-
-    basetest_select_various_options(input_path, output_path)
+            # Now run test
+            output_path = tmp_dir / f"{input_path.stem}-output{suffix}"
+            print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}")
+            basetest_select(input_path, output_path)
     
 def basetest_select_various_options(
         input_path: Path, 
@@ -266,41 +291,57 @@ def basetest_select_various_options(
     ### Check if ... parameter works ###
     # TODO: increase test coverage of other options...
 
-def test_simplify_gpkg(tmpdir):
-    # Simplify polygon source to test dir
-    input_path = test_helper.TestFiles.polygons_parcels_gpkg
-    output_path = Path(tmpdir) / input_path.name
-    basetest_simplify(input_path, output_path, 
-            expected_output_geometrytype=GeometryType.MULTIPOLYGON)
+def test_simplify(tmpdir):
+    # Init
+    tmp_dir = Path(tmpdir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
 
-    # Simplify point source to test dir
-    input_path = test_helper.TestFiles.points_gpkg
-    output_path = Path(tmpdir) / 'points-output.gpkg'
-    basetest_simplify(input_path, output_path, 
-            expected_output_geometrytype=GeometryType.MULTIPOINT)
+    test_inputs = []
+    test_inputs.append({
+            "input_path": test_helper.TestFiles.polygons_parcels_gpkg,
+            "geometrytype": GeometryType.MULTIPOLYGON})
+    test_inputs.append({
+            "input_path": test_helper.TestFiles.points_gpkg,
+            "geometrytype": GeometryType.MULTIPOINT})
+    test_inputs.append({
+            "input_path": test_helper.TestFiles.linestrings_rows_of_trees_gpkg,
+            "geometrytype": GeometryType.MULTILINESTRING})
 
-    # Simplify line source to test dir
-    input_path = test_helper.TestFiles.linestrings_rows_of_trees_gpkg
-    output_path = Path(tmpdir) / 'linestrings_rows_of_trees-output.gpkg'
-    basetest_simplify(input_path, output_path, 
-            expected_output_geometrytype=GeometryType.MULTILINESTRING)
+    # Prepare test data + run tests
+    for suffix in test_helper.get_test_suffix_list():
+        for crs_epsg in test_helper.get_test_crs_epsg_list():
+            for test_input in test_inputs: 
+                # If test input file is in wrong format, convert it
+                input_path = test_helper.prepare_test_file(
+                        path=test_input['input_path'],
+                        tmp_dir=tmp_dir,
+                        suffix=suffix,
+                        crs_epsg=crs_epsg)
 
-def test_simplify_shp(tmpdir):
-    # Simplify to test dir
-    input_path = test_helper.TestFiles.polygons_parcels_shp
-    output_path = Path(tmpdir) / 'polygons_parcels-output.shp'
-    basetest_simplify(input_path, output_path, 
-            expected_output_geometrytype=GeometryType.MULTIPOLYGON)
+                # Now run test
+                output_path = tmp_dir / f"{input_path.stem}-output{suffix}"
+                print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}, geometrytype {test_input['geometrytype']}")
+                basetest_simplify(input_path, output_path, test_input['geometrytype'])
     
 def basetest_simplify(
         input_path: Path, 
         output_path: Path,
         expected_output_geometrytype: GeometryType):
 
+    ### Init ###
+    layerinfo_orig = geofile.get_layerinfo(input_path)
+    assert layerinfo_orig.crs is not None
+    if layerinfo_orig.crs.is_projected:
+        tolerance = 5
+    else:
+        # 1 degree = 111 km or 111000 m
+        tolerance = 5/111000
+
     # Do operation
     geofileops_sql.simplify(
-            input_path=input_path, output_path=output_path,
-            tolerance=5)
+            input_path=input_path, 
+            output_path=output_path,
+            tolerance=tolerance)
 
     # Now check if the output file is correctly created
     assert output_path.exists() == True
@@ -321,13 +362,11 @@ if __name__ == '__main__':
     tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
 
     # Single layer operations
-    #test_buffer_gpkg(tmpdir)
-    #test_makevalid_shp(tmpdir)
-    #test_makevalid_gpkg(tmpdir)
-    #test_isvalid_shp(tmpdir)
-    test_isvalid_gpkg(tmpdir)
-    #test_convexhull_gpkg(tmpdir)
-    #test_convexhull_shp(tmpdir)
+    #test_buffer(tmpdir / "buffer")
+    #test_convexhull(tmpdir / "convexhull")
+    #test_makevalid(tmpdir / "makevalid")
+    #test_isvalid(tmpdir / "isvalid")
+    #test_select(tmpdir / "select")
     #test_select_geos_version(tmpdir)
-    #test_simplify_gpkg(tmpdir)
+    test_simplify(tmpdir / "simplify")
     

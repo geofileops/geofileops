@@ -5,6 +5,7 @@ Tests for functionalities in geofileops.general.
 
 from pathlib import Path
 import sys
+from typing import Optional
 
 import geopandas as gpd
 import pandas as pd
@@ -15,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
 from geofileops.util import geoseries_util
 from geofileops.util.geometry_util import GeometryType
+from geofileops.util import io_util
 import test_helper
 
 def test_add_column(tmpdir):
@@ -51,25 +53,41 @@ def test_add_column(tmpdir):
     assert round(gdf['AREA'].astype('float')[0], 1) == round(gdf['OPPERVL'].astype('float')[0], 1)
 
 def test_cmp(tmpdir):
-    # Copy test file to tmpdir
-    src = test_helper.TestFiles.polygons_parcels_shp
-    dst = Path(tmpdir) / 'polygons_parcels_output.shp'
-    geofile.copy(src, dst)
+    # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    for suffix in test_helper.get_test_suffix_list():
+        # If test input file is in wrong format, convert it
+        src = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_parcels_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
+        
+        # Copy test file to tmpdir
+        dst = Path(tmpdir) / f"polygons_parcels_output{suffix}"
+        geofile.copy(src, dst)
 
-    # Now compare source and dst file
-    assert geofile.cmp(src, dst) == True
+        # Now compare source and dst file
+        assert geofile.cmp(src, dst) == True
 
 def test_convert(tmpdir):
-    # Convert polygon test file from shape to geopackage
-    src = test_helper.TestFiles.polygons_parcels_shp
-    dst = Path(tmpdir) / 'polygons_parcels_output.gpkg'
-    geofile.convert(src, dst)
+    # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    for suffix in test_helper.get_test_suffix_list():
+        # If test input file is in wrong format, convert it
+        src = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_parcels_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
+        
+        # Convert
+        dst = Path(tmpdir) / f"polygons_parcels_output{suffix}"
+        geofile.convert(src, dst)
 
-    # Now compare source and dst file 
-    src_layerinfo = geofile.get_layerinfo(src)
-    dst_layerinfo = geofile.get_layerinfo(dst)
-    assert src_layerinfo.featurecount == dst_layerinfo.featurecount
-    assert len(src_layerinfo.columns) == len(dst_layerinfo.columns)
+        # Now compare source and dst file 
+        src_layerinfo = geofile.get_layerinfo(src)
+        dst_layerinfo = geofile.get_layerinfo(dst)
+        assert src_layerinfo.featurecount == dst_layerinfo.featurecount
+        assert len(src_layerinfo.columns) == len(dst_layerinfo.columns)
 
 def test_convert_force_output_geometrytype(tmpdir):
     # The conversion is done by ogr, and these test are just written to explore
@@ -106,11 +124,18 @@ def test_convert_force_output_geometrytype(tmpdir):
     geofile.convert(src, dst, force_output_geometrytype=GeometryType.MULTIPOINT)
 
 def test_copy(tmpdir):
-    # Copy test file to tmpdir
-    src = test_helper.TestFiles.polygons_parcels_shp
-    dst = Path(tmpdir) / 'polygons_parcels_output.shp'
-    geofile.copy(src, dst)
-    assert dst.exists() == True
+    # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    for suffix in test_helper.get_test_suffix_list():
+        # If test input file is in wrong format, convert it
+        src = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_parcels_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
+        
+        dst = Path(tmpdir) / 'polygons_parcels_output.shp'
+        geofile.copy(src, dst)
+        assert dst.exists() == True
 
 def test_driver_enum():
     ### Test ESRIShapefile Driver ###
@@ -143,68 +168,101 @@ def test_driver_enum():
     geofiletype = geofile.GeofileType(path)
     assert geofiletype == geofile.GeofileType.SQLite
 
-def test_get_crs():
-    # Test shapefile
-    srcpath = test_helper.TestFiles.polygons_parcels_shp
-    crs = geofile.get_crs(srcpath)
-    assert crs.to_epsg() == 31370
+def test_get_crs(tmpdir):
+    # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    for suffix in test_helper.get_test_suffix_list():
+        # If test input file is in wrong format, convert it
+        src = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_parcels_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
+        crs = geofile.get_crs(src)
+        assert crs.to_epsg() == 31370
+        
+def test_get_default_layer(tmpdir):
+    # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    for suffix in test_helper.get_test_suffix_list():
+        # If test input file is in wrong format, convert it
+        src = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_parcels_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
+        layer = geofile.get_default_layer(src)
+        assert layer == 'polygons_parcels-2020'
 
-    # Test geopackage
-    srcpath = test_helper.TestFiles.polygons_parcels_gpkg
-    crs = geofile.get_crs(srcpath)
-    assert crs.to_epsg() == 31370
+def test_get_driver(tmpdir):
+    # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    for suffix in test_helper.get_test_suffix_list():
+        # If test input file is in wrong format, convert it
+        src = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_parcels_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
+        
+        if suffix == ".gpkg":
+            assert geofile.get_driver(src) == "GPKG"
+        elif suffix == ".shp":
+            assert geofile.get_driver(src) == "ESRI Shapefile"
+        else:
+            raise Exception(f"test not implemented for suffix {suffix}")
 
-def test_get_default_layer_shp():
-    srcpath = test_helper.TestFiles.polygons_parcels_shp
-    layer = geofile.get_default_layer(srcpath)
-    assert layer == 'polygons_parcels-2020'
-
-def test_get_driver():
-    # Test shapefile
-    src = test_helper.TestFiles.polygons_parcels_shp
-    assert geofile.get_driver(src) == "ESRI Shapefile"
-
-    # Test geopackage
-    src = test_helper.TestFiles.polygons_parcels_gpkg
-    assert geofile.get_driver(src) == "GPKG"
-
-def test_get_layerinfo():
-    
-    def basetest_get_layerinfo(srcpath: Path, layer: str = None):
-        # Test for file containing one layer
-        layerinfo = geofile.get_layerinfo(srcpath, layer)
-        assert layerinfo.featurecount == 46
-        if srcpath.suffix == '.shp':
-            assert layerinfo.geometrycolumn == 'geometry'
-            assert layerinfo.name == srcpath.stem
-        elif srcpath.suffix == '.gpkg':
-            assert layerinfo.geometrycolumn == 'geom'
-            assert layerinfo.name == 'parcels'
-        assert layerinfo.geometrytypename == geofile.GeometryType.MULTIPOLYGON.name
-        assert layerinfo.geometrytype == geofile.GeometryType.MULTIPOLYGON
-        assert len(layerinfo.columns) == 10
-        assert layerinfo.total_bounds is not None
-        assert layerinfo.crs is not None
-        assert layerinfo.crs.to_epsg() == 31370
-
-    # Test shapefile
-    basetest_get_layerinfo(srcpath=test_helper.TestFiles.polygons_parcels_shp)
-    # Test geopackage, one layer
-    basetest_get_layerinfo(srcpath=test_helper.TestFiles.polygons_parcels_gpkg)
+def test_get_layerinfo(tmpdir):
+    # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    for suffix in test_helper.get_test_suffix_list():
+        # If test input file is in wrong format, convert it
+        src = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_parcels_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
+                
+        basetest_get_layerinfo(src=src)
+        
     # Test geopackage, two layers
     basetest_get_layerinfo(
-            srcpath=test_helper.TestFiles.polygons_twolayers_gpkg, 
+            src=test_helper.TestFiles.polygons_twolayers_gpkg, 
             layer='parcels')
 
+def basetest_get_layerinfo(
+        src: Path, 
+        layer: Optional[str] = None):
+    # Test for file containing one layer
+    layerinfo = geofile.get_layerinfo(src, layer)
+    assert layerinfo.featurecount == 46
+    if src.suffix == '.shp':
+        assert layerinfo.geometrycolumn == 'geometry'
+        assert layerinfo.name == src.stem
+    elif src.suffix == '.gpkg':
+        assert layerinfo.geometrycolumn == 'geom'
+        assert layerinfo.name == 'parcels'
+    assert layerinfo.geometrytypename == geofile.GeometryType.MULTIPOLYGON.name
+    assert layerinfo.geometrytype == geofile.GeometryType.MULTIPOLYGON
+    assert len(layerinfo.columns) == 10
+    assert layerinfo.total_bounds is not None
+    assert layerinfo.crs is not None
+    assert layerinfo.crs.to_epsg() == 31370
+
 def test_get_only_layer(tmpdir):
-    tmpdir = Path(tmpdir)
-    ### Test Geopackage and shapefile with one layer ###
-    srcpath = test_helper.TestFiles.polygons_parcels_gpkg
-    layer = geofile.get_only_layer(srcpath)
-    assert layer == 'parcels'
-    srcpath = test_helper.TestFiles.polygons_parcels_shp
-    layer = geofile.get_only_layer(srcpath)
-    assert layer == srcpath.stem
+    ### Test files with 1 layer ###
+    # Prepare test data + run tests for one layer
+    tmp_dir = Path(tmpdir)
+    for suffix in test_helper.get_test_suffix_list():
+        # If test input file is in wrong format, convert it
+        src = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_parcels_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
+
+        layer = geofile.get_only_layer(src)
+        if suffix == ".gpkg":
+            assert layer == 'parcels'
+        elif suffix == ".shp":
+            assert layer == src.stem
+        else:
+            raise Exception(f"test not implemented for suffix {suffix}")
 
     ### Test Geopackage with 2 layers ###
     srcpath = test_helper.TestFiles.polygons_twolayers_gpkg
@@ -218,32 +276,48 @@ def test_get_only_layer(tmpdir):
     assert error_raised is True
 
 def test_is_geofile():
-    assert geofile.is_geofile(test_helper.TestFiles.polygons_parcels_shp) == True
     assert geofile.is_geofile(test_helper.TestFiles.polygons_parcels_gpkg) == True
-
+    assert geofile.is_geofile(test_helper.TestFiles.polygons_parcels_gpkg.with_suffix(".shp")) == True
+    
     assert geofile.is_geofile("/test/testje.txt") == False
     
-def test_listlayers():
-    layers = geofile.listlayers(test_helper.TestFiles.polygons_parcels_shp)
-    assert layers[0] == test_helper.TestFiles.polygons_parcels_shp.stem
-    layers = geofile.listlayers(test_helper.TestFiles.polygons_parcels_gpkg)
-    assert layers[0] == 'parcels'
+def test_listlayers(tmpdir):
+    # Prepare test data + run tests for one layer
+    tmp_dir = Path(tmpdir)
+    for suffix in test_helper.get_test_suffix_list():
+        # If test input file is in wrong format, convert it
+        src = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_parcels_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
+        layers = geofile.listlayers(src)
+    
+        if suffix == ".gpkg":
+            assert layers[0] == "parcels"
+        elif suffix == ".shp":
+            assert layers[0] == src.stem
+        else:
+            raise Exception(f"test not implemented for suffix {suffix}")
+
+    # Test geopackage 2 layers
     layers = geofile.listlayers(test_helper.TestFiles.polygons_twolayers_gpkg)
     assert 'parcels' in layers
     assert 'zones' in layers
 
 def test_move(tmpdir):
-    # Copy test file to tmpdir
-    src = test_helper.TestFiles.polygons_parcels_shp
-    tmp1path = Path(tmpdir) / 'polygons_parcels_tmp.shp'
-    geofile.copy(src, tmp1path)
-    assert tmp1path.exists() == True
+    # Convert gpkg to shapefile in tmp dir
+    tmp_dir = Path(tmpdir)
+    src = test_helper.prepare_test_file(
+            path=test_helper.TestFiles.polygons_parcels_gpkg,
+            tmp_dir=tmp_dir,
+            suffix=".shp")
+    assert src.exists() == True
 
     # Move (rename actually) and check result
-    tmp2path = Path(tmpdir) / 'polygons_parcels_tmp2.shp'
-    geofile.move(tmp1path, tmp2path)
-    assert tmp1path.exists() == False
-    assert tmp2path.exists() == True
+    moved_path = tmp_dir / 'polygons_parcels_moved.shp'
+    geofile.move(src, moved_path)
+    assert src.exists() == False
+    assert moved_path.exists() == True
 
 def test_update_column(tmpdir):
     # First copy test file to tmpdir
@@ -266,14 +340,17 @@ def test_update_column(tmpdir):
     gdf = geofile.read_file(tmppath)
     assert round(gdf['AREA'].astype('float')[0], 1) == round(gdf['OPPERVL'].astype('float')[0], 1)
 
-def test_read_file():
-    # Test shapefile
-    srcpath = test_helper.TestFiles.polygons_parcels_shp
-    basetest_read_file(srcpath=srcpath)
+def test_read_file(tmpdir):
+    # Prepare test data + run tests for one layer
+    tmp_dir = Path(tmpdir)
+    for suffix in test_helper.get_test_suffix_list():
+        # If test input file is in wrong format, convert it
+        src = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_parcels_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
 
-    # Test geopackage
-    srcpath = test_helper.TestFiles.polygons_parcels_gpkg
-    basetest_read_file(srcpath=srcpath)
+        basetest_read_file(srcpath=src)
 
 def basetest_read_file(srcpath: Path):
     # Test with defaults
@@ -303,31 +380,34 @@ def basetest_read_file(srcpath: Path):
     assert len(read_gdf) == 46
 
 def test_rename_layer(tmpdir):
-    ### Geopackage ###
-    # First copy test file to tmpdir
-    src = test_helper.TestFiles.polygons_parcels_gpkg
-    tmppath = Path(tmpdir) / 'polygons_parcels_tmp.gpkg'
-    geofile.copy(src, tmppath)
+    # Prepare test data + run tests for one layer
+    tmp_dir = Path(tmpdir)
+    for suffix in test_helper.get_test_suffix_list():
+        # If test input file is in wrong format, convert it
+        src = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_parcels_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
+    
+        if suffix == ".gpkg":
+            geofile.rename_layer(src, layer="parcels", new_layer="parcels_renamed")
+            layernames_renamed = geofile.listlayers(path=src)
+            assert layernames_renamed[0] == "parcels_renamed"
 
-    # Now test rename layer
-    geofile.rename_layer(tmppath, layer='parcels', new_layer='parcels_renamed')
-    layernames_renamed = geofile.listlayers(path=tmppath)
-    assert layernames_renamed[0] == 'parcels_renamed'
-
-    ### Shapefile ###
-    # First copy test file to tmpdir
-    src = test_helper.TestFiles.polygons_parcels_shp
-    tmppath = Path(tmpdir) / 'polygons_parcels_tmp.shp'
-    geofile.copy(src, tmppath)
-
-    # Now test rename layer
-    try:
-        geofile.rename_layer(tmppath, layer='polygons_parcels_tmp', new_layer='polygons_parcels_tmp_renamed')
-        layernames_renamed = geofile.listlayers(path=tmppath)
-        assert layernames_renamed[0] == 'polygons_parcels_tmp_renamed'
-    except Exception as ex:
-        assert 'rename_layer is not possible' in str(ex) 
-
+        elif suffix == ".shp":
+            # Now test rename layer
+            try:
+                geofile.rename_layer(
+                        src, 
+                        layer="polygons_parcels", 
+                        new_layer="polygons_parcels_renamed")
+                layernames_renamed = geofile.listlayers(path=src)
+                assert layernames_renamed[0] == "polygons_parcels_renamed"
+            except Exception as ex:
+                assert "rename_layer is not possible" in str(ex) 
+        else:
+            raise Exception(f"test not implemented for suffix {suffix}")
+    
 def test_execute_sql(tmpdir):
     # First copy test file to tmpdir
     src = test_helper.TestFiles.polygons_parcels_gpkg
@@ -341,60 +421,44 @@ def test_execute_sql(tmpdir):
     # Drop index
     geofile.execute_sql(path=tmppath, sql_stmt='DROP INDEX idx_parcels_oidn')
 
-def test_spatial_index_gpkg(tmpdir):
-    # First copy test file to tmpdir
-    src = test_helper.TestFiles.polygons_parcels_gpkg
-    tmppath = Path(tmpdir) / 'polygons_parcels.gpkg'
-    geofile.copy(src, tmppath)
+def test_spatial_index(tmpdir):
+    # Prepare test data + run tests for one layer
+    tmp_dir = Path(tmpdir)
+    for suffix in test_helper.get_test_suffix_list():
+        # If test input file is in wrong format, convert it
+        src = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_parcels_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
+    
+        # Check if spatial index present
+        has_spatial_index = geofile.has_spatial_index(
+                path=src, layer='parcels')
+        assert has_spatial_index is True
 
-    # Check if spatial index present
-    has_spatial_index = geofile.has_spatial_index(
-            path=tmppath, layer='parcels')
-    assert has_spatial_index is True
+        # Remove spatial index
+        geofile.remove_spatial_index(path=src, layer='parcels')
+        has_spatial_index = geofile.has_spatial_index(
+                path=src, layer='parcels')
+        assert has_spatial_index is False
 
-    # Remove spatial index
-    geofile.remove_spatial_index(path=tmppath, layer='parcels')
-    has_spatial_index = geofile.has_spatial_index(
-            path=tmppath, layer='parcels')
-    assert has_spatial_index is False
+        # Create spatial index
+        geofile.create_spatial_index(path=src, layer='parcels')
+        has_spatial_index = geofile.has_spatial_index(
+                path=src, layer='parcels')
+        assert has_spatial_index is True
 
-    # Create spatial index
-    geofile.create_spatial_index(path=tmppath, layer='parcels')
-    has_spatial_index = geofile.has_spatial_index(
-            path=tmppath, layer='parcels')
-    assert has_spatial_index is True
-
-def test_spatial_index_shp(tmpdir):
-    # First copy test file to tmpdir
-    src = test_helper.TestFiles.polygons_parcels_shp
-    tmppath = Path(tmpdir) / 'polygons_parcels.shp'
-    geofile.copy(src, tmppath)
-
-    # Check if spatial index present
-    has_spatial_index = geofile.has_spatial_index(path=tmppath)
-    assert has_spatial_index is True
-
-    # Remove spatial index
-    geofile.remove_spatial_index(path=tmppath)
-    has_spatial_index = geofile.has_spatial_index(path=tmppath)
-    assert has_spatial_index is False
-
-    # Create spatial index
-    geofile.create_spatial_index(path=tmppath)
-    has_spatial_index = geofile.has_spatial_index(path=tmppath)
-    assert has_spatial_index is True
-
-def test_to_file_shp(tmpdir):
-    # Read test file and write to tmpdir
-    srcpath = test_helper.TestFiles.polygons_parcels_shp
-    tmppath = Path(tmpdir) / 'polygons_parcels_tmp.shp'
-    basetest_to_file(srcpath, tmppath)
-
-def test_to_file_gpkg(tmpdir):
-    # Read test file and write to tmpdir
-    srcpath = test_helper.TestFiles.polygons_parcels_gpkg
-    tmppath = Path(tmpdir) / 'polygons_parcels_tmp.gpkg'
-    basetest_to_file(srcpath, tmppath)
+def test_to_file(tmpdir):
+    # Prepare test data + run tests for one layer
+    tmp_dir = Path(tmpdir)
+    for suffix in test_helper.get_test_suffix_list():
+        # If test input file is in wrong format, convert it
+        input_path = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_parcels_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
+        output_path = io_util.with_stem(input_path, f"{input_path}-output")
+        basetest_to_file(input_path, output_path)
 
 def basetest_to_file(srcpath, tmppath):
     # Read test file and write to tmppath
@@ -408,17 +472,16 @@ def basetest_to_file(srcpath, tmppath):
     tmp_gdf = geofile.read_file(tmppath)
     assert 2*len(read_gdf) == len(tmp_gdf)
 
-def test_to_file_empty_gpkg(tmpdir):
-    # Read test file and write to tmpdir
-    srcpath = test_helper.TestFiles.polygons_parcels_gpkg
-    output_suffix = '.gpkg'
-    basetest_to_file_empty(srcpath, Path(tmpdir), output_suffix)
-
-def test_to_file_empty_shp(tmpdir):
-    # Read test file and write to tmpdir
-    srcpath = test_helper.TestFiles.polygons_parcels_shp
-    output_suffix = '.shp'
-    basetest_to_file_empty(srcpath, Path(tmpdir), output_suffix)
+def test_to_file_empty(tmpdir):
+    # Prepare test data + run tests for one layer
+    tmp_dir = Path(tmpdir)
+    for suffix in test_helper.get_test_suffix_list():
+        # If test input file is in wrong format, convert it
+        input_path = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_parcels_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
+        basetest_to_file_empty(input_path, tmp_dir, suffix)
 
 def basetest_to_file_empty(
         srcpath: Path, 
@@ -448,17 +511,16 @@ def basetest_to_file_empty(
     assert len(test_gdf) == len(test_read_gdf)
     assert test_read_geometrytypes == test_geometrytypes
 
-def test_to_file_none_gpkg(tmpdir):
-    # Read test file and write to tmpdir
-    srcpath = test_helper.TestFiles.polygons_parcels_gpkg
-    output_suffix = '.gpkg'
-    basetest_to_file_none(srcpath, Path(tmpdir), output_suffix)
-
-def test_to_file_none_shp(tmpdir):
-    # Read test file and write to tmpdir
-    srcpath = test_helper.TestFiles.polygons_parcels_shp
-    output_suffix = '.shp'
-    basetest_to_file_none(srcpath, Path(tmpdir), output_suffix)
+def test_to_file_none(tmpdir):
+    # Prepare test data + run tests for one layer
+    tmp_dir = Path(tmpdir)
+    for suffix in test_helper.get_test_suffix_list():
+        # If test input file is in wrong format, convert it
+        input_path = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_parcels_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
+        basetest_to_file_none(input_path, tmp_dir, suffix)
 
 def basetest_to_file_none(
         srcpath: Path, 
@@ -488,17 +550,16 @@ def basetest_to_file_none(
     assert len(test_gdf) == len(test_read_gdf)
     assert test_read_geometrytypes == test_geometrytypes
 
-def test_to_file_gpd_empty_gpkg(tmpdir):
-    # Read test file and write to tmpdir
-    srcpath = test_helper.TestFiles.polygons_parcels_gpkg
-    output_suffix = '.gpkg'
-    basetest_to_file_gpd_empty(srcpath, Path(tmpdir), output_suffix)
-
-def test_to_file_gpd_empty_shp(tmpdir):
-    # Read test file and write to tmpdir
-    srcpath = test_helper.TestFiles.polygons_parcels_shp
-    output_suffix = '.shp'
-    basetest_to_file_gpd_empty(srcpath, Path(tmpdir), output_suffix)
+def test_to_file_gpd_empty(tmpdir):
+    # Prepare test data + run tests for one layer
+    tmp_dir = Path(tmpdir)
+    for suffix in test_helper.get_test_suffix_list():
+        # If test input file is in wrong format, convert it
+        input_path = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_parcels_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
+        basetest_to_file_gpd_empty(input_path, tmp_dir, suffix)
 
 def basetest_to_file_gpd_empty(
         srcpath: Path, 
@@ -536,20 +597,19 @@ def basetest_to_file_gpd_empty(
         assert len(test_read_geometrytypes) == 1
         assert test_read_geometrytypes[0] is GeometryType.POLYGON
 
-def test_to_file_gpd_none_gpkg(tmpdir):
-    # Read test file and write to tmpdir
-    srcpath = test_helper.TestFiles.polygons_parcels_gpkg
-    output_suffix = '.gpkg'
-    basetest_to_file_gpd_none(srcpath, Path(tmpdir), output_suffix)
-
-def test_to_file_gpd_none_shp(tmpdir):
-    # Read test file and write to tmpdir
-    srcpath = test_helper.TestFiles.polygons_parcels_shp
-    output_suffix = '.shp'
-    basetest_to_file_gpd_none(srcpath, Path(tmpdir), output_suffix)
+def test_to_file_gpd_none(tmpdir):
+    # Prepare test data + run tests for one layer
+    tmp_dir = Path(tmpdir)
+    for suffix in test_helper.get_test_suffix_list():
+        # If test input file is in wrong format, convert it
+        input_path = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_parcels_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
+        basetest_to_file_gpd_none(input_path, tmp_dir, suffix)
 
 def basetest_to_file_gpd_none(
-        srcpath: Path, 
+        input_path: Path, 
         output_dir: Path,
         output_suffix: str):
     ### Test for gdf with a None geometry + a polygon ###
@@ -557,7 +617,7 @@ def basetest_to_file_gpd_none(
             None, test_helper.TestData.polygon_with_island])
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 1
-    output_none_path = output_dir / f"{srcpath.stem}_none{output_suffix}"
+    output_none_path = output_dir / f"{input_path.stem}_none{output_suffix}"
     test_gdf.to_file(output_none_path, driver=geofile.get_driver_for_ext(output_suffix))
     
     # Now check the result if the data is still the same after being read again
@@ -578,15 +638,19 @@ def basetest_to_file_gpd_none(
     assert test_read_geometrytypes == test_geometrytypes
 
 def test_remove(tmpdir):
-    # Copy test file to tmpdir
-    src = test_helper.TestFiles.polygons_parcels_shp
-    tmppath = Path(tmpdir) / 'polygons_parcels_tmp.shp'
-    geofile.copy(src, tmppath)
-    assert tmppath.exists() == True
+    # Prepare test data + run tests for one layer
+    tmp_dir = Path(tmpdir)
+    for suffix in test_helper.get_test_suffix_list():
+        # If test input file is in wrong format, convert it
+        input_path = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_parcels_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
+        assert input_path.exists() == True
 
-    # Remove and check result
-    geofile.remove(tmppath)
-    assert tmppath.exists() == False
+        # Remove and check result
+        geofile.remove(input_path)
+        assert input_path.exists() == False
 
 if __name__ == '__main__':
     # Init
