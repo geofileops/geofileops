@@ -241,7 +241,7 @@ def benchmark_union(tmpdir: Path) -> List[BenchResult]:
 
 def benchmark(
         benchmarks_to_run: List[Benchmark],
-        tmpdir: Path = None):
+        tmpdir: Optional[Path] = None):
     """
     Run the benchmarks specified.
 

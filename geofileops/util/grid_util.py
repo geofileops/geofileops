@@ -5,7 +5,7 @@ Module containing utilities to create/manipulate grids.
 
 import logging
 import math
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import geopandas as gpd
 import pyproj
@@ -83,7 +83,7 @@ def create_grid2(
         total_bounds: Tuple[float, float, float, float], 
         nb_squarish_tiles: int,
         crs: Union[pyproj.CRS, str, None],
-        nb_squarish_tiles_max: int = None) -> gpd.GeoDataFrame:
+        nb_squarish_tiles_max: Optional[int] = None) -> gpd.GeoDataFrame:
     """
     Creates a grid and tries to approximate the number of cells asked as
     good as possible with grid cells that as close to square as possible.

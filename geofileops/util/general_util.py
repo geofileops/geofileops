@@ -6,6 +6,7 @@ Module containing some general utilities.
 import datetime
 import logging
 import os
+from typing import Optional
 
 import psutil
 
@@ -34,7 +35,7 @@ def report_progress(
         start_time: datetime.datetime,
         nb_done: int,
         nb_todo: int,
-        operation: str = None,
+        operation: Optional[str] = None,
         nb_parallel: int = 1):
 
     # If logging level not enabled for INFO, no progress reporting...

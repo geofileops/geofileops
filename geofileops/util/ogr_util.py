@@ -53,20 +53,20 @@ class VectorTranslateInfo:
             self,
             input_path: Path, 
             output_path: Path,
-            translate_description: str = None,
-            input_layers: Union[Optional[List[str]], str] = None,
-            output_layer: str = None,
-            spatial_filter: Tuple[float, float, float, float] = None,
-            clip_bounds: Tuple[float, float, float, float] = None, 
-            sql_stmt: str = None,
-            sql_dialect: str = None,
+            translate_description: Optional[str] = None,
+            input_layers: Union[List[str], str, None] = None,
+            output_layer: Optional[str] = None,
+            spatial_filter: Optional[Tuple[float, float, float, float]] = None,
+            clip_bounds: Optional[Tuple[float, float, float, float]] = None, 
+            sql_stmt: Optional[str] = None,
+            sql_dialect: Optional[str] = None,
             transaction_size: int = 65536,
             append: bool = False,
             update: bool = False,
-            create_spatial_index: bool = None,
+            create_spatial_index: Optional[bool] = None,
             explodecollections: bool = False,
-            force_output_geometrytype: GeometryType = None,
-            sqlite_journal_mode: str = None,
+            force_output_geometrytype: Optional[GeometryType] = None,
+            sqlite_journal_mode: Optional[str] = None,
             verbose: bool = False):
         self.input_path = input_path
         self.output_path = output_path
@@ -130,20 +130,20 @@ def vector_translate_by_info(info: VectorTranslateInfo):
 def vector_translate(
         input_path: Union[Path, str], 
         output_path: Path,
-        translate_description: str = None,
-        input_layers: Union[Optional[List[str]], str] = None,
-        output_layer: str = None,
-        spatial_filter: Tuple[float, float, float, float] = None,
-        clip_bounds: Tuple[float, float, float, float] = None, 
-        sql_stmt: str = None,
-        sql_dialect: str = None,
+        translate_description: Optional[str] = None,
+        input_layers: Union[List[str], str, None] = None,
+        output_layer: Optional[str] = None,
+        spatial_filter: Optional[Tuple[float, float, float, float]] = None,
+        clip_bounds: Optional[Tuple[float, float, float, float]] = None, 
+        sql_stmt: Optional[str] = None,
+        sql_dialect: Optional[str] = None,
         transaction_size: int = 65536,
         append: bool = False,
         update: bool = False,
-        create_spatial_index: bool = None,
+        create_spatial_index: Optional[bool] = None,
         explodecollections: bool = False,
-        force_output_geometrytype: GeometryType = None,
-        sqlite_journal_mode: str = None,
+        force_output_geometrytype: Optional[GeometryType] = None,
+        sqlite_journal_mode: Optional[str] = None,
         verbose: bool = False) -> bool:
 
     # Remark: when executing a select statement, I keep getting error that 
@@ -302,20 +302,20 @@ def vector_translate(
 def vector_translate_exe(
         input_path: Path, 
         output_path: Path,
-        translate_description: str = None,
-        input_layers: Union[Optional[List[str]], str] = None,
-        output_layer: str = None,
-        spatial_filter: Tuple[float, float, float, float] = None,
-        clip_bounds: Tuple[float, float, float, float] = None, 
-        sql_stmt: str = None,
-        sql_dialect: str = None,
+        translate_description: Optional[str] = None,
+        input_layers: Union[List[str], str, None] = None,
+        output_layer: Optional[str] = None,
+        spatial_filter: Optional[Tuple[float, float, float, float]] = None,
+        clip_bounds: Optional[Tuple[float, float, float, float]] = None, 
+        sql_stmt: Optional[str] = None,
+        sql_dialect: Optional[str] = None,
         transaction_size: int = 10000,
         append: bool = False,
         update: bool = False,
-        create_spatial_index: bool = None,
+        create_spatial_index: Optional[bool] = None,
         explodecollections: bool = False,
-        force_output_geometrytype: GeometryType = None,
-        sqlite_journal_mode: str = None,
+        force_output_geometrytype: Optional[GeometryType] = None,
+        sqlite_journal_mode: Optional[str] = None,
         verbose: bool = False) -> bool:
 
     ##### Init #####
@@ -572,11 +572,11 @@ def vector_info_py(
 def vector_info(
         path: Path, 
         task_description = None,
-        layer: str = None,
+        layer: Optional[str] = None,
         readonly: bool = False,
         report_summary: bool = False,
-        sql_stmt: str = None,
-        sql_dialect: str = None, 
+        sql_stmt: Optional[str] = None,
+        sql_dialect: Optional[str] = None, 
         skip_health_check: bool = False,
         verbose: bool = False):
     """"Run a command"""
@@ -646,7 +646,7 @@ def vector_info(
 def _execute_sql(
         path: Path,
         sqlite_stmt: str,
-        sql_dialect: str = None) -> gpd.GeoDataFrame:
+        sql_dialect: Optional[str] = None) -> gpd.GeoDataFrame:
     
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir) / 'ogr_util_execute_sql_tmp_file.gpkg'
