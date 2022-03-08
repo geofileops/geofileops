@@ -70,9 +70,7 @@ class GeometryType(enum.Enum):
         Returns:
             [GeometryType]: The corresponding GeometryType. 
         """
-        if value is None:
-            return None
-        elif isinstance(value, str):
+        if isinstance(value, str):
             # If a string is passed in, try lookup based on case insensitive 
             # enum name
             return cls(GeometryType[value.upper()])
@@ -583,7 +581,7 @@ def simplify_coords_lang(
         coords_arr = np.array(list(coords))
 
     # Determine the coordinates that need to be kept 
-    coords_to_keep_idx = simplify_coords_lang(
+    coords_to_keep_idx = simplify_coords_lang_idx(
             coords=coords_arr,
             tolerance=tolerance,
             lookahead=lookahead)
