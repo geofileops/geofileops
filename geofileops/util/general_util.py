@@ -4,6 +4,7 @@ Module containing some general utilities.
 """
 
 import datetime
+import locale
 import logging
 import os
 from typing import Optional
@@ -15,6 +16,11 @@ import psutil
 ################################################################################
 
 logger = logging.getLogger(__name__)
+locale.setlocale(locale.LC_ALL, '')
+
+################################################################################
+# The real stuff
+################################################################################
 
 class MissingRuntimeDependencyError(Exception):
     """
@@ -42,29 +48,49 @@ def report_progress(
     if logger.isEnabledFor(logging.INFO) is False:
         return
 
+    message = format_progress(
+            start_time=start_time, 
+            nb_done=nb_done, 
+            nb_todo=nb_todo, 
+            operation=operation, 
+            nb_parallel=nb_parallel)
+    if message is not None:
+        if nb_done >= nb_todo:
+            message += "\n"
+        print(f"\r{message}", end="", flush=True)
+
+def format_progress(
+        start_time: datetime.datetime,
+        nb_done: int,
+        nb_todo: int,
+        operation: Optional[str] = None,
+        nb_parallel: int = 1) -> Optional[str]:
+
     # Init
     time_passed = (datetime.datetime.now()-start_time).total_seconds()
     pct_progress = 100.0-(nb_todo-nb_done)*100/nb_todo
-    
+    nb_todo_str = f"{nb_todo:n}"
+    nb_decimal = len(nb_todo_str)
+
     # If we haven't really started yet, don't report time estimate yet
     if nb_done == 0:
-        print(f"\r  ?: ? left to do {operation} on {(nb_todo-nb_done):8d} of {nb_todo:8d} ({pct_progress:3.2f}%)    ", 
-              end="", flush=True)
-    elif time_passed > 0:
-        # Else, report progress properly...
-        processed_per_hour = (nb_done/time_passed) * 3600
-        # Correct the nb processed per hour if running parallel 
-        if nb_done < nb_parallel:
-            processed_per_hour = round(processed_per_hour * nb_parallel / nb_done)
-        hours_to_go = (int)((nb_todo - nb_done)/processed_per_hour)
-        min_to_go = (int)((((nb_todo - nb_done)/processed_per_hour)%1)*60)
+        return f" ?: ?: ? left, {operation} done on {nb_done:{nb_decimal}n} of {nb_todo:{nb_decimal}n} ({pct_progress:3.2f}%)    "
+    else:
         pct_progress = 100.0-(nb_todo-nb_done)*100/nb_todo
-        if pct_progress < 100:
-            print(f"\r{hours_to_go:3d}:{min_to_go:2d} left to do {operation} on {(nb_todo-nb_done):8d} of {nb_todo:8d} ({pct_progress:3.2f}%)    ", 
-                  end="", flush=True)
+        if time_passed > 0:
+            # Else, report progress properly...
+            processed_per_hour = (nb_done/time_passed) * 3600
+            # Correct the nb processed per hour if running parallel 
+            if nb_done < nb_parallel:
+                processed_per_hour = round(processed_per_hour * nb_parallel / nb_done)
+            hours_to_go = (int)((nb_todo - nb_done)/processed_per_hour)
+            min_to_go = (int)((((nb_todo - nb_done)/processed_per_hour)%1)*60)
+            secs_to_go = (int)((((nb_todo - nb_done)/processed_per_hour)%1)*3600)
+            return f"{hours_to_go:02d}:{min_to_go:02d}:{secs_to_go:02d} left, {operation} done on {nb_done:{nb_decimal}n} of {nb_todo:{nb_decimal}n} ({pct_progress:3.2f}%)    "
+        elif pct_progress >= 100:
+            return f"00:00:00 left, {operation} done on {nb_done:{nb_decimal}n} of {nb_todo:{nb_decimal}n} ({pct_progress:3.2f}%)    "
         else:
-            print(f"\r{hours_to_go:3d}:{min_to_go:2d} left to do {operation} on {(nb_todo-nb_done):8d} of {nb_todo:8d} ({pct_progress:3.2f}%)    \n", 
-                  end="", flush=True)
+            return None
 
 def formatbytes(bytes: float):
     """
