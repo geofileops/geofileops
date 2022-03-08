@@ -162,7 +162,6 @@ def delete_duplicate_geometries(
 def isvalid(
         input_path: Path,
         output_path: Path,
-        only_invalid: bool = False,
         input_layer: Optional[str] = None,        
         output_layer: Optional[str] = None,
         nb_parallel: int = -1,
@@ -171,17 +170,13 @@ def isvalid(
         force: bool = False) -> bool:
 
     # Prepare sql template for this operation
-    only_invalid_filter = ""
-    if only_invalid is True:
-         only_invalid_filter = "AND ST_IsValid({geometrycolumn}) <> 1"
     sql_template = f'''
             SELECT ST_IsValidDetail({{geometrycolumn}}) AS geom
                   ,ST_IsValid({{geometrycolumn}}) AS isvalid
                   ,ST_IsValidReason({{geometrycolumn}}) AS isvalidreason
                   {{columns_to_select_str}} 
               FROM "{{input_layer}}" layer
-             WHERE 1=1 
-               {only_invalid_filter}
+             WHERE ST_IsValid({{geometrycolumn}}) <> 1
                {{batch_filter}}'''
 
     _single_layer_vector_operation(
