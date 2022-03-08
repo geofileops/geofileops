@@ -522,21 +522,19 @@ def test_spatial_index(tmpdir):
                 tmp_dir=tmp_dir,
                 suffix=suffix)
     
-        # Check if spatial index present
-        has_spatial_index = geofile.has_spatial_index(
-                path=src, layer='parcels')
+        # Check if spatial index present:
+        layer = geofile.get_only_layer(src)
+        has_spatial_index = geofile.has_spatial_index(path=src, layer=layer)
         assert has_spatial_index is True
 
         # Remove spatial index
-        geofile.remove_spatial_index(path=src, layer='parcels')
-        has_spatial_index = geofile.has_spatial_index(
-                path=src, layer='parcels')
+        geofile.remove_spatial_index(path=src, layer=layer)
+        has_spatial_index = geofile.has_spatial_index(path=src, layer=layer)
         assert has_spatial_index is False
 
         # Create spatial index
-        geofile.create_spatial_index(path=src, layer='parcels')
-        has_spatial_index = geofile.has_spatial_index(
-                path=src, layer='parcels')
+        geofile.create_spatial_index(path=src, layer=layer)
+        has_spatial_index = geofile.has_spatial_index(path=src, layer=layer)
         assert has_spatial_index is True
 
 def test_to_file(tmpdir):
@@ -759,7 +757,8 @@ if __name__ == '__main__':
     #test_execute_sql(tmpdir)
     #test_read_file()
     #test_copy(tmpdir)
-    test_move(tmpdir)
+    #test_move(tmpdir)
+    test_spatial_index(tmpdir)
     #test_to_file_gpkg(tmpdir)
     #test_to_file_shp(tmpdir)
     #test_to_file_empty_gpkg(tmpdir)
