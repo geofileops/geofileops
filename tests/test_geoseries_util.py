@@ -16,21 +16,6 @@ from geofileops.util import geoseries_util
 from geofileops.util.geometry_util import GeometryType, PrimitiveType
 import test_helper 
 
-def test_geometry_collection_extract():
-    # Test for gdf with all types of geometrytypes, extract!
-    test_gdf = gpd.GeoDataFrame(geometry=[
-            test_helper.TestData.point, test_helper.TestData.multipoint, 
-            test_helper.TestData.polygon_with_island, test_helper.TestData.polygon_no_islands, 
-            test_helper.TestData.multipolygon, test_helper.TestData.geometrycollection])
-    test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
-    assert len(test_geometrytypes) == 5
-    test_result_gdf = test_gdf.copy()
-    test_result_gdf.geometry = geoseries_util.geometry_collection_extract(
-            test_result_gdf.geometry, PrimitiveType.POLYGON)
-    test_result_geometrytypes = geoseries_util.get_geometrytypes(test_result_gdf.geometry)
-    assert len(test_result_geometrytypes) == 2
-    for index, geom in test_result_gdf.iteritems():
-        assert geom is not None
 
 def test_get_geometrytypes():
     # None and empty geometries are by default ignored in get_geometrytypes
@@ -60,6 +45,22 @@ def test_get_geometrytypes():
     assert len(test_geometrytypes) == 2
     assert GeometryType.POINT in test_geometrytypes
     assert GeometryType.GEOMETRYCOLLECTION in test_geometrytypes
+
+def test_geometry_collection_extract():
+    # Test for gdf with all types of geometrytypes, extract!
+    test_gdf = gpd.GeoDataFrame(geometry=[
+            test_helper.TestData.point, test_helper.TestData.multipoint, 
+            test_helper.TestData.polygon_with_island, test_helper.TestData.polygon_no_islands, 
+            test_helper.TestData.multipolygon, test_helper.TestData.geometrycollection])
+    test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
+    assert len(test_geometrytypes) == 5
+    test_result_gdf = test_gdf.copy()
+    test_result_gdf.geometry = geoseries_util.geometry_collection_extract(
+            test_result_gdf.geometry, PrimitiveType.POLYGON)
+    test_result_geometrytypes = geoseries_util.get_geometrytypes(test_result_gdf.geometry)
+    assert len(test_result_geometrytypes) == 2
+    for index, geom in test_result_gdf.iteritems():
+        assert geom is not None
 
 def test_harmonize_geometrytypes():
     # Test for gdf with None + point + multipoint -> all multipoint
@@ -136,9 +137,19 @@ def test_harmonize_geometrytypes():
         else:
             assert geom is not None
 
+def test_polygons_to_lines():
+    # Test with polygons
+    test_gdf = gpd.GeoDataFrame(geometry=[
+            None, sh_geom.Polygon(), test_helper.TestData.multipolygon,  
+            test_helper.TestData.polygon_with_island, test_helper.TestData.polygon_no_islands, 
+            test_helper.TestData.multipolygon])
+    lines_series = geoseries_util.polygons_to_lines(test_gdf.geometry)
+    assert len(lines_series) == 9
+
 if __name__ == '__main__':
     # Init
     tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
 
     #test_geometry_collection_extract()
-    test_harmonize_geometrytypes()
+    #test_harmonize_geometrytypes()
+    test_polygons_to_lines()

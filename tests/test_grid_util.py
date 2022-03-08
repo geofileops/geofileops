@@ -14,13 +14,12 @@ import test_helper
 
 def test_create_grid2():
     # Test for small number of cells
-    '''
     for i in range(1, 10):
-        grid_gdf = vector_util.create_grid2(
+        grid_gdf = grid_util.create_grid2(
                 total_bounds=(40000.0, 160000.0, 45000.0, 210000.0), 
-                nb_squarish_cells=i)
+                nb_squarish_tiles=i,
+                crs='epsg:31370')
         assert len(grid_gdf) == i
-    '''
     
     # Test for larger number of cells
     grid_gdf = grid_util.create_grid2(
