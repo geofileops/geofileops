@@ -398,7 +398,7 @@ def isvalid(
             specified the result will be written in a new file alongside the 
             input file. Defaults to None.
         only_invalid (bool, optional): if True, only put invalid results in the
-            output file. Defaults to False.
+            output file. Deprecated: always treated as True.
         input_layer (str, optional): input layer name. Optional if the  
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the  
@@ -430,7 +430,6 @@ def isvalid(
     return geofileops_sql.isvalid(
             input_path=Path(input_path),
             output_path=output_path_p,
-            only_invalid=only_invalid,
             input_layer=input_layer, 
             output_layer=output_layer,
             nb_parallel=nb_parallel,

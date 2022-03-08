@@ -169,21 +169,21 @@ def get_layerinfo(
     ##### Init #####
     path_p = Path(path)
     if not path_p.exists():
-        raise Exception(f"File does not exist: {path_p}")
+        raise ValueError(f"File does not exist: {path_p}")
         
     datasource = None
     try:
         datasource = gdal.OpenEx(str(path_p))
-        if layer is not None and GeofileType(path_p).is_singlelayer is False:
+        if layer is not None: #and GeofileType(path_p).is_singlelayer is False:
             datasource_layer = datasource.GetLayer(layer)
         elif datasource.GetLayerCount() == 1:
             datasource_layer = datasource.GetLayerByIndex(0)
         else:
-            raise Exception(f"No layer specified, and file has <> 1 layer: {path_p}")
+            raise ValueError(f"No layer specified, and file has <> 1 layer: {path_p}")
 
         # If the layer doesn't exist, return 
         if datasource_layer is None:
-            raise Exception(f"Layer {layer} not found in file: {path_p}")
+            raise ValueError(f"Layer {layer} not found in file: {path_p}")
 
         # Get column info
         columns = []

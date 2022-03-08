@@ -1780,6 +1780,7 @@ def format_column_strings(
             columns_prefix_alias_null=columns_prefix_alias_null_str,
             columns_from_subselect=columns_from_subselect_str)
 
+'''
 def dissolve(
         input_path: Path,
         output_path: Path,
@@ -2025,6 +2026,7 @@ def dissolve_cardsheets(
         # Clean tmp dir
         shutil.rmtree(tempdir)
         logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
+'''
 
 if __name__ == '__main__':
     raise Exception("Not implemented!")
