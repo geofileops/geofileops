@@ -10,10 +10,6 @@ import subprocess
 import tempfile
 from typing import Any, Optional, Tuple, Union
 
-class CTError(Exception):
-    def __init__(self, errors):
-        self.errors = errors
-
 def create_tempdir(base_dirname: str) -> Path:
     """
     Creates a new tempdir in the default temp location.
@@ -77,8 +73,7 @@ def get_tempfile_locked(
         tempdir = Path(tempfile.gettempdir())
     if dirname is not None:
         tempdir = tempdir / dirname
-        if not tempdir.exists():
-            os.makedirs(tempdir)
+        tempdir.mkdir(parents=True, exist_ok=True)
 
     # Now look for a unique filename based on the base_filename and put a lock file
     for i in range(1, 999999):
