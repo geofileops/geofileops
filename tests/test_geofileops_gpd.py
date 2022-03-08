@@ -191,7 +191,8 @@ def basetest_buffer(
             input_path=input_path,
             output_path=output_path,
             distance=distance,
-            nb_parallel=get_nb_parallel())
+            nb_parallel=get_nb_parallel(),
+            batchsize=get_batchsize())
 
     # Now check if the output file is correctly created
     assert output_path.exists() == True
@@ -205,6 +206,25 @@ def basetest_buffer(
     # Read result for some more detailed checks
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
+
+    ### Test buffer to existing output path ###
+    assert output_path.exists() is True
+    mtime_orig = output_path.stat().st_mtime
+    geofileops.buffer(
+            input_path=input_path,
+            output_path=output_path,
+            distance=distance,
+            nb_parallel=get_nb_parallel())
+    assert output_path.stat().st_mtime == mtime_orig
+
+    # With force=True
+    geofileops.buffer(
+            input_path=input_path,
+            output_path=output_path,
+            distance=distance,
+            nb_parallel=get_nb_parallel(),
+            force=True)
+    assert output_path.stat().st_mtime != mtime_orig
 
     ### Test negative buffer ###
     distance = -10
@@ -648,6 +668,26 @@ def basetest_dissolve_polygons_nogroupby(
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
+
+    ### Test dissolve to existing output path ###
+    assert output_path.exists() is True
+    mtime_orig = output_path.stat().st_mtime
+    geofileops.dissolve(
+            input_path=input_path,
+            output_path=output_path,
+            explodecollections=True,
+            nb_parallel=get_nb_parallel())
+    assert output_path.stat().st_mtime == mtime_orig
+
+    # With force=True
+    geofileops.dissolve(
+            input_path=input_path,
+            output_path=output_path,
+            explodecollections=True,
+            nb_parallel=get_nb_parallel(),
+            force=True)
+    assert output_path.stat().st_mtime == mtime_orig
+
 
     ### Test dissolve polygons with explodecollections=False ###
     output_path = output_basepath.parent / f"{output_basepath.stem}_defaults{output_basepath.suffix}"

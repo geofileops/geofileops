@@ -45,5 +45,5 @@ if __name__ == '__main__':
     tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
 
     test_create_grid2()
-    #test_split_tiles()
+    test_split_tiles()
     

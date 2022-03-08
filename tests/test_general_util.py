@@ -3,9 +3,11 @@
 Tests for functionalities in ogr_util.
 """
 
+import datetime
 from pathlib import Path
 import psutil
 import sys
+import time 
 
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -44,9 +46,24 @@ def test_process_nice_to_priority_class():
     priority_class = general_util.process_nice_to_priority_class(11)
     assert priority_class == psutil.IDLE_PRIORITY_CLASS
 
+def test_format_progress():
+    start_time = datetime.datetime.now()
+    nb_todo = 10000
+    for nb_done in range(0, nb_todo+1, 2000):
+        message = general_util.format_progress(
+                start_time=start_time, 
+                nb_done=nb_done, 
+                nb_todo=nb_todo, 
+                operation="test", 
+                nb_parallel=2)
+        time.sleep(0.5)
+        if message is not None:
+            print(message)
+
 if __name__ == '__main__':
     # Init
     tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
 
     # Test...
-    test_formatbytes()
+    #test_formatbytes()
+    test_format_progress()

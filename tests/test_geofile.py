@@ -61,13 +61,18 @@ def test_cmp(tmpdir):
                 path=test_helper.TestFiles.polygons_parcels_gpkg,
                 tmp_dir=tmp_dir,
                 suffix=suffix)
+        src2 = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_invalid_geometries_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
         
         # Copy test file to tmpdir
         dst = Path(tmpdir) / f"polygons_parcels_output{suffix}"
         geofile.copy(src, dst)
 
-        # Now compare source and dst file
+        # Now compare source and dst files
         assert geofile.cmp(src, dst) == True
+        assert geofile.cmp(src2, dst) == False
 
 def test_convert(tmpdir):
     # Prepare test data + run tests
@@ -388,7 +393,7 @@ def test_update_column(tmpdir):
     layerinfo = geofile.get_layerinfo(path=tmppath, layer='parcels')
     assert 'area' not in layerinfo.columns
         
-    ### Add area column ###
+    ### Add + update  area column ###
     #with test_helper.GdalBin(gdal_installation='gdal_default'):
     geofile.add_column(tmppath, layer='parcels', name='AREA', type='real', expression='ST_area(geom)')
     geofile.update_column(tmppath, name='AreA', expression='ST_area(geom)')
@@ -397,6 +402,21 @@ def test_update_column(tmpdir):
     assert 'AREA' in layerinfo.columns
     gdf = geofile.read_file(tmppath)
     assert round(gdf['AREA'].astype('float')[0], 1) == round(gdf['OPPERVL'].astype('float')[0], 1)
+
+    ### Update column for rows where area > 5 ###
+    geofile.update_column(tmppath, name="AreA", expression="-1", where="area > 4000")
+    gdf = geofile.read_file(tmppath)
+    gdf_filtered = gdf[gdf["AREA"] == -1]
+    assert len(gdf_filtered) == 20
+
+    ### Trying to remove column that doesn't exist should raise ValueError ###
+    assert "not_existing column" not in layerinfo.columns
+    try:
+        geofile.update_column(tmppath, name="not_existing column", expression="ST_area(geom)")
+        exception_raised = False
+    except ValueError:
+        exception_raised = True
+    assert exception_raised is True
 
 def test_read_file(tmpdir):
     # Prepare test data + run tests for one layer
@@ -758,11 +778,11 @@ if __name__ == '__main__':
     #test_read_file()
     #test_copy(tmpdir)
     #test_move(tmpdir)
-    test_spatial_index(tmpdir)
+    #test_spatial_index(tmpdir)
     #test_to_file_gpkg(tmpdir)
     #test_to_file_shp(tmpdir)
     #test_to_file_empty_gpkg(tmpdir)
     #test_to_file_empty_shp(tmpdir)
     #test_to_file_none_gpkg(tmpdir)
     #test_to_file_none_shp(tmpdir)
-    
+    test_update_column(tmpdir)
