@@ -118,6 +118,10 @@ def setprocessnice(nice_value: int):
     """
     Set the niceness of the current process.
 
+    The nice value can (typically) range from 19, which gives all other 
+    processes priority, to -20, which means that this process will take 
+    maximum priority (which isn't very nice ;-)).
+
     Remarks for windows: 
         - windows only supports 6 niceness classes. setprocessnice en 
           getprocessnice maps niceness values to these classes.
@@ -157,6 +161,10 @@ def getprocessnice() -> int:
     """
     Get the niceness of the current process.
 
+    The nice value can (typically) range from 19, which gives all other 
+    processes priority, to -20, which means that this process will take 
+    maximum priority (which isn't very nice ;-)).
+
     Remarks for windows: 
         - windows only supports 6 niceness classes. setprocessnice en 
           getprocessnice maps niceness values to these classes.
@@ -184,5 +192,10 @@ def getprocessnice() -> int:
         return int(nice_value)
 
 def initialize_worker():
-    # We don't want the workers to block the entire system, so nice them 
-    setprocessnice(15)
+    # We don't want the workers to block the entire system, so make them nice
+    # if they aren't quite nice already.
+    # Remark: on linux, depending on system settings it is not possible to 
+    # decrease niceness, even if it was you who niced before. 
+    nice_value = 15
+    if getprocessnice() < nice_value: 
+        setprocessnice(nice_value)
