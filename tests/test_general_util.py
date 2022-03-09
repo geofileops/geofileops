@@ -52,8 +52,8 @@ def test_processnice():
     #       results only to HIGH priority. 
     nice_orig = general_util.getprocessnice()
     for niceness in [-15, -10, 0, 10, 19]: 
-        # Setting negative nice values needs root on linux, so skip those
-        if niceness <= 0 and os.name != 'nt':
+        # Decreasing niceness (sometimes) isn't possible on linux, so skip 
+        if os.name != 'nt':
             continue
 
         # Test!
@@ -86,3 +86,4 @@ if __name__ == '__main__':
     #test_formatbytes()
     #test_format_progress()
     test_processnice()
+    
