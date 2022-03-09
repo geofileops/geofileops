@@ -9,6 +9,7 @@ import tempfile
 from typing import List, Optional
 import sys
 
+import fiona
 import geopandas as gpd
 import shapely.geometry as sh_geom
 
