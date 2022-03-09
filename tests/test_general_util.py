@@ -53,7 +53,7 @@ def test_processnice():
     nice_orig = general_util.getprocessnice()
     for niceness in [-15, -10, 0, 10, 19]: 
         # Setting negative nice values needs root on linux, so skip those
-        if niceness < 0 and os.name != 'nt':
+        if niceness <= 0 and os.name != 'nt':
             continue
 
         # Test!
