@@ -43,16 +43,35 @@ def test_format_progress():
             print(message)
 
 def test_processnice():
-    # The nice values tests are spcifically written to accomodate for  
+    # Test setting and getting some values for nice 
+    # Remark: the nice values tests are spcifically written to accomodate for
     # windows specificalities: 
     #     - windows only supports 6 niceness classes. setprocessnice en 
     #       getprocessnice maps niceness values to these classes.
     #     - when setting REALTIME priority (-20 niceness) apparently this 
     #       results only to HIGH priority. 
-    for niceness in [-15, -10, 0, 10, 20]:    
+    nice_orig = general_util.getprocessnice()
+    for niceness in [-15, -10, 0, 10, 19]:    
         general_util.setprocessnice(niceness)
         nice = general_util.getprocessnice()
         assert nice == niceness
+
+    # Test invalid values for nice value
+    try:
+        general_util.setprocessnice(20)    
+        exception_raised = False
+    except ValueError:
+        exception_raised = True
+    assert exception_raised is True
+    try:
+        general_util.setprocessnice(-21)    
+        exception_raised = False
+    except ValueError:
+        exception_raised = True
+    assert exception_raised is True
+    
+    # Reset niceness to original value before test
+    general_util.setprocessnice(nice_orig)
 
 if __name__ == '__main__':
     # Init
