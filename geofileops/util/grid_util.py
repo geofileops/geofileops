@@ -183,7 +183,7 @@ def split_tiles(
                         split_line = sh_geom.LineString([(xmin+width/2, ymin-1), (xmin+width/2, ymax+1)])
                     else:
                         split_line = sh_geom.LineString([(xmin-1, ymin+height/2), (xmax+1, ymin+height/2)])
-                tmp_tiles_after_split.extend(sh_ops.split(tile_to_split, split_line))
+                tmp_tiles_after_split.extend(sh_ops.split(tile_to_split, split_line).geoms)
             curr_tiles_being_split = tmp_tiles_after_split
         result_tiles.extend(curr_tiles_being_split)
     

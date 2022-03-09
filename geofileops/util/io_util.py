@@ -8,11 +8,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
-from typing import Optional, Tuple
-
-class CTError(Exception):
-    def __init__(self, errors):
-        self.errors = errors
+from typing import Any, Optional, Tuple, Union
 
 def create_tempdir(base_dirname: str) -> Path:
     """
@@ -77,8 +73,7 @@ def get_tempfile_locked(
         tempdir = Path(tempfile.gettempdir())
     if dirname is not None:
         tempdir = tempdir / dirname
-        if not tempdir.exists():
-            os.makedirs(tempdir)
+        tempdir.mkdir(parents=True, exist_ok=True)
 
     # Now look for a unique filename based on the base_filename and put a lock file
     for i in range(1, 999999):
@@ -96,16 +91,20 @@ def get_tempfile_locked(
 
     raise Exception(f"Wasn't able to create a temporary file with base_filename: {base_filename}, dir: {dir}") 
  
-def copyfile(src, dst):
+def copyfile(
+        src: Union[str, 'os.PathLike[Any]'], 
+        dst: Union[str, 'os.PathLike[Any]']):
     """
-    standard shutil.copyfile is very slow on windows for large files.
+    Copy the source file to the destination specified. 
+
+    Standard shutil.copyfile is very slow on windows for large files.
 
     Args:
-        src ([type]): [description]
-        dst ([type]): [description]
+        src (PathLike): the source file to copy.
+        dst (PathLike): the destination file or directory to copy to.
     
     Raises:
-        Exception: [description]
+        Exception: when anything went wrong.
     """
     if os.name == 'nt':
         # On windows, this is a lot faster than all shutil alternatives
@@ -118,9 +117,15 @@ def copyfile(src, dst):
             raise Exception(f"Error executing {command}, with output {output}") from ex
         
     else:
+        # If the destination is a dir, make it a full file path 
+        dst_p = Path(dst)
+        if dst_p.is_dir():
+            src_p = Path(src)
+            dst_p = dst_p / src_p.name
+            
         buffer_size = 1024*1024*5
         with open(src, 'rb') as fsrc, \
-             open(dst, 'wb') as fdest:
+             open(dst_p, 'wb') as fdest:
             shutil.copyfileobj(fsrc, fdest, buffer_size)
 
 '''

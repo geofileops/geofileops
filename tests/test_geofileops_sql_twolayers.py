@@ -9,8 +9,8 @@ import sys
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
+from geofileops import geofileops
 from geofileops.geofile import GeometryType, PrimitiveType
-from geofileops.util import geofileops_sql
 from geofileops.util import io_util
 import test_helper
 
@@ -60,7 +60,7 @@ def basetest_erase(
         expected_output_geometrytype: GeometryType):
 
     ### Do standard operation ###
-    geofileops_sql.erase(
+    geofileops.erase(
             input_path=input_path, 
             erase_path=erase_path,
             output_path=output_path)
@@ -88,7 +88,7 @@ def basetest_erase(
 
     ### Do operation with explodecollections=True ###
     output_path = io_util.with_stem(output_path, f"{output_path.stem}_exploded")
-    geofileops_sql.erase(
+    geofileops.erase(
             input_path=input_path, 
             erase_path=erase_path,
             output_path=output_path,
@@ -145,7 +145,7 @@ def basetest_export_by_location(
         input_to_compare_with_path: Path, 
         output_path: Path):
 
-    geofileops_sql.export_by_location(
+    geofileops.export_by_location(
             input_to_select_from_path=input_to_select_from_path,
             input_to_compare_with_path=input_to_compare_with_path,
             output_path=output_path)
@@ -197,7 +197,7 @@ def basetest_export_by_distance(
         input_to_compare_with_path: Path, 
         output_path: Path):
 
-    geofileops_sql.export_by_distance(
+    geofileops.export_by_distance(
             input_to_select_from_path=input_to_select_from_path,
             input_to_compare_with_path=input_to_compare_with_path,
             max_distance=10,
@@ -248,7 +248,7 @@ def basetest_intersect(
         output_path: Path):
 
     # Do operation
-    geofileops_sql.intersect(
+    geofileops.intersect(
             input1_path=input1_path,
             input2_path=input2_path,
             output_path=output_path,
@@ -298,7 +298,7 @@ def basetest_join_by_location(
         output_path: Path):
         
     ### Test 1: inner join, intersect
-    geofileops_sql.join_by_location(
+    geofileops.join_by_location(
             input1_path=input1_path,
             input2_path=input2_path,
             output_path=output_path,
@@ -322,7 +322,7 @@ def basetest_join_by_location(
     assert output_gdf['geometry'][0] is not None
 
     ### Test 2: left outer join, intersect
-    geofileops_sql.join_by_location(
+    geofileops.join_by_location(
             input1_path=input1_path,
             input2_path=input2_path,
             output_path=output_path,
@@ -375,7 +375,7 @@ def basetest_join_nearest(
         
     ### Test 1: inner join, intersect
     nb_nearest = 2
-    geofileops_sql.join_nearest(
+    geofileops.join_nearest(
             input1_path=input1_path,
             input2_path=input2_path,
             output_path=output_path,
@@ -455,7 +455,7 @@ def basetest_select_two_layers(
                 AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
                 AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
             '''
-    geofileops_sql.select_two_layers(
+    geofileops.select_two_layers(
             input1_path=input1_path,
             input2_path=input2_path,
             output_path=output_path,
@@ -505,7 +505,7 @@ def basetest_split_layers(
         output_path: Path):
 
     # Do operation
-    geofileops_sql.split(
+    geofileops.split(
             input1_path=input1_path,
             input2_path=input2_path,
             output_path=output_path)
@@ -554,7 +554,7 @@ def basetest_union(
         output_path: Path):
 
     # Do operation
-    geofileops_sql.union(
+    geofileops.union(
             input1_path=input1_path,
             input2_path=input2_path,
             output_path=output_path,
@@ -607,7 +607,7 @@ def basetest_union_circles(
     
     ##### Also run some tests on basic data with circles #####
     ### Union the single circle towards the 2 circles ###
-    geofileops_sql.union( 
+    geofileops.union( 
             input1_path=input1_path,
             input2_path=input2_path,
             output_path=output_path,
@@ -632,7 +632,7 @@ def basetest_union_circles(
     input1_path = test_helper.TestFiles.polygons_overlappingcircles_twothree_gpkg
     input2_path = test_helper.TestFiles.polygons_overlappingcircles_one_gpkg
     output_path = Path(tmp_dir) / f"{input1_path.stem}_union_{input2_path.stem}.gpkg"
-    geofileops_sql.union( 
+    geofileops.union( 
             input1_path=input1_path,
             input2_path=input2_path,
             output_path=output_path,
