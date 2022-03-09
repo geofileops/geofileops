@@ -10,7 +10,6 @@ import logging
 import os
 from pathlib import Path
 import pprint
-import pyproj
 import shutil
 import tempfile
 import time
@@ -21,6 +20,7 @@ import fiona
 import geopandas as gpd
 from osgeo import gdal
 import pandas as pd
+import pyproj
 
 from geofileops.util import geometry_util
 from geofileops.util.geometry_util import GeometryType, PrimitiveType
