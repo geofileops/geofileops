@@ -114,37 +114,55 @@ def formatbytes(bytes: float):
     elif TB <= bytes_float:
         return '{0:.2f} TB'.format(bytes_float/TB)
 
-def process_nice_to_priority_class(nice_value: int) -> int:
-    if nice_value <= -15:
-        return psutil.REALTIME_PRIORITY_CLASS
-    elif nice_value <= -10:
-        return psutil.HIGH_PRIORITY_CLASS
-    elif nice_value <= -5:
-        return psutil.ABOVE_NORMAL_PRIORITY_CLASS
-    elif nice_value <= 0:
-        return psutil.NORMAL_PRIORITY_CLASS
-    elif nice_value <= 10:
-        return psutil.BELOW_NORMAL_PRIORITY_CLASS
-    else:
-        return psutil.IDLE_PRIORITY_CLASS
-
 def setprocessnice(nice_value: int):
+    """
+    Set the niceness of the current process.
+
+    Remarks for windows: 
+        - windows only supports 6 niceness classes. setprocessnice en 
+          getprocessnice maps niceness values to these classes.
+        - when setting REALTIME priority (-20 niceness) apparently this 
+          results only to HIGH priority.
+
+    Args:
+        nice_value (int): the niceness to be set.
+    """
     p = psutil.Process(os.getpid())
     if os.name == 'nt':
-        p.nice(process_nice_to_priority_class(nice_value))
+        if nice_value <= -20:
+            p.nice(psutil.REALTIME_PRIORITY_CLASS)
+        elif nice_value <= -15:
+            p.nice(psutil.HIGH_PRIORITY_CLASS)
+        elif nice_value <= -10:
+            p.nice(psutil.ABOVE_NORMAL_PRIORITY_CLASS)
+        elif nice_value <= 0:
+            p.nice(psutil.NORMAL_PRIORITY_CLASS)
+        elif nice_value <= 10:
+            p.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)
+        else:
+            p.nice(psutil.IDLE_PRIORITY_CLASS)
     else:
         p.nice(nice_value)
 
 def getprocessnice() -> int:
+    """
+    Get the niceness of the current process.
+
+    Remarks for windows: 
+        - windows only supports 6 niceness classes. setprocessnice en 
+          getprocessnice maps niceness values to these classes.
+        - when setting REALTIME priority (-20 niceness) apparently this 
+          results only to HIGH priority.
+    """
     p = psutil.Process(os.getpid())
     nice_value = p.nice()
     if os.name == 'nt':
         if nice_value == psutil.REALTIME_PRIORITY_CLASS:
             return -20
         elif nice_value == psutil.HIGH_PRIORITY_CLASS:
-            return -10
+            return -15
         elif nice_value == psutil.ABOVE_NORMAL_PRIORITY_CLASS:
-            return -5
+            return -10
         elif nice_value == psutil.NORMAL_PRIORITY_CLASS:
             return 0
         elif nice_value == psutil.BELOW_NORMAL_PRIORITY_CLASS:
