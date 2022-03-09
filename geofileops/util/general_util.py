@@ -130,22 +130,25 @@ def setprocessnice(nice_value: int):
     if nice_value < -20 or nice_value > 19:
         raise ValueError(f"Invalid value for nice_values (min: -20, max: 19): {nice_value}")
 
-    p = psutil.Process(os.getpid())
-    if os.name == 'nt':
-        if nice_value == -20:
-            p.nice(psutil.REALTIME_PRIORITY_CLASS)
-        elif nice_value <= -15:
-            p.nice(psutil.HIGH_PRIORITY_CLASS)
-        elif nice_value <= -10:
-            p.nice(psutil.ABOVE_NORMAL_PRIORITY_CLASS)
-        elif nice_value <= 0:
-            p.nice(psutil.NORMAL_PRIORITY_CLASS)
-        elif nice_value <= 10:
-            p.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)
+    try:
+        p = psutil.Process(os.getpid())
+        if os.name == 'nt':
+            if nice_value == -20:
+                p.nice(psutil.REALTIME_PRIORITY_CLASS)
+            elif nice_value <= -15:
+                p.nice(psutil.HIGH_PRIORITY_CLASS)
+            elif nice_value <= -10:
+                p.nice(psutil.ABOVE_NORMAL_PRIORITY_CLASS)
+            elif nice_value <= 0:
+                p.nice(psutil.NORMAL_PRIORITY_CLASS)
+            elif nice_value <= 10:
+                p.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)
+            else:
+                p.nice(psutil.IDLE_PRIORITY_CLASS)
         else:
-            p.nice(psutil.IDLE_PRIORITY_CLASS)
-    else:
-        p.nice(nice_value)
+            p.nice(nice_value)
+    except Exception as ex:
+        raise Exception(f"Error in setprocessnice with nice_value: {nice_value}") from ex
 
 def getprocessnice() -> int:
     """
