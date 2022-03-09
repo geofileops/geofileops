@@ -445,6 +445,3 @@ def load_spatialite(conn):
         conn.load_extension('mod_spatialite')
     except Exception as ex:
         raise MissingRuntimeDependencyError("Error trying to load mod_spatialite.") from ex
-    
-if __name__ == '__main__':
-    None

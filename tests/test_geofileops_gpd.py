@@ -13,9 +13,9 @@ import shapely.geometry as sh_geom
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
+from geofileops import geofileops
 from geofileops.geofile import GeometryType
 from geofileops.util import geofileops_gpd
-from geofileops.util.geofileops_gpd import ParallelizationConfig
 from geofileops.util import geometry_util
 from geofileops.util import io_util
 import test_helper
@@ -26,6 +26,10 @@ def get_nb_parallel() -> int:
 
 def get_batchsize() -> int:
     return 5
+
+def test_get_parallelization_params():
+    parallelization_params = geofileops_gpd.get_parallelization_params(500000)
+    assert parallelization_params is not None
 
 def test_apply(tmpdir):
     # Init
@@ -62,7 +66,7 @@ def basetest_apply(
     input_layerinfo = geofile.get_layerinfo(input_path)
     
     ### Test apply with only_geom_input = True ###
-    geofileops_gpd.apply(
+    geofileops.apply(
             input_path=input_path,
             output_path=output_path,
             func=lambda geom: geometry_util.remove_inner_rings(
@@ -102,7 +106,7 @@ def basetest_apply(
 
     ### Test apply with only_geom_input = False ###
     output_path = io_util.with_stem(output_path, f"{output_path.stem}_2")
-    geofileops_gpd.apply(
+    geofileops.apply(
             input_path=input_path,
             output_path=output_path,
             func=lambda row: geometry_util.remove_inner_rings(
@@ -183,11 +187,12 @@ def basetest_buffer(
         distance /= 111000
 
     ### Test positive buffer ###
-    geofileops_gpd.buffer(
+    geofileops.buffer(
             input_path=input_path,
             output_path=output_path,
             distance=distance,
-            nb_parallel=get_nb_parallel())
+            nb_parallel=get_nb_parallel(),
+            batchsize=get_batchsize())
 
     # Now check if the output file is correctly created
     assert output_path.exists() == True
@@ -202,6 +207,25 @@ def basetest_buffer(
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
+    ### Test buffer to existing output path ###
+    assert output_path.exists() is True
+    mtime_orig = output_path.stat().st_mtime
+    geofileops.buffer(
+            input_path=input_path,
+            output_path=output_path,
+            distance=distance,
+            nb_parallel=get_nb_parallel())
+    assert output_path.stat().st_mtime == mtime_orig
+
+    # With force=True
+    geofileops.buffer(
+            input_path=input_path,
+            output_path=output_path,
+            distance=distance,
+            nb_parallel=get_nb_parallel(),
+            force=True)
+    assert output_path.stat().st_mtime != mtime_orig
+
     ### Test negative buffer ###
     distance = -10
     if layerinfo_input.crs.is_projected is False:
@@ -209,7 +233,7 @@ def basetest_buffer(
         distance /= 111000
 
     output_path = output_path.parent / f"{output_path.stem}_m10m{output_path.suffix}"
-    geofileops_gpd.buffer(
+    geofileops.buffer(
             input_path=input_path,
             output_path=output_path,
             distance=distance,
@@ -239,7 +263,7 @@ def basetest_buffer(
     
     ### Test negative buffer with explodecollections ###
     output_path = output_path.parent / f"{output_path.stem}_m10m_explode{output_path.suffix}"
-    geofileops_gpd.buffer(
+    geofileops.buffer(
             input_path=input_path,
             output_path=output_path,
             distance=distance,
@@ -301,7 +325,7 @@ def basetest_buffer_ext(input_path, output_path):
 
     ### Check if columns parameter works (case insensitive) ###
     columns = ['OIDN', 'uidn', 'HFDTLT', 'lblhfdtlt', 'GEWASGROEP', 'lengte', 'OPPERVL']
-    geofileops_gpd.buffer(
+    geofileops.buffer(
             input_path=input_path,
             columns=columns,
             output_path=output_path,
@@ -323,7 +347,7 @@ def basetest_buffer_ext(input_path, output_path):
     
     ### Test polygon buffer with square endcaps ###
     output_path = output_path.parent / f"{output_path.stem}_endcap_join{output_path.suffix}"
-    geofileops_gpd.buffer(
+    geofileops.buffer(
             input_path=input_path,
             output_path=output_path,
             distance=distance,
@@ -367,7 +391,7 @@ def test_convexhull(tmpdir):
 
 def basetest_convexhull(input_path, output_path):
     layerinfo_orig = geofile.get_layerinfo(input_path)
-    geofileops_gpd.convexhull(
+    geofileops.convexhull(
             input_path=input_path,
             output_path=output_path,
             nb_parallel=get_nb_parallel())
@@ -405,7 +429,7 @@ def basetest_dissolve_linestrings_nogroupby(input_path, output_basepath):
     # Apply dissolve with explodecollections
     output_path = (output_basepath.parent / 
             f"{output_basepath.stem}_expl{output_basepath.suffix}")
-    geofileops_gpd.dissolve(
+    geofileops.dissolve(
             input_path=input_path,
             output_path=output_path,
             explodecollections=True,
@@ -431,7 +455,7 @@ def basetest_dissolve_linestrings_nogroupby(input_path, output_basepath):
     output_path = (output_basepath.parent / 
             f"{output_basepath.stem}_noexpl{output_basepath.suffix}")
     # explodecollections=False only supported if 
-    geofileops_gpd.dissolve(
+    geofileops.dissolve(
             input_path=input_path,
             output_path=output_path,
             explodecollections=False,
@@ -480,7 +504,7 @@ def basetest_dissolve_polygons_groupby(
 
     ### Test dissolve polygons with groupby + without explodecollections ###
     output_path = output_basepath.parent / f"{output_basepath.stem}_group{output_basepath.suffix}"
-    geofileops_gpd.dissolve(
+    geofileops.dissolve(
             input_path=input_path,
             output_path=output_path,
             groupby_columns=['GEWASGROEP'],
@@ -504,7 +528,7 @@ def basetest_dissolve_polygons_groupby(
 
     ### Test dissolve polygons with explodecollections ###
     output_path = output_basepath.parent / f"{output_basepath.stem}_group_explode{output_basepath.suffix}"
-    geofileops_gpd.dissolve(
+    geofileops.dissolve(
             input_path=input_path,
             output_path=output_path,
             groupby_columns=['GEWASGROEP'],
@@ -530,7 +554,7 @@ def basetest_dissolve_polygons_groupby(
 
     ### Test dissolve polygons with explodecollections + all columns ###
     output_path = output_basepath.parent / f"{output_basepath.stem}_group_explode_allcolumns{output_basepath.suffix}"
-    geofileops_gpd.dissolve(
+    geofileops.dissolve(
             input_path=input_path,
             output_path=output_path,
             groupby_columns=['GEWASGROEP'],
@@ -559,11 +583,12 @@ def basetest_dissolve_polygons_groupby(
     # A different output layer is not supported for shapefile!!!
     try:
         output_path = output_basepath.parent / f"{output_basepath.stem}_group_outputlayer{output_basepath.suffix}"
-        geofileops_gpd.dissolve(
+        geofileops.dissolve(
                 input_path=input_path,
                 output_path=output_path,
                 groupby_columns=['GEWASGROEP'],
                 output_layer='banana',
+                explodecollections=True,
                 nb_parallel=get_nb_parallel(),
                 batchsize=get_batchsize())
     except Exception as ex:
@@ -615,9 +640,10 @@ def basetest_dissolve_polygons_nogroupby(
     
     ### Test dissolve polygons with explodecollections=True (= default) ###
     output_path = output_basepath.parent / f"{output_basepath.stem}_defaults{output_basepath.suffix}"
-    geofileops_gpd.dissolve(
+    geofileops.dissolve(
             input_path=input_path,
             output_path=output_path,
+            explodecollections=True,
             nb_parallel=get_nb_parallel(),
             batchsize=get_batchsize(),
             force=True)
@@ -643,9 +669,29 @@ def basetest_dissolve_polygons_nogroupby(
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
 
+    ### Test dissolve to existing output path ###
+    assert output_path.exists() is True
+    mtime_orig = output_path.stat().st_mtime
+    geofileops.dissolve(
+            input_path=input_path,
+            output_path=output_path,
+            explodecollections=True,
+            nb_parallel=get_nb_parallel())
+    assert output_path.stat().st_mtime == mtime_orig
+
+    # With force=True
+    geofileops.dissolve(
+            input_path=input_path,
+            output_path=output_path,
+            explodecollections=True,
+            nb_parallel=get_nb_parallel(),
+            force=True)
+    assert output_path.stat().st_mtime == mtime_orig
+
+
     ### Test dissolve polygons with explodecollections=False ###
     output_path = output_basepath.parent / f"{output_basepath.stem}_defaults{output_basepath.suffix}"
-    geofileops_gpd.dissolve(
+    geofileops.dissolve(
             input_path=input_path,
             output_path=output_path,
             explodecollections=False,
@@ -678,7 +724,7 @@ def basetest_dissolve_polygons_nogroupby(
     # A different output layer is not supported for shapefile!!!
     try:
         output_path = output_basepath.parent / f"{output_basepath.stem}_outputlayer{output_basepath.suffix}"
-        geofileops_gpd.dissolve(
+        geofileops.dissolve(
                 input_path=input_path,
                 output_path=output_path,
                 output_layer='banana',
@@ -746,7 +792,7 @@ def basetest_dissolve_multisinglepolygons(
     # Test to check if it is handled well that a file that results in single 
     # and multipolygons during dissolve is treated correctly, as geopackage 
     # doesn't support single and multi-polygons in one layer.
-    geofileops_gpd.dissolve(
+    geofileops.dissolve(
             input_path=input_path,
             output_path=output_path,
             explodecollections=True,
@@ -824,7 +870,7 @@ def basetest_simplify(
 
     ### Test default algorithm, rdp ###
     output_path = io_util.with_stem(output_basepath, f"{output_basepath.stem}_rdp")
-    geofileops_gpd.simplify(
+    geofileops.simplify(
             input_path=input_path,
             output_path=output_path,
             tolerance=tolerance,
@@ -848,7 +894,7 @@ def basetest_simplify(
 
     ### Test vw (visvalingam-whyatt) algorithm ###
     output_path = io_util.with_stem(output_basepath, f"{output_basepath.stem}_vw")
-    geofileops_gpd.simplify(
+    geofileops.simplify(
             input_path=input_path,
             output_path=output_path,
             tolerance=tolerance,
@@ -873,7 +919,7 @@ def basetest_simplify(
 
     ### Test lang algorithm ###
     output_path = io_util.with_stem(output_basepath, f"{output_basepath.stem}_lang")
-    geofileops_gpd.simplify(
+    geofileops.simplify(
             input_path=input_path,
             output_path=output_path,
             tolerance=tolerance,
@@ -902,8 +948,9 @@ if __name__ == '__main__':
     tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
 
     # Run
+    test_get_parallelization_params()
     #test_apply(tmpdir / "apply")
-    test_buffer(tmpdir / "buffer")
+    #test_buffer(tmpdir / "buffer")
     #test_buffer_ext(tmpdir / "buffer_ext")
     #test_dissolve_linestrings_nogroupby(tmpdir / "dissolve_linestrings_nogroupby")
     #test_dissolve_polygons_groupby(tmpdir / "dissolve_polygons_groupby")

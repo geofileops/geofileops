@@ -419,8 +419,8 @@ def _apply_geooperation_to_layer(
             batches = {}    
             future_to_batch_id = {}
             nb_done = 0
-            if verbose:
-                logger.info(f"Start calculation on {nb_rows_total} rows in {nb_batches} batches, so {real_batchsize} per batch")
+            
+            logger.debug(f"Start calculation on {nb_rows_total} rows in {nb_batches} batches, so {real_batchsize} per batch")
 
             for batch_id in range(nb_batches):
 
@@ -904,11 +904,11 @@ def _dissolve_polygons_pass(
 
                 if result is not None:
                     nb_rows_done += result['nb_rows_done']
-                    if verbose and result['nb_rows_done'] > 0 and result['total_time'] > 0:
+                    if result['nb_rows_done'] > 0 and result['total_time'] > 0:
                         rows_per_sec = round(result['nb_rows_done']/result['total_time'])
-                        logger.info(f"Batch {batch_id} ready, processed {result['nb_rows_done']} rows in {rows_per_sec} rows/sec")
+                        logger.debug(f"Batch {batch_id} ready, processed {result['nb_rows_done']} rows in {rows_per_sec} rows/sec")
                         if 'perfstring' in result:
-                            logger.info(f"Perfstring: {result['perfstring']}")
+                            logger.debug(f"Perfstring: {result['perfstring']}")
                     
                     # Start copy of the result to a common file
                     batch_id = future_to_batch_id[future]
@@ -1088,8 +1088,7 @@ def _dissolve_polygons(
 
     # Finalise...
     message = f"dissolve ready in {datetime.datetime.now()-start_time} on {input_path}!"
-    if verbose:
-        logger.info(message)
+    logger.debug(message)
     
     # Collect perfinfo
     total_perf_time = 0
@@ -1139,6 +1138,3 @@ def _add_orderby_column(
             path=path, name=name, type=geofile.DataType.TEXT, expression=expression)
     sqlite_stmt = f'CREATE INDEX {name}_idx ON "{layer}"({name})' 
     ogr_util.vector_info(path=path, sql_stmt=sqlite_stmt, readonly=False)
-
-if __name__ == '__main__':
-    raise Exception("Not implemented!")

@@ -6,9 +6,12 @@ Tests for operations that are executed using a sql statement on one layer.
 from pathlib import Path
 import sys
 
+import geopandas as gpd
+
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
+from geofileops import geofileops
 from geofileops.geofile import GeometryType
 from geofileops.util import geofileops_sql
 import test_helper
@@ -106,15 +109,43 @@ def basetest_convexhull(
     output_gdf = geofile.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
+def test_delete_duplicate_geometries(tmpdir):
+    # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    test_gdf = gpd.GeoDataFrame(
+            geometry=[
+                    test_helper.TestData.polygon_with_island, 
+                    test_helper.TestData.polygon_with_island,
+                    test_helper.TestData.polygon_no_islands,
+                    test_helper.TestData.polygon_no_islands,
+                    test_helper.TestData.polygon_with_island2], 
+            crs=test_helper.TestData.crs_epsg)
+    suffix = ".gpkg"
+    input_path = tmp_dir / f"input_test_data{suffix}"
+    geofile.to_file(test_gdf, input_path)
+    input_info = geofile.get_layerinfo(input_path)
+    
+    # Run test
+    output_path = tmp_dir / f"{input_path.stem}-output{suffix}"
+    print(f"Run test for suffix {suffix}")
+    geofileops.delete_duplicate_geometries(
+            input_path=input_path,
+            output_path=output_path)
+
+    # Check result, 2 duplicates should be removed
+    result_info = geofile.get_layerinfo(output_path)
+    assert result_info.featurecount == input_info.featurecount - 2
+
 def test_isvalid(tmpdir):
     # Prepare test data + run tests
     tmp_dir = Path(tmpdir)
     tmp_dir.mkdir(parents=True, exist_ok=True)
-    for suffix in test_helper.get_test_suffix_list():
+    for suffix in [".gpkg"]: #test_helper.get_test_suffix_list():
         for crs_epsg in test_helper.get_test_crs_epsg_list():
             # If test input file is in wrong format, convert it
             input_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    path=test_helper.TestFiles.polygons_invalid_geometries_gpkg,
                     tmp_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
@@ -124,31 +155,37 @@ def test_isvalid(tmpdir):
             print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}")
             basetest_isvalid(input_path, output_path)   
     
-    # Run test on empty file
-    input_path = test_helper.TestFiles.polygons_no_rows_gpkg
-    output_path = tmp_dir / f"{input_path.stem}-output.gpkg"
-    basetest_isvalid(input_path, output_path)
-
 def basetest_isvalid(
         input_path: Path, 
         output_path: Path):
     
     # Do operation
-    geofileops_sql.isvalid(input_path=input_path, output_path=output_path, nb_parallel=2)
+    input_layerinfo = geofile.get_layerinfo(input_path)
+    geofileops.isvalid(input_path=input_path, output_path=output_path, nb_parallel=2)
 
-    '''
     # Now check if the tmp file is correctly created
-    assert output_path.exists() == True
-    layerinfo_select = geofile.getlayerinfo(output_path)
-    assert layerinfo_orig.featurecount == layerinfo_select.featurecount
-    assert (len(layerinfo_orig.columns)+3) == len(layerinfo_select.columns)
+    assert output_path.exists() is True
+    result_layerinfo = geofile.get_layerinfo(output_path)
+    assert input_layerinfo.featurecount == result_layerinfo.featurecount
+    assert len(input_layerinfo.columns) == len(result_layerinfo.columns) - 2
 
     output_gdf = geofile.read_file(output_path)
-    print(output_gdf)
-    assert output_gdf['geom'][0] is None
-    assert output_gdf['isvalid'][0] == 1
-    assert output_gdf['isvalidreason'][0] == 'Valid Geometry'
-    '''
+    assert output_gdf['geometry'][0] is not None
+    assert output_gdf['isvalid'][0] == 0
+    
+    # Do operation, without specifying output path
+    geofileops.isvalid(input_path=input_path, nb_parallel=2)
+
+    # Now check if the tmp file is correctly created
+    output_auto_path = output_path.parent / f"{input_path.stem}_isvalid{output_path.suffix}"
+    assert output_auto_path.exists() == True
+    result_auto_layerinfo = geofile.get_layerinfo(output_auto_path)
+    assert input_layerinfo.featurecount == result_auto_layerinfo.featurecount
+    assert len(input_layerinfo.columns) == len(result_auto_layerinfo.columns) - 2
+
+    output_auto_gdf = geofile.read_file(output_auto_path)
+    assert output_auto_gdf['geometry'][0] is not None
+    assert output_auto_gdf['isvalid'][0] == 0
 
 def test_makevalid(tmpdir):
     # Prepare test data + run tests
@@ -173,7 +210,7 @@ def basetest_makevalid(
         output_path: Path):
 
     # Do operation
-    geofileops_sql.makevalid(input_path=input_path, output_path=output_path, nb_parallel=2)
+    geofileops.makevalid(input_path=input_path, output_path=output_path, nb_parallel=2)
 
     # Now check if the output file is correctly created
     assert output_path.exists() == True
@@ -191,12 +228,12 @@ def basetest_makevalid(
 
     # Make sure the input file was not valid
     output_isvalid_path = output_path.parent / f"{output_path.stem}_is-valid{output_path.suffix}"
-    isvalid = geofileops_sql.isvalid(input_path=input_path, output_path=output_isvalid_path)
+    isvalid = geofileops.isvalid(input_path=input_path, output_path=output_isvalid_path)
     assert isvalid is False, "Input file should contain invalid features"
 
     # Check if the result file is valid
     output_new_isvalid_path = output_path.parent / f"{output_path.stem}_new_is-valid{output_path.suffix}"
-    isvalid = geofileops_sql.isvalid(input_path=output_path, output_path=output_new_isvalid_path)
+    isvalid = geofileops.isvalid(input_path=output_path, output_path=output_new_isvalid_path)
     assert isvalid == True, "Output file shouldn't contain invalid features"
 
 def test_select(tmpdir):
@@ -225,7 +262,7 @@ def basetest_select(
     # Run test
     layerinfo_input = geofile.get_layerinfo(input_path)
     sql_stmt = 'SELECT {geometrycolumn}, oidn, uidn FROM "{input_layer}"'
-    geofileops_sql.select(
+    geofileops.select(
             input_path=input_path,
             output_path=output_path,
             sql_stmt=sql_stmt)
@@ -272,7 +309,7 @@ def basetest_select_various_options(
     sql_stmt = '''SELECT {geometrycolumn}
                         {columns_to_select_str} 
                     FROM "{input_layer}"'''
-    geofileops_sql.select(
+    geofileops.select(
             input_path=input_path,
             output_path=output_path,
             columns=columns,
@@ -364,9 +401,10 @@ if __name__ == '__main__':
     # Single layer operations
     #test_buffer(tmpdir / "buffer")
     #test_convexhull(tmpdir / "convexhull")
+    #test_delete_duplicate_geometries(tmpdir / "delete_duplicate_geometries")
     #test_makevalid(tmpdir / "makevalid")
-    #test_isvalid(tmpdir / "isvalid")
+    test_isvalid(tmpdir / "isvalid")
     #test_select(tmpdir / "select")
     #test_select_geos_version(tmpdir)
-    test_simplify(tmpdir / "simplify")
+    #test_simplify(tmpdir / "simplify")
     

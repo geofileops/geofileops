@@ -10,7 +10,6 @@ import logging
 import os
 from pathlib import Path
 import pprint
-import pyproj
 import shutil
 import tempfile
 import time
@@ -21,6 +20,7 @@ import fiona
 import geopandas as gpd
 from osgeo import gdal
 import pandas as pd
+import pyproj
 
 from geofileops.util import geometry_util
 from geofileops.util.geometry_util import GeometryType, PrimitiveType
@@ -169,21 +169,21 @@ def get_layerinfo(
     ##### Init #####
     path_p = Path(path)
     if not path_p.exists():
-        raise Exception(f"File does not exist: {path_p}")
+        raise ValueError(f"File does not exist: {path_p}")
         
     datasource = None
     try:
         datasource = gdal.OpenEx(str(path_p))
-        if layer is not None and GeofileType(path_p).is_singlelayer is False:
+        if layer is not None: #and GeofileType(path_p).is_singlelayer is False:
             datasource_layer = datasource.GetLayer(layer)
         elif datasource.GetLayerCount() == 1:
             datasource_layer = datasource.GetLayerByIndex(0)
         else:
-            raise Exception(f"No layer specified, and file has <> 1 layer: {path_p}")
+            raise ValueError(f"No layer specified, and file has <> 1 layer: {path_p}")
 
         # If the layer doesn't exist, return 
         if datasource_layer is None:
-            raise Exception(f"Layer {layer} not found in file: {path_p}")
+            raise ValueError(f"Layer {layer} not found in file: {path_p}")
 
         # Get column info
         columns = []
@@ -291,8 +291,7 @@ def get_only_layer(path: Union[str, 'os.PathLike[Any]']) -> str:
         path (PathLike): the file.
 
     Raises:
-        Exception: [description]
-        Exception: [description]
+        ValueError: an invalid parameter value was passed.
 
     Returns:
         str: the layer name
@@ -302,9 +301,9 @@ def get_only_layer(path: Union[str, 'os.PathLike[Any]']) -> str:
     if nb_layers == 1:
         return layers[0]
     elif nb_layers == 0:
-        raise Exception(f"Error: No layers found in {path}")
+        raise ValueError(f"Error: No layers found in {path}")
     else:
-        raise Exception(f"Error: More than 1 layer found in {path}: {layers}")
+        raise ValueError(f"Error: More than 1 layer found in {path}: {layers}")
 
 def get_default_layer(path: Union[str, 'os.PathLike[Any]']) -> str:
     """
@@ -366,11 +365,7 @@ def create_spatial_index(
     try:
         datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
         geofiletype = GeofileType(path_p)    
-        if geofiletype == GeofileType.GPKG:
-            datasource.ExecuteSQL(
-                    f"SELECT CreateSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",                
-                    dialect='SQLITE') 
-        elif geofiletype == GeofileType.SQLite:
+        if geofiletype.is_spatialite_based:
             datasource.ExecuteSQL(
                     f"SELECT CreateSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",                
                     dialect='SQLITE') 
@@ -396,7 +391,7 @@ def has_spatial_index(
             Defaults to None.
 
     Raises:
-        Exception: [description]
+        ValueError: an invalid parameter value was passed.
 
     Returns:
         bool: True if the spatial column exists.
@@ -425,7 +420,7 @@ def has_spatial_index(
         index_path = path_p.parent / f"{path_p.stem}.qix" 
         return index_path.exists()
     else:
-        raise Exception(f"has_spatial_index not supported for {path_p}")
+        raise ValueError(f"has_spatial_index not supported for {path_p}")
 
 def remove_spatial_index(
         path: Union[str, 'os.PathLike[Any]'],
@@ -491,9 +486,9 @@ def rename_layer(
             sql_stmt = f'ALTER TABLE "{layer}" RENAME TO "{new_layer}"'
             datasource.ExecuteSQL(sql_stmt)
         elif geofiletype == GeofileType.ESRIShapefile:
-            raise Exception(f"rename_layer is not possible for {geofiletype} file")
+            raise ValueError(f"rename_layer is not possible for {geofiletype} file")
         else:
-            raise Exception(f"rename_layer is not implemented for {path_p.suffix} file")
+            raise ValueError(f"rename_layer is not implemented for {path_p.suffix} file")
     finally:
         if datasource is not None:
             del datasource
@@ -531,9 +526,9 @@ def rename_column(
             sql_stmt = f'ALTER TABLE "{layer}" RENAME COLUMN "{column_name}" TO "{new_column_name}"'
             datasource.ExecuteSQL(sql_stmt)
         elif geofiletype == GeofileType.ESRIShapefile:
-            raise Exception(f"rename_layer is not possible for {geofiletype} file")
+            raise ValueError(f"rename_layer is not possible for {geofiletype} file")
         else:
-            raise Exception(f"rename_layer is not implemented for {path_p.suffix} file")
+            raise ValueError(f"rename_layer is not implemented for {path_p.suffix} file")
     finally:
         if datasource is not None:
             del datasource
@@ -639,7 +634,7 @@ def update_column(
             be updated. Defaults to None.
 
     Raises:
-        ex: [description]
+        ValueError: an invalid parameter value was passed.
     """
 
     ##### Init #####
@@ -655,7 +650,7 @@ def update_column(
         columns_upper = [column.upper() for column in layerinfo_orig.columns]
         if name.upper() not in columns_upper:
             # If column doesn't exist yet, error!
-            raise Exception(f"Column {name} doesn't exist in {path_p}, layer {layer}")
+            raise ValueError(f"Column {name} doesn't exist in {path_p}, layer {layer}")
             
         # If an expression was provided and update can be done, go for it...
         sqlite_stmt = f'UPDATE "{layer}" SET "{name}" = {expression}'
@@ -694,8 +689,7 @@ def read_file(
             use read_file_nogeom for improved type checking. Defaults to False.
 
     Raises:
-        Exception: [description]
-        Exception: [description]
+        ValueError: an invalid parameter value was passed.
 
     Returns:
         gpd.GeoDataFrame: the data read.
@@ -736,8 +730,7 @@ def read_file_nogeom(
             Defaults to False.
 
     Raises:
-        Exception: [description]
-        Exception: [description]
+        ValueError: an invalid parameter value was passed.
 
     Returns:
         pd.DataFrame: the data read.
@@ -778,8 +771,7 @@ def _read_file_base(
             Defaults to False.
 
     Raises:
-        Exception: [description]
-        Exception: [description]
+        ValueError: an invalid parameter value was passed.
 
     Returns:
         Union[pd.DataFrame, gpd.GeoDataFrame]: the data read.
@@ -787,7 +779,7 @@ def _read_file_base(
     # Init
     path_p = Path(path)
     if path_p.exists() is False:
-        raise Exception(f"File doesnt't exist: {path}")
+        raise ValueError(f"File doesnt't exist: {path}")
     geofiletype = GeofileType(path_p)
 
     # If no layer name specified, check if there is only one layer in the file.
@@ -802,7 +794,7 @@ def _read_file_base(
     elif geofiletype.is_spatialite_based:
         result_gdf = gpd.read_file(str(path_p), layer=layer, bbox=bbox, rows=rows, ignore_geometry=ignore_geometry)
     else:
-        raise Exception(f"Not implemented for geofiletype {geofiletype}")
+        raise ValueError(f"Not implemented for geofiletype {geofiletype}")
 
     # If columns to read are specified... filter non-geometry columns 
     # case-insensitive 
@@ -887,8 +879,8 @@ def to_file(
             well. Defaults to True.
 
     Raises:
-        Exception: [description]
-        Exception: [description]
+        ValueError: an invalid parameter value was passed.
+        RuntimeError: timeout was reached while trying to append data to path.
     """
     # TODO: think about if possible/how to support adding optional parameter and pass them to next 
     # function, example encoding, float_format,...
@@ -938,7 +930,7 @@ def to_file(
         elif geofiletype == GeofileType.SQLite:
             gdf.to_file(str(path), layer=layer, driver=geofiletype.ogrdriver, mode=mode)
         else:
-            raise Exception(f"Not implemented for geofiletype {geofiletype}")
+            raise ValueError(f"Not implemented for geofiletype {geofiletype}")
 
     # If no append, just write to output path
     if append is False:
@@ -988,7 +980,7 @@ def to_file(
             else:
                 time_waiting = (datetime.datetime.now()-start_time).total_seconds()
                 if time_waiting > append_timeout_s:
-                    raise Exception(f"to_file timeout of {append_timeout_s} reached, so stop trying append to {path_p}!")
+                    raise RuntimeError(f"to_file timeout of {append_timeout_s} reached, so stop trying append to {path_p}!")
             
             # Sleep for a second before trying again
             time.sleep(1)
@@ -1201,7 +1193,8 @@ def append_to(
         verbose (bool, optional): True to write verbose output. Defaults to False.
 
     Raises:
-        Exception: [description]
+        ValueError: an invalid parameter value was passed.
+        RuntimeError: timeout was reached while trying to append data to path.
     """
     src_p = Path(src)
     dst_p = Path(dst)
@@ -1243,7 +1236,7 @@ def append_to(
         else:
             time_waiting = (datetime.datetime.now()-start_time).total_seconds()
             if time_waiting > append_timeout_s:
-                raise Exception(f"append_to timeout of {append_timeout_s} reached, so stop trying to write to {dst_p}!")
+                raise RuntimeError(f"append_to timeout of {append_timeout_s} reached, so stop trying to write to {dst_p}!")
         
         # Sleep for a second before trying again
         time.sleep(1)
@@ -1337,7 +1330,7 @@ def get_driver_for_ext(file_ext: str) -> str:
         file_ext (str): The extentension.
 
     Raises:
-        Exception: [description]
+        ValueError: If input geometrytype is not known.
 
     Returns:
         str: The OGR driver name.
@@ -1354,11 +1347,12 @@ def to_multi_type(geometrytypename: str) -> str:
         geometrytypename (str): Input geometry type
 
     Raises:
-        Exception: If input geometrytype is not known.
+        ValueError: If input geometrytype is not known.
 
     Returns:
         str: Corresponding 'MULTI' geometry type
     """
+    warnings.warn("to_generaltypeid is deprecated, use GeometryType.to_multigeometrytype", FutureWarning)
     return geometry_util.GeometryType(geometrytypename).to_multitype.name
 
 def to_generaltypeid(geometrytypename: str) -> int:
@@ -1374,9 +1368,10 @@ def to_generaltypeid(geometrytypename: str) -> int:
         geometrytypename (str): Input geometry type
 
     Raises:
-        Exception: If input geometrytype is not known.
+        ValueError: If input geometrytype is not known.
 
     Returns:
         int: Corresponding geometry type id
     """
+    warnings.warn("to_generaltypeid is deprecated, use GeometryType.to_primitivetypeid", FutureWarning)
     return geometry_util.GeometryType(geometrytypename).to_primitivetype.value

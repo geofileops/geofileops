@@ -18,8 +18,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops.util import geofileops_gpd
 from geofileops.util import geofileops_sql
-from geofileops.util import sampledata_util
-from geofileops.util.sampledata_util import SampleGeofile 
+import sampledata_util
 
 ################################################################################
 # Some init
@@ -70,7 +69,7 @@ def get_geofileops_version():
 def benchmark_buffer(tmpdir: Path) -> List[BenchResult]:
     
     bench_results = []
-    input_path = SampleGeofile.POLYGON_AGRI_PARCEL_2019.custompath(tmpdir)
+    input_path = sampledata_util.SampleGeofile.POLYGON_AGRI_PARCEL_2019.custompath(tmpdir)
     
     print('Start buffer with geopandas')
     start_time = datetime.datetime.now()
@@ -113,7 +112,7 @@ def benchmark_buffer(tmpdir: Path) -> List[BenchResult]:
 def benchmark_dissolve(tmpdir: Path) -> List[BenchResult]:
     
     bench_results = []
-    input_path = SampleGeofile.POLYGON_AGRI_PARCEL_2019.custompath(tmpdir)
+    input_path = sampledata_util.SampleGeofile.POLYGON_AGRI_PARCEL_2019.custompath(tmpdir)
     
     print('Dissolve without groupby: start')
     start_time = datetime.datetime.now()
@@ -183,8 +182,8 @@ def benchmark_dissolve(tmpdir: Path) -> List[BenchResult]:
 def benchmark_intersect(tmpdir: Path) -> List[BenchResult]:
     # Init
     bench_results = []
-    input1_path = SampleGeofile.POLYGON_AGRI_PARCEL_2019.custompath(tmpdir)
-    input2_path = SampleGeofile.POLYGON_AGRI_PARCEL_2018.custompath(tmpdir)
+    input1_path = sampledata_util.SampleGeofile.POLYGON_AGRI_PARCEL_2019.custompath(tmpdir)
+    input2_path = sampledata_util.SampleGeofile.POLYGON_AGRI_PARCEL_2018.custompath(tmpdir)
     
     print('Start Intersect with sql')
     start_time = datetime.datetime.now()
@@ -212,8 +211,8 @@ def benchmark_intersect(tmpdir: Path) -> List[BenchResult]:
 def benchmark_union(tmpdir: Path) -> List[BenchResult]:
     # Init
     bench_results = []
-    input1_path = SampleGeofile.POLYGON_AGRI_PARCEL_2019.custompath(tmpdir)
-    input2_path = SampleGeofile.POLYGON_AGRI_PARCEL_2018.custompath(tmpdir)
+    input1_path = sampledata_util.SampleGeofile.POLYGON_AGRI_PARCEL_2019.custompath(tmpdir)
+    input2_path = sampledata_util.SampleGeofile.POLYGON_AGRI_PARCEL_2018.custompath(tmpdir)
     
     print('Start Union with sql')
     start_time = datetime.datetime.now()
@@ -255,8 +254,8 @@ def benchmark(
     tmpdir.mkdir(parents=True, exist_ok=True)
     
     # First make sure the testdata is present
-    sampledata_util.download_samplefile(SampleGeofile.POLYGON_AGRI_PARCEL_2018, tmpdir)
-    sampledata_util.download_samplefile(SampleGeofile.POLYGON_AGRI_PARCEL_2019, tmpdir)
+    sampledata_util.download_samplefile(sampledata_util.SampleGeofile.POLYGON_AGRI_PARCEL_2018, tmpdir)
+    sampledata_util.download_samplefile(sampledata_util.SampleGeofile.POLYGON_AGRI_PARCEL_2019, tmpdir)
     
     # Now we can start benchmarking
     results = []

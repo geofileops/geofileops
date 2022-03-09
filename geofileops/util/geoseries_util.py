@@ -7,11 +7,10 @@ import logging
 from typing import List
 
 import geopandas as gpd
-from geopandas.geoseries import GeoSeries
 from shapely import geometry as sh_geom
 
 from . import geometry_util
-from .geometry_util import GeometryType, PrimitiveType, SimplifyAlgorithm
+from .geometry_util import GeometryType, PrimitiveType
 
 #-------------------------------------------------------------
 # First define/init some general variables/constants
@@ -172,24 +171,28 @@ def _harmonize_to_multitype(
     return geoseries_copy
 
 def polygons_to_lines(geoseries: gpd.GeoSeries) -> gpd.GeoSeries:
-    cardsheets_lines = []
-    for cardsheet_poly in geoseries:
-        cardsheet_boundary = cardsheet_poly.boundary
-        if cardsheet_boundary.type == 'MultiLineString':
-            for line in cardsheet_boundary:
-                cardsheets_lines.append(line)
+    polygons_lines = []
+    for geom in geoseries:
+        if geom is None or geom.is_empty:
+            continue
+        if isinstance(geom, sh_geom.Polygon) is False and isinstance(geom, sh_geom.MultiPolygon) is False:
+            raise ValueError(f"Invalid geometry: {geom}")
+        boundary = geom.boundary
+        if boundary.type == 'MultiLineString':
+            for line in boundary.geoms:
+                polygons_lines.append(line)
         else:
-            cardsheets_lines.append(cardsheet_boundary)
+            polygons_lines.append(boundary)
 
-    return gpd.GeoSeries(cardsheets_lines)    
+    return gpd.GeoSeries(polygons_lines)    
 
 def simplify_ext(
         geoseries: gpd.GeoSeries,
-        algorithm: SimplifyAlgorithm,
+        algorithm: geometry_util.SimplifyAlgorithm,
         tolerance: float,
         lookahead: int = 8) -> gpd.GeoSeries:
     # If ramer-douglas-peucker, use standard geopandas algorithm
-    if algorithm is SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER:
+    if algorithm is geometry_util.SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER:
         return geoseries.simplify(tolerance=tolerance)
     else:
         # For other algorithms, use vector_util.simplify_ext()

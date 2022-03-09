@@ -13,17 +13,48 @@ import shapely.geometry as sh_geom
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofile
 from geofileops.util import geometry_util
-from geofileops.util.geometry_util import GeometryType
+from geofileops.util.geometry_util import GeometryType, PrimitiveType
 from geofileops.util import grid_util
 import test_helper
 
 def test_geometrytype():
+    # Creating a GeometryType from None is invalid
+    try:
+        geometrytype = GeometryType(None)
+        exception_raised = False
+    except ValueError:
+        exception_raised = True
+    assert exception_raised is True, "Error: Creating a Geometry from None should raise a ValueError!"
+
+    # Create different types of Geometrytype
     geometrytype = GeometryType(3)
     assert geometrytype is GeometryType.POLYGON
     geometrytype = GeometryType('PoLyGoN')
     assert geometrytype is GeometryType.POLYGON
     geometrytype = GeometryType(GeometryType.POLYGON)
     assert geometrytype is GeometryType.POLYGON
+
+    # Test to_primitivetype
+    primitivetype = GeometryType.POLYGON.to_primitivetype
+    assert primitivetype is PrimitiveType.POLYGON
+    primitivetype = GeometryType.MULTIPOLYGON.to_primitivetype
+    assert primitivetype is PrimitiveType.POLYGON
+
+    # A geometry collection doesn't have a primitive type
+    try:
+        GeometryType.GEOMETRYCOLLECTION.to_primitivetype
+        exception_raised = False
+    except:
+        exception_raised = True
+    assert exception_raised is True, "Error: A geometry collection shouldn't have a primitive type!"
+    
+def test_primitivetype():
+    primitivetype = PrimitiveType(3)
+    assert primitivetype is PrimitiveType.POLYGON
+    primitivetype = PrimitiveType('PoLyGoN')
+    assert primitivetype is PrimitiveType.POLYGON
+    primitivetype = PrimitiveType(PrimitiveType.POLYGON)
+    assert primitivetype is PrimitiveType.POLYGON
 
 def test_makevalid():
     # Test Point
@@ -48,8 +79,8 @@ def test_makevalid():
             holes=[[(2,2), (2,8), (8,8), (8,2), (2,2)]])
     poly_valid = geometry_util.make_valid(polygon_invalid)
     assert isinstance(poly_valid, sh_geom.MultiPolygon)
-    assert len(poly_valid) == 2
-    assert len(poly_valid[0].interiors) == 1
+    assert len(poly_valid.geoms) == 2
+    assert len(poly_valid.geoms[0].interiors) == 1
 
     # Test MultiPolygon
     multipolygon_invalid = sh_geom.MultiPolygon([polygon_invalid, test_helper.TestData.polygon_no_islands])
@@ -100,29 +131,48 @@ def test_numberpoints():
 
 def test_remove_inner_rings():
     # Apply to single Polygon, with area tolerance smaller than holes
-    polygon_removerings = sh_geom.Polygon(
+    polygon_removerings_withholes = sh_geom.Polygon(
             shell=[(0, 0), (0, 10), (1, 10), (10, 10), (10, 0), (0,0)], 
             holes=[[(2,2), (2,4), (4,4), (4,2), (2,2)], [(5,5), (5,6), (7,6), (7,5), (5,5)]])
-    poly_result = geometry_util.remove_inner_rings(polygon_removerings, min_area_to_keep=1, crs=None)
+    poly_result = geometry_util.remove_inner_rings(polygon_removerings_withholes, min_area_to_keep=1, crs=None)
     assert isinstance(poly_result, sh_geom.Polygon)
     assert len(poly_result.interiors) == 2
 
     # Apply to single Polygon, with area tolerance between 
     # smallest hole (= 2m²) and largest (= 4m²)
-    poly_result = geometry_util.remove_inner_rings(polygon_removerings, min_area_to_keep=3, crs=None)
+    poly_result = geometry_util.remove_inner_rings(polygon_removerings_withholes, min_area_to_keep=3, crs=None)
     assert isinstance(poly_result, sh_geom.Polygon)
     assert len(poly_result.interiors) == 1
 
+    # Apply to single polygon and remove all holes
+    poly_result = geometry_util.remove_inner_rings(polygon_removerings_withholes, min_area_to_keep=0, crs=None)
+    assert isinstance(poly_result, sh_geom.Polygon)
+    assert len(poly_result.interiors) == 0
+    polygon_removerings_noholes = sh_geom.Polygon(shell=[(100, 100), (100, 110), (110, 110), (110, 100), (100,100)])
+    poly_result = geometry_util.remove_inner_rings(polygon_removerings_noholes, min_area_to_keep=0, crs=None)
+    assert isinstance(poly_result, sh_geom.Polygon)
+    assert len(poly_result.interiors) == 0
+     
     # Apply to MultiPolygon, with area tolerance between 
     # smallest hole (= 2m²) and largest (= 4m²)
-    polygon_removerings2 = sh_geom.Polygon(shell=[(100, 100), (100, 110), (110, 110), (110, 100), (100,100)])
-    multipoly_removerings = sh_geom.MultiPolygon([polygon_removerings, polygon_removerings2])
+    multipoly_removerings = sh_geom.MultiPolygon([polygon_removerings_withholes, polygon_removerings_noholes])
     poly_result = geometry_util.remove_inner_rings(multipoly_removerings, min_area_to_keep=3, crs=None)
     assert isinstance(poly_result, sh_geom.MultiPolygon)
-    assert len(poly_result[0].interiors) == 1
-    
+    assert len(poly_result.geoms[0].interiors) == 1
+
+def test_simplify_coords_lang():
+    # Test LineString, lookahead -1, via coordinates
+    linestring = sh_geom.LineString([(0, 0), (10, 10), (20, 20)])
+    coords_simplified = geometry_util.simplify_coords_lang(
+            coords=linestring.coords, 
+            tolerance=1,
+            lookahead=-1)
+    assert isinstance(coords_simplified, list)
+    assert len(coords_simplified) < len(linestring.coords)
+    assert len(coords_simplified) == 2
+
 def test_simplify_ext_lang_basic():
-    # Test LineString lookahead -1 
+    # Test LineString, lookahead -1, via geometry 
     linestring = sh_geom.LineString([(0, 0), (10, 10), (20, 20)])
     geom_simplified = geometry_util.simplify_ext(
             geometry=linestring, 
@@ -164,7 +214,7 @@ def test_simplify_ext_lang_basic():
             algorithm=geometry_util.SimplifyAlgorithm.LANG, 
             tolerance=1)
     assert isinstance(geom_simplified, sh_geom.MultiPoint)
-    assert len(geom_simplified) == 3
+    assert len(geom_simplified.geoms) == 3
 
     # Test LineString simplification
     linestring = sh_geom.LineString([(0, 0), (10, 10), (20, 20)])
@@ -184,9 +234,9 @@ def test_simplify_ext_lang_basic():
             algorithm=geometry_util.SimplifyAlgorithm.LANG, 
             tolerance=1)
     assert isinstance(geom_simplified, sh_geom.MultiLineString)
-    assert len(geom_simplified) == 2
-    assert len(geom_simplified[0].coords) < len(multilinestring[0].coords)
-    assert len(geom_simplified[0].coords) == 2
+    assert len(geom_simplified.geoms) == 2
+    assert len(geom_simplified.geoms[0].coords) < len(multilinestring.geoms[0].coords)
+    assert len(geom_simplified.geoms[0].coords) == 2
     
     # Test Polygon simplification
     poly = sh_geom.Polygon(
@@ -210,9 +260,9 @@ def test_simplify_ext_lang_basic():
             algorithm=geometry_util.SimplifyAlgorithm.LANG, 
             tolerance=1)
     assert isinstance(geom_simplified, sh_geom.MultiPolygon)
-    assert len(geom_simplified) == 2
-    assert len(geom_simplified[0].exterior.coords) < len(poly.exterior.coords)
-    assert len(geom_simplified[0].exterior.coords) == 5
+    assert len(geom_simplified.geoms) == 2
+    assert len(geom_simplified.geoms[0].exterior.coords) < len(poly.exterior.coords)
+    assert len(geom_simplified.geoms[0].exterior.coords) == 5
 
     # Test GeometryCollection (as combination of all previous ones) simplification
     geom = sh_geom.GeometryCollection([point, multipoint, linestring, multilinestring, poly, multipoly])
@@ -221,7 +271,7 @@ def test_simplify_ext_lang_basic():
             algorithm=geometry_util.SimplifyAlgorithm.LANG, 
             tolerance=1)
     assert isinstance(geom_simplified, sh_geom.GeometryCollection)
-    assert len(geom_simplified) == 6
+    assert len(geom_simplified.geoms) == 6
 
 def test_simplify_ext_lang_preservetopology():
     
@@ -259,9 +309,9 @@ def test_simplify_ext_invalid():
             tolerance=1)
     assert isinstance(geom_simplified, sh_geom.MultiPolygon)
     assert poly.exterior is not None
-    assert len(geom_simplified[0].exterior.coords) < len(poly.exterior.coords)
-    assert len(geom_simplified[0].exterior.coords) == 7
-    assert len(geom_simplified[0].interiors) == len(poly.interiors)
+    assert len(geom_simplified.geoms[0].exterior.coords) < len(poly.exterior.coords)
+    assert len(geom_simplified.geoms[0].exterior.coords) == 7
+    assert len(geom_simplified.geoms[0].interiors) == len(poly.interiors)
 
     # Test Polygon simplification, with exterior ring that touches itself 
     # due to simplification and after make_valid results in multipolygon of 
@@ -276,7 +326,7 @@ def test_simplify_ext_invalid():
     assert geom_simplified is not None
     assert geom_simplified.is_valid
     assert isinstance(geom_simplified, sh_geom.MultiPolygon)
-    assert len(geom_simplified) == 2
+    assert len(geom_simplified.geoms) == 2
     assert geometry_util.numberpoints(geom_simplified) < geometry_util.numberpoints(poly)
     
     # Test Polygon simplification, with exterior ring that crosses itself
@@ -292,7 +342,7 @@ def test_simplify_ext_invalid():
     assert geom_simplified is not None
     assert geom_simplified.is_valid
     assert isinstance(geom_simplified, sh_geom.MultiPolygon)
-    assert len(geom_simplified) == 3
+    assert len(geom_simplified.geoms) == 3
 
 def test_simplify_ext_keep_points_on(tmpdir):
     
@@ -446,11 +496,12 @@ if __name__ == '__main__':
     # Init
     tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
 
-    #test_makevalid()
-    #test_numberpoints()
-    #test_remove_inner_rings()
-    #test_simplify_ext_lang_basic()
+    test_geometrytype()
+    test_makevalid()
+    test_numberpoints()
+    test_remove_inner_rings()
+    test_simplify_ext_lang_basic()
     test_simplify_ext_lang_preservetopology()
-    #test_simplify_ext_invalid()
-    #test_simplify_ext_keep_points_on(tmpdir)
-    #test_simplify_ext_no_simplification()
+    test_simplify_ext_invalid()
+    test_simplify_ext_keep_points_on(tmpdir)
+    test_simplify_ext_no_simplification()

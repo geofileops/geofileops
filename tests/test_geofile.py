@@ -61,13 +61,18 @@ def test_cmp(tmpdir):
                 path=test_helper.TestFiles.polygons_parcels_gpkg,
                 tmp_dir=tmp_dir,
                 suffix=suffix)
+        src2 = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_invalid_geometries_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
         
         # Copy test file to tmpdir
         dst = Path(tmpdir) / f"polygons_parcels_output{suffix}"
         geofile.copy(src, dst)
 
-        # Now compare source and dst file
+        # Now compare source and dst files
         assert geofile.cmp(src, dst) == True
+        assert geofile.cmp(src2, dst) == False
 
 def test_convert(tmpdir):
     # Prepare test data + run tests
@@ -133,9 +138,23 @@ def test_copy(tmpdir):
                 tmp_dir=tmp_dir,
                 suffix=suffix)
         
-        dst = Path(tmpdir) / 'polygons_parcels_output.shp'
+        # Copy to dest file
+        dst = Path(tmpdir) / f"polygons_parcels_output{suffix}"
         geofile.copy(src, dst)
+        assert src.exists() == True
         assert dst.exists() == True
+        if suffix == ".shp":
+            assert dst.with_suffix(".shx").exists() == True
+
+        # Copy to dest dir
+        dst_dir = Path(tmpdir) / "dest_dir"
+        dst_dir.mkdir(parents=True, exist_ok=True)
+        geofile.copy(src, dst_dir)
+        dst = dst_dir / src.name
+        assert src.exists() == True
+        assert dst.exists() == True
+        if suffix == ".shp":
+            assert dst.with_suffix(".shx").exists() == True
 
 def test_driver_enum():
     ### Test ESRIShapefile Driver ###
@@ -229,8 +248,10 @@ def test_get_layerinfo(tmpdir):
 def basetest_get_layerinfo(
         src: Path, 
         layer: Optional[str] = None):
-    # Test for file containing one layer
+
+    ### Tests on layer specified ###
     layerinfo = geofile.get_layerinfo(src, layer)
+    assert str(layerinfo).startswith("<class 'geofileops.geofile.LayerInfo'>")
     assert layerinfo.featurecount == 46
     if src.suffix == '.shp':
         assert layerinfo.geometrycolumn == 'geometry'
@@ -245,8 +266,35 @@ def basetest_get_layerinfo(
     assert layerinfo.crs is not None
     assert layerinfo.crs.to_epsg() == 31370
 
+    ### Some tests for exception cases ###
+    # Layer specified that doesn't exist
+    try:
+        layerinfo = geofile.get_layerinfo(src, "not_existing_layer")
+        exception_raised = False
+    except ValueError:
+        exception_raised = True
+    assert exception_raised is True
+
+    # Path specified that doesn't exist
+    try:
+        not_existing_path = io_util.with_stem(src, "not_existing_layer")
+        layerinfo = geofile.get_layerinfo(not_existing_path)
+        exception_raised = False
+    except ValueError:
+        exception_raised = True
+    assert exception_raised is True
+
+    # Multiple layers available, but no layer specified
+    if len(geofile.listlayers(src)) > 1:
+        try:
+            layerinfo = geofile.get_layerinfo(src)
+            exception_raised = False
+        except ValueError:
+            exception_raised = True
+        assert exception_raised is True
+
 def test_get_only_layer(tmpdir):
-    ### Test files with 1 layer ###
+    ### Test file with 1 layer ###
     # Prepare test data + run tests for one layer
     tmp_dir = Path(tmpdir)
     for suffix in test_helper.get_test_suffix_list():
@@ -305,19 +353,34 @@ def test_listlayers(tmpdir):
     assert 'zones' in layers
 
 def test_move(tmpdir):
-    # Convert gpkg to shapefile in tmp dir
+    # Prepare test data + run tests
     tmp_dir = Path(tmpdir)
-    src = test_helper.prepare_test_file(
-            path=test_helper.TestFiles.polygons_parcels_gpkg,
-            tmp_dir=tmp_dir,
-            suffix=".shp")
-    assert src.exists() == True
+    for suffix in test_helper.get_test_suffix_list():
+        # Test move to dest file
+        src = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_parcels_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
+        dst = Path(tmpdir) / f"polygons_parcels_output{suffix}"
+        geofile.move(src, dst)
+        assert src.exists() == False
+        assert dst.exists() == True
+        if suffix == ".shp":
+            assert dst.with_suffix(".shx").exists() == True
 
-    # Move (rename actually) and check result
-    moved_path = tmp_dir / 'polygons_parcels_moved.shp'
-    geofile.move(src, moved_path)
-    assert src.exists() == False
-    assert moved_path.exists() == True
+        # Test move to dest dir
+        src = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_parcels_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
+        dst_dir = Path(tmpdir) / "dest_dir"
+        dst_dir.mkdir(parents=True, exist_ok=True)
+        geofile.move(src, dst_dir)
+        dst = dst_dir / src.name
+        assert src.exists() == False
+        assert dst.exists() == True
+        if suffix == ".shp":
+            assert dst.with_suffix(".shx").exists() == True
 
 def test_update_column(tmpdir):
     # First copy test file to tmpdir
@@ -330,7 +393,7 @@ def test_update_column(tmpdir):
     layerinfo = geofile.get_layerinfo(path=tmppath, layer='parcels')
     assert 'area' not in layerinfo.columns
         
-    ### Add area column ###
+    ### Add + update  area column ###
     #with test_helper.GdalBin(gdal_installation='gdal_default'):
     geofile.add_column(tmppath, layer='parcels', name='AREA', type='real', expression='ST_area(geom)')
     geofile.update_column(tmppath, name='AreA', expression='ST_area(geom)')
@@ -339,6 +402,21 @@ def test_update_column(tmpdir):
     assert 'AREA' in layerinfo.columns
     gdf = geofile.read_file(tmppath)
     assert round(gdf['AREA'].astype('float')[0], 1) == round(gdf['OPPERVL'].astype('float')[0], 1)
+
+    ### Update column for rows where area > 5 ###
+    geofile.update_column(tmppath, name="AreA", expression="-1", where="area > 4000")
+    gdf = geofile.read_file(tmppath)
+    gdf_filtered = gdf[gdf["AREA"] == -1]
+    assert len(gdf_filtered) == 20
+
+    ### Trying to remove column that doesn't exist should raise ValueError ###
+    assert "not_existing column" not in layerinfo.columns
+    try:
+        geofile.update_column(tmppath, name="not_existing column", expression="ST_area(geom)")
+        exception_raised = False
+    except ValueError:
+        exception_raised = True
+    assert exception_raised is True
 
 def test_read_file(tmpdir):
     # Prepare test data + run tests for one layer
@@ -378,6 +456,39 @@ def basetest_read_file(srcpath: Path):
     read_gdf = geofile.read_file_nogeom(srcpath, columns=[])
     assert isinstance(read_gdf, pd.DataFrame)
     assert len(read_gdf) == 46
+
+def test_rename_column(tmpdir):
+    # Prepare test data + run tests for one layer
+    tmp_dir = Path(tmpdir)
+    for suffix in test_helper.get_test_suffix_list():
+        # If test input file is in wrong format, convert it
+        test_path = test_helper.prepare_test_file(
+                path=test_helper.TestFiles.polygons_parcels_gpkg,
+                tmp_dir=tmp_dir,
+                suffix=suffix)
+        
+        # Check if input file is ok
+        orig_layerinfo = geofile.get_layerinfo(test_path)
+        assert "OPPERVL" in orig_layerinfo.columns
+        assert "area" not in orig_layerinfo.columns
+
+        # Rename
+        try:
+            geofile.rename_column(test_path, "OPPERVL", "area")
+            exception_raised = False
+        except:
+            exception_raised = True
+        
+        # Check if the result was expected
+        if test_path.suffix == ".shp":
+            # For shapefiles, columns cannot be renamed 
+            assert exception_raised is True
+        else:
+            # For file types that support rename, check if it worked
+            assert exception_raised is False
+            result_layerinfo = geofile.get_layerinfo(test_path)
+            assert "OPPERVL" not in result_layerinfo.columns
+            assert "area" in result_layerinfo.columns
 
 def test_rename_layer(tmpdir):
     # Prepare test data + run tests for one layer
@@ -431,21 +542,19 @@ def test_spatial_index(tmpdir):
                 tmp_dir=tmp_dir,
                 suffix=suffix)
     
-        # Check if spatial index present
-        has_spatial_index = geofile.has_spatial_index(
-                path=src, layer='parcels')
+        # Check if spatial index present:
+        layer = geofile.get_only_layer(src)
+        has_spatial_index = geofile.has_spatial_index(path=src, layer=layer)
         assert has_spatial_index is True
 
         # Remove spatial index
-        geofile.remove_spatial_index(path=src, layer='parcels')
-        has_spatial_index = geofile.has_spatial_index(
-                path=src, layer='parcels')
+        geofile.remove_spatial_index(path=src, layer=layer)
+        has_spatial_index = geofile.has_spatial_index(path=src, layer=layer)
         assert has_spatial_index is False
 
         # Create spatial index
-        geofile.create_spatial_index(path=src, layer='parcels')
-        has_spatial_index = geofile.has_spatial_index(
-                path=src, layer='parcels')
+        geofile.create_spatial_index(path=src, layer=layer)
+        has_spatial_index = geofile.has_spatial_index(path=src, layer=layer)
         assert has_spatial_index is True
 
 def test_to_file(tmpdir):
@@ -659,18 +768,21 @@ if __name__ == '__main__':
     # Run!
     #test_convert(tmpdir)
     #test_convert_force_output_geometrytype(tmpdir)
-    #test_get_layerinfo()
+    #test_get_layerinfo(tmpdir)
     #test_get_only_layer(tmpdir)
+    #test_rename_column(tmpdir)
     #test_rename_layer(tmpdir)
     #test_listlayers()
     #test_add_column(tmpdir)
     #test_execute_sql(tmpdir)
     #test_read_file()
-    test_copy(tmpdir)
+    #test_copy(tmpdir)
+    #test_move(tmpdir)
+    #test_spatial_index(tmpdir)
     #test_to_file_gpkg(tmpdir)
     #test_to_file_shp(tmpdir)
     #test_to_file_empty_gpkg(tmpdir)
     #test_to_file_empty_shp(tmpdir)
     #test_to_file_none_gpkg(tmpdir)
     #test_to_file_none_shp(tmpdir)
-    
+    test_update_column(tmpdir)

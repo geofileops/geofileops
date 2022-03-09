@@ -11,9 +11,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops.util import ogr_util
 import test_helper
 
-def basetest_st_area():
+def test_get_drivers():
+
+    drivers = ogr_util.get_drivers()
+    assert len(drivers) > 0
+    assert "GPKG" in drivers
+    assert "ESRI Shapefile" in drivers 
+
+def test_execute_st_area():
     
-    # try st_areag
+    # try st_area
     input_path = test_helper.TestFiles.polygons_parcels_gpkg
     sqlite_stmt = 'SELECT round(ST_area(geom), 2) as area FROM "parcels"'
     result_gdf = ogr_util._execute_sql(input_path, sqlite_stmt)
@@ -37,5 +44,5 @@ if __name__ == '__main__':
     tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
 
     # Test functionsv to run...
-    #test_get_gdal_to_use()
-    basetest_st_area()
+    #test_execute_st_area()
+    test_get_drivers()

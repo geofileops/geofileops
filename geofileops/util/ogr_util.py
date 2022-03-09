@@ -85,26 +85,6 @@ class VectorTranslateInfo:
         self.force_output_geometrytype = force_output_geometrytype
         self.sqlite_journal_mode = sqlite_journal_mode
         self.verbose = verbose
-
-class StdOutSuppressor():
-    # Written to try to get rid of the RTTOPO warnings during makevalid, 
-    # didn't work :-(.
-    def __init__(self, suppress: bool = True):
-        self.suppress = suppress
-          
-    def __enter__(self):
-        if self.suppress is True:
-            self._original_stdout = sys.stdout
-            sys.stdout = open(os.devnull, 'w')
-            self._original_stderr = sys.stderr
-            sys.stderr = open(os.devnull, 'w')
-            
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.suppress is True:
-            sys.stdout.close()
-            sys.stdout = self._original_stdout
-            sys.stderr.close()
-            sys.stderr = self._original_stderr
   
 def vector_translate_by_info(info: VectorTranslateInfo):
 
@@ -299,6 +279,7 @@ def vector_translate(
         
     return True
 
+"""
 def vector_translate_exe(
         input_path: Path, 
         output_path: Path,
@@ -469,6 +450,7 @@ def vector_translate_exe(
 
     # If we get here, the retries didn't suffice to get it executed properly
     raise Exception(f"Error executing {pprint.pformat(args)}\n\t-> Return code: {returncode}\n\t-> Error: {err}")
+"""
 
 def _getfileinfo(
         path: Path,
@@ -659,6 +641,3 @@ def _execute_sql(
         # Return result
         install_info_gdf = geofile.read_file(tmp_path)
         return install_info_gdf
-
-if __name__ == '__main__':
-    None
