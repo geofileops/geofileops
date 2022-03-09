@@ -27,24 +27,6 @@ def test_formatbytes():
     assert bytes_str == '1.00 GB'
     bytes_str = general_util.formatbytes(1024.0 ** 4)
     assert bytes_str == '1.00 TB'
-    
-def test_getprocessnice():
-    nice = general_util.getprocessnice()
-    assert nice >= -20 and nice <= 20
-
-def test_process_nice_to_priority_class():
-    priority_class = general_util.process_nice_to_priority_class(-15)
-    assert priority_class == psutil.REALTIME_PRIORITY_CLASS
-    priority_class = general_util.process_nice_to_priority_class(-10)
-    assert priority_class == psutil.HIGH_PRIORITY_CLASS
-    priority_class = general_util.process_nice_to_priority_class(-5)
-    assert priority_class == psutil.ABOVE_NORMAL_PRIORITY_CLASS
-    priority_class = general_util.process_nice_to_priority_class(0)
-    assert priority_class == psutil.NORMAL_PRIORITY_CLASS
-    priority_class = general_util.process_nice_to_priority_class(10)
-    assert priority_class == psutil.BELOW_NORMAL_PRIORITY_CLASS
-    priority_class = general_util.process_nice_to_priority_class(11)
-    assert priority_class == psutil.IDLE_PRIORITY_CLASS
 
 def test_format_progress():
     start_time = datetime.datetime.now()
@@ -60,10 +42,23 @@ def test_format_progress():
         if message is not None:
             print(message)
 
+def test_processnice():
+    # The nice values tests are spcifically written to accomodate for  
+    # windows specificalities: 
+    #     - windows only supports 6 niceness classes. setprocessnice en 
+    #       getprocessnice maps niceness values to these classes.
+    #     - when setting REALTIME priority (-20 niceness) apparently this 
+    #       results only to HIGH priority. 
+    for niceness in [-15, -10, 0, 10, 20]:    
+        general_util.setprocessnice(niceness)
+        nice = general_util.getprocessnice()
+        assert nice == niceness
+
 if __name__ == '__main__':
     # Init
     tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
 
     # Test...
     #test_formatbytes()
-    test_format_progress()
+    #test_format_progress()
+    test_processnice()
