@@ -641,6 +641,3 @@ def _execute_sql(
         # Return result
         install_info_gdf = geofile.read_file(tmp_path)
         return install_info_gdf
-
-if __name__ == '__main__':
-    None

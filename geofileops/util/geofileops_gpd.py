@@ -1138,6 +1138,3 @@ def _add_orderby_column(
             path=path, name=name, type=geofile.DataType.TEXT, expression=expression)
     sqlite_stmt = f'CREATE INDEX {name}_idx ON "{layer}"({name})' 
     ogr_util.vector_info(path=path, sql_stmt=sqlite_stmt, readonly=False)
-
-if __name__ == '__main__':
-    raise Exception("Not implemented!")

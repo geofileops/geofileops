@@ -2022,6 +2022,3 @@ def dissolve_cardsheets(
         shutil.rmtree(tempdir)
         logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
 '''
-
-if __name__ == '__main__':
-    raise Exception("Not implemented!")
