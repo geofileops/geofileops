@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 from typing import Optional
 
+import fiona
 import geopandas as gpd
 import pandas as pd
 import shapely.geometry as sh_geom
