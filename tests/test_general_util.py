@@ -4,8 +4,8 @@ Tests for functionalities in ogr_util.
 """
 
 import datetime
+import os
 from pathlib import Path
-import psutil
 import sys
 import time 
 
@@ -51,7 +51,12 @@ def test_processnice():
     #     - when setting REALTIME priority (-20 niceness) apparently this 
     #       results only to HIGH priority. 
     nice_orig = general_util.getprocessnice()
-    for niceness in [-15, -10, 0, 10, 19]:    
+    for niceness in [-15, -10, 0, 10, 19]: 
+        # Setting negative nice values needs root on linux, so skip those
+        if niceness < 0 and os.name != 'nt':
+            continue
+
+        # Test!
         general_util.setprocessnice(niceness)
         nice = general_util.getprocessnice()
         assert nice == niceness
