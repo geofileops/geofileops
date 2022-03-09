@@ -129,6 +129,9 @@ def setprocessnice(nice_value: int):
     """
     if nice_value < -20 or nice_value > 19:
         raise ValueError(f"Invalid value for nice_values (min: -20, max: 19): {nice_value}")
+    if getprocessnice() == nice_value:
+        # If the nice value is already the same... no use setting it
+        return 
 
     try:
         p = psutil.Process(os.getpid())
