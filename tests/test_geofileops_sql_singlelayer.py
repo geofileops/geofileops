@@ -253,7 +253,7 @@ def basetest_convexhull(
         output_path: Path):
     
     # Do operation  
-    geofileops_sql.convexhull(input_path=input_path, output_path=output_path)
+    gfo.convexhull(input_path=input_path, output_path=output_path)
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True

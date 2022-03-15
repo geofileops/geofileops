@@ -318,7 +318,7 @@ def convexhull(
             Defaults to False.
     """
     logger.info(f"Start convexhull on {input_path}")
-    return geofileops_gpd.convexhull(
+    return geofileops_sql.convexhull(
             input_path=Path(input_path),
             output_path=Path(output_path),
             input_layer=input_layer,
