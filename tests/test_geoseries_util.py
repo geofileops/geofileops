@@ -11,7 +11,6 @@ import shapely.geometry as sh_geom
 
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from geofileops import geofile
 from geofileops.util import geoseries_util
 from geofileops.util.geometry_util import GeometryType, PrimitiveType
 import test_helper 
@@ -73,7 +72,7 @@ def test_harmonize_geometrytypes():
     test_result_gdf.geometry = geoseries_util.harmonize_geometrytypes(test_result_gdf.geometry)
     test_result_geometrytypes = geoseries_util.get_geometrytypes(test_result_gdf.geometry)
     assert len(test_result_geometrytypes) == 1
-    assert test_result_geometrytypes[0] == geofile.GeometryType.MULTIPOINT
+    assert test_result_geometrytypes[0] == GeometryType.MULTIPOINT
     for index, geom in test_result_gdf.geometry.iteritems():
         if index in [0, 1]:
             assert geom is None
@@ -91,7 +90,7 @@ def test_harmonize_geometrytypes():
     test_result_gdf.geometry = geoseries_util.harmonize_geometrytypes(test_result_gdf.geometry)
     test_result_geometrytypes = geoseries_util.get_geometrytypes(test_result_gdf.geometry)
     assert len(test_result_geometrytypes) == 1
-    assert test_result_geometrytypes[0] == geofile.GeometryType.MULTILINESTRING
+    assert test_result_geometrytypes[0] == GeometryType.MULTILINESTRING
     for index, geom in test_result_gdf.geometry.iteritems():
         if index in [0, 1]:
             assert geom is None
@@ -112,7 +111,7 @@ def test_harmonize_geometrytypes():
     test_result_gdf.geometry = geoseries_util.harmonize_geometrytypes(test_result_gdf.geometry)
     test_result_geometrytypes = geoseries_util.get_geometrytypes(test_result_gdf.geometry)
     assert len(test_result_geometrytypes) == 1
-    assert test_result_geometrytypes[0] == geofile.GeometryType.MULTIPOLYGON
+    assert test_result_geometrytypes[0] == GeometryType.MULTIPOLYGON
     for index, geom in test_result_gdf.geometry.iteritems():
         if index in [0, 1]:
             assert geom is None
