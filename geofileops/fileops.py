@@ -241,23 +241,43 @@ def buffer(
     
     """
     logger.info(f"Start buffer on {input_path} with distance: {distance} and quadrantsegments: {quadrantsegments}")
-    return geofileops_gpd.buffer(
-            input_path=Path(input_path),
-            output_path=Path(output_path),
-            distance=distance,
-            quadrantsegments=quadrantsegments,
-            endcap_style=endcap_style,
-            join_style=join_style,
-            mitre_limit=mitre_limit,
-            single_sided=single_sided,
-            input_layer=input_layer,
-            output_layer=output_layer,
-            columns=columns,
-            explodecollections=explodecollections,
-            nb_parallel=nb_parallel,
-            batchsize=batchsize,
-            verbose=verbose,
-            force=force)
+    if(endcap_style == BufferEndCapStyle.ROUND
+            and join_style == BufferJoinStyle.ROUND
+            and single_sided is False):
+        # If default buffer options for spatialite, use the faster sql version
+        return geofileops_sql.buffer(
+                input_path=Path(input_path),
+                output_path=Path(output_path),
+                distance=distance,
+                quadrantsegments=quadrantsegments,
+                input_layer=input_layer,
+                output_layer=output_layer,
+                columns=columns,
+                explodecollections=explodecollections,
+                nb_parallel=nb_parallel,
+                batchsize=batchsize,
+                verbose=verbose,
+                force=force)
+    else:
+        # If special buffer options, use geopandas version
+        return geofileops_gpd.buffer(
+                input_path=Path(input_path),
+                output_path=Path(output_path),
+                distance=distance,
+                quadrantsegments=quadrantsegments,
+                endcap_style=endcap_style,
+                join_style=join_style,
+                mitre_limit=mitre_limit,
+                single_sided=single_sided,
+                input_layer=input_layer,
+                output_layer=output_layer,
+                columns=columns,
+                explodecollections=explodecollections,
+                nb_parallel=nb_parallel,
+                batchsize=batchsize,
+                verbose=verbose,
+                force=force)
+
 
 def convexhull(
         input_path: Union[str, 'os.PathLike[Any]'],
@@ -742,20 +762,34 @@ def simplify(
             Defaults to False.
     """
     logger.info(f"Start simplify on {input_path} with tolerance {tolerance}")
-    return geofileops_gpd.simplify(
-            input_path=Path(input_path),
-            output_path=Path(output_path),
-            tolerance=tolerance,
-            algorithm=algorithm,
-            lookahead=lookahead,
-            input_layer=input_layer,
-            output_layer=output_layer,
-            columns=columns,
-            explodecollections=explodecollections,
-            nb_parallel=nb_parallel,
-            batchsize=batchsize,
-            verbose=verbose,
-            force=force)
+    if algorithm == SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER:
+        return geofileops_sql.simplify(
+                input_path=Path(input_path),
+                output_path=Path(output_path),
+                tolerance=tolerance,
+                input_layer=input_layer,
+                output_layer=output_layer,
+                columns=columns,
+                explodecollections=explodecollections,
+                nb_parallel=nb_parallel,
+                batchsize=batchsize,
+                verbose=verbose,
+                force=force)
+    else:
+        return geofileops_gpd.simplify(
+                input_path=Path(input_path),
+                output_path=Path(output_path),
+                tolerance=tolerance,
+                algorithm=algorithm,
+                lookahead=lookahead,
+                input_layer=input_layer,
+                output_layer=output_layer,
+                columns=columns,
+                explodecollections=explodecollections,
+                nb_parallel=nb_parallel,
+                batchsize=batchsize,
+                verbose=verbose,
+                force=force)
 
 def erase(
         input_path: Union[str, 'os.PathLike[Any]'],
