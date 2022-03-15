@@ -390,7 +390,7 @@ def test_convexhull(tmpdir):
 
 def basetest_convexhull(input_path, output_path):
     layerinfo_orig = gfo.get_layerinfo(input_path)
-    gfo.convexhull(
+    geofileops_gpd.convexhull(
             input_path=input_path,
             output_path=output_path,
             nb_parallel=get_nb_parallel())

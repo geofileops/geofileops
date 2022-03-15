@@ -176,21 +176,6 @@ def basetest_buffer(
         output_gdf = gfo.read_file(output_path)
         assert output_gdf['geometry'][0] is not None
 
-    # Now check if the tmp file is correctly created
-    layerinfo_input = gfo.get_layerinfo(input_path)
-    layerinfo_output = gfo.get_layerinfo(output_path)
-    assert layerinfo_input.featurecount == layerinfo_output.featurecount
-    assert 'OIDN' in layerinfo_output.columns
-    assert 'UIDN' in layerinfo_output.columns
-    
-    # Read result for some more detailed checks
-    output_gdf = gfo.read_file(output_path)
-    assert output_gdf['geometry'][0] is not None
-    area_default_buffer = sum(output_gdf.area)
-
-    ### Check if ... parameter works ###
-    # TODO: increase test coverage of other options...
-
 def test_buffer_ext(tmpdir):    
     # Prepare test data + run tests
     tmp_dir = Path(tmpdir)
@@ -268,7 +253,7 @@ def basetest_convexhull(
         output_path: Path):
     
     # Do operation  
-    geofileops_sql.convexhull(input_path=input_path, output_path=output_path)
+    gfo.convexhull(input_path=input_path, output_path=output_path)
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
@@ -575,6 +560,7 @@ if __name__ == '__main__':
 
     # Single layer operations
     test_buffer(tmpdir / "buffer")
+    #test_buffer_ext(tmpdir / "buffer_ext")
     #test_convexhull(tmpdir / "convexhull")
     #test_delete_duplicate_geometries(tmpdir / "delete_duplicate_geometries")
     #test_makevalid(tmpdir / "makevalid")
