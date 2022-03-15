@@ -100,6 +100,55 @@ def benchmark_buffer(
 
     return results
 
+def benchmark_convexhull(
+        input_path: Path,
+        tmpdir: Path) -> List[BenchmarkResult]:
+    
+    # Init
+    if input_path.exists() is False:
+        raise Exception(f"input_path doesn't exist: {input_path}")
+    results = []
+    
+    # Go!
+    print('Start convexhull')
+    start_time = datetime.datetime.now()
+    output_path = tmpdir / f"{input_path.stem}_convexhull.gpkg"
+    gfo.convexhull(input_path, output_path, force=True)
+    secs_taken = (datetime.datetime.now()-start_time).total_seconds()
+    results.append(geofileops_BenchResult(
+            operation="convexhull", 
+            secs_taken=secs_taken,
+            run_details={"input1": input_path.name}))
+    print(f"convexhull ready in {secs_taken:.2f} secs")
+
+    print('Start convexhull with gpd')
+    start_time = datetime.datetime.now()
+    output_path = tmpdir / f"{input_path.stem}_convexhull_gpd.gpkg"
+    geofileops_gpd.convexhull(input_path, output_path, force=True)
+    secs_taken = (datetime.datetime.now()-start_time).total_seconds()
+    results.append(geofileops_BenchResult(
+            operation="convexhull_gpd", 
+            secs_taken=secs_taken,
+            run_details={"input1": input_path.name}))
+    print(f"convexhull with gpd ready in {secs_taken:.2f} secs")
+    
+    print("Start convexhull with spatialite")
+    start_time = datetime.datetime.now()
+    output_path = tmpdir / f"{input_path.stem}_convexhull_sql.gpkg"
+    geofileops_sql.convexhull(input_path, output_path, force=True)
+    secs_taken = (datetime.datetime.now()-start_time).total_seconds()
+    run_details = {
+            "nb_cpu_used": multiprocessing.cpu_count(),
+            "input1": input_path.name}
+    results.append(geofileops_BenchResult(
+            operation="convexhull_spatialite", 
+            secs_taken=secs_taken,
+            run_details=run_details))
+
+    print(f"convexhull with spatialite ready in {secs_taken:.2f} secs")
+
+    return results
+
 def benchmark_dissolve(
         input_path: Path,
         tmpdir: Path) -> List[BenchmarkResult]:
@@ -287,9 +336,13 @@ def run(tmp_dir: Path) -> List[BenchmarkResult]:
     # Now we can start benchmarking
     results = []
     results.extend(benchmark_buffer(input1_path, tmp_dir))
+    
+    """
+    results.extend(benchmark_convexhull(input1_path, tmp_dir))
     results.extend(benchmark_dissolve(input1_path, tmp_dir))
     results.extend(benchmark_intersect(input1_path, input2_path, tmp_dir))
     results.extend(benchmark_simplify(input1_path, tmp_dir))
     results.extend(benchmark_union(input1_path, input2_path, tmp_dir))
+    """
 
     return results

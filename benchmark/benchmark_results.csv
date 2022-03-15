@@ -31,7 +31,12 @@ datetime,package,version,operation,secs_taken,run_details
 2022-03-10 19:58:02.660976,geofileops,0.3.2a1,intersect,78.612996,"{'nb_cpu_used': 12, 'input1': 'agriprc_2019.gpkg', 'input2': 'agriprc_2020.gpkg'}"
 2022-03-10 20:02:17.183997,geofileops,0.3.2a1,union,254.52102,"{'nb_cpu_used': 12, 'input1': 'agriprc_2019.gpkg', 'input2': 'agriprc_2020.gpkg'}"
 2022-03-10 20:03:47.656089,geofileops,0.3.2a1,dissolve,90.472092,"{'nb_cpu_used': 12, 'input1': 'agriprc_2019.gpkg'}"
-2022-03-10 20:05:34.748240,geofileops,0.3.2a1,dissolve_groupby,107.092151,"{'nb_cpu_used': 12, 'input1': 'agriprc_2019.gpkg', 'params': 'groupby_columns=[GEWASGROEP]'}"
 2022-03-10 20:07:02.654113,geofileops,0.3.2a1,dissolve_groupby,87.905873,"{'nb_cpu_used': 12, 'input1': 'agriprc_2019.gpkg', 'params': 'groupby_columns=[GEWASGROEP];explodecollection=False'}"
 2022-03-15 18:21:53.429631,geofileops,0.4.0a1,simplify,68.307451,{'input1': 'agriprc_2018.gpkg'}
 2022-03-15 18:22:24.871452,geofileops,0.4.0a1,simplify_spatialite,31.440819,"{'nb_cpu_used': 12, 'input1': 'agriprc_2018.gpkg'}"
+2022-03-15 23:51:39.630625,geofileops,0.4.0a1,convexhull,31.758358,{'input1': 'agriprc_2018.gpkg'}
+2022-03-15 23:52:39.873707,geofileops,0.4.0a1,convexhull_gpd,60.243082,{'input1': 'agriprc_2018.gpkg'}
+2022-03-15 23:53:10.566606,geofileops,0.4.0a1,convexhull_spatialite,30.692899,"{'nb_cpu_used': 12, 'input1': 'agriprc_2018.gpkg'}"
+2022-03-16 00:06:06.821932,geofileops,0.4.0a1,buffer,40.139957,{'input1': 'agriprc_2018.gpkg'}
+2022-03-16 00:07:23.223342,geofileops,0.4.0a1,buffer_gpd,76.40141,{'input1': 'agriprc_2018.gpkg'}
+2022-03-16 00:08:04.123766,geofileops,0.4.0a1,buffer_spatialite,40.899423,"{'nb_cpu_used': 12, 'input1': 'agriprc_2018.gpkg'}"
