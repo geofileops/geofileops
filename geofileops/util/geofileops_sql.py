@@ -327,6 +327,7 @@ def simplify(
         input_layer: Optional[str] = None,        
         output_layer: Optional[str] = None,
         columns: Optional[List[str]] = None,
+        explodecollections: bool = False,
         nb_parallel: int = -1,
         batchsize: int = -1,
         verbose: bool = False,
@@ -350,6 +351,7 @@ def simplify(
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
+            explodecollections=explodecollections,
             force_output_geometrytype=input_layer_info.geometrytype,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
@@ -1736,10 +1738,13 @@ def format_column_strings(
     if columns_specified is not None:
         # Case-insensitive check if input1_columns contains columns not in layer...
         columns_available_upper = [column.upper() for column in columns_available]
-        missing_columns = [col for col in columns_specified if (col.upper() not in columns_available_upper)]                
+        missing_columns = [col for col in columns_specified if (col.upper() not in columns_available_upper)]
         if len(missing_columns) > 0:
             raise Exception(f"Error, columns_specified contains following columns not in columns_available: {missing_columns}. Existing columns: {columns_available}")
-        columns = columns_specified
+        
+        # Create column list to keep in the casing of the original columns
+        columns_specified_upper = [column.upper() for column in columns_specified]
+        columns = [col for col in columns_available if (col.upper() in columns_specified_upper)]
     else:
         columns = columns_available
 
