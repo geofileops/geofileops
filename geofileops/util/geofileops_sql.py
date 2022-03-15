@@ -46,26 +46,25 @@ def buffer(
         verbose: bool = False,
         force: bool = False):
 
-    # If buffer distance < 0, necessary to apply a makevalid to evade invalid geometries 
     if distance < 0:
-        # A negative buffer is only relevant for polygon types, so only keep polygon results
-        # Negative buffer creates invalid stuff, and the st_simplify(geom, 0) seems the only function fixing this!
-        #geom_operation_sqlite = f"ST_CollectionExtract(ST_makevalid(ST_simplify(ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}), 0)), 3) AS geom"
-        
+        # For a double sided buffer, aA negative buffer is only relevant 
+        # for polygon types, so only keep polygon results
+        # Negative buffer creates invalid stuff, so use collectionextract
+        # to keep only polygons
         sql_template = f'''
-            SELECT ST_CollectionExtract(ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}), 3) AS geom
-                  {{columns_to_select_str}} 
-              FROM "{{input_layer}}"
-             WHERE 1=1 
-               {{batch_filter}}'''
+                SELECT ST_CollectionExtract(ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}), 3) AS geom
+                    {{columns_to_select_str}} 
+                FROM "{{input_layer}}" layer
+                WHERE 1=1 
+                    {{batch_filter}}'''
     else:
         sql_template = f'''
-            SELECT ST_Buffer({{geometrycolumn}}, {distance}, {quadrantsegments}) AS geom
-                  {{columns_to_select_str}} 
-              FROM "{{input_layer}}" layer
-             WHERE 1=1 
-               {{batch_filter}}'''
-
+                SELECT ST_Buffer({{geometrycolumn}}, {distance}, {quadrantsegments}) AS geom
+                    {{columns_to_select_str}} 
+                FROM "{{input_layer}}" layer
+                WHERE 1=1 
+                    {{batch_filter}}'''
+    
     # Buffer operation always results in polygons...
     force_output_geometrytype = GeometryType.MULTIPOLYGON
             
@@ -454,6 +453,7 @@ def _single_layer_vector_operation(
 
                 batches[batch_id]['sql_stmt'] = sql_stmt
                 translate_description = f"Async {operation_name} {batch_id} of {len(batches)}"
+
                 # Remark: this temp file doesn't need spatial index
                 translate_info = ogr_util.VectorTranslateInfo(
                         input_path=processing_params.batches[batch_id]['path'],
@@ -469,8 +469,8 @@ def _single_layer_vector_operation(
                 future = calculate_pool.submit(
                         ogr_util.vector_translate_by_info,
                         info=translate_info)
-                future_to_batch_id[future] = batch_id
-            
+                future_to_batch_id[future] = batch_id                    
+
             # Loop till all parallel processes are ready, but process each one 
             # that is ready already
             for future in futures.as_completed(future_to_batch_id):
@@ -494,8 +494,7 @@ def _single_layer_vector_operation(
                             create_spatial_index=False)
                     geofile.remove(tmp_partial_output_path)
                 else:
-                    if verbose:
-                        logger.info(f"Result file {tmp_partial_output_path} was empty")
+                    logger.debug(f"Result file {tmp_partial_output_path} was empty")
 
                 # Log the progress and prediction speed
                 nb_done += 1
@@ -509,7 +508,7 @@ def _single_layer_vector_operation(
             output_path.parent.mkdir(parents=True, exist_ok=True)
             geofile.move(tmp_output_path, output_path)
         else:
-            logger.info(f"Result of {operation_name} was empty!")
+            logger.debug(f"Result of {operation_name} was empty!")
 
     finally:
         # Clean tmp dir
@@ -1505,15 +1504,12 @@ def _two_layer_vector_operation(
         # Now create spatial index and move to output location
         if tmp_output_path.exists():
             if output_with_spatial_index is True:
-                start_time_spat = datetime.datetime.now()
                 geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
-                logger.info(f"create spatial index took {datetime.datetime.now()-start_time_spat}!")
             if tmp_output_path != output_path:
-                start_time_move = datetime.datetime.now()
+                output_path.parent.mkdir(parents=True, exist_ok=True)
                 geofile.move(tmp_output_path, output_path)
-                logger.info(f"move took {datetime.datetime.now()-start_time_move}!")
         else:
-            logger.warning(f"Result of {operation_name} was empty!f")
+            logger.debug(f"Result of {operation_name} was empty!")
 
         logger.info(f"{operation_name} ready, took {datetime.datetime.now()-start_time}!")
     except Exception as ex:
