@@ -12,9 +12,8 @@ import shapely.geometry as sh_geom
 
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from geofileops import geofile
-from geofileops import geofileops
-from geofileops.geofile import GeometryType
+import geofileops as gfo
+from geofileops import GeometryType
 from geofileops.util import geofileops_gpd
 from geofileops.util import geometry_util
 from geofileops.util import io_util
@@ -53,7 +52,7 @@ def test_apply(tmpdir):
                 test_gdf = test_gdf.to_crs(epsg=crs_epsg)
                 assert isinstance(test_gdf, gpd.GeoDataFrame)
             input_path = tmp_dir / f"polygons_small_holes_{crs_epsg}{suffix}"
-            geofile.to_file(test_gdf, input_path)
+            gfo.to_file(test_gdf, input_path)
             output_path = tmp_dir / f"{input_path.stem}-output{suffix}"
 
             # Now run test
@@ -63,10 +62,10 @@ def basetest_apply(
         input_path: Path,
         output_path: Path):
     ### Init ###
-    input_layerinfo = geofile.get_layerinfo(input_path)
+    input_layerinfo = gfo.get_layerinfo(input_path)
     
     ### Test apply with only_geom_input = True ###
-    geofileops.apply(
+    gfo.apply(
             input_path=input_path,
             output_path=output_path,
             func=lambda geom: geometry_util.remove_inner_rings(
@@ -78,13 +77,13 @@ def basetest_apply(
 
     # Now check if the output file is correctly created
     assert output_path.exists() == True
-    output_layerinfo = geofile.get_layerinfo(output_path)
+    output_layerinfo = gfo.get_layerinfo(output_path)
     assert input_layerinfo.featurecount == output_layerinfo.featurecount
     assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Read result for some more detailed checks
-    output_gdf = geofile.read_file(output_path)
+    output_gdf = gfo.read_file(output_path)
 
     # In the 1st polygon the island should be removed 
     output_geometry = output_gdf['geometry'][0]
@@ -106,7 +105,7 @@ def basetest_apply(
 
     ### Test apply with only_geom_input = False ###
     output_path = io_util.with_stem(output_path, f"{output_path.stem}_2")
-    geofileops.apply(
+    gfo.apply(
             input_path=input_path,
             output_path=output_path,
             func=lambda row: geometry_util.remove_inner_rings(
@@ -118,13 +117,13 @@ def basetest_apply(
 
     # Now check if the output file is correctly created
     assert output_path.exists() == True
-    output_layerinfo = geofile.get_layerinfo(output_path)
+    output_layerinfo = gfo.get_layerinfo(output_path)
     assert input_layerinfo.featurecount == output_layerinfo.featurecount
     assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Read result for some more detailed checks
-    output_gdf = geofile.read_file(output_path)
+    output_gdf = gfo.read_file(output_path)
     for index in range(0, 2):
         output_geometry = output_gdf['geometry'][index]
         assert output_geometry is not None
@@ -179,7 +178,7 @@ def basetest_buffer(
         input_geometry_type: GeometryType):
 
     ### Init ###    
-    layerinfo_input = geofile.get_layerinfo(input_path)
+    layerinfo_input = gfo.get_layerinfo(input_path)
     assert layerinfo_input.crs is not None
     distance = 1
     if layerinfo_input.crs.is_projected is False:
@@ -187,7 +186,7 @@ def basetest_buffer(
         distance /= 111000
 
     ### Test positive buffer ###
-    geofileops.buffer(
+    gfo.buffer(
             input_path=input_path,
             output_path=output_path,
             distance=distance,
@@ -196,7 +195,7 @@ def basetest_buffer(
 
     # Now check if the output file is correctly created
     assert output_path.exists() == True
-    layerinfo_output = geofile.get_layerinfo(output_path)
+    layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_input.featurecount == layerinfo_output.featurecount
     assert len(layerinfo_output.columns) == len(layerinfo_input.columns)
     
@@ -204,13 +203,13 @@ def basetest_buffer(
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Read result for some more detailed checks
-    output_gdf = geofile.read_file(output_path)
+    output_gdf = gfo.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
     ### Test buffer to existing output path ###
     assert output_path.exists() is True
     mtime_orig = output_path.stat().st_mtime
-    geofileops.buffer(
+    gfo.buffer(
             input_path=input_path,
             output_path=output_path,
             distance=distance,
@@ -218,7 +217,7 @@ def basetest_buffer(
     assert output_path.stat().st_mtime == mtime_orig
 
     # With force=True
-    geofileops.buffer(
+    gfo.buffer(
             input_path=input_path,
             output_path=output_path,
             distance=distance,
@@ -233,7 +232,7 @@ def basetest_buffer(
         distance /= 111000
 
     output_path = output_path.parent / f"{output_path.stem}_m10m{output_path.suffix}"
-    geofileops.buffer(
+    gfo.buffer(
             input_path=input_path,
             output_path=output_path,
             distance=distance,
@@ -246,7 +245,7 @@ def basetest_buffer(
     else:    
         # A Negative buffer of polygons gives a result for large polygons.
         assert output_path.exists() == True
-        layerinfo_output = geofile.get_layerinfo(output_path)
+        layerinfo_output = gfo.get_layerinfo(output_path)
         assert len(layerinfo_output.columns) == len(layerinfo_input.columns) 
         if layerinfo_input.crs.is_projected is True:
             # 7 polygons disappear because of the negative buffer
@@ -258,12 +257,12 @@ def basetest_buffer(
         assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
         # Read result for some more detailed checks
-        output_gdf = geofile.read_file(output_path)
+        output_gdf = gfo.read_file(output_path)
         assert output_gdf['geometry'][0] is not None
     
     ### Test negative buffer with explodecollections ###
     output_path = output_path.parent / f"{output_path.stem}_m10m_explode{output_path.suffix}"
-    geofileops.buffer(
+    gfo.buffer(
             input_path=input_path,
             output_path=output_path,
             distance=distance,
@@ -277,7 +276,7 @@ def basetest_buffer(
     else:    
         # A Negative buffer of polygons gives a result for large polygons
         assert output_path.exists() == True
-        layerinfo_output = geofile.get_layerinfo(output_path)
+        layerinfo_output = gfo.get_layerinfo(output_path)
         assert len(layerinfo_output.columns) == len(layerinfo_input.columns) 
 
         if layerinfo_input.crs.is_projected is True:
@@ -291,7 +290,7 @@ def basetest_buffer(
         assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
         # Read result for some more detailed checks
-        output_gdf = geofile.read_file(output_path)
+        output_gdf = gfo.read_file(output_path)
         assert output_gdf['geometry'][0] is not None
 
 def test_buffer_ext(tmpdir):    
@@ -316,7 +315,7 @@ def test_buffer_ext(tmpdir):
 def basetest_buffer_ext(input_path, output_path):
 
     ### Init ###    
-    layerinfo_input = geofile.get_layerinfo(input_path)
+    layerinfo_input = gfo.get_layerinfo(input_path)
     assert layerinfo_input.crs is not None
     distance = 1
     if layerinfo_input.crs.is_projected is False:
@@ -325,7 +324,7 @@ def basetest_buffer_ext(input_path, output_path):
 
     ### Check if columns parameter works (case insensitive) ###
     columns = ['OIDN', 'uidn', 'HFDTLT', 'lblhfdtlt', 'GEWASGROEP', 'lengte', 'OPPERVL']
-    geofileops.buffer(
+    gfo.buffer(
             input_path=input_path,
             columns=columns,
             output_path=output_path,
@@ -333,37 +332,37 @@ def basetest_buffer_ext(input_path, output_path):
             nb_parallel=get_nb_parallel())
 
     # Now check if the tmp file is correctly created
-    layerinfo_input = geofile.get_layerinfo(input_path)
-    layerinfo_output = geofile.get_layerinfo(output_path)
+    layerinfo_input = gfo.get_layerinfo(input_path)
+    layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_input.featurecount == layerinfo_output.featurecount
     assert 'OIDN' in layerinfo_output.columns
     assert 'UIDN' in layerinfo_output.columns
     assert len(layerinfo_output.columns) == len(columns)
 
     # Read result for some more detailed checks
-    output_gdf = geofile.read_file(output_path)
+    output_gdf = gfo.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
     area_default_buffer = sum(output_gdf.area)
     
     ### Test polygon buffer with square endcaps ###
     output_path = output_path.parent / f"{output_path.stem}_endcap_join{output_path.suffix}"
-    geofileops.buffer(
+    gfo.buffer(
             input_path=input_path,
             output_path=output_path,
             distance=distance,
-            endcap_style=geometry_util.BufferCapStyle.SQUARE,
+            endcap_style=geometry_util.BufferEndCapStyle.SQUARE,
             join_style=geometry_util.BufferJoinStyle.MITRE,
             nb_parallel=get_nb_parallel())
 
     # Now check if the output file is correctly created
     assert output_path.exists() == True
-    layerinfo_output = geofile.get_layerinfo(output_path)
+    layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_input.featurecount == layerinfo_output.featurecount
     assert len(layerinfo_output.columns) == len(layerinfo_input.columns)
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Read result for some more detailed checks
-    output_gdf = geofile.read_file(output_path)
+    output_gdf = gfo.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
     area_square_buffer = sum(output_gdf.area)
     assert area_square_buffer > area_default_buffer
@@ -390,21 +389,21 @@ def test_convexhull(tmpdir):
             basetest_convexhull(input_path, output_path)
 
 def basetest_convexhull(input_path, output_path):
-    layerinfo_orig = geofile.get_layerinfo(input_path)
-    geofileops.convexhull(
+    layerinfo_orig = gfo.get_layerinfo(input_path)
+    geofileops_gpd.convexhull(
             input_path=input_path,
             output_path=output_path,
             nb_parallel=get_nb_parallel())
 
     # Now check if the output file is correctly created
     assert output_path.exists() == True
-    layerinfo_output = geofile.get_layerinfo(output_path)
+    layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_orig.featurecount == layerinfo_output.featurecount
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Read result for some more detailed checks
-    output_gdf = geofile.read_file(output_path)
+    output_gdf = gfo.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
 def test_dissolve_linestrings_nogroupby(tmpdir):
@@ -429,7 +428,7 @@ def basetest_dissolve_linestrings_nogroupby(input_path, output_basepath):
     # Apply dissolve with explodecollections
     output_path = (output_basepath.parent / 
             f"{output_basepath.stem}_expl{output_basepath.suffix}")
-    geofileops.dissolve(
+    gfo.dissolve(
             input_path=input_path,
             output_path=output_path,
             explodecollections=True,
@@ -438,15 +437,15 @@ def basetest_dissolve_linestrings_nogroupby(input_path, output_basepath):
 
     # Check if the result file is correctly created
     assert output_path.exists() == True
-    layerinfo_orig = geofile.get_layerinfo(input_path)
-    layerinfo_output = geofile.get_layerinfo(output_path)
+    layerinfo_orig = gfo.get_layerinfo(input_path)
+    layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 85
     assert layerinfo_output.geometrytype in [GeometryType.LINESTRING, GeometryType.MULTILINESTRING]
     assert len(layerinfo_output.columns) >= 0
 
     # Now check the contents of the result file
-    input_gdf = geofile.read_file(input_path)
-    output_gdf = geofile.read_file(output_path)
+    input_gdf = gfo.read_file(input_path)
+    output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
@@ -455,7 +454,7 @@ def basetest_dissolve_linestrings_nogroupby(input_path, output_basepath):
     output_path = (output_basepath.parent / 
             f"{output_basepath.stem}_noexpl{output_basepath.suffix}")
     # explodecollections=False only supported if 
-    geofileops.dissolve(
+    gfo.dissolve(
             input_path=input_path,
             output_path=output_path,
             explodecollections=False,
@@ -464,16 +463,16 @@ def basetest_dissolve_linestrings_nogroupby(input_path, output_basepath):
 
     # Check if the result file is correctly created
     assert output_path.exists() == True
-    layerinfo_orig = geofile.get_layerinfo(input_path)
+    layerinfo_orig = gfo.get_layerinfo(input_path)
     
-    layerinfo_output = geofile.get_layerinfo(output_path)
+    layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 1
     assert layerinfo_output.geometrytype is layerinfo_orig.geometrytype
     assert len(layerinfo_output.columns) >= 0
 
     # Now check the contents of the result file
-    input_gdf = geofile.read_file(input_path)
-    output_gdf = geofile.read_file(output_path)
+    input_gdf = gfo.read_file(input_path)
+    output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
@@ -500,11 +499,11 @@ def basetest_dissolve_polygons_groupby(
         input_path: Path, 
         output_basepath: Path):
     # Init
-    layerinfo_input = geofile.get_layerinfo(input_path)
+    layerinfo_input = gfo.get_layerinfo(input_path)
 
     ### Test dissolve polygons with groupby + without explodecollections ###
     output_path = output_basepath.parent / f"{output_basepath.stem}_group{output_basepath.suffix}"
-    geofileops.dissolve(
+    gfo.dissolve(
             input_path=input_path,
             output_path=output_path,
             groupby_columns=['GEWASGROEP'],
@@ -514,21 +513,21 @@ def basetest_dissolve_polygons_groupby(
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
-    layerinfo_output = geofile.get_layerinfo(output_path)
+    layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 6
     assert len(layerinfo_output.columns) == 1
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
     # Now check the contents of the result file
-    input_gdf = geofile.read_file(input_path)
-    output_gdf = geofile.read_file(output_path)
+    input_gdf = gfo.read_file(input_path)
+    output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
 
     ### Test dissolve polygons with explodecollections ###
     output_path = output_basepath.parent / f"{output_basepath.stem}_group_explode{output_basepath.suffix}"
-    geofileops.dissolve(
+    gfo.dissolve(
             input_path=input_path,
             output_path=output_path,
             groupby_columns=['GEWASGROEP'],
@@ -538,7 +537,7 @@ def basetest_dissolve_polygons_groupby(
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
-    layerinfo_output = geofile.get_layerinfo(output_path)
+    layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 25
     assert len(layerinfo_output.columns) == 1
 
@@ -546,15 +545,15 @@ def basetest_dissolve_polygons_groupby(
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Now check the contents of the result file
-    input_gdf = geofile.read_file(input_path)
-    output_gdf = geofile.read_file(output_path)
+    input_gdf = gfo.read_file(input_path)
+    output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
 
     ### Test dissolve polygons with explodecollections + all columns ###
     output_path = output_basepath.parent / f"{output_basepath.stem}_group_explode_allcolumns{output_basepath.suffix}"
-    geofileops.dissolve(
+    gfo.dissolve(
             input_path=input_path,
             output_path=output_path,
             groupby_columns=['GEWASGROEP'],
@@ -565,7 +564,7 @@ def basetest_dissolve_polygons_groupby(
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
-    layerinfo_output = geofile.get_layerinfo(output_path)
+    layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 25
     assert len(layerinfo_output.columns) == len(layerinfo_input.columns)
 
@@ -573,8 +572,8 @@ def basetest_dissolve_polygons_groupby(
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Now check the contents of the result file
-    input_gdf = geofile.read_file(input_path)
-    output_gdf = geofile.read_file(output_path)
+    input_gdf = gfo.read_file(input_path)
+    output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
@@ -583,7 +582,7 @@ def basetest_dissolve_polygons_groupby(
     # A different output layer is not supported for shapefile!!!
     try:
         output_path = output_basepath.parent / f"{output_basepath.stem}_group_outputlayer{output_basepath.suffix}"
-        geofileops.dissolve(
+        gfo.dissolve(
                 input_path=input_path,
                 output_path=output_path,
                 groupby_columns=['GEWASGROEP'],
@@ -599,7 +598,7 @@ def basetest_dissolve_polygons_groupby(
     # Now check if the tmp file is correctly created
     if output_path.suffix.lower() != '.shp':
         assert output_path.exists() == True
-        layerinfo_output = geofile.get_layerinfo(output_path)
+        layerinfo_output = gfo.get_layerinfo(output_path)
         assert layerinfo_output.featurecount == 25
         assert len(layerinfo_output.columns) == 1
         assert layerinfo_output.name == 'banana'
@@ -608,8 +607,8 @@ def basetest_dissolve_polygons_groupby(
         assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
         # Now check the contents of the result file
-        input_gdf = geofile.read_file(input_path)
-        output_gdf = geofile.read_file(output_path)
+        input_gdf = gfo.read_file(input_path)
+        output_gdf = gfo.read_file(output_path)
         assert input_gdf.crs == output_gdf.crs
         assert len(output_gdf) == layerinfo_output.featurecount
         assert output_gdf['geometry'][0] is not None
@@ -636,11 +635,11 @@ def basetest_dissolve_polygons_nogroupby(
         input_path: Path, 
         output_basepath: Path):
     # Init
-    layerinfo_input = geofile.get_layerinfo(input_path)
+    layerinfo_input = gfo.get_layerinfo(input_path)
     
     ### Test dissolve polygons with explodecollections=True (= default) ###
     output_path = output_basepath.parent / f"{output_basepath.stem}_defaults{output_basepath.suffix}"
-    geofileops.dissolve(
+    gfo.dissolve(
             input_path=input_path,
             output_path=output_path,
             explodecollections=True,
@@ -650,7 +649,7 @@ def basetest_dissolve_polygons_nogroupby(
 
     # Now check if the result file is correctly created
     assert output_path.exists() == True
-    layerinfo_output = geofile.get_layerinfo(output_path)
+    layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 23
     if output_basepath.suffix == '.shp':
         # Shapefile always has an FID field
@@ -663,8 +662,8 @@ def basetest_dissolve_polygons_nogroupby(
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Now check the contents of the result file
-    input_gdf = geofile.read_file(input_path)
-    output_gdf = geofile.read_file(output_path)
+    input_gdf = gfo.read_file(input_path)
+    output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
@@ -672,7 +671,7 @@ def basetest_dissolve_polygons_nogroupby(
     ### Test dissolve to existing output path ###
     assert output_path.exists() is True
     mtime_orig = output_path.stat().st_mtime
-    geofileops.dissolve(
+    gfo.dissolve(
             input_path=input_path,
             output_path=output_path,
             explodecollections=True,
@@ -680,7 +679,7 @@ def basetest_dissolve_polygons_nogroupby(
     assert output_path.stat().st_mtime == mtime_orig
 
     # With force=True
-    geofileops.dissolve(
+    gfo.dissolve(
             input_path=input_path,
             output_path=output_path,
             explodecollections=True,
@@ -691,7 +690,7 @@ def basetest_dissolve_polygons_nogroupby(
 
     ### Test dissolve polygons with explodecollections=False ###
     output_path = output_basepath.parent / f"{output_basepath.stem}_defaults{output_basepath.suffix}"
-    geofileops.dissolve(
+    gfo.dissolve(
             input_path=input_path,
             output_path=output_path,
             explodecollections=False,
@@ -701,7 +700,7 @@ def basetest_dissolve_polygons_nogroupby(
 
     # Now check if the result file is correctly created
     assert output_path.exists() == True
-    layerinfo_output = geofile.get_layerinfo(output_path)
+    layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 1
     if output_basepath.suffix == '.shp':
         # Shapefile always has an FID field
@@ -714,8 +713,8 @@ def basetest_dissolve_polygons_nogroupby(
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Now check the contents of the result file
-    input_gdf = geofile.read_file(input_path)
-    output_gdf = geofile.read_file(output_path)
+    input_gdf = gfo.read_file(input_path)
+    output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
@@ -724,7 +723,7 @@ def basetest_dissolve_polygons_nogroupby(
     # A different output layer is not supported for shapefile!!!
     try:
         output_path = output_basepath.parent / f"{output_basepath.stem}_outputlayer{output_basepath.suffix}"
-        geofileops.dissolve(
+        gfo.dissolve(
                 input_path=input_path,
                 output_path=output_path,
                 output_layer='banana',
@@ -740,7 +739,7 @@ def basetest_dissolve_polygons_nogroupby(
     # Now check if the result file is correctly created
     if output_path.suffix.lower() != '.shp':
         assert output_path.exists() == True
-        layerinfo_output = geofile.get_layerinfo(output_path)
+        layerinfo_output = gfo.get_layerinfo(output_path)
         assert layerinfo_output.featurecount == 23
         assert len(layerinfo_output.columns) == 0
         if output_basepath.suffix == '.shp':
@@ -753,8 +752,8 @@ def basetest_dissolve_polygons_nogroupby(
         assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
         # Now check the contents of the result file
-        input_gdf = geofile.read_file(input_path)
-        output_gdf = geofile.read_file(output_path)
+        input_gdf = gfo.read_file(input_path)
+        output_gdf = gfo.read_file(output_path)
         assert input_gdf.crs == output_gdf.crs
         assert len(output_gdf) == layerinfo_output.featurecount
         assert output_gdf['geometry'][0] is not None
@@ -780,7 +779,7 @@ def test_dissolve_multisinglepolygons(tmpdir):
                 test_gdf = test_gdf.to_crs(epsg=crs_epsg)
                 assert isinstance(test_gdf, gpd.GeoDataFrame)
             input_path = tmp_dir / f"polygons_{crs_epsg}{suffix}"
-            geofile.to_file(test_gdf, input_path)
+            gfo.to_file(test_gdf, input_path)
             output_path = tmp_dir / f"{input_path.stem}-output{suffix}"
 
             # Now run test
@@ -792,7 +791,7 @@ def basetest_dissolve_multisinglepolygons(
     # Test to check if it is handled well that a file that results in single 
     # and multipolygons during dissolve is treated correctly, as geopackage 
     # doesn't support single and multi-polygons in one layer.
-    geofileops.dissolve(
+    gfo.dissolve(
             input_path=input_path,
             output_path=output_path,
             explodecollections=True,
@@ -803,7 +802,7 @@ def basetest_dissolve_multisinglepolygons(
 
     # Now check if the result file is correctly created
     assert output_path.exists() == True
-    layerinfo_output = geofile.get_layerinfo(output_path)
+    layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 3
     if output_path.suffix == '.shp':
         # Shapefile always has an FID field
@@ -816,8 +815,8 @@ def basetest_dissolve_multisinglepolygons(
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Now check the contents of the result file
-    input_gdf = geofile.read_file(input_path)
-    output_gdf = geofile.read_file(output_path)
+    input_gdf = gfo.read_file(input_path)
+    output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
@@ -860,7 +859,7 @@ def basetest_simplify(
         expected_output_geometrytype: GeometryType):
 
     ### Init ###
-    layerinfo_orig = geofile.get_layerinfo(input_path)
+    layerinfo_orig = gfo.get_layerinfo(input_path)
     assert layerinfo_orig.crs is not None
     if layerinfo_orig.crs.is_projected:
         tolerance = 5
@@ -870,7 +869,7 @@ def basetest_simplify(
 
     ### Test default algorithm, rdp ###
     output_path = io_util.with_stem(output_basepath, f"{output_basepath.stem}_rdp")
-    geofileops.simplify(
+    gfo.simplify(
             input_path=input_path,
             output_path=output_path,
             tolerance=tolerance,
@@ -878,7 +877,7 @@ def basetest_simplify(
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
-    layerinfo_output = geofile.get_layerinfo(output_path)
+    layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_orig.featurecount == layerinfo_output.featurecount
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
@@ -886,15 +885,15 @@ def basetest_simplify(
     assert layerinfo_output.geometrytype == expected_output_geometrytype
 
     # Now check the contents of the result file
-    input_gdf = geofile.read_file(input_path)
-    output_gdf = geofile.read_file(output_path)
+    input_gdf = gfo.read_file(input_path)
+    output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
 
     ### Test vw (visvalingam-whyatt) algorithm ###
     output_path = io_util.with_stem(output_basepath, f"{output_basepath.stem}_vw")
-    geofileops.simplify(
+    gfo.simplify(
             input_path=input_path,
             output_path=output_path,
             tolerance=tolerance,
@@ -903,7 +902,7 @@ def basetest_simplify(
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
-    layerinfo_output = geofile.get_layerinfo(output_path)
+    layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_orig.featurecount == layerinfo_output.featurecount
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
@@ -911,15 +910,15 @@ def basetest_simplify(
     assert layerinfo_output.geometrytype == expected_output_geometrytype
 
     # Now check the contents of the result file
-    input_gdf = geofile.read_file(input_path)
-    output_gdf = geofile.read_file(output_path)
+    input_gdf = gfo.read_file(input_path)
+    output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
 
     ### Test lang algorithm ###
     output_path = io_util.with_stem(output_basepath, f"{output_basepath.stem}_lang")
-    geofileops.simplify(
+    gfo.simplify(
             input_path=input_path,
             output_path=output_path,
             tolerance=tolerance,
@@ -929,7 +928,7 @@ def basetest_simplify(
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
-    layerinfo_output = geofile.get_layerinfo(output_path)
+    layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_orig.featurecount == layerinfo_output.featurecount
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
@@ -937,8 +936,8 @@ def basetest_simplify(
     assert layerinfo_output.geometrytype == expected_output_geometrytype
 
     # Now check the contents of the result file
-    input_gdf = geofile.read_file(input_path)
-    output_gdf = geofile.read_file(output_path)
+    input_gdf = gfo.read_file(input_path)
+    output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
