@@ -80,7 +80,8 @@ def basetest_apply(
     # Now check if the output file is correctly created
     assert output_path.exists() == True
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert input_layerinfo.featurecount == output_layerinfo.featurecount
+    # The row with the None geometry will be removed
+    assert input_layerinfo.featurecount == (output_layerinfo.featurecount + 1)
     assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON 
 
@@ -120,7 +121,7 @@ def basetest_apply(
     # Now check if the output file is correctly created
     assert output_path.exists() == True
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert input_layerinfo.featurecount == output_layerinfo.featurecount
+    assert input_layerinfo.featurecount == (output_layerinfo.featurecount + 1)
     assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON 
 
