@@ -55,6 +55,7 @@ class GeofileType(enum.Enum):
     GeoJSON = enum.auto()
     GPKG = enum.auto()
     SQLite = enum.auto()
+    FlatGeobuf = enum.auto()
 
     @classmethod
     def _missing_(cls, value: Union[str, int, Path]):
