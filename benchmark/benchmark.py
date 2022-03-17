@@ -33,7 +33,7 @@ def benchmark():
     #tmpdir = Path(r"C:\Temp") / 'geofileops_benchmark'
     
     # Discover and run all benchmark implementations
-    tmp_dir = Path(tempfile.gettempdir()) / 'geobenchmark'
+    tmp_dir = Path(tempfile.gettempdir()) / "geobenchmark"
     logger.info(f"tmpdir: {tmp_dir}")
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
@@ -55,16 +55,16 @@ def benchmark():
     """
     
     # Add results to general csv file
-    results_path = Path(__file__).resolve().parent / 'benchmark_results.csv'
+    results_path = Path(__file__).resolve().parent / "benchmark_results.csv"
     results_dictlist = [vars(result) for result in results]
     results_df = pd.DataFrame(results_dictlist)
     if not results_path.exists():
         results_df.to_csv(results_path, index=False)
     else:
-        results_df.to_csv(results_path, index=False, mode='a', header=False)
+        results_df.to_csv(results_path, index=False, mode="a", header=False)
 
     # GEnerate reports
     report.report(results_path)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     benchmark()

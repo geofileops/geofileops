@@ -61,7 +61,7 @@ def benchmark_buffer(
     results = []
     
     # Go!
-    print('Start buffer')
+    print("buffer: start")
     start_time = datetime.datetime.now()
     output_path = tmpdir / f"{input_path.stem}_buf.gpkg"
     gfo.buffer(input_path, output_path, distance=1, force=True)
@@ -70,9 +70,9 @@ def benchmark_buffer(
             operation="buffer", 
             secs_taken=secs_taken,
             run_details={"input1": input_path.name}))
-    print(f"Buffer ready in {secs_taken:.2f} secs")
+    print(f"buffer: ready in {secs_taken:.2f} secs")
 
-    print('Start buffer with gpd')
+    print("buffer with gpd: start")
     start_time = datetime.datetime.now()
     output_path = tmpdir / f"{input_path.stem}_buf_gpd.gpkg"
     geofileops_gpd.buffer(input_path, output_path, distance=1, force=True)
@@ -81,9 +81,9 @@ def benchmark_buffer(
             operation="buffer_gpd", 
             secs_taken=secs_taken,
             run_details={"input1": input_path.name}))
-    print(f"Buffer with gpd ready in {secs_taken:.2f} secs")
+    print(f"buffer with gpd: ready in {secs_taken:.2f} secs")
     
-    print("Start buffer with spatialite")
+    print("buffer with spatialite: start")
     start_time = datetime.datetime.now()
     output_path = tmpdir / f"{input_path.stem}_buf_sql.gpkg"
     geofileops_sql.buffer(input_path, output_path, distance=1, force=True)
@@ -96,7 +96,7 @@ def benchmark_buffer(
             secs_taken=secs_taken,
             run_details=run_details))
 
-    print(f"Buffer with spatialite ready in {secs_taken:.2f} secs")
+    print(f"buffer with spatialite: ready in {secs_taken:.2f} secs")
 
     return results
 
@@ -110,7 +110,7 @@ def benchmark_convexhull(
     results = []
     
     # Go!
-    print('Start convexhull')
+    print("convexhull: start")
     start_time = datetime.datetime.now()
     output_path = tmpdir / f"{input_path.stem}_convexhull.gpkg"
     gfo.convexhull(input_path, output_path, force=True)
@@ -119,9 +119,9 @@ def benchmark_convexhull(
             operation="convexhull", 
             secs_taken=secs_taken,
             run_details={"input1": input_path.name}))
-    print(f"convexhull ready in {secs_taken:.2f} secs")
+    print(f"convexhull: ready in {secs_taken:.2f} secs")
 
-    print('Start convexhull with gpd')
+    print("Start convexhull with gpd")
     start_time = datetime.datetime.now()
     output_path = tmpdir / f"{input_path.stem}_convexhull_gpd.gpkg"
     geofileops_gpd.convexhull(input_path, output_path, force=True)
@@ -130,9 +130,9 @@ def benchmark_convexhull(
             operation="convexhull_gpd", 
             secs_taken=secs_taken,
             run_details={"input1": input_path.name}))
-    print(f"convexhull with gpd ready in {secs_taken:.2f} secs")
+    print(f"convexhull with gpd: ready in {secs_taken:.2f} secs")
     
-    print("Start convexhull with spatialite")
+    print("convexhull with spatialite: start")
     start_time = datetime.datetime.now()
     output_path = tmpdir / f"{input_path.stem}_convexhull_sql.gpkg"
     geofileops_sql.convexhull(input_path, output_path, force=True)
@@ -145,7 +145,7 @@ def benchmark_convexhull(
             secs_taken=secs_taken,
             run_details=run_details))
 
-    print(f"convexhull with spatialite ready in {secs_taken:.2f} secs")
+    print(f"convexhull with spatialite: ready in {secs_taken:.2f} secs")
 
     return results
 
@@ -159,7 +159,7 @@ def benchmark_dissolve(
     results = []
     
     # Go!
-    print('Dissolve without groupby: start')
+    print("dissolve without groupby: start")
     start_time = datetime.datetime.now()
     output_path = tmpdir / f"{input_path.stem}_diss_nogroupby.gpkg"
     gfo.dissolve(
@@ -175,9 +175,9 @@ def benchmark_dissolve(
             operation="dissolve",
             secs_taken=secs_taken,
             run_details=run_details))
-    print(f"Dissolve without groupby ready in {secs_taken:.2f} secs")
+    print(f"dissolve without groupby: ready in {secs_taken:.2f} secs")
     
-    print('Dissolve with groupby: start')
+    print("dissolve with groupby: start")
     start_time = datetime.datetime.now()
     output_path = tmpdir / f"{input_path.stem}_diss_groupby.gpkg"
     geofileops_gpd.dissolve(
@@ -194,7 +194,7 @@ def benchmark_dissolve(
             operation='dissolve_groupby', 
             secs_taken=secs_taken,
             run_details=run_details))
-    print(f"Dissolve with groupby ready in {secs_taken:.2f} secs")
+    print(f"dissolve with groupby: ready in {secs_taken:.2f} secs")
 
     return results
 
@@ -210,7 +210,7 @@ def benchmark_intersect(
     results = []
     
     # Go!
-    print('Start Intersect')
+    print("intersect: start")
     start_time = datetime.datetime.now()
     output_path = tmpdir / f"{input1_path.stem}_inters_{input2_path.stem}.gpkg"
     gfo.intersect(
@@ -227,7 +227,7 @@ def benchmark_intersect(
             operation='intersect', 
             secs_taken=secs_taken,
             run_details=run_details))
-    print(f"Intersect ready in {secs_taken:.2f} secs")
+    print(f"intersect: ready in {secs_taken:.2f} secs")
 
     return results
 
@@ -241,7 +241,7 @@ def benchmark_simplify(
     results = []
     
     # Go!
-    print('Start simplify')
+    print("simplify: start")
     start_time = datetime.datetime.now()
     output_path = tmpdir / f"{input_path.stem}_simpl.gpkg"
     gfo.simplify(input_path, output_path, tolerance=1, force=True)
@@ -250,9 +250,9 @@ def benchmark_simplify(
             operation="simplify", 
             secs_taken=secs_taken,
             run_details={"input1": input_path.name}))
-    print(f"simplify ready in {secs_taken:.2f} secs")
+    print(f"simplify: ready in {secs_taken:.2f} secs")
     
-    print('Start simplify with gpd')
+    print("simplify with gpd: start")
     start_time = datetime.datetime.now()
     output_path = tmpdir / f"{input_path.stem}_simpl_gpd.gpkg"
     geofileops_gpd.simplify(input_path, output_path, tolerance=1, force=True)
@@ -263,7 +263,7 @@ def benchmark_simplify(
             run_details={"input1": input_path.name}))
     print(f"simplify  with gpd ready in {secs_taken:.2f} secs")
 
-    print("Start simplify with spatialite")
+    print("simplify with spatialite: start")
     start_time = datetime.datetime.now()
     output_path = tmpdir / f"{input_path.stem}_simpl_sql.gpkg"
     geofileops_sql.simplify(input_path, output_path, tolerance=1, force=True)
@@ -276,7 +276,7 @@ def benchmark_simplify(
             secs_taken=secs_taken,
             run_details=run_details))
 
-    print(f"simplify with spatialite ready in {secs_taken:.2f} secs")
+    print(f"simplify with spatialite: ready in {secs_taken:.2f} secs")
 
     return results
 
@@ -292,7 +292,7 @@ def benchmark_union(
     benchmark_results = []
     
     # Go!
-    print('Start Union with sql')
+    print("union with spatialite: start")
     start_time = datetime.datetime.now()
     output_path = tmpdir / f"{input1_path.stem}_union_{input2_path.stem}.gpkg"
     gfo.union(
@@ -309,7 +309,7 @@ def benchmark_union(
             operation='union',
             secs_taken=secs_taken,
             run_details=run_details))
-    print(f"Union ready in {secs_taken:.2f} secs")
+    print(f"union with spatialite: ready in {secs_taken:.2f} secs")
 
     return benchmark_results
 
@@ -335,11 +335,10 @@ def run(tmp_dir: Path) -> List[BenchmarkResult]:
     
     # Now we can start benchmarking
     results = []
-    results.extend(benchmark_buffer(input1_path, tmp_dir))
-    
-    """
-    results.extend(benchmark_convexhull(input1_path, tmp_dir))
+    #results.extend(benchmark_buffer(input1_path, tmp_dir))
+    #results.extend(benchmark_convexhull(input1_path, tmp_dir))
     results.extend(benchmark_dissolve(input1_path, tmp_dir))
+    """
     results.extend(benchmark_intersect(input1_path, input2_path, tmp_dir))
     results.extend(benchmark_simplify(input1_path, tmp_dir))
     results.extend(benchmark_union(input1_path, input2_path, tmp_dir))

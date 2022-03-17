@@ -43,7 +43,7 @@ def report(results_path: Path):
         reports_package_dir.mkdir(parents=True, exist_ok=True)
 
         package_df = benchmark_df.loc[benchmark_df["package"] == package]
-        for operation in benchmark_df["operation"].unique():
+        for operation in package_df["operation"].unique():
             package_operation_df = package_df.loc[benchmark_df["operation"] == operation]
             package_operation_df = package_operation_df[["version", "secs_taken"]]
             package_operation_df = package_operation_df.set_index(["version"])
