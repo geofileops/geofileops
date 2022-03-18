@@ -549,8 +549,8 @@ def _apply_geooperation(
         raise Exception(f"Operation not supported: {operation}")     
 
     # Remove rows where geom is empty
-    data_gdf = data_gdf[~data_gdf.is_empty] 
-    data_gdf = data_gdf[~data_gdf.isna()] 
+    data_gdf = data_gdf[~data_gdf.geometry.is_empty] 
+    data_gdf = data_gdf[~data_gdf.geometry.isna()] 
     
     if explodecollections:
         data_gdf = data_gdf.explode(ignore_index=True) # type: ignore

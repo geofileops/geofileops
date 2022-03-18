@@ -78,7 +78,8 @@ def basetest_apply(
     # Now check if the output file is correctly created
     assert output_path.exists() == True
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert input_layerinfo.featurecount == output_layerinfo.featurecount
+    # The row with the None geometry will be removed
+    assert input_layerinfo.featurecount == (output_layerinfo.featurecount + 1)
     assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON 
 
@@ -118,7 +119,7 @@ def basetest_apply(
     # Now check if the output file is correctly created
     assert output_path.exists() == True
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert input_layerinfo.featurecount == output_layerinfo.featurecount
+    assert input_layerinfo.featurecount == (output_layerinfo.featurecount + 1)
     assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON 
 
@@ -947,8 +948,8 @@ if __name__ == '__main__':
     tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
 
     # Run
-    test_get_parallelization_params()
-    #test_apply(tmpdir / "apply")
+    #test_get_parallelization_params()
+    test_apply(tmpdir / "apply")
     #test_buffer(tmpdir / "buffer")
     #test_buffer_ext(tmpdir / "buffer_ext")
     #test_dissolve_linestrings_nogroupby(tmpdir / "dissolve_linestrings_nogroupby")
