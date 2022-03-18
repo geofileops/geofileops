@@ -50,7 +50,7 @@ parameters:
       just log that this is the fact and continue without throwing a error. 
       To overwrite the existing output_path, specify force=True.
     
-Spatial operation between two files/layers
+Spatial operations between two files/layers
 ------------------------------------------
 
 For operations between two layers, obviously 2 input files/layers need to be 
