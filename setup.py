@@ -3,7 +3,7 @@ import setuptools
 with open('README.md', 'r') as fh:
     long_description = fh.read()
 
-with open('version.txt', mode='r') as file:
+with open('geofileops/version.txt', mode='r') as file:
     version = file.readline()
 
 setuptools.setup(
@@ -17,7 +17,7 @@ setuptools.setup(
     url='https://github.com/geofileops/geofileops',
     include_package_data=True,
     packages=setuptools.find_packages(),
-    install_requires=['geopandas>=0.10', 'pygeos', 'pyproj', 'psutil'],
+    install_requires=['cloudpickle', 'geopandas>=0.10', 'pygeos', 'pyproj', 'psutil'],
     extras_require = {
         'full': ['simplification']
     },

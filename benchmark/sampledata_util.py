@@ -8,6 +8,7 @@ import logging
 from pathlib import Path
 import shutil
 import tempfile
+from typing import Optional
 import urllib.request
 import zipfile
 
@@ -42,7 +43,9 @@ class SampleGeofile(enum.Enum):
     def defaultpath(self):
         return Path(tempfile.gettempdir()) / 'geofileops_sampledata' / self.defaultname
 
-    def custompath(self, base_dir: Path = None):
+    def custompath(
+            self, 
+            base_dir: Optional[Path] = None):
         if base_dir is None:
             return self.defaultpath
         else:
@@ -50,7 +53,7 @@ class SampleGeofile(enum.Enum):
         
 def download_samplefile(
         samplegeofile: SampleGeofile,
-        dst_path: Path = None) -> Path:
+        dst_path: Optional[Path] = None) -> Path:
     """
     Download a sample file to dest_path.
 

@@ -15,8 +15,9 @@ from typing import List, Optional
 
 import pandas as pd
 
-from geofileops import geofile
-from geofileops.geofile import GeofileType, GeometryType, PrimitiveType
+import geofileops as gfo
+from geofileops import GeofileType, GeometryType, PrimitiveType
+from geofileops.file import _append_to_nolock
 from . import io_util
 from . import ogr_util
 from . import sqlite_util
@@ -37,35 +38,34 @@ def buffer(
         output_path: Path,
         distance: float,
         quadrantsegments: int = 5,
-        input_layer: str = None,
-        output_layer: str = None,
-        columns: List[str] = None,
+        input_layer: Optional[str] = None,
+        output_layer: Optional[str] = None,
+        columns: Optional[List[str]] = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
         batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
 
-    # If buffer distance < 0, necessary to apply a makevalid to evade invalid geometries 
     if distance < 0:
-        # A negative buffer is only relevant for polygon types, so only keep polygon results
-        # Negative buffer creates invalid stuff, and the st_simplify(geom, 0) seems the only function fixing this!
-        #geom_operation_sqlite = f"ST_CollectionExtract(ST_makevalid(ST_simplify(ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}), 0)), 3) AS geom"
-        
+        # For a double sided buffer, aA negative buffer is only relevant 
+        # for polygon types, so only keep polygon results
+        # Negative buffer creates invalid stuff, so use collectionextract
+        # to keep only polygons
         sql_template = f'''
-            SELECT ST_CollectionExtract(ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}), 3) AS geom
-                  {{columns_to_select_str}} 
-              FROM "{{input_layer}}"
-             WHERE 1=1 
-               {{batch_filter}}'''
+                SELECT ST_CollectionExtract(ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}), 3) AS geom
+                    {{columns_to_select_str}} 
+                FROM "{{input_layer}}" layer
+                WHERE 1=1 
+                    {{batch_filter}}'''
     else:
         sql_template = f'''
-            SELECT ST_Buffer({{geometrycolumn}}, {distance}, {quadrantsegments}) AS geom
-                  {{columns_to_select_str}} 
-              FROM "{{input_layer}}" layer
-             WHERE 1=1 
-               {{batch_filter}}'''
-
+                SELECT ST_Buffer({{geometrycolumn}}, {distance}, {quadrantsegments}) AS geom
+                    {{columns_to_select_str}} 
+                FROM "{{input_layer}}" layer
+                WHERE 1=1 
+                    {{batch_filter}}'''
+    
     # Buffer operation always results in polygons...
     force_output_geometrytype = GeometryType.MULTIPOLYGON
             
@@ -87,9 +87,10 @@ def buffer(
 def convexhull(
         input_path: Path,
         output_path: Path,
-        input_layer: str = None,
-        output_layer: str = None,
+        input_layer: Optional[str] = None,
+        output_layer: Optional[str] = None,
         columns: Optional[List[str]] = None,
+        explodecollections: bool = False,
         nb_parallel: int = -1,
         batchsize: int = -1,
         verbose: bool = False,
@@ -104,7 +105,7 @@ def convexhull(
                {{batch_filter}}'''
 
     # Output geometry type same as input geometry type 
-    input_layer_info = geofile.get_layerinfo(input_path, input_layer)
+    input_layer_info = gfo.get_layerinfo(input_path, input_layer)
     return _single_layer_vector_operation(
             input_path=input_path,
             output_path=output_path,
@@ -113,6 +114,7 @@ def convexhull(
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
+            explodecollections=explodecollections,
             force_output_geometrytype=input_layer_info.geometrytype,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
@@ -122,9 +124,9 @@ def convexhull(
 def delete_duplicate_geometries(
         input_path: Path,
         output_path: Path,
-        input_layer: str = None,
-        output_layer: str = None,
-        columns: List[str] = None,
+        input_layer: Optional[str] = None,
+        output_layer: Optional[str] = None,
+        columns: Optional[List[str]] = None,
         explodecollections: bool = False,
         verbose: bool = False,
         force: bool = False):
@@ -143,7 +145,7 @@ def delete_duplicate_geometries(
             '''
     
     # Go!
-    input_layer_info = geofile.get_layerinfo(input_path, input_layer)
+    input_layer_info = gfo.get_layerinfo(input_path, input_layer)
     return _single_layer_vector_operation(
             input_path=input_path,
             output_path=output_path,
@@ -162,26 +164,21 @@ def delete_duplicate_geometries(
 def isvalid(
         input_path: Path,
         output_path: Path,
-        only_invalid: bool = False,
-        input_layer: str = None,        
-        output_layer: str = None,
+        input_layer: Optional[str] = None,        
+        output_layer: Optional[str] = None,
         nb_parallel: int = -1,
         batchsize: int = -1,
         verbose: bool = False,
         force: bool = False) -> bool:
 
     # Prepare sql template for this operation
-    only_invalid_filter = ""
-    if only_invalid is True:
-         only_invalid_filter = "AND ST_IsValid({geometrycolumn}) <> 1"
     sql_template = f'''
             SELECT ST_IsValidDetail({{geometrycolumn}}) AS geom
                   ,ST_IsValid({{geometrycolumn}}) AS isvalid
                   ,ST_IsValidReason({{geometrycolumn}}) AS isvalidreason
                   {{columns_to_select_str}} 
               FROM "{{input_layer}}" layer
-             WHERE 1=1 
-               {only_invalid_filter}
+             WHERE ST_IsValid({{geometrycolumn}}) <> 1
                {{batch_filter}}'''
 
     _single_layer_vector_operation(
@@ -210,19 +207,19 @@ def isvalid(
             
         return True
     else:
-        layerinfo = geofile.get_layerinfo(output_path)
+        layerinfo = gfo.get_layerinfo(output_path)
         logger.info(f"Found {layerinfo.featurecount} invalid geometries in {output_path}")
         return False
 
 def makevalid(
         input_path: Path,
         output_path: Path,
-        input_layer: str = None,        
-        output_layer: str = None,
+        input_layer: Optional[str] = None,        
+        output_layer: Optional[str] = None,
         columns: Optional[List[str]] = None,
         explodecollections: bool = False,
-        force_output_geometrytype: GeometryType = None,
-        precision: float = None,
+        force_output_geometrytype: Optional[GeometryType] = None,
+        precision: Optional[float] = None,
         nb_parallel: int = -1,
         batchsize: int = -1,
         verbose: bool = False,
@@ -230,7 +227,7 @@ def makevalid(
 
     # Specify output_geomatrytype, because otherwise makevalid results in 
     # column type 'GEOMETRY'/'UNKNOWN(ANY)' 
-    layerinfo = geofile.get_layerinfo(input_path, input_layer)
+    layerinfo = gfo.get_layerinfo(input_path, input_layer)
     if force_output_geometrytype is None:
         force_output_geometrytype = layerinfo.geometrytype
     
@@ -283,11 +280,11 @@ def select(
         output_path: Path,
         sql_stmt: str,
         sql_dialect: str = 'SQLITE',
-        input_layer: str = None,        
-        output_layer: str = None,
+        input_layer: Optional[str] = None,        
+        output_layer: Optional[str] = None,
         columns: Optional[List[str]] = None,
         explodecollections: bool = False,
-        force_output_geometrytype: GeometryType = None,
+        force_output_geometrytype: Optional[GeometryType] = None,
         nb_parallel: int = 1,
         batchsize: int = 1,
         verbose: bool = False,
@@ -305,7 +302,7 @@ def select(
     
     # If no output geometrytype is specified, use the geometrytype of the input layer
     if force_output_geometrytype is None:
-        force_output_geometrytype = geofile.get_layerinfo(input_path, input_layer).geometrytype
+        force_output_geometrytype = gfo.get_layerinfo(input_path, input_layer).geometrytype
         logger.info(f"No force_output_geometrytype specified, so defaults to input layer geometrytype: {force_output_geometrytype}")
 
     # Go!
@@ -329,9 +326,10 @@ def simplify(
         input_path: Path,
         output_path: Path,
         tolerance: float,        
-        input_layer: str = None,        
-        output_layer: str = None,
+        input_layer: Optional[str] = None,        
+        output_layer: Optional[str] = None,
         columns: Optional[List[str]] = None,
+        explodecollections: bool = False,
         nb_parallel: int = -1,
         batchsize: int = -1,
         verbose: bool = False,
@@ -346,7 +344,7 @@ def simplify(
                {{batch_filter}}'''
 
     # Output geometry type same as input geometry type 
-    input_layer_info = geofile.get_layerinfo(input_path, input_layer)
+    input_layer_info = gfo.get_layerinfo(input_path, input_layer)
     return _single_layer_vector_operation(
             input_path=input_path,
             output_path=output_path,
@@ -355,6 +353,7 @@ def simplify(
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
+            explodecollections=explodecollections,
             force_output_geometrytype=input_layer_info.geometrytype,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
@@ -366,11 +365,11 @@ def _single_layer_vector_operation(
         output_path: Path,
         sql_template: str,
         operation_name: str,
-        input_layer: str = None,        
-        output_layer: str = None,
-        columns: List[str] = None,
+        input_layer: Optional[str] = None,        
+        output_layer: Optional[str] = None,
+        columns: Optional[List[str]] = None,
         explodecollections: bool = False,
-        force_output_geometrytype: GeometryType = None,
+        force_output_geometrytype: Optional[GeometryType] = None,
         filter_null_geoms: bool = True,
         nb_parallel: int = -1,
         batchsize: int = -1,
@@ -386,9 +385,9 @@ def _single_layer_vector_operation(
 
     # Check/get layer names
     if input_layer is None:
-        input_layer = geofile.get_only_layer(input_path)
+        input_layer = gfo.get_only_layer(input_path)
     if output_layer is None:
-        output_layer = geofile.get_default_layer(output_path)
+        output_layer = gfo.get_default_layer(output_path)
 
     # If output file exists already, either clean up or return...
     if output_path.exists():
@@ -396,10 +395,10 @@ def _single_layer_vector_operation(
             logger.info(f"Stop {operation_name}: output exists already {output_path}")
             return
         else:
-            geofile.remove(output_path)
+            gfo.remove(output_path)
 
     # Get layer info of the input layer
-    input_layerinfo = geofile.get_layerinfo(input_path, input_layer)
+    input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
             
     ##### Calculate #####
     tempdir = io_util.create_tempdir(f"geofileops/{operation_name.replace(' ', '_')}")
@@ -415,9 +414,9 @@ def _single_layer_vector_operation(
                 batchsize=batchsize,
                 convert_to_spatialite_based=False)
         # If None is returned, just stop.
-        if processing_params is None:
+        if processing_params is None or processing_params.batches is None:
             return
-
+        
         # Format column string for use in select
         formatted_column_strings = format_column_strings(
                 columns_specified=columns, 
@@ -459,6 +458,7 @@ def _single_layer_vector_operation(
 
                 batches[batch_id]['sql_stmt'] = sql_stmt
                 translate_description = f"Async {operation_name} {batch_id} of {len(batches)}"
+
                 # Remark: this temp file doesn't need spatial index
                 translate_info = ogr_util.VectorTranslateInfo(
                         input_path=processing_params.batches[batch_id]['path'],
@@ -474,8 +474,8 @@ def _single_layer_vector_operation(
                 future = calculate_pool.submit(
                         ogr_util.vector_translate_by_info,
                         info=translate_info)
-                future_to_batch_id[future] = batch_id
-            
+                future_to_batch_id[future] = batch_id                    
+
             # Loop till all parallel processes are ready, but process each one 
             # that is ready already
             for future in futures.as_completed(future_to_batch_id):
@@ -492,15 +492,14 @@ def _single_layer_vector_operation(
                 tmp_partial_output_path = batches[batch_id]['tmp_partial_output_path']
                 
                 if tmp_partial_output_path.exists():
-                    geofile.append_to(
+                    gfo.append_to(
                             src=tmp_partial_output_path, 
                             dst=tmp_output_path, 
                             dst_layer=output_layer,
                             create_spatial_index=False)
-                    geofile.remove(tmp_partial_output_path)
+                    gfo.remove(tmp_partial_output_path)
                 else:
-                    if verbose:
-                        logger.info(f"Result file {tmp_partial_output_path} was empty")
+                    logger.debug(f"Result file {tmp_partial_output_path} was empty")
 
                 # Log the progress and prediction speed
                 nb_done += 1
@@ -510,11 +509,11 @@ def _single_layer_vector_operation(
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
         if tmp_output_path.exists():
-            geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
+            gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            geofile.move(tmp_output_path, output_path)
+            gfo.move(tmp_output_path, output_path)
         else:
-            logger.info(f"Result of {operation_name} was empty!")
+            logger.debug(f"Result of {operation_name} was empty!")
 
     finally:
         # Clean tmp dir
@@ -529,11 +528,11 @@ def erase(
         input_path: Path,
         erase_path: Path,
         output_path: Path,
-        input_layer: str = None,
-        input_columns: List[str] = None,
+        input_layer: Optional[str] = None,
+        input_columns: Optional[List[str]] = None,
         input_columns_prefix: str = '',
-        erase_layer: str = None,
-        output_layer: str = None,
+        erase_layer: Optional[str] = None,
+        output_layer: Optional[str] = None,
         explodecollections: bool = False,
         output_with_spatial_index: bool = True,
         nb_parallel: int = -1,
@@ -543,7 +542,7 @@ def erase(
 
     # Init
     # In the query, important to only extract the geometry types that are expected 
-    input_layer_info = geofile.get_layerinfo(input_path, input_layer)
+    input_layer_info = gfo.get_layerinfo(input_path, input_layer)
     primitivetypeid = input_layer_info.geometrytype.to_primitivetype.value
 
     # If the input type is not point, force the output type to multi, 
@@ -614,11 +613,11 @@ def export_by_location(
         output_path: Path,
         min_area_intersect: Optional[float] = None,
         area_inters_column_name: Optional[str] = 'area_inters',
-        input1_layer: str = None,
-        input1_columns: List[str] = None,
-        input2_layer: str = None,
-        input2_columns: List[str] = None,
-        output_layer: str = None,
+        input1_layer: Optional[str] = None,
+        input1_columns: Optional[List[str]] = None,
+        input2_layer: Optional[str] = None,
+        input2_columns: Optional[List[str]] = None,
+        output_layer: Optional[str] = None,
         nb_parallel: int = -1,
         batchsize: int = -1,
         verbose: bool = False,
@@ -677,7 +676,7 @@ def export_by_location(
                  WHERE sub.{area_inters_column_name} >= {min_area_intersect}'''
 
     # Go!
-    input_layer_info = geofile.get_layerinfo(input_to_select_from_path, input1_layer)
+    input_layer_info = gfo.get_layerinfo(input_to_select_from_path, input1_layer)
     return _two_layer_vector_operation(
             input1_path=input_to_select_from_path,
             input2_path=input_to_compare_with_path,
@@ -700,10 +699,10 @@ def export_by_distance(
         input_to_compare_with_path: Path,
         output_path: Path,
         max_distance: float,
-        input1_layer: str = None,
-        input1_columns: List[str] = None,
-        input2_layer: str = None,
-        output_layer: str = None,
+        input1_layer: Optional[str] = None,
+        input1_columns: Optional[List[str]] = None,
+        input2_layer: Optional[str] = None,
+        output_layer: Optional[str] = None,
         nb_parallel: int = -1,
         batchsize: int = -1,
         verbose: bool = False,
@@ -727,7 +726,7 @@ def export_by_distance(
                           AND (layer1tree.maxy+{max_distance}) >= layer2tree.miny
                           AND ST_distance(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) <= {max_distance})'''
 
-    input_layer_info = geofile.get_layerinfo(input_to_select_from_path, input1_layer)
+    input_layer_info = gfo.get_layerinfo(input_to_select_from_path, input1_layer)
 
     # Go!
     return _two_layer_vector_operation(
@@ -750,13 +749,13 @@ def intersect(
         input1_path: Path,
         input2_path: Path,
         output_path: Path,
-        input1_layer: str = None,
-        input1_columns: List[str] = None,
+        input1_layer: Optional[str] = None,
+        input1_columns: Optional[List[str]] = None,
         input1_columns_prefix: str = 'l1_',
-        input2_layer: str = None,
-        input2_columns: List[str] = None,
+        input2_layer: Optional[str] = None,
+        input2_columns: Optional[List[str]] = None,
         input2_columns_prefix: str = 'l2_',
-        output_layer: str = None,
+        output_layer: Optional[str] = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
         batchsize: int = -1,
@@ -765,8 +764,8 @@ def intersect(
 
     # In the query, important to only extract the geometry types that are expected 
     # TODO: test for geometrycollection, line, point,...
-    input1_layer_info = geofile.get_layerinfo(input1_path, input1_layer)
-    input2_layer_info = geofile.get_layerinfo(input2_path, input2_layer)
+    input1_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
+    input2_layer_info = gfo.get_layerinfo(input2_path, input2_layer)
     primitivetype_to_extract = PrimitiveType(min(
             input1_layer_info.geometrytype.to_primitivetype.value, 
             input2_layer_info.geometrytype.to_primitivetype.value))
@@ -828,13 +827,13 @@ def join_by_location(
         discard_nonmatching: bool = True,
         min_area_intersect: Optional[float] = None,
         area_inters_column_name: Optional[str] = None,
-        input1_layer: str = None,
-        input1_columns: List[str] = None,
+        input1_layer: Optional[str] = None,
+        input1_columns: Optional[List[str]] = None,
         input1_columns_prefix: str = 'l1_',
-        input2_layer: str = None,
-        input2_columns: List[str] = None,
+        input2_layer: Optional[str] = None,
+        input2_columns: Optional[List[str]] = None,
         input2_columns_prefix: str = 'l2_',
-        output_layer: str = None,
+        output_layer: Optional[str] = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
         batchsize: int = -1,
@@ -917,7 +916,7 @@ def join_by_location(
                     ) sub
                  WHERE sub.{area_inters_column_name} >= {min_area_intersect}'''
 
-    input1_layer_info = geofile.get_layerinfo(input1_path, input1_layer)
+    input1_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
     
     # Go!
     return _two_layer_vector_operation(
@@ -945,13 +944,13 @@ def join_nearest(
         input2_path: Path,
         output_path: Path,
         nb_nearest: int,
-        input1_layer: str = None,
-        input1_columns: List[str] = None,
+        input1_layer: Optional[str] = None,
+        input1_columns: Optional[List[str]] = None,
         input1_columns_prefix: str = 'l1_',
-        input2_layer: str = None,
-        input2_columns: List[str] = None,
+        input2_layer: Optional[str] = None,
+        input2_columns: Optional[List[str]] = None,
         input2_columns_prefix: str = 'l2_',
-        output_layer: str = None,
+        output_layer: Optional[str] = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
         batchsize: int = -1,
@@ -965,9 +964,9 @@ def join_nearest(
             logger.info(f"Stop join_nearest: output exists already {output_path}")
             return
     if input1_layer is None:
-        input1_layer = geofile.get_only_layer(input1_path)
+        input1_layer = gfo.get_only_layer(input1_path)
     if input2_layer is None:
-        input2_layer = geofile.get_only_layer(input2_path)
+        input2_layer = gfo.get_only_layer(input2_path)
 
     # Prepare input files
     # To use knn index, the input layers need to be in sqlite file format
@@ -980,20 +979,20 @@ def join_nearest(
         input2_tmp_path = input2_path
         input2_tmp_layer = input2_layer
     else:
-        # Put input2 layer in sqlite file...
+        # Put input2 layer in sqlite gfo...
         tempdir = io_util.create_tempdir("geofileops/join_nearest")
         input1_tmp_path = tempdir / f"both_input_layers.sqlite"
         input1_tmp_layer = 'input1_layer'
-        geofile.convert(
+        gfo.convert(
                 src=input1_path, 
                 src_layer=input1_layer, 
                 dst=input1_tmp_path,
                 dst_layer=input1_tmp_layer)
 
-        # Add input2 layer to sqlite file... 
+        # Add input2 layer to sqlite gfo... 
         input2_tmp_path = input1_tmp_path
         input2_tmp_layer = 'input2_layer'
-        geofile.append_to(
+        gfo.append_to(
                 src=input2_path, 
                 src_layer=input2_layer, 
                 dst=input2_tmp_path,
@@ -1015,7 +1014,7 @@ def join_nearest(
                 {{batch_filter}}
             '''
 
-    input1_layer_info = geofile.get_layerinfo(input1_path, input1_layer)
+    input1_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
 
     # Go!
     return _two_layer_vector_operation(
@@ -1044,14 +1043,14 @@ def select_two_layers(
         input2_path: Path,
         output_path: Path,
         sql_stmt: str,
-        input1_layer: str = None,
-        input1_columns: List[str] = None,
+        input1_layer: Optional[str] = None,
+        input1_columns: Optional[List[str]] = None,
         input1_columns_prefix: str = 'l1_',
-        input2_layer: str = None,
-        input2_columns: List[str] = None,
+        input2_layer: Optional[str] = None,
+        input2_columns: Optional[List[str]] = None,
         input2_columns_prefix: str = 'l2_',
-        output_layer: str = None,
-        force_output_geometrytype: GeometryType = None,
+        output_layer: Optional[str] = None,
+        force_output_geometrytype: Optional[GeometryType] = None,
         explodecollections: bool = False,
         nb_parallel: int = 1,
         batchsize: int = -1,
@@ -1083,13 +1082,13 @@ def split(
         input1_path: Path,
         input2_path: Path,
         output_path: Path,
-        input1_layer: str = None,
-        input1_columns: List[str] = None,
+        input1_layer: Optional[str] = None,
+        input1_columns: Optional[List[str]] = None,
         input1_columns_prefix: str = 'l1_',
-        input2_layer: str = None,
-        input2_columns: List[str] = None,
+        input2_layer: Optional[str] = None,
+        input2_columns: Optional[List[str]] = None,
         input2_columns_prefix: str = 'l2_',
-        output_layer: str = None,
+        output_layer: Optional[str] = None,
         explodecollections: bool = False,
         output_with_spatial_index: bool = True,
         nb_parallel: int = -1,
@@ -1100,7 +1099,7 @@ def split(
     # In the query, important to only extract the geometry types that are 
     # expected, so the primitive type of input1_layer  
     # TODO: test for geometrycollection, line, point,...
-    input1_layer_info = geofile.get_layerinfo(input1_path, input1_layer)
+    input1_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
     primitivetype_to_extract = input1_layer_info.geometrytype.to_primitivetype
     
     # For the output file, force MULTI variant to evade ugly warnings
@@ -1183,13 +1182,13 @@ def union(
         input1_path: Path,
         input2_path: Path,
         output_path: Path,
-        input1_layer: str = None,
-        input1_columns: List[str] = None,
+        input1_layer: Optional[str] = None,
+        input1_columns: Optional[List[str]] = None,
         input1_columns_prefix: str = 'l1_',
-        input2_layer: str = None,
-        input2_columns: List[str] = None,
+        input2_layer: Optional[str] = None,
+        input2_columns: Optional[List[str]] = None,
         input2_columns_prefix: str = 'l2_',
-        output_layer: str = None,
+        output_layer: Optional[str] = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
         batchsize: int = -1,
@@ -1204,11 +1203,11 @@ def union(
     if force is False and output_path.exists():
         return
     if output_layer is None:
-        output_layer = geofile.get_default_layer(output_path)
+        output_layer = gfo.get_default_layer(output_path)
 
     tempdir = io_util.create_tempdir("geofileops/union")
     try:
-        # First split input1 with input2 to a temporary output file...
+        # First split input1 with input2 to a temporary output gfo...
         split_output_path = tempdir / "split_output.gpkg"
         split(  input1_path=input1_path,
                 input2_path=input2_path,
@@ -1227,7 +1226,7 @@ def union(
                 verbose=verbose,
                 force=force)
 
-        # Now erase input1 from input2 to another temporary output file...
+        # Now erase input1 from input2 to another temporary output gfo...
         erase_output_path = tempdir / "erase_output.gpkg"
         erase(  input_path=input2_path,
                 erase_path=input1_path,
@@ -1245,19 +1244,19 @@ def union(
                 force=force)
         
         # Now append 
-        geofile._append_to_nolock(
+        _append_to_nolock(
             src=erase_output_path,
             dst=split_output_path,
             src_layer=output_layer,
             dst_layer=output_layer)
 
         # Create spatial index
-        geofile.create_spatial_index(path=split_output_path, layer=output_layer)
+        gfo.create_spatial_index(path=split_output_path, layer=output_layer)
         
         # Now we are ready to move the result to the final spot...
         if output_path.exists():
-            geofile.remove(output_path)
-        geofile.move(split_output_path, output_path)
+            gfo.remove(output_path)
+        gfo.move(split_output_path, output_path)
 
     finally:
         shutil.rmtree(tempdir)
@@ -1268,15 +1267,15 @@ def _two_layer_vector_operation(
         output_path: Path,
         sql_template: str,
         operation_name: str,
-        input1_layer: str = None,
-        input1_columns: List[str] = None,
+        input1_layer: Optional[str] = None,
+        input1_columns: Optional[List[str]] = None,
         input1_columns_prefix: str = 'l1_',
-        input2_layer: str = None,
-        input2_columns: List[str] = None,
+        input2_layer: Optional[str] = None,
+        input2_columns: Optional[List[str]] = None,
         input2_columns_prefix: str = 'l2_',
-        output_layer: str = None,
+        output_layer: Optional[str] = None,
         explodecollections: bool = False,
-        force_output_geometrytype: GeometryType = None,
+        force_output_geometrytype: Optional[GeometryType] = None,
         output_with_spatial_index: bool = True,
         use_ogr: bool = False,
         nb_parallel: int = -1,
@@ -1325,7 +1324,7 @@ def _two_layer_vector_operation(
             logger.info(f"Stop {operation_name}: output exists already {output_path}")
             return
         else:
-            geofile.remove(output_path)
+            gfo.remove(output_path)
 
     # Check if spatialite is properly installed to execute this query
     sqlite_util.check_runtimedependencies()
@@ -1333,23 +1332,21 @@ def _two_layer_vector_operation(
     # Init layer info
     start_time = datetime.datetime.now()
     if input1_layer is None:
-        input1_layer = geofile.get_only_layer(input1_path)
+        input1_layer = gfo.get_only_layer(input1_path)
     if input2_layer is None:
-        input2_layer = geofile.get_only_layer(input2_path)
+        input2_layer = gfo.get_only_layer(input2_path)
     if output_layer is None:
-        output_layer = geofile.get_default_layer(output_path)
+        output_layer = gfo.get_default_layer(output_path)
     tempdir = io_util.create_tempdir(f"geofileops/{operation_name}")
 
     # Use get_layerinfo to check if the input files are valid
-    geofile.get_layerinfo(input1_path, input1_layer)
-    geofile.get_layerinfo(input2_path, input2_layer)
+    gfo.get_layerinfo(input1_path, input1_layer)
+    gfo.get_layerinfo(input2_path, input2_layer)
     
     # Prepare output filename
-    # TODO: determine best approach: to temp dir or to temp file in final dir!!!
     tmp_output_path = tempdir / output_path.name
-    #tmp_output_path = output_path.parent / f"{output_path.stem}_BUSY{output_path.suffix}"
     tmp_output_path.parent.mkdir(exist_ok=True, parents=True)
-    geofile.remove(tmp_output_path)
+    gfo.remove(tmp_output_path)
 
     try:
         ##### Prepare tmp files/batches #####
@@ -1364,12 +1361,13 @@ def _two_layer_vector_operation(
                 nb_parallel=nb_parallel,
                 batchsize=batchsize,
                 convert_to_spatialite_based=True)
-        if processing_params is None:
+        if processing_params is None or processing_params.batches is None:
             return
 
         ##### Prepare column names,... to format the select #####
         # Format column strings for use in select
-        input1_tmp_layerinfo = geofile.get_layerinfo(
+        assert processing_params.input1_path is not None
+        input1_tmp_layerinfo = gfo.get_layerinfo(
                 processing_params.input1_path, processing_params.input1_layer)
         input1_columnstrings = format_column_strings(
                 columns_specified=input1_columns, 
@@ -1377,7 +1375,7 @@ def _two_layer_vector_operation(
                 table_alias='layer1',
                 columnname_prefix=input1_columns_prefix)
         assert processing_params.input2_path is not None
-        input2_tmp_layerinfo = geofile.get_layerinfo(
+        input2_tmp_layerinfo = gfo.get_layerinfo(
                 processing_params.input2_path, processing_params.input2_layer)
         input2_columnstrings = format_column_strings(
                 columns_specified=input2_columns, 
@@ -1484,13 +1482,13 @@ def _two_layer_vector_operation(
                     # If the calculate gave results, copy to output
                     tmp_partial_output_path = batches[batch_id]['tmp_partial_output_path']
                     if tmp_partial_output_path.exists() and tmp_partial_output_path.stat().st_size > 0:
-                        geofile.append_to(
+                        gfo.append_to(
                                 src=tmp_partial_output_path, 
                                 dst=tmp_output_path, 
                                 create_spatial_index=False,
                                 explodecollections=explodecollections,
                                 force_output_geometrytype=force_output_geometrytype)
-                        geofile.remove(tmp_partial_output_path)
+                        gfo.remove(tmp_partial_output_path)
                     else:
                         if verbose:
                             logger.info(f"Result file {tmp_partial_output_path} was empty")
@@ -1511,34 +1509,31 @@ def _two_layer_vector_operation(
         # Now create spatial index and move to output location
         if tmp_output_path.exists():
             if output_with_spatial_index is True:
-                start_time_spat = datetime.datetime.now()
-                geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
-                logger.info(f"create spatial index took {datetime.datetime.now()-start_time_spat}!")
+                gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
             if tmp_output_path != output_path:
-                start_time_move = datetime.datetime.now()
-                geofile.move(tmp_output_path, output_path)
-                logger.info(f"move took {datetime.datetime.now()-start_time_move}!")
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                gfo.move(tmp_output_path, output_path)
         else:
-            logger.warning(f"Result of {operation_name} was empty!f")
+            logger.debug(f"Result of {operation_name} was empty!")
 
         logger.info(f"{operation_name} ready, took {datetime.datetime.now()-start_time}!")
     except Exception as ex:
-        geofile.remove(output_path)
-        geofile.remove(tmp_output_path)
+        gfo.remove(output_path)
+        gfo.remove(tmp_output_path)
         raise
     finally:
         shutil.rmtree(tempdir)
 
 class ProcessingParams:
     def __init__(self,
-            input1_path: Path = None,
-            input1_layer: str = None,
-            input1_databasename: str = None,
+            input1_path: Optional[Path] = None,
+            input1_layer: Optional[str] = None,
+            input1_databasename: Optional[str] = None,
             input2_path: Optional[Path] = None,
             input2_layer: Optional[str] = None,
-            input2_databasename: str = None,
+            input2_databasename: Optional[str] = None,
             nb_parallel: int = -1,
-            batches: dict = None):
+            batches: Optional[dict] = None):
         self.input1_path = input1_path
         self.input1_layer = input1_layer
         self.input1_databasename = input1_databasename
@@ -1555,13 +1550,13 @@ def _prepare_processing_params(
         convert_to_spatialite_based: bool,
         nb_parallel: int,
         batchsize: int = -1,
-        input1_layer_alias: str = None,
-        input2_path: Path = None,
-        input2_layer: str = None) -> Optional[ProcessingParams]:
+        input1_layer_alias: Optional[str] = None,
+        input2_path: Optional[Path] = None,
+        input2_layer: Optional[str] = None) -> Optional[ProcessingParams]:
 
     ### Init ###
     returnvalue = ProcessingParams(nb_parallel=nb_parallel)
-    input1_layerinfo = geofile.get_layerinfo(input1_path, input1_layer)
+    input1_layerinfo = gfo.get_layerinfo(input1_path, input1_layer)
 
     if input1_layerinfo.featurecount == 0:
         logger.info(f"The input layer doesn't contain any rows. File: {input1_path}, layer: {input1_layer}")
@@ -1612,7 +1607,7 @@ def _prepare_processing_params(
         else:
             # If not ok, copy the input layer to gpkg
             returnvalue.input1_path = tempdir / f"{input1_path.stem}.gpkg"
-            geofile.convert(
+            gfo.convert(
                     src=input1_path,
                     src_layer=input1_layer,
                     dst=returnvalue.input1_path,
@@ -1625,7 +1620,7 @@ def _prepare_processing_params(
             else:
                 # If not spatialite compatible, copy the input layer to gpkg
                 returnvalue.input2_path = tempdir / f"{input2_path.stem}.gpkg"
-                geofile.convert(
+                gfo.convert(
                         src=input2_path,
                         src_layer=input2_layer,
                         dst=returnvalue.input2_path,
@@ -1640,7 +1635,7 @@ def _prepare_processing_params(
 
     ### Prepare batches to process ###
     # Get column names and info
-    layer1_info = geofile.get_layerinfo(returnvalue.input1_path, returnvalue.input1_layer)
+    layer1_info = gfo.get_layerinfo(returnvalue.input1_path, returnvalue.input1_layer)
     
     # Check number of batches + appoint nb rows to batches
     nb_rows_input_layer = layer1_info.featurecount
@@ -1657,7 +1652,7 @@ def _prepare_processing_params(
     else:
         # Determine the min_rowid and max_rowid 
         sql_stmt = f'SELECT MIN(rowid) as min_rowid, MAX(rowid) as max_rowid FROM "{layer1_info.name}"'
-        batch_info_df = geofile.read_file_sql(path=returnvalue.input1_path, sql_stmt=sql_stmt)
+        batch_info_df = gfo.read_file_sql(path=returnvalue.input1_path, sql_stmt=sql_stmt)
         min_rowid = pd.to_numeric(batch_info_df['min_rowid'][0])
         max_rowid = pd.to_numeric(batch_info_df['max_rowid'][0])
  
@@ -1698,7 +1693,7 @@ def _prepare_processing_params(
                         )
                     GROUP BY batch_id;
                     '''
-            batch_info_df = geofile.read_file_sql(path=returnvalue.input1_path, sql_stmt=sql_stmt)       
+            batch_info_df = gfo.read_file_sql(path=returnvalue.input1_path, sql_stmt=sql_stmt)       
         
         # Prepare the layer alias to use in the batch filter
         layer_alias_d = ''
@@ -1745,10 +1740,13 @@ def format_column_strings(
     if columns_specified is not None:
         # Case-insensitive check if input1_columns contains columns not in layer...
         columns_available_upper = [column.upper() for column in columns_available]
-        missing_columns = [col for col in columns_specified if (col.upper() not in columns_available_upper)]                
+        missing_columns = [col for col in columns_specified if (col.upper() not in columns_available_upper)]
         if len(missing_columns) > 0:
             raise Exception(f"Error, columns_specified contains following columns not in columns_available: {missing_columns}. Existing columns: {columns_available}")
-        columns = columns_specified
+        
+        # Create column list to keep in the casing of the original columns
+        columns_specified_upper = [column.upper() for column in columns_specified]
+        columns = [col for col in columns_available if (col.upper() in columns_specified_upper)]
     else:
         columns = columns_available
 
@@ -1781,13 +1779,14 @@ def format_column_strings(
             columns_prefix_alias_null=columns_prefix_alias_null_str,
             columns_from_subselect=columns_from_subselect_str)
 
+'''
 def dissolve(
         input_path: Path,
         output_path: Path,
-        groupby_columns: List[str] = None,
+        groupby_columns: Optional[List[str]] = None,
         explodecollections: bool = False,
-        input_layer: str = None,        
-        output_layer: str = None,
+        input_layer: Optional[str] = None,        
+        output_layer: Optional[str] = None,
         verbose: bool = False,
         force: bool = False):
 
@@ -1798,16 +1797,16 @@ def dissolve(
             logger.info(f"Stop dissolve: Output exists already {output_path}")
             return
         else:
-            geofile.remove(output_path)
+            geogfo.remove(output_path)
 
     # Check layer names
     if input_layer is None:
-        input_layer = geofile.get_only_layer(input_path)
+        input_layer = geogfo.get_only_layer(input_path)
     if output_layer is None:
-        output_layer = geofile.get_default_layer(output_path)
+        output_layer = geogfo.get_default_layer(output_path)
 
     # Use get_layerinfo to check if the layer definition is OK 
-    geofile.get_layerinfo(input_path, input_layer)
+    geogfo.get_layerinfo(input_path, input_layer)
     
     # Prepare the strings to use in the select statement
     if groupby_columns is not None:
@@ -1867,10 +1866,10 @@ def dissolve_cardsheets(
         input_path: Path,
         input_cardsheets_path: Path,
         output_path: Path,
-        groupby_columns: List[str] = None,
+        groupby_columns: Optional[List[str]] = None,
         explodecollections: bool = False,
-        input_layer: str = None,        
-        output_layer: str = None,
+        input_layer: Optional[str] = None,        
+        output_layer: Optional[str] = None,
         nb_parallel: int = -1,
         batchsize: int = -1,
         verbose: bool = False,
@@ -1883,7 +1882,7 @@ def dissolve_cardsheets(
             logger.info(f"Stop dissolve_cardsheets: output exists already {output_path}, so stop")
             return
         else:
-            geofile.remove(output_path)
+            geogfo.remove(output_path)
     if nb_parallel == -1:
         nb_parallel = multiprocessing.cpu_count()
 
@@ -1892,7 +1891,7 @@ def dissolve_cardsheets(
     input_tmp_path = tempdir / "input_layers.gpkg"
     if(input_path.suffix.lower() == '.gpkg'):
         logger.info(f"Copy {input_path} to {input_tmp_path}")
-        geofile.copy(input_path, input_tmp_path)
+        geogfo.copy(input_path, input_tmp_path)
         logger.debug("Copy ready")
     else:
         # Remark: this temp file doesn't need spatial index
@@ -1906,9 +1905,9 @@ def dissolve_cardsheets(
         logger.debug("Copy ready")
 
     if input_layer is None:
-        input_layer = geofile.get_only_layer(input_tmp_path)
+        input_layer = geogfo.get_only_layer(input_tmp_path)
     if output_layer is None:
-        output_layer = geofile.get_default_layer(output_path)
+        output_layer = geogfo.get_default_layer(output_path)
 
     ##### Prepare tmp files #####
 
@@ -1926,7 +1925,7 @@ def dissolve_cardsheets(
         groupby_columns_for_select_str = ""
 
     # Load the cardsheets we want the dissolve to be bound on
-    cardsheets_gdf = geofile.read_file(input_cardsheets_path)
+    cardsheets_gdf = geogfo.read_file(input_cardsheets_path)
 
     try:
         # Start calculation of intersections in parallel
@@ -2012,7 +2011,7 @@ def dissolve_cardsheets(
                                 force_output_geometrytype=GeometryType.MULTIPOLYGON,
                                 verbose=verbose)
                         ogr_util.vector_translate_by_info(info=translate_info)
-                        geofile.remove(tmp_partial_output_path)
+                        geogfo.remove(tmp_partial_output_path)
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
                     #calculate_pool.shutdown()
@@ -2020,12 +2019,10 @@ def dissolve_cardsheets(
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
-        geofile.create_spatial_index(path=tmp_output_path, layer=output_layer)
-        geofile.move(tmp_output_path, output_path)
+        geogfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
+        geogfo.move(tmp_output_path, output_path)
     finally:
         # Clean tmp dir
         shutil.rmtree(tempdir)
         logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
-
-if __name__ == '__main__':
-    raise Exception("Not implemented!")
+'''

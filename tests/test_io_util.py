@@ -43,6 +43,7 @@ def test_create_file_atomic(tmpdir):
 def test_get_tempfile_locked(tmpdir):
     tempfile1lock_path = None
     tempfile2lock_path = None
+    tempfile3lock_path = None
     
     try:
         tempfile1_path, tempfile1lock_path = io_util.get_tempfile_locked('testje')
@@ -51,12 +52,17 @@ def test_get_tempfile_locked(tmpdir):
         tempfile2_path, tempfile2lock_path = io_util.get_tempfile_locked('testje')
         assert tempfile2_path.exists() is False
         assert tempfile2lock_path.exists() is True
+        tempfile3_path, tempfile3lock_path = io_util.get_tempfile_locked('testje', dirname="dir")
+        assert tempfile3_path.exists() is False
+        assert tempfile3lock_path.exists() is True
     finally:
         # Cleanup
         if tempfile1lock_path is not None:
             tempfile1lock_path.unlink()
         if tempfile2lock_path is not None:
             tempfile2lock_path.unlink()
+        if tempfile3lock_path is not None:
+            tempfile3lock_path.unlink()
 
 if __name__ == '__main__':
     # Init

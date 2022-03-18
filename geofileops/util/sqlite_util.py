@@ -8,12 +8,12 @@ import enum
 import logging
 from pathlib import Path
 import sqlite3
-from typing import Any, List
+from typing import Any, List, Optional
 
 import pandas as pd
 
-from geofileops.util.geometry_util import GeometryType
-from geofileops import geofile
+import geofileops as gfo
+from geofileops import GeometryType
 from .general_util import MissingRuntimeDependencyError
 
 #-------------------------------------------------------------
@@ -49,7 +49,7 @@ class SqliteProfile(enum.Enum):
 
 def create_new_spatialdb(
         path: Path, 
-        crs_epsg: int = None):
+        crs_epsg: Optional[int] = None):
 
     # Connect to sqlite
     conn = sqlite3.connect(path)
@@ -91,7 +91,7 @@ def create_table_as_sql(
         output_path: Path,
         sql_stmt: str,
         output_layer: str,
-        output_geometrytype: GeometryType,
+        output_geometrytype: Optional[GeometryType],
         append: bool = False,
         update: bool = False,
         create_spatial_index: bool = True,
@@ -108,7 +108,7 @@ def create_table_as_sql(
         raise Exception("Output and input2 paths don't have the same extension!")
         
     # Use crs epsg from input1_layer, if it has one
-    input1_layerinfo = geofile.get_layerinfo(input1_path, input1_layer)
+    input1_layerinfo = gfo.get_layerinfo(input1_path, input1_layer)
     crs_epsg = -1
     if input1_layerinfo.crs is not None and input1_layerinfo.crs.to_epsg() is not None: 
         crs_epsg = input1_layerinfo.crs.to_epsg()
@@ -244,6 +244,7 @@ def create_table_as_sql(
             conn.execute(sql)
 
             # Add metadata 
+            assert output_geometrytype is not None
             if output_suffix_lower == '.gpkg':
                 # ~ mimic behaviour of gpkgAddGeometryColumn()
                 sql = f"""
@@ -366,7 +367,7 @@ def test_data_integrity(
         use_spatialite: bool = True):
 
     # Get list of layers in database 
-    layers = geofile.listlayers(path=path)
+    layers = gfo.listlayers(path=path)
 
     # Connect to database file
     conn = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
@@ -444,6 +445,3 @@ def load_spatialite(conn):
         conn.load_extension('mod_spatialite')
     except Exception as ex:
         raise MissingRuntimeDependencyError("Error trying to load mod_spatialite.") from ex
-    
-if __name__ == '__main__':
-    None

@@ -48,6 +48,9 @@ def init_geofiletypes():
                     suffixes_extrafiles=suffixes_extrafiles)
 
 class GeofileType(enum.Enum):
+    """
+    Enumeration of relevant geo file types and their properties.  
+    """
     ESRIShapefile = enum.auto()
     GeoJSON = enum.auto()
     GPKG = enum.auto()
@@ -72,14 +75,14 @@ class GeofileType(enum.Enum):
                 suffixes = geofiletypes[geofiletype].suffixes
                 if suffixes is not None and suffix_lower in suffixes:
                     return GeofileType[geofiletype]
-            raise Exception(f"Not implemented for extension {suffix}")
+            raise ValueError(f"Unknown extension {suffix}")
         
         def get_geofiletype_for_ogrdriver(ogrdriver: str):
             for geofiletype in geofiletypes:
                 driver = geofiletypes[geofiletype].ogrdriver
                 if driver is not None and driver == ogrdriver:
                     return GeofileType[geofiletype]
-            raise Exception(f"Not implemented for ogr driver {ogrdriver}")
+            raise ValueError(f"Unknown ogr driver {ogrdriver}")
 
         if value is None:
             return None
@@ -101,7 +104,7 @@ class GeofileType(enum.Enum):
         return super()._missing_(value)
 
     @property
-    def is_spatialite_based(self):
+    def is_spatialite_based(self) -> bool:
         return geofiletypes[self.name].is_spatialite_based
 
     @property
