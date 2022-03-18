@@ -6,15 +6,19 @@
 GeofileOps |version|
 ====================
 
-This python library makes spatial operations on geo files fast and easy. 
+This python library aims to make spatial operations on large geo files faster 
+and easier. 
 
 It provides an easy to use API that can accomplish a lot with few lines of 
-code. 
-The processing will also be a lot faster than with many GIS libraries, 
-because all available CPU's are used for geospatial operations. 
+code. To make processing faster, geofileops can use all available CPU's for 
+spatial operations.
+For operations like buffer this won't make a big difference as it doesn't need 
+a lot of CPU power, but calculating the intersection between two large files, 
+dissolving large files,... will be a lot faster.
+The aim is that there is no size limit on the files that can be processed. 
 
 Most typical operations are available: buffer, simplify, dissolve, union, 
-erase, intersect,...
+erase, intersect,... 
 
 Geofileops is tested on geopackage and shapefile input files.
 
