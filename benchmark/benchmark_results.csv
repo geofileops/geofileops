@@ -1,28 +1,35 @@
-datetime,package_version,operation,tool_used,params,nb_cpu,secs_taken,secs_expected_one_cpu,input1_filename,input2_filename
-2020-11-04 15:54:43.652783,0.1.0,buffer,geopandas,,20,48.336906,1000,Lbgbrprc19.gpkg,
-2020-11-04 15:56:00.248442,0.1.0,buffer,ogr,,20,76.588808,1600,Lbgbrprc19.gpkg,
-2020-11-16 13:50:11.690659,0.1.0,buffer,geopandas,,20,53.579026,1000,Lbgbrprc19.gpkg,
-2020-11-16 13:51:38.348909,0.1.0,buffer,ogr,,20,86.65652,1600,Lbgbrprc19.gpkg,
-2020-11-16 13:53:11.482978,0.1.0,intersect,ogr,,20,93.122083,1700,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
-2020-11-16 13:57:02.642874,0.1.0,union,ogr,,20,231.158898,4000,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
-2020-11-23 15:07:01.465543,0.1.1,buffer,geopandas,,20,47.740183,1000,Lbgbrprc19.gpkg,
-2020-11-23 15:08:17.318605,0.1.1,buffer,ogr,,20,75.851675,1600,Lbgbrprc19.gpkg,
-2020-11-23 15:09:37.742564,0.1.1,intersect,ogr,,20,80.411759,1700,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
-2020-11-23 15:13:02.943686,0.1.1,union,ogr,,20,205.200124,4000,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
-2021-02-03 09:20:07.926815,0.2.0,buffer,geopandas,,20,47.505688,1000,Lbgbrprc19.gpkg,
-2021-02-03 09:21:28.493934,0.2.0,buffer,ogr,,20,80.553449,1600,Lbgbrprc19.gpkg,
-2021-02-03 09:22:53.420793,0.2.0,intersect,ogr,,20,84.912886,1700,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
-2021-02-03 09:26:31.219814,0.2.0,union,ogr,,20,217.789125,4000,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
-2021-03-05 17:34:51.035511,0.2.1a1,buffer,geopandas,,20,49.595615,1000,Lbgbrprc19.gpkg,
-2021-03-05 17:36:04.581566,0.2.1a1,buffer,ogr,,20,73.545057,1600,Lbgbrprc19.gpkg,
-2021-03-05 17:37:28.602636,0.2.1a1,intersect,ogr,,20,84.019076,1700,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
-2021-03-05 17:40:59.131782,0.2.1a1,union,ogr,,20,210.529146,4000,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
-2021-03-05 17:42:42.505503,0.2.1a1,dissolve,geopandas,,20,103.361138,2000,Lbgbrprc19.gpkg,
-2021-03-05 17:45:24.626859,0.2.1a1,dissolve,geopandas,groupby_columns=[GEWASGROEP],20,162.121356,3000,Lbgbrprc19.gpkg,
-2021-03-05 17:47:58.201918,0.2.1a1,dissolve,geopandas,groupby_columns=[GEWASGROEP];explodecollection=False,20,153.575059,3000,Lbgbrprc19.gpkg,
-2021-04-03 09:17:00.124104,0.2.2a1,intersect,ogr,sqlite,20,74.923183,1700,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
-2021-04-03 09:20:34.170386,0.2.2a1,union,ogr,sqlite,20,214.029732,4000,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
-2021-04-03 10:54:05.627097,0.2.2a1,intersect,ogr,sqlite;journal_mode=OFF,20,68.928175,1700,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
-2021-04-03 10:57:32.693985,0.2.2a1,union,ogr,sqlite;journal_mode=OFF,20,207.066888,4000,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
-2021-04-10 17:18:54.786867,0.2.2a2,intersect,sql,sqlite;journal_mode=OFF;mmap,20,60.412638,1700,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
-2021-04-10 17:21:48.564592,0.2.2a2,union,sql,sqlite;journal_mode=OFF;mmap,20,173.776728,4000,Lbgbrprc19.gpkg,Lbgbrprc18.gpkg
+run_datetime,package,package_version,operation,operation_descr,secs_taken,run_details
+2020-11-04 15:54:43.652783,geofileops,0.1.0,buffer,,48.336906,"{'nb_cpu': 20}"
+2020-11-04 15:56:00.248442,geofileops,0.1.0,buffer_spatialite,,76.588808,"{'nb_cpu': 20}"
+2020-11-16 13:50:11.690659,geofileops,0.1.0,buffer,,53.579026,"{'nb_cpu': 20}"
+2020-11-16 13:51:38.348909,geofileops,0.1.0,buffer_spatialite,,86.65652,"{'nb_cpu': 20}"
+2020-11-16 13:53:11.482978,geofileops,0.1.0,intersect,,93.122083,"{'nb_cpu': 20}"
+2020-11-16 13:57:02.642874,geofileops,0.1.0,union,,231.158898,"{'nb_cpu': 20}"
+2020-11-23 15:07:01.465543,geofileops,0.1.1,buffer,,47.740183,"{'nb_cpu': 20}"
+2020-11-23 15:08:17.318605,geofileops,0.1.1,buffer_spatialite,,75.851675,"{'nb_cpu': 20}"
+2020-11-23 15:09:37.742564,geofileops,0.1.1,intersect,,80.411759,"{'nb_cpu': 20}"
+2020-11-23 15:13:02.943686,geofileops,0.1.1,union,,205.200124,"{'nb_cpu': 20}"
+2021-02-03 09:20:07.926815,geofileops,0.2.0,buffer,,47.505688,"{'nb_cpu': 20}"
+2021-02-03 09:21:28.493934,geofileops,0.2.0,buffer_spatialite,,80.553449,"{'nb_cpu': 20}"
+2021-02-03 09:22:53.420793,geofileops,0.2.0,intersect,,84.912886,"{'nb_cpu': 20}"
+2021-02-03 09:26:31.219814,geofileops,0.2.0,union,,217.789125,"{'nb_cpu': 20}"
+2021-03-05 17:34:51.035511,geofileops,0.2.1a1,buffer,,49.595615,"{'nb_cpu': 20}"
+2021-03-05 17:36:04.581566,geofileops,0.2.1a1,buffer_spatialite,,73.545057,"{'nb_cpu': 20}"
+2021-03-05 17:37:28.602636,geofileops,0.2.1a1,intersect,,84.019076,"{'nb_cpu': 20}"
+2021-03-05 17:40:59.131782,geofileops,0.2.1a1,union,,210.529146,"{'nb_cpu': 20}"
+2021-03-05 17:42:42.505503,geofileops,0.2.1a1,dissolve,,103.361138,"{'nb_cpu': 20}"
+2021-03-05 17:45:24.626859,geofileops,0.2.1a1,dissolve_groupby,,162.121356,"{'nb_cpu': 20}"
+2021-03-05 17:47:58.201918,geofileops,0.2.1a1,dissolve_groupby,,153.575059,"{'nb_cpu': 20}"
+2021-04-03 09:17:00.124104,geofileops,0.2.2a1,intersect,,74.923183,"{'nb_cpu': 20}"
+2021-04-03 09:20:34.170386,geofileops,0.2.2a1,union,,214.029732,"{'nb_cpu': 20}"
+2021-04-10 17:18:54.786867,geofileops,0.2.2a2,intersect,,60.412638,"{'nb_cpu': 20}"
+2021-04-10 17:21:48.564592,geofileops,0.2.2a2,union,,173.776728,"{'nb_cpu': 20}"
+2022-03-18 13:21:37.484847,geofileops,0.4.0a1,buffer,buffer agri parcels BEFL (~500.000 polygons),42.514781,{'nb_cpu': 12}
+2022-03-18 13:22:48.129930,geofileops,0.4.0a1,buffer_gpd,"buffer agri parcels BEFL (~500.000 polygons), using gpd",70.645083,{'nb_cpu': 12}
+2022-03-18 13:23:29.811440,geofileops,0.4.0a1,buffer_spatialite,"buffer agri parcels BEFL (~500.000 polygons), using spatialite",41.68151,{'nb_cpu': 12}
+2022-03-18 13:24:47.657572,geofileops,0.4.0a1,dissolve,dissolve on agri parcels BEFL (~500.000 polygons),77.846132,{'nb_cpu': 12}
+2022-03-18 13:26:18.864636,geofileops,0.4.0a1,dissolve_groupby,"dissolve on agri parcels BEFL (~500.000 polygons), groupby=[GEWASGROEP]",91.207064,{'nb_cpu': 12}
+2022-03-18 13:27:34.052120,geofileops,0.4.0a1,intersect,intersect between 2 agri parcel layers BEFL (2*~500.000 polygons),75.187484,{'nb_cpu': 12}
+2022-03-18 13:31:14.315586,geofileops,0.4.0a1,union,union between 2 agri parcel layers BEFL (2*~500.000 polygons),220.263466,{'nb_cpu': 12}
+2022-03-18 16:45:24.902271,geopandas,0.10.2,buffer,buffer agri parcels BEFL (~500.000 polygons),322.206387,
+2022-03-18 17:24:35.921456,geopandas,0.10.2,dissolve,dissolve agri parcels BEFL (~500.000 polygons),2350.233106,
