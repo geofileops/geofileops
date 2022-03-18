@@ -1,22 +1,21 @@
 # -*- coding: utf-8 -*-
 """
-Module containing some utilities to get sample data.
+Module to prepare test data for benchmarking geo operations.
 """
 
-import datetime
 import logging
 from pathlib import Path
 import pprint
 import shutil
 import tempfile
-from typing import Optional
+from typing import Optional, Tuple
 import urllib.request
 import zipfile
 
-import geofileops as gfo
+import geofileops as gfo  
 
 ################################################################################
-# Some init
+# Some inits
 ################################################################################
 
 logger = logging.getLogger(__name__)
@@ -25,31 +24,31 @@ logger = logging.getLogger(__name__)
 # The real work
 ################################################################################
 
-class BenchmarkResult:
-    def __init__(self, 
-            package: str,
-            version: str,
-            operation: str,
-            secs_taken: float,
-            run_details: dict):
-        self.datetime = datetime.datetime.now()
-        self.package = package
-        self.version = version
-        self.operation = operation
-        self.secs_taken = secs_taken
-        self.run_details = run_details
-        
-    def __repr__(self):
-        return f"{self.__class__}({self.__dict__})"
+class testfile():
+    AGRIPRC_2018_URL = "https://downloadagiv.blob.core.windows.net/landbouwgebruikspercelen/2018/Landbouwgebruikspercelen_LV_2018_GewVLA_Shape.zip"
+    AGRIPRC_2018_NAME = "agriprc_2018.gpkg"
+    AGRIPRC_2019_URL = "https://downloadagiv.blob.core.windows.net/landbouwgebruikspercelen/2019/Landbouwgebruikspercelen_LV_2019_GewVLA_Shapefile.zip"
+    AGRIPRC_2019_NAME = "agriprc_2019.gpkg"
 
-def prepare_dst_path(
-        dst_name: str,
-        dst_dir: Optional[Path] = None):
-    if dst_dir is None:
-        return Path(tempfile.gettempdir()) / 'geofileops_sampledata' / dst_name
-    else:
-        return dst_dir / dst_name
-        
+def get_testdata(tmp_dir) -> Tuple[Path, Path]:
+    # Download 1st test file
+    agriprc2018_path = download_samplefile(
+            url=testfile.AGRIPRC_2018_URL,
+            dst_name=testfile.AGRIPRC_2018_NAME,
+            dst_dir=tmp_dir)
+    agriprc2018_info = gfo.get_layerinfo(agriprc2018_path)
+    print(f"Test file agriprc2018 contains {agriprc2018_info.featurecount} rows.")
+
+    # Download 2nd test file
+    agriprc2019_path = download_samplefile(
+            url=testfile.AGRIPRC_2019_URL,
+            dst_name=testfile.AGRIPRC_2019_NAME,
+            dst_dir=tmp_dir)
+    agriprc2019_info = gfo.get_layerinfo(agriprc2019_path)
+    print(f"Test file agriprc2019 contains {agriprc2019_info.featurecount} rows.")
+
+    return (agriprc2018_path, agriprc2019_path)
+
 def download_samplefile(
         url: str,
         dst_name: str,
@@ -126,3 +125,11 @@ def download_samplefile(
                 shutil.rmtree(tmp_dir)
     
     return dst_path
+
+def prepare_dst_path(
+        dst_name: str,
+        dst_dir: Optional[Path] = None):
+    if dst_dir is None:
+        return Path(tempfile.gettempdir()) / 'geofileops_sampledata' / dst_name
+    else:
+        return dst_dir / dst_name
