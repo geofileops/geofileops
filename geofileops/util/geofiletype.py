@@ -124,3 +124,6 @@ class GeofileType(enum.Enum):
 
 # Init!
 init_geofiletypes()
+
+if __name__ == '__main__':
+    None

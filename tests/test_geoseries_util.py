@@ -13,7 +13,7 @@ import shapely.geometry as sh_geom
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops.util import geoseries_util
 from geofileops.util.geometry_util import GeometryType, PrimitiveType
-from tests import test_helper 
+import test_helper 
 
 def test_get_geometrytypes():
     # None and empty geometries are by default ignored in get_geometrytypes

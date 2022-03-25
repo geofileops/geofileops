@@ -10,7 +10,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import geofileops as gfo
 from geofileops.util import grid_util
-from tests import test_helper
+import test_helper
 
 def test_create_grid2():
     # Test for small number of cells

@@ -10,7 +10,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops.util import sqlite_util
 from geofileops import GeometryType
-from tests import test_helper
+import test_helper
 
 def test_exec_spatialite_sql(tmpdir):
     tmpdir = Path(tmpdir)
