@@ -17,7 +17,7 @@ import geofileops as gfo
 from geofileops.util import geoseries_util
 from geofileops.util.geometry_util import GeometryType
 from geofileops.util import io_util
-import test_helper
+from tests import test_helper
 
 def test_add_column(tmpdir):
     # First copy test file to tmpdir

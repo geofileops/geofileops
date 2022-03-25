@@ -9,7 +9,7 @@ import sys
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops.util.geofiletype import GeofileType
-import test_helper
+from tests import test_helper
 
 def test_geofiletype_enum():
     ### Test ESRIShapefile geofiletype ###
