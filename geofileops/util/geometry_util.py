@@ -19,7 +19,7 @@ import shapely.ops as sh_ops
 try:
     import simplification.cutil as simplification
 except ImportError as ex:
-    None
+    _ = None
 
 #-------------------------------------------------------------
 # First define/init some general variables/constants
