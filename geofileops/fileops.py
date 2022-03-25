@@ -7,7 +7,7 @@ import logging
 import logging.config
 import os
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from geofileops.util import geofileops_gpd
 from geofileops.util import geofileops_sql
@@ -374,8 +374,7 @@ def dissolve(
         output_path: Union[str, 'os.PathLike[Any]'],
         explodecollections: bool,
         groupby_columns: Optional[List[str]] = None,
-        columns: Optional[List[str]] = [],
-        aggfunc: str = 'first',
+        agg_columns: Optional[dict] = None,
         tiles_path: Union[str, 'os.PathLike[Any]', None] = None,
         nb_squarish_tiles: int = 1,
         clip_on_tiles: bool = True,
@@ -403,14 +402,28 @@ def dissolve(
         groupby_columns (List[str], optional): columns to group on while 
             aggregating. Defaults to None, resulting in a spatial union of all 
             geometries that touch.
-        columns (List[str], optional): columns to retain in the output file. 
-            The columns in parameter groupby_columns are always retained. The
-            other columns specified are aggregated as specified in parameter 
-            aggfunc. If None is specified, all columns are retained.
-            Defaults to [] (= only the groupby_columns are retained).
-        aggfunc (str, optional): aggregation function to apply to columns not 
-            grouped on. Only 'first' is supported at the moment. 
-            Defaults to 'first'.
+        agg_columns (dict, optional): columns to aggregate based on 
+            the groupings by groupby columns. Depending on the top-level key 
+            value of the dict, the output for the aggregation is different:
+                
+                - "json": dump all data per group to one "json" column. The  
+                  value should be the list of columns to include.   
+                - "columns": aggregate to seperate columns. The value should  
+                  be a list of dicts with the following keys:
+                  
+                    - "column": column name in the input file.
+                    - "agg": aggregation to use: 
+                        
+                        - count: the number of items
+                        - sum: 
+                        - mean
+                        - min
+                        - max
+                        - median
+                        - concat
+
+                    - "as": column name in the output file.
+
         tiles_path (PathLike, optional): a path to a geofile containing tiles. 
             If specified, the output will be dissolved/unioned only within the 
             tiles provided. 
@@ -467,8 +480,7 @@ def dissolve(
             output_path=Path(output_path),
             explodecollections=explodecollections,
             groupby_columns=groupby_columns,
-            columns=columns,
-            aggfunc=aggfunc,
+            agg_columns=agg_columns,
             tiles_path=tiles_path_p,
             nb_squarish_tiles=nb_squarish_tiles,
             input_layer=input_layer,        
