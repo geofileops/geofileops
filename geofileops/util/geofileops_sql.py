@@ -11,7 +11,7 @@ import logging.config
 import multiprocessing
 from pathlib import Path
 import shutil
-from typing import List, Optional
+from typing import Dict, Iterable, List, Optional, Union
 
 import pandas as pd
 
@@ -1521,8 +1521,9 @@ def _two_layer_vector_operation(
         gfo.remove(output_path)
         gfo.remove(tmp_output_path)
         raise
-    finally:
-        shutil.rmtree(tempdir)
+    
+    # Cleanup temp files
+    shutil.rmtree(tempdir)
 
 class ProcessingParams:
     def __init__(self,
@@ -1779,17 +1780,19 @@ def format_column_strings(
             columns_prefix_alias_null=columns_prefix_alias_null_str,
             columns_from_subselect=columns_from_subselect_str)
 
-'''
-def dissolve(
+def dissolve_singlethread(
         input_path: Path,
         output_path: Path,
-        groupby_columns: Optional[List[str]] = None,
+        groupby_columns: Optional[Iterable[str]] = None,
+        agg_columns: Optional[dict] = None,
         explodecollections: bool = False,
         input_layer: Optional[str] = None,        
         output_layer: Optional[str] = None,
         verbose: bool = False,
         force: bool = False):
-
+    """
+    Remark: this is not a parallelized version!!! 
+    """
     ##### Init #####
     start_time = datetime.datetime.now()
     if output_path.exists():
@@ -1797,21 +1800,21 @@ def dissolve(
             logger.info(f"Stop dissolve: Output exists already {output_path}")
             return
         else:
-            geogfo.remove(output_path)
+            gfo.remove(output_path)
 
     # Check layer names
     if input_layer is None:
-        input_layer = geogfo.get_only_layer(input_path)
+        input_layer = gfo.get_only_layer(input_path)
     if output_layer is None:
-        output_layer = geogfo.get_default_layer(output_path)
+        output_layer = gfo.get_default_layer(output_path)
 
     # Use get_layerinfo to check if the layer definition is OK 
-    geogfo.get_layerinfo(input_path, input_layer)
+    layerinfo = gfo.get_layerinfo(input_path, input_layer)
     
-    # Prepare the strings to use in the select statement
+    # Prepare the strings regarding groupby_columns to use in the select statement
     if groupby_columns is not None:
         # Because the query uses a subselect, the groupby columns need to be prefixed
-        columns_with_prefix = [f't."{column}"' for column in groupby_columns]
+        columns_with_prefix = [f'layer."{column}"' for column in groupby_columns]
         groupby_columns_str = ", ".join(columns_with_prefix)
         groupby_columns_for_groupby_str = groupby_columns_str
         groupby_columns_for_select_str = ", " + groupby_columns_str
@@ -1821,33 +1824,80 @@ def dissolve(
         groupby_columns_for_groupby_str = "'1'"
         groupby_columns_for_select_str = ""
 
+    # Prepare the strings regarding agg_columns to use in the select statement
+    agg_columns_str = ""
+    if agg_columns is not None:
+        # Prepare some lists for later use
+        columns_upper_dict = {col.upper(): col for col in layerinfo.columns}
+        groupby_columns_upper_dict = {}
+        if groupby_columns is not None:
+            groupby_columns_upper_dict = {col.upper(): col for col in groupby_columns}
+        
+        # Start preparation of agg_columns_str
+        if "json" in agg_columns:
+            agg_columns_str = ""
+            # If the columns specified are None, take all columns that are not in groupby_columns
+            if agg_columns["json"] is None:
+                for column in layerinfo.columns:
+                    if column.upper() not in groupby_columns_upper_dict: 
+                        agg_columns_str += f"'column', column"
+            else:
+                for column in agg_columns["json"]:
+                    agg_columns_str += f"'{column}', layer.{column}"
+            agg_columns_str = f", json_object({agg_columns_str}) as json"
+        elif "columns" in agg_columns:
+            for agg_column in agg_columns["columns"]:
+                # Init
+                distinct_str = ""
+                extra_param_str = ""
+            
+                # Prepare aggregation keyword.
+                if agg_column["agg"].lower() in ["count", "sum", "min", "max", "median"]:
+                    aggregation_str = agg_column["agg"]
+                elif agg_column["agg"].lower() in ["mean", "avg"]:
+                    aggregation_str = "avg"
+                elif agg_column["agg"].lower() == "concat":
+                    aggregation_str = "group_concat"
+                    if "sep" in agg_column:
+                        extra_param_str = f", '{agg_column['sep']}'"
+                else:
+                    raise ValueError(f"Error: aggregation {agg_column['agg']} is not supported!")
+                
+                # If distinct is specified, add the distinct keyword
+                if "distinct" in agg_column and agg_column["distinct"] is True:
+                    distinct_str = "DISTINCT "                    
+                
+                # Prepare column name string.
+                # Make sure the columns name casing is same as input file
+                column_str = f'layer."{columns_upper_dict[agg_column["column"].upper()]}"'
+
+                # Now put everything togethers
+                agg_columns_str += f', {aggregation_str}({distinct_str}{column_str}{extra_param_str}) AS "{agg_column["as"]}"'
+
+    # Now prepare the sql statement
     # Remark: calculating the area in the enclosing selects halves the 
     # processing time
-    sql_stmt = f"""
-            SELECT sub.*, ST_area(sub.geom) AS area 
-              FROM (SELECT ST_union(t.geom) AS geom{groupby_columns_for_select_str}
-                      FROM {input_layer} t
-                     GROUP BY {groupby_columns_for_groupby_str}) sub"""
-    sql_stmt = f"""
-            SELECT ST_union(t.geom) AS geom{groupby_columns_for_select_str}
-              FROM {input_layer} t
-             GROUP BY {groupby_columns_for_groupby_str}) sub"""
-    sql_stmt = f"""
-            SELECT ST_UnaryUnion(ST_Collect(t.geom)) AS geom{groupby_columns_for_select_str}
-              FROM \"{input_layer}\" t
-             GROUP BY {groupby_columns_for_groupby_str}"""
-    sql_stmt = f"""
-            SELECT ST_Collect(t.geom) AS geom{groupby_columns_for_select_str}
-              FROM \"{input_layer}\" t"""
-    sql_stmt = f"""
-            SELECT ST_union(t.geom) AS geom{groupby_columns_for_select_str}
-              FROM \"{input_layer}\" t"""
+    
+    # The operation to run on the geometry
+    operation = f"ST_union(layer.{layerinfo.geometrycolumn})"
+    force_output_geometrytype = None
 
-    sql_stmt = f"""
-        SELECT ST_union(t.geom) AS geom{groupby_columns_for_select_str}
-            FROM \"{input_layer}\" t
-            GROUP BY {groupby_columns_for_groupby_str}"""
-
+    # If the input is a linestring, also apply st_linemerge(). 
+    # If not, the individual lines are just concatenated together8 and common 
+    # points are not removed, resulting in the original seperate lines again 
+    # if explodecollections is True.
+    if layerinfo.geometrytype.to_primitivetype == PrimitiveType.LINESTRING:
+        operation = f"ST_LineMerge({operation})"
+        if explodecollections is True:
+            force_output_geometrytype = GeometryType.LINESTRING
+        
+    sql_stmt = f'''
+            SELECT {operation} AS geom
+                  {groupby_columns_for_select_str}
+                  {agg_columns_str}
+              FROM {input_layer} layer
+             GROUP BY {groupby_columns_for_groupby_str}'''
+    
     translate_description = f"Dissolve {input_path}"
     ogr_util.vector_translate(
             input_path=input_path,
@@ -1856,12 +1906,13 @@ def dissolve(
             output_layer=output_layer,
             sql_stmt=sql_stmt,
             sql_dialect='SQLITE',
-            force_output_geometrytype=GeometryType.MULTIPOLYGON,
+            force_output_geometrytype=force_output_geometrytype,
             explodecollections=explodecollections,
             verbose=verbose)
 
     logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
 
+'''
 def dissolve_cardsheets(    
         input_path: Path,
         input_cardsheets_path: Path,
@@ -1882,7 +1933,7 @@ def dissolve_cardsheets(
             logger.info(f"Stop dissolve_cardsheets: output exists already {output_path}, so stop")
             return
         else:
-            geogfo.remove(output_path)
+            gfo.remove(output_path)
     if nb_parallel == -1:
         nb_parallel = multiprocessing.cpu_count()
 
@@ -1891,7 +1942,7 @@ def dissolve_cardsheets(
     input_tmp_path = tempdir / "input_layers.gpkg"
     if(input_path.suffix.lower() == '.gpkg'):
         logger.info(f"Copy {input_path} to {input_tmp_path}")
-        geogfo.copy(input_path, input_tmp_path)
+        gfo.copy(input_path, input_tmp_path)
         logger.debug("Copy ready")
     else:
         # Remark: this temp file doesn't need spatial index
@@ -1905,16 +1956,16 @@ def dissolve_cardsheets(
         logger.debug("Copy ready")
 
     if input_layer is None:
-        input_layer = geogfo.get_only_layer(input_tmp_path)
+        input_layer = gfo.get_only_layer(input_tmp_path)
     if output_layer is None:
-        output_layer = geogfo.get_default_layer(output_path)
+        output_layer = gfo.get_default_layer(output_path)
 
     ##### Prepare tmp files #####
 
     # Prepare the strings to use in the select statement
     if groupby_columns is not None:
         # Because the query uses a subselect, the groupby columns need to be prefixed
-        columns_with_prefix = [f"t.{column}" for column in groupby_columns]
+        columns_with_prefix = [f"layer.{column}" for column in groupby_columns]
         groupby_columns_str = ", ".join(columns_with_prefix)
         groupby_columns_for_groupby_str = groupby_columns_str
         groupby_columns_for_select_str = ", " + groupby_columns_str
@@ -1925,7 +1976,7 @@ def dissolve_cardsheets(
         groupby_columns_for_select_str = ""
 
     # Load the cardsheets we want the dissolve to be bound on
-    cardsheets_gdf = geogfo.read_file(input_cardsheets_path)
+    cardsheets_gdf = gfo.read_file(input_cardsheets_path)
 
     try:
         # Start calculation of intersections in parallel
@@ -1953,13 +2004,13 @@ def dissolve_cardsheets(
                 bbox_xmin, bbox_ymin, bbox_xmax, bbox_ymax = cardsheet.geometry.bounds  
                 bbox_wkt = f"POLYGON (({bbox_xmin} {bbox_ymin}, {bbox_xmax} {bbox_ymin}, {bbox_xmax} {bbox_ymax}, {bbox_xmin} {bbox_ymax}, {bbox_xmin} {bbox_ymin}))"
                 sql_stmt = f"""
-                        SELECT ST_union(ST_intersection(t.geom, ST_GeomFromText('{bbox_wkt}'))) AS geom{groupby_columns_for_select_str}
-                          FROM {input_layer} t
-                          JOIN rtree_{input_layer}_geom t_tree ON t.fid = t_tree.id
+                        SELECT ST_union(ST_intersection(layer.geom, ST_GeomFromText('{bbox_wkt}'))) AS geom{groupby_columns_for_select_str}
+                          FROM {input_layer} layer
+                          JOIN rtree_{input_layer}_geom t_tree ON layer.fid = t_tree.id
                          WHERE t_tree.minx <= {bbox_xmax} AND t_tree.maxx >= {bbox_xmin}
                            AND t_tree.miny <= {bbox_ymax} AND t_tree.maxy >= {bbox_ymin}
-                           AND ST_Intersects(t.geom, ST_GeomFromText('{bbox_wkt}')) = 1
-                           AND ST_Touches(t.geom, ST_GeomFromText('{bbox_wkt}')) = 0
+                           AND ST_Intersects(layer.geom, ST_GeomFromText('{bbox_wkt}')) = 1
+                           AND ST_Touches(layer.geom, ST_GeomFromText('{bbox_wkt}')) = 0
                          GROUP BY {groupby_columns_for_groupby_str}"""
                 
                 # Force geometrytype to multipolygon, because normal polygons easily are turned into 
@@ -2011,7 +2062,7 @@ def dissolve_cardsheets(
                                 force_output_geometrytype=GeometryType.MULTIPOLYGON,
                                 verbose=verbose)
                         ogr_util.vector_translate_by_info(info=translate_info)
-                        geogfo.remove(tmp_partial_output_path)
+                        gfo.remove(tmp_partial_output_path)
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
                     #calculate_pool.shutdown()
@@ -2019,8 +2070,8 @@ def dissolve_cardsheets(
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
-        geogfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
-        geogfo.move(tmp_output_path, output_path)
+        gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
+        gfo.move(tmp_output_path, output_path)
     finally:
         # Clean tmp dir
         shutil.rmtree(tempdir)

@@ -58,12 +58,12 @@ def test_cmp(tmpdir):
     for suffix in test_helper.get_test_suffix_list():
         # If test input file is in wrong format, convert it
         src = test_helper.prepare_test_file(
-                path=test_helper.TestFiles.polygons_parcels_gpkg,
-                tmp_dir=tmp_dir,
+                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                output_dir=tmp_dir,
                 suffix=suffix)
         src2 = test_helper.prepare_test_file(
-                path=test_helper.TestFiles.polygons_invalid_geometries_gpkg,
-                tmp_dir=tmp_dir,
+                input_path=test_helper.TestFiles.polygons_invalid_geometries_gpkg,
+                output_dir=tmp_dir,
                 suffix=suffix)
         
         # Copy test file to tmpdir
@@ -80,8 +80,8 @@ def test_convert(tmpdir):
     for suffix in test_helper.get_test_suffix_list():
         # If test input file is in wrong format, convert it
         src = test_helper.prepare_test_file(
-                path=test_helper.TestFiles.polygons_parcels_gpkg,
-                tmp_dir=tmp_dir,
+                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                output_dir=tmp_dir,
                 suffix=suffix)
         
         # Convert
@@ -134,8 +134,8 @@ def test_copy(tmpdir):
     for suffix in test_helper.get_test_suffix_list():
         # If test input file is in wrong format, convert it
         src = test_helper.prepare_test_file(
-                path=test_helper.TestFiles.polygons_parcels_gpkg,
-                tmp_dir=tmp_dir,
+                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                output_dir=tmp_dir,
                 suffix=suffix)
         
         # Copy to dest file
@@ -193,8 +193,8 @@ def test_get_crs(tmpdir):
     for suffix in test_helper.get_test_suffix_list():
         # If test input file is in wrong format, convert it
         src = test_helper.prepare_test_file(
-                path=test_helper.TestFiles.polygons_parcels_gpkg,
-                tmp_dir=tmp_dir,
+                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                output_dir=tmp_dir,
                 suffix=suffix)
         crs = gfo.get_crs(src)
         assert crs.to_epsg() == 31370
@@ -205,8 +205,8 @@ def test_get_default_layer(tmpdir):
     for suffix in test_helper.get_test_suffix_list():
         # If test input file is in wrong format, convert it
         src = test_helper.prepare_test_file(
-                path=test_helper.TestFiles.polygons_parcels_gpkg,
-                tmp_dir=tmp_dir,
+                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                output_dir=tmp_dir,
                 suffix=suffix)
         layer = gfo.get_default_layer(src)
         assert layer == 'polygons_parcels-2020'
@@ -217,8 +217,8 @@ def test_get_layerinfo(tmpdir):
     for suffix in test_helper.get_test_suffix_list():
         # If test input file is in wrong format, convert it
         src = test_helper.prepare_test_file(
-                path=test_helper.TestFiles.polygons_parcels_gpkg,
-                tmp_dir=tmp_dir,
+                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                output_dir=tmp_dir,
                 suffix=suffix)
                 
         basetest_get_layerinfo(src=src)
@@ -283,8 +283,8 @@ def test_get_only_layer(tmpdir):
     for suffix in test_helper.get_test_suffix_list():
         # If test input file is in wrong format, convert it
         src = test_helper.prepare_test_file(
-                path=test_helper.TestFiles.polygons_parcels_gpkg,
-                tmp_dir=tmp_dir,
+                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                output_dir=tmp_dir,
                 suffix=suffix)
 
         layer = gfo.get_only_layer(src)
@@ -318,8 +318,8 @@ def test_listlayers(tmpdir):
     for suffix in test_helper.get_test_suffix_list():
         # If test input file is in wrong format, convert it
         src = test_helper.prepare_test_file(
-                path=test_helper.TestFiles.polygons_parcels_gpkg,
-                tmp_dir=tmp_dir,
+                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                output_dir=tmp_dir,
                 suffix=suffix)
         layers = gfo.listlayers(src)
     
@@ -341,8 +341,8 @@ def test_move(tmpdir):
     for suffix in test_helper.get_test_suffix_list():
         # Test move to dest file
         src = test_helper.prepare_test_file(
-                path=test_helper.TestFiles.polygons_parcels_gpkg,
-                tmp_dir=tmp_dir,
+                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                output_dir=tmp_dir,
                 suffix=suffix)
         dst = Path(tmpdir) / f"polygons_parcels_output{suffix}"
         gfo.move(src, dst)
@@ -353,8 +353,8 @@ def test_move(tmpdir):
 
         # Test move to dest dir
         src = test_helper.prepare_test_file(
-                path=test_helper.TestFiles.polygons_parcels_gpkg,
-                tmp_dir=tmp_dir,
+                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                output_dir=tmp_dir,
                 suffix=suffix)
         dst_dir = Path(tmpdir) / "dest_dir"
         dst_dir.mkdir(parents=True, exist_ok=True)
@@ -407,8 +407,8 @@ def test_read_file(tmpdir):
     for suffix in test_helper.get_test_suffix_list():
         # If test input file is in wrong format, convert it
         src = test_helper.prepare_test_file(
-                path=test_helper.TestFiles.polygons_parcels_gpkg,
-                tmp_dir=tmp_dir,
+                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                output_dir=tmp_dir,
                 suffix=suffix)
 
         basetest_read_file(srcpath=src)
@@ -446,8 +446,8 @@ def test_rename_column(tmpdir):
     for suffix in test_helper.get_test_suffix_list():
         # If test input file is in wrong format, convert it
         test_path = test_helper.prepare_test_file(
-                path=test_helper.TestFiles.polygons_parcels_gpkg,
-                tmp_dir=tmp_dir,
+                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                output_dir=tmp_dir,
                 suffix=suffix)
         
         # Check if input file is ok
@@ -479,8 +479,8 @@ def test_rename_layer(tmpdir):
     for suffix in test_helper.get_test_suffix_list():
         # If test input file is in wrong format, convert it
         src = test_helper.prepare_test_file(
-                path=test_helper.TestFiles.polygons_parcels_gpkg,
-                tmp_dir=tmp_dir,
+                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                output_dir=tmp_dir,
                 suffix=suffix)
     
         if suffix == ".gpkg":
@@ -521,8 +521,8 @@ def test_spatial_index(tmpdir):
     for suffix in test_helper.get_test_suffix_list():
         # If test input file is in wrong format, convert it
         src = test_helper.prepare_test_file(
-                path=test_helper.TestFiles.polygons_parcels_gpkg,
-                tmp_dir=tmp_dir,
+                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                output_dir=tmp_dir,
                 suffix=suffix)
     
         # Check if spatial index present:
@@ -546,8 +546,8 @@ def test_to_file(tmpdir):
     for suffix in test_helper.get_test_suffix_list():
         # If test input file is in wrong format, convert it
         input_path = test_helper.prepare_test_file(
-                path=test_helper.TestFiles.polygons_parcels_gpkg,
-                tmp_dir=tmp_dir,
+                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                output_dir=tmp_dir,
                 suffix=suffix)
         output_path = io_util.with_stem(input_path, f"{input_path}-output")
         basetest_to_file(input_path, output_path)
@@ -570,8 +570,8 @@ def test_to_file_empty(tmpdir):
     for suffix in test_helper.get_test_suffix_list():
         # If test input file is in wrong format, convert it
         input_path = test_helper.prepare_test_file(
-                path=test_helper.TestFiles.polygons_parcels_gpkg,
-                tmp_dir=tmp_dir,
+                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                output_dir=tmp_dir,
                 suffix=suffix)
         basetest_to_file_empty(input_path, tmp_dir, suffix)
 
@@ -609,8 +609,8 @@ def test_to_file_none(tmpdir):
     for suffix in test_helper.get_test_suffix_list():
         # If test input file is in wrong format, convert it
         input_path = test_helper.prepare_test_file(
-                path=test_helper.TestFiles.polygons_parcels_gpkg,
-                tmp_dir=tmp_dir,
+                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                output_dir=tmp_dir,
                 suffix=suffix)
         basetest_to_file_none(input_path, tmp_dir, suffix)
 
@@ -648,8 +648,8 @@ def test_to_file_gpd_empty(tmpdir):
     for suffix in test_helper.get_test_suffix_list():
         # If test input file is in wrong format, convert it
         input_path = test_helper.prepare_test_file(
-                path=test_helper.TestFiles.polygons_parcels_gpkg,
-                tmp_dir=tmp_dir,
+                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                output_dir=tmp_dir,
                 suffix=suffix)
         basetest_to_file_gpd_empty(input_path, tmp_dir, suffix)
 
@@ -695,8 +695,8 @@ def test_to_file_gpd_none(tmpdir):
     for suffix in test_helper.get_test_suffix_list():
         # If test input file is in wrong format, convert it
         input_path = test_helper.prepare_test_file(
-                path=test_helper.TestFiles.polygons_parcels_gpkg,
-                tmp_dir=tmp_dir,
+                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                output_dir=tmp_dir,
                 suffix=suffix)
         basetest_to_file_gpd_none(input_path, tmp_dir, suffix)
 
@@ -735,8 +735,8 @@ def test_remove(tmpdir):
     for suffix in test_helper.get_test_suffix_list():
         # If test input file is in wrong format, convert it
         input_path = test_helper.prepare_test_file(
-                path=test_helper.TestFiles.polygons_parcels_gpkg,
-                tmp_dir=tmp_dir,
+                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                output_dir=tmp_dir,
                 suffix=suffix)
         assert input_path.exists() == True
 
@@ -751,14 +751,14 @@ if __name__ == '__main__':
     # Run!
     #test_convert(tmpdir)
     #test_convert_force_output_geometrytype(tmpdir)
-    test_get_layerinfo(tmpdir)
+    #test_get_layerinfo(tmpdir)
     #test_get_only_layer(tmpdir)
     #test_rename_column(tmpdir)
     #test_rename_layer(tmpdir)
     #test_listlayers()
     #test_add_column(tmpdir)
     #test_execute_sql(tmpdir)
-    #test_read_file()
+    test_read_file(tmpdir)
     #test_copy(tmpdir)
     #test_move(tmpdir)
     #test_spatial_index(tmpdir)
