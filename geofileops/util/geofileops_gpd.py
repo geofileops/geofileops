@@ -14,7 +14,7 @@ from pathlib import Path
 import pickle
 import time
 import shutil
-from typing import Any, Callable, List, Optional, Tuple, NamedTuple
+from typing import Any, Callable, Dict, Iterable, List, NamedTuple, Optional, Tuple, Union
 import warnings
 
 # Don't show this geopandas warning...
@@ -572,9 +572,8 @@ def _apply_geooperation(
 def dissolve(
         input_path: Path,  
         output_path: Path,
-        groupby_columns: Optional[List[str]] = None,
-        columns: Optional[List[str]] = [],
-        aggfunc: str = 'max',
+        groupby_columns: Optional[Iterable[str]] = None,
+        agg_columns: Optional[dict] = None,
         explodecollections: bool = True,
         tiles_path: Optional[Path] = None,
         nb_squarish_tiles: int = 1,
@@ -596,18 +595,14 @@ def dissolve(
     result_info = {}
     
     # Check input parameters
-    supported_aggfuncs = ['min', 'max', 'first', 'to_json']
-    if aggfunc not in supported_aggfuncs:
-        logger.warn(f"Unknown aggfunc: {aggfunc}. Only these are supported: {supported_aggfuncs}")
-        #raise NotImplementedError(f"aggfunc's not in {supported_aggfuncs} are not implemented: {aggfunc}")
-    if groupby_columns is not None and len(groupby_columns) == 0:
-        raise Exception(f"groupby_columns == [] is not supported. It should be None in this case")
+    if groupby_columns is not None and len(list(groupby_columns)) == 0:
+        raise Exception(f"groupby_columns=[] is not supported. It should be None in this case")
     if not input_path.exists():
         raise Exception(f"input_path does not exist: {input_path}")
-    layerinfo = gfo.get_layerinfo(input_path, input_layer)
-    if layerinfo.geometrytype.to_primitivetype in [PrimitiveType.POINT, PrimitiveType.LINESTRING]:
+    input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
+    if input_layerinfo.geometrytype.to_primitivetype in [PrimitiveType.POINT, PrimitiveType.LINESTRING]:
         if tiles_path is not None or nb_squarish_tiles > 1:
-            raise Exception(f"Dissolve to tiles (tiles_path, nb_squarish_tiles) is not supported for {layerinfo.geometrytype}")
+            raise Exception(f"Dissolve to tiles (tiles_path, nb_squarish_tiles) is not supported for {input_layerinfo.geometrytype}")
     if output_path.exists():
         if force is False:
             result_info['message'] = f"Stop {operation}: output exists already {output_path} and force is false"
@@ -616,18 +611,49 @@ def dissolve(
         else:
             gfo.remove(output_path)
     
-    # Prepare columns to retain
-    if columns is None:
-        # If no columns specified, keep all columns
-        columns_to_retain = layerinfo.columns
-    else:
-        # If columns specified, add groupby_columns if they are not specified
-        columns_to_retain = columns.copy()
-        if groupby_columns is not None:
-            for column in groupby_columns:
-                if column not in columns_to_retain:
-                    columns_to_retain.append(column)
+    # Check agg_columns param
+    columns_upper_dict = {col.upper(): col for col in input_layerinfo.columns}
+    if agg_columns is not None:
+        message = 'agg_columns malformed. Options are: {"json": [<list_columns>]} or {"columns": [{"column": "...", "agg": "...", "as": "..."}, ...]}'
+        
+        # It should be a dict with one key 
+        if isinstance(agg_columns, dict) is False or len(agg_columns) != 1:
+            raise ValueError(message)
 
+        # Depending on the top level key, proceed
+        if "json" in agg_columns:
+            extra_columns = agg_columns["json"]
+        elif "columns" in agg_columns:
+            supported_aggfuncs = ["count", "sum", "mean", "min", "max", "median", "concat"]
+            # The value should be a list
+            if isinstance(agg_columns["columns"], list) is False:
+                    raise ValueError(message)
+
+            # Loop through all rows
+            for agg_column in agg_columns["columns"]:
+                # It should be a dict
+                if isinstance(agg_column, dict) is False:
+                    raise ValueError(message)
+
+                # Check if column keys is available + if column exists
+                if "column" in agg_column:
+                    if agg_column['column'].upper() not in columns_upper_dict:
+                        raise ValueError(f"Error: column '{agg_column['column']}' is not available in {input_path}, layer {input_layer}")
+                else:
+                    raise ValueError(message)
+                if "agg" in agg_column:
+                    if agg_column["agg"].lower() not in supported_aggfuncs:
+                        raise ValueError(f"Error: aggregation {agg_column['agg']} is not supported, use one of {supported_aggfuncs}")
+                else:
+                    raise ValueError(message)
+                if "as" in agg_column:
+                    if isinstance(agg_column["as"], str) is False:
+                        raise ValueError(f"Error: 'as' column name should be a str value, not: {agg_column['as']}")
+                else:
+                    raise ValueError(message)
+        else:
+            raise ValueError(message)
+        
     # If a tiles_path is specified, read those tiles... 
     result_tiles_gdf = None
     if tiles_path is not None:
@@ -638,8 +664,7 @@ def dissolve(
             logger.debug(f"Nb cpus found: {nb_cpu}, nb_parallel: {nb_parallel}")
     else:
         # Else, create a grid based on the number of tiles wanted as result
-        layerinfo = gfo.get_layerinfo(input_path, input_layer)
-        result_tiles_gdf = grid_util.create_grid2(layerinfo.total_bounds, nb_squarish_tiles, layerinfo.crs)
+        result_tiles_gdf = grid_util.create_grid2(input_layerinfo.total_bounds, nb_squarish_tiles, input_layerinfo.crs)
         if len(result_tiles_gdf) > 1:
             gfo.to_file(result_tiles_gdf, output_path.parent / f"{output_path.stem}_tiles.gpkg")
 
@@ -650,39 +675,36 @@ def dissolve(
     # Additionally line layers are a pain to handle correctly because of 
     # rounding issues at the borders of tiles... so just dissolve them using 
     # geopandas.   
-    if layerinfo.geometrytype.to_primitivetype in [PrimitiveType.POINT, PrimitiveType.LINESTRING]:
-        input_gdf = gfo.read_file(input_path, input_layer)
+    if input_layerinfo.geometrytype.to_primitivetype in [PrimitiveType.POINT, PrimitiveType.LINESTRING]:
+        geofileops_sql.dissolve_singlethread(
+                input_path=input_path,
+                output_path=output_path,
+                explodecollections=explodecollections,
+                groupby_columns=groupby_columns,
+                agg_columns=agg_columns,
+                input_layer=input_layer,        
+                output_layer=output_layer,
+                verbose=verbose,
+                force=force)
 
-        # Geopandas < 0.9 didn't support dissolving without groupby
-        if groupby_columns is None or len(groupby_columns) == 0:
-            union_geom = input_gdf.geometry.unary_union
-
-            # Only keep geometries of primitive type of input 
-            union_geom_cleaned = geometry_util.collection_extract(
-                    union_geom, layerinfo.geometrytype.to_primitivetype)
-            diss_gdf = gpd.GeoDataFrame(geometry=[union_geom_cleaned], crs=input_gdf.crs)
-        else:
-            diss_gdf = input_gdf.dissolve(by=groupby_columns, aggfunc=aggfunc, as_index=False)
-
-        # Explodecollections if needed
-        if explodecollections is True:
-            # assert to evade pyLance warning
-            assert isinstance(diss_gdf, gpd.GeoDataFrame)
-            diss_gdf = diss_gdf.explode(ignore_index=True)
-        
-        # Now write to file
-        # assert to evade pyLance warning
-        assert isinstance(diss_gdf, gpd.GeoDataFrame)
-        gfo.to_file(diss_gdf, output_path, output_layer)
-
-    elif layerinfo.geometrytype.to_primitivetype is PrimitiveType.POLYGON:
+    elif input_layerinfo.geometrytype.to_primitivetype is PrimitiveType.POLYGON:
 
         # The dissolve for polygons is done in several passes, and after the first 
         # pass, only the 'onborder' features are further dissolved, as the 
         # 'notonborder' features are already OK.  
         tempdir = io_util.create_tempdir(f"geofileops/{operation}")
         try:
-            pass_input_path = input_path
+            # TODO: remove VERY DIRTY HACK to get fid
+            if agg_columns is not None:
+                # Make a copy/copy input file to geopackage, as we will 
+                # add an fid/rowd column
+                pass_input_path = tempdir / f"{input_path.stem}.gpkg"
+                if gfo.GeofileType(input_path) == gfo.GeofileType.GPKG:
+                    gfo.copy(input_path, pass_input_path)
+                else:
+                    gfo.convert(input_path, pass_input_path)
+            else:
+                pass_input_path = input_path
             if output_layer is None:
                 output_layer = gfo.get_default_layer(output_path)
             output_tmp_path = tempdir / f"{output_path.stem}.gpkg"
@@ -692,12 +714,16 @@ def dissolve(
             logger.info(f"Start dissolve on file {input_path}")
             while True:
                 
-                # Get some info of the file that needs to be dissolved
-                layerinfo = gfo.get_layerinfo(pass_input_path, input_layer)
-                nb_rows_total = layerinfo.featurecount
+                # TODO: remove VERY DIRTY HACK to get fid
+                if agg_columns is not None:
+                    gfo.add_column(pass_input_path, "__TMP_GEOFILEOPS_FID", gfo.DataType.INTEGER, "rowid")
+
+                # Get info of the current file that needs to be dissolved
+                pass_input_layerinfo = gfo.get_layerinfo(pass_input_path, input_layer)
+                nb_rows_total = pass_input_layerinfo.featurecount
                 
                 # Calculate the best number of parallel processes and batches for 
-                # the available resources
+                # the available resources for the current pass
                 if batchsize > 0:
                     parallelization_config = ParallelizationConfig(max_avg_rows_per_batch=batchsize)
                 else:
@@ -721,10 +747,10 @@ def dissolve(
                     if prev_nb_batches is not None:
                         nb_squarish_tiles_max = max(prev_nb_batches-1, 1)
                     tiles_gdf = grid_util.create_grid2(
-                            total_bounds=layerinfo.total_bounds, 
+                            total_bounds=pass_input_layerinfo.total_bounds, 
                             nb_squarish_tiles=nb_batches_recommended, 
                             nb_squarish_tiles_max=nb_squarish_tiles_max, 
-                            crs=layerinfo.crs)
+                            crs=pass_input_layerinfo.crs)
                 else:
                     # If a grid is specified already, add extra columns/rows instead of 
                     # creating new one...
@@ -752,17 +778,16 @@ def dissolve(
                         output_onborder_path=output_tmp_onborder_path,
                         explodecollections=explodecollections,
                         groupby_columns=groupby_columns,
-                        columns=columns_to_retain,
-                        aggfunc=aggfunc,
+                        agg_columns=agg_columns,
                         tiles_gdf=tiles_gdf,
-                        input_layer=input_layer,        
+                        input_layer=input_layer,
                         output_layer=output_layer,
                         nb_parallel=nb_parallel,
                         verbose=verbose,
                         force=force)
 
-                # Prepare the next pass...
-                # The input path are the onborder rows...
+                # Prepare the next pass
+                # The input path is the onborder file
                 prev_nb_batches = len(tiles_gdf)
                 pass_input_path = output_tmp_onborder_path
                 pass_id += 1
@@ -779,56 +804,122 @@ def dissolve(
 
             # If there is a result...
             if output_tmp_path.exists():
-                # Prepare columns to keep
-                columns_str = ''
-                if isinstance(aggfunc, str) and aggfunc == 'to_json' and groupby_columns is not None:
-                    # The aggregation is to a json column, to this is the one to keep
-                    for column in groupby_columns + ['to_json']:
-                        columns_str += f', "{column}"'
+                # Prepare strings to use in select based on groupby_columns
+                if groupby_columns is not None:
+                    groupby_prefixed_list = [
+                            f'{{prefix}}"{columns_upper_dict[column.upper()]}"' 
+                            for column in groupby_columns]
+                    groupby_select_prefixed_str = f", {', '.join(groupby_prefixed_list)}"
+                    groupby_groupby_prefixed_str = f"GROUP BY {', '.join(groupby_prefixed_list)}"
+
+                    groupby_filter_list = [
+                            f' AND geo_data."{columns_upper_dict[column.upper()]}" = json_data."{columns_upper_dict[column.upper()]}"' 
+                            for column in groupby_columns]
+                    groupby_filter_str = " ".join(groupby_filter_list)
                 else:
-                    for column in columns_to_retain:
-                        columns_str += f', "{column}"'
+                    groupby_select_prefixed_str = ""
+                    groupby_groupby_prefixed_str = ""
+                    groupby_filter_str = ""
                 
-                # Now move tmp file to output location, but order the rows randomly
-                # to evade having all complex geometries together...
+                # Prepare strings to use in select based on agg_columns
+                agg_columns_str = ""
+                if agg_columns is not None:
+                    if "json" in agg_columns:
+                        # The aggregation is to a json column, so add
+                        #agg_columns_str += ",replace(json_group_array(json_data.json_row), '\\', '') as json"
+                        agg_columns_str += ",json_group_array(json_data.json_row) as json"
+                    elif "columns" in agg_columns:
+                        for agg_column in agg_columns["columns"]:
+                            # Init
+                            distinct_str = ""
+                            extra_param_str = ""
+                        
+                            # Prepare aggregation keyword.
+                            if agg_column["agg"].lower() in ["count", "sum", "min", "max", "median"]:
+                                aggregation_str = agg_column["agg"]
+                            elif agg_column["agg"].lower() in ["mean", "avg"]:
+                                aggregation_str = "avg"
+                            elif agg_column["agg"].lower() == "concat":
+                                aggregation_str = "group_concat"
+                                if "sep" in agg_column:
+                                    extra_param_str = f", '{agg_column['sep']}'"
+                            else:
+                                raise ValueError(f"Error: aggregation {agg_column['agg']} is not supported!")
+                            
+                            # If distinct is specified, add the distinct keyword
+                            if "distinct" in agg_column and agg_column["distinct"] is True:
+                                distinct_str = "DISTINCT "  
+
+                            # Prepare column name string.
+                            # Make sure the columns name casing is same as input file
+                            column = columns_upper_dict[agg_column["column"].upper()]
+                            column_str = f'json_extract(json_data.json_row, "$.{column}")'
+
+                            # Now put everything together
+                            agg_columns_str += f', {aggregation_str}({distinct_str}{column_str}{extra_param_str}) AS "{agg_column["as"]}"' 
+                    
+                # Add a column to order the result by to evade having all 
+                # complex geometries together in the output file.
                 orderby_column = 'temp_ordercolumn_geohash'
                 _add_orderby_column(
                         path=output_tmp_path, layer=output_layer, name=orderby_column)
                 
-                # Prepare SQL statement for final output file 
-                # If there is a groupby and explodedecollections is False...
-                if explodecollections is False and groupby_columns is not None:
-                    # All tiles are already dissolved to groups, but now the 
-                    # results from all tiles still need to be 
-                    # grouped/collected together
-                    # Remark: if explodecollections is true, it is useless to 
-                    # first group them here, as they will be exploded again 
-                    # in the select() call later on.
-                    logger.info("Collect prepared features to multi* and write to output file")
-                    groupby_columns_with_prefix = [f'"{column}"' for column in groupby_columns]
-                    groupby_columns_str = ", ".join(groupby_columns_with_prefix)
-                    sql_stmt = f'''
-                            SELECT ST_Collect({{geometrycolumn}}) AS {{geometrycolumn}}
-                                  {columns_str} 
-                            FROM "{output_layer}" 
-                            GROUP BY {groupby_columns_str}
-                            ORDER BY MAX({orderby_column})'''
-                else:
-                    # No group by columns, so only need to reorder output file 
-                    # and possibly collect all featurs together. 
+                # Prepare SQL statement for final output file.
+                # All tiles are already dissolved to groups, but now the 
+                # results from all tiles still need to be 
+                # grouped/collected together.
+                logger.info("Postprocess prepared features...")
+                if agg_columns is None:
+                    # If there are no aggregation columns, things are not too 
+                    # complicated.
                     if explodecollections is True:
-                        geom_select = '{geometrycolumn}'
+                        # If explodecollections is true, it is useless to 
+                        # first group them here, as they will be exploded again 
+                        # in the select() call later on... so just order them.
+                        sql_stmt = f'''
+                                SELECT {{geometrycolumn}} 
+                                    {groupby_select_prefixed_str.format(prefix="layer.")}
+                                FROM "{{input_layer}}" layer 
+                                ORDER BY layer.{orderby_column}'''
                     else:
-                        geom_select = 'ST_Collect({geometrycolumn}) AS {geometrycolumn}'
-                    logger.info("Write final result to output file")
+                        # No explodecollections, so collect to one geometry 
+                        # (per groupby if applicable).
+                        sql_stmt = f'''
+                                SELECT ST_Collect({{geometrycolumn}}) AS {{geometrycolumn}}
+                                    {groupby_select_prefixed_str.format(prefix="layer.")} 
+                                FROM "{{input_layer}}" layer 
+                                {groupby_groupby_prefixed_str.format(prefix="layer.")}
+                                ORDER BY MIN(layer.{orderby_column})'''
+                else:
+                    # If agg_columns specified, postprocessing is a bit more 
+                    # complicated.
                     sql_stmt = f'''
-                            SELECT {geom_select} 
-                                  {columns_str} 
-                            FROM "{output_layer}" 
-                            ORDER BY {orderby_column}'''
+                            SELECT geo_data.{{geometrycolumn}}
+                                {groupby_select_prefixed_str.format(prefix="geo_data.")}
+                                {agg_columns_str} 
+                            FROM (
+                                SELECT ST_Collect(layer_geo.{{geometrycolumn}}) AS {{geometrycolumn}}
+                                    {groupby_select_prefixed_str.format(prefix="layer_geo.")}
+                                    ,MIN(layer_geo.{orderby_column}) as {orderby_column}
+                                FROM "{{input_layer}}" layer_geo 
+                                {groupby_groupby_prefixed_str.format(prefix="layer_geo.")}
+                                ) geo_data
+                            JOIN (
+                                SELECT DISTINCT json_rows_table.value as json_row
+                                    {groupby_select_prefixed_str.format(prefix="layer_for_json.")} 
+                                FROM "{{input_layer}}" layer_for_json, json_each(layer_for_json.json, "$") json_rows_table
+                                ) json_data 
+                            WHERE 1=1
+                                {groupby_filter_str}
+                            {groupby_groupby_prefixed_str.format(prefix="geo_data.")}
+                            ORDER BY geo_data.{orderby_column} '''
+                
                 # Go!
                 geofileops_sql.select(
-                        output_tmp_path, output_path, sql_stmt, output_layer=output_layer,
+                        input_path=output_tmp_path, 
+                        output_path=output_path, 
+                        sql_stmt=sql_stmt, 
+                        output_layer=output_layer,
                         explodecollections=explodecollections)
 
         finally:
@@ -836,7 +927,7 @@ def dissolve(
             if tempdir.exists():
                 shutil.rmtree(tempdir)
     else:
-        raise NotImplementedError(f"Unsupported input geometrytype: {layerinfo.geometrytype}")
+        raise NotImplementedError(f"Unsupported input geometrytype: {input_layerinfo.geometrytype}")
 
     # Return result info
     result_info['message'] = f"Dissolve completely ready, took {datetime.datetime.now()-start_time}!"
@@ -848,9 +939,8 @@ def _dissolve_polygons_pass(
         output_notonborder_path: Path,
         output_onborder_path: Path,
         explodecollections: bool,
-        groupby_columns: Optional[List[str]],
-        columns: List[str],
-        aggfunc: str,
+        groupby_columns: Optional[Iterable[str]],
+        agg_columns: Optional[dict],
         tiles_gdf: gpd.GeoDataFrame,
         input_layer: Optional[str],        
         output_layer: Optional[str],
@@ -893,8 +983,7 @@ def _dissolve_polygons_pass(
                     output_onborder_path=output_onborder_tmp_partial_path,
                     explodecollections=explodecollections,
                     groupby_columns=groupby_columns,
-                    columns=columns,
-                    aggfunc=aggfunc,
+                    agg_columns=agg_columns,
                     input_geometrytype=input_layerinfo.geometrytype,
                     input_layer=input_layer,        
                     output_layer=output_layer,
@@ -922,7 +1011,7 @@ def _dissolve_polygons_pass(
                     # Start copy of the result to a common file
                     batch_id = future_to_batch_id[future]
 
-                    # If the calculate gave results, copy to output
+                    # If calculate gave notonborder results, append to output
                     output_notonborder_tmp_partial_path = batches[batch_id]['output_notonborder_tmp_partial_path']
                     if output_notonborder_tmp_partial_path.exists() and output_notonborder_tmp_partial_path.stat().st_size > 0:
                         gfo.append_to(
@@ -930,7 +1019,7 @@ def _dissolve_polygons_pass(
                                 dst=output_notonborder_path)
                         gfo.remove(output_notonborder_tmp_partial_path)
                             
-                    # If the calculate gave results, copy to output
+                    # If calculate gave onborder results, append to output
                     output_onborder_tmp_partial_path = batches[batch_id]['output_onborder_tmp_partial_path']
                     if output_onborder_tmp_partial_path.exists() and output_onborder_tmp_partial_path.stat().st_size > 0:
                         gfo.append_to(
@@ -957,9 +1046,8 @@ def _dissolve_polygons(
         output_notonborder_path: Path,
         output_onborder_path: Path,
         explodecollections: bool,
-        groupby_columns: Optional[List[str]],
-        columns: List[str],
-        aggfunc: str,
+        groupby_columns: Optional[Iterable[str]],
+        agg_columns: Optional[dict],
         input_geometrytype: GeometryType,
         input_layer: Optional[str],        
         output_layer: Optional[str],
@@ -983,8 +1071,32 @@ def _dissolve_polygons(
     start_read = datetime.datetime.now()
     while True:
         try:
+            columns_to_read = set()
+            info = gfo.get_layerinfo(input_path, input_layer)
+            if groupby_columns is not None:
+                columns_to_read.update(groupby_columns)
+            if agg_columns is not None:
+                if "json" in agg_columns:
+                    if agg_columns["json"] is None:
+                        columns_to_read.update(info.columns)
+                    else:
+                        columns_to_read.update(agg_columns["json"])
+                elif "columns" in agg_columns:
+                    columns_to_read.update(
+                            [agg_column["column"] for agg_column in agg_columns["columns"]])
+
+            # TODO: remove VERY DIRTY HACK to get fid for geopackages
+            if agg_columns is not None:
+                columns_to_read.add("__TMP_GEOFILEOPS_FID")
+
             input_gdf = gfo.read_file(
-                    path=input_path, layer=input_layer, bbox=bbox, columns=columns)
+                    path=input_path, layer=input_layer, bbox=bbox, columns=columns_to_read)
+            
+            # TODO: remove VERY DIRTY HACK to get fid for geopackages
+            if agg_columns is not None:
+                input_gdf = input_gdf.rename(columns={"__TMP_GEOFILEOPS_FID": "fid_orig"})
+                assert isinstance(input_gdf, gpd.GeoDataFrame)
+            
             break
         except Exception as ex:
             if str(ex) == 'database is locked':
@@ -1007,6 +1119,10 @@ def _dissolve_polygons(
         return return_info
 
     # Now the real processing
+    if agg_columns is not None:
+        aggfunc = "json" 
+    else:
+        aggfunc = 'first'
     start_dissolve = datetime.datetime.now()
     diss_gdf = _dissolve(
             df=input_gdf, by=groupby_columns, aggfunc=aggfunc, as_index=False, dropna=False)
@@ -1015,7 +1131,7 @@ def _dissolve_polygons(
     # If explodecollections is True and For polygons, explode multi-geometries.
     # If needed they will be 'collected' afterwards to multipolygons again.
     if(explodecollections is True 
-        or input_geometrytype in [GeometryType.POLYGON, GeometryType.MULTIPOLYGON]):
+            or input_geometrytype in [GeometryType.POLYGON, GeometryType.MULTIPOLYGON]):
         # assert to evade pyLance warning 
         assert isinstance(diss_gdf, gpd.GeoDataFrame)
         diss_gdf = diss_gdf.explode(ignore_index=True)
@@ -1030,7 +1146,9 @@ def _dissolve_polygons(
     # lines isn't so computationally heavy anyway, drop support here.  
     if bbox is not None:
         start_clip = datetime.datetime.now()
-        bbox_polygon = sh_geom.Polygon([(bbox[0], bbox[1]), (bbox[0], bbox[3]), (bbox[2], bbox[3]), (bbox[2], bbox[1]), (bbox[0], bbox[1])])
+        bbox_polygon = sh_geom.Polygon([
+                (bbox[0], bbox[1]), (bbox[0], bbox[3]), 
+                (bbox[2], bbox[3]), (bbox[2], bbox[1]), (bbox[0], bbox[1])])
         bbox_gdf = gpd.GeoDataFrame([1], geometry=[bbox_polygon], crs=input_gdf.crs)
         
         # keep_geom_type=True gaves sometimes error, and still does in 0.9.0
@@ -1068,7 +1186,7 @@ def _dissolve_polygons(
         # singletype and some contain multitype geometries  
         gfo.to_file(
                 diss_gdf, output_notonborder_path, 
-                layer=output_layer, force_multitype=True)
+                layer=output_layer, force_multitype=True, index=False)
     else:
         # If not, save the polygons on the border seperately
         bbox_lines_gdf = gpd.GeoDataFrame(
@@ -1094,7 +1212,7 @@ def _dissolve_polygons(
             # singletype and some contain multitype geometries  
             gfo.to_file(
                     notonborder_gdf, output_notonborder_path, 
-                    layer=output_layer, force_multitype=True)
+                    layer=output_layer, force_multitype=True, index=False)
     perfinfo['time_to_file'] = (datetime.datetime.now()-start_to_file).total_seconds()
 
     # Finalise...
@@ -1192,10 +1310,12 @@ def _dissolve(
     """
 
     if by is None and level is None:
-        by = np.zeros(len(df), dtype="int64")
+        by_local = np.zeros(len(df), dtype="int64")
+    else:
+        by_local = by
 
     groupby_kwargs = dict(
-        by=by, level=level, sort=sort, observed=observed, dropna=dropna
+        by=by_local, level=level, sort=sort, observed=observed, dropna=dropna
     )
     '''
     if not compat.PANDAS_GE_11:
@@ -1206,15 +1326,19 @@ def _dissolve(
     '''
 
     # Process non-spatial component
-    data = df.drop(columns=df.geometry.name)
+    data = pd.DataFrame(df.drop(columns=df.geometry.name))
 
-    if isinstance(aggfunc, str) is True and aggfunc == 'to_json':
+    if isinstance(aggfunc, str) is True and aggfunc == 'json':
         #orient='records' ???
-        aggregated_data = data.groupby(**groupby_kwargs).apply(lambda g: g.to_json(orient='index')).to_frame(name='to_json')
+        agg_columns = list(data.columns)
+        if by is not None:
+            for column in by:
+                agg_columns.remove(column)
+        aggregated_data = data.groupby(**groupby_kwargs).apply(lambda g: g[agg_columns].to_json(orient='index')).to_frame(name='json')
     else:
         aggregated_data = data.groupby(**groupby_kwargs).agg(aggfunc)
         # Check if all columns were properly aggregated
-        columns_to_agg = [column for column in data.columns if column not in by]
+        columns_to_agg = [column for column in data.columns if column not in by_local]
         if len(columns_to_agg) != len(aggregated_data.columns):
             dropped_columns = [column for column in columns_to_agg if column not in aggregated_data.columns]
             raise Exception(f"Column(s) {dropped_columns} are not supported for aggregation, stop") 

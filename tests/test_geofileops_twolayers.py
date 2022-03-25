@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import geofileops as gfo
 from geofileops import GeometryType, PrimitiveType
 from geofileops.util import io_util
-import test_helper
+from tests import test_helper
 
 def test_erase(tmpdir):
     # Init
@@ -35,15 +35,15 @@ def test_erase(tmpdir):
             for test_input in test_inputs: 
                 # If test input file is in wrong format, convert it
                 input_path = test_helper.prepare_test_file(
-                        path=test_input['input_path'],
-                        tmp_dir=tmp_dir,
+                        input_path=test_input['input_path'],
+                        output_dir=tmp_dir,
                         suffix=suffix,
                         crs_epsg=crs_epsg)
 
                 # If test input file is in wrong format, convert it
                 erase_path = test_helper.prepare_test_file(
-                        path=test_helper.TestFiles.polygons_zones_gpkg,
-                        tmp_dir=tmp_dir,
+                        input_path=test_helper.TestFiles.polygons_zones_gpkg,
+                        output_dir=tmp_dir,
                         suffix=suffix,
                         crs_epsg=crs_epsg)
             
@@ -122,15 +122,15 @@ def test_export_by_location(tmpdir):
         for crs_epsg in test_helper.get_test_crs_epsg_list():
             # If test input file is in wrong format, convert it
             input_to_select_from_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_parcels_gpkg,
-                    tmp_dir=tmp_dir,
+                    input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    output_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
 
             # If test input file is in wrong format, convert it
             input_to_compare_with_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_zones_gpkg,
-                    tmp_dir=tmp_dir,
+                    input_path=test_helper.TestFiles.polygons_zones_gpkg,
+                    output_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
         
@@ -171,15 +171,15 @@ def test_export_by_distance(tmpdir):
         for crs_epsg in test_helper.get_test_crs_epsg_list():
             # If test input file is in wrong format, convert it
             input_to_select_from_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_parcels_gpkg,
-                    tmp_dir=tmp_dir,
+                    input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    output_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
 
             # If test input file is in wrong format, convert it
             input_to_compare_with_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_zones_gpkg,
-                    tmp_dir=tmp_dir,
+                    input_path=test_helper.TestFiles.polygons_zones_gpkg,
+                    output_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
         
@@ -224,15 +224,15 @@ def test_intersect(tmpdir):
         for crs_epsg in test_helper.get_test_crs_epsg_list():
             # If test input file is in wrong format, convert it
             input1_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_parcels_gpkg,
-                    tmp_dir=tmp_dir,
+                    input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    output_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
 
             # If test input file is in wrong format, convert it
             input2_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_zones_gpkg,
-                    tmp_dir=tmp_dir,
+                    input_path=test_helper.TestFiles.polygons_zones_gpkg,
+                    output_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
         
@@ -274,15 +274,15 @@ def test_join_by_location(tmpdir):
         for crs_epsg in test_helper.get_test_crs_epsg_list():
             # If test input file is in wrong format, convert it
             input1_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_parcels_gpkg,
-                    tmp_dir=tmp_dir,
+                    input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    output_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
 
             # If test input file is in wrong format, convert it
             input2_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_zones_gpkg,
-                    tmp_dir=tmp_dir,
+                    input_path=test_helper.TestFiles.polygons_zones_gpkg,
+                    output_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
         
@@ -350,15 +350,15 @@ def test_join_nearest(tmpdir):
         for crs_epsg in test_helper.get_test_crs_epsg_list():
             # If test input file is in wrong format, convert it
             input1_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_parcels_gpkg,
-                    tmp_dir=tmp_dir,
+                    input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    output_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
 
             # If test input file is in wrong format, convert it
             input2_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_zones_gpkg,
-                    tmp_dir=tmp_dir,
+                    input_path=test_helper.TestFiles.polygons_zones_gpkg,
+                    output_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
         
@@ -404,15 +404,15 @@ def test_select_two_layers(tmpdir):
         for crs_epsg in test_helper.get_test_crs_epsg_list():
             # If test input file is in wrong format, convert it
             input1_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_parcels_gpkg,
-                    tmp_dir=tmp_dir,
+                    input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    output_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
 
             # If test input file is in wrong format, convert it
             input2_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_zones_gpkg,
-                    tmp_dir=tmp_dir,
+                    input_path=test_helper.TestFiles.polygons_zones_gpkg,
+                    output_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
         
@@ -481,15 +481,15 @@ def test_split(tmpdir):
         for crs_epsg in test_helper.get_test_crs_epsg_list():
             # If test input file is in wrong format, convert it
             input1_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_parcels_gpkg,
-                    tmp_dir=tmp_dir,
+                    input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    output_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
 
             # If test input file is in wrong format, convert it
             input2_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_zones_gpkg,
-                    tmp_dir=tmp_dir,
+                    input_path=test_helper.TestFiles.polygons_zones_gpkg,
+                    output_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
         
@@ -530,15 +530,15 @@ def test_union(tmpdir):
         for crs_epsg in test_helper.get_test_crs_epsg_list():
             # If test input file is in wrong format, convert it
             input1_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_parcels_gpkg,
-                    tmp_dir=tmp_dir,
+                    input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    output_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
 
             # If test input file is in wrong format, convert it
             input2_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_zones_gpkg,
-                    tmp_dir=tmp_dir,
+                    input_path=test_helper.TestFiles.polygons_zones_gpkg,
+                    output_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
         
@@ -581,15 +581,15 @@ def test_union_circles(tmpdir):
         for crs_epsg in test_helper.get_test_crs_epsg_list():
             # If test input file is in wrong format, convert it
             input1_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_overlappingcircles_one_gpkg,
-                    tmp_dir=tmp_dir,
+                    input_path=test_helper.TestFiles.polygons_overlappingcircles_one_gpkg,
+                    output_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
 
             # If test input file is in wrong format, convert it
             input2_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_overlappingcircles_twothree_gpkg,
-                    tmp_dir=tmp_dir,
+                    input_path=test_helper.TestFiles.polygons_overlappingcircles_twothree_gpkg,
+                    output_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
         
@@ -661,12 +661,12 @@ if __name__ == '__main__':
     tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
 
     # Two layer operations
-    #test_erase(tmpdir)
+    test_erase(tmpdir)
     #test_export_by_distance(tmpdir)
     #test_export_by_location(tmpdir)
     #test_intersect(tmpdir)
     #test_join_by_location(tmpdir)
     #test_select_two_layers(tmpdir)
     #test_split(tmpdir)
-    test_union(tmpdir)
+    #test_union(tmpdir)
     
