@@ -13,13 +13,14 @@ import pprint
 import shutil
 import tempfile
 import time
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Iterable, List, Optional, Tuple, Union
 import warnings
 
 import fiona
 import geopandas as gpd
 from osgeo import gdal
 import pandas as pd
+import pyogrio
 import pyproj
 
 from geofileops.util import geometry_util
@@ -512,7 +513,7 @@ def rename_column(
     path_p = Path(path)
     if layer is None:
         layer = get_only_layer(path_p)
-    info = get_layerinfo(path_p)
+    info = get_layerinfo(path_p, layer)
     if column_name not in info.columns and new_column_name in info.columns:
         logger.info(f"Column {column_name} seems to be renamed already to {new_column_name}, so just return")
         return
@@ -526,9 +527,9 @@ def rename_column(
             sql_stmt = f'ALTER TABLE "{layer}" RENAME COLUMN "{column_name}" TO "{new_column_name}"'
             datasource.ExecuteSQL(sql_stmt)
         elif geofiletype == GeofileType.ESRIShapefile:
-            raise ValueError(f"rename_layer is not possible for {geofiletype} file")
+            raise ValueError(f"rename_column is not possible for {geofiletype} file")
         else:
-            raise ValueError(f"rename_layer is not implemented for {path_p.suffix} file")
+            raise ValueError(f"rename_column is not implemented for {path_p.suffix} file")
     finally:
         if datasource is not None:
             del datasource
@@ -614,6 +615,44 @@ def add_column(
         if datasource is not None:
             del datasource
 
+def drop_column(
+        path: Union[str, 'os.PathLike[Any]'],
+        column_name: str,
+        layer: Optional[str] = None):
+    """
+    Drop the column specified.
+
+    Args:
+        path (PathLike): The file path.
+        column_name (str): the column name.
+        layer (Optional[str]): The layer name. If not specified, and there is only 
+            one layer in the file, this layer is used. Otherwise exception.
+    """
+    # Check input parameters
+    path_p = Path(path)
+    if layer is None:
+        layer = get_only_layer(path_p)
+    info = get_layerinfo(path_p, layer)
+    if column_name not in info.columns:
+        logger.info(f"Column {column_name} not present so cannot be dropped, so just return")
+        return
+
+    # Now really rename
+    datasource = None
+    geofiletype = GeofileType(path_p)  
+    try:
+        if geofiletype.is_spatialite_based:
+            datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
+            sql_stmt = f'ALTER TABLE "{layer}" DROP COLUMN "{column_name}"'
+            datasource.ExecuteSQL(sql_stmt)
+        elif geofiletype == GeofileType.ESRIShapefile:
+            raise ValueError(f"drop_column is not possible for {geofiletype} file")
+        else:
+            raise ValueError(f"drop_column is not implemented for {path_p.suffix} file")
+    finally:
+        if datasource is not None:
+            del datasource
+
 def update_column(
         path: Union[str, 'os.PathLike[Any]'],
         name: str, 
@@ -665,7 +704,7 @@ def update_column(
 def read_file(
         path: Union[str, 'os.PathLike[Any]'],
         layer: Optional[str] = None,
-        columns: Optional[List[str]] = None,
+        columns: Optional[Iterable[str]] = None,
         bbox = None,
         rows = None,
         ignore_geometry: bool = False) -> gpd.GeoDataFrame:
@@ -748,7 +787,7 @@ def read_file_nogeom(
 def _read_file_base(
         path: Union[str, 'os.PathLike[Any]'],
         layer: Optional[str] = None,
-        columns: Optional[List[str]] = None,
+        columns: Optional[Iterable[str]] = None,
         bbox = None,
         rows = None,
         ignore_geometry: bool = False) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
@@ -782,10 +821,40 @@ def _read_file_base(
         raise ValueError(f"File doesnt't exist: {path}")
     geofiletype = GeofileType(path_p)
 
+    # Convert slice object to pyogrio parameters
+    if rows is not None:
+        skip_features = rows.start
+        max_features = rows.stop - rows.start
+    else:
+        skip_features = 0
+        max_features = None
+
     # If no layer name specified, check if there is only one layer in the file.
     if layer is None:
         layer = get_only_layer(path_p)
 
+    # Checking if column names should be read is case sensitive in pyogrio, so 
+    # make sure the column names specified have the same casing.
+    columns_asked_originalcasing = None
+    """
+    if columns is not None:
+        columns_asked_originalcasing = list(columns)
+    """
+    if columns is not None:
+        layerinfo = get_layerinfo(path_p, layer=layer)
+        columns_asked_upper = [column.upper() for column in columns]
+        columns_asked_originalcasing = [column for column in layerinfo.columns if column.upper() in columns_asked_upper]
+    
+    result_gdf = pyogrio.read_dataframe(
+            path_p,
+            layer=layer,
+            columns=columns_asked_originalcasing, 
+            bbox=bbox, 
+            skip_features=skip_features, 
+            max_features=max_features, 
+            read_geometry=not ignore_geometry)
+
+    """                
     # Depending on the extension... different implementations
     if geofiletype == GeofileType.ESRIShapefile:
         result_gdf = gpd.read_file(str(path_p), bbox=bbox, rows=rows, ignore_geometry=ignore_geometry)
@@ -803,7 +872,8 @@ def _read_file_base(
         columns_upper.append('GEOMETRY')
         columns_to_keep = [col for col in result_gdf.columns if (col.upper() in columns_upper)]
         result_gdf = result_gdf[columns_to_keep]
-    
+    """
+
     # assert to evade pyLance warning 
     assert isinstance(result_gdf, pd.DataFrame) or isinstance(result_gdf, gpd.GeoDataFrame) 
     return result_gdf
@@ -919,13 +989,21 @@ def to_file(
                 gdf_to_write = gdf.reset_index(drop=True)
             else:
                 gdf_to_write = gdf
-            gdf_to_write.to_file(str(path), mode=mode)
+            
+            # ESRI Shapefile doesn't support datetime, so convert them to str
+            for datetime_column in gdf_to_write.select_dtypes(include=['datetime64']):
+                gdf_to_write[datetime_column] = gdf_to_write[datetime_column].astype(str)
+
+            # Since 23/03/2022 write to shapefile didn't write in UTF-8 
+            # anymore, so force it 
+            gdf_to_write.to_file(str(path), driver=geofiletype.ogrdriver, mode=mode, encoding="utf-8")
         elif geofiletype == GeofileType.GPKG:
-            # Try to harmonize the geometrytype to one (multi)type, as GPKG
+            # Try to harmonize the geometrytype to one (multi)tyspe, as GPKG
             # doesn't like > 1 type in a layer
             gdf_to_write = gdf.copy()
             gdf_to_write.geometry = geoseries_util.harmonize_geometrytypes(
                     gdf.geometry, force_multitype=force_multitype)
+
             gdf_to_write.to_file(str(path), layer=layer, driver=geofiletype.ogrdriver, mode=mode)
         elif geofiletype == GeofileType.SQLite:
             gdf.to_file(str(path), layer=layer, driver=geofiletype.ogrdriver, mode=mode)
@@ -1211,7 +1289,7 @@ def append_to(
         try: 
             lockfile.unlink()
         except:
-            None
+            _ = None
 
     # Creating lockfile and append
     start_time = datetime.datetime.now()

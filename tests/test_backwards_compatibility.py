@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofileops
 from geofileops import geofile
 from geofileops.util import vector_util
-import test_helper
+from tests import test_helper
 
 def test_old_geofileops_api(tmpdir):
     tmp_dir = Path(tmpdir)
