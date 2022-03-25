@@ -102,30 +102,44 @@ def init_test_for_debug(test_module_name: str) -> Path:
     return tmpdir
 
 def prepare_test_file(
-        path: Path,
-        tmp_dir: Path,
+        input_path: Path,
+        output_dir: Path,
         suffix: str,
-        crs_epsg: Optional[int] = None) -> Path:
+        crs_epsg: Optional[int] = None,
+        use_cachedir: bool = False) -> Path:
 
-    # If sufixx the same, copy to tmp_dir, if not, convert
-    new_path = tmp_dir / f"{path.stem}{suffix}"
-    if path.suffix == suffix:    
-        gfo.copy(path, new_path)
+    # Tmp dir
+    if use_cachedir is True:
+        tmp_cache_dir = Path(tempfile.gettempdir()) / "geofileops_test_data"
+        tmp_cache_dir.mkdir(parents=True, exist_ok=True)
     else:
-        gfo.convert(path, new_path)
-    path = new_path
+        tmp_cache_dir = output_dir
 
     # If crs_epsg specified and test input file in wrong crs_epsg, reproject
+    input_prepared_path = input_path
     if crs_epsg is not None:
-        input_layerinfo = gfo.get_layerinfo(path)
-        assert input_layerinfo.crs is not None
-        if input_layerinfo.crs.to_epsg() != crs_epsg:
-            new_path = tmp_dir / f"{path.stem}_{crs_epsg}{suffix}"
-            if new_path.exists() is False:
-                test_gdf = gfo.read_file(path)
+        input_prepared_path = tmp_cache_dir / f"{input_path.stem}_{crs_epsg}{suffix}"
+        if input_prepared_path.exists() is False:
+            input_layerinfo = gfo.get_layerinfo(input_path)
+            assert input_layerinfo.crs is not None
+            if input_layerinfo.crs.to_epsg() == crs_epsg:
+                if input_path.suffix == suffix:
+                    gfo.copy(input_path, input_prepared_path)
+                else:
+                    gfo.convert(input_path, input_prepared_path)
+            else:
+                test_gdf = gfo.read_file(input_path)
                 test_gdf = test_gdf.to_crs(crs_epsg)
                 assert isinstance(test_gdf, gpd.GeoDataFrame)
-                gfo.to_file(test_gdf, new_path)
-            path = new_path
+                gfo.to_file(test_gdf, input_prepared_path)               
+    elif input_path.suffix != suffix:
+        # No crs specified, but different suffix asked, so convert file
+        input_prepared_path = tmp_cache_dir / f"{input_path.stem}{suffix}"
+        if input_prepared_path.exists() is False:
+            gfo.convert(input_path, input_prepared_path)
 
-    return path
+    # Now copy the prepared file to the output dir
+    output_path = output_dir / input_prepared_path.name
+    if str(input_prepared_path) != str(output_path):
+        gfo.copy(input_prepared_path, output_path)
+    return output_path

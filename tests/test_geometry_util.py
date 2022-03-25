@@ -15,7 +15,7 @@ import geofileops as gfo
 from geofileops import geometry_util
 from geofileops import GeometryType, PrimitiveType
 from geofileops.util import grid_util
-import test_helper
+from tests import test_helper
 
 def test_geometrytype():
     # Creating a GeometryType from None is invalid

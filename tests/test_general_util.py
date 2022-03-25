@@ -12,7 +12,7 @@ import time
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops.util import general_util
-import test_helper
+from tests import test_helper
 
 def test_formatbytes():
     bytes_str = general_util.formatbytes(1)

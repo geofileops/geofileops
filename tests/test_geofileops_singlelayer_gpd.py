@@ -4,6 +4,7 @@ Tests for operations using GeoPandas.
 """
 
 import inspect
+import json
 from pathlib import Path
 import sys
 
@@ -17,7 +18,7 @@ from geofileops import GeometryType
 from geofileops.util import geofileops_gpd
 from geofileops.util import geometry_util
 from geofileops.util import io_util
-import test_helper
+from tests import test_helper
 
 def get_nb_parallel() -> int:
     # The number of parallel processes to use for these tests.
@@ -142,160 +143,6 @@ def basetest_apply(
             # In the 2nd polygon the island is larger, so should be there 
             assert len(output_geometry.interiors) == 1
 
-def test_buffer(tmpdir):
-    # Init
-    tmp_dir = Path(tmpdir)
-    tmp_dir.mkdir(parents=True, exist_ok=True)
-
-    test_inputs = []
-    test_inputs.append({
-            "input_path": test_helper.TestFiles.polygons_parcels_gpkg,
-            "geometrytype": GeometryType.MULTIPOLYGON})
-    test_inputs.append({
-            "input_path": test_helper.TestFiles.points_gpkg,
-            "geometrytype": GeometryType.MULTIPOINT})
-    test_inputs.append({
-            "input_path": test_helper.TestFiles.linestrings_rows_of_trees_gpkg,
-            "geometrytype": GeometryType.MULTILINESTRING})
-
-    # Prepare test data + run tests
-    for suffix in test_helper.get_test_suffix_list():
-        # Buffer on not-projected data is weird, so not tested (at the moment)  
-        for crs_epsg in test_helper.get_test_crs_epsg_list():
-            for test_input in test_inputs: 
-                # If test input file is in wrong format, convert it
-                input_path = test_helper.prepare_test_file(
-                        path=test_input['input_path'],
-                        tmp_dir=tmp_dir,
-                        suffix=suffix,
-                        crs_epsg=crs_epsg)
-
-                # Now run test
-                output_path = tmp_dir / f"{input_path.stem}-output{suffix}"
-                print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}, geometrytype {test_input['geometrytype']}")
-                basetest_buffer(input_path, output_path, test_input['geometrytype'])
-
-def basetest_buffer(
-        input_path: Path, 
-        output_path: Path, 
-        input_geometry_type: GeometryType):
-
-    ### Init ###    
-    layerinfo_input = gfo.get_layerinfo(input_path)
-    assert layerinfo_input.crs is not None
-    distance = 1
-    if layerinfo_input.crs.is_projected is False:
-        # 1 degree = 111 km or 111000 m
-        distance /= 111000
-
-    ### Test positive buffer ###
-    gfo.buffer(
-            input_path=input_path,
-            output_path=output_path,
-            distance=distance,
-            nb_parallel=get_nb_parallel(),
-            batchsize=get_batchsize())
-
-    # Now check if the output file is correctly created
-    assert output_path.exists() == True
-    layerinfo_output = gfo.get_layerinfo(output_path)
-    assert layerinfo_input.featurecount == layerinfo_output.featurecount
-    assert len(layerinfo_output.columns) == len(layerinfo_input.columns)
-    
-    # Check geometry type
-    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
-
-    # Read result for some more detailed checks
-    output_gdf = gfo.read_file(output_path)
-    assert output_gdf['geometry'][0] is not None
-
-    ### Test buffer to existing output path ###
-    assert output_path.exists() is True
-    mtime_orig = output_path.stat().st_mtime
-    gfo.buffer(
-            input_path=input_path,
-            output_path=output_path,
-            distance=distance,
-            nb_parallel=get_nb_parallel())
-    assert output_path.stat().st_mtime == mtime_orig
-
-    # With force=True
-    gfo.buffer(
-            input_path=input_path,
-            output_path=output_path,
-            distance=distance,
-            nb_parallel=get_nb_parallel(),
-            force=True)
-    assert output_path.stat().st_mtime != mtime_orig
-
-    ### Test negative buffer ###
-    distance = -10
-    if layerinfo_input.crs.is_projected is False:
-        # 1 degree = 111 km or 111000 m
-        distance /= 111000
-
-    output_path = output_path.parent / f"{output_path.stem}_m10m{output_path.suffix}"
-    gfo.buffer(
-            input_path=input_path,
-            output_path=output_path,
-            distance=distance,
-            nb_parallel=get_nb_parallel())
-
-    # Now check if the output file is correctly created
-    if input_geometry_type in [GeometryType.MULTIPOINT, GeometryType.MULTILINESTRING]:
-        # A Negative buffer of points or linestrings doesn't give a result.
-        assert output_path.exists() == False
-    else:    
-        # A Negative buffer of polygons gives a result for large polygons.
-        assert output_path.exists() == True
-        layerinfo_output = gfo.get_layerinfo(output_path)
-        assert len(layerinfo_output.columns) == len(layerinfo_input.columns) 
-        if layerinfo_input.crs.is_projected is True:
-            # 7 polygons disappear because of the negative buffer
-            assert layerinfo_output.featurecount == layerinfo_input.featurecount - 7
-        else:
-            assert layerinfo_output.featurecount == layerinfo_input.featurecount - 4
-        
-        # Check geometry type
-        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
-
-        # Read result for some more detailed checks
-        output_gdf = gfo.read_file(output_path)
-        assert output_gdf['geometry'][0] is not None
-    
-    ### Test negative buffer with explodecollections ###
-    output_path = output_path.parent / f"{output_path.stem}_m10m_explode{output_path.suffix}"
-    gfo.buffer(
-            input_path=input_path,
-            output_path=output_path,
-            distance=distance,
-            explodecollections=True,
-            nb_parallel=get_nb_parallel())
-
-    # Now check if the output file is correctly created
-    if input_geometry_type in [GeometryType.MULTIPOINT, GeometryType.MULTILINESTRING]:
-        # A Negative buffer of points or linestrings doesn't give a result.
-        assert output_path.exists() == False
-    else:    
-        # A Negative buffer of polygons gives a result for large polygons
-        assert output_path.exists() == True
-        layerinfo_output = gfo.get_layerinfo(output_path)
-        assert len(layerinfo_output.columns) == len(layerinfo_input.columns) 
-
-        if layerinfo_input.crs.is_projected is True:
-            # 6 polygons disappear because of the negative buffer, 3 polygons are 
-            # split in 2 because of the negative buffer and/or explodecollections=True.
-            assert layerinfo_output.featurecount == layerinfo_input.featurecount - 7 + 3
-        else:
-            assert layerinfo_output.featurecount == layerinfo_input.featurecount - 3 + 3
-
-        # Check geometry type
-        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
-
-        # Read result for some more detailed checks
-        output_gdf = gfo.read_file(output_path)
-        assert output_gdf['geometry'][0] is not None
-
 def test_buffer_ext(tmpdir):    
     # Prepare test data + run tests
     tmp_dir = Path(tmpdir)
@@ -305,8 +152,8 @@ def test_buffer_ext(tmpdir):
         for crs_epsg in test_helper.get_test_crs_epsg_list():
             # If test input file is in wrong format, convert it
             input_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_parcels_gpkg,
-                    tmp_dir=tmp_dir,
+                    input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    output_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
 
@@ -325,24 +172,14 @@ def basetest_buffer_ext(input_path, output_path):
         # 1 degree = 111 km or 111000 m
         distance /= 111000
 
-    ### Check if columns parameter works (case insensitive) ###
-    columns = ['OIDN', 'uidn', 'HFDTLT', 'lblhfdtlt', 'GEWASGROEP', 'lengte', 'OPPERVL']
+    ### Run standard buffer to compare with ###
     gfo.buffer(
             input_path=input_path,
-            columns=columns,
             output_path=output_path,
             distance=distance,
             nb_parallel=get_nb_parallel())
 
-    # Now check if the tmp file is correctly created
-    layerinfo_input = gfo.get_layerinfo(input_path)
-    layerinfo_output = gfo.get_layerinfo(output_path)
-    assert layerinfo_input.featurecount == layerinfo_output.featurecount
-    assert 'OIDN' in layerinfo_output.columns
-    assert 'UIDN' in layerinfo_output.columns
-    assert len(layerinfo_output.columns) == len(columns)
-
-    # Read result for some more detailed checks
+    # Read result
     output_gdf = gfo.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
     area_default_buffer = sum(output_gdf.area)
@@ -373,7 +210,7 @@ def basetest_buffer_ext(input_path, output_path):
     ### Check if ... parameter works ###
     # TODO: increase test coverage of other options...
 
-def test_convexhull(tmpdir):
+def test_dissolve_linestrings(tmpdir):
     # Prepare test data + run tests
     tmp_dir = Path(tmpdir)
     tmp_dir.mkdir(parents=True, exist_ok=True)
@@ -381,54 +218,18 @@ def test_convexhull(tmpdir):
         for crs_epsg in test_helper.get_test_crs_epsg_list():
             # If test input file is in wrong format, convert it
             input_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_parcels_gpkg,
-                    tmp_dir=tmp_dir,
+                    input_path=test_helper.TestFiles.linestrings_watercourses_gpkg,
+                    output_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
 
             # Now run test
             output_path = tmp_dir / f"{input_path.stem}-output{suffix}"
             print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}")
-            basetest_convexhull(input_path, output_path)
+            basetest_dissolve_linestrings(input_path, output_path)
 
-def basetest_convexhull(input_path, output_path):
-    layerinfo_orig = gfo.get_layerinfo(input_path)
-    geofileops_gpd.convexhull(
-            input_path=input_path,
-            output_path=output_path,
-            nb_parallel=get_nb_parallel())
-
-    # Now check if the output file is correctly created
-    assert output_path.exists() == True
-    layerinfo_output = gfo.get_layerinfo(output_path)
-    assert layerinfo_orig.featurecount == layerinfo_output.featurecount
-    assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
-    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
-
-    # Read result for some more detailed checks
-    output_gdf = gfo.read_file(output_path)
-    assert output_gdf['geometry'][0] is not None
-
-def test_dissolve_linestrings_nogroupby(tmpdir):
-    # Prepare test data + run tests
-    tmp_dir = Path(tmpdir)
-    tmp_dir.mkdir(parents=True, exist_ok=True)
-    for suffix in test_helper.get_test_suffix_list():
-        for crs_epsg in test_helper.get_test_crs_epsg_list():
-            # If test input file is in wrong format, convert it
-            input_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.linestrings_watercourses_gpkg,
-                    tmp_dir=tmp_dir,
-                    suffix=suffix,
-                    crs_epsg=crs_epsg)
-
-            # Now run test
-            output_path = tmp_dir / f"{input_path.stem}-output{suffix}"
-            print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}")
-            basetest_dissolve_linestrings_nogroupby(input_path, output_path)
-
-def basetest_dissolve_linestrings_nogroupby(input_path, output_basepath):
-    # Apply dissolve with explodecollections
+def basetest_dissolve_linestrings(input_path, output_basepath):
+    # Dissolve, no groupby, explodecollections=True
     output_path = (output_basepath.parent / 
             f"{output_basepath.stem}_expl{output_basepath.suffix}")
     gfo.dissolve(
@@ -442,7 +243,7 @@ def basetest_dissolve_linestrings_nogroupby(input_path, output_basepath):
     assert output_path.exists() == True
     layerinfo_orig = gfo.get_layerinfo(input_path)
     layerinfo_output = gfo.get_layerinfo(output_path)
-    assert layerinfo_output.featurecount == 85
+    assert layerinfo_output.featurecount == 83
     assert layerinfo_output.geometrytype in [GeometryType.LINESTRING, GeometryType.MULTILINESTRING]
     assert len(layerinfo_output.columns) >= 0
 
@@ -453,7 +254,34 @@ def basetest_dissolve_linestrings_nogroupby(input_path, output_basepath):
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
 
-    # Apply dissolve without explodecollections
+    # Dissolve, no groupby, explodecollections=False
+    output_path = (output_basepath.parent / 
+            f"{output_basepath.stem}_noexpl{output_basepath.suffix}")
+    # explodecollections=False only supported if 
+    gfo.dissolve(
+            input_path=input_path,
+            output_path=output_path,
+            explodecollections=False,
+            nb_parallel=get_nb_parallel(),
+            batchsize=5)
+
+    # Check if the result file is correctly created
+    assert output_path.exists() == True
+    layerinfo_orig = gfo.get_layerinfo(input_path)
+    
+    layerinfo_output = gfo.get_layerinfo(output_path)
+    assert layerinfo_output.featurecount == 1
+    assert layerinfo_output.geometrytype is layerinfo_orig.geometrytype
+    assert len(layerinfo_output.columns) >= 0
+
+    # Now check the contents of the result file
+    input_gdf = gfo.read_file(input_path)
+    output_gdf = gfo.read_file(output_path)
+    assert input_gdf.crs == output_gdf.crs
+    assert len(output_gdf) == layerinfo_output.featurecount
+    assert output_gdf['geometry'][0] is not None
+
+    # Dissolve, groupby, explodecollections=False
     output_path = (output_basepath.parent / 
             f"{output_basepath.stem}_noexpl{output_basepath.suffix}")
     # explodecollections=False only supported if 
@@ -488,8 +316,8 @@ def test_dissolve_polygons_groupby(tmpdir):
         for crs_epsg in test_helper.get_test_crs_epsg_list():
             # If test input file is in wrong format, convert it
             input_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_parcels_gpkg,
-                    tmp_dir=tmp_dir,
+                    input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    output_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
 
@@ -516,19 +344,19 @@ def basetest_dissolve_polygons_groupby(
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
-    layerinfo_output = gfo.get_layerinfo(output_path)
-    assert layerinfo_output.featurecount == 6
-    assert len(layerinfo_output.columns) == 1
-    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.featurecount == 6
+    assert len(output_layerinfo.columns) == 1
+    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
 
     # Now check the contents of the result file
     input_gdf = gfo.read_file(input_path)
     output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
-    assert len(output_gdf) == layerinfo_output.featurecount
+    assert len(output_gdf) == output_layerinfo.featurecount
     assert output_gdf['geometry'][0] is not None
 
-    ### Test dissolve polygons with explodecollections ###
+    ### Test dissolve polygons with groupby + explodecollections ###
     output_path = output_basepath.parent / f"{output_basepath.stem}_group_explode{output_basepath.suffix}"
     gfo.dissolve(
             input_path=input_path,
@@ -540,46 +368,105 @@ def basetest_dissolve_polygons_groupby(
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
-    layerinfo_output = gfo.get_layerinfo(output_path)
-    assert layerinfo_output.featurecount == 25
-    assert len(layerinfo_output.columns) == 1
-
-    # Check geometry type
-    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.featurecount == 25
+    assert len(output_layerinfo.columns) == 1
+    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Now check the contents of the result file
     input_gdf = gfo.read_file(input_path)
     output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
-    assert len(output_gdf) == layerinfo_output.featurecount
+    assert len(output_gdf) == output_layerinfo.featurecount
     assert output_gdf['geometry'][0] is not None
 
-    ### Test dissolve polygons with explodecollections + all columns ###
-    output_path = output_basepath.parent / f"{output_basepath.stem}_group_explode_allcolumns{output_basepath.suffix}"
+    ### Test dissolve polygons with groupby + agg_columns to columns ###
+    output_path = output_basepath.parent / f"{output_basepath.stem}_group_aggcolumns{output_basepath.suffix}"
+    # Remarks: 
+    #     - column names are shortened so it also works for shapefile! 
+    #     - the columns for agg_columns are choosen so they do not contain
+    #       unique values, to be a better test case!
     gfo.dissolve(
             input_path=input_path,
             output_path=output_path,
-            groupby_columns=['GEWASGROEP'],
-            columns=None,
-            explodecollections=True,
+            groupby_columns=["GEWASGROEP"],
+            agg_columns={"columns":[
+                    {"column": "lblhfdtlt", "agg": "max", "as": "lbl_max"},
+                    {"column": "lblhfdtlt", "agg": "count", "as": "lbl_count"},
+                    {"column": "lblhfdtlt", "agg": "count", "distinct": True, "as": "lbl_cnt_d"},
+                    {"column": "lblhfdtlt", "agg": "concat", "as": "lbl_conc"},
+                    {"column": "lblhfdtlt", "agg": "concat", "sep": ";", "as": "lbl_conc_s"},
+                    {"column": "lblhfdtlt", "agg": "concat", "distinct": True, "as": "lbl_conc_d"},
+                    {"column": "hfdtlt", "agg": "mean", "as": "tlt_mea"},
+                    {"column": "hfdtlt", "agg": "min", "as": "tlt_min"},
+                    {"column": "hfdtlt", "agg": "sum", "as": "tlt_sum"}]},
+            explodecollections=False,
             nb_parallel=get_nb_parallel(),
             batchsize=get_batchsize())
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
-    layerinfo_output = gfo.get_layerinfo(output_path)
-    assert layerinfo_output.featurecount == 25
-    assert len(layerinfo_output.columns) == len(layerinfo_input.columns)
-
-    # Check geometry type
-    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.featurecount == 6
+    assert len(output_layerinfo.columns) == 1 + 9
+    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Now check the contents of the result file
     input_gdf = gfo.read_file(input_path)
     output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
-    assert len(output_gdf) == layerinfo_output.featurecount
-    assert output_gdf['geometry'][0] is not None
+    assert len(output_gdf) == output_layerinfo.featurecount
+    assert output_gdf["geometry"][0] is not None
+
+    # Check agg_columns results
+    grasland_idx = output_gdf[output_gdf["GEWASGROEP"] == "Grasland"].index.to_list()[0]
+    assert output_gdf["lbl_max"][grasland_idx] == "Grasland"
+    assert output_gdf["lbl_count"][grasland_idx] == 30
+    print(f"output_gdf.lbl_concat_distinct: {output_gdf['lbl_conc_d'][grasland_idx]}")
+    assert output_gdf["lbl_cnt_d"][grasland_idx] == 1
+    assert output_gdf["lbl_conc"][grasland_idx].startswith("Grasland,Grasland,")
+    assert output_gdf["lbl_conc_s"][grasland_idx].startswith("Grasland;Grasland;")
+    assert output_gdf["lbl_conc_d"][grasland_idx] == "Grasland"
+    assert output_gdf["tlt_mea"][grasland_idx] == 60  # type: ignore
+    assert int(output_gdf["tlt_min"][grasland_idx]) == 60  # type: ignore
+    assert output_gdf["tlt_sum"][grasland_idx] == 1800  # type: ignore
+
+    groenten_idx = output_gdf[
+            output_gdf["GEWASGROEP"] == "Groenten, kruiden en sierplanten"].index.to_list()[0]
+    assert output_gdf["lbl_count"][groenten_idx] == 5
+    print(f"groenten.lblhfdtlt_concat_distinct: {output_gdf['lbl_conc_d'][groenten_idx]}")
+    assert output_gdf["lbl_cnt_d"][groenten_idx] == 4
+        
+    ### Test dissolve polygons with groupby + agg_columns to json ###
+    output_path = output_basepath.parent / f"{output_basepath.stem}_group_aggjson{output_basepath.suffix}"
+    gfo.dissolve(
+            input_path=input_path,
+            output_path=output_path,
+            groupby_columns=["GEWASGROEP"],
+            agg_columns={"json": ["lengte", "oppervl", "lblhfdtlt"]},
+            explodecollections=False,
+            nb_parallel=get_nb_parallel(),
+            batchsize=get_batchsize())
+
+    # Now check if the tmp file is correctly created
+    assert output_path.exists() == True
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.featurecount == 6
+    assert len(output_layerinfo.columns) == 2
+    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON 
+
+    # Now check the contents of the result file
+    input_gdf = gfo.read_file(input_path)
+    output_gdf = gfo.read_file(output_path)
+    assert input_gdf.crs == output_gdf.crs
+    assert len(output_gdf) == output_layerinfo.featurecount
+    assert output_gdf["geometry"][0] is not None
+    
+    # In shapefiles, the length of str columns is very limited, so the json 
+    # test would fail.
+    if input_path.suffix != ".shp":
+        grasland_json = json.loads(output_gdf["json"][0])
+        assert len(grasland_json) == 30
 
     ### Test dissolve polygons with specified output layer ###
     # A different output layer is not supported for shapefile!!!
@@ -588,8 +475,8 @@ def basetest_dissolve_polygons_groupby(
         gfo.dissolve(
                 input_path=input_path,
                 output_path=output_path,
-                groupby_columns=['GEWASGROEP'],
-                output_layer='banana',
+                groupby_columns=["GEWASGROEP"],
+                output_layer="banana",
                 explodecollections=True,
                 nb_parallel=get_nb_parallel(),
                 batchsize=get_batchsize())
@@ -601,19 +488,17 @@ def basetest_dissolve_polygons_groupby(
     # Now check if the tmp file is correctly created
     if output_path.suffix.lower() != '.shp':
         assert output_path.exists() == True
-        layerinfo_output = gfo.get_layerinfo(output_path)
-        assert layerinfo_output.featurecount == 25
-        assert len(layerinfo_output.columns) == 1
-        assert layerinfo_output.name == 'banana'
-
-        # Check geometry type
-        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
+        output_layerinfo = gfo.get_layerinfo(output_path)
+        assert output_layerinfo.featurecount == 25
+        assert len(output_layerinfo.columns) == 1
+        assert output_layerinfo.name == 'banana'
+        assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
 
         # Now check the contents of the result file
         input_gdf = gfo.read_file(input_path)
         output_gdf = gfo.read_file(output_path)
         assert input_gdf.crs == output_gdf.crs
-        assert len(output_gdf) == layerinfo_output.featurecount
+        assert len(output_gdf) == output_layerinfo.featurecount
         assert output_gdf['geometry'][0] is not None
 
 def test_dissolve_polygons_nogroupby(tmpdir):
@@ -624,8 +509,8 @@ def test_dissolve_polygons_nogroupby(tmpdir):
         for crs_epsg in test_helper.get_test_crs_epsg_list():
             # If test input file is in wrong format, convert it
             input_path = test_helper.prepare_test_file(
-                    path=test_helper.TestFiles.polygons_parcels_gpkg,
-                    tmp_dir=tmp_dir,
+                    input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                    output_dir=tmp_dir,
                     suffix=suffix,
                     crs_epsg=crs_epsg)
 
@@ -689,7 +574,6 @@ def basetest_dissolve_polygons_nogroupby(
             nb_parallel=get_nb_parallel(),
             force=True)
     assert output_path.stat().st_mtime == mtime_orig
-
 
     ### Test dissolve polygons with explodecollections=False ###
     output_path = output_basepath.parent / f"{output_basepath.stem}_defaults{output_basepath.suffix}"
@@ -777,6 +661,7 @@ def test_dissolve_multisinglepolygons(tmpdir):
                             test_helper.TestData.polygon_with_island, 
                             test_helper.TestData.multipolygon], 
                     crs=test_helper.TestData.crs_epsg)
+            
             # Reproject if needed
             if test_helper.TestData.crs_epsg != crs_epsg:
                 test_gdf = test_gdf.to_crs(epsg=crs_epsg)
@@ -824,7 +709,10 @@ def basetest_dissolve_multisinglepolygons(
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
 
-def test_simplify(tmpdir):
+def test_simplify_algorythms(tmpdir):
+    """
+    Default algorythms are tested in simplify_basic. 
+    """
     # Init
     tmp_dir = Path(tmpdir)
     tmp_dir.mkdir(parents=True, exist_ok=True)
@@ -846,21 +734,23 @@ def test_simplify(tmpdir):
             for test_input in test_inputs: 
                 # If test input file is in wrong format, convert it
                 input_path = test_helper.prepare_test_file(
-                        path=test_input['input_path'],
-                        tmp_dir=tmp_dir,
+                        input_path=test_input['input_path'],
+                        output_dir=tmp_dir,
                         suffix=suffix,
                         crs_epsg=crs_epsg)
 
                 # Now run test
                 output_path = tmp_dir / f"{input_path.stem}-output{suffix}"
                 print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}, geometrytype {test_input['geometrytype']}")
-                basetest_simplify(input_path, output_path, test_input['geometrytype'])
+                basetest_simplify_algorythms(input_path, output_path, test_input['geometrytype'])
 
-def basetest_simplify(
+def basetest_simplify_algorythms(
         input_path: Path, 
         output_basepath: Path, 
         expected_output_geometrytype: GeometryType):
-
+    """
+    Default algorythms are tested in simplify_basic. 
+    """
     ### Init ###
     layerinfo_orig = gfo.get_layerinfo(input_path)
     assert layerinfo_orig.crs is not None
@@ -869,30 +759,6 @@ def basetest_simplify(
     else:
         # 1 degree = 111 km or 111000 m
         tolerance = 5/111000
-
-    ### Test default algorithm, rdp ###
-    output_path = io_util.with_stem(output_basepath, f"{output_basepath.stem}_rdp")
-    gfo.simplify(
-            input_path=input_path,
-            output_path=output_path,
-            tolerance=tolerance,
-            nb_parallel=get_nb_parallel())
-
-    # Now check if the tmp file is correctly created
-    assert output_path.exists() == True
-    layerinfo_output = gfo.get_layerinfo(output_path)
-    assert layerinfo_orig.featurecount == layerinfo_output.featurecount
-    assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
-
-    # Check geometry type
-    assert layerinfo_output.geometrytype == expected_output_geometrytype
-
-    # Now check the contents of the result file
-    input_gdf = gfo.read_file(input_path)
-    output_gdf = gfo.read_file(output_path)
-    assert input_gdf.crs == output_gdf.crs
-    assert len(output_gdf) == layerinfo_output.featurecount
-    assert output_gdf['geometry'][0] is not None
 
     ### Test vw (visvalingam-whyatt) algorithm ###
     output_path = io_util.with_stem(output_basepath, f"{output_basepath.stem}_vw")
@@ -954,8 +820,8 @@ if __name__ == '__main__':
     #test_apply(tmpdir / "apply")
     #test_buffer(tmpdir / "buffer")
     #test_buffer_ext(tmpdir / "buffer_ext")
-    #test_dissolve_linestrings_nogroupby(tmpdir / "dissolve_linestrings_nogroupby")
-    #test_dissolve_polygons_groupby(tmpdir / "dissolve_polygons_groupby")
+    #test_dissolve_linestrings(tmpdir / "dissolve_linestrings_nogroupby")
+    test_dissolve_polygons_groupby(tmpdir / "dissolve_polygons_groupby")
     #test_dissolve_polygons_nogroupby(tmpdir / "dissolve_polygons_nogroupby")
     test_dissolve_multisinglepolygons(tmpdir / "dissolve_multisinglepolygons")
     #test_simplify(tmpdir / "simplify")
