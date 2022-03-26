@@ -244,7 +244,7 @@ def basetest_get_layerinfo(
         assert layerinfo.name == 'parcels'
     assert layerinfo.geometrytypename == gfo.GeometryType.MULTIPOLYGON.name
     assert layerinfo.geometrytype == gfo.GeometryType.MULTIPOLYGON
-    assert len(layerinfo.columns) == 10
+    assert len(layerinfo.columns) == 11
     assert layerinfo.total_bounds is not None
     assert layerinfo.crs is not None
     assert layerinfo.crs.to_epsg() == 31370
@@ -773,7 +773,7 @@ if __name__ == '__main__':
     # Run!
     #test_convert(tmpdir)
     #test_convert_force_output_geometrytype(tmpdir)
-    #test_get_layerinfo(tmpdir)
+    test_get_layerinfo(tmpdir)
     #test_get_only_layer(tmpdir)
     #test_rename_column(tmpdir)
     #test_rename_layer(tmpdir)
@@ -784,7 +784,7 @@ if __name__ == '__main__':
     #test_copy(tmpdir)
     #test_move(tmpdir)
     #test_spatial_index(tmpdir)
-    test_to_file(tmpdir)
+    #test_to_file(tmpdir)
     #test_to_file_gpkg(tmpdir)
     #test_to_file_shp(tmpdir)
     #test_to_file_empty(tmpdir)

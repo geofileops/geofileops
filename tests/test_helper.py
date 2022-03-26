@@ -137,7 +137,7 @@ def prepare_test_file(
         input_prepared_path = tmp_cache_dir / f"{input_path.stem}{suffix}"
         if input_prepared_path.exists() is False:
             gfo.convert(input_path, input_prepared_path)
-
+        
     # Now copy the prepared file to the output dir
     output_path = output_dir / input_prepared_path.name
     if str(input_prepared_path) != str(output_path):

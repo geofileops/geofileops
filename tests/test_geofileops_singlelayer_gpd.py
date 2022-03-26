@@ -48,7 +48,8 @@ def test_apply(tmpdir):
             test_gdf = gpd.GeoDataFrame(
                     geometry=[
                             test_helper.TestData.polygon_small_island, 
-                            test_helper.TestData.polygon_with_island], 
+                            test_helper.TestData.polygon_with_island,
+                            None], 
                     crs=test_helper.TestData.crs_epsg)
             # Reproject if needed
             if test_helper.TestData.crs_epsg != crs_epsg:
@@ -817,11 +818,11 @@ if __name__ == '__main__':
 
     # Run
     #test_get_parallelization_params()
-    #test_apply(tmpdir / "apply")
+    test_apply(tmpdir / "apply")
     #test_buffer(tmpdir / "buffer")
     #test_buffer_ext(tmpdir / "buffer_ext")
     #test_dissolve_linestrings(tmpdir / "dissolve_linestrings_nogroupby")
-    test_dissolve_polygons_groupby(tmpdir / "dissolve_polygons_groupby")
+    #test_dissolve_polygons_groupby(tmpdir / "dissolve_polygons_groupby")
     #test_dissolve_polygons_nogroupby(tmpdir / "dissolve_polygons_nogroupby")
-    test_dissolve_multisinglepolygons(tmpdir / "dissolve_multisinglepolygons")
+    #test_dissolve_multisinglepolygons(tmpdir / "dissolve_multisinglepolygons")
     #test_simplify(tmpdir / "simplify")

@@ -34,6 +34,9 @@ from geofileops.util.geofiletype import GeofileType
 # First define/init some general variables/constants
 #-------------------------------------------------------------
 
+# Set logging level for pyogrio to warning
+logging.getLogger("pyogrio").setLevel(logging.WARNING)
+
 # Get a logger...
 logger = logging.getLogger(__name__)
 #logger.setLevel(logging.DEBUG)
@@ -951,11 +954,15 @@ def to_file(
             gdf_to_write = gdf.copy()
             gdf_to_write.geometry = geoseries_util.harmonize_geometrytypes(
                     gdf_to_write.geometry, force_multitype=force_multitype)
+            # pyogrio can't write datetime yet, so convert to str
+            # Remark: do the conversion for append, otherwise a file written 
+            # using pyogrio cannot be appended to because the columns are not 
+            # of the same type! 
+            for datetime_column in gdf_to_write.select_dtypes(include=['datetime64']):
+                gdf_to_write[datetime_column] = gdf_to_write[datetime_column].astype(str)
+            
             if mode == "w":
                 # pyogrio only supports write
-                # pyogrio can't write datetime yet, so convert to str
-                for datetime_column in gdf_to_write.select_dtypes(include=['datetime64']):
-                    gdf_to_write[datetime_column] = gdf_to_write[datetime_column].astype(str)
                 pyogrio.write_dataframe(
                         df=gdf_to_write, path=path, layer=layer, driver=geofiletype.ogrdriver)
             else:
