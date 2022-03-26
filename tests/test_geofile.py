@@ -552,7 +552,7 @@ def test_to_file(tmpdir):
                 input_path=test_helper.TestFiles.polygons_parcels_gpkg,
                 output_dir=tmp_dir,
                 suffix=suffix)
-        output_path = io_util.with_stem(input_path, f"{input_path}-output")
+        output_path = io_util.with_stem(input_path, f"{input_path.stem}-output")
         basetest_to_file(input_path, output_path)
 
 def basetest_to_file(srcpath, tmppath):
@@ -780,10 +780,11 @@ if __name__ == '__main__':
     #test_listlayers()
     #test_add_column(tmpdir)
     #test_execute_sql(tmpdir)
-    test_read_file(tmpdir)
+    #test_read_file(tmpdir)
     #test_copy(tmpdir)
     #test_move(tmpdir)
     #test_spatial_index(tmpdir)
+    test_to_file(tmpdir)
     #test_to_file_gpkg(tmpdir)
     #test_to_file_shp(tmpdir)
     #test_to_file_empty(tmpdir)

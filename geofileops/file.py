@@ -803,7 +803,7 @@ def _read_file_base(
         columns_asked_upper = [column.upper() for column in columns]
         columns_asked_originalcasing = [column for column in layerinfo.columns if column.upper() in columns_asked_upper]
 
-    
+    # Read!
     result_gdf = pyogrio.read_dataframe(
             path_p,
             layer=layer,
@@ -812,38 +812,6 @@ def _read_file_base(
             skip_features=skip_features, 
             max_features=max_features, 
             read_geometry=not ignore_geometry)
-
-    # Depending on the extension... different implementations
-    if geofiletype in [GeofileType.ESRIShapefile, GeofileType.GeoJSON, GeofileType.FlatGeobuf]:
-        result_gdf = pyogrio.read_dataframe(
-                path_p,
-                columns=columns_asked_originalcasing, 
-                bbox=bbox, 
-                skip_features=skip_features, 
-                max_features=max_features, 
-                read_geometry=not ignore_geometry)
-    elif geofiletype.is_spatialite_based:
-        result_gdf = pyogrio.read_dataframe(
-                path_p, 
-                layer=layer,
-                columns=columns_asked_originalcasing,
-                bbox=bbox, 
-                skip_features=skip_features, 
-                max_features=max_features, 
-                read_geometry=not ignore_geometry)
-    else:
-        raise ValueError(f"Not implemented for geofiletype {geofiletype}")
-
-    """
-    # This is handled by the read functions above nowadays
-    # If columns to read are specified... filter non-geometry columns 
-    # case-insensitive 
-    if columns is not None:
-        columns_upper = [column.upper() for column in columns]
-        columns_upper.append('GEOMETRY')
-        columns_to_keep = [col for col in result_gdf.columns if (col.upper() in columns_upper)]
-        result_gdf = result_gdf[columns_to_keep]
-    """
 
     # assert to evade pyLance warning 
     assert isinstance(result_gdf, pd.DataFrame) or isinstance(result_gdf, gpd.GeoDataFrame) 
@@ -963,24 +931,21 @@ def to_file(
             if index is True:
                 gdf_to_write = gdf.reset_index(drop=True)
             else:
-                gdf_to_write = gdf
-            if mode == "w":
-                # pyogrio only supports write
-                pyogrio.write_dataframe(gdf_to_write, str(path), driver=geofiletype.ogrdriver)
-            else:
-                gdf_to_write.to_file(str(path), mode=mode)
-        elif geofiletype in [GeofileType.GPKG, GeofileType.FlatGeobuf]:
-            # Try to harmonize the geometrytype to one (multi)type, as GPKG
-            
+                gdf_to_write = gdf.copy()
+
             # ESRI Shapefile doesn't support datetime, so convert them to str
             for datetime_column in gdf_to_write.select_dtypes(include=['datetime64']):
                 gdf_to_write[datetime_column] = gdf_to_write[datetime_column].astype(str)
 
-            # Since 23/03/2022 write to shapefile didn't write in UTF-8 
-            # anymore, so force it 
-            gdf_to_write.to_file(str(path), driver=geofiletype.ogrdriver, mode=mode, encoding="utf-8")
-        elif geofiletype == GeofileType.GPKG:
-            # Try to harmonize the geometrytype to one (multi)tyspe, as GPKG
+            if mode == "w":
+                # pyogrio only supports write
+                pyogrio.write_dataframe(gdf_to_write, str(path), driver=geofiletype.ogrdriver)
+            else:
+                # Since 23/03/2022 write to shapefile didn't write in UTF-8 
+                # anymore, so force it 
+                gdf_to_write.to_file(str(path), driver=geofiletype.ogrdriver, mode=mode, encoding="utf-8")
+        elif geofiletype in [GeofileType.GPKG, GeofileType.FlatGeobuf]:
+            # Try to harmonize the geometrytype to one (multi)type, as GPKG
             # doesn't like > 1 type in a layer
             #gdf_to_write = gdf.reset_index(drop=True)
             gdf_to_write = gdf.copy()
@@ -988,15 +953,23 @@ def to_file(
                     gdf_to_write.geometry, force_multitype=force_multitype)
             if mode == "w":
                 # pyogrio only supports write
+                # pyogrio can't write datetime yet, so convert to str
+                for datetime_column in gdf_to_write.select_dtypes(include=['datetime64']):
+                    gdf_to_write[datetime_column] = gdf_to_write[datetime_column].astype(str)
                 pyogrio.write_dataframe(
                         df=gdf_to_write, path=path, layer=layer, driver=geofiletype.ogrdriver)
             else:
-                gdf_to_write.to_file(path, layer=layer, driver=geofiletype.ogrdriver, mode=mode)
+                gdf_to_write.to_file(str(path), layer=layer, driver=geofiletype.ogrdriver, mode=mode)
         elif geofiletype == GeofileType.SQLite:
             if mode == "w":
                 # pyogrio only supports write
+                # pyogrio can't write datetime yet, so convert to str
+                gdf_to_write = gdf.copy()
+                for datetime_column in gdf_to_write.select_dtypes(include=['datetime64']):
+                    gdf_to_write[datetime_column] = gdf_to_write[datetime_column].astype(str)
+
                 pyogrio.write_dataframe(
-                        gdf, str(path), layer=layer, driver=geofiletype.ogrdriver)
+                        gdf_to_write, str(path), layer=layer, driver=geofiletype.ogrdriver)
             else:
                 gdf.to_file(str(path), layer=layer, driver=geofiletype.ogrdriver, mode=mode)
         else:
