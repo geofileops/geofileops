@@ -13,10 +13,10 @@ import shapely.geometry as sh_geom
 
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from geofileops import fileops
-from geofileops import file 
+from geofileops import geoops
+from geofileops import fileops 
 from geofileops import GeometryType
-from geofileops.util import geofileops_gpd
+from geofileops.util import _geoops_gpd
 from geofileops.util import geometry_util
 from geofileops.util import io_util
 from tests import test_helper
@@ -31,8 +31,8 @@ def set_fileops_module(fileops_module: str):
         return
     else:
         # Load the desired module as fileops
-        global fileops
-        fileops = import_module(fileops_module, __package__)
+        global geoops
+        geoops = import_module(fileops_module, __package__)
         current_fileops_module = fileops_module
         print(f"gfo module switched to: {current_fileops_module}")
 
@@ -89,7 +89,7 @@ def basetest_buffer_basics(
     """
     ### Init ###
     set_fileops_module(fileeops_module)
-    layerinfo_input = file.get_layerinfo(input_path)
+    layerinfo_input = fileops.get_layerinfo(input_path)
     assert layerinfo_input.crs is not None
     distance = 1
     if layerinfo_input.crs.is_projected is False:
@@ -97,7 +97,7 @@ def basetest_buffer_basics(
         distance /= 111000
 
     ### Test positive buffer ###
-    fileops.buffer(
+    geoops.buffer(
             input_path=input_path,
             output_path=output_path,
             distance=distance,
@@ -106,7 +106,7 @@ def basetest_buffer_basics(
 
     # Now check if the output file is correctly created
     assert output_path.exists() == True
-    layerinfo_output = file.get_layerinfo(output_path)
+    layerinfo_output = fileops.get_layerinfo(output_path)
     assert layerinfo_input.featurecount == layerinfo_output.featurecount
     assert len(layerinfo_output.columns) == len(layerinfo_input.columns)
     
@@ -114,13 +114,13 @@ def basetest_buffer_basics(
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Read result for some more detailed checks
-    output_gdf = file.read_file(output_path)
+    output_gdf = fileops.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
     ### Test buffer to existing output path ###
     assert output_path.exists() is True
     mtime_orig = output_path.stat().st_mtime
-    fileops.buffer(
+    geoops.buffer(
             input_path=input_path,
             output_path=output_path,
             distance=distance,
@@ -128,7 +128,7 @@ def basetest_buffer_basics(
     assert output_path.stat().st_mtime == mtime_orig
 
     # With force=True
-    fileops.buffer(
+    geoops.buffer(
             input_path=input_path,
             output_path=output_path,
             distance=distance,
@@ -143,7 +143,7 @@ def basetest_buffer_basics(
         distance /= 111000
 
     output_path = output_path.parent / f"{output_path.stem}_m10m{output_path.suffix}"
-    fileops.buffer(
+    geoops.buffer(
             input_path=input_path,
             output_path=output_path,
             distance=distance,
@@ -156,7 +156,7 @@ def basetest_buffer_basics(
     else:    
         # A Negative buffer of polygons gives a result for large polygons.
         assert output_path.exists() == True
-        layerinfo_output = file.get_layerinfo(output_path)
+        layerinfo_output = fileops.get_layerinfo(output_path)
         assert len(layerinfo_output.columns) == len(layerinfo_input.columns) 
         if layerinfo_input.crs.is_projected is True:
             # 7 polygons disappear because of the negative buffer
@@ -168,12 +168,12 @@ def basetest_buffer_basics(
         assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
         # Read result for some more detailed checks
-        output_gdf = file.read_file(output_path)
+        output_gdf = fileops.read_file(output_path)
         assert output_gdf['geometry'][0] is not None
     
     ### Test negative buffer with explodecollections ###
     output_path = output_path.parent / f"{output_path.stem}_m10m_explode{output_path.suffix}"
-    fileops.buffer(
+    geoops.buffer(
             input_path=input_path,
             output_path=output_path,
             distance=distance,
@@ -187,7 +187,7 @@ def basetest_buffer_basics(
     else:    
         # A Negative buffer of polygons gives a result for large polygons
         assert output_path.exists() == True
-        layerinfo_output = file.get_layerinfo(output_path)
+        layerinfo_output = fileops.get_layerinfo(output_path)
         assert len(layerinfo_output.columns) == len(layerinfo_input.columns) 
 
         if layerinfo_input.crs.is_projected is True:
@@ -201,7 +201,7 @@ def basetest_buffer_basics(
         assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
         # Read result for some more detailed checks
-        output_gdf = file.read_file(output_path)
+        output_gdf = fileops.read_file(output_path)
         assert output_gdf['geometry'][0] is not None
 
 def test_convexhull(tmpdir):
@@ -232,11 +232,11 @@ def basetest_convexhull(
         fileops_module: str):
     
     set_fileops_module(fileops_module)
-    layerinfo_orig = file.get_layerinfo(input_path)
+    layerinfo_orig = fileops.get_layerinfo(input_path)
     
     # Also check if columns parameter works (case insensitive)
     columns = ['OIDN', 'uidn', 'HFDTLT', 'lblhfdtlt', 'GEWASGROEP', 'lengte', 'OPPERVL']
-    fileops.convexhull(
+    geoops.convexhull(
             input_path=input_path,
             columns=columns,
             output_path=output_path,
@@ -244,7 +244,7 @@ def basetest_convexhull(
 
     # Now check if the output file is correctly created
     assert output_path.exists() == True
-    layerinfo_output = file.get_layerinfo(output_path)
+    layerinfo_output = fileops.get_layerinfo(output_path)
     assert layerinfo_orig.featurecount == layerinfo_output.featurecount
     assert 'OIDN' in layerinfo_output.columns
     assert 'UIDN' in layerinfo_output.columns
@@ -252,7 +252,7 @@ def basetest_convexhull(
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
 
     # Read result for some more detailed checks
-    output_gdf = file.read_file(output_path)
+    output_gdf = fileops.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
 def test_simplify_basic(tmpdir):
@@ -300,7 +300,7 @@ def basetest_simplify_basic(
 
     ### Init ###
     set_fileops_module(fileops_module)
-    layerinfo_orig = file.get_layerinfo(input_path)
+    layerinfo_orig = fileops.get_layerinfo(input_path)
     assert layerinfo_orig.crs is not None
     if layerinfo_orig.crs.is_projected:
         tolerance = 5
@@ -310,7 +310,7 @@ def basetest_simplify_basic(
 
     ### Test default algorithm (rdp) ###
     output_path = io_util.with_stem(input_path, output_path)
-    fileops.simplify(
+    geoops.simplify(
             input_path=input_path,
             output_path=output_path,
             tolerance=tolerance,
@@ -318,7 +318,7 @@ def basetest_simplify_basic(
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
-    layerinfo_output = file.get_layerinfo(output_path)
+    layerinfo_output = fileops.get_layerinfo(output_path)
     assert layerinfo_orig.featurecount == layerinfo_output.featurecount
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
 
@@ -326,8 +326,8 @@ def basetest_simplify_basic(
     assert layerinfo_output.geometrytype == expected_output_geometrytype
 
     # Now check the contents of the result file
-    input_gdf = file.read_file(input_path)
-    output_gdf = file.read_file(output_path)
+    input_gdf = fileops.read_file(input_path)
+    output_gdf = fileops.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None

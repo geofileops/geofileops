@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from .file import *
 from .fileops import *
+from .geoops import *
 
 def _get_version():
     version_path = Path(__file__).resolve().parent / 'version.txt'

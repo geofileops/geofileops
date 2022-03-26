@@ -9,8 +9,8 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from geofileops.util import geofileops_gpd
-from geofileops.util import geofileops_sql
+from geofileops.util import _geoops_gpd
+from geofileops.util import _geoops_sql
 from geofileops.util.geometry_util import BufferEndCapStyle, BufferJoinStyle, SimplifyAlgorithm, GeometryType 
 
 ################################################################################
@@ -77,7 +77,7 @@ def apply(
             Defaults to False.
     """
     logger.info(f"Start apply on {input_path}")
-    return geofileops_gpd.apply(
+    return _geoops_gpd.apply(
             input_path=Path(input_path),
             output_path=Path(output_path),
             func=func,
@@ -245,7 +245,7 @@ def buffer(
             and join_style == BufferJoinStyle.ROUND
             and single_sided is False):
         # If default buffer options for spatialite, use the faster sql version
-        return geofileops_sql.buffer(
+        return _geoops_sql.buffer(
                 input_path=Path(input_path),
                 output_path=Path(output_path),
                 distance=distance,
@@ -260,7 +260,7 @@ def buffer(
                 force=force)
     else:
         # If special buffer options, use geopandas version
-        return geofileops_gpd.buffer(
+        return _geoops_gpd.buffer(
                 input_path=Path(input_path),
                 output_path=Path(output_path),
                 distance=distance,
@@ -318,7 +318,7 @@ def convexhull(
             Defaults to False.
     """
     logger.info(f"Start convexhull on {input_path}")
-    return geofileops_sql.convexhull(
+    return _geoops_sql.convexhull(
             input_path=Path(input_path),
             output_path=Path(output_path),
             input_layer=input_layer,
@@ -359,7 +359,7 @@ def delete_duplicate_geometries(
             Defaults to False.
     """
     logger.info(f"Start delete_duplicate_geometries on {input_path}")
-    return geofileops_sql.delete_duplicate_geometries(
+    return _geoops_sql.delete_duplicate_geometries(
             input_path=Path(input_path),
             output_path=Path(output_path),
             input_layer=input_layer,
@@ -475,7 +475,7 @@ def dissolve(
         groupby_columns = None
 
     logger.info(f"Start dissolve on {input_path} to {output_path}")
-    return geofileops_gpd.dissolve(
+    return _geoops_gpd.dissolve(
             input_path=Path(input_path),
             output_path=Path(output_path),
             explodecollections=explodecollections,
@@ -539,7 +539,7 @@ def isvalid(
 
     # Go!
     logger.info(f"Start isvalid on {input_path}")
-    return geofileops_sql.isvalid(
+    return _geoops_sql.isvalid(
             input_path=Path(input_path),
             output_path=output_path_p,
             input_layer=input_layer, 
@@ -595,7 +595,7 @@ def makevalid(
     """
 
     logger.info(f"Start makevalid on {input_path}")
-    geofileops_sql.makevalid(
+    _geoops_sql.makevalid(
             input_path=Path(input_path),
             output_path=Path(output_path),
             input_layer=input_layer,        
@@ -706,7 +706,7 @@ def select(
     if force_output_geometrytype is not None:
         force_output_geometrytype = GeometryType(force_output_geometrytype)
         
-    return geofileops_sql.select(
+    return _geoops_sql.select(
             input_path=Path(input_path),
             output_path=Path(output_path),
             sql_stmt=sql_stmt,
@@ -775,7 +775,7 @@ def simplify(
     """
     logger.info(f"Start simplify on {input_path} with tolerance {tolerance}")
     if algorithm == SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER:
-        return geofileops_sql.simplify(
+        return _geoops_sql.simplify(
                 input_path=Path(input_path),
                 output_path=Path(output_path),
                 tolerance=tolerance,
@@ -788,7 +788,7 @@ def simplify(
                 verbose=verbose,
                 force=force)
     else:
-        return geofileops_gpd.simplify(
+        return _geoops_gpd.simplify(
                 input_path=Path(input_path),
                 output_path=Path(output_path),
                 tolerance=tolerance,
@@ -849,7 +849,7 @@ def erase(
     """
 
     logger.info(f"Start erase on {input_path} with {erase_path} to {output_path}")
-    return geofileops_sql.erase(
+    return _geoops_sql.erase(
         input_path=Path(input_path),
         erase_path=Path(erase_path),
         output_path=Path(output_path),
@@ -912,7 +912,7 @@ def export_by_location(
             Defaults to False.
     """
     logger.info(f"Start export_by_location: select from {input_to_select_from_path} interacting with {input_to_compare_with_path} to {output_path}")
-    return geofileops_sql.export_by_location(
+    return _geoops_sql.export_by_location(
             input_to_select_from_path=Path(input_to_select_from_path),
             input_to_compare_with_path=Path(input_to_compare_with_path),
             output_path=Path(output_path),
@@ -970,7 +970,7 @@ def export_by_distance(
             Defaults to False.
     """
     logger.info(f"Start export_by_distance: select from {input_to_select_from_path} within max_distance of {max_distance} from {input_to_compare_with_path} to {output_path}")
-    return geofileops_sql.export_by_distance(
+    return _geoops_sql.export_by_distance(
             input_to_select_from_path=Path(input_to_select_from_path),
             input_to_compare_with_path=Path(input_to_compare_with_path),
             output_path=Path(output_path),
@@ -1032,7 +1032,7 @@ def intersect(
             Defaults to False.
     """
     logger.info(f"Start intersect between {input1_path} and {input2_path} to {output_path}")
-    return geofileops_sql.intersect(
+    return _geoops_sql.intersect(
             input1_path=Path(input1_path),
             input2_path=Path(input2_path),
             output_path=Path(output_path),
@@ -1104,7 +1104,7 @@ def join_by_location(
             Defaults to False.
     """
     logger.info(f"Start join_by_location: select from {input1_path} joined with {input2_path} to {output_path}")
-    return geofileops_sql.join_by_location(
+    return _geoops_sql.join_by_location(
             input1_path=Path(input1_path),
             input2_path=Path(input2_path),
             output_path=Path(output_path),
@@ -1171,7 +1171,7 @@ def join_nearest(
             Defaults to False.
     """
     logger.info(f"Start join_nearest: select from {input1_path} joined with {input2_path} to {output_path}")
-    return geofileops_sql.join_nearest(
+    return _geoops_sql.join_nearest(
             input1_path=Path(input1_path),
             input2_path=Path(input2_path),
             output_path=Path(output_path),
@@ -1345,7 +1345,7 @@ def select_two_layers(
              ORDER BY distance DESC
     """
     logger.info(f"Start select_two_layers: select from {input1_path} and {input2_path} to {output_path}")
-    return geofileops_sql.select_two_layers(
+    return _geoops_sql.select_two_layers(
             input1_path=Path(input1_path),
             input2_path=Path(input2_path),
             output_path=Path(output_path),
@@ -1415,7 +1415,7 @@ def split(
             Defaults to False.
     """
     logger.info(f"Start split between {input1_path} and {input2_path} to {output_path}")
-    return geofileops_sql.split(
+    return _geoops_sql.split(
             input1_path=Path(input1_path),
             input2_path=Path(input2_path),
             output_path=Path(output_path),
@@ -1479,7 +1479,7 @@ def union(
             Defaults to False.
     """
     logger.info(f"Start union: select from {input1_path} and {input2_path} to {output_path}")
-    return geofileops_sql.union(
+    return _geoops_sql.union(
             input1_path=Path(input1_path),
             input2_path=Path(input2_path),
             output_path=Path(output_path),

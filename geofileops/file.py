@@ -1274,6 +1274,7 @@ def convert(
         dst_layer: Optional[str] = None,
         explodecollections: bool = False,
         force_output_geometrytype: Optional[GeometryType] = None,
+        create_spatial_index: bool = True,
         force: bool = False):
     """
     Convert the source file to the destination file. File types will be 
@@ -1308,7 +1309,8 @@ def convert(
     logger.info(f"Convert {src_p} to {dst_p}")
     _append_to_nolock(src_p, dst_p, src_layer, dst_layer, 
             explodecollections=explodecollections, 
-            force_output_geometrytype=force_output_geometrytype)
+            force_output_geometrytype=force_output_geometrytype,
+            create_spatial_index=create_spatial_index)
 
 def get_driver(path: Union[str, 'os.PathLike[Any]']) -> str:
     """
