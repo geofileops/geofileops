@@ -59,7 +59,7 @@ def test_buffer_basic(tmpdir):
             "geometrytype": GeometryType.MULTILINESTRING})
 
     # Prepare test data + run tests
-    for fileops_module in ["geofileops.fileops", "geofileops.util.geofileops_gpd", "geofileops.util.geofileops_sql"]:
+    for fileops_module in ["geofileops.geoops", "geofileops.util._geoops_gpd", "geofileops.util._geoops_sql"]:
         tmp_dir = tmp_basedir / fileops_module
         tmp_dir.mkdir(parents=True, exist_ok=True)
 
@@ -208,7 +208,7 @@ def test_convexhull(tmpdir):
     # Prepare test data + run tests
     tmp_basedir = Path(tmpdir)
 
-    for fileops_module in ["geofileops.fileops", "geofileops.util.geofileops_gpd"]:
+    for fileops_module in ["geofileops.geoops", "geofileops.util._geoops_gpd"]:
         tmp_dir = tmp_basedir / fileops_module
         tmp_dir.mkdir(parents=True, exist_ok=True)
 
@@ -272,7 +272,7 @@ def test_simplify_basic(tmpdir):
     tmp_basedir = Path(tmpdir)
 
     # In fileops, the sql version is used for basic simplify
-    for fileops_module in ["geofileops.fileops", "geofileops.util.geofileops_gpd"]:
+    for fileops_module in ["geofileops.geoops", "geofileops.util._geoops_gpd"]:
         for suffix in test_helper.get_test_suffix_list():
             for crs_epsg in test_helper.get_test_crs_epsg_list():
                 tmp_dir = tmp_basedir / f"{fileops_module}_{crs_epsg}"

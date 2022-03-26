@@ -13,7 +13,7 @@ import pprint
 import shutil
 import tempfile
 import time
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Iterable, List, Optional, Tuple, Union
 import warnings
 
 import fiona
@@ -665,7 +665,7 @@ def update_column(
 def read_file(
         path: Union[str, 'os.PathLike[Any]'],
         layer: Optional[str] = None,
-        columns: Optional[List[str]] = None,
+        columns: Optional[Iterable[str]] = None,
         bbox = None,
         rows = None,
         ignore_geometry: bool = False) -> gpd.GeoDataFrame:
@@ -678,7 +678,7 @@ def read_file(
         path (file path): path to the file to read from
         layer (str, optional): The layer to read. Defaults to None,  
             then reads the only layer in the file or throws error.
-        columns (List[str], optional): The (non-geometry) columns to read. 
+        columns (Iterable[str], optional): The (non-geometry) columns to read. 
             Defaults to None, then all columns are read.
         bbox ([type], optional): Read only geometries intersecting this bbox. 
             Defaults to None, then all rows are read.
@@ -708,7 +708,7 @@ def read_file(
 def read_file_nogeom(
         path: Union[str, 'os.PathLike[Any]'],
         layer: Optional[str] = None,
-        columns: Optional[List[str]] = None,
+        columns: Optional[Iterable[str]] = None,
         bbox = None,
         rows = None) -> pd.DataFrame:
     """
@@ -720,7 +720,7 @@ def read_file_nogeom(
         path (file path): path to the file to read from
         layer (str, optional): The layer to read. Defaults to None,  
             then reads the only layer in the file or throws error.
-        columns (List[str], optional): The (non-geometry) columns to read. 
+        columns (Iterable[str], optional): The (non-geometry) columns to read. 
             Defaults to None, then all columns are read.
         bbox ([type], optional): Read only geometries intersecting this bbox. 
             Defaults to None, then all rows are read.
@@ -748,7 +748,7 @@ def read_file_nogeom(
 def _read_file_base(
         path: Union[str, 'os.PathLike[Any]'],
         layer: Optional[str] = None,
-        columns: Optional[List[str]] = None,
+        columns: Optional[Iterable[str]] = None,
         bbox = None,
         rows = None,
         ignore_geometry: bool = False) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
@@ -761,7 +761,7 @@ def _read_file_base(
         path (file path): path to the file to read from
         layer (str, optional): The layer to read. Defaults to None,  
             then reads the only layer in the file or throws error.
-        columns (List[str], optional): The (non-geometry) columns to read. 
+        columns (Iterable[str], optional): The (non-geometry) columns to read. 
             Defaults to None, then all columns are read.
         bbox ([type], optional): Read only geometries intersecting this bbox. 
             Defaults to None, then all rows are read.
