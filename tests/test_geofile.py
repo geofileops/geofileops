@@ -244,7 +244,7 @@ def basetest_get_layerinfo(
         assert layerinfo.name == 'parcels'
     assert layerinfo.geometrytypename == gfo.GeometryType.MULTIPOLYGON.name
     assert layerinfo.geometrytype == gfo.GeometryType.MULTIPOLYGON
-    assert len(layerinfo.columns) == 10
+    assert len(layerinfo.columns) == 11
     assert layerinfo.total_bounds is not None
     assert layerinfo.crs is not None
     assert layerinfo.crs.to_epsg() == 31370

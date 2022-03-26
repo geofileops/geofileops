@@ -1211,7 +1211,7 @@ def append_to(
         try: 
             lockfile.unlink()
         except:
-            None
+            _ = None
 
     # Creating lockfile and append
     start_time = datetime.datetime.now()
