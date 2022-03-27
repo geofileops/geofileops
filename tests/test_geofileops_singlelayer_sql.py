@@ -12,7 +12,6 @@ import geopandas as gpd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import geofileops as gfo
 from geofileops import GeometryType
-from geofileops.util import geofileops_sql
 from tests import test_helper
 
 def get_nb_parallel() -> int:
