@@ -220,7 +220,12 @@ def create_table_as_sql(
                         elif isinstance(tmpdata[column_index], datetime.datetime): 
                             column_types[columnname] = 'DATETIME'
                         else:
-                            column_types[columnname] = 'DECIMAL'
+                            sql = f'SELECT datetime({columnname}) FROM tmp;'
+                            result = conn.execute(sql).fetchall()[0][0]
+                            if result is not None:
+                                column_types[columnname] = 'DATETIME'
+                            else:
+                                column_types[columnname] = 'NUMERIC'
                     else:
                         column_types[columnname] = columntype
 
