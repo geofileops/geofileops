@@ -29,7 +29,7 @@ import shapely.geometry as sh_geom
 
 import geofileops as gfo
 from geofileops.util import general_util
-from geofileops.util import geofileops_sql
+from geofileops.util import _geoops_sql
 from geofileops.util import geometry_util
 from geofileops.util.geometry_util import GeometryType, PrimitiveType, SimplifyAlgorithm 
 from geofileops.util import geoseries_util
@@ -676,7 +676,7 @@ def dissolve(
     # rounding issues at the borders of tiles... so just dissolve them using 
     # geopandas.   
     if input_layerinfo.geometrytype.to_primitivetype in [PrimitiveType.POINT, PrimitiveType.LINESTRING]:
-        geofileops_sql.dissolve_singlethread(
+        _geoops_sql.dissolve_singlethread(
                 input_path=input_path,
                 output_path=output_path,
                 explodecollections=explodecollections,
@@ -915,7 +915,7 @@ def dissolve(
                             ORDER BY geo_data.{orderby_column} '''
                 
                 # Go!
-                geofileops_sql.select(
+                _geoops_sql.select(
                         input_path=output_tmp_path, 
                         output_path=output_path, 
                         sql_stmt=sql_stmt, 

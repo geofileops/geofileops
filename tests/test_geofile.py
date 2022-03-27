@@ -234,7 +234,7 @@ def basetest_get_layerinfo(
 
     ### Tests on layer specified ###
     layerinfo = gfo.get_layerinfo(src, layer)
-    assert str(layerinfo).startswith("<class 'geofileops.file.LayerInfo'>")
+    assert str(layerinfo).startswith("<class 'geofileops.fileops.LayerInfo'>")
     assert layerinfo.featurecount == 46
     if src.suffix == '.shp':
         assert layerinfo.geometrycolumn == 'geometry'
@@ -751,21 +751,18 @@ if __name__ == '__main__':
     # Run!
     #test_convert(tmpdir)
     #test_convert_force_output_geometrytype(tmpdir)
-    #test_get_layerinfo(tmpdir)
+    test_get_layerinfo(tmpdir)
     #test_get_only_layer(tmpdir)
     #test_rename_column(tmpdir)
     #test_rename_layer(tmpdir)
     #test_listlayers()
     #test_add_column(tmpdir)
     #test_execute_sql(tmpdir)
-    test_read_file(tmpdir)
+    #test_read_file(tmpdir)
     #test_copy(tmpdir)
     #test_move(tmpdir)
     #test_spatial_index(tmpdir)
-    #test_to_file_gpkg(tmpdir)
-    #test_to_file_shp(tmpdir)
-    #test_to_file_empty_gpkg(tmpdir)
-    #test_to_file_empty_shp(tmpdir)
-    #test_to_file_none_gpkg(tmpdir)
-    #test_to_file_none_shp(tmpdir)
+    #test_to_file(tmpdir)
+    #test_to_file_empty(tmpdir)
+    #test_to_file_none(tmpdir)
     #test_update_column(tmpdir)

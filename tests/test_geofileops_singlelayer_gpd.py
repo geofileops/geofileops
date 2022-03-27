@@ -15,7 +15,7 @@ import shapely.geometry as sh_geom
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import geofileops as gfo
 from geofileops import GeometryType
-from geofileops.util import geofileops_gpd
+from geofileops.util import _geoops_gpd
 from geofileops.util import geometry_util
 from geofileops.util import io_util
 from tests import test_helper
@@ -28,7 +28,7 @@ def get_batchsize() -> int:
     return 5
 
 def test_get_parallelization_params():
-    parallelization_params = geofileops_gpd.get_parallelization_params(500000)
+    parallelization_params = _geoops_gpd.get_parallelization_params(500000)
     assert parallelization_params is not None
 
 def test_apply(tmpdir):

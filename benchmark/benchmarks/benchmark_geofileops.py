@@ -10,8 +10,8 @@ from pathlib import Path
 from typing import List
 
 import geofileops as gfo
-from geofileops.util import geofileops_gpd
-from geofileops.util import geofileops_sql
+from geofileops.util import _geoops_gpd
+from geofileops.util import _geoops_sql
 
 from benchmark.benchmarker import RunResult
 from . import testdata
@@ -65,7 +65,7 @@ def benchmark_buffer(
     print("buffer with gpd: start")
     start_time = datetime.now()
     output_path = tmpdir / f"{input_path.stem}_buf_gpd.gpkg"
-    geofileops_gpd.buffer(input_path, output_path, distance=1, force=True)
+    _geoops_gpd.buffer(input_path, output_path, distance=1, force=True)
     secs_taken = (datetime.now()-start_time).total_seconds()
     results.append(geofileops_RunResult(
             operation="buffer_gpd", 
@@ -77,7 +77,7 @@ def benchmark_buffer(
     print("buffer with spatialite: start")
     start_time = datetime.now()
     output_path = tmpdir / f"{input_path.stem}_buf_sql.gpkg"
-    geofileops_sql.buffer(input_path, output_path, distance=1, force=True)
+    _geoops_sql.buffer(input_path, output_path, distance=1, force=True)
     secs_taken = (datetime.now()-start_time).total_seconds()
     results.append(geofileops_RunResult(
             operation="buffer_spatialite", 
@@ -118,7 +118,7 @@ def benchmark_dissolve(
     print("dissolve with groupby: start")
     start_time = datetime.now()
     output_path = tmpdir / f"{input_path.stem}_diss_groupby.gpkg"
-    geofileops_gpd.dissolve(
+    _geoops_gpd.dissolve(
             input_path, 
             output_path, 
             groupby_columns=['GEWASGROEP'], 
