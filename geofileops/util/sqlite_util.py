@@ -211,7 +211,12 @@ def create_table_as_sql(
                     # determine based on data
                     if columntype is None or columntype == '':
                         sql = f'SELECT typeof({columnname}) FROM tmp;'
-                        column_types[columnname] = conn.execute(sql).fetchall()[0][0]
+                        result = conn.execute(sql).fetchall()[0][0]
+                        if result is not None:
+                            column_types[columnname] = result
+                        else:
+                            # If unknown, take the most general types
+                            column_types[columnname] = "NUMERIC"
                     elif columntype == 'NUM':
                         # PRAGMA TABLE_INFO sometimes returns 'NUM', but 
                         # apparently this cannot be used in "CREATE TABLE" 
