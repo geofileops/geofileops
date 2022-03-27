@@ -17,7 +17,7 @@ import pandas as pd
 
 import geofileops as gfo
 from geofileops import GeofileType, GeometryType, PrimitiveType
-from geofileops.file import _append_to_nolock
+from geofileops.fileops import _append_to_nolock
 from . import io_util
 from . import ogr_util
 from . import sqlite_util
