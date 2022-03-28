@@ -1,4 +1,4 @@
-# geofileops
+# geofileops [![Actions Status](https://github.com/geofileops/geofileops/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/geofileops/geofileops/actions?query=workflow%3ATests) [![Coverage Status](https://codecov.io/gh/geofileops/geofileops/branch/master/graph/badge.svg)](https://codecov.io/gh/geofileops/geofileops)
 Library to make spatial operations on large geo files fast(er) and easy.
 
 Remarks: 
