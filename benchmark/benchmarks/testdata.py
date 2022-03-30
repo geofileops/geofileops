@@ -7,11 +7,14 @@ import logging
 from pathlib import Path
 import pprint
 import shutil
+import sys
 import tempfile
 from typing import Optional, Tuple
 import urllib.request
 import zipfile
 
+# Add path so the benchmark packages are found 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 import geofileops as gfo  
 
 ################################################################################
@@ -37,7 +40,7 @@ def get_testdata(tmp_dir) -> Tuple[Path, Path]:
             dst_name=testfile.AGRIPRC_2018_NAME,
             dst_dir=tmp_dir)
     agriprc2018_info = gfo.get_layerinfo(agriprc2018_path)
-    print(f"Test file agriprc2018 contains {agriprc2018_info.featurecount} rows.")
+    logger.debug(f"Test file agriprc2018 contains {agriprc2018_info.featurecount} rows.")
 
     # Download 2nd test file
     agriprc2019_path = download_samplefile(
@@ -45,7 +48,7 @@ def get_testdata(tmp_dir) -> Tuple[Path, Path]:
             dst_name=testfile.AGRIPRC_2019_NAME,
             dst_dir=tmp_dir)
     agriprc2019_info = gfo.get_layerinfo(agriprc2019_path)
-    print(f"Test file agriprc2019 contains {agriprc2019_info.featurecount} rows.")
+    logger.debug(f"Test file agriprc2019 contains {agriprc2019_info.featurecount} rows.")
 
     return (agriprc2018_path, agriprc2019_path)
 
