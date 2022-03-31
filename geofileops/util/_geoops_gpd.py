@@ -489,7 +489,7 @@ def _apply_geooperation_to_layer(
             gfo.create_spatial_index(path=output_tmp_path, layer=output_layer)
             gfo.move(output_tmp_path, output_path)
         else:
-            logger.warning(f"Result of {operation} was empty!f")
+            logger.debug(f"Result of {operation} was empty!")
 
     finally:
         # Clean tmp dir
