@@ -9,5 +9,8 @@ Remarks:
   * For small files and/or computationally easy operations (eg. buffer) geofileops might be slower than other libraries.
 * Tested on geopackage and shapefile input files.
 
-Documentation can be found here:
-https://geofileops.readthedocs.io/en/latest/index.html
+Documentation on how to use geofileops can be found [here](https://geofileops.readthedocs.io).
+
+The following chart gives an impression of the speed improvement that can be expected when processing larger files (including I/O!). More information about this benchmark can be found [here](https://github.com/geofileops/geobenchmark).
+
+![Geo benchmark](https://github.com/geofileops/geobenchmark/blob/main/results/GeoBenchmark.png)
