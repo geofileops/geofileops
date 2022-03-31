@@ -10,4 +10,4 @@ Remarks:
 * Tested on geopackage and shapefile input files.
 
 Documentation can be found here:
-https://geofileops.readthedocs.io/en/latest/index.html
+https://geofileops.readthedocs.io
