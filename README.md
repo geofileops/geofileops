@@ -11,3 +11,7 @@ Remarks:
 
 Documentation can be found here:
 https://geofileops.readthedocs.io
+
+The following chart gives an impression of the speed improvement that can be expected when processing large files (including I/O!):
+
+![Geo benchmark](https://github.com/geofileops/geobenchmark/blob/main/results/GeoBenchmark.png)
