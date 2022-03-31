@@ -644,7 +644,7 @@ def select(
         sql_stmt = f'''
                 SELECT {{geometrycolumn}}
                       {{columns_to_select_str}}
-                  FROM "{{input_layer}}"
+                  FROM "{{input_layer}}" layer
                  WHERE 1=1
                    {{batch_filter}}
                    AND ST_Area({{geometrycolumn}}) > {minimum_area}
@@ -664,6 +664,8 @@ def select(
       'AND rowid >= x AND rowid < y'.
     * Table names are best double quoted as in the example, because some 
       characters are otherwise not supported in the table name, eg. '-'.
+    * It is recommend to give the table you select from "layer" as alias. If 
+      you use the {batch_filter} placeholder this is even mandatory.
     * Besides the standard sqlite sql syntacs, you can use the spatialite 
       functions as documented here: |sqlite_reference_link|   
 
@@ -1269,6 +1271,8 @@ def select_two_layers(
       'AND rowid >= x AND rowid < y'.
     * Table names are best double quoted as in the example, because some 
       characters are otherwise not supported in the table name, eg. '-'.
+    * When using supported placeholders, make sure you give the tables you 
+      select from the appropriate table aliases (layer1, layer2).
     * Besides the standard sqlite sql syntacs, you can use the spatialite 
       functions as documented here: |sqlite_reference_link|   
 
