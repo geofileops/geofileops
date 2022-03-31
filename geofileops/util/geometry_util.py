@@ -467,7 +467,7 @@ def simplify_ext(
         try:
             import simplification.cutil as simplification
         except ImportError as ex:
-            raise ImportError(f"To use simplify_ext using rdp or vw, first do: 'pip install simplification'") from ex
+            raise ImportError(f"To use simplify_ext using rdp or vw, first install simplification with 'pip install simplification'") from ex
 
     # Define some inline funtions 
     # Apply the simplification (can result in multipolygons)
