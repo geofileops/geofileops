@@ -4,7 +4,8 @@ Module for benchmarking.
 """
 
 import datetime
-from importlib import import_module
+import importlib
+import inspect
 import logging
 from pathlib import Path
 import sys
@@ -13,9 +14,9 @@ from typing import List, Optional
 
 import pandas as pd
 
-# Add path so the local geofileops packages are found 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  
-import report
+# Add path so the benchmark packages are found 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import reporter
 
 ################################################################################
 # Some init
@@ -60,7 +61,9 @@ class RunResult:
         return f"{self.__class__}({self.__dict__})"
 
 def run_benchmarks(
-        benchmarks: Optional[List[str]] = None):
+        modules_to_run: Optional[List[str]] = None,
+        functions_to_run: Optional[List[str]] = None):
+        
     # Init logging
     logging.basicConfig(
             format="%(asctime)s.%(msecs)03d|%(levelname)s|%(name)s|%(message)s", 
@@ -73,15 +76,35 @@ def run_benchmarks(
 
     benchmarks_dir = Path(__file__).parent / "benchmarks"
     results = []
-    for file in benchmarks_dir.glob("benchmark_*.py"):
+    for file in benchmarks_dir.glob("benchmarks_*.py"):
         module_name = file.stem
         if (not module_name.startswith("_")) and (module_name not in globals()):
-            if benchmarks is None or module_name in benchmarks:
-                benchmark_implementation = import_module(f"benchmarks.{module_name}", __package__)
-                results.extend(benchmark_implementation.run(tmp_dir=tmp_dir))
-    
+            if modules_to_run is not None and module_name not in modules_to_run:
+                # Benchmark whitelist specified, and this one isn't in it
+                logger.info(f"module {module_name} skipped, because not in modules_to_run: {modules_to_run}")
+                continue
+
+            benchmark_implementation = importlib.import_module(f"benchmarks.{module_name}", __package__)
+
+            # Run the functions in this benchmark
+            functions = inspect.getmembers(benchmark_implementation, inspect.isfunction)
+            for function_name, function in functions:
+                if functions_to_run is not None and function_name not in functions_to_run:
+                    # Function whitelist specified, and this one isn't in it
+                    logger.info(f"function {function_name} skipped, because not in functions_to_run: {functions_to_run}")
+                    continue
+
+                # Run the operation benchmark
+                logger.info(f"benchmarks.{module_name}.{function_name} start")
+                result = function(tmp_dir=tmp_dir)
+                if result is not None and isinstance(result, RunResult) is True:
+                    logger.info(f"benchmarks.{module_name}.{function_name} ready in {result.secs_taken:.2f} s")
+                    results.append(result)
+                else:
+                    logger.warning(f"benchmarks.{module_name}.{function_name} ignored: instead of a RunResult it returned {result}")                            
+                            
     # Add results to csv file
-    results_path = Path(__file__).resolve().parent / "benchmark_results.csv"
+    results_path = Path(__file__).resolve().parent / "results/benchmark_results.csv"
     results_dictlist = [vars(result) for result in results]
     results_df = pd.DataFrame(results_dictlist)
     if not results_path.exists():
@@ -90,8 +113,8 @@ def run_benchmarks(
         results_df.to_csv(results_path, index=False, mode="a", header=False)
 
     # Generate reports
-    output_dir = Path(__file__).resolve().parent / "reports"
-    report.generate_reports(results_path, output_dir)
+    output_dir = Path(__file__).resolve().parent / "results"
+    reporter.generate_reports(results_path, output_dir)
 
 if __name__ == "__main__":
     run_benchmarks()

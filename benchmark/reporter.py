@@ -24,12 +24,14 @@ def generate_reports(
     benchmark_df = pd.read_csv(results_path)
     
     def format_run_details(input: dict) -> str:
-        if input is None or np.nan:
+        if input is None or input == np.nan:
             return ""
         if isinstance(input, str):
             input = ast.literal_eval(input)
-        result_list = [f"{key}:{input[key]}" for key in input]
-        return ";".join(result_list)
+            result_list = [f"{key}:{input[key]}" for key in input]
+            return ";".join(result_list)
+        
+        return ""
 
     ### Detailed report per package and per operation ###
     for package in benchmark_df["package"].unique():
@@ -64,17 +66,21 @@ def generate_reports(
     benchmark_maxversion_df = benchmark_df.set_index(["package", "operation", "package_version"])
     benchmark_maxversion_df = (benchmark_maxversion_df
             .loc[benchmark_maxversion_df.index.isin(benchmark_maxversions_df.index)]
-            .reset_index())[["package", "operation", "secs_taken"]]
-    benchmark_maxversion_df = benchmark_maxversion_df.pivot_table(index="operation", columns="package")
+            .reset_index())[["package", "package_version", "operation", "secs_taken"]]
+    benchmark_maxversion_df = benchmark_maxversion_df.pivot_table(index="operation", columns=["package", "package_version"])
+    # Drop the "secs_taken" level to cleanup legend in chart
+    benchmark_maxversion_df = benchmark_maxversion_df.droplevel(level=0, axis=1)
     results_report_path = output_dir / f"GeoBenchmark.png"
     save_chart(
             df=benchmark_maxversion_df,
-            title="Geo benchmark", 
+            title="Comparison of libraries, time in sec", 
             output_path=results_report_path,
             yscale="log",
+            print_labels_on_points=True,
             y_value_formatter="{0:.0f}",
             size=(8, 6),
-            linestyle="None")
+            linestyle="None",
+            gridlines="y")
 
 def save_chart(
         df: pd.DataFrame,
@@ -86,6 +92,7 @@ def save_chart(
         open_output_file: bool = False,
         size: Tuple[float, float] = (8, 4),
         plot_kind: str = "line",
+        gridlines: Optional[str] = None,
         linestyle: Optional[str] = None):
     """
     Render and save a chart.
@@ -104,6 +111,12 @@ def save_chart(
         open_output_file (bool, optional): _description_. Defaults to False.
         size (Tuple[float, float], optional): _description_. Defaults to (8, 4).
         plot_kind (str, optional): _description_. Defaults to "line".
+        gridlines (str, optional): where to draw grid lines: 
+            
+                - 'x': draw grid lines on the x axis
+                - 'y': draw grid lines on the x axis
+                - 'both': draw grid lines on both axes
+            If None, the default for the style used is used. Defaults to None.
         linestyle (Optional[str], optional): _description_. Defaults to None.
 
     Raises:
@@ -134,7 +147,11 @@ def save_chart(
     if y_value_formatter is not None:
         axs.yaxis.set_major_formatter(plt.FuncFormatter(y_value_formatter.format))
         axs.yaxis.set_minor_formatter(plt.FuncFormatter(y_value_formatter.format))
-        
+    
+    # Show grid lines if specified
+    if gridlines is not None:
+        axs.grid(axis=gridlines, which="both")   # type: ignore
+
     ### Set different markers + print labels ###
     # Set different markers for each line + get mn/max values + print labels
     markers = ("+", ".", "o", "*")
@@ -194,6 +211,6 @@ def save_chart(
 
 if __name__ == "__main__":
 
-    results_path = Path(__file__).resolve().parent / 'benchmark_results.csv'
-    output_dir = Path(__file__).resolve().parent / "reports"
+    results_path = Path(__file__).resolve().parent / "results/benchmark_results.csv"
+    output_dir = Path(__file__).resolve().parent / "results"
     generate_reports(results_path, output_dir)
