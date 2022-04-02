@@ -142,6 +142,30 @@ def dissolve_groupby(tmp_dir: Path) -> RunResult:
     output_path.unlink()
     return result
 
+def clip(tmp_dir: Path) -> RunResult:
+    # Init
+    input1_path, input2_path = testdata.get_testdata(tmp_dir)
+    output_path = tmp_dir / f"{input1_path.stem}_clip_{input2_path.stem}.gpkg"
+    
+    # Go!
+    start_time = datetime.now()
+    gfo.clip(
+            input_path=input1_path, 
+            clip_path=input2_path, 
+            output_path=output_path,
+            force=True)
+    result = RunResult(
+            package="geofileops", 
+            package_version=gfo.__version__,
+            operation='clip', 
+            secs_taken=(datetime.now()-start_time).total_seconds(),
+            operation_descr="clip between 2 agri parcel layers BEFL (2*~500.000 polygons)",
+            run_details={"nb_cpu": multiprocessing.cpu_count()})
+
+    # Cleanup and return
+    #output_path.unlink()
+    return result
+
 def intersect(tmp_dir: Path) -> RunResult:
     # Init
     input1_path, input2_path = testdata.get_testdata(tmp_dir)
