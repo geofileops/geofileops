@@ -29,6 +29,3 @@ run_datetime,package,package_version,operation,operation_descr,secs_taken,run_de
 2022-03-18 13:26:18.864636,geofileops,0.4.0a1,dissolve_groupby,"dissolve on agri parcels BEFL (~500.000 polygons), groupby=[GEWASGROEP]",91.207064,{'nb_cpu': 12}
 2022-03-18 13:27:34.052120,geofileops,0.4.0a1,intersect,intersect between 2 agri parcel layers BEFL (2*~500.000 polygons),75.187484,{'nb_cpu': 12}
 2022-03-18 13:31:14.315586,geofileops,0.4.0a1,union,union between 2 agri parcel layers BEFL (2*~500.000 polygons),220.263466,{'nb_cpu': 12}
-2022-03-18 16:45:24.902271,geopandas,0.10.2,buffer,buffer agri parcels BEFL (~500.000 polygons),322.206387,
-2022-03-18 17:24:35.921456,geopandas,0.10.2,dissolve,dissolve agri parcels BEFL (~500.000 polygons),2350.233106,
-2022-03-28 16:16:12.464365,geopandas,0.10.2,intersect,intersect between 2 agri parcel layers BEFL (2*~500.000 polygons),692.441793,
