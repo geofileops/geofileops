@@ -145,11 +145,12 @@ def dissolve_groupby(tmp_dir: Path) -> RunResult:
 
 def clip(tmp_dir: Path) -> RunResult:
     # Init
-    input1_path, input2_path = testdata.get_testdata(tmp_dir)
-    output_path = tmp_dir / f"{input1_path.stem}_clip_{input2_path.stem}.gpkg"
+    input1_path = testdata.TestFile.AGRIPRC_2018.get_file(tmp_dir)
+    input2_path = testdata.TestFile.AGRIPRC_2019.get_file(tmp_dir)
     
     # Go!
     start_time = datetime.now()
+    output_path = tmp_dir / f"{input1_path.stem}_clip_{input2_path.stem}.gpkg"
     gfo.clip(
             input_path=input1_path, 
             clip_path=input2_path, 
