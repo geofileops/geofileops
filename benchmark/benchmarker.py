@@ -89,6 +89,8 @@ def run_benchmarks(
             # Run the functions in this benchmark
             functions = inspect.getmembers(benchmark_implementation, inspect.isfunction)
             for function_name, function in functions:
+                if function_name.startswith("_"):
+                    continue
                 if functions_to_run is not None and function_name not in functions_to_run:
                     # Function whitelist specified, and this one isn't in it
                     logger.info(f"function {function_name} skipped, because not in functions_to_run: {functions_to_run}")

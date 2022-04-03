@@ -10,7 +10,7 @@ import pprint
 import shutil
 import sys
 import tempfile
-from typing import Optional, Tuple
+from typing import Optional
 import urllib.request
 import zipfile
 
