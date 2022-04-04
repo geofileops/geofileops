@@ -4,6 +4,8 @@
 
 ### Improvements
 
+- Add clip geo operation. Info on how to use it can be found [here](https://geofileops.readthedocs.io/en/latest/api/geofileops.clip.html) (#4)
+
 ### Bugs fixed
 
 ### Deprecations and compatibility notes
