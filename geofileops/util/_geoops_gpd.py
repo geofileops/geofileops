@@ -489,7 +489,7 @@ def _apply_geooperation_to_layer(
             gfo.create_spatial_index(path=output_tmp_path, layer=output_layer)
             gfo.move(output_tmp_path, output_path)
         else:
-            logger.warning(f"Result of {operation} was empty!f")
+            logger.debug(f"Result of {operation} was empty!")
 
     finally:
         # Clean tmp dir
@@ -961,7 +961,9 @@ def _dissolve_polygons_pass(
         # Prepare output filename
         tempdir = output_onborder_path.parent
 
-        batches = {}    
+        batches = {}   
+        nb_batches = len(tiles_gdf)
+        nb_batches_done = 0 
         future_to_batch_id = {}    
         nb_rows_done = 0
         for batch_id, tile in enumerate(tiles_gdf.itertuples()):
@@ -993,10 +995,11 @@ def _dissolve_polygons_pass(
         
         # Loop till all parallel processes are ready, but process each one 
         # that is ready already
-        general_util.report_progress(start_time, nb_rows_done, nb_rows_total, 'dissolve')
+        general_util.report_progress(start_time, nb_batches_done, nb_batches, 'dissolve')
         for future in futures.as_completed(future_to_batch_id):
             try:
                 # If the calculate gave results
+                nb_batches_done += 1 
                 batch_id = future_to_batch_id[future]
                 result = future.result()
 
@@ -1035,7 +1038,7 @@ def _dissolve_polygons_pass(
                 raise Exception(message) from ex
 
             # Log the progress and prediction speed
-            general_util.report_progress(start_time, nb_rows_done, nb_rows_total, 'dissolve')   
+            general_util.report_progress(start_time, nb_batches_done, nb_batches, 'dissolve')   
     
     logger.info(f"Dissolve pass ready, took {datetime.datetime.now()-start_time}!")
                 

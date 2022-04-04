@@ -1,8 +1,8 @@
 .. currentmodule:: geofileops
 
-============
+=============
 API Reference
-============
+=============
 
 The API Reference provides an overview of all public objects, functions and 
 methods implemented in GeofileOps. All classes and function exposed in 
@@ -38,6 +38,7 @@ Spatial operations on two layers
 .. autosummary::
    :toctree: api/
 
+   clip
    erase
    export_by_distance
    export_by_location

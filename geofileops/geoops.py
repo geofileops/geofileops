@@ -20,7 +20,7 @@ from geofileops.util.geometry_util import BufferEndCapStyle, BufferJoinStyle, Si
 logger = logging.getLogger(__name__)
 
 ################################################################################
-# The real work
+# Operations on a single layer
 ################################################################################
 
 def apply(
@@ -644,7 +644,7 @@ def select(
         sql_stmt = f'''
                 SELECT {{geometrycolumn}}
                       {{columns_to_select_str}}
-                  FROM "{{input_layer}}"
+                  FROM "{{input_layer}}" layer
                  WHERE 1=1
                    {{batch_filter}}
                    AND ST_Area({{geometrycolumn}}) > {minimum_area}
@@ -664,6 +664,8 @@ def select(
       'AND rowid >= x AND rowid < y'.
     * Table names are best double quoted as in the example, because some 
       characters are otherwise not supported in the table name, eg. '-'.
+    * It is recommend to give the table you select from "layer" as alias. If 
+      you use the {batch_filter} placeholder this is even mandatory.
     * Besides the standard sqlite sql syntacs, you can use the spatialite 
       functions as documented here: |sqlite_reference_link|   
 
@@ -803,6 +805,86 @@ def simplify(
                 verbose=verbose,
                 force=force)
 
+################################################################################
+# Operations on two layers
+################################################################################
+
+def clip(
+        input_path: Union[str, 'os.PathLike[Any]'],
+        clip_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
+        input_layer: Optional[str] = None,
+        input_columns: Optional[List[str]] = None,
+        clip_layer: Optional[str] = None,
+        output_layer: Optional[str] = None,
+        explodecollections: bool = False,
+        nb_parallel: int = -1,
+        batchsize: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+    """
+    Clip all geometries in the input layer by the clip layer.
+
+    The resulting layer will only contain the (parts of) the geometries that 
+    intersect with the dissolved version of the geometries in the clip layer. 
+
+    This is the result you can expect when clipping a polygon layer (yellow)
+    with another polygon layer (purple):
+
+    .. list-table:: 
+       :header-rows: 1
+
+       * - Input
+         - Clip result
+       * - |clip_input|
+         - |clip_result|
+
+    Args:
+        input_path (PathLike): The file to clip.
+        clip_path (PathLike): The file with the geometries to clip with.
+        output_path (PathLike): the file to write the result to
+        input1_layer (str, optional): input layer name. Optional if the  
+            file only contains one layer.
+        input1_columns (List[str], optional): columns to select. If no columns
+            specified, all columns are selected.
+        clip_layer (str, optional): clip layer name. Optional if the  
+            file only contains one layer.
+        output_layer (str, optional): output layer name. Optional if the  
+            file only contains one layer.
+        explodecollections (bool, optional): True to convert all multi-geometries to 
+            singular ones after the dissolve. Defaults to False.
+        nb_parallel (int, optional): the number of parallel processes to use. 
+            Defaults to -1: use all available processors.
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
+        verbose (bool, optional): write more info to the output. 
+             Defaults to False.
+        force (bool, optional): overwrite existing output file(s). 
+            Defaults to False.
+
+    .. |clip_input| image:: ../_static/images/clip_input.png
+        :alt: Clip input
+    .. |clip_result| image:: ../_static/images/clip_result.png
+        :alt: Clip result
+    """
+
+    logger.info(f"Start erase on {input_path} with {clip_path} to {output_path}")
+    return _geoops_sql.clip(
+        input_path=Path(input_path),
+        clip_path=Path(clip_path),
+        output_path=Path(output_path),
+        input_layer=input_layer,
+        input_columns=input_columns,
+        clip_layer=clip_layer,
+        output_layer=output_layer,
+        explodecollections=explodecollections,
+        nb_parallel=nb_parallel,
+        batchsize=batchsize,
+        verbose=verbose,
+        force=force)
+
 def erase(
         input_path: Union[str, 'os.PathLike[Any]'],
         erase_path: Union[str, 'os.PathLike[Any]'],
@@ -843,9 +925,6 @@ def erase(
              Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
             Defaults to False.
-
-    Returns:
-        [type]: [description]
     """
 
     logger.info(f"Start erase on {input_path} with {erase_path} to {output_path}")
@@ -1269,6 +1348,8 @@ def select_two_layers(
       'AND rowid >= x AND rowid < y'.
     * Table names are best double quoted as in the example, because some 
       characters are otherwise not supported in the table name, eg. '-'.
+    * When using supported placeholders, make sure you give the tables you 
+      select from the appropriate table aliases (layer1, layer2).
     * Besides the standard sqlite sql syntacs, you can use the spatialite 
       functions as documented here: |sqlite_reference_link|   
 
