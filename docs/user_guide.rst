@@ -51,7 +51,7 @@ parameters:
       To overwrite the existing output_path, specify force=True.
     
 Spatial operations between two files/layers
-------------------------------------------
+-------------------------------------------
 
 For operations between two layers, obviously 2 input files/layers need to be 
 specified.

@@ -20,7 +20,7 @@ from geofileops.util.geometry_util import BufferEndCapStyle, BufferJoinStyle, Si
 logger = logging.getLogger(__name__)
 
 ################################################################################
-# The real work
+# Operations on a single layer
 ################################################################################
 
 def apply(
@@ -805,6 +805,10 @@ def simplify(
                 verbose=verbose,
                 force=force)
 
+################################################################################
+# Operations on two layers
+################################################################################
+
 def clip(
         input_path: Union[str, 'os.PathLike[Any]'],
         clip_path: Union[str, 'os.PathLike[Any]'],
@@ -820,6 +824,20 @@ def clip(
         force: bool = False):
     """
     Clip all geometries in the input layer by the clip layer.
+
+    The resulting layer will only contain the (parts of) the geometries that 
+    intersect with the dissolved version of the geometries in the clip layer. 
+
+    This is the result you can expect when clipping a polygon layer (yellow)
+    with another polygon layer (purple):
+
+    .. list-table:: 
+       :header-rows: 1
+
+       * - Input
+         - Clip result
+       * - |clip_input|
+         - |clip_result|
 
     Args:
         input_path (PathLike): The file to clip.
@@ -846,8 +864,10 @@ def clip(
         force (bool, optional): overwrite existing output file(s). 
             Defaults to False.
 
-    Returns:
-        [type]: [description]
+    .. |clip_input| image:: ../_static/images/clip_input.png
+        :alt: Clip input
+    .. |clip_result| image:: ../_static/images/clip_result.png
+        :alt: Clip result
     """
 
     logger.info(f"Start erase on {input_path} with {clip_path} to {output_path}")
@@ -905,9 +925,6 @@ def erase(
              Defaults to False.
         force (bool, optional): overwrite existing output file(s). 
             Defaults to False.
-
-    Returns:
-        [type]: [description]
     """
 
     logger.info(f"Start erase on {input_path} with {erase_path} to {output_path}")
