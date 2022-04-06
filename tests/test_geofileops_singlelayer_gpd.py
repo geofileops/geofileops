@@ -3,7 +3,6 @@
 Tests for operations using GeoPandas.
 """
 
-import inspect
 import json
 from pathlib import Path
 import sys
@@ -15,7 +14,7 @@ import shapely.geometry as sh_geom
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import geofileops as gfo
 from geofileops import GeometryType
-from geofileops.util import geofileops_gpd
+from geofileops.util import _geoops_gpd
 from geofileops.util import geometry_util
 from geofileops.util import io_util
 from tests import test_helper
@@ -28,7 +27,7 @@ def get_batchsize() -> int:
     return 5
 
 def test_get_parallelization_params():
-    parallelization_params = geofileops_gpd.get_parallelization_params(500000)
+    parallelization_params = _geoops_gpd.get_parallelization_params(500000)
     assert parallelization_params is not None
 
 def test_apply(tmpdir):
@@ -808,18 +807,3 @@ def basetest_simplify_algorythms(
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
-
-if __name__ == '__main__':
-    # Init
-    tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
-
-    # Run
-    #test_get_parallelization_params()
-    #test_apply(tmpdir / "apply")
-    #test_buffer(tmpdir / "buffer")
-    #test_buffer_ext(tmpdir / "buffer_ext")
-    #test_dissolve_linestrings(tmpdir / "dissolve_linestrings_nogroupby")
-    test_dissolve_polygons_groupby(tmpdir / "dissolve_polygons_groupby")
-    #test_dissolve_polygons_nogroupby(tmpdir / "dissolve_polygons_nogroupby")
-    #test_dissolve_multisinglepolygons(tmpdir / "dissolve_multisinglepolygons")
-    #test_simplify(tmpdir / "simplify")

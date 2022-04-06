@@ -17,7 +17,7 @@ import pandas as pd
 
 import geofileops as gfo
 from geofileops import GeofileType, GeometryType, PrimitiveType
-from geofileops.file import _append_to_nolock
+from geofileops.fileops import _append_to_nolock
 from . import io_util
 from . import ogr_util
 from . import sqlite_util
@@ -524,6 +524,89 @@ def _single_layer_vector_operation(
 # Operations on two layers
 ################################################################################
 
+def clip(
+        input_path: Path,
+        clip_path: Path,
+        output_path: Path,
+        input_layer: Optional[str] = None,
+        input_columns: Optional[List[str]] = None,
+        input_columns_prefix: str = '',
+        clip_layer: Optional[str] = None,
+        output_layer: Optional[str] = None,
+        explodecollections: bool = False,
+        output_with_spatial_index: bool = True,
+        nb_parallel: int = -1,
+        batchsize: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+
+    # Init
+    # In the query, important to only extract the geometry types that are expected 
+    input_layer_info = gfo.get_layerinfo(input_path, input_layer)
+    primitivetypeid = input_layer_info.geometrytype.to_primitivetype.value
+
+    # If the input type is not point, force the output type to multi, 
+    # because erase clip cause eg. polygons to be split to multipolygons...
+    force_output_geometrytype = input_layer_info.geometrytype
+    if force_output_geometrytype is not GeometryType.POINT:
+        force_output_geometrytype = input_layer_info.geometrytype.to_multitype
+
+    # Prepare sql template for this operation 
+    # Remarks:
+    #   - ST_intersect(geometry , NULL) gives NULL as result! -> hence the CASE 
+    #   - use of the with instead of an inline view is a lot faster
+    #   - WHERE geom IS NOT NULL to evade rows with a NULL geom, they give issues in later operations
+    sql_template = f'''
+          SELECT * FROM (
+            WITH layer2_unioned AS (
+              SELECT layer1.rowid AS layer1_rowid
+                    ,ST_union(layer2.{{input2_geometrycolumn}}) AS geom
+                FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+               WHERE 1=1
+                 {{batch_filter}}
+                 AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
+                 AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
+                 AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
+                 AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
+               GROUP BY layer1.rowid
+            )
+            SELECT CASE WHEN layer2_unioned.geom IS NULL THEN NULL
+                        ELSE ST_CollectionExtract(ST_intersection(layer1.{{input1_geometrycolumn}}, layer2_unioned.geom), {primitivetypeid})
+                   END as geom
+                  {{layer1_columns_prefix_alias_str}}
+              FROM {{input1_databasename}}."{{input1_layer}}" layer1
+              JOIN layer2_unioned ON layer1.rowid = layer2_unioned.layer1_rowid
+             WHERE 1=1
+               {{batch_filter}}
+          )
+          WHERE geom IS NOT NULL
+            AND ST_NPoints(geom) > 0   -- ST_CollectionExtract outputs empty, but not NULL geoms in spatialite 4.3 
+            '''
+    
+    # Go!
+    return _two_layer_vector_operation(
+            input1_path=input_path,
+            input2_path=clip_path,
+            output_path=output_path,
+            sql_template=sql_template,
+            operation_name='clip',
+            input1_layer=input_layer,
+            input1_columns=input_columns,
+            input1_columns_prefix=input_columns_prefix,
+            input2_layer=clip_layer,
+            input2_columns=None,
+            output_layer=output_layer,
+            explodecollections=explodecollections,
+            force_output_geometrytype=force_output_geometrytype,
+            output_with_spatial_index=output_with_spatial_index,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+            verbose=verbose,
+            force=force)
+
 def erase(
         input_path: Path,
         erase_path: Path,
@@ -824,15 +907,16 @@ def join_by_location(
         input1_path: Path,
         input2_path: Path,
         output_path: Path,
+        spatial_relations_query: str = "intersects is True",
         discard_nonmatching: bool = True,
         min_area_intersect: Optional[float] = None,
         area_inters_column_name: Optional[str] = None,
         input1_layer: Optional[str] = None,
         input1_columns: Optional[List[str]] = None,
-        input1_columns_prefix: str = 'l1_',
+        input1_columns_prefix: str = "l1_",
         input2_layer: Optional[str] = None,
         input2_columns: Optional[List[str]] = None,
-        input2_columns_prefix: str = 'l2_',
+        input2_columns_prefix: str = "l2_",
         output_layer: Optional[str] = None,
         explodecollections: bool = False,
         nb_parallel: int = -1,
@@ -840,91 +924,99 @@ def join_by_location(
         verbose: bool = False,
         force: bool = False):
     
-    # Prepare sql template for this operation 
-    # Calculate intersect area if necessary
-    area_inters_column_expression = ''
+    ### Prepare sql template for this operation ###   
+    # Prepare intersection area columns/filter 
+    area_inters_column_expression = ""
+    area_inters_column_in_output = ""
+    area_inters_column_0_in_output = ""
+    area_inters_filter = ""
     if area_inters_column_name is not None or min_area_intersect is not None:
-        if area_inters_column_name is None:
-            area_inters_column_name = 'area_inters'
-        area_inters_column_expression = f",ST_area(ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}), ST_union(layer2.{{input2_geometrycolumn}}))) as {area_inters_column_name}"
+        if area_inters_column_name is not None:
+            area_inters_column_name_touse = area_inters_column_name
+            area_inters_column_in_output = f',"{area_inters_column_name}"'
+            area_inters_column_0_in_output = f',0 AS "{area_inters_column_name}"'
+        else:    
+            area_inters_column_name_touse = "area_inters"
+        area_inters_column_expression = (
+                f',ST_area(ST_intersection(sub_filter.geom, sub_filter.l2_geom)) as "{area_inters_column_name_touse}"')
+        if min_area_intersect is not None:
+            area_inters_filter = f'WHERE sub_area."{area_inters_column_name_touse}" >= {min_area_intersect}'
+
+    # Prepare spatial relations filter
+    if spatial_relations_query != "intersects is True":
+        # joining should only be possible on features that at least have an 
+        # interaction! So, add "intersects is True" to query to evade errors!
+        spatial_relations_query = f"({spatial_relations_query}) and intersects is True"
+    spatial_relations_filter = _prepare_spatial_relations_filter(spatial_relations_query)
     
-    # Prepare sql template for this operation 
-    if discard_nonmatching is True:
-        # Use inner join
+    # Prepare sql template
+    #
+    # Remark: use "LIMIT -1 OFFSET 0" to evade that the sqlite query optimizer 
+    #     "flattens" the subquery, as that makes checking the spatial  
+    #     relations (using ST_RelateMatch) very slow!
+    sql_template = f'''
+            WITH layer1_relations_filtered AS (
+              SELECT sub_area.*
+                FROM (
+                  SELECT sub_filter.*
+                        {area_inters_column_expression}
+                    FROM ( 
+                      SELECT layer1.{{input1_geometrycolumn}} as geom
+                            ,layer1.fid l1_fid
+                            ,layer2.{{input2_geometrycolumn}} as l2_geom
+                            {{layer1_columns_prefix_alias_str}}
+                            {{layer2_columns_prefix_alias_str}}
+                            ,ST_relate(layer1.{{input1_geometrycolumn}}, 
+                                       layer2.{{input2_geometrycolumn}}) as spatial_relation
+                        FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                        JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                        JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                        JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                       WHERE 1=1
+                         {{batch_filter}}
+                         AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
+                         AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
+                       LIMIT -1 OFFSET 0
+                      ) sub_filter
+                   WHERE {spatial_relations_filter.format(spatial_relation="sub_filter.spatial_relation")}
+                   LIMIT -1 OFFSET 0
+                  ) sub_area  
+               {area_inters_filter} 
+              )
+            SELECT sub.geom
+                  {{layer1_columns_from_subselect_str}}
+                  {{layer2_columns_from_subselect_str}}
+                  ,sub.spatial_relation
+                  {area_inters_column_in_output}
+              FROM layer1_relations_filtered sub '''
+
+    # If a left join is asked, add all features from layer1 that weren't
+    # matched.
+    if discard_nonmatching is False:
         sql_template = f'''
-                SELECT layer1.{{input1_geometrycolumn}} as geom
-                      {{layer1_columns_prefix_alias_str}}
-                      {{layer2_columns_prefix_alias_str}}
-                      {area_inters_column_expression}
-                      ,ST_intersection(layer1.{{input1_geometrycolumn}}, 
-                                       layer2.{{input2_geometrycolumn}}) as geom_intersect
-                 FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                 JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                 JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                 JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
-                WHERE 1=1
-                  {{batch_filter}}
-                  AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
-                  AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
-                  AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
-                  AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
-                '''
-    else:
-        # Left outer join 
-        sql_template = f'''
-                SELECT layer1.{{input1_geometrycolumn}} as geom /*ST_union(layer1.{{input1_geometrycolumn}}) as geom*/
-                      {{layer1_columns_prefix_alias_str}}
-                      {{layer2_columns_prefix_alias_str}}
-                      {area_inters_column_expression}
-                      ,ST_intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) as geom_intersect
-                 FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                 JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                 JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                 JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
-                WHERE 1=1
-                  {{batch_filter}}
-                  AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
-                  AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
-                  AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
-                  AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
+                {sql_template}
                 UNION ALL
                 SELECT layer1.{{input1_geometrycolumn}} as geom
                       {{layer1_columns_prefix_alias_str}}
                       {{layer2_columns_prefix_alias_null_str}}
-                      {area_inters_column_expression}
-                      ,NULL as geom_intersect
-                 FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                 JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                      ,NULL as spatial_relation
+                      {area_inters_column_0_in_output}
+                  FROM {{input1_databasename}}."{{input1_layer}}" layer1
                  WHERE 1=1
-                  {{batch_filter}}
-                  AND NOT EXISTS (
-                      SELECT 1 
-                        FROM {{input2_databasename}}."{{input2_layer}}" layer2
-                        JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
-                       WHERE layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
-                         AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
-                         AND ST_intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
-                         AND ST_touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0)
-                '''
-        
-    # Filter on intersect area if necessary
-    if min_area_intersect is not None:
-        sql_template = f'''
-                SELECT sub.* 
-                  FROM 
-                    ( {sql_template}
-                    ) sub
-                 WHERE sub.{area_inters_column_name} >= {min_area_intersect}'''
-
-    input1_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
+                   {{batch_filter}}
+                   AND layer1.fid NOT IN (
+                       SELECT l1_fid FROM layer1_relations_filtered) '''
+    
+    print(sql_template)
     
     # Go!
+    input1_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
     return _two_layer_vector_operation(
             input1_path=input1_path,
             input2_path=input2_path,
             output_path=output_path,
             sql_template=sql_template,
-            operation_name='join_by_location',
+            operation_name="join_by_location",
             input1_layer=input1_layer,
             input1_columns=input1_columns,
             input1_columns_prefix=input1_columns_prefix,
@@ -939,6 +1031,64 @@ def join_by_location(
             verbose=verbose,
             force=force)
 
+def _prepare_spatial_relations_filter(query: str) -> str:
+    
+    named_spatial_relations = {
+            #"disjoint": ["FF*FF****"],
+            "equals": ["TFFF*FFF*"],
+            "touches": ["FT*******", "F**T*****", "F***T****"],
+            "within": ["T*F**F***"],
+            "overlaps": ["T*T***T**", "1*T***T**"],
+            "crosses": ["T*T******", "T*****T**", "0********"],
+            "intersects": ["T********", "*T*******", "***T*****", "****T****"],
+            "contains": ["T*****FF*"],
+            "covers": ["T*****FF*", "*T****FF*", "***T**FF*", "****T*FF*"],
+            "coveredby": ["T*F**F***", "*TF**F***", "**FT*F***", "**F*TF***"]}
+
+    # Parse query and replace things that need to be replaced
+    import re
+    query_tokens = re.split('([ =()])', query)
+
+    query_tokens_prepared = []
+    nb_unclosed_brackets = 0
+    for token in query_tokens:
+        if token == "":
+            continue
+        elif token in [" ", "\n", "\t", "and", "or"]:
+            query_tokens_prepared.append(token)
+        elif token == "(": 
+            nb_unclosed_brackets += 1
+            query_tokens_prepared.append(token)
+        elif token == ")": 
+            nb_unclosed_brackets -= 1
+            query_tokens_prepared.append(token)
+        elif token == "is":
+            query_tokens_prepared.append("=")
+        elif token == "True":
+            query_tokens_prepared.append("1")
+        elif token == "False":
+            query_tokens_prepared.append("0")
+        elif token in named_spatial_relations:
+            match_list = []
+            for spatial_relation in named_spatial_relations[token]:
+                match = f"ST_RelateMatch({{spatial_relation}}, '{spatial_relation}') = 1"
+                match_list.append(match)
+            query_tokens_prepared.append(f"({' or '.join(match_list)})")
+        elif len(token) == 9 and re.fullmatch("^[FT012*]+$", token) is not None:
+            token_prepared = f"ST_RelateMatch({{spatial_relation}}, '{token}')"
+            query_tokens_prepared.append(token_prepared)
+        else:
+            raise ValueError(f"Unexpected token in query (query is case sensitive!): {token}")
+
+    # If there are unclosed brackets, raise 
+    if nb_unclosed_brackets > 0:
+        raise ValueError(f"not all brackets are closed in query {query}")
+    elif nb_unclosed_brackets < 0:
+        raise ValueError(f"more closing brackets than opening ones in query {query}")
+
+    result = f"({''.join(query_tokens_prepared)})"
+    return result
+ 
 def join_nearest(
         input1_path: Path,
         input2_path: Path,

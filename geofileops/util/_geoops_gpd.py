@@ -29,7 +29,7 @@ import shapely.geometry as sh_geom
 
 import geofileops as gfo
 from geofileops.util import general_util
-from geofileops.util import geofileops_sql
+from geofileops.util import _geoops_sql
 from geofileops.util import geometry_util
 from geofileops.util.geometry_util import GeometryType, PrimitiveType, SimplifyAlgorithm 
 from geofileops.util import geoseries_util
@@ -489,7 +489,7 @@ def _apply_geooperation_to_layer(
             gfo.create_spatial_index(path=output_tmp_path, layer=output_layer)
             gfo.move(output_tmp_path, output_path)
         else:
-            logger.warning(f"Result of {operation} was empty!f")
+            logger.debug(f"Result of {operation} was empty!")
 
     finally:
         # Clean tmp dir
@@ -676,7 +676,7 @@ def dissolve(
     # rounding issues at the borders of tiles... so just dissolve them using 
     # geopandas.   
     if input_layerinfo.geometrytype.to_primitivetype in [PrimitiveType.POINT, PrimitiveType.LINESTRING]:
-        geofileops_sql.dissolve_singlethread(
+        _geoops_sql.dissolve_singlethread(
                 input_path=input_path,
                 output_path=output_path,
                 explodecollections=explodecollections,
@@ -915,7 +915,7 @@ def dissolve(
                             ORDER BY geo_data.{orderby_column} '''
                 
                 # Go!
-                geofileops_sql.select(
+                _geoops_sql.select(
                         input_path=output_tmp_path, 
                         output_path=output_path, 
                         sql_stmt=sql_stmt, 
@@ -961,7 +961,9 @@ def _dissolve_polygons_pass(
         # Prepare output filename
         tempdir = output_onborder_path.parent
 
-        batches = {}    
+        batches = {}   
+        nb_batches = len(tiles_gdf)
+        nb_batches_done = 0 
         future_to_batch_id = {}    
         nb_rows_done = 0
         for batch_id, tile in enumerate(tiles_gdf.itertuples()):
@@ -993,10 +995,11 @@ def _dissolve_polygons_pass(
         
         # Loop till all parallel processes are ready, but process each one 
         # that is ready already
-        general_util.report_progress(start_time, nb_rows_done, nb_rows_total, 'dissolve')
+        general_util.report_progress(start_time, nb_batches_done, nb_batches, 'dissolve')
         for future in futures.as_completed(future_to_batch_id):
             try:
                 # If the calculate gave results
+                nb_batches_done += 1 
                 batch_id = future_to_batch_id[future]
                 result = future.result()
 
@@ -1035,7 +1038,7 @@ def _dissolve_polygons_pass(
                 raise Exception(message) from ex
 
             # Log the progress and prediction speed
-            general_util.report_progress(start_time, nb_rows_done, nb_rows_total, 'dissolve')   
+            general_util.report_progress(start_time, nb_batches_done, nb_batches, 'dissolve')   
     
     logger.info(f"Dissolve pass ready, took {datetime.datetime.now()-start_time}!")
                 

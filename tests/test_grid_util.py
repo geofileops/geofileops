@@ -39,11 +39,3 @@ def test_split_tiles():
     #geogfo.to_file(result, r"C:\temp\BEFL_kbl_split.gpkg")
 
     assert len(result) == len(input_tiles) * 8
-
-if __name__ == '__main__':
-    # Init
-    tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
-
-    test_create_grid2()
-    test_split_tiles()
-    

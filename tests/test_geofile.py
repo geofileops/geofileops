@@ -234,7 +234,7 @@ def basetest_get_layerinfo(
 
     ### Tests on layer specified ###
     layerinfo = gfo.get_layerinfo(src, layer)
-    assert str(layerinfo).startswith("<class 'geofileops.file.LayerInfo'>")
+    assert str(layerinfo).startswith("<class 'geofileops.fileops.LayerInfo'>")
     assert layerinfo.featurecount == 46
     if src.suffix == '.shp':
         assert layerinfo.geometrycolumn == 'geometry'
@@ -244,7 +244,7 @@ def basetest_get_layerinfo(
         assert layerinfo.name == 'parcels'
     assert layerinfo.geometrytypename == gfo.GeometryType.MULTIPOLYGON.name
     assert layerinfo.geometrytype == gfo.GeometryType.MULTIPOLYGON
-    assert len(layerinfo.columns) == 10
+    assert len(layerinfo.columns) == 11
     assert layerinfo.total_bounds is not None
     assert layerinfo.crs is not None
     assert layerinfo.crs.to_epsg() == 31370
@@ -743,29 +743,3 @@ def test_remove(tmpdir):
         # Remove and check result
         gfo.remove(input_path)
         assert input_path.exists() == False
-
-if __name__ == '__main__':
-    # Init
-    tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
-
-    # Run!
-    #test_convert(tmpdir)
-    #test_convert_force_output_geometrytype(tmpdir)
-    #test_get_layerinfo(tmpdir)
-    #test_get_only_layer(tmpdir)
-    #test_rename_column(tmpdir)
-    #test_rename_layer(tmpdir)
-    #test_listlayers()
-    #test_add_column(tmpdir)
-    #test_execute_sql(tmpdir)
-    test_read_file(tmpdir)
-    #test_copy(tmpdir)
-    #test_move(tmpdir)
-    #test_spatial_index(tmpdir)
-    #test_to_file_gpkg(tmpdir)
-    #test_to_file_shp(tmpdir)
-    #test_to_file_empty_gpkg(tmpdir)
-    #test_to_file_empty_shp(tmpdir)
-    #test_to_file_none_gpkg(tmpdir)
-    #test_to_file_none_shp(tmpdir)
-    #test_update_column(tmpdir)

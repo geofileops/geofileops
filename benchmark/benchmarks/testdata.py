@@ -3,15 +3,19 @@
 Module to prepare test data for benchmarking geo operations.
 """
 
+import enum
 import logging
 from pathlib import Path
 import pprint
 import shutil
+import sys
 import tempfile
-from typing import Optional, Tuple
+from typing import Optional
 import urllib.request
 import zipfile
 
+# Add path so the benchmark packages are found 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 import geofileops as gfo  
 
 ################################################################################
@@ -24,30 +28,31 @@ logger = logging.getLogger(__name__)
 # The real work
 ################################################################################
 
-class testfile():
-    AGRIPRC_2018_URL = "https://downloadagiv.blob.core.windows.net/landbouwgebruikspercelen/2018/Landbouwgebruikspercelen_LV_2018_GewVLA_Shape.zip"
-    AGRIPRC_2018_NAME = "agriprc_2018.gpkg"
-    AGRIPRC_2019_URL = "https://downloadagiv.blob.core.windows.net/landbouwgebruikspercelen/2019/Landbouwgebruikspercelen_LV_2019_GewVLA_Shapefile.zip"
-    AGRIPRC_2019_NAME = "agriprc_2019.gpkg"
+class TestFile(enum.Enum):
+    AGRIPRC_2018 = (0, 
+            "https://downloadagiv.blob.core.windows.net/landbouwgebruikspercelen/2018/Landbouwgebruikspercelen_LV_2018_GewVLA_Shape.zip",
+            "agriprc_2018.gpkg")
+    AGRIPRC_2019 = (1, 
+            "https://downloadagiv.blob.core.windows.net/landbouwgebruikspercelen/2019/Landbouwgebruikspercelen_LV_2019_GewVLA_Shapefile.zip",
+            "agriprc_2019.gpkg")
+    COMMUNES = (2, 
+            "https://downloadagiv.blob.core.windows.net/referentiebestand-gemeenten/VoorlopigRefBestandGemeentegrenzen_2019-01-01/VRBG_toestand_16_05_2018_(geldend_vanaf_01_01_2019)_GewVLA_Shape.zip",
+            "communes.gpkg")
 
-def get_testdata(tmp_dir) -> Tuple[Path, Path]:
-    # Download 1st test file
-    agriprc2018_path = download_samplefile(
-            url=testfile.AGRIPRC_2018_URL,
-            dst_name=testfile.AGRIPRC_2018_NAME,
-            dst_dir=tmp_dir)
-    agriprc2018_info = gfo.get_layerinfo(agriprc2018_path)
-    print(f"Test file agriprc2018 contains {agriprc2018_info.featurecount} rows.")
+    def __init__(self, value, url, filename):
+        self._value_ = value
+        self.url = url
+        self.filename = filename
 
-    # Download 2nd test file
-    agriprc2019_path = download_samplefile(
-            url=testfile.AGRIPRC_2019_URL,
-            dst_name=testfile.AGRIPRC_2019_NAME,
-            dst_dir=tmp_dir)
-    agriprc2019_info = gfo.get_layerinfo(agriprc2019_path)
-    print(f"Test file agriprc2019 contains {agriprc2019_info.featurecount} rows.")
+    def get_file(self, tmp_dir: Path) -> Path:
+        testfile_path = download_samplefile(
+                url=self.url,
+                dst_name=self.filename,
+                dst_dir=tmp_dir)
+        testfile_info = gfo.get_layerinfo(testfile_path)
+        logger.debug(f"TestFile {self.name} contains {testfile_info.featurecount} rows.")
 
-    return (agriprc2018_path, agriprc2019_path)
+        return testfile_path
 
 def download_samplefile(
         url: str,
