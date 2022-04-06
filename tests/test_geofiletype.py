@@ -9,7 +9,6 @@ import sys
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops.util.geofiletype import GeofileType
-from tests import test_helper
 
 def test_geofiletype_enum():
     ### Test ESRIShapefile geofiletype ###
@@ -46,10 +45,3 @@ def test_geofiletype_enum():
 
     # Test getting a geofiletype for an ogr driver
     assert GeofileType('SQLite') == GeofileType.SQLite
-
-if __name__ == '__main__':
-    # Init
-    tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
-
-    # Run!
-    test_geofiletype_enum()

@@ -45,11 +45,3 @@ def test_exec_spatialite_sql(tmpdir):
             output_geometrytype=GeometryType.MULTIPOLYGON,
             sql_stmt=sql_stmt,
             profile=sqlite_util.SqliteProfile.SPEED)
-    
-if __name__ == '__main__':
-    # Init
-    tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
-
-    # Test functions to run...
-    #test_get_gdal_to_use()
-    test_exec_spatialite_sql(tmpdir)

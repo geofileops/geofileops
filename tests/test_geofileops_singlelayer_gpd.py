@@ -3,7 +3,6 @@
 Tests for operations using GeoPandas.
 """
 
-import inspect
 import json
 from pathlib import Path
 import sys
@@ -808,18 +807,3 @@ def basetest_simplify_algorythms(
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
-
-if __name__ == '__main__':
-    # Init
-    tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
-
-    # Run
-    #test_get_parallelization_params()
-    #test_apply(tmpdir / "apply")
-    #test_buffer(tmpdir / "buffer")
-    #test_buffer_ext(tmpdir / "buffer_ext")
-    #test_dissolve_linestrings(tmpdir / "dissolve_linestrings_nogroupby")
-    test_dissolve_polygons_groupby(tmpdir / "dissolve_polygons_groupby")
-    #test_dissolve_polygons_nogroupby(tmpdir / "dissolve_polygons_nogroupby")
-    #test_dissolve_multisinglepolygons(tmpdir / "dissolve_multisinglepolygons")
-    #test_simplify(tmpdir / "simplify")
