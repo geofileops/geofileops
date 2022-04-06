@@ -491,17 +491,3 @@ def test_simplify_ext_no_simplification():
             sys.modules['simplification'] = _temp_simplification
         else:
             del sys.modules['simplification']
-
-if __name__ == '__main__':
-    # Init
-    tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
-
-    test_geometrytype()
-    test_makevalid()
-    test_numberpoints()
-    test_remove_inner_rings()
-    test_simplify_ext_lang_basic()
-    test_simplify_ext_lang_preservetopology()
-    test_simplify_ext_invalid()
-    test_simplify_ext_keep_points_on(tmpdir)
-    test_simplify_ext_no_simplification()

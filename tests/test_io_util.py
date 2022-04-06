@@ -63,10 +63,3 @@ def test_get_tempfile_locked(tmpdir):
             tempfile2lock_path.unlink()
         if tempfile3lock_path is not None:
             tempfile3lock_path.unlink()
-
-if __name__ == '__main__':
-    # Init
-    tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
-
-    # Test...
-    #test_copyfile(tmpdir)
