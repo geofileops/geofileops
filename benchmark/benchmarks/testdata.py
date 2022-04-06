@@ -35,6 +35,9 @@ class TestFile(enum.Enum):
     AGRIPRC_2019 = (1, 
             "https://downloadagiv.blob.core.windows.net/landbouwgebruikspercelen/2019/Landbouwgebruikspercelen_LV_2019_GewVLA_Shapefile.zip",
             "agriprc_2019.gpkg")
+    COMMUNES = (2, 
+            "https://downloadagiv.blob.core.windows.net/referentiebestand-gemeenten/VoorlopigRefBestandGemeentegrenzen_2019-01-01/VRBG_toestand_16_05_2018_(geldend_vanaf_01_01_2019)_GewVLA_Shape.zip",
+            "communes.gpkg")
 
     def __init__(self, value, url, filename):
         self._value_ = value

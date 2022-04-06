@@ -960,6 +960,8 @@ def export_by_location(
     """
     Exports all features in input_to_select_from_path that intersect with any 
     features in input_to_compare_with_path.
+
+    Alternative names: extract by location in QGIS.
     
     Args:
         input_to_select_from_path (PathLike): the 1st input file
@@ -1132,6 +1134,7 @@ def join_by_location(
         input1_path: Path,
         input2_path: Path,
         output_path: Path,
+        spatial_relations_query: str = "intersects is True",
         discard_nonmatching: bool = True,
         min_area_intersect: Optional[float] = None,
         area_inters_column_name: Optional[str] = None,
@@ -1147,20 +1150,38 @@ def join_by_location(
         verbose: bool = False,
         force: bool = False):
     """
-    Joins all features in input1 that intersect with any 
-    features in input2.
+    Joins all features in input1 with all features in input2. 
+    
+    The output will contain the geometry of input1.
+
+    The spatial_relations_query and min_area_intersect parameters will 
+    determine which geometries of input1 will be matched with input2. 
+    The spatial_relations_query can be specified either with named spatial 
+    predicates or masks as defined by the
+    [DE-9IM]](https://en.wikipedia.org/wiki/DE-9IM) model:
+        - "overlaps is True and contains is False"
+        - "(T*T***T** is True or 1*T***T** is True) and T*****FF* is False"
+    
+    The supported named spatial predicates are: equals, touches, within, 
+    overlaps, crosses, intersects, contains, covers, coveredby.
+
+    Alternative names: sjoin in GeoPandas.
     
     Args:
         input1_path (PathLike): the 1st input file
         input2_path (PathLike): the 2nd input file
         output_path (PathLike): the file to write the result to
-        discard_nonmatching (bool, optional): pass False to keep rows in the 
-            "select layer" if they don't compy to the spatial operation anyway 
-            (=outer join). Defaults to True (=inner join). 
-        min_area_intersect (float, optional): minimum area of the intersection.
-            Defaults to None.
+        spatial_relations_query (str, optional): a query that specifies the 
+            spatial relations to match between the 2 layers.
+            Defaults to "intersects is True".
+        discard_nonmatching (bool, optional): True to only keep rows that 
+            match with the spatial_relations_query. False to keep rows all 
+            rows in the input1_layer (=left outer join). Defaults to True 
+            (=inner join). 
+        min_area_intersect (float, optional): minimum area of the intersection
+            to match. Defaults to None.
         area_inters_column_name (str, optional): column name of the intersect 
-            area. Defaults to 'area_inters'. In None, no area column is added.
+            area. If None no area column is added. Defaults to None.
         input1_layer (str, optional): input layer name. Optional if the  
             file only contains one layer.
         input1_columns (List[str], optional): columns to select. If no columns
@@ -1187,6 +1208,7 @@ def join_by_location(
             input1_path=Path(input1_path),
             input2_path=Path(input2_path),
             output_path=Path(output_path),
+            spatial_relations_query=spatial_relations_query,
             discard_nonmatching=discard_nonmatching,
             min_area_intersect=min_area_intersect,
             area_inters_column_name=area_inters_column_name,
