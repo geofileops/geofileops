@@ -12,7 +12,6 @@ import time
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops.util import general_util
-from tests import test_helper
 
 def test_formatbytes():
     bytes_str = general_util.formatbytes(1)
@@ -77,13 +76,3 @@ def test_processnice():
     
     # Reset niceness to original value before test
     general_util.setprocessnice(nice_orig)
-
-if __name__ == '__main__':
-    # Init
-    tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
-
-    # Test...
-    #test_formatbytes()
-    #test_format_progress()
-    test_processnice()
-    

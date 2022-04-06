@@ -143,11 +143,3 @@ def test_polygons_to_lines():
             test_helper.TestData.multipolygon])
     lines_series = geoseries_util.polygons_to_lines(test_gdf.geometry)
     assert len(lines_series) == 9
-
-if __name__ == '__main__':
-    # Init
-    tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
-
-    #test_geometry_collection_extract()
-    test_harmonize_geometrytypes()
-    #test_polygons_to_lines()

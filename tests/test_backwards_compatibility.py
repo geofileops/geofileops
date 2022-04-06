@@ -35,10 +35,3 @@ def test_old_vector_util_api():
             nb_squarish_tiles=100,
             crs='epsg:31370')
     assert len(grid_gdf) == 96
-
-if __name__ == '__main__':
-    # Init
-    tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
-
-    # Test functions to run...
-    test_old_geofileops_api(tmpdir)

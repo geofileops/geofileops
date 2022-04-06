@@ -765,26 +765,3 @@ def test_remove(tmpdir):
         # Remove and check result
         gfo.remove(input_path)
         assert input_path.exists() == False
-
-if __name__ == '__main__':
-    # Init
-    tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
-
-    # Run!
-    #test_convert(tmpdir)
-    #test_convert_force_output_geometrytype(tmpdir)
-    test_get_layerinfo(tmpdir)
-    #test_get_only_layer(tmpdir)
-    #test_rename_column(tmpdir)
-    #test_rename_layer(tmpdir)
-    #test_listlayers()
-    #test_add_column(tmpdir)
-    #test_execute_sql(tmpdir)
-    #test_read_file(tmpdir)
-    #test_copy(tmpdir)
-    #test_move(tmpdir)
-    #test_spatial_index(tmpdir)
-    #test_to_file(tmpdir)
-    #test_to_file_empty(tmpdir)
-    #test_to_file_none(tmpdir)
-    #test_update_column(tmpdir)
