@@ -333,7 +333,7 @@ def basetest_intersect(
     layerinfo_input1 = gfo.get_layerinfo(input1_path)
     layerinfo_input2 = gfo.get_layerinfo(input2_path)
     layerinfo_output = gfo.get_layerinfo(output_path)
-    assert layerinfo_output.featurecount == 28
+    assert layerinfo_output.featurecount == 29
     assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_output.columns)
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
     
@@ -382,15 +382,15 @@ def test_prepare_spatial_relations_filter():
 
 @pytest.mark.parametrize(
         "suffix, crs_epsg, spatial_relations_query, discard_nonmatching, min_area_intersect, expected_featurecount", 
-        [   (".gpkg", 31370, "intersects is True", False, None, 48),
-            (".gpkg", 31370, "intersects is True", True, None, 28), 
-            (".gpkg", 31370, "intersects is True", True, 1000, 24),
-            (".gpkg", 31370, "intersects is True", False, 1000, 47),
-            (".gpkg", 4326, "intersects is True", False, None, 48),
-            (".shp", 31370, "intersects is True", False, None, 48),
-            (".gpkg", 31370, "T******** is True or *T******* is True", True, None, 28),
+        [   (".gpkg", 31370, "intersects is False", False, None, 46),
             (".gpkg", 31370, "intersects is False", True, None, 0),
-            (".gpkg", 31370, "intersects is False", False, None, 46), ])
+            (".gpkg", 31370, "intersects is True", False, 1000, 48),
+            (".gpkg", 31370, "intersects is True", False, None, 49),
+            (".gpkg", 31370, "intersects is True", True, 1000, 25),
+            (".gpkg", 31370, "intersects is True", True, None, 29), 
+            (".gpkg", 31370, "T******** is True or *T******* is True", True, None, 29),
+            (".gpkg", 4326, "intersects is True", False, None, 49),
+            (".shp", 31370, "intersects is True", False, None, 49), ])
 def test_join_by_location(
         tmpdir, 
         suffix: str,
