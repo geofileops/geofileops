@@ -239,16 +239,3 @@ def basetest_select_various_options(
 
     ### Check if ... parameter works ###
     # TODO: increase test coverage of other options...
-
-if __name__ == '__main__':
-    # Init
-    tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
-
-    # Single layer operations
-    #test_delete_duplicate_geometries(tmpdir / "delete_duplicate_geometries")
-    test_makevalid(tmpdir / "makevalid")
-    #test_isvalid(tmpdir / "isvalid")
-    #test_select(tmpdir / "select")
-    #test_select_geos_version(tmpdir)
-    #test_simplify(tmpdir / "simplify")
-    

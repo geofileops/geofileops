@@ -3,21 +3,16 @@
 Tests for operations that are executed using a sql statement on one layer.
 """
 
-import inspect
 from importlib import import_module
 from pathlib import Path
 import sys
 
-import geopandas as gpd
-import shapely.geometry as sh_geom
 
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geoops
 from geofileops import fileops 
 from geofileops import GeometryType
-from geofileops.util import _geoops_gpd
-from geofileops.util import geometry_util
 from geofileops.util import io_util
 from tests import test_helper
 
@@ -331,18 +326,3 @@ def basetest_simplify_basic(
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == layerinfo_output.featurecount
     assert output_gdf['geometry'][0] is not None
-
-if __name__ == '__main__':
-    # Init
-    tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
-
-    # Run
-    #test_get_parallelization_params()
-    #test_apply(tmpdir / "apply")
-    test_buffer_basic(tmpdir / "buffer")
-    #test_buffer_ext(tmpdir / "buffer_ext")
-    #test_dissolve_linestrings_nogroupby(tmpdir / "dissolve_linestrings_nogroupby")
-    #test_dissolve_polygons_groupby(tmpdir / "dissolve_polygons_groupby")
-    #test_dissolve_polygons_nogroupby(tmpdir / "dissolve_polygons_nogroupby")
-    #test_dissolve_multisinglepolygons(tmspdir / "dissolve_multisinglepolygons")
-    #test_simplify(tmpdir / "simplify")

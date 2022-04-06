@@ -38,11 +38,3 @@ def test_execute_st_area():
     sqlite_stmt = 'SELECT st_isvalid(geom) as geom FROM "parcels"'
     result_gdf = ogr_util._execute_sql(input_path, sqlite_stmt)
     assert result_gdf['geom'][0] is not None
-
-if __name__ == '__main__':
-    # Init
-    tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
-
-    # Test functionsv to run...
-    #test_execute_st_area()
-    test_get_drivers()
