@@ -16,6 +16,78 @@ from geofileops.util import io_util
 from geofileops.util import _geoops_sql
 from tests import test_helper
 
+def test_clip(tmpdir):
+    # Init
+    tmp_dir = Path(tmpdir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    test_inputs = []
+    test_inputs.append({
+            "input_path": test_helper.TestFiles.polygons_parcels_gpkg,
+            "geometrytype": GeometryType.MULTIPOLYGON})
+    test_inputs.append({
+            "input_path": test_helper.TestFiles.points_gpkg,
+            "geometrytype": GeometryType.MULTIPOINT})
+    test_inputs.append({
+            "input_path": test_helper.TestFiles.linestrings_rows_of_trees_gpkg,
+            "geometrytype": GeometryType.MULTILINESTRING})
+
+    # Prepare test data + run tests
+    for suffix in test_helper.get_test_suffix_list():
+        for crs_epsg in test_helper.get_test_crs_epsg_list():
+            for test_input in test_inputs: 
+                # If test input file is in wrong format, convert it
+                input_path = test_helper.prepare_test_file(
+                        input_path=test_input['input_path'],
+                        output_dir=tmp_dir,
+                        suffix=suffix,
+                        crs_epsg=crs_epsg)
+
+                # If test input file is in wrong format, convert it
+                clip_path = test_helper.prepare_test_file(
+                        input_path=test_helper.TestFiles.polygons_zones_gpkg,
+                        output_dir=tmp_dir,
+                        suffix=suffix,
+                        crs_epsg=crs_epsg)
+            
+                # Now run test
+                output_path = tmp_dir / f"{input_path.stem}-output{suffix}"
+                print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}, geometrytype {test_input['geometrytype']}")
+                basetest_clip(input_path, clip_path, output_path, test_input['geometrytype'])
+
+def basetest_clip(
+        input_path: Path,
+        clip_path: Path, 
+        output_path: Path,
+        expected_output_geometrytype: GeometryType):
+
+    ### Do standard operation ###
+    gfo.clip(
+            input_path=input_path, 
+            clip_path=clip_path,
+            output_path=output_path)
+
+    # Now check if the tmp file is correctly created
+    assert output_path.exists() == True
+    layerinfo_orig = gfo.get_layerinfo(input_path)
+    layerinfo_output = gfo.get_layerinfo(output_path)
+    assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
+
+    # Checks depending on geometry type
+    assert layerinfo_output.geometrytype == expected_output_geometrytype
+    if expected_output_geometrytype == GeometryType.MULTIPOLYGON:
+        assert layerinfo_output.featurecount == 26
+    elif expected_output_geometrytype == GeometryType.MULTIPOINT:
+        assert layerinfo_output.featurecount == 3
+    elif expected_output_geometrytype == GeometryType.MULTILINESTRING:
+        assert layerinfo_output.featurecount == 15
+    else:
+        raise Exception(f"Unsupported expected_output_geometrytype: {expected_output_geometrytype}")
+
+    # Now check the contents of the result file
+    output_gdf = gfo.read_file(output_path)
+    assert output_gdf['geometry'][0] is not None
+
 def test_erase(tmpdir):
     # Init
     tmp_dir = Path(tmpdir)
@@ -480,7 +552,7 @@ def basetest_select_two_layers(
     layerinfo_input1 = gfo.get_layerinfo(input1_path)
     layerinfo_input2 = gfo.get_layerinfo(input2_path)
     layerinfo_output = gfo.get_layerinfo(output_path)
-    assert layerinfo_output.featurecount == 28
+    assert layerinfo_output.featurecount == 29
     assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns) + 1) == len(layerinfo_output.columns)
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
@@ -529,7 +601,7 @@ def basetest_split_layers(
     layerinfo_input1 = gfo.get_layerinfo(input1_path)
     layerinfo_input2 = gfo.get_layerinfo(input2_path)
     layerinfo_output = gfo.get_layerinfo(output_path)
-    assert layerinfo_output.featurecount == 65
+    assert layerinfo_output.featurecount == 66
     assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_output.columns)
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
@@ -579,7 +651,7 @@ def basetest_union(
     layerinfo_input1 = gfo.get_layerinfo(input1_path)
     layerinfo_input2 = gfo.get_layerinfo(input2_path)
     layerinfo_output = gfo.get_layerinfo(output_path)
-    assert layerinfo_output.featurecount == 69
+    assert layerinfo_output.featurecount == 71
     assert (len(layerinfo_input1.columns) + len(layerinfo_input2.columns)) == len(layerinfo_output.columns)
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 

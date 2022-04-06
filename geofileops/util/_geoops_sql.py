@@ -524,6 +524,89 @@ def _single_layer_vector_operation(
 # Operations on two layers
 ################################################################################
 
+def clip(
+        input_path: Path,
+        clip_path: Path,
+        output_path: Path,
+        input_layer: Optional[str] = None,
+        input_columns: Optional[List[str]] = None,
+        input_columns_prefix: str = '',
+        clip_layer: Optional[str] = None,
+        output_layer: Optional[str] = None,
+        explodecollections: bool = False,
+        output_with_spatial_index: bool = True,
+        nb_parallel: int = -1,
+        batchsize: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+
+    # Init
+    # In the query, important to only extract the geometry types that are expected 
+    input_layer_info = gfo.get_layerinfo(input_path, input_layer)
+    primitivetypeid = input_layer_info.geometrytype.to_primitivetype.value
+
+    # If the input type is not point, force the output type to multi, 
+    # because erase clip cause eg. polygons to be split to multipolygons...
+    force_output_geometrytype = input_layer_info.geometrytype
+    if force_output_geometrytype is not GeometryType.POINT:
+        force_output_geometrytype = input_layer_info.geometrytype.to_multitype
+
+    # Prepare sql template for this operation 
+    # Remarks:
+    #   - ST_intersect(geometry , NULL) gives NULL as result! -> hence the CASE 
+    #   - use of the with instead of an inline view is a lot faster
+    #   - WHERE geom IS NOT NULL to evade rows with a NULL geom, they give issues in later operations
+    sql_template = f'''
+          SELECT * FROM (
+            WITH layer2_unioned AS (
+              SELECT layer1.rowid AS layer1_rowid
+                    ,ST_union(layer2.{{input2_geometrycolumn}}) AS geom
+                FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+               WHERE 1=1
+                 {{batch_filter}}
+                 AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
+                 AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
+                 AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
+                 AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
+               GROUP BY layer1.rowid
+            )
+            SELECT CASE WHEN layer2_unioned.geom IS NULL THEN NULL
+                        ELSE ST_CollectionExtract(ST_intersection(layer1.{{input1_geometrycolumn}}, layer2_unioned.geom), {primitivetypeid})
+                   END as geom
+                  {{layer1_columns_prefix_alias_str}}
+              FROM {{input1_databasename}}."{{input1_layer}}" layer1
+              JOIN layer2_unioned ON layer1.rowid = layer2_unioned.layer1_rowid
+             WHERE 1=1
+               {{batch_filter}}
+          )
+          WHERE geom IS NOT NULL
+            AND ST_NPoints(geom) > 0   -- ST_CollectionExtract outputs empty, but not NULL geoms in spatialite 4.3 
+            '''
+    
+    # Go!
+    return _two_layer_vector_operation(
+            input1_path=input_path,
+            input2_path=clip_path,
+            output_path=output_path,
+            sql_template=sql_template,
+            operation_name='clip',
+            input1_layer=input_layer,
+            input1_columns=input_columns,
+            input1_columns_prefix=input_columns_prefix,
+            input2_layer=clip_layer,
+            input2_columns=None,
+            output_layer=output_layer,
+            explodecollections=explodecollections,
+            force_output_geometrytype=force_output_geometrytype,
+            output_with_spatial_index=output_with_spatial_index,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+            verbose=verbose,
+            force=force)
+
 def erase(
         input_path: Path,
         erase_path: Path,
