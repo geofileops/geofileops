@@ -677,19 +677,3 @@ def basetest_union_circles(
     # Now check the contents of the result file
     output_gdf = gfo.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
-
-if __name__ == '__main__':
-    # Init
-    tmpdir = test_helper.init_test_for_debug(Path(__file__).stem)
-
-    # Two layer operations
-    #test_clip(tmpdir)
-    #test_erase(tmpdir)
-    #test_export_by_distance(tmpdir)
-    #test_export_by_location(tmpdir)
-    #test_intersect(tmpdir)
-    #test_join_by_location(tmpdir)
-    #test_select_two_layers(tmpdir)
-    #test_split(tmpdir)
-    test_union(tmpdir)
-    

@@ -3,7 +3,6 @@
 Helper functions for all tests.
 """
 
-import logging
 from pathlib import Path
 import tempfile
 from typing import List, Optional
@@ -82,24 +81,6 @@ def get_test_crs_epsg_list() -> List[int]:
 
 def get_test_suffix_list() -> List[str]:
     return [".gpkg", ".shp"]
-
-def init_test_for_debug(test_module_name: str) -> Path:
-    # Init logging
-    logging.basicConfig(
-            format="%(asctime)s.%(msecs)03d|%(levelname)s|%(name)s|%(message)s", 
-            datefmt="%H:%M:%S", level=logging.INFO)
-
-    # Prepare tmpdir
-    tmp_basedir = Path(tempfile.gettempdir()) / "geofileops_test_debug" / test_module_name
-    tmpdir = create_tempdir(parent_dir=tmp_basedir, base_dirname='debugrun')
-    
-    """
-    if tmpdir.exists():
-        shutil.rmtree(tmpdir)
-    tmpdir.mkdir(parents=True, exist_ok=True)
-    """
-
-    return tmpdir
 
 def prepare_test_file(
         input_path: Path,
