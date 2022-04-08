@@ -14,7 +14,7 @@ import pandas as pd
 
 import geofileops as gfo
 from geofileops import GeometryType
-from .general_util import MissingRuntimeDependencyError
+from ._general_util import MissingRuntimeDependencyError
 
 #-------------------------------------------------------------
 # First define/init some general variables/constants

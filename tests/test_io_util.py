@@ -8,7 +8,7 @@ import sys
 
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from geofileops.util import io_util
+from geofileops.util import _io_util
 from tests import test_helper
 
 def test_copyfile(tmpdir):
@@ -18,14 +18,14 @@ def test_copyfile(tmpdir):
 
     assert src_file.exists() is True
     assert dst_file.exists() is False
-    io_util.copyfile(src_file, dst_file)
+    _io_util.copyfile(src_file, dst_file)
     assert dst_file.exists() is True
 
 def test_create_tempdir():
     # Test
-    tempdir1 = io_util.create_tempdir('testje')
+    tempdir1 = _io_util.create_tempdir('testje')
     assert tempdir1.exists() is True
-    tempdir2 = io_util.create_tempdir('testje')
+    tempdir2 = _io_util.create_tempdir('testje')
     assert tempdir2.exists() is True
     
     # Cleanup
@@ -35,9 +35,9 @@ def test_create_tempdir():
 def test_create_file_atomic(tmpdir):
     tmpdir = Path(tmpdir)
     path = tmpdir / 'testje_atomic.txt'
-    file_created = io_util.create_file_atomic(path)
+    file_created = _io_util.create_file_atomic(path)
     assert file_created is True
-    file_created = io_util.create_file_atomic(path)
+    file_created = _io_util.create_file_atomic(path)
     assert file_created is False
 
 def test_get_tempfile_locked(tmpdir):
@@ -46,13 +46,13 @@ def test_get_tempfile_locked(tmpdir):
     tempfile3lock_path = None
     
     try:
-        tempfile1_path, tempfile1lock_path = io_util.get_tempfile_locked('testje')
+        tempfile1_path, tempfile1lock_path = _io_util.get_tempfile_locked('testje')
         assert tempfile1_path.exists() is False
         assert tempfile1lock_path.exists() is True
-        tempfile2_path, tempfile2lock_path = io_util.get_tempfile_locked('testje')
+        tempfile2_path, tempfile2lock_path = _io_util.get_tempfile_locked('testje')
         assert tempfile2_path.exists() is False
         assert tempfile2lock_path.exists() is True
-        tempfile3_path, tempfile3lock_path = io_util.get_tempfile_locked('testje', dirname="dir")
+        tempfile3_path, tempfile3lock_path = _io_util.get_tempfile_locked('testje', dirname="dir")
         assert tempfile3_path.exists() is False
         assert tempfile3lock_path.exists() is True
     finally:

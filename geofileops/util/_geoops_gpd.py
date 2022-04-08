@@ -28,14 +28,14 @@ import psutil
 import shapely.geometry as sh_geom
 
 import geofileops as gfo
-from geofileops.util import general_util
+from geofileops.util import _general_util
 from geofileops.util import _geoops_sql
 from geofileops.util import geometry_util
 from geofileops.util.geometry_util import GeometryType, PrimitiveType, SimplifyAlgorithm 
 from geofileops.util import geoseries_util
 from geofileops.util import grid_util
-from geofileops.util import io_util
-from geofileops.util import ogr_util
+from geofileops.util import _io_util
+from geofileops.util import _ogr_util
 
 ################################################################################
 # Some init
@@ -104,9 +104,9 @@ def get_parallelization_params(
     if(nb_parallel == -1):
         nb_parallel = multiprocessing.cpu_count()
 
-    logger.debug(f"memory_usable: {general_util.formatbytes(parallelization_config_local.bytes_usable)}, with:")
-    logger.debug(f"  -> mem.available: {general_util.formatbytes(psutil.virtual_memory().available)}")
-    logger.debug(f"  -> swap.free: {general_util.formatbytes(psutil.swap_memory().free)}") 
+    logger.debug(f"memory_usable: {_general_util.formatbytes(parallelization_config_local.bytes_usable)}, with:")
+    logger.debug(f"  -> mem.available: {_general_util.formatbytes(psutil.virtual_memory().available)}")
+    logger.debug(f"  -> swap.free: {_general_util.formatbytes(psutil.swap_memory().free)}") 
 
     # If not enough memory for the amount of parallellism asked, reduce
     if (nb_parallel * parallelization_config_local.bytes_min_per_process) > parallelization_config_local.bytes_usable:
@@ -137,7 +137,7 @@ def get_parallelization_params(
     # Log result
     logger.debug(f"nb_batches_recommended: {nb_batches}, rows_per_batch: {batch_size}")
     logger.debug(f" -> nb_rows_input_layer: {nb_rows_total}") 
-    logger.debug(f" -> will result in mem_predicted: {general_util.formatbytes(mem_predicted)}")
+    logger.debug(f" -> will result in mem_predicted: {_general_util.formatbytes(mem_predicted)}")
 
     return parallelizationParams(nb_parallel, nb_batches, batch_size)
 
@@ -376,7 +376,7 @@ def _apply_geooperation_to_layer(
         output_layer = gfo.get_default_layer(output_path)
 
     ##### Prepare tmp files #####
-    tempdir = io_util.create_tempdir(f"geofileops/{operation.value}")
+    tempdir = _io_util.create_tempdir(f"geofileops/{operation.value}")
     logger.info(f"Start calculation to temp files in {tempdir}")
 
     try:
@@ -412,7 +412,7 @@ def _apply_geooperation_to_layer(
 
         with futures.ProcessPoolExecutor(
                 max_workers=nb_parallel, 
-                initializer=general_util.initialize_worker()) as calculate_pool:
+                initializer=_general_util.initialize_worker()) as calculate_pool:
 
             # Prepare output filename
             output_tmp_path = tempdir / output_path.name
@@ -459,7 +459,7 @@ def _apply_geooperation_to_layer(
             
             # Loop till all parallel processes are ready, but process each one 
             # that is ready already
-            general_util.report_progress(start_time, nb_done, nb_batches, operation.value, nb_parallel)
+            _general_util.report_progress(start_time, nb_done, nb_batches, operation.value, nb_parallel)
             for future in futures.as_completed(future_to_batch_id):
                 try:
                     result = future.result()
@@ -481,7 +481,7 @@ def _apply_geooperation_to_layer(
 
                 # Log the progress and prediction speed
                 nb_done += 1
-                general_util.report_progress(start_time, nb_done, nb_batches, operation.value, nb_parallel)
+                _general_util.report_progress(start_time, nb_done, nb_batches, operation.value, nb_parallel)
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
@@ -692,7 +692,7 @@ def dissolve(
         # The dissolve for polygons is done in several passes, and after the first 
         # pass, only the 'onborder' features are further dissolved, as the 
         # 'notonborder' features are already OK.  
-        tempdir = io_util.create_tempdir(f"geofileops/{operation}")
+        tempdir = _io_util.create_tempdir(f"geofileops/{operation}")
         try:
             # TODO: remove VERY DIRTY HACK to get fid
             if agg_columns is not None:
@@ -956,7 +956,7 @@ def _dissolve_polygons_pass(
     nb_rows_total = input_layerinfo.featurecount
     with futures.ProcessPoolExecutor(
             max_workers=nb_parallel, 
-            initializer=general_util.initialize_worker()) as calculate_pool:
+            initializer=_general_util.initialize_worker()) as calculate_pool:
 
         # Prepare output filename
         tempdir = output_onborder_path.parent
@@ -995,7 +995,7 @@ def _dissolve_polygons_pass(
         
         # Loop till all parallel processes are ready, but process each one 
         # that is ready already
-        general_util.report_progress(start_time, nb_batches_done, nb_batches, 'dissolve')
+        _general_util.report_progress(start_time, nb_batches_done, nb_batches, 'dissolve')
         for future in futures.as_completed(future_to_batch_id):
             try:
                 # If the calculate gave results
@@ -1038,7 +1038,7 @@ def _dissolve_polygons_pass(
                 raise Exception(message) from ex
 
             # Log the progress and prediction speed
-            general_util.report_progress(start_time, nb_batches_done, nb_batches, 'dissolve')   
+            _general_util.report_progress(start_time, nb_batches_done, nb_batches, 'dissolve')   
     
     logger.info(f"Dissolve pass ready, took {datetime.datetime.now()-start_time}!")
                 
@@ -1397,4 +1397,4 @@ def _add_orderby_column(
     gfo.add_column(
             path=path, name=name, type=gfo.DataType.TEXT, expression=expression)
     sqlite_stmt = f'CREATE INDEX {name}_idx ON "{layer}"({name})' 
-    ogr_util.vector_info(path=path, sql_stmt=sqlite_stmt, readonly=False)
+    _ogr_util.vector_info(path=path, sql_stmt=sqlite_stmt, readonly=False)

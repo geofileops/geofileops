@@ -12,7 +12,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import geofileops as gfo
 from geofileops import GeometryType, PrimitiveType
-from geofileops.util import io_util
+from geofileops.util import _io_util
 from geofileops.util import _geoops_sql
 from tests import test_helper
 
@@ -161,7 +161,7 @@ def basetest_erase(
     assert output_gdf['geometry'][0] is not None
 
     ### Do operation with explodecollections=True ###
-    output_path = io_util.with_stem(output_path, f"{output_path.stem}_exploded")
+    output_path = _io_util.with_stem(output_path, f"{output_path.stem}_exploded")
     gfo.erase(
             input_path=input_path, 
             erase_path=erase_path,

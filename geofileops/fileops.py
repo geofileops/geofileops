@@ -25,8 +25,8 @@ import pyproj
 from geofileops.util import geometry_util
 from geofileops.util.geometry_util import GeometryType, PrimitiveType
 from geofileops.util import geoseries_util
-from geofileops.util import io_util
-from geofileops.util import ogr_util
+from geofileops.util import _io_util
+from geofileops.util import _ogr_util
 from geofileops.util.geofiletype import GeofileType
 
 #-------------------------------------------------------------
@@ -339,7 +339,7 @@ def execute_sql(
             * 'SQLITE': force the use of the SQLITE dialect.
             Defaults to None.
     """
-    ogr_util.vector_info(
+    _ogr_util.vector_info(
             path=Path(path),
             sql_stmt=sql_stmt, 
             sql_dialect=sql_dialect, 
@@ -598,7 +598,7 @@ def add_column(
             # If column doesn't exist yet, create it
             #if name not in getlayerinfo(path_p, layer=layer).columns:
             sqlite_stmt = f'ALTER TABLE "{layer}" ADD COLUMN "{name}" {type_str}'
-            ogr_util.vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
+            _ogr_util.vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
             #datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
         else:
             logger.warning(f"Column {name} existed already in {path_p}, layer {layer}")
@@ -608,7 +608,7 @@ def add_column(
            and (name not in layerinfo_orig.columns 
                 or force_update is True)):
             sqlite_stmt = f'UPDATE "{layer}" SET "{name}" = {expression}'
-            ogr_util.vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
+            _ogr_util.vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
             #datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
     finally:
         if datasource is not None:
@@ -656,7 +656,7 @@ def update_column(
         sqlite_stmt = f'UPDATE "{layer}" SET "{name}" = {expression}'
         if where is not None:
             sqlite_stmt += f"\n WHERE {where}"
-        ogr_util.vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
+        _ogr_util.vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
         #datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
     finally:
         if datasource is not None:
@@ -841,7 +841,7 @@ def read_file_sql(
     with tempfile.TemporaryDirectory() as tmpdir:
         # Execute sql againts file and write to temp file
         tmp_path = Path(tmpdir) / 'read_file_sql_tmp_file.gpkg'
-        ogr_util.vector_translate(
+        _ogr_util.vector_translate(
                 input_path=path_p,
                 output_path=tmp_path,
                 sql_stmt=sql_stmt,
@@ -950,7 +950,7 @@ def to_file(
             # Get a unique temp file path. The file cannot be created yet, so 
             # only create a lock file to evade other processes using the same 
             # temp file name 
-            gdftemp_path, gdftemp_lockpath = io_util.get_tempfile_locked(
+            gdftemp_path, gdftemp_lockpath = _io_util.get_tempfile_locked(
                     base_filename='gdftemp',
                     suffix=path_p.suffix,
                     dirname='geofile_to_file')
@@ -962,7 +962,7 @@ def to_file(
         lockfile = Path(f"{str(path_p)}.lock")
         start_time = datetime.datetime.now()
         while(True):
-            if io_util.create_file_atomic(lockfile) is True:
+            if _io_util.create_file_atomic(lockfile) is True:
                 try:
                     # If gdf wasn't written to temp file, use standard write-to-file
                     if gdftemp_path is None:
@@ -1113,7 +1113,7 @@ def move(
     geofiletype = GeofileType(src_p)
 
     # Move the main file
-    shutil.move(str(src_p), dst_p, copy_function=io_util.copyfile)
+    shutil.move(str(src_p), dst_p, copy_function=_io_util.copyfile)
 
     # For some file types, extra files need to be moved
     # If dest is a dir, just use move. Otherwise concat dest filepaths
@@ -1122,13 +1122,13 @@ def move(
             for suffix in geofiletype.suffixes_extrafiles:
                 srcfile = src_p.parent / f"{src_p.stem}{suffix}"
                 if srcfile.exists():
-                    shutil.move(str(srcfile), dst_p, copy_function=io_util.copyfile)
+                    shutil.move(str(srcfile), dst_p, copy_function=_io_util.copyfile)
         else:
             for suffix in geofiletype.suffixes_extrafiles:
                 srcfile = src_p.parent / f"{src_p.stem}{suffix}"
                 dstfile = dst_p.parent / f"{dst_p.stem}{suffix}"
                 if srcfile.exists():
-                    shutil.move(str(srcfile), dstfile, copy_function=io_util.copyfile)
+                    shutil.move(str(srcfile), dstfile, copy_function=_io_util.copyfile)
 
 def remove(path: Union[str, 'os.PathLike[Any]']):
     """
@@ -1217,7 +1217,7 @@ def append_to(
     start_time = datetime.datetime.now()
     while(True):
             
-        if io_util.create_file_atomic(lockfile) is True:
+        if _io_util.create_file_atomic(lockfile) is True:
             try:
                 # append
                 _append_to_nolock(
@@ -1252,7 +1252,7 @@ def _append_to_nolock(
         transaction_size: int = 50000,
         verbose: bool = False):
     # Append
-    translate_info = ogr_util.VectorTranslateInfo(
+    translate_info = _ogr_util.VectorTranslateInfo(
             input_path=src,
             output_path=dst,
             translate_description=None,
@@ -1265,7 +1265,7 @@ def _append_to_nolock(
             force_output_geometrytype=force_output_geometrytype,
             create_spatial_index=create_spatial_index,
             verbose=verbose)
-    ogr_util.vector_translate_by_info(info=translate_info)
+    _ogr_util.vector_translate_by_info(info=translate_info)
 
 def convert(
         src: Union[str, 'os.PathLike[Any]'], 
