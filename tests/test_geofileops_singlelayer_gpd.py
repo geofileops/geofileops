@@ -16,7 +16,7 @@ import geofileops as gfo
 from geofileops import GeometryType
 from geofileops.util import _geoops_gpd
 from geofileops.util import geometry_util
-from geofileops.util import io_util
+from geofileops.util import _io_util
 from tests import test_helper
 
 def get_nb_parallel() -> int:
@@ -105,7 +105,7 @@ def basetest_apply(
     assert len(output_geometry.interiors) == 1
 
     ### Test apply with only_geom_input = False ###
-    output_path = io_util.with_stem(output_path, f"{output_path.stem}_2")
+    output_path = _io_util.with_stem(output_path, f"{output_path.stem}_2")
     gfo.apply(
             input_path=input_path,
             output_path=output_path,
@@ -758,7 +758,7 @@ def basetest_simplify_algorythms(
         tolerance = 5/111000
 
     ### Test vw (visvalingam-whyatt) algorithm ###
-    output_path = io_util.with_stem(output_basepath, f"{output_basepath.stem}_vw")
+    output_path = _io_util.with_stem(output_basepath, f"{output_basepath.stem}_vw")
     gfo.simplify(
             input_path=input_path,
             output_path=output_path,
@@ -783,7 +783,7 @@ def basetest_simplify_algorythms(
     assert output_gdf['geometry'][0] is not None
 
     ### Test lang algorithm ###
-    output_path = io_util.with_stem(output_basepath, f"{output_basepath.stem}_lang")
+    output_path = _io_util.with_stem(output_basepath, f"{output_basepath.stem}_lang")
     gfo.simplify(
             input_path=input_path,
             output_path=output_path,

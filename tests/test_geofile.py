@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import geofileops as gfo
 from geofileops.util import geoseries_util
 from geofileops.util.geometry_util import GeometryType
-from geofileops.util import io_util
+from geofileops.util import _io_util
 from tests import test_helper
 
 def test_add_column(tmpdir):
@@ -260,7 +260,7 @@ def basetest_get_layerinfo(
 
     # Path specified that doesn't exist
     try:
-        not_existing_path = io_util.with_stem(src, "not_existing_layer")
+        not_existing_path = _io_util.with_stem(src, "not_existing_layer")
         layerinfo = gfo.get_layerinfo(not_existing_path)
         exception_raised = False
     except ValueError:
@@ -549,7 +549,7 @@ def test_to_file(tmpdir):
                 input_path=test_helper.TestFiles.polygons_parcels_gpkg,
                 output_dir=tmp_dir,
                 suffix=suffix)
-        output_path = io_util.with_stem(input_path, f"{input_path}-output")
+        output_path = _io_util.with_stem(input_path, f"{input_path}-output")
         basetest_to_file(input_path, output_path)
 
 def basetest_to_file(srcpath, tmppath):
