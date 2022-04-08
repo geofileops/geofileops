@@ -18,10 +18,10 @@ import pandas as pd
 import geofileops as gfo
 from geofileops import GeofileType, GeometryType, PrimitiveType
 from geofileops.fileops import _append_to_nolock
-from . import io_util
-from . import ogr_util
-from . import sqlite_util
-from . import general_util
+from . import _io_util
+from . import _ogr_util
+from . import _sqlite_util
+from . import _general_util
 
 ################################################################################
 # Some init
@@ -199,7 +199,7 @@ def isvalid(
         try:
             input_geofiletype = GeofileType(input_path)   
             if input_geofiletype.is_spatialite_based:
-                sqlite_util.test_data_integrity(path=input_path)
+                _sqlite_util.test_data_integrity(path=input_path)
                 logger.debug("test_data_integrity was succesfull")
         except Exception as ex:
             logger.exception("No invalid geometries found, but some attributes could not be read")
@@ -273,7 +273,7 @@ def makevalid(
     # If output is a geopackage, check if all data can be read
     output_geofiletype = GeofileType(input_path)   
     if output_geofiletype.is_spatialite_based:
-        sqlite_util.test_data_integrity(path=input_path)
+        _sqlite_util.test_data_integrity(path=input_path)
 
 def select(
         input_path: Path,
@@ -401,7 +401,7 @@ def _single_layer_vector_operation(
     input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
             
     ##### Calculate #####
-    tempdir = io_util.create_tempdir(f"geofileops/{operation_name.replace(' ', '_')}")
+    tempdir = _io_util.create_tempdir(f"geofileops/{operation_name.replace(' ', '_')}")
     
     try:
         ##### Calculate #####
@@ -428,7 +428,7 @@ def _single_layer_vector_operation(
         nb_done = 0
         with futures.ProcessPoolExecutor(
                 max_workers=processing_params.nb_parallel, 
-                initializer=general_util.initialize_worker()) as calculate_pool:
+                initializer=_general_util.initialize_worker()) as calculate_pool:
 
             batches = {}    
             future_to_batch_id = {}
@@ -460,7 +460,7 @@ def _single_layer_vector_operation(
                 translate_description = f"Async {operation_name} {batch_id} of {len(batches)}"
 
                 # Remark: this temp file doesn't need spatial index
-                translate_info = ogr_util.VectorTranslateInfo(
+                translate_info = _ogr_util.VectorTranslateInfo(
                         input_path=processing_params.batches[batch_id]['path'],
                         output_path=tmp_partial_output_path,
                         translate_description=translate_description,
@@ -472,7 +472,7 @@ def _single_layer_vector_operation(
                         force_output_geometrytype=force_output_geometrytype,
                         verbose=verbose)
                 future = calculate_pool.submit(
-                        ogr_util.vector_translate_by_info,
+                        _ogr_util.vector_translate_by_info,
                         info=translate_info)
                 future_to_batch_id[future] = batch_id                    
 
@@ -503,7 +503,7 @@ def _single_layer_vector_operation(
 
                 # Log the progress and prediction speed
                 nb_done += 1
-                general_util.report_progress(
+                _general_util.report_progress(
                         start_time, nb_done, len(batches), operation_name, nb_parallel=nb_parallel)
 
         ##### Round up and clean up ##### 
@@ -1130,7 +1130,7 @@ def join_nearest(
         input2_tmp_layer = input2_layer
     else:
         # Put input2 layer in sqlite gfo...
-        tempdir = io_util.create_tempdir("geofileops/join_nearest")
+        tempdir = _io_util.create_tempdir("geofileops/join_nearest")
         input1_tmp_path = tempdir / f"both_input_layers.sqlite"
         input1_tmp_layer = 'input1_layer'
         gfo.convert(
@@ -1355,7 +1355,7 @@ def union(
     if output_layer is None:
         output_layer = gfo.get_default_layer(output_path)
 
-    tempdir = io_util.create_tempdir("geofileops/union")
+    tempdir = _io_util.create_tempdir("geofileops/union")
     try:
         # First split input1 with input2 to a temporary output gfo...
         split_output_path = tempdir / "split_output.gpkg"
@@ -1477,7 +1477,7 @@ def _two_layer_vector_operation(
             gfo.remove(output_path)
 
     # Check if spatialite is properly installed to execute this query
-    sqlite_util.check_runtimedependencies()
+    _sqlite_util.check_runtimedependencies()
 
     # Init layer info
     start_time = datetime.datetime.now()
@@ -1487,7 +1487,7 @@ def _two_layer_vector_operation(
         input2_layer = gfo.get_only_layer(input2_path)
     if output_layer is None:
         output_layer = gfo.get_default_layer(output_path)
-    tempdir = io_util.create_tempdir(f"geofileops/{operation_name}")
+    tempdir = _io_util.create_tempdir(f"geofileops/{operation_name}")
 
     # Use get_layerinfo to check if the input files are valid
     gfo.get_layerinfo(input1_path, input1_layer)
@@ -1544,7 +1544,7 @@ def _two_layer_vector_operation(
         # the same file at the time... 
         with futures.ProcessPoolExecutor(
                 max_workers=processing_params.nb_parallel, 
-                initializer=general_util.initialize_worker()) as calculate_pool:
+                initializer=_general_util.initialize_worker()) as calculate_pool:
 
             # Start looping
             batches = {}    
@@ -1583,7 +1583,7 @@ def _two_layer_vector_operation(
                 if use_ogr is False:
                     # Use an aggressive speedy sqlite profile 
                     future = calculate_pool.submit(
-                            sqlite_util.create_table_as_sql,
+                            _sqlite_util.create_table_as_sql,
                             input1_path=processing_params.batches[batch_id]['path'],
                             input1_layer=processing_params.batches[batch_id]['layer'],
                             input2_path=processing_params.input2_path, 
@@ -1592,7 +1592,7 @@ def _two_layer_vector_operation(
                             output_layer=output_layer,
                             output_geometrytype=force_output_geometrytype,
                             create_spatial_index=False,
-                            profile=sqlite_util.SqliteProfile.SPEED)
+                            profile=_sqlite_util.SqliteProfile.SPEED)
                     future_to_batch_id[future] = batch_id
                 else:    
                     # Use ogr to run the query
@@ -1603,7 +1603,7 @@ def _two_layer_vector_operation(
                             input2_databasename=processing_params.input2_databasename)
 
                     future = calculate_pool.submit(
-                            ogr_util.vector_translate,
+                            _ogr_util.vector_translate,
                             input_path=processing_params.batches[batch_id]['path'],
                             output_path=tmp_partial_output_path,
                             sql_stmt=sql_stmt,
@@ -1616,7 +1616,7 @@ def _two_layer_vector_operation(
             # Loop till all parallel processes are ready, but process each one 
             # that is ready already
             nb_done = 0
-            general_util.report_progress(
+            _general_util.report_progress(
                     start_time, nb_done, len(processing_params.batches), 
                     operation_name, processing_params.nb_parallel)
             for future in futures.as_completed(future_to_batch_id):
@@ -1651,7 +1651,7 @@ def _two_layer_vector_operation(
 
                 # Log the progress and prediction speed
                 nb_done += 1
-                general_util.report_progress(
+                _general_util.report_progress(
                         start_time, nb_done, len(processing_params.batches), 
                         operation_name, processing_params.nb_parallel)
 
@@ -2049,7 +2049,7 @@ def dissolve_singlethread(
              GROUP BY {groupby_columns_for_groupby_str}'''
     
     translate_description = f"Dissolve {input_path}"
-    ogr_util.vector_translate(
+    _ogr_util.vector_translate(
             input_path=input_path,
             output_path=output_path,
             translate_description=translate_description,
