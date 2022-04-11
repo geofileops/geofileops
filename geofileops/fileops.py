@@ -1180,6 +1180,9 @@ def append_to(
         dst: Union[str, 'os.PathLike[Any]'],
         src_layer: Optional[str] = None,
         dst_layer: Optional[str] = None,
+        src_crs: Union[int, str, None] = None,
+        dst_crs: Union[int, str, None] = None,
+        reproject: bool = False,
         explodecollections: bool = False,
         force_output_geometrytype: Union[GeometryType, str, None] = None,
         create_spatial_index: bool = True,
@@ -1211,6 +1214,16 @@ def append_to(
         dst (Union[str,): destination file path.
         src_layer (str, optional): source layer. Defaults to None.
         dst_layer (str, optional): destination layer. Defaults to None.
+        src_crs (str, optional): an epsg int or anything supported 
+            by the OGRSpatialReference.SetFromUserInput() call, which includes 
+            an EPSG string (eg. "EPSG:4326"), a well known text (WKT) CRS 
+            definition,... Defaults to None.
+        dst_crs (str, optional): an epsg int or anything supported 
+            by the OGRSpatialReference.SetFromUserInput() call, which includes 
+            an EPSG string (eg. "EPSG:4326"), a well known text (WKT) CRS 
+            definition,... Defaults to None.
+        reproject (bool, optional): True to reproject while converting the 
+            file. Defaults to False.
         explodecollections (bool), optional): True to output only simple geometries. 
             Defaults to False.
         force_output_geometrytype (GeometryType, optional): geometry type. 
@@ -1260,6 +1273,9 @@ def append_to(
                         dst=dst,
                         src_layer=src_layer,
                         dst_layer=dst_layer,
+                        src_crs=src_crs,
+                        dst_crs=dst_crs,
+                        reproject=reproject, 
                         explodecollections=explodecollections,
                         force_output_geometrytype=force_output_geometrytype,
                         create_spatial_index=create_spatial_index,
@@ -1281,6 +1297,9 @@ def _append_to_nolock(
         dst: Path,
         src_layer: Optional[str] = None,
         dst_layer: Optional[str] = None,
+        src_crs: Union[int, str, None] = None,
+        dst_crs: Union[int, str, None] = None,
+        reproject: bool = False,
         explodecollections: bool = False,
         create_spatial_index: bool = True,
         force_output_geometrytype: Optional[GeometryType] = None,
@@ -1297,6 +1316,9 @@ def _append_to_nolock(
             output_path=dst,
             input_layers=src_layer,
             output_layer=dst_layer,
+            input_srs=src_crs,
+            output_srs=dst_crs,
+            reproject=reproject,
             transaction_size=transaction_size,
             append=True,
             update=True,
@@ -1310,6 +1332,9 @@ def convert(
         dst: Union[str, 'os.PathLike[Any]'],
         src_layer: Optional[str] = None,
         dst_layer: Optional[str] = None,
+        src_crs: Union[str, int, None] = None,
+        dst_crs: Union[str, int, None] = None,
+        reproject: bool = False,
         explodecollections: bool = False,
         force_output_geometrytype: Optional[GeometryType] = None,
         create_spatial_index: bool = True,
@@ -1339,6 +1364,16 @@ def convert(
             one layer in the src file, that layer is taken. Defaults to None.
         dst_layer (str, optional): The destination layer. If None, the file 
             stem is taken as layer name. Defaults to None.
+        src_crs (Union[str, int], optional): an epsg int or anything supported 
+            by the OGRSpatialReference.SetFromUserInput() call, which includes 
+            an EPSG string (eg. "EPSG:4326"), a well known text (WKT) CRS 
+            definition,... Defaults to None.
+        dst_crs (Union[str, int], optional): an epsg int or anything supported 
+            by the OGRSpatialReference.SetFromUserInput() call, which includes 
+            an EPSG string (eg. "EPSG:4326"), a well known text (WKT) CRS 
+            definition,... Defaults to None.
+        reproject (bool, optional): True to reproject while converting the 
+            file. Defaults to False.
         explodecollections (bool, optional): True to output only simple 
             geometries. Defaults to False.
         force_output_geometrytype (GeometryType, optional): Geometry type. 
@@ -1365,7 +1400,10 @@ def convert(
     # Convert
     logger.info(f"Convert {src_p} to {dst_p}")
     _append_to_nolock(
-            src_p, dst_p, src_layer, dst_layer, 
+            src_p, dst_p, src_layer, dst_layer,
+            src_crs=src_crs,
+            dst_crs=dst_crs,
+            reproject=reproject, 
             explodecollections=explodecollections, 
             force_output_geometrytype=force_output_geometrytype,
             create_spatial_index=create_spatial_index,

@@ -55,6 +55,9 @@ class VectorTranslateInfo:
             output_path: Path,
             input_layers: Union[List[str], str, None] = None,
             output_layer: Optional[str] = None,
+            input_srs: Union[int, str, None] = None,
+            output_srs: Union[int, str, None] = None,
+            reproject: bool = False,  
             spatial_filter: Optional[Tuple[float, float, float, float]] = None,
             clip_bounds: Optional[Tuple[float, float, float, float]] = None, 
             sql_stmt: Optional[str] = None,
@@ -69,6 +72,9 @@ class VectorTranslateInfo:
         self.output_path = output_path
         self.input_layers = input_layers
         self.output_layer = output_layer
+        self.input_srs = input_srs
+        self.output_srs = output_srs
+        self.reproject = reproject
         self.spatial_filter = spatial_filter
         self.clip_bounds = clip_bounds
         self.sql_stmt = sql_stmt
@@ -87,6 +93,9 @@ def vector_translate_by_info(info: VectorTranslateInfo):
             output_path=info.output_path,
             input_layers=info.input_layers,
             output_layer=info.output_layer,
+            input_srs=info.input_srs,
+            output_srs=info.output_srs,
+            reproject=info.reproject,
             spatial_filter=info.spatial_filter,
             clip_bounds=info.clip_bounds,
             sql_stmt=info.sql_stmt,
@@ -103,6 +112,9 @@ def vector_translate(
         output_path: Path,
         input_layers: Union[List[str], str, None] = None,
         output_layer: Optional[str] = None,
+        input_srs: Union[int, str, None] = None,
+        output_srs: Union[int, str, None] = None,
+        reproject: bool = False,  
         spatial_filter: Optional[Tuple[float, float, float, float]] = None,
         clip_bounds: Optional[Tuple[float, float, float, float]] = None, 
         sql_stmt: Optional[str] = None,
@@ -132,6 +144,10 @@ def vector_translate(
         # If a sql statement is passed, the input layers are not relevant,
         # and ogr2ogr will give a warning, so clear it.
         input_layers = None
+
+    # SRS
+    if input_srs is not None and isinstance(input_srs, int):
+        input_srs = f"EPSG:{input_srs}"
      
     # Sql'ing, Filtering, clipping  
     if spatial_filter is not None:
@@ -149,6 +165,10 @@ def vector_translate(
     # Get output format from the filename
     output_filetype = GeofileType(output_path)
     input_filetype = GeofileType(input_path)
+    
+    # SRS
+    if output_srs is not None and isinstance(output_srs, int):
+        output_srs = f"EPSG:{output_srs}"
 
     # Output basic options
     if output_path.exists() is True:
@@ -202,9 +222,9 @@ def vector_translate(
             options=args, 
             format=output_filetype.ogrdriver, 
             accessMode=None, 
-            srcSRS=None, 
-            dstSRS=None, 
-            reproject=False, 
+            srcSRS=input_srs, 
+            dstSRS=output_srs, 
+            reproject=reproject, 
             SQLStatement=sql_stmt,
             SQLDialect=sql_dialect,
             where=None, #"geom IS NOT NULL", 
