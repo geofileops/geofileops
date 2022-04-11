@@ -631,6 +631,38 @@ def add_column(
         if datasource is not None:
             del datasource
 
+def drop_column(
+        path: Union[str, 'os.PathLike[Any]'],
+        column_name: str,
+        layer: Optional[str] = None):
+    """
+    Drop the column specified.
+
+    Args:
+        path (PathLike): The file path.
+        column_name (str): the column name.
+        layer (Optional[str]): The layer name. If not specified, and there is only 
+            one layer in the file, this layer is used. Otherwise exception.
+    """
+    # Check input parameters
+    path_p = Path(path)
+    if layer is None:
+        layer = get_only_layer(path_p)
+    info = get_layerinfo(path_p, layer)
+    if column_name not in info.columns:
+        logger.info(f"Column {column_name} not present so cannot be dropped, so just return")
+        return
+
+    # Now really rename
+    datasource = None
+    try:
+        datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
+        sql_stmt = f'ALTER TABLE "{layer}" DROP COLUMN "{column_name}"'
+        datasource.ExecuteSQL(sql_stmt)
+    finally:
+        if datasource is not None:
+            del datasource
+
 def update_column(
         path: Union[str, 'os.PathLike[Any]'],
         name: str, 

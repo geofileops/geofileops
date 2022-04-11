@@ -207,17 +207,31 @@ def test_driver_enum():
     geofiletype = gfo.GeofileType(path)
     assert geofiletype == gfo.GeofileType.SQLite
 
-def test_get_crs(tmpdir):
+@pytest.mark.parametrize("suffix", test_helper.get_test_suffix_list())
+def test_drop_column(tmpdir, suffix):
     # Prepare test data + run tests
     tmp_dir = Path(tmpdir)
-    for suffix in test_helper.get_test_suffix_list():
-        # If test input file is in wrong format, convert it
-        src = test_helper.prepare_test_file(
-                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
-                output_dir=tmp_dir,
-                suffix=suffix)
-        crs = gfo.get_crs(src)
-        assert crs.to_epsg() == 31370
+    path = test_helper.prepare_test_file(
+            input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+            output_dir=tmp_dir,
+            suffix=suffix)
+    original_info = gfo.get_layerinfo(path)
+    assert "GEWASGROEP" in original_info.columns
+    gfo.drop_column(path, "GEWASGROEP")
+    new_info = gfo.get_layerinfo(path)
+    assert len(original_info.columns) == len(new_info.columns) + 1
+    assert "GEWASGROEP" not in new_info.columns
+
+@pytest.mark.parametrize("suffix", test_helper.get_test_suffix_list())
+def test_get_crs(tmpdir, suffix):
+    # Prepare test data + run tests
+    tmp_dir = Path(tmpdir)
+    src = test_helper.prepare_test_file(
+            input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+            output_dir=tmp_dir,
+            suffix=suffix)
+    crs = gfo.get_crs(src)
+    assert crs.to_epsg() == 31370
         
 def test_get_default_layer(tmpdir):
     # Prepare test data + run tests
