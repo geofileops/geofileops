@@ -97,28 +97,12 @@ def prepare_test_file(
         tmp_cache_dir = output_dir
 
     # If crs_epsg specified and test input file in wrong crs_epsg, reproject
-    input_prepared_path = input_path
-    if crs_epsg is not None:
+    if crs_epsg is None:
+        input_prepared_path = tmp_cache_dir / f"{input_path.stem}{suffix}"        
+    else:
         input_prepared_path = tmp_cache_dir / f"{input_path.stem}_{crs_epsg}{suffix}"
-        if input_prepared_path.exists() is False:
-            input_layerinfo = gfo.get_layerinfo(input_path)
-            assert input_layerinfo.crs is not None
-            if input_layerinfo.crs.to_epsg() == crs_epsg:
-                if input_path.suffix == suffix:
-                    gfo.copy(input_path, input_prepared_path)
-                else:
-                    gfo.convert(input_path, input_prepared_path)
-            else:
-                test_gdf = gfo.read_file(input_path)
-                test_gdf = test_gdf.to_crs(crs_epsg)
-                assert isinstance(test_gdf, gpd.GeoDataFrame)
-                gfo.to_file(test_gdf, input_prepared_path)               
-    elif input_path.suffix != suffix:
-        # No crs specified, but different suffix asked, so convert file
-        input_prepared_path = tmp_cache_dir / f"{input_path.stem}{suffix}"
-        if input_prepared_path.exists() is False:
-            gfo.convert(input_path, input_prepared_path)
-
+    gfo.convert(input_path, input_prepared_path, dst_crs=crs_epsg, reproject=True)              
+    
     # Now copy the prepared file to the output dir
     output_path = output_dir / input_prepared_path.name
     if str(input_prepared_path) != str(output_path):
