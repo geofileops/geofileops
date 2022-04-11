@@ -8,7 +8,7 @@ import sys
 
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from geofileops.util import sqlite_util
+from geofileops.util import _sqlite_util
 from geofileops import GeometryType
 from tests import test_helper
 
@@ -36,7 +36,7 @@ def test_exec_spatialite_sql(tmpdir):
                AND ST_Touches(layer1.geom, layer2.geometry) = 0
             '''
 
-    sqlite_util.create_table_as_sql(
+    _sqlite_util.create_table_as_sql(
             input1_path=input1_path,
             input1_layer='parcels',
             input2_path=input2_path,
@@ -44,4 +44,4 @@ def test_exec_spatialite_sql(tmpdir):
             output_layer=output_path.stem,
             output_geometrytype=GeometryType.MULTIPOLYGON,
             sql_stmt=sql_stmt,
-            profile=sqlite_util.SqliteProfile.SPEED)
+            profile=_sqlite_util.SqliteProfile.SPEED)

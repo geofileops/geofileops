@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geoops
 from geofileops import fileops 
 from geofileops import GeometryType
-from geofileops.util import io_util
+from geofileops.util import _io_util
 from tests import test_helper
 
 # Init gfo module
@@ -304,7 +304,7 @@ def basetest_simplify_basic(
         tolerance = 5/111000
 
     ### Test default algorithm (rdp) ###
-    output_path = io_util.with_stem(input_path, output_path)
+    output_path = _io_util.with_stem(input_path, output_path)
     geoops.simplify(
             input_path=input_path,
             output_path=output_path,

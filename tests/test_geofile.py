@@ -9,6 +9,7 @@ from typing import Optional
 
 import geopandas as gpd
 import pandas as pd
+import pytest
 import shapely.geometry as sh_geom
 
 # Add path so the local geofileops packages are found 
@@ -16,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import geofileops as gfo
 from geofileops.util import geoseries_util
 from geofileops.util.geometry_util import GeometryType
-from geofileops.util import io_util
+from geofileops.util import _io_util
 from tests import test_helper
 
 def test_add_column(tmpdir):
@@ -74,25 +75,44 @@ def test_cmp(tmpdir):
         assert gfo.cmp(src, dst) == True
         assert gfo.cmp(src2, dst) == False
 
-def test_convert(tmpdir):
+@pytest.mark.parametrize("suffix", test_helper.get_test_suffix_list())
+def test_convert(tmpdir, suffix):
     # Prepare test data + run tests
     tmp_dir = Path(tmpdir)
-    for suffix in test_helper.get_test_suffix_list():
-        # If test input file is in wrong format, convert it
-        src = test_helper.prepare_test_file(
-                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
-                output_dir=tmp_dir,
-                suffix=suffix)
-        
-        # Convert
-        dst = Path(tmpdir) / f"polygons_parcels_output{suffix}"
-        gfo.convert(src, dst)
+    src = test_helper.prepare_test_file(
+            input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+            output_dir=tmp_dir,
+            suffix=suffix)
+    
+    # Convert
+    dst = Path(tmpdir) / f"polygons_parcels_output{suffix}"
+    gfo.convert(src, dst)
 
-        # Now compare source and dst file 
-        src_layerinfo = gfo.get_layerinfo(src)
-        dst_layerinfo = gfo.get_layerinfo(dst)
-        assert src_layerinfo.featurecount == dst_layerinfo.featurecount
-        assert len(src_layerinfo.columns) == len(dst_layerinfo.columns)
+    # Now compare source and dst file 
+    src_layerinfo = gfo.get_layerinfo(src)
+    dst_layerinfo = gfo.get_layerinfo(dst)
+    assert src_layerinfo.featurecount == dst_layerinfo.featurecount
+    assert len(src_layerinfo.columns) == len(dst_layerinfo.columns)
+
+    # Convert with reproject
+    dst = Path(tmpdir) / f"polygons_parcels_output_reproj4326{suffix}"
+    gfo.convert(src, dst, dst_crs=4326, reproject=True)
+
+    # Now compare source and dst file 
+    src_layerinfo = gfo.get_layerinfo(src)
+    dst_layerinfo = gfo.get_layerinfo(dst)
+    assert src_layerinfo.featurecount == dst_layerinfo.featurecount
+    assert src_layerinfo.crs is not None
+    assert src_layerinfo.crs.to_epsg() == 31370
+    assert dst_layerinfo.crs is not None
+    assert dst_layerinfo.crs.to_epsg() == 4326
+    # Check if dst file actually seems to contain lat lon coordinates
+    dst_gdf = gfo.read_file(dst)
+    first_geom = dst_gdf.geometry[0]
+    first_poly = first_geom if isinstance(first_geom, sh_geom.Polygon) else first_geom.geoms[0]
+    assert first_poly.exterior is not None
+    for x, y in first_poly.exterior.coords:
+        assert x < 100 and y < 100
 
 def test_convert_force_output_geometrytype(tmpdir):
     # The conversion is done by ogr, and these test are just written to explore
@@ -260,7 +280,7 @@ def basetest_get_layerinfo(
 
     # Path specified that doesn't exist
     try:
-        not_existing_path = io_util.with_stem(src, "not_existing_layer")
+        not_existing_path = _io_util.with_stem(src, "not_existing_layer")
         layerinfo = gfo.get_layerinfo(not_existing_path)
         exception_raised = False
     except ValueError:
@@ -515,30 +535,47 @@ def test_execute_sql(tmpdir):
     # Drop index
     gfo.execute_sql(path=tmppath, sql_stmt='DROP INDEX idx_parcels_oidn')
 
-def test_spatial_index(tmpdir):
-    # Prepare test data + run tests for one layer
+@pytest.mark.parametrize("suffix", test_helper.get_test_suffix_list())
+def test_spatial_index(tmpdir, suffix):
+    # Prepare test data
     tmp_dir = Path(tmpdir)
-    for suffix in test_helper.get_test_suffix_list():
-        # If test input file is in wrong format, convert it
-        src = test_helper.prepare_test_file(
-                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
-                output_dir=tmp_dir,
-                suffix=suffix)
-    
-        # Check if spatial index present:
-        layer = gfo.get_only_layer(src)
-        has_spatial_index = gfo.has_spatial_index(path=src, layer=layer)
-        assert has_spatial_index is True
+    path = test_helper.prepare_test_file(
+            input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+            output_dir=tmp_dir,
+            suffix=suffix)
+    layer = gfo.get_only_layer(path)
+        
+    # Check if spatial index present
+    has_spatial_index = gfo.has_spatial_index(path=path, layer=layer)
+    assert has_spatial_index is True
 
-        # Remove spatial index
-        gfo.remove_spatial_index(path=src, layer=layer)
-        has_spatial_index = gfo.has_spatial_index(path=src, layer=layer)
-        assert has_spatial_index is False
+    # Remove spatial index
+    gfo.remove_spatial_index(path=path, layer=layer)
+    has_spatial_index = gfo.has_spatial_index(path=path, layer=layer)
+    assert has_spatial_index is False
 
-        # Create spatial index
-        gfo.create_spatial_index(path=src, layer=layer)
-        has_spatial_index = gfo.has_spatial_index(path=src, layer=layer)
-        assert has_spatial_index is True
+    # Create spatial index 
+    gfo.create_spatial_index(path=path, layer=layer)
+    has_spatial_index = gfo.has_spatial_index(path=path, layer=layer)
+    assert has_spatial_index is True
+
+    # Spatial index if it exists already by default gives error
+    try: 
+        gfo.create_spatial_index(path=path, layer=layer)
+        error_raised = False
+    except:
+        error_raised = True
+    assert error_raised is True
+    gfo.create_spatial_index(path=path, layer=layer, exist_ok=True)
+        
+    # Test of rebuild only easy on shapefile
+    if suffix == ".shp":
+        qix_path = path.with_suffix(".qix")
+        qix_modified_time_orig = qix_path.stat().st_mtime
+        gfo.create_spatial_index(path=path, layer=layer, exist_ok=True)
+        assert qix_path.stat().st_mtime == qix_modified_time_orig
+        gfo.create_spatial_index(path=path, layer=layer, force_rebuild=True)
+        assert qix_path.stat().st_mtime > qix_modified_time_orig
 
 def test_to_file(tmpdir):
     # Prepare test data + run tests for one layer
@@ -549,7 +586,7 @@ def test_to_file(tmpdir):
                 input_path=test_helper.TestFiles.polygons_parcels_gpkg,
                 output_dir=tmp_dir,
                 suffix=suffix)
-        output_path = io_util.with_stem(input_path, f"{input_path}-output")
+        output_path = _io_util.with_stem(input_path, f"{input_path}-output")
         basetest_to_file(input_path, output_path)
 
 def basetest_to_file(srcpath, tmppath):
