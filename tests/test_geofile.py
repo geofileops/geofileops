@@ -9,6 +9,7 @@ from typing import Optional
 
 import geopandas as gpd
 import pandas as pd
+import pytest
 import shapely.geometry as sh_geom
 
 # Add path so the local geofileops packages are found 
