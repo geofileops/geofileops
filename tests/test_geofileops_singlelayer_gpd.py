@@ -528,6 +528,7 @@ def basetest_dissolve_polygons_nogroupby(
             input_path=input_path,
             output_path=output_path,
             explodecollections=True,
+            groupby_columns=[],
             nb_parallel=get_nb_parallel(),
             batchsize=get_batchsize(),
             force=True)
