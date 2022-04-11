@@ -516,47 +516,30 @@ def test_execute_sql(tmpdir):
     # Drop index
     gfo.execute_sql(path=tmppath, sql_stmt='DROP INDEX idx_parcels_oidn')
 
-@pytest.mark.parametrize("suffix", test_helper.get_test_suffix_list())
-def test_spatial_index(tmpdir, suffix):
-    # Prepare test data
+def test_spatial_index(tmpdir):
+    # Prepare test data + run tests for one layer
     tmp_dir = Path(tmpdir)
-    path = test_helper.prepare_test_file(
-            input_path=test_helper.TestFiles.polygons_parcels_gpkg,
-            output_dir=tmp_dir,
-            suffix=suffix)
-    layer = gfo.get_only_layer(path)
-        
-    # Check if spatial index present
-    has_spatial_index = gfo.has_spatial_index(path=path, layer=layer)
-    assert has_spatial_index is True
+    for suffix in test_helper.get_test_suffix_list():
+        # If test input file is in wrong format, convert it
+        src = test_helper.prepare_test_file(
+                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+                output_dir=tmp_dir,
+                suffix=suffix)
+    
+        # Check if spatial index present:
+        layer = gfo.get_only_layer(src)
+        has_spatial_index = gfo.has_spatial_index(path=src, layer=layer)
+        assert has_spatial_index is True
 
-    # Remove spatial index
-    gfo.remove_spatial_index(path=path, layer=layer)
-    has_spatial_index = gfo.has_spatial_index(path=path, layer=layer)
-    assert has_spatial_index is False
+        # Remove spatial index
+        gfo.remove_spatial_index(path=src, layer=layer)
+        has_spatial_index = gfo.has_spatial_index(path=src, layer=layer)
+        assert has_spatial_index is False
 
-    # Create spatial index 
-    gfo.create_spatial_index(path=path, layer=layer)
-    has_spatial_index = gfo.has_spatial_index(path=path, layer=layer)
-    assert has_spatial_index is True
-
-    # Spatial index if it exists already by default gives error
-    try: 
-        gfo.create_spatial_index(path=path, layer=layer)
-        error_raised = False
-    except:
-        error_raised = True
-    assert error_raised is True
-    gfo.create_spatial_index(path=path, layer=layer, exist_ok=True)
-        
-    # Test of rebuild only easy on shapefile
-    if suffix == ".shp":
-        qix_path = path.with_suffix(".qix")
-        qix_modified_time_orig = qix_path.stat().st_mtime
-        gfo.create_spatial_index(path=path, layer=layer, exist_ok=True)
-        assert qix_path.stat().st_mtime == qix_modified_time_orig
-        gfo.create_spatial_index(path=path, layer=layer, force_rebuild=True)
-        assert qix_path.stat().st_mtime > qix_modified_time_orig
+        # Create spatial index
+        gfo.create_spatial_index(path=src, layer=layer)
+        has_spatial_index = gfo.has_spatial_index(path=src, layer=layer)
+        assert has_spatial_index is True
 
 def test_to_file(tmpdir):
     # Prepare test data + run tests for one layer
