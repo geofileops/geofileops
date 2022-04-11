@@ -437,7 +437,7 @@ def test_join_by_location(
     output_gdf = gfo.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
-@pytest.mark.parametrize("suffix, crs_epsg", [(".gpkg", 31370), (".gpkg", 4384), (".shp", 31370)])
+@pytest.mark.parametrize("suffix, crs_epsg", [(".gpkg", 31370), (".gpkg", 4326), (".shp", 31370)])
 def test_join_nearest(tmpdir, suffix, crs_epsg):
     # Prepare test data + run tests
     tmp_dir = Path(tmpdir)
