@@ -1183,6 +1183,103 @@ def join_nearest(
             verbose=verbose,
             force=force)
 
+def overlay(
+        input1_path: Path,
+        input2_path: Path,
+        output_path: Path,
+        overlay_operation: str,
+        clean_geom_type: bool = True,
+        input1_layer: Optional[str] = None,
+        input1_columns: Optional[List[str]] = None,
+        input1_columns_prefix: str = 'l1_',
+        input2_layer: Optional[str] = None,
+        input2_columns: Optional[List[str]] = None,
+        input2_columns_prefix: str = 'l2_',
+        output_layer: Optional[str] = None,
+        explodecollections: bool = False,
+        nb_parallel: int = -1,
+        batchsize: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+
+    ### Check input params ###
+    overlay_operations = [
+            "intersection", "union", "identity", "symmetric_difference", "difference"]
+    if overlay_operation not in overlay_operations:
+        raise ValueError(f"overlay operation {overlay_operation} not supported, only {overlay_operations}")
+    
+    ### Prepare sql statement ###
+    # Prepare geo operation
+    geom_operation = (
+            f"ST_Intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}})")
+
+    # Only extract the geometry types that are "expected"
+    force_output_geometrytype = None
+    if clean_geom_type is True:
+        # TODO: test for geometrycollection, line, point,...
+        input1_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
+        input2_layer_info = gfo.get_layerinfo(input2_path, input2_layer)
+        primitivetype_to_extract = PrimitiveType(min(
+                input1_layer_info.geometrytype.to_primitivetype.value, 
+                input2_layer_info.geometrytype.to_primitivetype.value))
+        geom_operation = f"""ST_CollectionExtract(
+                {geom_operation}, {primitivetype_to_extract.value})"""
+    
+        # For the output file, if output is going to be polygon or linestring, force 
+        # MULTI variant to evade ugly warnings
+        force_output_geometrytype = primitivetype_to_extract.to_multitype
+
+    # Prepare filter
+    query = ""
+    filter = f"AND {_prepare_spatial_relations_filter(query)}"
+
+    #filter = """AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
+    #             AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
+    #        """
+
+    # Finalize sql template
+    sql_template = f'''
+        SELECT sub.geom
+              {{layer1_columns_from_subselect_str}}
+              {{layer2_columns_from_subselect_str}} 
+          FROM
+            ( SELECT {geom_operation} as geom
+                    {{layer1_columns_prefix_alias_str}}
+                    {{layer2_columns_prefix_alias_str}}
+                FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+               WHERE 1=1
+                 {{batch_filter}}
+                 AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
+                 AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
+                 {filter}
+            ) sub
+         WHERE sub.geom IS NOT NULL
+        '''
+
+    ##### Go! #####
+    return _two_layer_vector_operation(
+            input1_path=input1_path,
+            input2_path=input2_path,
+            output_path=output_path,
+            sql_template=sql_template,
+            operation_name="overlay",
+            input1_layer=input1_layer,
+            input1_columns=input1_columns,
+            input1_columns_prefix=input1_columns_prefix,
+            input2_layer=input2_layer,
+            input2_columns=input2_columns,
+            input2_columns_prefix=input2_columns_prefix,
+            output_layer=output_layer,
+            explodecollections=explodecollections,
+            force_output_geometrytype=force_output_geometrytype,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+            verbose=verbose,
+            force=force)
+
 def select_two_layers(
         input1_path: Path,
         input2_path: Path,
