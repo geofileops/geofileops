@@ -75,25 +75,44 @@ def test_cmp(tmpdir):
         assert gfo.cmp(src, dst) == True
         assert gfo.cmp(src2, dst) == False
 
-def test_convert(tmpdir):
+@pytest.mark.parametrize("suffix", test_helper.get_test_suffix_list())
+def test_convert(tmpdir, suffix):
     # Prepare test data + run tests
     tmp_dir = Path(tmpdir)
-    for suffix in test_helper.get_test_suffix_list():
-        # If test input file is in wrong format, convert it
-        src = test_helper.prepare_test_file(
-                input_path=test_helper.TestFiles.polygons_parcels_gpkg,
-                output_dir=tmp_dir,
-                suffix=suffix)
-        
-        # Convert
-        dst = Path(tmpdir) / f"polygons_parcels_output{suffix}"
-        gfo.convert(src, dst)
+    src = test_helper.prepare_test_file(
+            input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+            output_dir=tmp_dir,
+            suffix=suffix)
+    
+    # Convert
+    dst = Path(tmpdir) / f"polygons_parcels_output{suffix}"
+    gfo.convert(src, dst)
 
-        # Now compare source and dst file 
-        src_layerinfo = gfo.get_layerinfo(src)
-        dst_layerinfo = gfo.get_layerinfo(dst)
-        assert src_layerinfo.featurecount == dst_layerinfo.featurecount
-        assert len(src_layerinfo.columns) == len(dst_layerinfo.columns)
+    # Now compare source and dst file 
+    src_layerinfo = gfo.get_layerinfo(src)
+    dst_layerinfo = gfo.get_layerinfo(dst)
+    assert src_layerinfo.featurecount == dst_layerinfo.featurecount
+    assert len(src_layerinfo.columns) == len(dst_layerinfo.columns)
+
+    # Convert with reproject
+    dst = Path(tmpdir) / f"polygons_parcels_output_reproj4326{suffix}"
+    gfo.convert(src, dst, dst_crs=4326, reproject=True)
+
+    # Now compare source and dst file 
+    src_layerinfo = gfo.get_layerinfo(src)
+    dst_layerinfo = gfo.get_layerinfo(dst)
+    assert src_layerinfo.featurecount == dst_layerinfo.featurecount
+    assert src_layerinfo.crs is not None
+    assert src_layerinfo.crs.to_epsg() == 31370
+    assert dst_layerinfo.crs is not None
+    assert dst_layerinfo.crs.to_epsg() == 4326
+    # Check if dst file actually seems to contain lat lon coordinates
+    dst_gdf = gfo.read_file(dst)
+    first_geom = dst_gdf.geometry[0]
+    first_poly = first_geom if isinstance(first_geom, sh_geom.Polygon) else first_geom.geoms[0]
+    assert first_poly.exterior is not None
+    for x, y in first_poly.exterior.coords:
+        assert x < 100 and y < 100
 
 def test_convert_force_output_geometrytype(tmpdir):
     # The conversion is done by ogr, and these test are just written to explore
