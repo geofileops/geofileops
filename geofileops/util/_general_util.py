@@ -199,3 +199,33 @@ def initialize_worker():
     nice_value = 15
     if getprocessnice() < nice_value: 
         setprocessnice(nice_value)
+
+class set_env_variables(object):
+    """
+    Context manager to set environment variables. 
+
+    Args:
+        env_variables_to_set (dict): dict with environment variables to set.
+    """
+    def __init__(self, env_variables_to_set: dict):
+        self.env_variables_backup = {}
+        self.env_variables_to_set = env_variables_to_set
+    def __enter__(self):
+        # Only if a name and value is specified...
+        for name, value in self.env_variables_to_set.items():
+            # If the environment variable is already defined, make backup
+            if name in os.environ:
+                self.env_variables_backup[name] = os.environ[name]
+
+            # Set env variable to value
+            os.environ[name] = value
+    def __exit__(self, type, value, traceback):
+        # Set variables that were backed up back to original value
+        for name, value in self.env_variables_backup.items():
+            # Recover backed up value
+            os.environ[name] = value
+        # For variables without backup, remove them
+        for name, value in self.env_variables_to_set.items():
+            if name not in self.env_variables_backup:
+                if name in os.environ:
+                    del os.environ[name]
