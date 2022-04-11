@@ -347,7 +347,10 @@ def execute_sql(
 
 def create_spatial_index(
         path: Union[str, 'os.PathLike[Any]'],
-        layer: Optional[str] = None):
+        layer: Optional[str] = None,
+        cache_size_mb: int = 128,
+        exist_ok: bool = False,
+        force_rebuild: bool = False):
     """
     Create a spatial index on the layer specified.
 
@@ -355,41 +358,58 @@ def create_spatial_index(
         path (PathLike): The file path.
         layer (str, optional): The layer. If not specified, and there is only 
             one layer in the file, this layer is used. Otherwise exception.
+        cache_size_mb (int, optional): memory in MB that can be used while 
+            creating spatial index for spatialite files (.gpkg or .sqlite). 
+            Defaults to 512.
+        exist_ok (bool, options): If True and the index exists already, don't 
+            throw an error.
+        force_rebuild (bool, options): True to force rebuild even if index 
+            exists already. Defaults to False.
     """
     # Init
-    path_p = Path(path)
-    layerinfo = get_layerinfo(path_p, layer)
+    path = Path(path)
+    if layer is None:
+        layer = get_only_layer(path)
+    
+    # If index already exists, remove index or return
+    if has_spatial_index(path, layer) is True:
+        if force_rebuild is True:
+            remove_spatial_index(path, layer)
+        elif exist_ok is True:
+            return
+        else:
+            raise Exception(f"Error adding spatial index to {path}.{layer}, it exists already")
 
     # Now really add index
     datasource = None
     try:
-        datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
-        geofiletype = GeofileType(path_p)    
+        geofiletype = GeofileType(path)
         if geofiletype.is_spatialite_based:
-            datasource.ExecuteSQL(
-                    f"SELECT CreateSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",                
-                    dialect='SQLITE') 
+            # The config options need to be set before opening the file!
+            geometrycolumn = get_layerinfo(path, layer).geometrycolumn
+            with _ogr_util.set_config_options({"OGR_SQLITE_CACHE": cache_size_mb}):
+                datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
+                sql = f"SELECT CreateSpatialIndex('{layer}', '{geometrycolumn}')"
+                datasource.ExecuteSQL(sql, dialect="SQLITE") 
         else:
-            datasource.ExecuteSQL(f'CREATE SPATIAL INDEX ON "{layerinfo.name}"')
+            datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
+            datasource.ExecuteSQL(f'CREATE SPATIAL INDEX ON "{layer}"')
     except Exception as ex:
-        raise Exception(f"Error adding spatial index to {path_p}.{layerinfo.name}") from ex
+        raise Exception(f"Error adding spatial index to {path}.{layer}") from ex
     finally:
         if datasource is not None:
             del datasource
 
 def has_spatial_index(
         path: Union[str, 'os.PathLike[Any]'],
-        layer: Optional[str] = None,
-        geometrycolumn: Optional[str] = None) -> bool:
+        layer: Optional[str] = None) -> bool:
     """
     Check if the layer/column has a spatial index.
 
     Args:
         path (PathLike): The file path.
         layer (str, optional): The layer. Defaults to None.
-        geometrycolumn (str, optional): The geometry column to check. 
-            Defaults to None.
-
+    
     Raises:
         ValueError: an invalid parameter value was passed.
 
@@ -397,30 +417,27 @@ def has_spatial_index(
         bool: True if the spatial column exists.
     """
     # Init
-    path_p = Path(path)
+    path = Path(path)
 
     # Now check the index
-    geofiletype = GeofileType(path_p)    
-    if geofiletype.is_spatialite_based:
-        layerinfo = get_layerinfo(path_p, layer)
-
-        datasource = None
-        try:
-            data_source = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_READONLY)
-            result = data_source.ExecuteSQL(
-                    f"SELECT HasSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",
-                    dialect='SQLITE')
-            row = result.GetNextFeature()
-            has_spatial_index = row.GetField(0)
-            return (has_spatial_index == 1)
-        finally:
-            if datasource is not None:
-                del datasource
-    elif geofiletype == GeofileType.ESRIShapefile:
-        index_path = path_p.parent / f"{path_p.stem}.qix" 
-        return index_path.exists()
-    else:
-        raise ValueError(f"has_spatial_index not supported for {path_p}")
+    datasource = None
+    geofiletype = GeofileType(path)    
+    try:
+        if geofiletype.is_spatialite_based:
+            layerinfo = get_layerinfo(path, layer)
+            data_source = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_READONLY)
+            sql = f"SELECT HasSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')"
+            result = data_source.ExecuteSQL(sql, dialect='SQLITE')
+            has_spatial_index = (result.GetNextFeature().GetField(0) == 1)
+            return has_spatial_index
+        elif geofiletype == GeofileType.ESRIShapefile:
+            index_path = path.parent / f"{path.stem}.qix" 
+            return index_path.exists()
+        else:
+            raise ValueError(f"has_spatial_index not supported for {path}")
+    finally:
+        if datasource is not None:
+            del datasource
 
 def remove_spatial_index(
         path: Union[str, 'os.PathLike[Any]'],
@@ -434,24 +451,24 @@ def remove_spatial_index(
             one layer in the file, this layer is used. Otherwise exception.
     """
     # Init
-    path_p = Path(path)
-    layerinfo = get_layerinfo(path_p, layer)
+    path = Path(path)
 
     # Now really remove index
     datasource = None
-    geofiletype = GeofileType(path_p)  
+    geofiletype = GeofileType(path)  
+    layerinfo = get_layerinfo(path, layer)
     try:
         if geofiletype.is_spatialite_based:
-            datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
+            datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             datasource.ExecuteSQL(
                     f"SELECT DisableSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",
                     dialect='SQLITE') 
         elif geofiletype == GeofileType.ESRIShapefile:
             # DROP SPATIAL INDEX ON ... command gives an error, so just remove .qix
-            index_path = path_p.parent / f"{path_p.stem}.qix" 
+            index_path = path.parent / f"{path.stem}.qix" 
             index_path.unlink()
         else:
-            raise Exception(f"remove_spatial_index is not supported for {path_p.suffix} file")
+            raise Exception(f"remove_spatial_index is not supported for {path.suffix} file")
             #datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
             #datasource.ExecuteSQL(f'DROP SPATIAL INDEX ON "{layerinfo.name}"')
     finally:
@@ -610,6 +627,38 @@ def add_column(
             sqlite_stmt = f'UPDATE "{layer}" SET "{name}" = {expression}'
             _ogr_util.vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
             #datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
+    finally:
+        if datasource is not None:
+            del datasource
+
+def drop_column(
+        path: Union[str, 'os.PathLike[Any]'],
+        column_name: str,
+        layer: Optional[str] = None):
+    """
+    Drop the column specified.
+
+    Args:
+        path (PathLike): The file path.
+        column_name (str): the column name.
+        layer (Optional[str]): The layer name. If not specified, and there is only 
+            one layer in the file, this layer is used. Otherwise exception.
+    """
+    # Check input parameters
+    path_p = Path(path)
+    if layer is None:
+        layer = get_only_layer(path_p)
+    info = get_layerinfo(path_p, layer)
+    if column_name not in info.columns:
+        logger.info(f"Column {column_name} not present so cannot be dropped, so just return")
+        return
+
+    # Now really rename
+    datasource = None
+    try:
+        datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
+        sql_stmt = f'ALTER TABLE "{layer}" DROP COLUMN "{column_name}"'
+        datasource.ExecuteSQL(sql_stmt)
     finally:
         if datasource is not None:
             del datasource
@@ -1163,6 +1212,9 @@ def append_to(
         dst: Union[str, 'os.PathLike[Any]'],
         src_layer: Optional[str] = None,
         dst_layer: Optional[str] = None,
+        src_crs: Union[int, str, None] = None,
+        dst_crs: Union[int, str, None] = None,
+        reproject: bool = False,
         explodecollections: bool = False,
         force_output_geometrytype: Union[GeometryType, str, None] = None,
         create_spatial_index: bool = True,
@@ -1194,6 +1246,16 @@ def append_to(
         dst (Union[str,): destination file path.
         src_layer (str, optional): source layer. Defaults to None.
         dst_layer (str, optional): destination layer. Defaults to None.
+        src_crs (str, optional): an epsg int or anything supported 
+            by the OGRSpatialReference.SetFromUserInput() call, which includes 
+            an EPSG string (eg. "EPSG:4326"), a well known text (WKT) CRS 
+            definition,... Defaults to None.
+        dst_crs (str, optional): an epsg int or anything supported 
+            by the OGRSpatialReference.SetFromUserInput() call, which includes 
+            an EPSG string (eg. "EPSG:4326"), a well known text (WKT) CRS 
+            definition,... Defaults to None.
+        reproject (bool, optional): True to reproject while converting the 
+            file. Defaults to False.
         explodecollections (bool), optional): True to output only simple geometries. 
             Defaults to False.
         force_output_geometrytype (GeometryType, optional): geometry type. 
@@ -1243,6 +1305,9 @@ def append_to(
                         dst=dst,
                         src_layer=src_layer,
                         dst_layer=dst_layer,
+                        src_crs=src_crs,
+                        dst_crs=dst_crs,
+                        reproject=reproject, 
                         explodecollections=explodecollections,
                         force_output_geometrytype=force_output_geometrytype,
                         create_spatial_index=create_spatial_index,
@@ -1264,6 +1329,9 @@ def _append_to_nolock(
         dst: Path,
         src_layer: Optional[str] = None,
         dst_layer: Optional[str] = None,
+        src_crs: Union[int, str, None] = None,
+        dst_crs: Union[int, str, None] = None,
+        reproject: bool = False,
         explodecollections: bool = False,
         create_spatial_index: bool = True,
         force_output_geometrytype: Optional[GeometryType] = None,
@@ -1280,6 +1348,9 @@ def _append_to_nolock(
             output_path=dst,
             input_layers=src_layer,
             output_layer=dst_layer,
+            input_srs=src_crs,
+            output_srs=dst_crs,
+            reproject=reproject,
             transaction_size=transaction_size,
             append=True,
             update=True,
@@ -1293,6 +1364,9 @@ def convert(
         dst: Union[str, 'os.PathLike[Any]'],
         src_layer: Optional[str] = None,
         dst_layer: Optional[str] = None,
+        src_crs: Union[str, int, None] = None,
+        dst_crs: Union[str, int, None] = None,
+        reproject: bool = False,
         explodecollections: bool = False,
         force_output_geometrytype: Optional[GeometryType] = None,
         create_spatial_index: bool = True,
@@ -1322,6 +1396,16 @@ def convert(
             one layer in the src file, that layer is taken. Defaults to None.
         dst_layer (str, optional): The destination layer. If None, the file 
             stem is taken as layer name. Defaults to None.
+        src_crs (Union[str, int], optional): an epsg int or anything supported 
+            by the OGRSpatialReference.SetFromUserInput() call, which includes 
+            an EPSG string (eg. "EPSG:4326"), a well known text (WKT) CRS 
+            definition,... Defaults to None.
+        dst_crs (Union[str, int], optional): an epsg int or anything supported 
+            by the OGRSpatialReference.SetFromUserInput() call, which includes 
+            an EPSG string (eg. "EPSG:4326"), a well known text (WKT) CRS 
+            definition,... Defaults to None.
+        reproject (bool, optional): True to reproject while converting the 
+            file. Defaults to False.
         explodecollections (bool, optional): True to output only simple 
             geometries. Defaults to False.
         force_output_geometrytype (GeometryType, optional): Geometry type. 
@@ -1348,7 +1432,10 @@ def convert(
     # Convert
     logger.info(f"Convert {src_p} to {dst_p}")
     _append_to_nolock(
-            src_p, dst_p, src_layer, dst_layer, 
+            src_p, dst_p, src_layer, dst_layer,
+            src_crs=src_crs,
+            dst_crs=dst_crs,
+            reproject=reproject, 
             explodecollections=explodecollections, 
             force_output_geometrytype=force_output_geometrytype,
             create_spatial_index=create_spatial_index,
