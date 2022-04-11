@@ -18,6 +18,7 @@
 
 - Removed the `verbose` parameter in some functions 
 - Rename some files in util that are rather private (#84)
+- Remove long-time deprecated clip_on_tiles parameter in dissolve ()
 
 ## 0.4.0 (2022-03-31)
 
