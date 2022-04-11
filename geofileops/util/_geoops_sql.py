@@ -5,7 +5,7 @@ Module containing the implementation of Geofile operations using a sql statement
 
 from concurrent import futures
 from dataclasses import dataclass
-import datetime
+from datetime import datetime
 import logging
 import logging.config
 import multiprocessing
@@ -377,7 +377,7 @@ def _single_layer_vector_operation(
         force: bool = False):
 
     ##### Init #####
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
 
     # Check input parameters...
     if not input_path.exists():
@@ -457,20 +457,17 @@ def _single_layer_vector_operation(
                             WHERE sub.geom IS NOT NULL'''
 
                 batches[batch_id]['sql_stmt'] = sql_stmt
-                translate_description = f"Async {operation_name} {batch_id} of {len(batches)}"
-
+                
                 # Remark: this temp file doesn't need spatial index
                 translate_info = _ogr_util.VectorTranslateInfo(
                         input_path=processing_params.batches[batch_id]['path'],
                         output_path=tmp_partial_output_path,
-                        translate_description=translate_description,
                         output_layer=output_layer,
                         sql_stmt=sql_stmt,
                         sql_dialect='SQLITE',
-                        create_spatial_index=False,
                         explodecollections=explodecollections,
                         force_output_geometrytype=force_output_geometrytype,
-                        verbose=verbose)
+                        options={"LAYER_CREATION.SPATIAL_INDEX": False})
                 future = calculate_pool.submit(
                         _ogr_util.vector_translate_by_info,
                         info=translate_info)
@@ -518,7 +515,7 @@ def _single_layer_vector_operation(
     finally:
         # Clean tmp dir
         shutil.rmtree(tempdir)
-        logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
+        logger.info(f"Processing ready, took {datetime.now()-start_time}!")
 
 ################################################################################
 # Operations on two layers
@@ -1006,9 +1003,7 @@ def join_by_location(
                    {{batch_filter}}
                    AND layer1.fid NOT IN (
                        SELECT l1_fid FROM layer1_relations_filtered) '''
-    
-    print(sql_template)
-    
+        
     # Go!
     input1_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
     return _two_layer_vector_operation(
@@ -1480,7 +1475,7 @@ def _two_layer_vector_operation(
     _sqlite_util.check_runtimedependencies()
 
     # Init layer info
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
     if input1_layer is None:
         input1_layer = gfo.get_only_layer(input1_path)
     if input2_layer is None:
@@ -1488,7 +1483,7 @@ def _two_layer_vector_operation(
     if output_layer is None:
         output_layer = gfo.get_default_layer(output_path)
     tempdir = _io_util.create_tempdir(f"geofileops/{operation_name}")
-
+    
     # Use get_layerinfo to check if the input files are valid
     gfo.get_layerinfo(input1_path, input1_layer)
     gfo.get_layerinfo(input2_path, input2_layer)
@@ -1608,9 +1603,9 @@ def _two_layer_vector_operation(
                             output_path=tmp_partial_output_path,
                             sql_stmt=sql_stmt,
                             output_layer=output_layer,
-                            create_spatial_index=False,
                             explodecollections=explodecollections,
-                            force_output_geometrytype=force_output_geometrytype)
+                            force_output_geometrytype=force_output_geometrytype,
+                            options={"LAYER_CREATION.SPATIAL_INDEX": False})
                 future_to_batch_id[future] = batch_id
                 
             # Loop till all parallel processes are ready, but process each one 
@@ -1635,13 +1630,12 @@ def _two_layer_vector_operation(
                         gfo.append_to(
                                 src=tmp_partial_output_path, 
                                 dst=tmp_output_path, 
-                                create_spatial_index=False,
                                 explodecollections=explodecollections,
-                                force_output_geometrytype=force_output_geometrytype)
+                                force_output_geometrytype=force_output_geometrytype,
+                                create_spatial_index=False)
                         gfo.remove(tmp_partial_output_path)
                     else:
-                        if verbose:
-                            logger.info(f"Result file {tmp_partial_output_path} was empty")
+                        logger.debug(f"Result file {tmp_partial_output_path} was empty")
                     
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
@@ -1666,7 +1660,7 @@ def _two_layer_vector_operation(
         else:
             logger.debug(f"Result of {operation_name} was empty!")
 
-        logger.info(f"{operation_name} ready, took {datetime.datetime.now()-start_time}!")
+        logger.info(f"{operation_name} ready, took {datetime.now()-start_time}!")
     except Exception as ex:
         gfo.remove(output_path)
         gfo.remove(tmp_output_path)
@@ -1944,7 +1938,7 @@ def dissolve_singlethread(
     Remark: this is not a parallelized version!!! 
     """
     ##### Init #####
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
     if output_path.exists():
         if force is False:
             logger.info(f"Stop dissolve: Output exists already {output_path}")
@@ -2048,19 +2042,16 @@ def dissolve_singlethread(
               FROM {input_layer} layer
              GROUP BY {groupby_columns_for_groupby_str}'''
     
-    translate_description = f"Dissolve {input_path}"
     _ogr_util.vector_translate(
             input_path=input_path,
             output_path=output_path,
-            translate_description=translate_description,
             output_layer=output_layer,
             sql_stmt=sql_stmt,
-            sql_dialect='SQLITE',
+            sql_dialect="SQLITE",
             force_output_geometrytype=force_output_geometrytype,
-            explodecollections=explodecollections,
-            verbose=verbose)
+            explodecollections=explodecollections)
 
-    logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
+    logger.info(f"Processing ready, took {datetime.now()-start_time}!")
 
 '''
 def dissolve_cardsheets(    
@@ -2077,7 +2068,7 @@ def dissolve_cardsheets(
         force: bool = False):
 
     ##### Init #####
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
     if output_path.exists():
         if force is False:
             logger.info(f"Stop dissolve_cardsheets: output exists already {output_path}, so stop")
@@ -2225,5 +2216,5 @@ def dissolve_cardsheets(
     finally:
         # Clean tmp dir
         shutil.rmtree(tempdir)
-        logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
+        logger.info(f"Processing ready, took {datetime.now()-start_time}!")
 '''

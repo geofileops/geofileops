@@ -856,7 +856,7 @@ def read_file_sql(
 
     # Now we're ready to go!
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Execute sql againts file and write to temp file
+        # Execute sql against file and write to temp file
         tmp_path = Path(tmpdir) / 'read_file_sql_tmp_file.gpkg'
         _ogr_util.vector_translate(
                 input_path=path_p,
@@ -864,7 +864,7 @@ def read_file_sql(
                 sql_stmt=sql_stmt,
                 sql_dialect=sql_dialect,
                 input_layers=layer_list,
-                create_spatial_index=False)
+                options={"LAYER_CREATION.SPATIAL_INDEX": False})
             
         # Read and return result
         return _read_file_base(tmp_path, ignore_geometry=ignore_geometry)
@@ -879,7 +879,7 @@ def to_file(
         index: bool = True):
     """
     Writes a pandas dataframe to file. The fileformat is detected based on the filepath extension.
-
+ 
     Args:
         gdf (gpd.GeoDataFrame): The GeoDataFrame to export to file.
         path (Union[str,): The file path to write to.
@@ -1185,12 +1185,26 @@ def append_to(
         create_spatial_index: bool = True,
         append_timeout_s: int = 600,
         transaction_size: int = 50000,
-        verbose: bool = False):
+        options: dict = {}):
     """
     Append src file to the dst file.
 
-    remark: append is not supported for all filetypes in fiona/geopandas (0.8)
+    Remark: append is not supported for all filetypes in fiona/geopandas (0.8)
     so workaround via gdal needed.
+
+    The options parameter can be used to pass any type of options to GDAL in 
+    the following form: 
+        { "<option_type>.<option_name>": <option_value> }
+
+    The option types can be any of the following:
+        - LAYER_CREATION: layer creation option (lco)
+        - DATASET_CREATION: dataset creation option (dsco)
+        - INPUT_OPEN: input dataset open option (oo)
+        - DESTINATION_OPEN: destination dataset open option (doo)
+        - CONFIG: config option (config) 
+
+    The options can be found in the [GDAL vector driver documentation]
+    (https://gdal.org/drivers/vector/index.html). 
 
     Args:
         src (Union[str,): source file path.
@@ -1202,29 +1216,33 @@ def append_to(
         force_output_geometrytype (GeometryType, optional): geometry type. 
             to (try to) force the output to. Defaults to None.
         create_spatial_index (bool, optional): True to create a spatial index 
-            on the destination file/layer. Defaults to True.
+            on the destination file/layer. If the LAYER_CREATION.SPATIAL_INDEX 
+            parameter is specified in options, create_spatial_index is ignored. 
+            Defaults to True.
         append_timeout_s (int, optional): timeout to use if the output file is
             being written to by another process already. Defaults to 600.
         transaction_size (int, optional): Transaction size. 
             Defaults to 50000.
+        options (dict, optional): options to pass to gdal.
         verbose (bool, optional): True to write verbose output. Defaults to False.
 
     Raises:
         ValueError: an invalid parameter value was passed.
         RuntimeError: timeout was reached while trying to append data to path.
     """
-    src_p = Path(src)
-    dst_p = Path(dst)
+    # Check/clean input params
+    src = Path(src)
+    dst = Path(dst)
     if force_output_geometrytype is not None:
         force_output_geometrytype = GeometryType(force_output_geometrytype)
-    
+
     # Files don't typically support having multiple processes writing 
     # simultanously to them, so use lock file to synchronize access.
-    lockfile = Path(f"{str(dst_p)}.lock")
+    lockfile = Path(f"{str(dst)}.lock")
 
     # If the destination file doesn't exist yet, but the lockfile does, 
     # try removing the lockfile as it might be a ghost lockfile. 
-    if dst_p.exists() is False and lockfile.exists() is True:
+    if dst.exists() is False and lockfile.exists() is True:
         try: 
             lockfile.unlink()
         except:
@@ -1238,22 +1256,22 @@ def append_to(
             try:
                 # append
                 _append_to_nolock(
-                        src=src_p, 
-                        dst=dst_p,
+                        src=src, 
+                        dst=dst,
                         src_layer=src_layer,
                         dst_layer=dst_layer,
                         explodecollections=explodecollections,
                         force_output_geometrytype=force_output_geometrytype,
                         create_spatial_index=create_spatial_index,
                         transaction_size=transaction_size,
-                        verbose=verbose)
+                        options=options)
             finally:
                 lockfile.unlink()
                 return
         else:
             time_waiting = (datetime.datetime.now()-start_time).total_seconds()
             if time_waiting > append_timeout_s:
-                raise RuntimeError(f"append_to timeout of {append_timeout_s} reached, so stop trying to write to {dst_p}!")
+                raise RuntimeError(f"append_to timeout of {append_timeout_s} reached, so stop trying to write to {dst}!")
         
         # Sleep for a second before trying again
         time.sleep(1)
@@ -1264,15 +1282,19 @@ def _append_to_nolock(
         src_layer: Optional[str] = None,
         dst_layer: Optional[str] = None,
         explodecollections: bool = False,
-        force_output_geometrytype: Optional[GeometryType] = None,
         create_spatial_index: bool = True,
+        force_output_geometrytype: Optional[GeometryType] = None,
         transaction_size: int = 50000,
-        verbose: bool = False):
-    # Append
+        options: dict = {}):
+    # Check/clean input params
+    options = _ogr_util._prepare_gdal_options(options)
+    if "LAYER_CREATION.SPATIAL_INDEX" not in options:
+        options["LAYER_CREATION.SPATIAL_INDEX"] = create_spatial_index
+    
+    # Go!
     translate_info = _ogr_util.VectorTranslateInfo(
             input_path=src,
             output_path=dst,
-            translate_description=None,
             input_layers=src_layer,
             output_layer=dst_layer,
             transaction_size=transaction_size,
@@ -1280,8 +1302,7 @@ def _append_to_nolock(
             update=True,
             explodecollections=explodecollections,
             force_output_geometrytype=force_output_geometrytype,
-            create_spatial_index=create_spatial_index,
-            verbose=verbose)
+            options=options)
     _ogr_util.vector_translate_by_info(info=translate_info)
 
 def convert(
@@ -1292,10 +1313,24 @@ def convert(
         explodecollections: bool = False,
         force_output_geometrytype: Optional[GeometryType] = None,
         create_spatial_index: bool = True,
+        options: dict = {},
         force: bool = False):
     """
-    Convert the source file to the destination file. File types will be 
-    detected based on the file extensions.
+    Append src file to the dst file.
+
+    The options parameter can be used to pass any type of options to GDAL in 
+    the following form: 
+        { "<option_type>.<option_name>": <option_value> }
+
+    The option types can be any of the following:
+        - LAYER_CREATION: layer creation option (lco)
+        - DATASET_CREATION: dataset creation option (dsco)
+        - INPUT_OPEN: input dataset open option (oo)
+        - DESTINATION_OPEN: destination dataset open option (doo)
+        - CONFIG: config option (config) 
+
+    The options can be found in the [GDAL vector driver documentation]
+    (https://gdal.org/drivers/vector/index.html). 
 
     Args:
         src (PathLike): The source file path.
@@ -1304,16 +1339,21 @@ def convert(
             one layer in the src file, that layer is taken. Defaults to None.
         dst_layer (str, optional): The destination layer. If None, the file 
             stem is taken as layer name. Defaults to None.
-        explodecollections (bool), optional): True to output only simple 
+        explodecollections (bool, optional): True to output only simple 
             geometries. Defaults to False.
         force_output_geometrytype (GeometryType, optional): Geometry type. 
             to (try to) force the output to. Defaults to None.
-        force (bool, optional): overwrite existing output file(s). 
+        create_spatial_index (bool, optional): True to create a spatial index 
+            on the destination file/layer. If the LAYER_CREATION.SPATIAL_INDEX 
+            parameter is specified in options, create_spatial_index is ignored. 
+            Defaults to True.
+        options (dict, optional): options to pass to gdal.
+        force (bool, optional): overwrite existing output file(s) 
             Defaults to False.
     """
     src_p = Path(src)
     dst_p = Path(dst)
-
+   
     # If dest file exists already, remove it
     if dst_p.exists():
         if force is True:
@@ -1324,10 +1364,12 @@ def convert(
 
     # Convert
     logger.info(f"Convert {src_p} to {dst_p}")
-    _append_to_nolock(src_p, dst_p, src_layer, dst_layer, 
+    _append_to_nolock(
+            src_p, dst_p, src_layer, dst_layer, 
             explodecollections=explodecollections, 
             force_output_geometrytype=force_output_geometrytype,
-            create_spatial_index=create_spatial_index)
+            create_spatial_index=create_spatial_index,
+            options=options)
 
 def get_driver(path: Union[str, 'os.PathLike[Any]']) -> str:
     """
