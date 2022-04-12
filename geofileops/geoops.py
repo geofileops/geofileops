@@ -377,7 +377,6 @@ def dissolve(
         agg_columns: Optional[dict] = None,
         tiles_path: Union[str, 'os.PathLike[Any]', None] = None,
         nb_squarish_tiles: int = 1,
-        clip_on_tiles: bool = True,
         input_layer: Optional[str] = None,        
         output_layer: Optional[str] = None,
         nb_parallel: int = -1,
@@ -438,13 +437,6 @@ def dissolve(
             Can be used to evade huge geometries being created if the input 
             geometries are very interconnected. 
             Defaults to 1 (= the output is not tiled).
-        clip_on_tiles (bool, optional): deprecated: should always be True! 
-            If the output is tiled (by specifying a tiles_path 
-            or a nb_squarish_tiles > 1), the result will be clipped 
-            on the output tiles and the tile borders are never crossed.
-            When False, a (scalable, fast) implementation always resulted in 
-            some geometries not being merged or in duplicates. 
-            Defaults to True.
         input_layer (str, optional): input layer name. Optional if the  
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the  
@@ -461,13 +453,8 @@ def dissolve(
             Defaults to False.
     """
     # Init
-    if clip_on_tiles is False:
-        logger.warn("The clip_on_tiles parameter is deprecated! It is ignored and always treated as True. When False, a fast implementation results in some geometries not being merged or in duplicates.")
-        if tiles_path is not None or nb_squarish_tiles > 1:
-            raise Exception("clip_on_tiles is deprecated, and the behaviour of clip_on_tiles is False is not supported anymore.")
-    tiles_path_p = None
     if tiles_path is not None:
-        tiles_path_p = Path(tiles_path)
+        tiles_path = Path(tiles_path)
     
     # If an empty list of geometry columns is passed, convert it to None to 
     # simplify the rest of the code 
@@ -481,7 +468,7 @@ def dissolve(
             explodecollections=explodecollections,
             groupby_columns=groupby_columns,
             agg_columns=agg_columns,
-            tiles_path=tiles_path_p,
+            tiles_path=tiles_path,
             nb_squarish_tiles=nb_squarish_tiles,
             input_layer=input_layer,        
             output_layer=output_layer,

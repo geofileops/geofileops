@@ -5,7 +5,7 @@ Module containing the implementation of Geofile operations using GeoPandas.
 
 import ast
 from concurrent import futures
-import datetime
+from datetime import datetime
 import enum
 import json
 import logging
@@ -363,7 +363,7 @@ def _apply_geooperation_to_layer(
         force (bool, optional): [description]. Defaults to False.
     """
     ##### Init #####
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
     if input_layer is None:
         input_layer = gfo.get_only_layer(input_path)
     if output_path.exists():
@@ -496,7 +496,7 @@ def _apply_geooperation_to_layer(
     finally:
         # Clean tmp dir
         shutil.rmtree(tempdir)
-        logger.info(f"{operation} ready, took {datetime.datetime.now()-start_time}!")
+        logger.info(f"{operation} ready, took {datetime.now()-start_time}!")
 
 def _apply_geooperation(
         input_path: Path,
@@ -520,7 +520,7 @@ def _apply_geooperation(
             gfo.remove(output_path)
 
     ##### Now go! #####
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
     data_gdf = gfo.read_file(path=input_path, layer=input_layer, columns=columns, rows=rows)
     if len(data_gdf) == 0:
         message = f"No input geometries found for rows: {rows} in layer: {input_layer} in input_path: {input_path}"
@@ -568,7 +568,7 @@ def _apply_geooperation(
                 gdf=data_gdf, path=output_path, layer=output_layer, index=False,
                 force_multitype=True)
 
-    message = f"Took {datetime.datetime.now()-start_time} for {len(data_gdf)} rows ({rows})!"
+    message = f"Took {datetime.now()-start_time} for {len(data_gdf)} rows ({rows})!"
     return message
 
 def dissolve(
@@ -586,13 +586,13 @@ def dissolve(
         verbose: bool = False,
         force: bool = False) -> dict:
     """
-    Function that applies a dissolve on the input gfo.
+    Function that applies a dissolve.
 
-    More detailed documentation in module geofileops!
+    More detailed documentation in module geoops!
     """
 
     ##### Init #####
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
     operation = 'dissolve'
     result_info = {}
     
@@ -945,7 +945,7 @@ def dissolve(
         raise NotImplementedError(f"Unsupported input geometrytype: {input_layerinfo.geometrytype}")
 
     # Return result info
-    result_info['message'] = f"Dissolve completely ready, took {datetime.datetime.now()-start_time}!"
+    result_info['message'] = f"Dissolve completely ready, took {datetime.now()-start_time}!"
     logger.info(result_info['message'])
     return result_info
 
@@ -962,9 +962,9 @@ def _dissolve_polygons_pass(
         nb_parallel: int) -> dict:
 
     # Start calculation in parallel
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
     result_info = {}
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
     input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
     with futures.ProcessPoolExecutor(
             max_workers=nb_parallel, 
@@ -1055,7 +1055,7 @@ def _dissolve_polygons_pass(
             # Log the progress and prediction speed
             _general_util.report_progress(start_time, nb_batches_done, nb_batches, 'dissolve')   
     
-    logger.info(f"Dissolve pass ready, took {datetime.datetime.now()-start_time}!")
+    logger.info(f"Dissolve pass ready, took {datetime.now()-start_time}!")
                 
     return result_info
 
@@ -1074,7 +1074,7 @@ def _dissolve_polygons(
 
     ##### Init #####
     perfinfo = {}
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
     return_info = {"input_path": input_path,
                    "output_notonborder_path": output_notonborder_path,
                    "output_onborder_path": output_onborder_path,
@@ -1087,7 +1087,7 @@ def _dissolve_polygons(
 
     # Read all records that are in the bbox
     retry_count = 0
-    start_read = datetime.datetime.now()
+    start_read = datetime.now()
     while True:
         try:
             columns_to_read = set()
@@ -1134,13 +1134,13 @@ def _dissolve_polygons(
                 raise ex
 
     # Check result
-    perfinfo['time_read'] = (datetime.datetime.now()-start_read).total_seconds()
+    perfinfo['time_read'] = (datetime.now()-start_read).total_seconds()
     return_info['nb_rows_done'] = len(input_gdf)
     if return_info['nb_rows_done'] == 0:
         message = f"No input geometries found in {input_path}"
         logger.info(message)
         return_info['message'] = message
-        return_info['total_time'] = (datetime.datetime.now()-start_time).total_seconds()
+        return_info['total_time'] = (datetime.now()-start_time).total_seconds()
         return return_info
 
     # Now the real processing
@@ -1152,11 +1152,11 @@ def _dissolve_polygons(
             # Columns already coded in a json column, so merge json lists 
             aggfunc = "merge_json_lists"
     else:
-        aggfunc = 'first'
-    start_dissolve = datetime.datetime.now()
+        aggfunc = "first"
+    start_dissolve = datetime.now()
     diss_gdf = _dissolve(
             df=input_gdf, by=groupby_columns, aggfunc=aggfunc, as_index=False, dropna=False)
-    perfinfo['time_dissolve'] = (datetime.datetime.now()-start_dissolve).total_seconds()
+    perfinfo['time_dissolve'] = (datetime.now()-start_dissolve).total_seconds()
 
     # If explodecollections is True and For polygons, explode multi-geometries.
     # If needed they will be 'collected' afterwards to multipolygons again.
@@ -1175,13 +1175,13 @@ def _dissolve_polygons(
     # always result in linestrings being re-connected... Because dissolving 
     # lines isn't so computationally heavy anyway, drop support here.  
     if bbox is not None:
-        start_clip = datetime.datetime.now()
+        start_clip = datetime.now()
         bbox_polygon = sh_geom.Polygon([
                 (bbox[0], bbox[1]), (bbox[0], bbox[3]), 
                 (bbox[2], bbox[3]), (bbox[2], bbox[1]), (bbox[0], bbox[1])])
         bbox_gdf = gpd.GeoDataFrame([1], geometry=[bbox_polygon], crs=input_gdf.crs)
         
-        # keep_geom_type=True gaves sometimes error, and still does in 0.9.0
+        # keep_geom_type=True gave sometimes error, and still does in 0.9.0
         # so use own implementation of keep_geom_type 
         diss_gdf = gpd.clip(diss_gdf, bbox_gdf) #, keep_geom_type=True)
         assert isinstance(diss_gdf, gpd.GeoDataFrame) 
@@ -1191,7 +1191,7 @@ def _dissolve_polygons(
         diss_gdf.geometry = geoseries_util.geometry_collection_extract(
                 diss_gdf.geometry, input_geometrytype.to_primitivetype)
 
-        perfinfo['time_clip'] = (datetime.datetime.now()-start_clip).total_seconds()
+        perfinfo['time_clip'] = (datetime.now()-start_clip).total_seconds()
 
     # Drop rows with None/empty geometries
     diss_gdf = diss_gdf[~diss_gdf.geometry.isna()]
@@ -1202,7 +1202,7 @@ def _dissolve_polygons(
         message = f"Result is empty for {input_path}"
         return_info['message'] = message
         return_info['perfinfo'] = perfinfo
-        return_info['total_time'] = (datetime.datetime.now()-start_time).total_seconds()
+        return_info['total_time'] = (datetime.now()-start_time).total_seconds()
         return return_info
 
     # Add column with tile_id
@@ -1210,7 +1210,7 @@ def _dissolve_polygons(
         diss_gdf["tile_id"] = tile_id
 
     # Save the result to destination file(s)
-    start_to_file = datetime.datetime.now()
+    start_to_file = datetime.now()
 
     # If the tiles don't need to be merged afterwards, we can just save the result as it is
     if str(output_notonborder_path) == str(output_onborder_path):
@@ -1247,10 +1247,10 @@ def _dissolve_polygons(
             gfo.to_file(
                     notonborder_gdf, output_notonborder_path, 
                     layer=output_layer, force_multitype=True, index=False)
-    perfinfo['time_to_file'] = (datetime.datetime.now()-start_to_file).total_seconds()
+    perfinfo['time_to_file'] = (datetime.now()-start_to_file).total_seconds()
 
     # Finalise...
-    message = f"dissolve ready in {datetime.datetime.now()-start_time} on {input_path}!"
+    message = f"dissolve ready in {datetime.now()-start_time} on {input_path}!"
     logger.debug(message)
     
     # Collect perfinfo
@@ -1259,7 +1259,7 @@ def _dissolve_polygons(
     for perfcode in perfinfo:
         total_perf_time += perfinfo[perfcode]
         perfstring += f"{perfcode}: {perfinfo[perfcode]:.2f}, "
-    return_info['total_time'] = (datetime.datetime.now()-start_time).total_seconds()
+    return_info['total_time'] = (datetime.now()-start_time).total_seconds()
     perfinfo['unaccounted'] = return_info['total_time'] - total_perf_time
     perfstring += f"unaccounted: {perfinfo['unaccounted']:.2f}"
     
