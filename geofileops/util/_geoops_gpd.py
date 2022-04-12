@@ -1059,7 +1059,7 @@ def _dissolve_polygons(
 
     ##### Init #####
     perfinfo = {}
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
     return_info = {"input_path": input_path,
                    "output_notonborder_path": output_notonborder_path,
                    "output_onborder_path": output_onborder_path,
@@ -1331,7 +1331,7 @@ def _dissolve(
     # Process non-spatial component
     data = pd.DataFrame(df.drop(columns=df.geometry.name))
 
-    if isinstance(aggfunc, str) is True and aggfunc == "to_json":
+    if isinstance(aggfunc, str) is True and aggfunc == 'json':
         #orient='records' ???
         agg_columns = list(data.columns)
         if by is not None:
