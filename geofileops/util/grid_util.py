@@ -27,7 +27,7 @@ def create_grid(
         total_bounds: Tuple[float, float, float, float],
         nb_columns: int,
         nb_rows: int,
-        crs: Union[pyproj.CRS, str, None]) -> gpd.GeoDataFrame:
+        crs: Union[pyproj.CRS, int, str, None]) -> gpd.GeoDataFrame:
 
     xmin, ymin, xmax, ymax = total_bounds
     width = (xmax-xmin)/nb_columns
@@ -39,7 +39,7 @@ def create_grid3(
         total_bounds: Tuple[float, float, float, float],
         width: float,
         height: float,
-        crs: Union[pyproj.CRS, str, None]) -> gpd.GeoDataFrame:
+        crs: Union[pyproj.CRS, int, str, None]) -> gpd.GeoDataFrame:
     """
     
 
@@ -47,7 +47,7 @@ def create_grid3(
         total_bounds (Tuple[float, float, float, float]): [description]
         width (float): [description]
         height (float): [description]
-        crs (Union[pyproj.CRS, str, None]): [description]
+        crs (Union[pyproj.CRS, int, str, None]): [description]
         number_decimals (int, optional): The number of decimals the coordinates 
             of the grid will have. Defaults to None, so no rounding.
 
@@ -82,7 +82,7 @@ def create_grid3(
 def create_grid2(
         total_bounds: Tuple[float, float, float, float], 
         nb_squarish_tiles: int,
-        crs: Union[pyproj.CRS, str, None],
+        crs: Union[pyproj.CRS, int, str, None],
         nb_squarish_tiles_max: Optional[int] = None) -> gpd.GeoDataFrame:
     """
     Creates a grid and tries to approximate the number of cells asked as
@@ -91,7 +91,7 @@ def create_grid2(
     Args:
         total_bounds (Tuple[float, float, float, float]): bounds of the grid to be created
         nb_squarish_cells (int): about the number of cells wanted
-        crs (CRS): the projection to create the grid in 
+        crs (pyproj.CRS, int, str, optional): the projection to create the grid in 
         nb_squarish_tiles_max (int, optional): the maximum number of cells
 
     Returns:
@@ -185,7 +185,10 @@ def split_tiles(
                         split_line = sh_geom.LineString([(xmin-1, ymin+height/2), (xmax+1, ymin+height/2)])
                 tmp_tiles_after_split.extend(sh_ops.split(tile_to_split, split_line).geoms)
             curr_tiles_being_split = tmp_tiles_after_split
-        result_tiles.extend(curr_tiles_being_split)
+        
+        # Copy the tile parts to the result and retain possible other columns 
+        for tile_split_part in curr_tiles_being_split:
+            result_tiles.append(tile._replace(geometry=tile_split_part))
     
     # We should be ready...
-    return gpd.GeoDataFrame(geometry=result_tiles, crs=input_tiles.crs)
+    return gpd.GeoDataFrame(result_tiles, crs=input_tiles.crs)
