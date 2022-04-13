@@ -168,7 +168,7 @@ def clip(tmp_dir: Path) -> RunResult:
     #output_path.unlink()
     return result
 
-def intersect(tmp_dir: Path) -> RunResult:
+def intersection(tmp_dir: Path) -> RunResult:
     # Init
     input1_path = testdata.TestFile.AGRIPRC_2018.get_file(tmp_dir)
     input2_path = testdata.TestFile.AGRIPRC_2019.get_file(tmp_dir)
@@ -184,9 +184,9 @@ def intersect(tmp_dir: Path) -> RunResult:
     result = RunResult(
             package=_get_package(), 
             package_version=_get_version(),
-            operation='intersect', 
+            operation='intersection', 
             secs_taken=(datetime.now()-start_time).total_seconds(),
-            operation_descr="intersect between 2 agri parcel layers BEFL (2*~500.000 polygons)",
+            operation_descr="intersection between 2 agri parcel layers BEFL (2*~500.000 polygons)",
             run_details={"nb_cpu": multiprocessing.cpu_count()})
 
     # Cleanup and return

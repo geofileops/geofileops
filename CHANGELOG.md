@@ -25,8 +25,9 @@
 - Removed deprecated `verbose` parameter in some functions 
 - Rename some files in util that are rather private (#84)
 - Remove long-time deprecated clip_on_tiles parameter in dissolve (#95)
-- Deprecate `gfo.intersect()` to rename to `gfo.intersection()`. Now a 
-  warning is given, in the future `gfo.intersect()` will be removed (#99)
+- Deprecate `gfo.intersect()` for new name `gfo.intersection()` to be 
+  consistend with most other libraries. Now a warning is given, in the future 
+  `gfo.intersect()` will be removed (#99).
 
 ## 0.4.0 (2022-03-31)
 
