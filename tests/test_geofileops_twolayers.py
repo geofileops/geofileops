@@ -291,7 +291,7 @@ def basetest_export_by_distance(
     output_gdf = gfo.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
-def test_intersect(tmpdir):
+def test_intersection(tmpdir):
     # Prepare test data + run tests
     tmp_dir = Path(tmpdir)
     tmp_dir.mkdir(parents=True, exist_ok=True)
@@ -314,15 +314,15 @@ def test_intersect(tmpdir):
             # Now run test
             output_path = tmp_dir / f"{input1_path.stem}-output{suffix}"
             print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}")
-            basetest_intersect(input1_path, input2_path, output_path)
+            basetest_intersection(input1_path, input2_path, output_path)
     
-def basetest_intersect(
+def basetest_intersection(
         input1_path: Path, 
         input2_path: Path, 
         output_path: Path):
 
     # Do operation
-    gfo.intersect(
+    gfo.intersection(
             input1_path=input1_path,
             input2_path=input2_path,
             output_path=output_path,
@@ -514,7 +514,7 @@ def basetest_select_two_layers(
         output_path: Path):
 
     # Prepare query to execute. At the moment this is just the query for the 
-    # intersect() operation.
+    # intersection() operation.
     input1_layer_info = gfo.get_layerinfo(input1_path)
     input2_layer_info = gfo.get_layerinfo(input2_path)
     primitivetype_to_extract = PrimitiveType(min(
