@@ -550,7 +550,7 @@ def clip(
 
     # Prepare sql template for this operation 
     # Remarks:
-    #   - ST_intersect(geometry , NULL) gives NULL as result! -> hence the CASE 
+    #   - ST_intersection(geometry , NULL) gives NULL as result! -> hence the CASE 
     #   - use of the with instead of an inline view is a lot faster
     #   - WHERE geom IS NOT NULL to evade rows with a NULL geom, they give issues in later operations
     sql_template = f'''
@@ -825,7 +825,7 @@ def export_by_distance(
             verbose=verbose,
             force=force)
 
-def intersect(
+def intersection(
         input1_path: Path,
         input2_path: Path,
         output_path: Path,

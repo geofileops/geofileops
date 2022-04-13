@@ -176,7 +176,7 @@ def intersect(tmp_dir: Path) -> RunResult:
     # Go!
     start_time = datetime.now()
     output_path = tmp_dir / f"{input1_path.stem}_inters_{input2_path.stem}.gpkg"
-    gfo.intersect(
+    gfo.intersection(
             input1_path=input1_path, 
             input2_path=input2_path, 
             output_path=output_path,

@@ -322,7 +322,7 @@ def basetest_intersect(
         output_path: Path):
 
     # Do operation
-    gfo.intersect(
+    gfo.intersection(
             input1_path=input1_path,
             input2_path=input2_path,
             output_path=output_path,
