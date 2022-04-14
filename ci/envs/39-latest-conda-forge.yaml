@@ -11,9 +11,9 @@ dependencies:
   - geopandas
   - numpy
   - pandas
+  - psutil
   - pygeos
   - pyproj
-  - psutil
   - shapely
   # testing
   - pytest

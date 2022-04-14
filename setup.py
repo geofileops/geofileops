@@ -19,7 +19,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     install_requires=[
             "cloudpickle", "fiona", "gdal", "geopandas>=0.10", "numpy", 
-            "pandas", "pygeos", "pyproj", "psutil", "shapely"],
+            "pandas", "psutil", "pygeos", "pyproj", "shapely"],
     extras_require = {
         "full": ["simplification"]
     },
