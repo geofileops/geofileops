@@ -17,7 +17,9 @@ setuptools.setup(
     url="https://github.com/geofileops/geofileops",
     include_package_data=True,
     packages=setuptools.find_packages(),
-    install_requires=["cloudpickle", "fiona", "gdal", "geopandas>=0.10", "pygeos", "pyproj", "psutil", "shapely"],
+    install_requires=[
+            "cloudpickle", "fiona", "gdal", "geopandas>=0.10", "numpy", 
+            "pandas", "pygeos", "pyproj", "psutil", "shapely"],
     extras_require = {
         "full": ["simplification"]
     },
