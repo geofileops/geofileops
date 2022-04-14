@@ -885,7 +885,7 @@ def intersection(
             input2_path=input2_path,
             output_path=output_path,
             sql_template=sql_template,
-            operation_name='intersect',
+            operation_name='intersection',
             input1_layer=input1_layer,
             input1_columns=input1_columns,
             input1_columns_prefix=input1_columns_prefix,
@@ -1339,7 +1339,7 @@ def split(
         force: bool = False):
 
     # In the query, important to only extract the geometry types that are 
-    # expected, so the primitive type of input1_layer  
+    # expected, so the primitive type of input1_layer
     # TODO: test for geometrycollection, line, point,...
     input1_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
     primitivetype_to_extract = input1_layer_info.geometrytype.to_primitivetype

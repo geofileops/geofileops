@@ -811,10 +811,17 @@ def clip(
         verbose: bool = False,
         force: bool = False):
     """
-    Clip all geometries in the input layer by the clip layer.
+    Clip the input layer with the clip layer.
 
-    The resulting layer will only contain the (parts of) the geometries that 
-    intersect with the dissolved version of the geometries in the clip layer. 
+    The resulting layer will contain the parts of the geometries in the 
+    input layer that overlap with the dissolved geometries in the clip layer. 
+    
+    Clarifications:
+        - every row in the input layer will result in maximum one row in the 
+          output layer.
+        - geometries in the input layer that overlap with multiple adjacent 
+          geometries in the clip layer won't result in the input geometries 
+          getting split.
 
     This is the result you can expect when clipping a polygon layer (yellow)
     with another polygon layer (purple):
@@ -889,6 +896,13 @@ def erase(
     """
     Erase all geometries in the erase layer from the input layer.
 
+    Clarifications:
+        - every row in the input layer will result in maximum one row in the 
+          output layer.
+
+    Alternative names:
+        - QGIS: difference
+
     Args:
         input_path (PathLike): The file to erase from.
         erase_path (PathLike): The file with the geometries to erase with.
@@ -949,7 +963,8 @@ def export_by_location(
     Exports all features in input_to_select_from_path that intersect with any 
     features in input_to_compare_with_path.
 
-    Alternative names: extract by location in QGIS.
+    Alternative names:
+        - QGIS: extract by location
     
     Args:
         input_to_select_from_path (PathLike): the 1st input file
@@ -1107,6 +1122,9 @@ def intersection(
     """
     Calculate the pairwise intersection of alle features in input1 with all 
     features in input2.
+
+    Alternative names: 
+        - GeoPandas: overlay(how="intersection")
     
     Args:
         input1_path (PathLike): the 1st input file
@@ -1188,7 +1206,9 @@ def join_by_location(
     The supported named spatial predicates are: equals, touches, within, 
     overlaps, crosses, intersects, contains, covers, coveredby.
 
-    Alternative names: sjoin in GeoPandas.
+    Alternative names: 
+        - GeoPandas: sjoin
+        - ArcGIS: spatial join
     
     Args:
         input1_path (PathLike): the 1st input file
@@ -1511,7 +1531,10 @@ def split(
 
     The result is the equivalent of an intersect between the two layers + layer 
     1 erased with layer 2. 
-    In ArcMap and SAGA this operation is called "Identity".
+    
+    Alternative names: 
+        - ArcMap, SAGA: identity
+        - GeoPandas: overlay(how="identity")
     
     Args:
         input1_path (PathLike): the 1st input file
@@ -1575,8 +1598,11 @@ def union(
         verbose: bool = False,
         force: bool = False):
     """
-    Calculates the "union" of the two input layers.
+    Calculates the pairwise "union" of the two input layers.
     
+    Alternative names:
+        - GeoPandas: overlay(how="union")
+
     Args:
         input1_path (PathLike): the 1st input file
         input2_path (PathLike): the 2nd input file
