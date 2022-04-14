@@ -142,18 +142,6 @@ def create_table_as_sql(
             conn.execute("PRAGMA cache_size=-128000;")
             conn.execute("PRAGMA temp_store=MEMORY;")
             
-            # Use the sqlite profile specified
-            if profile is SqliteProfile.SPEED:
-                conn.execute(f"PRAGMA journal_mode=OFF;")
-            
-                # These pragma's increase speed
-                conn.execute("PRAGMA locking_mode=EXCLUSIVE;")
-                conn.execute("PRAGMA synchronous=OFF;")
-                
-                # Use memory mapped IO: much faster for calculations 
-                # (max 30GB)
-                conn.execute("PRAGMA mmap_size=30000000000;")
-
             # If attach to input1
             input1_databasename = "input1"
             sql = f"ATTACH DATABASE ? AS {input1_databasename}"
@@ -170,6 +158,22 @@ def create_table_as_sql(
                     dbSpec = (str(input2_path),)
                     conn.execute(sql, dbSpec)    
             
+            # Use the sqlite profile specified
+            if profile is SqliteProfile.SPEED:
+                # Use memory mapped IO: much faster for calculations 
+                # (max 30GB)
+                conn.execute("PRAGMA mmap_size=30000000000;")
+
+                # These options don't really make a difference on windows, but 
+                # it doesn't hurt and maybe on other platforms...
+                for databasename in [
+                        output_databasename, input1_databasename, input2_databasename]:
+                    conn.execute(f"PRAGMA {databasename}.journal_mode=OFF;")
+                
+                    # These pragma's increase speed
+                    conn.execute(f"PRAGMA {databasename}.locking_mode=EXCLUSIVE;")
+                    conn.execute(f"PRAGMA {databasename}.synchronous=OFF;")
+                
             # Prepare sql statement
             sql_stmt = sql_stmt.format(
                     input1_databasename=input1_databasename,
