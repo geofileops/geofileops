@@ -17,6 +17,7 @@ import pandas as pd
 
 import geofileops as gfo
 from geofileops import GeofileType, GeometryType, PrimitiveType
+from geofileops import fileops
 from geofileops.fileops import _append_to_nolock
 from . import _io_util
 from . import _ogr_util
@@ -1204,15 +1205,26 @@ def overlay(
 
     ### Check input params ###
     overlay_operations = [
-            "intersection", "union", "identity", "symmetric_difference", "difference"]
+            "difference", "identity", "intersection", "symmetric_difference", "union", ]
     if overlay_operation not in overlay_operations:
         raise ValueError(f"overlay operation {overlay_operation} not supported, only {overlay_operations}")
     
     ### Prepare sql statement ###
-    # Prepare geo operation
-    geom_operation = (
-            f"ST_Intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}})")
-
+    # Prepare geo operation(s)
+    geom_operation2 = None
+    filter_2 = None
+    if overlay_operation == "difference":
+        geom_operation1 = (
+                f"ST_Difference(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}})")
+    elif overlay_operation == "identity":
+        geom_operation1 = (
+                f"ST_Intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}})")
+        geom_operation1 = (
+                f"ST_Difference(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}})")
+    elif overlay_operation == "intersection":
+        geom_operation1 = (
+                f"ST_Intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}})")
+    
     # Only extract the geometry types that are "expected"
     force_output_geometrytype = None
     if clean_geom_type is True:
@@ -1730,7 +1742,7 @@ def _two_layer_vector_operation(
                                 explodecollections=explodecollections,
                                 force_output_geometrytype=force_output_geometrytype,
                                 create_spatial_index=False)
-                        gfo.remove(tmp_partial_output_path)
+                        #gfo.remove(tmp_partial_output_path)
                     else:
                         logger.debug(f"Result file {tmp_partial_output_path} was empty")
                     

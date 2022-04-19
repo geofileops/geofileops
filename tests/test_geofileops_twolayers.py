@@ -483,6 +483,68 @@ def test_join_nearest(tmpdir, suffix, crs_epsg):
     output_gdf = gfo.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
+@pytest.mark.parametrize(
+        "suffix, crs_epsg, overlay_operation, discard_nonmatching, expected_featurecount", 
+        [   (".gpkg", 31370, "difference", False, 46),
+            (".gpkg", 31370, "identity", True, 0),
+            (".gpkg", 31370, "intersection", False, 48),
+            (".gpkg", 31370, "symmetric_difference", False, 49),
+            (".gpkg", 31370, "union", True, 25),
+            (".gpkg", 4326, "intersection", False, 49),
+            (".shp", 31370, "intersection", False, 49), ])
+def test_overlay(
+        tmpdir, 
+        suffix: str,
+        crs_epsg: int,
+        overlay_operation: str,
+        discard_nonmatching: bool,
+        expected_featurecount: int):
+    ### Prepare test data + run tests ###
+    tmp_dir = Path(tmpdir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    path=test_helper.TestFiles.polygons_parcels_gpkg
+    input1_path = test_helper.prepare_test_file(path, tmp_dir, suffix, crs_epsg)
+    path = test_helper.TestFiles.polygons_zones_gpkg
+    input2_path = test_helper.prepare_test_file(path, tmp_dir, suffix, crs_epsg)
+
+    ### Test ###
+    """
+    output_path = tmp_dir / f"{input1_path.stem}_{overlay_operation}_{input2_path.stem}_{discard_nonmatching}{suffix}"
+    gfo.overlay(
+            input1_path=input1_path,
+            input2_path=input2_path,
+            output_path=output_path,
+            spatial_relations_query=spatial_relations_query,
+            discard_nonmatching=discard_nonmatching,
+            min_area_intersect=min_area_intersect,
+            force=True)
+
+    # If no result expected, the output files shouldn't exist
+    if expected_featurecount == 0:
+        assert output_path.exists() is False
+        return
+
+    # Check if the output file is correctly created
+    assert output_path.exists() is True
+    layerinfo_input1 = gfo.get_layerinfo(input1_path)
+    layerinfo_input2 = gfo.get_layerinfo(input2_path)
+    layerinfo_output = gfo.get_layerinfo(output_path)
+    assert layerinfo_output.featurecount == expected_featurecount
+    assert len(layerinfo_output.columns) == (
+            len(layerinfo_input1.columns) + len(layerinfo_input2.columns) + 1)
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON 
+
+    # Now check the contents of the result file
+    output_gdf = gfo.read_file(output_path)
+    assert output_gdf['geometry'][0] is not None
+    """
+    input1_gdf = gfo.read_file(input1_path)
+    input2_gdf = gfo.read_file(input2_path)
+
+    result_gdf = input1_gdf.overlay(input2_gdf, how=overlay_operation, keep_geom_type=True)
+    output_gpd_path = tmp_dir / f"{input1_path.stem}_{overlay_operation}-gpd_{input2_path.stem}_{discard_nonmatching}{suffix}"
+    gfo.to_file(result_gdf, output_gpd_path)
+
 def test_select_two_layers(tmpdir):
     # Prepare test data + run tests
     tmp_dir = Path(tmpdir)
