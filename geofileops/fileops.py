@@ -1347,7 +1347,8 @@ def _append_to_nolock(
     # get NULL values instead of the data.
     sql_stmt = None
     if dst.suffix.lower() == ".shp":
-        columns_laundered = _launder_column_names(src)
+        src_columns = get_layerinfo(src).columns
+        columns_laundered = _launder_column_names(src_columns)
         columns_aliased = [f'"{column}" AS "{laundered}"' for column, laundered in columns_laundered]
         layer = src_layer if src_layer is not None else get_only_layer(src)
         sql_stmt = f'SELECT {", ".join(columns_aliased)} FROM "{layer}"'
@@ -1453,9 +1454,9 @@ def convert(
             create_spatial_index=create_spatial_index,
             options=options)
 
-def _launder_column_names(path: Union[str, 'os.PathLike[Any]']) -> List[Tuple[str, str]]:
+def _launder_column_names(columns: Iterable) -> List[Tuple[str, str]]:
     """
-    Launders the columns of the file to comply with shapefile restrictions. 
+    Launders the column names passed to comply with shapefile restrictions. 
 
     Rationale: normally gdal launders them if needed, but when you append 
     multiple files to a shapefile with columns that need to be laundered 
@@ -1495,19 +1496,13 @@ def _launder_column_names(path: Union[str, 'os.PathLike[Any]']) -> List[Tuple[st
     -   String fields without an assigned width are treated as 80 characters.
 
     Args:
-        path (Union[str, &#39;os.PathLike[Any]&#39;]): the geopackage file
+        columns (Iterable): the columns to launder.
 
     Returns: a List of tupples with the original and laundered column names.
     """
-    path = Path(path)
-    if path.suffix.lower() != ".gpkg":
-        raise ValueError(f"Only .gpkg filees are supported!")
-
-    layerinfo = get_layerinfo(path)
-    
     laundered = []
     laundered_upper = []
-    for column in layerinfo.columns:
+    for column in columns:
         # Doubles in casing aree not allowed either 
         if len(column) <= 10:
             if column.upper() not in laundered_upper:
