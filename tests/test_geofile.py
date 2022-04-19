@@ -15,6 +15,7 @@ import shapely.geometry as sh_geom
 # Add path so the local geofileops packages are found 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import geofileops as gfo
+from geofileops import fileops
 from geofileops.util import geoseries_util
 from geofileops.util.geometry_util import GeometryType
 from geofileops.util import _io_util
@@ -794,3 +795,27 @@ def test_remove(tmpdir):
         # Remove and check result
         gfo.remove(input_path)
         assert input_path.exists() == False
+
+def test_launder_columns():
+
+    columns = [f"TOO_LONG_COLUMNNAME{index}" for index in range(0, 21)]
+    laundered = fileops._launder_column_names(columns)
+    assert laundered[0] == ("TOO_LONG_COLUMNNAME0", "TOO_LONG_C")
+    assert laundered[1] == ("TOO_LONG_COLUMNNAME1", "TOO_LONG_1")
+    assert laundered[9] == ("TOO_LONG_COLUMNNAME9", "TOO_LONG_9")
+    assert laundered[10] == ("TOO_LONG_COLUMNNAME10", "TOO_LONG10")
+    assert laundered[20] == ("TOO_LONG_COLUMNNAME20", "TOO_LONG20")
+
+    # Laundering happens case-insensitive
+    columns = ["too_LONG_COLUMNNAME", "TOO_long_COLUMNNAME2", "TOO_LONG_columnname3"]
+    laundered = fileops._launder_column_names(columns)
+    expected = [
+            ("too_LONG_COLUMNNAME", "too_LONG_C"),
+            ("TOO_long_COLUMNNAME2", "TOO_long_1"),
+            ("TOO_LONG_columnname3", "TOO_LONG_2")]
+    assert laundered == expected
+
+    # Too many similar column names to be supported to launder
+    columns = [f"TOO_LONG_COLUMNNAME{index}" for index in range(0, 200)]
+    with pytest.raises(NotImplementedError, match="Not supported to launder > 99 columns starting with"):
+        laundered = fileops._launder_column_names(columns)    
