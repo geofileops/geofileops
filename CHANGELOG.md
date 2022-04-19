@@ -19,12 +19,16 @@
       the json output is not correct.
     - when combining tiled output with explodecollections=False, the output 
       is still ~exploded.
+- For gfo.intersection() some attribute data is NULL if output format is .shp (#102)
 
 ### Deprecations and compatibility notes
 
 - Removed deprecated `verbose` parameter in some functions 
 - Rename some files in util that are rather private (#84)
 - Remove long-time deprecated clip_on_tiles parameter in dissolve (#95)
+- Deprecate `gfo.intersect()` for new name `gfo.intersection()` to be 
+  consistent with most other libraries. Now a warning is given, in the future 
+  `gfo.intersect()` will be removed (#99).
 
 ## 0.4.0 (2022-03-31)
 
