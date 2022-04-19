@@ -609,42 +609,32 @@ def basetest_split_layers(
     output_gdf = gfo.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
 
-def test_union(tmpdir):
-    # Prepare test data + run tests
+@pytest.mark.parametrize(
+        "suffix, crs_epsg", [
+        (".gpkg", 31370), 
+        (".gpkg", 4326), 
+        (".shp", 31370)])
+def test_union(tmpdir, suffix, crs_epsg):
+    # Prepare test data
     tmp_dir = Path(tmpdir)
     tmp_dir.mkdir(parents=True, exist_ok=True)
-    for suffix in test_helper.get_test_suffix_list():
-        for crs_epsg in test_helper.get_test_crs_epsg_list():
-            # If test input file is in wrong format, convert it
-            input1_path = test_helper.prepare_test_file(
-                    input_path=test_helper.TestFiles.polygons_parcels_gpkg,
-                    output_dir=tmp_dir,
-                    suffix=suffix,
-                    crs_epsg=crs_epsg)
+    input1_path = test_helper.prepare_test_file(
+            input_path=test_helper.TestFiles.polygons_parcels_gpkg,
+            output_dir=tmp_dir,
+            suffix=suffix,
+            crs_epsg=crs_epsg)
+    input2_path = test_helper.prepare_test_file(
+            input_path=test_helper.TestFiles.polygons_zones_gpkg,
+            output_dir=tmp_dir,
+            suffix=suffix,
+            crs_epsg=crs_epsg)
 
-            # If test input file is in wrong format, convert it
-            input2_path = test_helper.prepare_test_file(
-                    input_path=test_helper.TestFiles.polygons_zones_gpkg,
-                    output_dir=tmp_dir,
-                    suffix=suffix,
-                    crs_epsg=crs_epsg)
-        
-            # Now run test
-            output_path = tmp_dir / f"{input1_path.stem}-output{suffix}"
-            print(f"Run test for suffix {suffix}, crs_epsg {crs_epsg}")
-            basetest_union(input1_path, input2_path, output_path)
-    
-def basetest_union(
-        input1_path: Path, 
-        input2_path: Path, 
-        output_path: Path):
-
-    # Do operation
+    # Now run test
+    output_path = tmp_dir / f"{input1_path.stem}_union_{input2_path.stem}{suffix}".replace("-", "_")
     gfo.union(
             input1_path=input1_path,
             input2_path=input2_path,
-            output_path=output_path,
-            verbose=True)
+            output_path=output_path)
 
     # Now check if the tmp file is correctly created
     assert output_path.exists() == True
@@ -658,6 +648,24 @@ def basetest_union(
     # Now check the contents of the result file
     output_gdf = gfo.read_file(output_path)
     assert output_gdf['geometry'][0] is not None
+
+    return
+
+    # TODO: make sure it works ;-)
+    input1_gdf = gfo.read_file(input1_path)
+    input2_gdf = gfo.read_file(input2_path)
+    overlay_operation = "union"
+    output_gpd_gdf = input1_gdf.overlay(input2_gdf, how=overlay_operation, keep_geom_type=True)
+    renames = {name_gpd:name_gfo for name_gpd, name_gfo in zip(output_gpd_gdf.columns, output_gdf.columns)}
+    output_gpd_gdf = output_gpd_gdf.rename(columns=renames)
+    output_gpd_gdf.geometry = geoseries_util.harmonize_geometrytypes(
+            output_gpd_gdf.geometry, force_multitype=True)
+    output_gpd_gdf = geodataframe_util.sort_values(output_gpd_gdf).reset_index(drop=True)
+    output_gpd_path = tmp_dir / f"{input1_path.stem}_{overlay_operation}-gpd_{input2_path.stem}{suffix}"
+    assert isinstance(output_gpd_gdf, gpd.GeoDataFrame)
+    gfo.to_file(output_gpd_gdf, output_gpd_path)
+    output_gdf = geodataframe_util.sort_values(output_gdf).reset_index(drop=True)
+    assert_geodataframe_equal(output_gdf, output_gpd_gdf)
 
 def test_union_circles(tmpdir):
 
