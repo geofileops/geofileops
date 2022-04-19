@@ -1517,8 +1517,13 @@ def _launder_column_names(columns: Iterable) -> List[Tuple[str, str]]:
             laundered.append((column, column_laundered))
         else:
             # Just taking first 10 characters didn't help
-            for index in range(1, 100):
-                column_laundered = f"{column_laundered[:8]}{index:_2d}"
+            for index in range(1, 101):
+                if index >= 100:
+                    raise NotImplementedError(f"Not supported to launder > 99 columns starting with {column_laundered[:8]}")
+                if index <= 9:
+                    column_laundered = f"{column_laundered[:8]}_{index}"
+                else:
+                    column_laundered = f"{column_laundered[:8]}{index}"
                 if column_laundered.upper() not in laundered_upper:
                     laundered_upper.append(column_laundered.upper())
                     laundered.append((column, column_laundered))
