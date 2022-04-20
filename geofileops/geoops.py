@@ -655,9 +655,9 @@ def select(
     * It is recommend to give the table you select from "layer" as alias. If 
       you use the {batch_filter} placeholder this is even mandatory.
     * Besides the standard sqlite sql syntacs, you can use the spatialite 
-      functions as documented here: |sqlite_reference_link|   
+      functions as documented here: |spatialite_reference_link|   
 
-    .. |sqlite_reference_link| raw:: html
+    .. |spatialite_reference_link| raw:: html
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
 
