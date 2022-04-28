@@ -11,6 +11,7 @@
 - Add support to specify (any) gdal options in relevant fileops (#83)
 - Speed up creation of an index on a geopackage (#87)
 - Some improvements to the benchmarks
+- Apply pep8/black on the code (#??)
 
 ### Bugs fixed
 
@@ -23,6 +24,7 @@
 
 ### Deprecations and compatibility notes
 
+- The rdp simplify variant that tries to preserve topology is now used (#105) 
 - Removed deprecated `verbose` parameter in some functions 
 - Rename some files in util that are rather private (#84)
 - Remove long-time deprecated clip_on_tiles parameter in dissolve (#95)
