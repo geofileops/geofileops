@@ -133,17 +133,17 @@ def delete_duplicate_geometries(
 
     # The query as written doesn't give correct results when parallellized,
     # but it isn't useful to do it for this operation.
-    sql_template = f'''
-            SELECT {{geometrycolumn}} AS geom
-                  {{columns_to_select_str}} 
-              FROM "{{input_layer}}" layer
-             WHERE layer.rowid IN ( 
-                    SELECT MIN(layer_sub.rowid) AS rowid_to_keep 
-                      FROM "{{input_layer}}" layer_sub
-                     GROUP BY layer_sub.{{geometrycolumn}}
+    sql_template = '''
+            SELECT {geometrycolumn} AS geom
+                  {columns_to_select_str}
+              FROM "{input_layer}" layer
+             WHERE layer.rowid IN (
+                    SELECT MIN(layer_sub.rowid) AS rowid_to_keep
+                      FROM "{input_layer}" layer_sub
+                     GROUP BY layer_sub.{geometrycolumn}
                 )
             '''
-    
+
     # Go!
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
     return _single_layer_vector_operation(
