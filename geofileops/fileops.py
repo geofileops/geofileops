@@ -86,9 +86,10 @@ def write_vrt(
             vrt_file.write(f'    <Field name="maxy" />\n')
             vrt_file.write(f'    <GeometryType>wkbNone</GeometryType>\n')
             vrt_file.write(f'  </OGRVRTLayer>\n')
-            
+
         vrt_file.write(f'</OGRVRTDataSource>\n')
 '''
+
 
 def listlayers(
         path: Union[str, 'os.PathLike[Any]'],
@@ -104,6 +105,7 @@ def listlayers(
         List[str]: the list of layers
     """
     return fiona.listlayers(str(path))
+
 
 class LayerInfo:
     """
@@ -149,6 +151,7 @@ class LayerInfo:
     def __repr__(self):
         return f"{self.__class__}({self.__dict__})"
 
+
 def get_layerinfo(
         path: Union[str, 'os.PathLike[Any]'],
         layer: Optional[str] = None) -> LayerInfo:
@@ -165,12 +168,12 @@ def get_layerinfo(
 
     Returns:
         LayerInfo: the information about the layer.
-    """        
+    """
     ##### Init #####
     path_p = Path(path)
     if not path_p.exists():
         raise ValueError(f"File does not exist: {path_p}")
-        
+
     datasource = None
     try:
         datasource = gdal.OpenEx(str(path_p))
@@ -204,7 +207,7 @@ def get_layerinfo(
         # Get geometry column info...
         geometrytypename = gdal.ogr.GeometryTypeToName(datasource_layer.GetGeomType())
         geometrytypename = geometrytypename.replace(' ', '').upper()
-        
+
         # For shape files, the difference between the 'MULTI' variant and the 
         # single one doesn't exists... so always report MULTI variant by convention.
         if GeofileType(path_p) == GeofileType.ESRIShapefile:
@@ -214,7 +217,7 @@ def get_layerinfo(
                 geometrytypename = f"MULTI{geometrytypename}"
         if geometrytypename == 'UNKNOWN(ANY)':
             geometrytypename = 'GEOMETRY'
-            
+
         # Geometrytype
         if geometrytypename != 'NONE':
             geometrytype = GeometryType[geometrytypename]
@@ -281,6 +284,7 @@ def get_layerinfo(
     # If we didn't return or raise yet here, there must have been errors
     raise Exception(f"Errors found in layer definition of file {path_p}, layer {layer}: \n{pprint.pprint(errors)}")
 
+
 def get_only_layer(path: Union[str, 'os.PathLike[Any]']) -> str:
     """
     Get the layername for a file that only contains one layer.
@@ -305,6 +309,7 @@ def get_only_layer(path: Union[str, 'os.PathLike[Any]']) -> str:
     else:
         raise ValueError(f"Error: More than 1 layer found in {path}: {layers}")
 
+
 def get_default_layer(path: Union[str, 'os.PathLike[Any]']) -> str:
     """
     Get the default layer name to be used for a layer in this file.
@@ -318,6 +323,7 @@ def get_default_layer(path: Union[str, 'os.PathLike[Any]']) -> str:
         str: The default layer name.
     """
     return Path(path).stem
+
 
 def execute_sql(
         path: Union[str, 'os.PathLike[Any]'],
@@ -345,6 +351,7 @@ def execute_sql(
             sql_dialect=sql_dialect, 
             readonly=False)
 
+
 def create_spatial_index(
         path: Union[str, 'os.PathLike[Any]'],
         layer: Optional[str] = None,
@@ -370,7 +377,7 @@ def create_spatial_index(
     path = Path(path)
     if layer is None:
         layer = get_only_layer(path)
-    
+
     # If index already exists, remove index or return
     if has_spatial_index(path, layer) is True:
         if force_rebuild is True:
@@ -378,7 +385,8 @@ def create_spatial_index(
         elif exist_ok is True:
             return
         else:
-            raise Exception(f"Error adding spatial index to {path}.{layer}, it exists already")
+            raise Exception(
+                    f"Error adding spatial index to {path}.{layer}, it exists already")
 
     # Now really add index
     datasource = None
@@ -390,7 +398,7 @@ def create_spatial_index(
             with _ogr_util.set_config_options({"OGR_SQLITE_CACHE": cache_size_mb}):
                 datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
                 sql = f"SELECT CreateSpatialIndex('{layer}', '{geometrycolumn}')"
-                datasource.ExecuteSQL(sql, dialect="SQLITE") 
+                datasource.ExecuteSQL(sql, dialect="SQLITE")
         else:
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             datasource.ExecuteSQL(f'CREATE SPATIAL INDEX ON "{layer}"')
@@ -399,6 +407,7 @@ def create_spatial_index(
     finally:
         if datasource is not None:
             del datasource
+
 
 def has_spatial_index(
         path: Union[str, 'os.PathLike[Any]'],
@@ -409,7 +418,7 @@ def has_spatial_index(
     Args:
         path (PathLike): The file path.
         layer (str, optional): The layer. Defaults to None.
-    
+
     Raises:
         ValueError: an invalid parameter value was passed.
 
@@ -431,13 +440,14 @@ def has_spatial_index(
             has_spatial_index = (result.GetNextFeature().GetField(0) == 1)
             return has_spatial_index
         elif geofiletype == GeofileType.ESRIShapefile:
-            index_path = path.parent / f"{path.stem}.qix" 
+            index_path = path.parent / f"{path.stem}.qix"
             return index_path.exists()
         else:
             raise ValueError(f"has_spatial_index not supported for {path}")
     finally:
         if datasource is not None:
             del datasource
+
 
 def remove_spatial_index(
         path: Union[str, 'os.PathLike[Any]'],
@@ -543,9 +553,9 @@ def rename_column(
             sql_stmt = f'ALTER TABLE "{layer}" RENAME COLUMN "{column_name}" TO "{new_column_name}"'
             datasource.ExecuteSQL(sql_stmt)
         elif geofiletype == GeofileType.ESRIShapefile:
-            raise ValueError(f"rename_layer is not possible for {geofiletype} file")
+            raise ValueError(f"rename_column is not possible for {geofiletype} file")
         else:
-            raise ValueError(f"rename_layer is not implemented for {path_p.suffix} file")
+            raise ValueError(f"rename_column is not implemented for {path_p.suffix} file")
     finally:
         if datasource is not None:
             del datasource
@@ -935,11 +945,11 @@ def to_file(
     # function, example encoding, float_format,...
 
     # Check input parameters
-    path_p = Path(path)
+    path = Path(path)
 
     # If no layer name specified, use the filename (without extension)
     if layer is None:
-        layer = Path(path_p).stem
+        layer = Path(path).stem
     # If the dataframe is empty, log warning and return
     if len(gdf) <= 0:
         #logger.warn(f"Cannot write an empty dataframe to {filepath}.{layer}")
@@ -968,7 +978,7 @@ def to_file(
                 gdf_to_write = gdf.reset_index(drop=True)
             else:
                 gdf_to_write = gdf
-            gdf_to_write.to_file(str(path), mode=mode)
+            gdf_to_write.to_file(str(path), driver=geofiletype.ogrdriver, mode=mode)
         elif geofiletype == GeofileType.GPKG:
             # Try to harmonize the geometrytype to one (multi)type, as GPKG
             # doesn't like > 1 type in a layer
@@ -978,12 +988,14 @@ def to_file(
             gdf_to_write.to_file(str(path), layer=layer, driver=geofiletype.ogrdriver, mode=mode)
         elif geofiletype == GeofileType.SQLite:
             gdf.to_file(str(path), layer=layer, driver=geofiletype.ogrdriver, mode=mode)
+        elif geofiletype == GeofileType.GeoJSON:
+            gdf.to_file(str(path), driver=geofiletype.ogrdriver, mode=mode)
         else:
             raise ValueError(f"Not implemented for geofiletype {geofiletype}")
 
     # If no append, just write to output path
     if append is False:
-        write_to_file(gdf=gdf, path=path_p, layer=layer, index=index, 
+        write_to_file(gdf=gdf, path=path, layer=layer, index=index, 
                 force_multitype=force_multitype, append=append)
     else:
         # If append is asked, check if the fiona driver supports appending. If
@@ -992,7 +1004,7 @@ def to_file(
         # Remark: fiona pre-1.8.14 didn't support appending to geopackage. Once 
         # older versions becomes rare, dependency can be put to this version, and 
         # this code can be cleaned up...
-        geofiletype = GeofileType(path_p)
+        geofiletype = GeofileType(path)
         gdftemp_path = None
         gdftemp_lockpath = None
         if 'a' not in fiona.supported_drivers[geofiletype.ogrdriver]:
@@ -1001,25 +1013,25 @@ def to_file(
             # temp file name 
             gdftemp_path, gdftemp_lockpath = _io_util.get_tempfile_locked(
                     base_filename='gdftemp',
-                    suffix=path_p.suffix,
+                    suffix=path.suffix,
                     dirname='geofile_to_file')
             write_to_file(gdf, path=gdftemp_path, layer=layer, index=index, 
                     force_multitype=force_multitype)  
         
         # Files don't typically support having multiple processes writing 
         # simultanously to them, so use lock file to synchronize access.
-        lockfile = Path(f"{str(path_p)}.lock")
+        lockfile = Path(f"{str(path)}.lock")
         start_time = datetime.datetime.now()
         while(True):
             if _io_util.create_file_atomic(lockfile) is True:
                 try:
                     # If gdf wasn't written to temp file, use standard write-to-file
                     if gdftemp_path is None:
-                        write_to_file(gdf=gdf, path=path_p, layer=layer, index=index, 
+                        write_to_file(gdf=gdf, path=path, layer=layer, index=index, 
                                 force_multitype=force_multitype, append=True)
                     else:
                         # If gdf was written to temp file, use append_to_nolock + cleanup
-                        _append_to_nolock(src=gdftemp_path, dst=path_p, dst_layer=layer)
+                        _append_to_nolock(src=gdftemp_path, dst=path, dst_layer=layer)
                         remove(gdftemp_path)
                         if gdftemp_lockpath is not None:
                             gdftemp_lockpath.unlink()
@@ -1029,7 +1041,7 @@ def to_file(
             else:
                 time_waiting = (datetime.datetime.now()-start_time).total_seconds()
                 if time_waiting > append_timeout_s:
-                    raise RuntimeError(f"to_file timeout of {append_timeout_s} reached, so stop trying append to {path_p}!")
+                    raise RuntimeError(f"to_file timeout of {append_timeout_s} reached, so stop trying append to {path}!")
             
             # Sleep for a second before trying again
             time.sleep(1)

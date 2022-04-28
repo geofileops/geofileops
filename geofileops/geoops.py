@@ -369,7 +369,7 @@ def delete_duplicate_geometries(
             explodecollections=explodecollections,
             verbose=verbose,
             force=force)
-    
+
 def dissolve(
         input_path: Union[str, 'os.PathLike[Any]'],  
         output_path: Union[str, 'os.PathLike[Any]'],
@@ -520,16 +520,16 @@ def isvalid(
 
     # Check parameters
     if output_path is not None:
-        output_path_p = Path(output_path)
+        output_path = Path(output_path)
     else:
-        input_path_p = Path(input_path)
-        output_path_p = input_path_p.parent / f"{input_path_p.stem}_isvalid{input_path_p.suffix}" 
+        input_path = Path(input_path)
+        output_path = input_path.parent / f"{input_path.stem}_isvalid{input_path.suffix}" 
 
     # Go!
     logger.info(f"Start isvalid on {input_path}")
     return _geoops_sql.isvalid(
             input_path=Path(input_path),
-            output_path=output_path_p,
+            output_path=output_path,
             input_layer=input_layer, 
             output_layer=output_layer,
             nb_parallel=nb_parallel,
@@ -858,7 +858,7 @@ def clip(
         :alt: Clip result
     """
 
-    logger.info(f"Start erase on {input_path} with {clip_path} to {output_path}")
+    logger.info(f"Start clip on {input_path} with {clip_path} to {output_path}")
     return _geoops_sql.clip(
         input_path=Path(input_path),
         clip_path=Path(clip_path),
