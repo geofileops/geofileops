@@ -337,7 +337,7 @@ def simplify(
 
     # Prepare sql template for this operation 
     sql_template = f'''
-            SELECT ST_Simplify({{geometrycolumn}}, {tolerance}) AS geom
+            SELECT ST_SimplifyPreserveTopology({{geometrycolumn}}, {tolerance}) AS geom
                   {{columns_to_select_str}} 
               FROM "{{input_layer}}" layer
              WHERE 1=1 
