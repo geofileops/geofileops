@@ -24,9 +24,9 @@ def test_copyfile(tmp_path):
 
 def test_create_tempdir():
     # Test
-    tempdir1 = _io_util.create_tempdir('testje')
+    tempdir1 = _io_util.create_tempdir("testje")
     assert tempdir1.exists() is True
-    tempdir2 = _io_util.create_tempdir('testje')
+    tempdir2 = _io_util.create_tempdir("testje")
     assert tempdir2.exists() is True
 
     # Cleanup
@@ -34,16 +34,15 @@ def test_create_tempdir():
     tempdir2.rmdir()
 
 
-def test_create_file_atomic(tmpdir):
-    tmpdir = Path(tmpdir)
-    path = tmpdir / 'testje_atomic.txt'
+def test_create_file_atomic(tmp_path):
+    path = tmp_path / "testje_atomic.txt"
     file_created = _io_util.create_file_atomic(path)
     assert file_created is True
     file_created = _io_util.create_file_atomic(path)
     assert file_created is False
 
 
-def test_get_tempfile_locked(tmpdir):
+def test_get_tempfile_locked():
     tempfile1lock_path = None
     tempfile2lock_path = None
     tempfile3lock_path = None

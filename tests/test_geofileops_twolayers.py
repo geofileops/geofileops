@@ -14,7 +14,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import geofileops as gfo
 from geofileops import GeometryType, PrimitiveType
-from geofileops.util import _io_util
 from geofileops.util import _geoops_sql
 from tests import test_helper
 from tests.test_helper import DEFAULT_SUFFIXES, DEFAULT_TESTFILES
@@ -498,9 +497,9 @@ def test_union(tmp_path, suffix, epsg):
 def test_union_circles(tmp_path, suffix, epsg):
     # Prepare test data
     input1_path = test_helper.get_testfile(
-            "polygons_overlappingcircles_one", suffix=suffix, epsg=epsg)
+            "polygon-overlappingcircles-one", suffix=suffix, epsg=epsg)
     input2_path = test_helper.get_testfile(
-            "polygons_overlappingcircles_two+three", suffix=suffix, epsg=epsg)
+            "polygon-overlappingcircles-two+three", suffix=suffix, epsg=epsg)
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input1_layerinfo.featurecount/2)
     output_path = tmp_path / f"{input1_path.stem}-output{suffix}"
@@ -537,8 +536,11 @@ def test_union_circles(tmp_path, suffix, epsg):
             check_less_precise=True, normalize=True)
 
     # Union the two circles towards the single circle
-    input1_path = test_helper.TestFiles.polygons_overlappingcircles_twothree_gpkg
-    input2_path = test_helper.TestFiles.polygons_overlappingcircles_one_gpkg
+    # Prepare test data
+    input1_path = test_helper.get_testfile(
+            "polygon-overlappingcircles-two+three", suffix=suffix, epsg=epsg)
+    input2_path = test_helper.get_testfile(
+            "polygon-overlappingcircles-one", suffix=suffix, epsg=epsg)
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input1_layerinfo.featurecount/2)
     output_path = tmp_path / f"{input1_path.stem}_union_{input2_path.stem}.gpkg"

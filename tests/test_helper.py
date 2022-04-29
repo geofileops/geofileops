@@ -112,33 +112,6 @@ class TestData:
             holes=[[(42, 42), (42, 43), (43, 43), (43, 42), (42, 42)]])
 
 
-class TestFiles:
-    testdata_dir = Path(__file__).resolve().parent / 'data'
-
-    BEFL_kbl_gpkg = testdata_dir / 'BEFL_kbl.gpkg'
-
-    linestrings_rows_of_trees_gpkg = testdata_dir / 'linestrings_rows_of_trees.gpkg'
-    linestrings_watercourses_gpkg = testdata_dir / 'linestrings_watercourses.gpkg'
-
-    polygons_no_rows_gpkg = testdata_dir / 'polygons_no_rows.gpkg'
-    polygons_overlappingcircles_all_gpkg = (
-            testdata_dir / 'polygons_overlappingcircles_all.gpkg')
-    polygons_overlappingcircles_one_gpkg = (
-            testdata_dir / 'polygons_overlappingcircles_one.gpkg')
-    polygons_overlappingcircles_twothree_gpkg = (
-            testdata_dir / 'polygons_overlappingcircles_two+three.gpkg')
-    polygons_parcels_gpkg = (
-            testdata_dir / 'polygons_parcels-2020.gpkg')
-    polygons_invalid_geometries_gpkg = (
-            testdata_dir / 'polygons_invalid_geometries.gpkg')
-    polygons_simplify_onborder_testcase_gpkg = (
-            testdata_dir / 'polygons_simplify_onborder_testcase.gpkg')
-    polygons_twolayers_gpkg = testdata_dir / 'polygons_twolayers.gpkg'
-    polygons_zones_gpkg = testdata_dir / 'polygons_zones.gpkg'
-
-    points_gpkg = testdata_dir / 'points.gpkg'
-
-
 def create_tempdir(
         base_dirname: str,
         parent_dir: Optional[Path] = None) -> Path:
