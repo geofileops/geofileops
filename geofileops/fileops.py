@@ -543,9 +543,9 @@ def rename_column(
             sql_stmt = f'ALTER TABLE "{layer}" RENAME COLUMN "{column_name}" TO "{new_column_name}"'
             datasource.ExecuteSQL(sql_stmt)
         elif geofiletype == GeofileType.ESRIShapefile:
-            raise ValueError(f"rename_layer is not possible for {geofiletype} file")
+            raise ValueError(f"rename_column is not possible for {geofiletype} file")
         else:
-            raise ValueError(f"rename_layer is not implemented for {path_p.suffix} file")
+            raise ValueError(f"rename_column is not implemented for {path_p.suffix} file")
     finally:
         if datasource is not None:
             del datasource
