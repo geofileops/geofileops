@@ -19,6 +19,7 @@
       the json output is not correct.
     - when combining tiled output with explodecollections=False, the output 
       is still ~exploded.
+- For gfo.intersection() some attribute data is NULL if output format is .shp (#102)
 
 ### Deprecations and compatibility notes
 

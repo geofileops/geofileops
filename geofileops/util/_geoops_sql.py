@@ -11,7 +11,7 @@ import logging.config
 import multiprocessing
 from pathlib import Path
 import shutil
-from typing import Dict, Iterable, List, Optional, Union
+from typing import Iterable, List, Optional
 
 import pandas as pd
 
@@ -337,7 +337,7 @@ def simplify(
 
     # Prepare sql template for this operation 
     sql_template = f'''
-            SELECT ST_Simplify({{geometrycolumn}}, {tolerance}) AS geom
+            SELECT ST_SimplifyPreserveTopology({{geometrycolumn}}, {tolerance}) AS geom
                   {{columns_to_select_str}} 
               FROM "{{input_layer}}" layer
              WHERE 1=1 
@@ -402,9 +402,7 @@ def _single_layer_vector_operation(
             
     ##### Calculate #####
     tempdir = _io_util.create_tempdir(f"geofileops/{operation_name.replace(' ', '_')}")
-    
     try:
-        ##### Calculate #####
         processing_params = _prepare_processing_params(
                 input1_path=input_path,
                 input1_layer=input_layer,
@@ -424,10 +422,13 @@ def _single_layer_vector_operation(
         
         # Prepare output filename
         tmp_output_path = tempdir / output_path.name
-
         nb_done = 0
-        with futures.ProcessPoolExecutor(
-                max_workers=processing_params.nb_parallel, 
+        
+        # Processing in threads is 2x faster for small datasets (on Windows)
+        calculate_in_threads = True if input_layerinfo.featurecount <= 100 else False
+        with _general_util.PooledExecutorFactory(
+                threadpool=calculate_in_threads,
+                max_workers=processing_params.nb_parallel,
                 initializer=_general_util.initialize_worker()) as calculate_pool:
 
             batches = {}    
@@ -473,8 +474,10 @@ def _single_layer_vector_operation(
                         info=translate_info)
                 future_to_batch_id[future] = batch_id                    
 
-            # Loop till all parallel processes are ready, but process each one 
+            # Loop till all parallel processes are ready, but process each one
             # that is ready already
+            # Calculating can be done in parallel, but only one process can write to
+            # the same file at the time
             for future in futures.as_completed(future_to_batch_id):
                 try:
                     _ = future.result()
@@ -1470,7 +1473,7 @@ def _two_layer_vector_operation(
             return
         else:
             gfo.remove(output_path)
-
+    
     # Check if spatialite is properly installed to execute this query
     _sqlite_util.check_runtimedependencies()
 
@@ -1533,12 +1536,12 @@ def _two_layer_vector_operation(
             logger.warning(f"input1 has a different crs than input2: \n\tinput1: {input1_tmp_layerinfo.crs} \n\tinput2: {input2_tmp_layerinfo.crs}")
         
         ##### Calculate #####
-        logger.info(f"Start {operation_name} in {processing_params.nb_parallel} parallel processes")
-
-        # Calculating can be done in parallel, but only one process can write to 
-        # the same file at the time... 
-        with futures.ProcessPoolExecutor(
-                max_workers=processing_params.nb_parallel, 
+        # Processing in threads is 2x faster for small datasets (on Windows)
+        calculate_in_threads = True if input1_tmp_layerinfo.featurecount <= 100 else False
+        logger.info(f"Start {operation_name} in {processing_params.nb_parallel} parallel workers")
+        with _general_util.PooledExecutorFactory(
+                threadpool=calculate_in_threads,
+                max_workers=processing_params.nb_parallel,
                 initializer=_general_util.initialize_worker()) as calculate_pool:
 
             # Start looping
@@ -1665,9 +1668,9 @@ def _two_layer_vector_operation(
         gfo.remove(output_path)
         gfo.remove(tmp_output_path)
         raise
-    
-    # Cleanup temp files
-    shutil.rmtree(tempdir)
+    finally:    
+        shutil.rmtree(tempdir)
+
 
 class ProcessingParams:
     def __init__(self,
@@ -1710,7 +1713,8 @@ def _prepare_processing_params(
     ### Determine the optimal number of parallel processes + batches ###
     if returnvalue.nb_parallel == -1:
         # Default, put at least 100 rows in a batch for parallelisation
-        max_parallel = max(int(input1_layerinfo.featurecount/100), 1)
+        min_rows_per_batch = min(batchsize, 100)
+        max_parallel = max(int(input1_layerinfo.featurecount/min_rows_per_batch), 1)
         returnvalue.nb_parallel = min(multiprocessing.cpu_count(), max_parallel)
 
     # Determine optimal number of batches
@@ -1719,7 +1723,7 @@ def _prepare_processing_params(
     if returnvalue.nb_parallel > 1:
         # Limit number of rows processed in parallel to limit memory use
         if batchsize > 0:
-            max_rows_parallel = batchsize * nb_parallel
+            max_rows_parallel = batchsize * returnvalue.nb_parallel
         else:
             max_rows_parallel = 200000
         if input1_layerinfo.featurecount > max_rows_parallel:
@@ -2124,9 +2128,13 @@ def dissolve_cardsheets(
         logger.info(f"Start calculation of dissolves in file {input_tmp_path} to partial files")
         tmp_output_path = tempdir / output_path.name
 
-        with futures.ProcessPoolExecutor(
-                max_workers=nb_parallel, 
-                initializer=general_util.initialize_worker()) as calculate_pool:
+        # Processing in threads is 2x faster for small datasets (on Windows)
+        input_layerinfo = gfo.get_layerinfo(input_path)
+        calculate_in_threads = True if input_layerinfo.featurecount <= 100 else False
+        with _general_util.PooledExecutorFactory(
+                threadpool=calculate_in_threads,
+                max_workers=nb_parallel,
+                initializer=_general_util.initialize_worker()) as calculate_pool:
 
             translate_jobs = {}    
             future_to_batch_id = {}    

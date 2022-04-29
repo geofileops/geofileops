@@ -1341,7 +1341,18 @@ def _append_to_nolock(
     options = _ogr_util._prepare_gdal_options(options)
     if "LAYER_CREATION.SPATIAL_INDEX" not in options:
         options["LAYER_CREATION.SPATIAL_INDEX"] = create_spatial_index
-    
+
+    # When creating/appending to a shapefile, launder the columns names via 
+    # a sql statement, otherwise when appending the laundered columns will 
+    # get NULL values instead of the data.
+    sql_stmt = None
+    if dst.suffix.lower() == ".shp":
+        src_columns = get_layerinfo(src).columns
+        columns_laundered = _launder_column_names(src_columns)
+        columns_aliased = [f'"{column}" AS "{laundered}"' for column, laundered in columns_laundered]
+        layer = src_layer if src_layer is not None else get_only_layer(src)
+        sql_stmt = f'SELECT {", ".join(columns_aliased)} FROM "{layer}"'
+        
     # Go!
     translate_info = _ogr_util.VectorTranslateInfo(
             input_path=src,
@@ -1350,6 +1361,8 @@ def _append_to_nolock(
             output_layer=dst_layer,
             input_srs=src_crs,
             output_srs=dst_crs,
+            sql_stmt=sql_stmt,
+            sql_dialect="OGRSQL",
             reproject=reproject,
             transaction_size=transaction_size,
             append=True,
@@ -1441,6 +1454,83 @@ def convert(
             create_spatial_index=create_spatial_index,
             options=options)
 
+def _launder_column_names(columns: Iterable) -> List[Tuple[str, str]]:
+    """
+    Launders the column names passed to comply with shapefile restrictions. 
+
+    Rationale: normally gdal launders them if needed, but when you append 
+    multiple files to a shapefile with columns that need to be laundered 
+    they are not matched and so are appended with NULL values for these 
+    columns. Normally the -relaxedFieldNameMatch parameter in ogr2ogr 
+    should fix this, but it seems that this isn't supported for shapefiles.
+
+    Laundering is based on this text from the gdal shapefile driver 
+    documentation:
+    
+    Shapefile feature attributes are stored in an associated .dbf file, and
+    so attributes suffer a number of limitations:
+    -   Attribute names can only be up to 10 characters long.
+        The OGR Shapefile driver tries to generate unique field
+        names. Successive duplicate field names, including those created by
+        truncation to 10 characters, will be truncated to 8 characters and
+        appended with a serial number from 1 to 99.
+
+        For example:
+
+        -  a → a, a → a_1, A → A_2;
+        -  abcdefghijk → abcdefghij, abcdefghijkl → abcdefgh_1
+
+    -   Only Integer, Integer64, Real, String and Date (not DateTime, just
+        year/month/day) field types are supported. The various list, and
+        binary field types cannot be created.
+    -   The field width and precision are directly used to establish storage
+        size in the .dbf file. This means that strings longer than the field
+        width, or numbers that don't fit into the indicated field format will
+        suffer truncation.
+    -   Integer fields without an explicit width are treated as width 9, and
+        extended to 10 or 11 if needed.
+    -   Integer64 fields without an explicit width are treated as width 18,
+        and extended to 19 or 20 if needed.
+    -   Real (floating point) fields without an explicit width are treated as
+        width 24 with 15 decimal places of precision.
+    -   String fields without an assigned width are treated as 80 characters.
+
+    Args:
+        columns (Iterable): the columns to launder.
+
+    Returns: a List of tupples with the original and laundered column names.
+    """
+    laundered = []
+    laundered_upper = []
+    for column in columns:
+        # Doubles in casing aree not allowed either 
+        if len(column) <= 10:
+            if column.upper() not in laundered_upper:
+                laundered_upper.append(column.upper())
+                laundered.append((column, column))
+                continue
+        
+        # Laundering is needed
+        column_laundered = column[:10]
+        if column_laundered.upper() not in laundered_upper:
+            laundered_upper.append(column_laundered.upper())
+            laundered.append((column, column_laundered))
+        else:
+            # Just taking first 10 characters didn't help
+            for index in range(1, 101):
+                if index >= 100:
+                    raise NotImplementedError(f"Not supported to launder > 99 columns starting with {column_laundered[:8]}")
+                if index <= 9:
+                    column_laundered = f"{column_laundered[:8]}_{index}"
+                else:
+                    column_laundered = f"{column_laundered[:8]}{index}"
+                if column_laundered.upper() not in laundered_upper:
+                    laundered_upper.append(column_laundered.upper())
+                    laundered.append((column, column_laundered))
+                    break
+
+    return laundered
+        
 def get_driver(path: Union[str, 'os.PathLike[Any]']) -> str:
     """
     Get the driver to use for the file extension of this filepath.
