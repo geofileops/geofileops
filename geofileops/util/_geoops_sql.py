@@ -2043,7 +2043,7 @@ def dissolve_singlethread(
             SELECT {operation} AS geom
                   {groupby_columns_for_select_str}
                   {agg_columns_str}
-              FROM {input_layer} layer
+              FROM "{input_layer}" layer
              GROUP BY {groupby_columns_for_groupby_str}'''
     
     _ogr_util.vector_translate(
