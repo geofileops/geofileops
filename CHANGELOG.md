@@ -20,9 +20,11 @@
     - when combining tiled output with explodecollections=False, the output 
       is still ~exploded.
 - For gfo.intersection() some attribute data is NULL if output format is .shp (#102)
+- Dissolve gives error if a linestring input layer contains special characters (#108)
 
 ### Deprecations and compatibility notes
 
+- Always use simplify that preserves topology (#105)
 - Removed deprecated `verbose` parameter in some functions 
 - Rename some files in util that are rather private (#84)
 - Remove long-time deprecated clip_on_tiles parameter in dissolve (#95)
