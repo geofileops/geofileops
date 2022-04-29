@@ -21,6 +21,7 @@
     - when combining tiled output with explodecollections=False, the output 
       is still ~exploded.
 - For gfo.intersection() some attribute data is NULL if output format is .shp (#102)
+- Dissolve gives error if a linestring input layer contains special characters (#108)
 
 ### Deprecations and compatibility notes
 
