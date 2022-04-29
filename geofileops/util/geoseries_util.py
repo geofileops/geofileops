@@ -185,7 +185,7 @@ def simplify_ext(
         lookahead: int = 8) -> gpd.GeoSeries:
     # If ramer-douglas-peucker, use standard geopandas algorithm
     if algorithm is geometry_util.SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER:
-        return geoseries.simplify(tolerance=tolerance)
+        return geoseries.simplify(tolerance=tolerance, preserve_topology=True)
     else:
         # For other algorithms, use vector_util.simplify_ext()
         return gpd.GeoSeries(

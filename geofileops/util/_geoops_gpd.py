@@ -3,9 +3,11 @@
 Module containing the implementation of Geofile operations using GeoPandas.
 """
 
+import ast
 from concurrent import futures
-import datetime
+from datetime import datetime
 import enum
+import json
 import logging
 import logging.config
 import math
@@ -28,14 +30,14 @@ import psutil
 import shapely.geometry as sh_geom
 
 import geofileops as gfo
-from geofileops.util import general_util
+from geofileops.util import _general_util
 from geofileops.util import _geoops_sql
 from geofileops.util import geometry_util
 from geofileops.util.geometry_util import GeometryType, PrimitiveType, SimplifyAlgorithm 
 from geofileops.util import geoseries_util
 from geofileops.util import grid_util
-from geofileops.util import io_util
-from geofileops.util import ogr_util
+from geofileops.util import _io_util
+from geofileops.util import _ogr_util
 
 ################################################################################
 # Some init
@@ -104,9 +106,9 @@ def get_parallelization_params(
     if(nb_parallel == -1):
         nb_parallel = multiprocessing.cpu_count()
 
-    logger.debug(f"memory_usable: {general_util.formatbytes(parallelization_config_local.bytes_usable)}, with:")
-    logger.debug(f"  -> mem.available: {general_util.formatbytes(psutil.virtual_memory().available)}")
-    logger.debug(f"  -> swap.free: {general_util.formatbytes(psutil.swap_memory().free)}") 
+    logger.debug(f"memory_usable: {_general_util.formatbytes(parallelization_config_local.bytes_usable)}, with:")
+    logger.debug(f"  -> mem.available: {_general_util.formatbytes(psutil.virtual_memory().available)}")
+    logger.debug(f"  -> swap.free: {_general_util.formatbytes(psutil.swap_memory().free)}") 
 
     # If not enough memory for the amount of parallellism asked, reduce
     if (nb_parallel * parallelization_config_local.bytes_min_per_process) > parallelization_config_local.bytes_usable:
@@ -127,6 +129,8 @@ def get_parallelization_params(
 
     # Make sure there are enough batches to use as much parallelism as possible
     if nb_batches > 1 and nb_batches < nb_parallel:
+        max_parallel_batchsize = int(parallelization_config_local.max_avg_rows_per_batch * nb_batches / batch_size)
+        nb_parallel = min(max_parallel_batchsize, nb_parallel)
         if prev_nb_batches is None:
             nb_batches = round(nb_parallel*1.25)
         elif nb_batches < prev_nb_batches/4:
@@ -137,7 +141,7 @@ def get_parallelization_params(
     # Log result
     logger.debug(f"nb_batches_recommended: {nb_batches}, rows_per_batch: {batch_size}")
     logger.debug(f" -> nb_rows_input_layer: {nb_rows_total}") 
-    logger.debug(f" -> will result in mem_predicted: {general_util.formatbytes(mem_predicted)}")
+    logger.debug(f" -> will result in mem_predicted: {_general_util.formatbytes(mem_predicted)}")
 
     return parallelizationParams(nb_parallel, nb_batches, batch_size)
 
@@ -361,7 +365,7 @@ def _apply_geooperation_to_layer(
         force (bool, optional): [description]. Defaults to False.
     """
     ##### Init #####
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
     if input_layer is None:
         input_layer = gfo.get_only_layer(input_path)
     if output_path.exists():
@@ -376,7 +380,7 @@ def _apply_geooperation_to_layer(
         output_layer = gfo.get_default_layer(output_path)
 
     ##### Prepare tmp files #####
-    tempdir = io_util.create_tempdir(f"geofileops/{operation.value}")
+    tempdir = _io_util.create_tempdir(f"geofileops/{operation.value}")
     logger.info(f"Start calculation to temp files in {tempdir}")
 
     try:
@@ -386,10 +390,12 @@ def _apply_geooperation_to_layer(
 
         # Calculate the best number of parallel processes and batches for 
         # the available resources
-        layerinfo = gfo.get_layerinfo(input_path, input_layer)
-        nb_rows_total = layerinfo.featurecount
+        input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
+        nb_rows_total = input_layerinfo.featurecount
         if batchsize > 0:
-            parallellization_config = ParallelizationConfig(max_avg_rows_per_batch=batchsize)
+            parallellization_config = ParallelizationConfig(
+                    min_avg_rows_per_batch=math.ceil(batchsize/2),
+                    max_avg_rows_per_batch=batchsize)
         else:
             parallellization_config = ParallelizationConfig(max_avg_rows_per_batch=50000)
         nb_parallel, nb_batches, real_batchsize = get_parallelization_params(
@@ -410,9 +416,12 @@ def _apply_geooperation_to_layer(
             raise Exception(f"Error determining min_rowid and max_rowid for {temp_path}, layer {input_layer}")
         '''
 
-        with futures.ProcessPoolExecutor(
-                max_workers=nb_parallel, 
-                initializer=general_util.initialize_worker()) as calculate_pool:
+        # Processing in threads is 2x faster for small datasets (on Windows)
+        calculate_in_threads = True if input_layerinfo.featurecount <= 100 else False
+        with _general_util.PooledExecutorFactory(
+                threadpool=calculate_in_threads,
+                max_workers=nb_parallel,
+                initializer=_general_util.initialize_worker()) as calculate_pool:
 
             # Prepare output filename
             output_tmp_path = tempdir / output_path.name
@@ -459,7 +468,7 @@ def _apply_geooperation_to_layer(
             
             # Loop till all parallel processes are ready, but process each one 
             # that is ready already
-            general_util.report_progress(start_time, nb_done, nb_batches, operation.value, nb_parallel)
+            _general_util.report_progress(start_time, nb_done, nb_batches, operation.value, nb_parallel)
             for future in futures.as_completed(future_to_batch_id):
                 try:
                     result = future.result()
@@ -481,7 +490,7 @@ def _apply_geooperation_to_layer(
 
                 # Log the progress and prediction speed
                 nb_done += 1
-                general_util.report_progress(start_time, nb_done, nb_batches, operation.value, nb_parallel)
+                _general_util.report_progress(start_time, nb_done, nb_batches, operation.value, nb_parallel)
 
         ##### Round up and clean up ##### 
         # Now create spatial index and move to output location
@@ -494,7 +503,7 @@ def _apply_geooperation_to_layer(
     finally:
         # Clean tmp dir
         shutil.rmtree(tempdir)
-        logger.info(f"{operation} ready, took {datetime.datetime.now()-start_time}!")
+        logger.info(f"{operation} ready, took {datetime.now()-start_time}!")
 
 def _apply_geooperation(
         input_path: Path,
@@ -518,7 +527,7 @@ def _apply_geooperation(
             gfo.remove(output_path)
 
     ##### Now go! #####
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
     data_gdf = gfo.read_file(path=input_path, layer=input_layer, columns=columns, rows=rows)
     if len(data_gdf) == 0:
         message = f"No input geometries found for rows: {rows} in layer: {input_layer} in input_path: {input_path}"
@@ -566,7 +575,7 @@ def _apply_geooperation(
                 gdf=data_gdf, path=output_path, layer=output_layer, index=False,
                 force_multitype=True)
 
-    message = f"Took {datetime.datetime.now()-start_time} for {len(data_gdf)} rows ({rows})!"
+    message = f"Took {datetime.now()-start_time} for {len(data_gdf)} rows ({rows})!"
     return message
 
 def dissolve(
@@ -584,13 +593,13 @@ def dissolve(
         verbose: bool = False,
         force: bool = False) -> dict:
     """
-    Function that applies a dissolve on the input gfo.
+    Function that applies a dissolve.
 
-    More detailed documentation in module geofileops!
+    More detailed documentation in module geoops!
     """
 
     ##### Init #####
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
     operation = 'dissolve'
     result_info = {}
     
@@ -667,6 +676,10 @@ def dissolve(
         result_tiles_gdf = grid_util.create_grid2(input_layerinfo.total_bounds, nb_squarish_tiles, input_layerinfo.crs)
         if len(result_tiles_gdf) > 1:
             gfo.to_file(result_tiles_gdf, output_path.parent / f"{output_path.stem}_tiles.gpkg")
+    
+    # If a tiled result is asked, add tile_id to group on for the result
+    if len(result_tiles_gdf) > 1:
+        result_tiles_gdf["tile_id"] = result_tiles_gdf.reset_index().index
 
     ##### Now start dissolving... #####
     # Line and point layers are:
@@ -692,7 +705,7 @@ def dissolve(
         # The dissolve for polygons is done in several passes, and after the first 
         # pass, only the 'onborder' features are further dissolved, as the 
         # 'notonborder' features are already OK.  
-        tempdir = io_util.create_tempdir(f"geofileops/{operation}")
+        tempdir = _io_util.create_tempdir(f"geofileops/{operation}")
         try:
             # TODO: remove VERY DIRTY HACK to get fid
             if agg_columns is not None:
@@ -703,8 +716,11 @@ def dissolve(
                     gfo.copy(input_path, pass_input_path)
                 else:
                     gfo.convert(input_path, pass_input_path)
+                # TODO: remove VERY DIRTY HACK to get fid
+                gfo.add_column(pass_input_path, "__TMP_GEOFILEOPS_FID", gfo.DataType.INTEGER, "rowid")
             else:
                 pass_input_path = input_path
+
             if output_layer is None:
                 output_layer = gfo.get_default_layer(output_path)
             output_tmp_path = tempdir / f"{output_path.stem}.gpkg"
@@ -713,11 +729,6 @@ def dissolve(
             pass_id = 0
             logger.info(f"Start dissolve on file {input_path}")
             while True:
-                
-                # TODO: remove VERY DIRTY HACK to get fid
-                if agg_columns is not None:
-                    gfo.add_column(pass_input_path, "__TMP_GEOFILEOPS_FID", gfo.DataType.INTEGER, "rowid")
-
                 # Get info of the current file that needs to be dissolved
                 pass_input_layerinfo = gfo.get_layerinfo(pass_input_path, input_layer)
                 nb_rows_total = pass_input_layerinfo.featurecount
@@ -725,7 +736,9 @@ def dissolve(
                 # Calculate the best number of parallel processes and batches for 
                 # the available resources for the current pass
                 if batchsize > 0:
-                    parallelization_config = ParallelizationConfig(max_avg_rows_per_batch=batchsize)
+                    parallelization_config = ParallelizationConfig(
+                            min_avg_rows_per_batch=int(math.ceil(batchsize/2)),
+                            max_avg_rows_per_batch=batchsize)
                 else:
                     parallelization_config = ParallelizationConfig()
                 nb_parallel, nb_batches_recommended, _ = get_parallelization_params(
@@ -740,6 +753,7 @@ def dissolve(
                 if nb_batches_recommended <= len(result_tiles_gdf)*1.1:
                     tiles_gdf = result_tiles_gdf
                     last_pass = True
+                    nb_parallel = len(result_tiles_gdf)
                 elif len(result_tiles_gdf) == 1:
                     # Create a grid based on the ideal number of batches, but make 
                     # sure the number is smaller than the maximum... 
@@ -782,9 +796,7 @@ def dissolve(
                         tiles_gdf=tiles_gdf,
                         input_layer=input_layer,
                         output_layer=output_layer,
-                        nb_parallel=nb_parallel,
-                        verbose=verbose,
-                        force=force)
+                        nb_parallel=nb_parallel)
 
                 # Prepare the next pass
                 # The input path is the onborder file
@@ -804,6 +816,15 @@ def dissolve(
 
             # If there is a result...
             if output_tmp_path.exists():
+                # If tiled output asked, add "tile_id" to groupby_columns
+                if len(result_tiles_gdf) > 1:
+                    if groupby_columns is None:
+                        groupby_columns = ["tile_id"]
+                    else:
+                        groupby_columns = list(groupby_columns).copy()
+                        groupby_columns.append("tile_id")
+                    columns_upper_dict = {col.upper():col for col in groupby_columns}
+
                 # Prepare strings to use in select based on groupby_columns
                 if groupby_columns is not None:
                     groupby_prefixed_list = [
@@ -827,7 +848,7 @@ def dissolve(
                     if "json" in agg_columns:
                         # The aggregation is to a json column, so add
                         #agg_columns_str += ",replace(json_group_array(json_data.json_row), '\\', '') as json"
-                        agg_columns_str += ",json_group_array(json_data.json_row) as json"
+                        agg_columns_str += ",json_group_array(DISTINCT json_data.json_row) as json"
                     elif "columns" in agg_columns:
                         for agg_column in agg_columns["columns"]:
                             # Init
@@ -876,6 +897,7 @@ def dissolve(
                         # If explodecollections is true, it is useless to 
                         # first group them here, as they will be exploded again 
                         # in the select() call later on... so just order them.
+                        # If a tiled result is asked, also don't collect.
                         sql_stmt = f'''
                                 SELECT {{geometrycolumn}} 
                                     {groupby_select_prefixed_str.format(prefix="layer.")}
@@ -907,7 +929,7 @@ def dissolve(
                             JOIN (
                                 SELECT DISTINCT json_rows_table.value as json_row
                                     {groupby_select_prefixed_str.format(prefix="layer_for_json.")} 
-                                FROM "{{input_layer}}" layer_for_json, json_each(layer_for_json.json, "$") json_rows_table
+                                FROM "{{input_layer}}" layer_for_json, json_each(layer_for_json.__DISSOLVE_TOJSON, "$") json_rows_table
                                 ) json_data 
                             WHERE 1=1
                                 {groupby_filter_str}
@@ -930,7 +952,7 @@ def dissolve(
         raise NotImplementedError(f"Unsupported input geometrytype: {input_layerinfo.geometrytype}")
 
     # Return result info
-    result_info['message'] = f"Dissolve completely ready, took {datetime.datetime.now()-start_time}!"
+    result_info['message'] = f"Dissolve completely ready, took {datetime.now()-start_time}!"
     logger.info(result_info['message'])
     return result_info
 
@@ -944,19 +966,20 @@ def _dissolve_polygons_pass(
         tiles_gdf: gpd.GeoDataFrame,
         input_layer: Optional[str],        
         output_layer: Optional[str],
-        nb_parallel: int,
-        verbose: bool,
-        force: bool) -> dict:
+        nb_parallel: int) -> dict:
 
     # Start calculation in parallel
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
     result_info = {}
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
     input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
-    nb_rows_total = input_layerinfo.featurecount
-    with futures.ProcessPoolExecutor(
+    
+    # Processing in threads is 2x faster for small datasets (on Windows)
+    calculate_in_threads = True if input_layerinfo.featurecount <= 100 else False
+    with _general_util.PooledExecutorFactory(
+            threadpool=calculate_in_threads,
             max_workers=nb_parallel, 
-            initializer=general_util.initialize_worker()) as calculate_pool:
+            initializer=_general_util.initialize_worker()) as calculate_pool:
 
         # Prepare output filename
         tempdir = output_onborder_path.parent
@@ -966,7 +989,7 @@ def _dissolve_polygons_pass(
         nb_batches_done = 0 
         future_to_batch_id = {}    
         nb_rows_done = 0
-        for batch_id, tile in enumerate(tiles_gdf.itertuples()):
+        for batch_id, tile_row in enumerate(tiles_gdf.itertuples()):
     
             batches[batch_id] = {}
             batches[batch_id]['layer'] = output_layer
@@ -978,6 +1001,9 @@ def _dissolve_polygons_pass(
             output_onborder_tmp_partial_path = tempdir / f"{output_onborder_path.stem}_{batch_id}{output_onborder_path.suffix}"
             batches[batch_id]['output_onborder_tmp_partial_path'] = output_onborder_tmp_partial_path
             
+            # Get tile_id if present
+            tile_id = tile_row.tile_id if "tile_id" in tile_row._fields else None
+
             future = calculate_pool.submit(
                     _dissolve_polygons,
                     input_path=input_path,
@@ -989,13 +1015,13 @@ def _dissolve_polygons_pass(
                     input_geometrytype=input_layerinfo.geometrytype,
                     input_layer=input_layer,        
                     output_layer=output_layer,
-                    bbox=tile.geometry.bounds,
-                    verbose=verbose)
+                    bbox=tile_row.geometry.bounds,
+                    tile_id=tile_id)
             future_to_batch_id[future] = batch_id
         
         # Loop till all parallel processes are ready, but process each one 
         # that is ready already
-        general_util.report_progress(start_time, nb_batches_done, nb_batches, 'dissolve')
+        _general_util.report_progress(start_time, nb_batches_done, nb_batches, 'dissolve')
         for future in futures.as_completed(future_to_batch_id):
             try:
                 # If the calculate gave results
@@ -1038,9 +1064,9 @@ def _dissolve_polygons_pass(
                 raise Exception(message) from ex
 
             # Log the progress and prediction speed
-            general_util.report_progress(start_time, nb_batches_done, nb_batches, 'dissolve')   
+            _general_util.report_progress(start_time, nb_batches_done, nb_batches, 'dissolve')   
     
-    logger.info(f"Dissolve pass ready, took {datetime.datetime.now()-start_time}!")
+    logger.info(f"Dissolve pass ready, took {datetime.now()-start_time}!")
                 
     return result_info
 
@@ -1055,15 +1081,16 @@ def _dissolve_polygons(
         input_layer: Optional[str],        
         output_layer: Optional[str],
         bbox: Tuple[float, float, float, float],
-        verbose: bool) -> dict:
+        tile_id: Optional[int]) -> dict:
 
     ##### Init #####
     perfinfo = {}
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
     return_info = {"input_path": input_path,
                    "output_notonborder_path": output_notonborder_path,
                    "output_onborder_path": output_onborder_path,
                    "bbox": bbox,
+                   "tile_id": tile_id,
                    "nb_rows_done": 0,
                    "total_time": 0,
                    "perfinfo": ""
@@ -1071,7 +1098,7 @@ def _dissolve_polygons(
 
     # Read all records that are in the bbox
     retry_count = 0
-    start_read = datetime.datetime.now()
+    start_read = datetime.now()
     while True:
         try:
             columns_to_read = set()
@@ -1079,24 +1106,30 @@ def _dissolve_polygons(
             if groupby_columns is not None:
                 columns_to_read.update(groupby_columns)
             if agg_columns is not None:
-                if "json" in agg_columns:
-                    if agg_columns["json"] is None:
-                        columns_to_read.update(info.columns)
-                    else:
-                        columns_to_read.update(agg_columns["json"])
-                elif "columns" in agg_columns:
-                    columns_to_read.update(
-                            [agg_column["column"] for agg_column in agg_columns["columns"]])
+                if "__DISSOLVE_TOJSON" in info.columns:
+                    # If we are not in the first pass, the columns to be read 
+                    # are already in the json column
+                    columns_to_read.add("__DISSOLVE_TOJSON")
+                else:
+                    # The first pass, so read all relevant columns to code 
+                    # them in json
+                    if "json" in agg_columns:
+                        if agg_columns["json"] is None:
+                            columns_to_read.update(info.columns)
+                        else:
+                            columns_to_read.update(agg_columns["json"])
+                    elif "columns" in agg_columns:
+                        columns_to_read.update(
+                                [agg_column["column"] for agg_column in agg_columns["columns"]])
 
-            # TODO: remove VERY DIRTY HACK to get fid for geopackages
-            if agg_columns is not None:
-                columns_to_read.add("__TMP_GEOFILEOPS_FID")
+                    # TODO: remove VERY DIRTY HACK to get fid for geopackages
+                    columns_to_read.add("__TMP_GEOFILEOPS_FID")
 
             input_gdf = gfo.read_file(
                     path=input_path, layer=input_layer, bbox=bbox, columns=columns_to_read)
             
             # TODO: remove VERY DIRTY HACK to get fid for geopackages
-            if agg_columns is not None:
+            if "__TMP_GEOFILEOPS_FID" in input_gdf.columns:
                 input_gdf = input_gdf.rename(columns={"__TMP_GEOFILEOPS_FID": "fid_orig"})
                 assert isinstance(input_gdf, gpd.GeoDataFrame)
             
@@ -1112,24 +1145,29 @@ def _dissolve_polygons(
                 raise ex
 
     # Check result
-    perfinfo['time_read'] = (datetime.datetime.now()-start_read).total_seconds()
+    perfinfo['time_read'] = (datetime.now()-start_read).total_seconds()
     return_info['nb_rows_done'] = len(input_gdf)
     if return_info['nb_rows_done'] == 0:
         message = f"No input geometries found in {input_path}"
         logger.info(message)
         return_info['message'] = message
-        return_info['total_time'] = (datetime.datetime.now()-start_time).total_seconds()
+        return_info['total_time'] = (datetime.now()-start_time).total_seconds()
         return return_info
 
     # Now the real processing
     if agg_columns is not None:
-        aggfunc = "json" 
+        if "__DISSOLVE_TOJSON" not in input_gdf.columns:
+            # First pass -> put all columns to json
+            aggfunc = "to_json" 
+        else: 
+            # Columns already coded in a json column, so merge json lists 
+            aggfunc = "merge_json_lists"
     else:
-        aggfunc = 'first'
-    start_dissolve = datetime.datetime.now()
+        aggfunc = "first"
+    start_dissolve = datetime.now()
     diss_gdf = _dissolve(
             df=input_gdf, by=groupby_columns, aggfunc=aggfunc, as_index=False, dropna=False)
-    perfinfo['time_dissolve'] = (datetime.datetime.now()-start_dissolve).total_seconds()
+    perfinfo['time_dissolve'] = (datetime.now()-start_dissolve).total_seconds()
 
     # If explodecollections is True and For polygons, explode multi-geometries.
     # If needed they will be 'collected' afterwards to multipolygons again.
@@ -1148,13 +1186,13 @@ def _dissolve_polygons(
     # always result in linestrings being re-connected... Because dissolving 
     # lines isn't so computationally heavy anyway, drop support here.  
     if bbox is not None:
-        start_clip = datetime.datetime.now()
+        start_clip = datetime.now()
         bbox_polygon = sh_geom.Polygon([
                 (bbox[0], bbox[1]), (bbox[0], bbox[3]), 
                 (bbox[2], bbox[3]), (bbox[2], bbox[1]), (bbox[0], bbox[1])])
         bbox_gdf = gpd.GeoDataFrame([1], geometry=[bbox_polygon], crs=input_gdf.crs)
         
-        # keep_geom_type=True gaves sometimes error, and still does in 0.9.0
+        # keep_geom_type=True gave sometimes error, and still does in 0.9.0
         # so use own implementation of keep_geom_type 
         diss_gdf = gpd.clip(diss_gdf, bbox_gdf) #, keep_geom_type=True)
         assert isinstance(diss_gdf, gpd.GeoDataFrame) 
@@ -1164,7 +1202,7 @@ def _dissolve_polygons(
         diss_gdf.geometry = geoseries_util.geometry_collection_extract(
                 diss_gdf.geometry, input_geometrytype.to_primitivetype)
 
-        perfinfo['time_clip'] = (datetime.datetime.now()-start_clip).total_seconds()
+        perfinfo['time_clip'] = (datetime.now()-start_clip).total_seconds()
 
     # Drop rows with None/empty geometries
     diss_gdf = diss_gdf[~diss_gdf.geometry.isna()]
@@ -1175,11 +1213,15 @@ def _dissolve_polygons(
         message = f"Result is empty for {input_path}"
         return_info['message'] = message
         return_info['perfinfo'] = perfinfo
-        return_info['total_time'] = (datetime.datetime.now()-start_time).total_seconds()
+        return_info['total_time'] = (datetime.now()-start_time).total_seconds()
         return return_info
 
+    # Add column with tile_id
+    if tile_id is not None:
+        diss_gdf["tile_id"] = tile_id
+
     # Save the result to destination file(s)
-    start_to_file = datetime.datetime.now()
+    start_to_file = datetime.now()
 
     # If the tiles don't need to be merged afterwards, we can just save the result as it is
     if str(output_notonborder_path) == str(output_onborder_path):
@@ -1216,10 +1258,10 @@ def _dissolve_polygons(
             gfo.to_file(
                     notonborder_gdf, output_notonborder_path, 
                     layer=output_layer, force_multitype=True, index=False)
-    perfinfo['time_to_file'] = (datetime.datetime.now()-start_to_file).total_seconds()
+    perfinfo['time_to_file'] = (datetime.now()-start_to_file).total_seconds()
 
     # Finalise...
-    message = f"dissolve ready in {datetime.datetime.now()-start_time} on {input_path}!"
+    message = f"dissolve ready in {datetime.now()-start_time} on {input_path}!"
     logger.debug(message)
     
     # Collect perfinfo
@@ -1228,7 +1270,7 @@ def _dissolve_polygons(
     for perfcode in perfinfo:
         total_perf_time += perfinfo[perfcode]
         perfstring += f"{perfcode}: {perfinfo[perfcode]:.2f}, "
-    return_info['total_time'] = (datetime.datetime.now()-start_time).total_seconds()
+    return_info['total_time'] = (datetime.now()-start_time).total_seconds()
     perfinfo['unaccounted'] = return_info['total_time'] - total_perf_time
     perfstring += f"unaccounted: {perfinfo['unaccounted']:.2f}"
     
@@ -1331,13 +1373,20 @@ def _dissolve(
     # Process non-spatial component
     data = pd.DataFrame(df.drop(columns=df.geometry.name))
 
-    if isinstance(aggfunc, str) is True and aggfunc == 'json':
-        #orient='records' ???
+    if isinstance(aggfunc, str) is True and aggfunc == "to_json":
         agg_columns = list(data.columns)
         if by is not None:
             for column in by:
                 agg_columns.remove(column)
-        aggregated_data = data.groupby(**groupby_kwargs).apply(lambda g: g[agg_columns].to_json(orient='index')).to_frame(name='json')
+        aggregated_data = data.groupby(**groupby_kwargs).apply(
+                lambda g: g[agg_columns].to_json(orient='records')).to_frame(name="__DISSOLVE_TOJSON")
+    elif isinstance(aggfunc, str) is True and aggfunc == "merge_json_lists":    
+        aggregated_data = data.groupby(**groupby_kwargs).apply(
+                lambda g: json.dumps([json.loads(json_value) for json_value in 
+                                set([json.dumps(json_value) for json_values in 
+                                        [ast.literal_eval(json_values) for json_values in 
+                                                g["__DISSOLVE_TOJSON"]] for json_value in 
+                                                        json_values])])).to_frame(name="__DISSOLVE_TOJSON")
     else:
         aggregated_data = data.groupby(**groupby_kwargs).agg(aggfunc)
         # Check if all columns were properly aggregated
@@ -1397,4 +1446,4 @@ def _add_orderby_column(
     gfo.add_column(
             path=path, name=name, type=gfo.DataType.TEXT, expression=expression)
     sqlite_stmt = f'CREATE INDEX {name}_idx ON "{layer}"({name})' 
-    ogr_util.vector_info(path=path, sql_stmt=sqlite_stmt, readonly=False)
+    _ogr_util.vector_info(path=path, sql_stmt=sqlite_stmt, readonly=False)

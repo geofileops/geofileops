@@ -5,23 +5,23 @@ Module containing the implementation of Geofile operations using a sql statement
 
 from concurrent import futures
 from dataclasses import dataclass
-import datetime
+from datetime import datetime
 import logging
 import logging.config
 import multiprocessing
 from pathlib import Path
 import shutil
-from typing import Dict, Iterable, List, Optional, Union
+from typing import Iterable, List, Optional
 
 import pandas as pd
 
 import geofileops as gfo
 from geofileops import GeofileType, GeometryType, PrimitiveType
 from geofileops.fileops import _append_to_nolock
-from . import io_util
-from . import ogr_util
-from . import sqlite_util
-from . import general_util
+from . import _io_util
+from . import _ogr_util
+from . import _sqlite_util
+from . import _general_util
 
 ################################################################################
 # Some init
@@ -199,7 +199,7 @@ def isvalid(
         try:
             input_geofiletype = GeofileType(input_path)   
             if input_geofiletype.is_spatialite_based:
-                sqlite_util.test_data_integrity(path=input_path)
+                _sqlite_util.test_data_integrity(path=input_path)
                 logger.debug("test_data_integrity was succesfull")
         except Exception as ex:
             logger.exception("No invalid geometries found, but some attributes could not be read")
@@ -273,7 +273,7 @@ def makevalid(
     # If output is a geopackage, check if all data can be read
     output_geofiletype = GeofileType(input_path)   
     if output_geofiletype.is_spatialite_based:
-        sqlite_util.test_data_integrity(path=input_path)
+        _sqlite_util.test_data_integrity(path=input_path)
 
 def select(
         input_path: Path,
@@ -337,7 +337,7 @@ def simplify(
 
     # Prepare sql template for this operation 
     sql_template = f'''
-            SELECT ST_Simplify({{geometrycolumn}}, {tolerance}) AS geom
+            SELECT ST_SimplifyPreserveTopology({{geometrycolumn}}, {tolerance}) AS geom
                   {{columns_to_select_str}} 
               FROM "{{input_layer}}" layer
              WHERE 1=1 
@@ -377,7 +377,7 @@ def _single_layer_vector_operation(
         force: bool = False):
 
     ##### Init #####
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
 
     # Check input parameters...
     if not input_path.exists():
@@ -401,10 +401,8 @@ def _single_layer_vector_operation(
     input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
             
     ##### Calculate #####
-    tempdir = io_util.create_tempdir(f"geofileops/{operation_name.replace(' ', '_')}")
-    
+    tempdir = _io_util.create_tempdir(f"geofileops/{operation_name.replace(' ', '_')}")
     try:
-        ##### Calculate #####
         processing_params = _prepare_processing_params(
                 input1_path=input_path,
                 input1_layer=input_layer,
@@ -424,11 +422,14 @@ def _single_layer_vector_operation(
         
         # Prepare output filename
         tmp_output_path = tempdir / output_path.name
-
         nb_done = 0
-        with futures.ProcessPoolExecutor(
-                max_workers=processing_params.nb_parallel, 
-                initializer=general_util.initialize_worker()) as calculate_pool:
+        
+        # Processing in threads is 2x faster for small datasets (on Windows)
+        calculate_in_threads = True if input_layerinfo.featurecount <= 100 else False
+        with _general_util.PooledExecutorFactory(
+                threadpool=calculate_in_threads,
+                max_workers=processing_params.nb_parallel,
+                initializer=_general_util.initialize_worker()) as calculate_pool:
 
             batches = {}    
             future_to_batch_id = {}
@@ -457,27 +458,26 @@ def _single_layer_vector_operation(
                             WHERE sub.geom IS NOT NULL'''
 
                 batches[batch_id]['sql_stmt'] = sql_stmt
-                translate_description = f"Async {operation_name} {batch_id} of {len(batches)}"
-
+                
                 # Remark: this temp file doesn't need spatial index
-                translate_info = ogr_util.VectorTranslateInfo(
+                translate_info = _ogr_util.VectorTranslateInfo(
                         input_path=processing_params.batches[batch_id]['path'],
                         output_path=tmp_partial_output_path,
-                        translate_description=translate_description,
                         output_layer=output_layer,
                         sql_stmt=sql_stmt,
                         sql_dialect='SQLITE',
-                        create_spatial_index=False,
                         explodecollections=explodecollections,
                         force_output_geometrytype=force_output_geometrytype,
-                        verbose=verbose)
+                        options={"LAYER_CREATION.SPATIAL_INDEX": False})
                 future = calculate_pool.submit(
-                        ogr_util.vector_translate_by_info,
+                        _ogr_util.vector_translate_by_info,
                         info=translate_info)
                 future_to_batch_id[future] = batch_id                    
 
-            # Loop till all parallel processes are ready, but process each one 
+            # Loop till all parallel processes are ready, but process each one
             # that is ready already
+            # Calculating can be done in parallel, but only one process can write to
+            # the same file at the time
             for future in futures.as_completed(future_to_batch_id):
                 try:
                     _ = future.result()
@@ -503,7 +503,7 @@ def _single_layer_vector_operation(
 
                 # Log the progress and prediction speed
                 nb_done += 1
-                general_util.report_progress(
+                _general_util.report_progress(
                         start_time, nb_done, len(batches), operation_name, nb_parallel=nb_parallel)
 
         ##### Round up and clean up ##### 
@@ -518,7 +518,7 @@ def _single_layer_vector_operation(
     finally:
         # Clean tmp dir
         shutil.rmtree(tempdir)
-        logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
+        logger.info(f"Processing ready, took {datetime.now()-start_time}!")
 
 ################################################################################
 # Operations on two layers
@@ -553,7 +553,7 @@ def clip(
 
     # Prepare sql template for this operation 
     # Remarks:
-    #   - ST_intersect(geometry , NULL) gives NULL as result! -> hence the CASE 
+    #   - ST_intersection(geometry , NULL) gives NULL as result! -> hence the CASE 
     #   - use of the with instead of an inline view is a lot faster
     #   - WHERE geom IS NOT NULL to evade rows with a NULL geom, they give issues in later operations
     sql_template = f'''
@@ -828,7 +828,7 @@ def export_by_distance(
             verbose=verbose,
             force=force)
 
-def intersect(
+def intersection(
         input1_path: Path,
         input2_path: Path,
         output_path: Path,
@@ -1006,9 +1006,7 @@ def join_by_location(
                    {{batch_filter}}
                    AND layer1.fid NOT IN (
                        SELECT l1_fid FROM layer1_relations_filtered) '''
-    
-    print(sql_template)
-    
+        
     # Go!
     input1_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
     return _two_layer_vector_operation(
@@ -1130,7 +1128,7 @@ def join_nearest(
         input2_tmp_layer = input2_layer
     else:
         # Put input2 layer in sqlite gfo...
-        tempdir = io_util.create_tempdir("geofileops/join_nearest")
+        tempdir = _io_util.create_tempdir("geofileops/join_nearest")
         input1_tmp_path = tempdir / f"both_input_layers.sqlite"
         input1_tmp_layer = 'input1_layer'
         gfo.convert(
@@ -1355,7 +1353,7 @@ def union(
     if output_layer is None:
         output_layer = gfo.get_default_layer(output_path)
 
-    tempdir = io_util.create_tempdir("geofileops/union")
+    tempdir = _io_util.create_tempdir("geofileops/union")
     try:
         # First split input1 with input2 to a temporary output gfo...
         split_output_path = tempdir / "split_output.gpkg"
@@ -1475,20 +1473,20 @@ def _two_layer_vector_operation(
             return
         else:
             gfo.remove(output_path)
-
+    
     # Check if spatialite is properly installed to execute this query
-    sqlite_util.check_runtimedependencies()
+    _sqlite_util.check_runtimedependencies()
 
     # Init layer info
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
     if input1_layer is None:
         input1_layer = gfo.get_only_layer(input1_path)
     if input2_layer is None:
         input2_layer = gfo.get_only_layer(input2_path)
     if output_layer is None:
         output_layer = gfo.get_default_layer(output_path)
-    tempdir = io_util.create_tempdir(f"geofileops/{operation_name}")
-
+    tempdir = _io_util.create_tempdir(f"geofileops/{operation_name}")
+    
     # Use get_layerinfo to check if the input files are valid
     gfo.get_layerinfo(input1_path, input1_layer)
     gfo.get_layerinfo(input2_path, input2_layer)
@@ -1538,13 +1536,13 @@ def _two_layer_vector_operation(
             logger.warning(f"input1 has a different crs than input2: \n\tinput1: {input1_tmp_layerinfo.crs} \n\tinput2: {input2_tmp_layerinfo.crs}")
         
         ##### Calculate #####
-        logger.info(f"Start {operation_name} in {processing_params.nb_parallel} parallel processes")
-
-        # Calculating can be done in parallel, but only one process can write to 
-        # the same file at the time... 
-        with futures.ProcessPoolExecutor(
-                max_workers=processing_params.nb_parallel, 
-                initializer=general_util.initialize_worker()) as calculate_pool:
+        # Processing in threads is 2x faster for small datasets (on Windows)
+        calculate_in_threads = True if input1_tmp_layerinfo.featurecount <= 100 else False
+        logger.info(f"Start {operation_name} in {processing_params.nb_parallel} parallel workers")
+        with _general_util.PooledExecutorFactory(
+                threadpool=calculate_in_threads,
+                max_workers=processing_params.nb_parallel,
+                initializer=_general_util.initialize_worker()) as calculate_pool:
 
             # Start looping
             batches = {}    
@@ -1583,7 +1581,7 @@ def _two_layer_vector_operation(
                 if use_ogr is False:
                     # Use an aggressive speedy sqlite profile 
                     future = calculate_pool.submit(
-                            sqlite_util.create_table_as_sql,
+                            _sqlite_util.create_table_as_sql,
                             input1_path=processing_params.batches[batch_id]['path'],
                             input1_layer=processing_params.batches[batch_id]['layer'],
                             input2_path=processing_params.input2_path, 
@@ -1592,7 +1590,7 @@ def _two_layer_vector_operation(
                             output_layer=output_layer,
                             output_geometrytype=force_output_geometrytype,
                             create_spatial_index=False,
-                            profile=sqlite_util.SqliteProfile.SPEED)
+                            profile=_sqlite_util.SqliteProfile.SPEED)
                     future_to_batch_id[future] = batch_id
                 else:    
                     # Use ogr to run the query
@@ -1603,20 +1601,20 @@ def _two_layer_vector_operation(
                             input2_databasename=processing_params.input2_databasename)
 
                     future = calculate_pool.submit(
-                            ogr_util.vector_translate,
+                            _ogr_util.vector_translate,
                             input_path=processing_params.batches[batch_id]['path'],
                             output_path=tmp_partial_output_path,
                             sql_stmt=sql_stmt,
                             output_layer=output_layer,
-                            create_spatial_index=False,
                             explodecollections=explodecollections,
-                            force_output_geometrytype=force_output_geometrytype)
+                            force_output_geometrytype=force_output_geometrytype,
+                            options={"LAYER_CREATION.SPATIAL_INDEX": False})
                 future_to_batch_id[future] = batch_id
                 
             # Loop till all parallel processes are ready, but process each one 
             # that is ready already
             nb_done = 0
-            general_util.report_progress(
+            _general_util.report_progress(
                     start_time, nb_done, len(processing_params.batches), 
                     operation_name, processing_params.nb_parallel)
             for future in futures.as_completed(future_to_batch_id):
@@ -1635,13 +1633,12 @@ def _two_layer_vector_operation(
                         gfo.append_to(
                                 src=tmp_partial_output_path, 
                                 dst=tmp_output_path, 
-                                create_spatial_index=False,
                                 explodecollections=explodecollections,
-                                force_output_geometrytype=force_output_geometrytype)
+                                force_output_geometrytype=force_output_geometrytype,
+                                create_spatial_index=False)
                         gfo.remove(tmp_partial_output_path)
                     else:
-                        if verbose:
-                            logger.info(f"Result file {tmp_partial_output_path} was empty")
+                        logger.debug(f"Result file {tmp_partial_output_path} was empty")
                     
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
@@ -1651,7 +1648,7 @@ def _two_layer_vector_operation(
 
                 # Log the progress and prediction speed
                 nb_done += 1
-                general_util.report_progress(
+                _general_util.report_progress(
                         start_time, nb_done, len(processing_params.batches), 
                         operation_name, processing_params.nb_parallel)
 
@@ -1666,14 +1663,14 @@ def _two_layer_vector_operation(
         else:
             logger.debug(f"Result of {operation_name} was empty!")
 
-        logger.info(f"{operation_name} ready, took {datetime.datetime.now()-start_time}!")
+        logger.info(f"{operation_name} ready, took {datetime.now()-start_time}!")
     except Exception as ex:
         gfo.remove(output_path)
         gfo.remove(tmp_output_path)
         raise
-    
-    # Cleanup temp files
-    shutil.rmtree(tempdir)
+    finally:    
+        shutil.rmtree(tempdir)
+
 
 class ProcessingParams:
     def __init__(self,
@@ -1716,7 +1713,8 @@ def _prepare_processing_params(
     ### Determine the optimal number of parallel processes + batches ###
     if returnvalue.nb_parallel == -1:
         # Default, put at least 100 rows in a batch for parallelisation
-        max_parallel = max(int(input1_layerinfo.featurecount/100), 1)
+        min_rows_per_batch = min(batchsize, 100)
+        max_parallel = max(int(input1_layerinfo.featurecount/min_rows_per_batch), 1)
         returnvalue.nb_parallel = min(multiprocessing.cpu_count(), max_parallel)
 
     # Determine optimal number of batches
@@ -1725,7 +1723,7 @@ def _prepare_processing_params(
     if returnvalue.nb_parallel > 1:
         # Limit number of rows processed in parallel to limit memory use
         if batchsize > 0:
-            max_rows_parallel = batchsize * nb_parallel
+            max_rows_parallel = batchsize * returnvalue.nb_parallel
         else:
             max_rows_parallel = 200000
         if input1_layerinfo.featurecount > max_rows_parallel:
@@ -1944,7 +1942,7 @@ def dissolve_singlethread(
     Remark: this is not a parallelized version!!! 
     """
     ##### Init #####
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
     if output_path.exists():
         if force is False:
             logger.info(f"Stop dissolve: Output exists already {output_path}")
@@ -2045,22 +2043,19 @@ def dissolve_singlethread(
             SELECT {operation} AS geom
                   {groupby_columns_for_select_str}
                   {agg_columns_str}
-              FROM {input_layer} layer
+              FROM "{input_layer}" layer
              GROUP BY {groupby_columns_for_groupby_str}'''
     
-    translate_description = f"Dissolve {input_path}"
-    ogr_util.vector_translate(
+    _ogr_util.vector_translate(
             input_path=input_path,
             output_path=output_path,
-            translate_description=translate_description,
             output_layer=output_layer,
             sql_stmt=sql_stmt,
-            sql_dialect='SQLITE',
+            sql_dialect="SQLITE",
             force_output_geometrytype=force_output_geometrytype,
-            explodecollections=explodecollections,
-            verbose=verbose)
+            explodecollections=explodecollections)
 
-    logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
+    logger.info(f"Processing ready, took {datetime.now()-start_time}!")
 
 '''
 def dissolve_cardsheets(    
@@ -2077,7 +2072,7 @@ def dissolve_cardsheets(
         force: bool = False):
 
     ##### Init #####
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
     if output_path.exists():
         if force is False:
             logger.info(f"Stop dissolve_cardsheets: output exists already {output_path}, so stop")
@@ -2133,9 +2128,13 @@ def dissolve_cardsheets(
         logger.info(f"Start calculation of dissolves in file {input_tmp_path} to partial files")
         tmp_output_path = tempdir / output_path.name
 
-        with futures.ProcessPoolExecutor(
-                max_workers=nb_parallel, 
-                initializer=general_util.initialize_worker()) as calculate_pool:
+        # Processing in threads is 2x faster for small datasets (on Windows)
+        input_layerinfo = gfo.get_layerinfo(input_path)
+        calculate_in_threads = True if input_layerinfo.featurecount <= 100 else False
+        with _general_util.PooledExecutorFactory(
+                threadpool=calculate_in_threads,
+                max_workers=nb_parallel,
+                initializer=_general_util.initialize_worker()) as calculate_pool:
 
             translate_jobs = {}    
             future_to_batch_id = {}    
@@ -2225,5 +2224,5 @@ def dissolve_cardsheets(
     finally:
         # Clean tmp dir
         shutil.rmtree(tempdir)
-        logger.info(f"Processing ready, took {datetime.datetime.now()-start_time}!")
+        logger.info(f"Processing ready, took {datetime.now()-start_time}!")
 '''

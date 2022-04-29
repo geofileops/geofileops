@@ -14,7 +14,7 @@ import pandas as pd
 
 import geofileops as gfo
 from geofileops import GeometryType
-from .general_util import MissingRuntimeDependencyError
+from ._general_util import MissingRuntimeDependencyError
 
 #-------------------------------------------------------------
 # First define/init some general variables/constants
@@ -131,30 +131,31 @@ def create_table_as_sql(
             # gpkg... functions don't work
             # Remark: sql statements using knn only work if they are main, so they 
             # are executed with ogr, as the output needs to be main as well :-(. 
-            output_databasename = 'main'
+            output_databasename = "main"
             load_spatialite(conn)
 
-            if output_suffix_lower == '.gpkg':
-                sql = 'SELECT EnableGpkgMode();'
+            if output_suffix_lower == ".gpkg":
+                sql = "SELECT EnableGpkgMode();"
                 conn.execute(sql)
 
-            # Set number of cache pages (1 page = 4096 bytes)
-            conn.execute('PRAGMA cache_size = 10000;')
-            conn.execute('PRAGMA temp_store = MEMORY;')
+            # Set nb KB of cache
+            conn.execute("PRAGMA cache_size=-128000;")
+            conn.execute("PRAGMA temp_store=MEMORY;")
             
             # Use the sqlite profile specified
             if profile is SqliteProfile.SPEED:
-                conn.execute(f"PRAGMA journal_mode = OFF;")
+                conn.execute(f"PRAGMA journal_mode=OFF;")
             
                 # These pragma's increase speed
-                conn.execute('PRAGMA locking_mode = EXCLUSIVE;')
-                conn.execute('PRAGMA synchronous = OFF;')
+                conn.execute("PRAGMA locking_mode=EXCLUSIVE;")
+                conn.execute("PRAGMA synchronous=OFF;")
                 
-                # Use memory mapped IO = much faster (max 30GB)
-                conn.execute('PRAGMA mmap_size = 30000000000;')
+                # Use memory mapped IO: much faster for calculations 
+                # (max 30GB)
+                conn.execute("PRAGMA mmap_size=30000000000;")
 
             # If attach to input1
-            input1_databasename = 'input1'
+            input1_databasename = "input1"
             sql = f"ATTACH DATABASE ? AS {input1_databasename}"
             dbSpec = (str(input1_path),)
             conn.execute(sql, dbSpec)
@@ -164,7 +165,7 @@ def create_table_as_sql(
                 if input2_path == input1_path:
                     input2_databasename = input1_databasename
                 else:
-                    input2_databasename = 'input2'
+                    input2_databasename = "input2"
                     sql = f"ATTACH DATABASE ? AS {input2_databasename}"
                     dbSpec = (str(input2_path),)
                     conn.execute(sql, dbSpec)    
@@ -179,7 +180,7 @@ def create_table_as_sql(
             # + fetch one row to use it to determine geometrytype.
             sql = f'CREATE TEMPORARY TABLE tmp AS \nSELECT * FROM (\n{sql_stmt}\n)\nLIMIT 1;'
             conn.execute(sql)
-            sql = 'PRAGMA TABLE_INFO(tmp)'
+            sql = "PRAGMA TABLE_INFO(tmp)"
             cur = conn.execute(sql)
             tmpcolumns = cur.fetchall()
                         
@@ -196,41 +197,41 @@ def create_table_as_sql(
                 columnname = column[1]
                 columntype = column[2]
 
-                if columnname == 'geom':
+                if columnname == "geom":
                     # PRAGMA TABLE_INFO gives None as column type for a 
                     # geometry column. So if output_geometrytype not specified, 
                     # Use ST_GeometryType to get the type
                     # based on the data + apply to_multitype to be sure
                     if output_geometrytype is None:
-                        sql = f'SELECT ST_GeometryType({columnname}) FROM tmp;'
+                        sql = f"SELECT ST_GeometryType({columnname}) FROM tmp;"
                         column_geometrytypename = conn.execute(sql).fetchall()[0][0]
                         output_geometrytype = GeometryType[column_geometrytypename].to_multitype
                     column_types[columnname] = output_geometrytype.name
                 else:
                     # If PRAGMA TABLE_INFO doesn't specify the datatype, 
                     # determine based on data
-                    if columntype is None or columntype == '':
-                        sql = f'SELECT typeof({columnname}) FROM tmp;'
+                    if columntype is None or columntype == "":
+                        sql = f"SELECT typeof({columnname}) FROM tmp;"
                         result = conn.execute(sql).fetchall()[0][0]
                         if result is not None:
                             column_types[columnname] = result
                         else:
                             # If unknown, take the most general types
                             column_types[columnname] = "NUMERIC"
-                    elif columntype == 'NUM':
+                    elif columntype == "NUM":
                         # PRAGMA TABLE_INFO sometimes returns 'NUM', but 
                         # apparently this cannot be used in "CREATE TABLE" 
                         if isinstance(tmpdata[column_index], datetime.date): 
-                            column_types[columnname] = 'DATE'
+                            column_types[columnname] = "DATE"
                         elif isinstance(tmpdata[column_index], datetime.datetime): 
-                            column_types[columnname] = 'DATETIME'
+                            column_types[columnname] = "DATETIME"
                         else:
-                            sql = f'SELECT datetime({columnname}) FROM tmp;'
+                            sql = f'SELECT datetime("{columnname}") FROM tmp;'
                             result = conn.execute(sql).fetchall()[0][0]
                             if result is not None:
-                                column_types[columnname] = 'DATETIME'
+                                column_types[columnname] = "DATETIME"
                             else:
-                                column_types[columnname] = 'NUMERIC'
+                                column_types[columnname] = "NUMERIC"
                     else:
                         column_types[columnname] = columntype
 
@@ -292,9 +293,9 @@ def create_table_as_sql(
             if create_spatial_index is True:
                 sql = f"SELECT UpdateLayerStatistics('{output_layer}', 'geom');"
                 conn.execute(sql)
-                if output_suffix_lower == '.gpkg':
+                if output_suffix_lower == ".gpkg":
                     sql = f"SELECT gpkgAddSpatialIndex('{output_layer}', 'geom');"
-                elif output_suffix_lower == '.sqlite':
+                elif output_suffix_lower == ".sqlite":
                     sql = f"SELECT CreateSpatialIndex('{output_layer}', 'geom');"
                 conn.execute(sql)
     
@@ -323,14 +324,14 @@ def execute_sql(
         with conn:
             if use_spatialite is True:
                 load_spatialite(conn)
-            if path.suffix.lower() == '.gpkg':
-                sql = 'SELECT EnableGpkgMode();'
+            if path.suffix.lower() == ".gpkg":
+                sql = "SELECT EnableGpkgMode();"
                 conn.execute(sql)
             
-            # Set number of cache pages (1 page = 4096 bytes)
-            sql = 'PRAGMA cache_size = 10000;'
+            # Set nb KB of cache
+            sql = "PRAGMA cache_size=-50000;"
             conn.execute(sql)
-            sql = 'PRAGMA temp_store = MEMORY;'
+            sql = "PRAGMA temp_store=MEMORY;"
             conn.execute(sql)
 
             # Now actually run the sql
@@ -354,15 +355,15 @@ def execute_select_sql(
     try:    
         if use_spatialite is True:
             load_spatialite(conn)
-        if path.suffix.lower() == '.gpkg':
-            sql = 'SELECT EnableGpkgMode();'
+        if path.suffix.lower() == ".gpkg":
+            sql = "SELECT EnableGpkgMode();"
             conn.execute(sql)
         
-        # Set number of cache pages (1 page = 4096 bytes)
-        sql = 'PRAGMA cache_size = 10000;'
+        # Set nb KB of cache
+        sql = "PRAGMA cache_size=-50000;"
         conn.execute(sql)
         # Use memory mapped IO = much faster (max 30GB)
-        conn.execute('PRAGMA mmap_size = 30000000000;')
+        conn.execute("PRAGMA mmap_size=30000000000;")
 
         sql = sql_stmt
         return conn.execute(sql).fetchall()
@@ -386,15 +387,15 @@ def test_data_integrity(
     try:    
         if use_spatialite is True:
             load_spatialite(conn)
-        if path.suffix.lower() == '.gpkg':
-            sql = 'SELECT EnableGpkgMode();'
+        if path.suffix.lower() == ".gpkg":
+            sql = "SELECT EnableGpkgMode();"
             conn.execute(sql)
         
-        # Set number of cache pages (1 page = 4096 bytes)
-        sql = 'PRAGMA cache_size = 10000;'
+        # Set nb KB of cache
+        sql = "PRAGMA cache_size=-50000;"
         conn.execute(sql)
         # Use memory mapped IO = much faster (max 30GB)
-        conn.execute('PRAGMA mmap_size = 30000000000;')
+        conn.execute("PRAGMA mmap_size=30000000000;")
         
         # Loop over all layers to check if all data is readable
         for layer in layers:
@@ -425,15 +426,15 @@ def execute_select_sql_df(
     try:
         if use_spatialite is True:
             load_spatialite(conn)
-        if path.suffix.lower() == '.gpkg':
-            sql = 'SELECT EnableGpkgMode();'
+        if path.suffix.lower() == ".gpkg":
+            sql = "SELECT EnableGpkgMode();"
             conn.execute(sql)
         
-        # Set number of cache pages (1 page = 4096 bytes)
-        sql = 'PRAGMA cache_size = 10000;'
+        # Set nb KB of cache
+        sql = "PRAGMA cache_size=-50000;"
         conn.execute(sql)
         # Use memory mapped IO = much faster (max 30GB)
-        conn.execute('PRAGMA mmap_size = 30000000000;')
+        conn.execute("PRAGMA mmap_size=30000000000;")
 
         sql = sql_stmt
         return pd.read_sql(sql, conn)
@@ -452,6 +453,6 @@ def load_spatialite(conn):
     """
     conn.enable_load_extension(True)
     try:
-        conn.load_extension('mod_spatialite')
+        conn.load_extension("mod_spatialite")
     except Exception as ex:
         raise MissingRuntimeDependencyError("Error trying to load mod_spatialite.") from ex

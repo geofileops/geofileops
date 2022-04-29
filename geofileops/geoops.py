@@ -8,6 +8,7 @@ import logging.config
 import os
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
+import warnings
 
 from geofileops.util import _geoops_gpd
 from geofileops.util import _geoops_sql
@@ -377,7 +378,6 @@ def dissolve(
         agg_columns: Optional[dict] = None,
         tiles_path: Union[str, 'os.PathLike[Any]', None] = None,
         nb_squarish_tiles: int = 1,
-        clip_on_tiles: bool = True,
         input_layer: Optional[str] = None,        
         output_layer: Optional[str] = None,
         nb_parallel: int = -1,
@@ -438,13 +438,6 @@ def dissolve(
             Can be used to evade huge geometries being created if the input 
             geometries are very interconnected. 
             Defaults to 1 (= the output is not tiled).
-        clip_on_tiles (bool, optional): deprecated: should always be True! 
-            If the output is tiled (by specifying a tiles_path 
-            or a nb_squarish_tiles > 1), the result will be clipped 
-            on the output tiles and the tile borders are never crossed.
-            When False, a (scalable, fast) implementation always resulted in 
-            some geometries not being merged or in duplicates. 
-            Defaults to True.
         input_layer (str, optional): input layer name. Optional if the  
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the  
@@ -461,13 +454,8 @@ def dissolve(
             Defaults to False.
     """
     # Init
-    if clip_on_tiles is False:
-        logger.warn("The clip_on_tiles parameter is deprecated! It is ignored and always treated as True. When False, a fast implementation results in some geometries not being merged or in duplicates.")
-        if tiles_path is not None or nb_squarish_tiles > 1:
-            raise Exception("clip_on_tiles is deprecated, and the behaviour of clip_on_tiles is False is not supported anymore.")
-    tiles_path_p = None
     if tiles_path is not None:
-        tiles_path_p = Path(tiles_path)
+        tiles_path = Path(tiles_path)
     
     # If an empty list of geometry columns is passed, convert it to None to 
     # simplify the rest of the code 
@@ -481,7 +469,7 @@ def dissolve(
             explodecollections=explodecollections,
             groupby_columns=groupby_columns,
             agg_columns=agg_columns,
-            tiles_path=tiles_path_p,
+            tiles_path=tiles_path,
             nb_squarish_tiles=nb_squarish_tiles,
             input_layer=input_layer,        
             output_layer=output_layer,
@@ -1081,6 +1069,41 @@ def intersect(
         batchsize: int = -1,
         verbose: bool = False,
         force: bool = False):
+    
+    warnings.warn("intersect() is deprecated because it was renamed intersection(). Will be removed in a future version", FutureWarning)
+    return intersection(
+            input1_path=input1_path,
+            input2_path=input2_path,
+            output_path=output_path,
+            input1_layer=input1_layer,
+            input1_columns=input1_columns,
+            input1_columns_prefix=input1_columns_prefix,
+            input2_layer=input2_layer,
+            input2_columns=input2_columns,
+            input2_columns_prefix=input2_columns_prefix,
+            output_layer=output_layer,
+            explodecollections=explodecollections,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+            verbose=verbose,
+            force=force)
+
+def intersection(
+        input1_path: Union[str, 'os.PathLike[Any]'],
+        input2_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
+        input1_layer: Optional[str] = None,
+        input1_columns: Optional[List[str]] = None,
+        input1_columns_prefix: str = 'l1_',
+        input2_layer: Optional[str] = None,
+        input2_columns: Optional[List[str]] = None,
+        input2_columns_prefix: str = 'l2_',
+        output_layer: Optional[str] = None,
+        explodecollections: bool = False,
+        nb_parallel: int = -1,
+        batchsize: int = -1,
+        verbose: bool = False,
+        force: bool = False):
     """
     Calculate the pairwise intersection of alle features in input1 with all 
     features in input2.
@@ -1112,8 +1135,8 @@ def intersect(
         force (bool, optional): overwrite existing output file(s). 
             Defaults to False.
     """
-    logger.info(f"Start intersect between {input1_path} and {input2_path} to {output_path}")
-    return _geoops_sql.intersect(
+    logger.info(f"Start intersection between {input1_path} and {input2_path} to {output_path}")
+    return _geoops_sql.intersection(
             input1_path=Path(input1_path),
             input2_path=Path(input2_path),
             output_path=Path(output_path),
