@@ -129,6 +129,8 @@ def get_parallelization_params(
 
     # Make sure there are enough batches to use as much parallelism as possible
     if nb_batches > 1 and nb_batches < nb_parallel:
+        max_parallel_batchsize = int(parallelization_config_local.max_avg_rows_per_batch * nb_batches / batch_size)
+        nb_parallel = min(max_parallel_batchsize, nb_parallel)
         if prev_nb_batches is None:
             nb_batches = round(nb_parallel*1.25)
         elif nb_batches < prev_nb_batches/4:
@@ -388,10 +390,12 @@ def _apply_geooperation_to_layer(
 
         # Calculate the best number of parallel processes and batches for 
         # the available resources
-        layerinfo = gfo.get_layerinfo(input_path, input_layer)
-        nb_rows_total = layerinfo.featurecount
+        input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
+        nb_rows_total = input_layerinfo.featurecount
         if batchsize > 0:
-            parallellization_config = ParallelizationConfig(max_avg_rows_per_batch=batchsize)
+            parallellization_config = ParallelizationConfig(
+                    min_avg_rows_per_batch=math.ceil(batchsize/2),
+                    max_avg_rows_per_batch=batchsize)
         else:
             parallellization_config = ParallelizationConfig(max_avg_rows_per_batch=50000)
         nb_parallel, nb_batches, real_batchsize = get_parallelization_params(
@@ -412,8 +416,11 @@ def _apply_geooperation_to_layer(
             raise Exception(f"Error determining min_rowid and max_rowid for {temp_path}, layer {input_layer}")
         '''
 
-        with futures.ProcessPoolExecutor(
-                max_workers=nb_parallel, 
+        # Processing in threads is 2x faster for small datasets (on Windows)
+        calculate_in_threads = True if input_layerinfo.featurecount <= 100 else False
+        with _general_util.PooledExecutorFactory(
+                threadpool=calculate_in_threads,
+                max_workers=nb_parallel,
                 initializer=_general_util.initialize_worker()) as calculate_pool:
 
             # Prepare output filename
@@ -730,7 +737,7 @@ def dissolve(
                 # the available resources for the current pass
                 if batchsize > 0:
                     parallelization_config = ParallelizationConfig(
-                            min_avg_rows_per_batch=int(math.ceil(batchsize/10)),
+                            min_avg_rows_per_batch=int(math.ceil(batchsize/2)),
                             max_avg_rows_per_batch=batchsize)
                 else:
                     parallelization_config = ParallelizationConfig()
@@ -966,7 +973,11 @@ def _dissolve_polygons_pass(
     result_info = {}
     start_time = datetime.now()
     input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
-    with futures.ProcessPoolExecutor(
+    
+    # Processing in threads is 2x faster for small datasets (on Windows)
+    calculate_in_threads = True if input_layerinfo.featurecount <= 100 else False
+    with _general_util.PooledExecutorFactory(
+            threadpool=calculate_in_threads,
             max_workers=nb_parallel, 
             initializer=_general_util.initialize_worker()) as calculate_pool:
 

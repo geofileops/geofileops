@@ -3,6 +3,7 @@
 Module containing some general utilities.
 """
 
+from concurrent import futures
 import datetime
 import locale
 import logging
@@ -91,6 +92,43 @@ def format_progress(
             return f"00:00:00 left, {operation} done on {nb_done:{nb_decimal}n} of {nb_todo:{nb_decimal}n} ({pct_progress:3.2f}%)    "
         else:
             return None
+
+
+class PooledExecutorFactory(object):
+    """
+    Context manager to create an Executor.
+
+    Args:
+        threadpool (bool, optional): True to get a ThreadPoolExecutor,
+            False to get a ProcessPoolExecutor. Defaults to True.
+        max_workers (int, optional): Max number of workers.
+            Defaults to None to get automatic determination.
+        initialisze (function, optional): Function that does initialisations.
+    """
+    def __init__(
+            self, threadpool: bool = True,
+            max_workers=None,
+            initializer=None):
+        self.threadpool = threadpool
+        self.max_workers = max_workers
+        self.initializer = initializer
+        self.pool = None
+
+    def __enter__(self) -> futures.Executor:
+        if self.threadpool:
+            self.pool = futures.ThreadPoolExecutor(
+                max_workers=self.max_workers,
+                initializer=self.initializer)
+        else:
+            self.pool = futures.ProcessPoolExecutor(
+                max_workers=self.max_workers,
+                initializer=self.initializer)
+        return self.pool
+
+    def __exit__(self, type, value, traceback):
+        if self.pool is not None:
+            self.pool.shutdown(wait=True)
+
 
 def formatbytes(bytes: float):
     """
