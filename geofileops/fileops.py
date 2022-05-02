@@ -13,7 +13,7 @@ import pprint
 import shutil
 import tempfile
 import time
-from typing import Any, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 import warnings
 
 import fiona
@@ -105,6 +105,30 @@ def listlayers(
     """
     return fiona.listlayers(str(path))
 
+class ColumnInfo:
+    """
+    A data object containing meta-information about a column.
+
+    Attributes:
+        name (str): the name of the column.
+        gdal_type (str): the type of the column according to gdal.
+        width (int): the width of the column, if specified.
+    """
+    def __init__(
+            self,
+            name: str,
+            gdal_type: str,
+            width: int,
+            precision: int,
+        ):
+        self.name = name
+        self.gdal_type = gdal_type
+        self.width = width
+        self.precision = precision
+
+    def __repr__(self):
+        return f"{self.__class__}({self.__dict__})"
+
 class LayerInfo:
     """
     A data object containing meta-information about a layer.
@@ -120,8 +144,8 @@ class LayerInfo:
             The type name returned is one of the following: POINT, MULTIPOINT, 
             LINESTRING, MULTILINESTRING, POLYGON, MULTIPOLYGON, COLLECTION.
         geometrytype (GeometryType): the geometry type of the geometrycolumn.
-        columns (List[str]): the columns (other than the geometry column) that 
-            are available on the layer.
+        columns (dict): the columns (other than the geometry column) that 
+            are available on the layer with their properties as a dict.
         crs (pyproj.CRS): the spatial reference of the layer.
         errors (List[str]): list of errors in the layer, eg. invalid column 
             names,... 
@@ -133,7 +157,7 @@ class LayerInfo:
             geometrycolumn: str, 
             geometrytypename: str,
             geometrytype: GeometryType,
-            columns: List[str],
+            columns: Dict[str, ColumnInfo],
             crs: Optional[pyproj.CRS],
             errors: List[str]):
         self.name = name
@@ -186,20 +210,28 @@ def get_layerinfo(
             raise ValueError(f"Layer {layer} not found in file: {path_p}")
 
         # Get column info
-        columns = []
+        columns = {}
         errors = []
         geofiletype = GeofileType(path_p)
         layer_defn = datasource_layer.GetLayerDefn()
         for i in range(layer_defn.GetFieldCount()):
             name = layer_defn.GetFieldDefn(i).GetName()
+            # TODO: think whether the type name should be converted to other names
+            gdal_type = layer_defn.GetFieldDefn(i).GetTypeName()
+            width = layer_defn.GetFieldDefn(i).GetWidth()
+            width = width if width > 0 else None
+            precision = layer_defn.GetFieldDefn(i).GetPrecision()
+            precision = precision if precision > 0 else None
             illegal_column_chars = ['"']
             for illegal_char in illegal_column_chars:
                 if illegal_char in name:
                     errors.append(f"Column name {name} contains illegal char: {illegal_char} in file {path_p}, layer {layer}")
-            columns.append(name)
+            column_info = ColumnInfo(
+                    name=name, gdal_type=gdal_type, width=width, precision=precision)
+            columns[name] = column_info
             if geofiletype == GeofileType.ESRIShapefile:
                 if name.casefold() == "geometry":
-                    errors.append(f"An attribute column named 'geometry' is not supported in a shapefile")
+                    errors.append("An attribute column named 'geometry' is not supported in a shapefile")
 
         # Get geometry column info...
         geometrytypename = gdal.ogr.GeometryTypeToName(datasource_layer.GetGeomType())
@@ -223,7 +255,7 @@ def get_layerinfo(
 
         # If the geometry type is not None, fill out the extra properties    
         geometrycolumn = None
-        extent= None
+        extent = None
         crs = None
         total_bounds = None
         if geometrytype is not None:

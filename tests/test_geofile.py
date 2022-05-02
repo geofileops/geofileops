@@ -230,6 +230,7 @@ def test_get_layerinfo(testfile, suffix, layer):
     assert layerinfo.geometrytypename == gfo.GeometryType.MULTIPOLYGON.name
     assert layerinfo.geometrytype == gfo.GeometryType.MULTIPOLYGON
     assert len(layerinfo.columns) == 11
+    assert layerinfo.columns["OIDN"].gdal_type == "Integer64"
     assert layerinfo.total_bounds is not None
     assert layerinfo.crs is not None
     assert layerinfo.crs.to_epsg() == 31370
