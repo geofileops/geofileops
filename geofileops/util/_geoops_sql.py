@@ -681,7 +681,6 @@ def erase(
             input1_columns=input_columns,
             input1_columns_prefix=input_columns_prefix,
             input2_layer=erase_layer,
-            input2_columns=None,
             output_layer=output_layer,
             explodecollections=explodecollections,
             force_output_geometrytype=force_output_geometrytype,
@@ -1187,114 +1186,6 @@ def join_nearest(
             verbose=verbose,
             force=force)
 
-def overlay(
-        input1_path: Path,
-        input2_path: Path,
-        output_path: Path,
-        overlay_operation: str,
-        clean_geom_type: bool = True,
-        input1_layer: Optional[str] = None,
-        input1_columns: Optional[List[str]] = None,
-        input1_columns_prefix: str = 'l1_',
-        input2_layer: Optional[str] = None,
-        input2_columns: Optional[List[str]] = None,
-        input2_columns_prefix: str = 'l2_',
-        output_layer: Optional[str] = None,
-        explodecollections: bool = False,
-        nb_parallel: int = -1,
-        batchsize: int = -1,
-        verbose: bool = False,
-        force: bool = False):
-
-    ### Check input params ###
-    overlay_operations = [
-            "difference", "identity", "intersection", "symmetric_difference", "union", ]
-    if overlay_operation not in overlay_operations:
-        raise ValueError(f"overlay operation {overlay_operation} not supported, only {overlay_operations}")
-    
-    ### Prepare sql statement ###
-    # Prepare geo operation(s)
-    geom_operation2 = None
-    filter_2 = None
-    if overlay_operation == "difference":
-        geom_operation1 = (
-                f"ST_Difference(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}})")
-    elif overlay_operation == "identity":
-        geom_operation1 = (
-                f"ST_Intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}})")
-        geom_operation1 = (
-                f"ST_Difference(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}})")
-    elif overlay_operation == "intersection":
-        geom_operation1 = (
-                f"ST_Intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}})")
-    
-    # Only extract the geometry types that are "expected"
-    force_output_geometrytype = None
-    if clean_geom_type is True:
-        # TODO: test for geometrycollection, line, point,...
-        input1_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
-        input2_layer_info = gfo.get_layerinfo(input2_path, input2_layer)
-        primitivetype_to_extract = PrimitiveType(min(
-                input1_layer_info.geometrytype.to_primitivetype.value, 
-                input2_layer_info.geometrytype.to_primitivetype.value))
-        geom_operation = f"""ST_CollectionExtract(
-                {geom_operation}, {primitivetype_to_extract.value})"""
-    
-        # For the output file, if output is going to be polygon or linestring, force 
-        # MULTI variant to evade ugly warnings
-        force_output_geometrytype = primitivetype_to_extract.to_multitype
-
-    # Prepare filter
-    query = ""
-    filter = f"AND {_prepare_spatial_relations_filter(query)}"
-
-    #filter = """AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
-    #             AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
-    #        """
-
-    # Finalize sql template
-    sql_template = f'''
-        SELECT sub.geom
-              {{layer1_columns_from_subselect_str}}
-              {{layer2_columns_from_subselect_str}} 
-          FROM
-            ( SELECT {geom_operation} as geom
-                    {{layer1_columns_prefix_alias_str}}
-                    {{layer2_columns_prefix_alias_str}}
-                FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
-               WHERE 1=1
-                 {{batch_filter}}
-                 AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
-                 AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
-                 {filter}
-            ) sub
-         WHERE sub.geom IS NOT NULL
-        '''
-
-    ##### Go! #####
-    return _two_layer_vector_operation(
-            input1_path=input1_path,
-            input2_path=input2_path,
-            output_path=output_path,
-            sql_template=sql_template,
-            operation_name="overlay",
-            input1_layer=input1_layer,
-            input1_columns=input1_columns,
-            input1_columns_prefix=input1_columns_prefix,
-            input2_layer=input2_layer,
-            input2_columns=input2_columns,
-            input2_columns_prefix=input2_columns_prefix,
-            output_layer=output_layer,
-            explodecollections=explodecollections,
-            force_output_geometrytype=force_output_geometrytype,
-            nb_parallel=nb_parallel,
-            batchsize=batchsize,
-            verbose=verbose,
-            force=force)
-
 def select_two_layers(
         input1_path: Path,
         input2_path: Path,
@@ -1434,6 +1325,99 @@ def split(
             batchsize=batchsize,
             verbose=verbose,
             force=force)
+
+def symmetric_difference(
+        input1_path: Path,
+        input2_path: Path,
+        output_path: Path,
+        input1_layer: Optional[str] = None,
+        input1_columns: Optional[List[str]] = None,
+        input1_columns_prefix: str = 'l1_',
+        input2_layer: Optional[str] = None,
+        input2_columns: Optional[List[str]] = None,
+        input2_columns_prefix: str = 'l2_',
+        output_layer: Optional[str] = None,
+        explodecollections: bool = False,
+        nb_parallel: int = -1,
+        batchsize: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+
+    # A symmetric difference can be simulated by doing an "erase" of input1 
+    # and input2 and then append the result of an erase of input2 with 
+    # input1... 
+
+    # Because both erase calculations will be towards temp files, 
+    # we need to do some additional init + checks here...
+    if force is False and output_path.exists():
+        return
+    if output_layer is None:
+        output_layer = gfo.get_default_layer(output_path)
+
+    tempdir = _io_util.create_tempdir("geofileops/symmdiff")
+    try:
+        # First erase input2 from input1 to a temporary output file
+        erase1_output_path = tempdir / "layer1_erase_layer2_output.gpkg"
+        erase(  input_path=input1_path,
+                erase_path=input2_path,
+                output_path=erase1_output_path,
+                input_layer=input1_layer,
+                input_columns=input1_columns,
+                input_columns_prefix=input1_columns_prefix,
+                erase_layer=input2_layer,
+                output_layer=output_layer,
+                explodecollections=explodecollections,
+                output_with_spatial_index=False,
+                nb_parallel=nb_parallel,
+                batchsize=batchsize,
+                verbose=verbose,
+                force=force)
+        
+        if input2_columns is None or len(input2_columns) > 0:
+            input2_info = gfo.get_layerinfo(input2_path)
+            columns_to_add = (
+                    input2_columns if input2_columns is not None 
+                    else input2_info.columns)
+            for column in columns_to_add:
+                gfo.add_column(
+                        erase1_output_path, 
+                        name=f"{input2_columns_prefix}{column}", 
+                        type=input2_info.columns[column]["type"])
+
+        # Now erase input1 from input2 to another temporary output file
+        erase2_output_path = tempdir / "layer2_erase_layer1_output.gpkg"
+        erase(  input_path=input2_path,
+                erase_path=input1_path,
+                output_path=erase2_output_path,
+                input_layer=input2_layer,
+                input_columns=input2_columns,
+                input_columns_prefix=input2_columns_prefix,
+                erase_layer=input1_layer,
+                output_layer=output_layer,
+                explodecollections=explodecollections,
+                output_with_spatial_index=False,
+                nb_parallel=nb_parallel,
+                batchsize=batchsize,
+                verbose=verbose,
+                force=force)
+        
+        # Now append 
+        _append_to_nolock(
+            src=erase2_output_path,
+            dst=erase1_output_path,
+            src_layer=output_layer,
+            dst_layer=output_layer)
+
+        # Create spatial index
+        gfo.create_spatial_index(path=erase1_output_path, layer=output_layer)
+        
+        # Now we are ready to move the result to the final spot...
+        if output_path.exists():
+            gfo.remove(output_path)
+        gfo.move(erase1_output_path, output_path)
+
+    finally:
+        shutil.rmtree(tempdir)
 
 def union(
         input1_path: Path,

@@ -865,7 +865,7 @@ def clip(
         :alt: Clip result
     """
 
-    logger.info(f"Start erase on {input_path} with {clip_path} to {output_path}")
+    logger.info(f"Start clip on {input_path} with {clip_path} to {output_path}")
     return _geoops_sql.clip(
         input_path=Path(input_path),
         clip_path=Path(clip_path),
@@ -899,6 +899,7 @@ def erase(
     Clarifications:
         - every row in the input layer will result in maximum one row in the 
           output layer.
+        - columns from the erase layer cannot be retained. 
 
     Alternative names:
         - QGIS: difference
@@ -907,9 +908,9 @@ def erase(
         input_path (PathLike): The file to erase from.
         erase_path (PathLike): The file with the geometries to erase with.
         output_path (PathLike): the file to write the result to
-        input1_layer (str, optional): input layer name. Optional if the  
+        input_layer (str, optional): input layer name. Optional if the  
             file only contains one layer.
-        input1_columns (List[str], optional): columns to select. If no columns
+        input_columns (List[str], optional): columns to select. If no columns
             specified, all columns are selected.
         erase_layer (str, optional): erase layer name. Optional if the  
             file only contains one layer.
@@ -1505,6 +1506,74 @@ def select_two_layers(
             output_layer=output_layer,
             explodecollections=explodecollections,
             force_output_geometrytype=force_output_geometrytype,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+            verbose=verbose,
+            force=force)
+
+def symmetric_difference(
+        input1_path: Path,
+        input2_path: Path,
+        output_path: Path,
+        input1_layer: Optional[str] = None,
+        input1_columns: Optional[List[str]] = None,
+        input1_columns_prefix: str = 'l1_',
+        input2_layer: Optional[str] = None,
+        input2_columns: Optional[List[str]] = None,
+        input2_columns_prefix: str = 'l2_',
+        output_layer: Optional[str] = None,
+        explodecollections: bool = False,
+        nb_parallel: int = -1,
+        batchsize: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+    """
+    Calculates the pairwise "symmtric difference" of the two input layers.
+    
+    Alternative names:
+        - GeoPandas: overlay(how="symmtric_difference")
+
+    Args:
+        input1_path (PathLike): the 1st input file
+        input2_path (PathLike): the 2nd input file
+        output_path (PathLike): the file to write the result to
+        input1_layer (str, optional): input layer name. Optional if the  
+            file only contains one layer.
+        input1_columns (List[str], optional): columns to select. If no columns
+            specified, all columns are selected.
+        input2_layer (str, optional): input layer name. Optional if the  
+            file only contains one layer.
+        input2_columns (List[str], optional): columns to select. If no columns
+            specified, all columns are selected.
+        output_layer (str, optional): output layer name. Optional if the  
+            file only contains one layer.
+        explodecollections (bool, optional): True to convert all multi-geometries to 
+            singular ones after the dissolve. Defaults to False.
+        nb_parallel (int, optional): the number of parallel processes to use. 
+            Defaults to -1: use all available processors.
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduc
+            e the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
+        verbose (bool, optional): write more info to the output. 
+            Defaults to False.
+        force (bool, optional): overwrite existing output file(s). 
+            Defaults to False.
+    """
+    logger.info(f"Start symmetric_difference: select from {input1_path} and {input2_path} to {output_path}")
+    return _geoops_sql.symmetric_difference(
+            input1_path=Path(input1_path),
+            input2_path=Path(input2_path),
+            output_path=Path(output_path),
+            input1_layer=input1_layer,
+            input1_columns=input1_columns,
+            input1_columns_prefix=input1_columns_prefix,
+            input2_layer=input2_layer,
+            input2_columns=input2_columns,
+            input2_columns_prefix=input2_columns_prefix,
+            output_layer=output_layer,
+            explodecollections=explodecollections,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             verbose=verbose,
