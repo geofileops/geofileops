@@ -655,9 +655,9 @@ def select(
     * It is recommend to give the table you select from "layer" as alias. If 
       you use the {batch_filter} placeholder this is even mandatory.
     * Besides the standard sqlite sql syntacs, you can use the spatialite 
-      functions as documented here: |sqlite_reference_link|   
+      functions as documented here: |spatialite_reference_link|   
 
-    .. |sqlite_reference_link| raw:: html
+    .. |spatialite_reference_link| raw:: html
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
 
@@ -811,10 +811,17 @@ def clip(
         verbose: bool = False,
         force: bool = False):
     """
-    Clip all geometries in the input layer by the clip layer.
+    Clip the input layer with the clip layer.
 
-    The resulting layer will only contain the (parts of) the geometries that 
-    intersect with the dissolved version of the geometries in the clip layer. 
+    The resulting layer will contain the parts of the geometries in the 
+    input layer that overlap with the dissolved geometries in the clip layer. 
+    
+    Clarifications:
+        - every row in the input layer will result in maximum one row in the 
+          output layer.
+        - geometries in the input layer that overlap with multiple adjacent 
+          geometries in the clip layer won't result in the input geometries 
+          getting split.
 
     This is the result you can expect when clipping a polygon layer (yellow)
     with another polygon layer (purple):
@@ -889,13 +896,21 @@ def erase(
     """
     Erase all geometries in the erase layer from the input layer.
 
+    Clarifications:
+        - every row in the input layer will result in maximum one row in the 
+          output layer.
+        - columns from the erase layer cannot be retained. 
+
+    Alternative names:
+        - QGIS: difference
+
     Args:
         input_path (PathLike): The file to erase from.
         erase_path (PathLike): The file with the geometries to erase with.
         output_path (PathLike): the file to write the result to
-        input1_layer (str, optional): input layer name. Optional if the  
+        input_layer (str, optional): input layer name. Optional if the  
             file only contains one layer.
-        input1_columns (List[str], optional): columns to select. If no columns
+        input_columns (List[str], optional): columns to select. If no columns
             specified, all columns are selected.
         erase_layer (str, optional): erase layer name. Optional if the  
             file only contains one layer.
@@ -949,7 +964,8 @@ def export_by_location(
     Exports all features in input_to_select_from_path that intersect with any 
     features in input_to_compare_with_path.
 
-    Alternative names: extract by location in QGIS.
+    Alternative names:
+        - QGIS: extract by location
     
     Args:
         input_to_select_from_path (PathLike): the 1st input file
@@ -1107,6 +1123,9 @@ def intersection(
     """
     Calculate the pairwise intersection of alle features in input1 with all 
     features in input2.
+
+    Alternative names: 
+        - GeoPandas: overlay(how="intersection")
     
     Args:
         input1_path (PathLike): the 1st input file
@@ -1154,9 +1173,9 @@ def intersection(
             force=force)
 
 def join_by_location(
-        input1_path: Path,
-        input2_path: Path,
-        output_path: Path,
+        input1_path: Union[str, 'os.PathLike[Any]'],
+        input2_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
         spatial_relations_query: str = "intersects is True",
         discard_nonmatching: bool = True,
         min_area_intersect: Optional[float] = None,
@@ -1188,7 +1207,9 @@ def join_by_location(
     The supported named spatial predicates are: equals, touches, within, 
     overlaps, crosses, intersects, contains, covers, coveredby.
 
-    Alternative names: sjoin in GeoPandas.
+    Alternative names: 
+        - GeoPandas: sjoin
+        - ArcGIS: spatial join
     
     Args:
         input1_path (PathLike): the 1st input file
@@ -1248,9 +1269,9 @@ def join_by_location(
             force=force)
 
 def join_nearest(
-        input1_path: Path,
-        input2_path: Path,
-        output_path: Path,
+        input1_path: Union[str, 'os.PathLike[Any]'],
+        input2_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
         nb_nearest: int,
         input1_layer: Optional[str] = None,
         input1_columns: Optional[List[str]] = None,
@@ -1313,9 +1334,9 @@ def join_nearest(
             force=force)
 
 def select_two_layers(
-        input1_path: Path,
-        input2_path: Path,
-        output_path: Path,
+        input1_path: Union[str, 'os.PathLike[Any]'],
+        input2_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
         sql_stmt: str,
         input1_layer: Optional[str] = None,
         input1_columns: Optional[List[str]] = None,
@@ -1490,6 +1511,74 @@ def select_two_layers(
             verbose=verbose,
             force=force)
 
+def symmetric_difference(
+        input1_path: Union[str, 'os.PathLike[Any]'],
+        input2_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
+        input1_layer: Optional[str] = None,
+        input1_columns: Optional[List[str]] = None,
+        input1_columns_prefix: str = 'l1_',
+        input2_layer: Optional[str] = None,
+        input2_columns: Optional[List[str]] = None,
+        input2_columns_prefix: str = 'l2_',
+        output_layer: Optional[str] = None,
+        explodecollections: bool = False,
+        nb_parallel: int = -1,
+        batchsize: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+    """
+    Calculates the pairwise "symmtric difference" of the two input layers.
+    
+    Alternative names:
+        - GeoPandas: overlay(how="symmtric_difference")
+
+    Args:
+        input1_path (PathLike): the 1st input file
+        input2_path (PathLike): the 2nd input file
+        output_path (PathLike): the file to write the result to
+        input1_layer (str, optional): input layer name. Optional if the  
+            file only contains one layer.
+        input1_columns (List[str], optional): columns to select. If no columns
+            specified, all columns are selected.
+        input2_layer (str, optional): input layer name. Optional if the  
+            file only contains one layer.
+        input2_columns (List[str], optional): columns to select. If no columns
+            specified, all columns are selected.
+        output_layer (str, optional): output layer name. Optional if the  
+            file only contains one layer.
+        explodecollections (bool, optional): True to convert all multi-geometries to 
+            singular ones after the dissolve. Defaults to False.
+        nb_parallel (int, optional): the number of parallel processes to use. 
+            Defaults to -1: use all available processors.
+        batchsize (int, optional): indicative number of rows to process per 
+            batch. A smaller batch size, possibly in combination with a 
+            smaller nb_parallel, will reduc
+            e the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
+        verbose (bool, optional): write more info to the output. 
+            Defaults to False.
+        force (bool, optional): overwrite existing output file(s). 
+            Defaults to False.
+    """
+    logger.info(f"Start symmetric_difference: select from {input1_path} and {input2_path} to {output_path}")
+    return _geoops_sql.symmetric_difference(
+            input1_path=Path(input1_path),
+            input2_path=Path(input2_path),
+            output_path=Path(output_path),
+            input1_layer=input1_layer,
+            input1_columns=input1_columns,
+            input1_columns_prefix=input1_columns_prefix,
+            input2_layer=input2_layer,
+            input2_columns=input2_columns,
+            input2_columns_prefix=input2_columns_prefix,
+            output_layer=output_layer,
+            explodecollections=explodecollections,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+            verbose=verbose,
+            force=force)
+
 def split(
         input1_path: Union[str, 'os.PathLike[Any]'],
         input2_path: Union[str, 'os.PathLike[Any]'],
@@ -1511,7 +1600,10 @@ def split(
 
     The result is the equivalent of an intersect between the two layers + layer 
     1 erased with layer 2. 
-    In ArcMap and SAGA this operation is called "Identity".
+    
+    Alternative names: 
+        - ArcMap, SAGA: identity
+        - GeoPandas: overlay(how="identity")
     
     Args:
         input1_path (PathLike): the 1st input file
@@ -1575,8 +1667,11 @@ def union(
         verbose: bool = False,
         force: bool = False):
     """
-    Calculates the "union" of the two input layers.
+    Calculates the pairwise "union" of the two input layers.
     
+    Alternative names:
+        - GeoPandas: overlay(how="union")
+
     Args:
         input1_path (PathLike): the 1st input file
         input2_path (PathLike): the 2nd input file

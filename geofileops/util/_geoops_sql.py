@@ -17,6 +17,7 @@ import pandas as pd
 
 import geofileops as gfo
 from geofileops import GeofileType, GeometryType, PrimitiveType
+from geofileops import fileops
 from geofileops.fileops import _append_to_nolock
 from . import _io_util
 from . import _ogr_util
@@ -680,7 +681,6 @@ def erase(
             input1_columns=input_columns,
             input1_columns_prefix=input_columns_prefix,
             input2_layer=erase_layer,
-            input2_columns=None,
             output_layer=output_layer,
             explodecollections=explodecollections,
             force_output_geometrytype=force_output_geometrytype,
@@ -888,7 +888,7 @@ def intersection(
             input2_path=input2_path,
             output_path=output_path,
             sql_template=sql_template,
-            operation_name='intersect',
+            operation_name='intersection',
             input1_layer=input1_layer,
             input1_columns=input1_columns,
             input1_columns_prefix=input1_columns_prefix,
@@ -1245,7 +1245,7 @@ def split(
         force: bool = False):
 
     # In the query, important to only extract the geometry types that are 
-    # expected, so the primitive type of input1_layer  
+    # expected, so the primitive type of input1_layer
     # TODO: test for geometrycollection, line, point,...
     input1_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
     primitivetype_to_extract = input1_layer_info.geometrytype.to_primitivetype
@@ -1325,6 +1325,99 @@ def split(
             batchsize=batchsize,
             verbose=verbose,
             force=force)
+
+def symmetric_difference(
+        input1_path: Path,
+        input2_path: Path,
+        output_path: Path,
+        input1_layer: Optional[str] = None,
+        input1_columns: Optional[List[str]] = None,
+        input1_columns_prefix: str = 'l1_',
+        input2_layer: Optional[str] = None,
+        input2_columns: Optional[List[str]] = None,
+        input2_columns_prefix: str = 'l2_',
+        output_layer: Optional[str] = None,
+        explodecollections: bool = False,
+        nb_parallel: int = -1,
+        batchsize: int = -1,
+        verbose: bool = False,
+        force: bool = False):
+
+    # A symmetric difference can be simulated by doing an "erase" of input1 
+    # and input2 and then append the result of an erase of input2 with 
+    # input1... 
+
+    # Because both erase calculations will be towards temp files, 
+    # we need to do some additional init + checks here...
+    if force is False and output_path.exists():
+        return
+    if output_layer is None:
+        output_layer = gfo.get_default_layer(output_path)
+
+    tempdir = _io_util.create_tempdir("geofileops/symmdiff")
+    try:
+        # First erase input2 from input1 to a temporary output file
+        erase1_output_path = tempdir / "layer1_erase_layer2_output.gpkg"
+        erase(  input_path=input1_path,
+                erase_path=input2_path,
+                output_path=erase1_output_path,
+                input_layer=input1_layer,
+                input_columns=input1_columns,
+                input_columns_prefix=input1_columns_prefix,
+                erase_layer=input2_layer,
+                output_layer=output_layer,
+                explodecollections=explodecollections,
+                output_with_spatial_index=False,
+                nb_parallel=nb_parallel,
+                batchsize=batchsize,
+                verbose=verbose,
+                force=force)
+        
+        if input2_columns is None or len(input2_columns) > 0:
+            input2_info = gfo.get_layerinfo(input2_path)
+            columns_to_add = (
+                    input2_columns if input2_columns is not None 
+                    else input2_info.columns)
+            for column in columns_to_add:
+                gfo.add_column(
+                        erase1_output_path, 
+                        name=f"{input2_columns_prefix}{column}", 
+                        type=input2_info.columns[column].gdal_type)
+
+        # Now erase input1 from input2 to another temporary output file
+        erase2_output_path = tempdir / "layer2_erase_layer1_output.gpkg"
+        erase(  input_path=input2_path,
+                erase_path=input1_path,
+                output_path=erase2_output_path,
+                input_layer=input2_layer,
+                input_columns=input2_columns,
+                input_columns_prefix=input2_columns_prefix,
+                erase_layer=input1_layer,
+                output_layer=output_layer,
+                explodecollections=explodecollections,
+                output_with_spatial_index=False,
+                nb_parallel=nb_parallel,
+                batchsize=batchsize,
+                verbose=verbose,
+                force=force)
+        
+        # Now append 
+        _append_to_nolock(
+            src=erase2_output_path,
+            dst=erase1_output_path,
+            src_layer=output_layer,
+            dst_layer=output_layer)
+
+        # Create spatial index
+        gfo.create_spatial_index(path=erase1_output_path, layer=output_layer)
+        
+        # Now we are ready to move the result to the final spot...
+        if output_path.exists():
+            gfo.remove(output_path)
+        gfo.move(erase1_output_path, output_path)
+
+    finally:
+        shutil.rmtree(tempdir)
 
 def union(
         input1_path: Path,
@@ -1636,7 +1729,7 @@ def _two_layer_vector_operation(
                                 explodecollections=explodecollections,
                                 force_output_geometrytype=force_output_geometrytype,
                                 create_spatial_index=False)
-                        gfo.remove(tmp_partial_output_path)
+                        #gfo.remove(tmp_partial_output_path)
                     else:
                         logger.debug(f"Result file {tmp_partial_output_path} was empty")
                     
