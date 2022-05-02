@@ -472,7 +472,7 @@ def simplify_ext(
     # Define some inline funtions 
     # Apply the simplification (can result in multipolygons)
     def simplify_polygon(polygon: sh_geom.Polygon) -> Union[sh_geom.Polygon, sh_geom.MultiPolygon, None]:
-        ### First simplify exterior ring ###
+        # First simplify exterior ring
         assert polygon.exterior is not None
         exterior_simplified = simplify_coords(polygon.exterior.coords)
         
@@ -483,7 +483,7 @@ def simplify_ext(
                or len(exterior_simplified) < 3)):
             exterior_simplified = polygon.exterior.coords
 
-        ### Now simplify interior rings ###
+        # Now simplify interior rings
         interiors_simplified = []
         for interior in polygon.interiors:
             interior_simplified = simplify_coords(interior.coords)

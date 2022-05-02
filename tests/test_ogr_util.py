@@ -28,25 +28,26 @@ def test_execute_st_area():
     sqlite_stmt = 'SELECT round(ST_area(geom), 2) as area FROM "parcels"'
     result_gdf = _ogr_util._execute_sql(input_path, sqlite_stmt)
     assert result_gdf is not None
-    assert result_gdf['area'][0] == 146.8
+    assert result_gdf["area"][0] == 146.8
 
     # Try st_makevalid
     sqlite_stmt = 'SELECT st_makevalid(geom) as geom FROM "parcels"'
     result_gdf = _ogr_util._execute_sql(input_path, sqlite_stmt)
-    assert result_gdf['geometry'][0] is not None
+    assert result_gdf["geometry"][0] is not None
 
     # Try st_isvalid
     sqlite_stmt = 'SELECT st_isvalid(geom) as geom FROM "parcels"'
     result_gdf = _ogr_util._execute_sql(input_path, sqlite_stmt)
-    assert result_gdf['geom'][0] is not None
+    assert result_gdf["geom"][0] is not None
 
 
 def test_prepare_gdal_options():
     # Some basic variants that should all be OK
     options_ok = [
-            {"LAYER_CREATION.SPATIAL_INDEX": True},
-            {"layer_creation.spatial_index":  True},
-            {" LAYER_CREATION . SPATIAL_INDEX ": True}, ]
+        {"LAYER_CREATION.SPATIAL_INDEX": True},
+        {"layer_creation.spatial_index": True},
+        {" LAYER_CREATION . SPATIAL_INDEX ": True},
+    ]
     for option in options_ok:
         prepared = _ogr_util._prepare_gdal_options(option)
         assert prepared["LAYER_CREATION.SPATIAL_INDEX"] == "YES"
@@ -61,10 +62,10 @@ def test_prepare_gdal_options():
 
     # These options should give an error
     options_nok = [
-            {"LAYER_CREATION-SPATIAL_INDEX": True},
-            {"NOT_EXISTING_OPTION_TYPE.SPATIAL_INDEX": True},
-            {"LAYER_CREATION.SPATIAL_INDEX": True,
-             "layer_creation.spatial_index": False}, ]
+        {"LAYER_CREATION-SPATIAL_INDEX": True},
+        {"NOT_EXISTING_OPTION_TYPE.SPATIAL_INDEX": True},
+        {"LAYER_CREATION.SPATIAL_INDEX": True, "layer_creation.spatial_index": False},
+    ]
     for option in options_nok:
         try:
             _ = _ogr_util._prepare_gdal_options(option)
@@ -89,13 +90,16 @@ def test_set_config_options():
     os.environ[test3_config_envset] = "test3_original_env_value"
 
     # Set config options with context manager
-    with _ogr_util.set_config_options({
+    with _ogr_util.set_config_options(
+        {
             test1_config_notset: "test1_context_value",
             test2_config_alreadyset: "test2_context_value",
             test3_config_envset: "test3_context_value",
             test4_bool_true: True,
             test5_bool_false: False,
-            test6_int_50: 50, }):
+            test6_int_50: 50,
+        }
+    ):
         assert gdal.GetConfigOption(test1_config_notset) == "test1_context_value"
         assert gdal.GetConfigOption(test2_config_alreadyset) == "test2_context_value"
         assert gdal.GetConfigOption(test3_config_envset) == "test3_context_value"

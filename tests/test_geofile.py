@@ -26,35 +26,49 @@ def test_add_column(tmp_path):
     test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
 
     # The area column shouldn't be in the test file yet
-    layerinfo = gfo.get_layerinfo(path=test_path, layer='parcels')
-    assert 'AREA' not in layerinfo.columns
+    layerinfo = gfo.get_layerinfo(path=test_path, layer="parcels")
+    assert "AREA" not in layerinfo.columns
 
     # Add area column
     gfo.add_column(
-            test_path, layer='parcels', name='AREA', type='real',
-            expression='ST_area(geom)')
+        test_path, layer="parcels", name="AREA", type="real", expression="ST_area(geom)"
+    )
 
-    layerinfo = gfo.get_layerinfo(path=test_path, layer='parcels')
-    assert 'AREA' in layerinfo.columns
+    layerinfo = gfo.get_layerinfo(path=test_path, layer="parcels")
+    assert "AREA" in layerinfo.columns
 
     gdf = gfo.read_file(test_path)
-    assert round(gdf['AREA'].astype('float')[0], 1) == \
-        round(gdf['OPPERVL'].astype('float')[0], 1)
+    assert round(gdf["AREA"].astype("float")[0], 1) == round(
+        gdf["OPPERVL"].astype("float")[0], 1
+    )
 
     # Add perimeter column
     gfo.add_column(
-            test_path, name='PERIMETER', type=gfo.DataType.REAL,
-            expression='ST_perimeter(geom)')
+        test_path,
+        name="PERIMETER",
+        type=gfo.DataType.REAL,
+        expression="ST_perimeter(geom)",
+    )
 
-    layerinfo = gfo.get_layerinfo(path=test_path, layer='parcels')
-    assert 'AREA' in layerinfo.columns
+    layerinfo = gfo.get_layerinfo(path=test_path, layer="parcels")
+    assert "AREA" in layerinfo.columns
 
     gdf = gfo.read_file(test_path)
-    assert round(gdf['AREA'].astype('float')[0], 1) == \
-        round(gdf['OPPERVL'].astype('float')[0], 1)
+    assert round(gdf["AREA"].astype("float")[0], 1) == round(
+        gdf["OPPERVL"].astype("float")[0], 1
+    )
 
     # Add a column of different gdal types
-    gdal_types = ["Binary", "Date", "DateTime", "Integer", "Integer64", "String", "Time", "Real"]
+    gdal_types = [
+        "Binary",
+        "Date",
+        "DateTime",
+        "Integer",
+        "Integer64",
+        "String",
+        "Time",
+        "Real",
+    ]
     for type in gdal_types:
         gfo.add_column(test_path, name=f"column_{type}", type=type)
     info = gfo.get_layerinfo(test_path)
@@ -106,23 +120,25 @@ def test_convert(tmp_path, suffix):
     # Check if dst file actually seems to contain lat lon coordinates
     dst_gdf = gfo.read_file(dst)
     first_geom = dst_gdf.geometry[0]
-    first_poly = first_geom if isinstance(first_geom, sh_geom.Polygon) \
-        else first_geom.geoms[0]
+    first_poly = (
+        first_geom if isinstance(first_geom, sh_geom.Polygon) else first_geom.geoms[0]
+    )
     assert first_poly.exterior is not None
     for x, y in first_poly.exterior.coords:
         assert x < 100 and y < 100
 
 
 @pytest.mark.parametrize(
-        "testfile, force_geometrytype",
-        [
-            ("polygon-parcel", GeometryType.POLYGON),
-            ("polygon-parcel", GeometryType.MULTIPOLYGON),
-            ("polygon-parcel", GeometryType.LINESTRING),
-            ("polygon-parcel", GeometryType.MULTILINESTRING),
-            ("polygon-parcel", GeometryType.POINT),
-            ("polygon-parcel", GeometryType.MULTIPOINT),
-        ])
+    "testfile, force_geometrytype",
+    [
+        ("polygon-parcel", GeometryType.POLYGON),
+        ("polygon-parcel", GeometryType.MULTIPOLYGON),
+        ("polygon-parcel", GeometryType.LINESTRING),
+        ("polygon-parcel", GeometryType.MULTILINESTRING),
+        ("polygon-parcel", GeometryType.POINT),
+        ("polygon-parcel", GeometryType.MULTIPOINT),
+    ],
+)
 def test_convert_force_output_geometrytype(tmp_path, testfile, force_geometrytype):
     # The conversion is done by ogr, and the "test" is rather written to
     # explore the behaviour of this ogr functionality
@@ -160,7 +176,7 @@ def test_copy(tmp_path, suffix):
 def test_driver_enum():
     # Test ESRIShapefile Driver
     # Test getting a driver for a suffix
-    geofiletype = gfo.GeofileType('.shp')
+    geofiletype = gfo.GeofileType(".shp")
     assert geofiletype == gfo.GeofileType.ESRIShapefile
 
     # Test getting a driver for a Path
@@ -170,7 +186,7 @@ def test_driver_enum():
 
     # GPKG Driver
     # Test getting a driver for a suffix
-    geofiletype = gfo.GeofileType('.gpkg')
+    geofiletype = gfo.GeofileType(".gpkg")
     assert geofiletype == gfo.GeofileType.GPKG
 
     # Test getting a driver for a Path
@@ -180,7 +196,7 @@ def test_driver_enum():
 
     # SQLite Driver
     # Test getting a driver for a suffix
-    geofiletype = gfo.GeofileType('.sqlite')
+    geofiletype = gfo.GeofileType(".sqlite")
     assert geofiletype == gfo.GeofileType.SQLite
 
     # Test getting a driver for a Path
@@ -192,7 +208,8 @@ def test_driver_enum():
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 def test_drop_column(tmp_path, suffix):
     test_path = test_helper.get_testfile(
-            "polygon-parcel", dst_dir=tmp_path, suffix=suffix)
+        "polygon-parcel", dst_dir=tmp_path, suffix=suffix
+    )
     original_info = gfo.get_layerinfo(test_path)
     assert "GEWASGROEP" in original_info.columns
     gfo.drop_column(test_path, "GEWASGROEP")
@@ -217,24 +234,25 @@ def test_get_default_layer(suffix):
 
 
 @pytest.mark.parametrize(
-        "testfile, suffix, layer",
-        [
-            ("polygon-parcel", ".gpkg", None),
-            ("polygon-parcel", ".shp", None),
-            ("polygon-twolayers", ".gpkg", "parcels"),
-        ])
+    "testfile, suffix, layer",
+    [
+        ("polygon-parcel", ".gpkg", None),
+        ("polygon-parcel", ".shp", None),
+        ("polygon-twolayers", ".gpkg", "parcels"),
+    ],
+)
 def test_get_layerinfo(testfile, suffix, layer):
     src = test_helper.get_testfile(testfile, suffix=suffix)
     # Tests
     layerinfo = gfo.get_layerinfo(src, layer)
     assert str(layerinfo).startswith("<class 'geofileops.fileops.LayerInfo'>")
     assert layerinfo.featurecount == 46
-    if src.suffix == '.shp':
-        assert layerinfo.geometrycolumn == 'geometry'
+    if src.suffix == ".shp":
+        assert layerinfo.geometrycolumn == "geometry"
         assert layerinfo.name == src.stem
-    elif src.suffix == '.gpkg':
-        assert layerinfo.geometrycolumn == 'geom'
-        assert layerinfo.name == 'parcels'
+    elif src.suffix == ".gpkg":
+        assert layerinfo.geometrycolumn == "geom"
+        assert layerinfo.name == "parcels"
     assert layerinfo.geometrytypename == gfo.GeometryType.MULTIPOLYGON.name
     assert layerinfo.geometrytype == gfo.GeometryType.MULTIPOLYGON
     assert len(layerinfo.columns) == 11
@@ -256,7 +274,8 @@ def test_get_layerinfo(testfile, suffix, layer):
     # Multiple layers available, but no layer specified
     if len(gfo.listlayers(src)) > 1:
         with pytest.raises(
-                ValueError, match="No layer specified, and file has <> 1 layer"):
+            ValueError, match="No layer specified, and file has <> 1 layer"
+        ):
             layerinfo = gfo.get_layerinfo(src)
 
 
@@ -266,7 +285,7 @@ def test_get_only_layer_one_layer(suffix):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     layer = gfo.get_only_layer(src)
     if suffix == ".gpkg":
-        assert layer == 'parcels'
+        assert layer == "parcels"
     else:
         assert layer == src.stem
 
@@ -283,7 +302,8 @@ def test_get_only_layer_two_layers():
 def test_is_geofile():
     assert gfo.is_geofile(test_helper.get_testfile("polygon-parcel"))
     assert gfo.is_geofile(
-            test_helper.get_testfile("polygon-parcel").with_suffix(".shp"))
+        test_helper.get_testfile("polygon-parcel").with_suffix(".shp")
+    )
 
     assert gfo.is_geofile("/test/testje.txt") is False
 
@@ -303,8 +323,8 @@ def test_listlayers_two_layers():
     # Test geopackage 2 layers
     src = test_helper.get_testfile("polygon-twolayers")
     layers = gfo.listlayers(src)
-    assert 'parcels' in layers
-    assert 'zones' in layers
+    assert "parcels" in layers
+    assert "zones" in layers
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
@@ -335,20 +355,21 @@ def test_update_column(tmp_path):
     test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
 
     # The area column shouldn't be in the test file yet
-    layerinfo = gfo.get_layerinfo(path=test_path, layer='parcels')
-    assert 'area' not in layerinfo.columns
+    layerinfo = gfo.get_layerinfo(path=test_path, layer="parcels")
+    assert "area" not in layerinfo.columns
 
     # Add + update area column
     gfo.add_column(
-            test_path, layer='parcels', name='AREA', type='real',
-            expression='ST_area(geom)')
-    gfo.update_column(test_path, name='AreA', expression='ST_area(geom)')
+        test_path, layer="parcels", name="AREA", type="real", expression="ST_area(geom)"
+    )
+    gfo.update_column(test_path, name="AreA", expression="ST_area(geom)")
 
-    layerinfo = gfo.get_layerinfo(path=test_path, layer='parcels')
-    assert 'AREA' in layerinfo.columns
+    layerinfo = gfo.get_layerinfo(path=test_path, layer="parcels")
+    assert "AREA" in layerinfo.columns
     gdf = gfo.read_file(test_path)
-    assert round(gdf['AREA'].astype('float')[0], 1) == \
-        round(gdf['OPPERVL'].astype('float')[0], 1)
+    assert round(gdf["AREA"].astype("float")[0], 1) == round(
+        gdf["OPPERVL"].astype("float")[0], 1
+    )
 
     # Update column for rows where area > 5
     gfo.update_column(test_path, name="AreA", expression="-1", where="area > 4000")
@@ -360,7 +381,8 @@ def test_update_column(tmp_path):
     assert "not_existing column" not in layerinfo.columns
     with pytest.raises(ValueError, match="Column .* doesn't exist in"):
         gfo.update_column(
-                test_path, name="not_existing column", expression="ST_area(geom)")
+            test_path, name="not_existing column", expression="ST_area(geom)"
+        )
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
@@ -379,7 +401,7 @@ def test_read_file(suffix):
     assert len(read_gdf) == 46
 
     # Test specific columns (+ test case insensitivity)
-    columns = ['OIDN', 'uidn', 'HFDTLT', 'lblhfdtlt', 'GEWASGROEP', 'lengte', 'OPPERVL']
+    columns = ["OIDN", "uidn", "HFDTLT", "lblhfdtlt", "GEWASGROEP", "lengte", "OPPERVL"]
     read_gdf = gfo.read_file(src, columns=columns)
     assert len(read_gdf) == 46
     assert len(read_gdf.columns) == (len(columns) + 1)
@@ -398,7 +420,8 @@ def test_read_file(suffix):
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 def test_rename_column(tmp_path, suffix):
     test_path = test_helper.get_testfile(
-            "polygon-parcel", dst_dir=tmp_path, suffix=suffix)
+        "polygon-parcel", dst_dir=tmp_path, suffix=suffix
+    )
 
     # Check if input file is ok
     orig_layerinfo = gfo.get_layerinfo(test_path)
@@ -419,7 +442,8 @@ def test_rename_column(tmp_path, suffix):
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 def test_rename_layer(tmp_path, suffix):
     test_path = test_helper.get_testfile(
-            "polygon-parcel", dst_dir=tmp_path, suffix=suffix)
+        "polygon-parcel", dst_dir=tmp_path, suffix=suffix
+    )
 
     if suffix == ".gpkg":
         gfo.rename_layer(test_path, layer="parcels", new_layer="parcels_renamed")
@@ -429,9 +453,10 @@ def test_rename_layer(tmp_path, suffix):
         # Now test rename layer
         with pytest.raises(ValueError, match="rename_layer is not possible"):
             gfo.rename_layer(
-                    test_path,
-                    layer="polygons_parcels",
-                    new_layer="polygons_parcels_renamed")
+                test_path,
+                layer="polygons_parcels",
+                new_layer="polygons_parcels_renamed",
+            )
             layernames_renamed = gfo.listlayers(path=test_path)
             assert layernames_renamed[0] == "polygons_parcels_renamed"
     else:
@@ -444,15 +469,16 @@ def test_execute_sql(tmp_path):
 
     # Test using execute_sql for creating/dropping indexes
     gfo.execute_sql(
-            path=test_path,
-            sql_stmt='CREATE INDEX idx_parcels_oidn ON "parcels"("oidn")')
-    gfo.execute_sql(path=test_path, sql_stmt='DROP INDEX idx_parcels_oidn')
+        path=test_path, sql_stmt='CREATE INDEX idx_parcels_oidn ON "parcels"("oidn")'
+    )
+    gfo.execute_sql(path=test_path, sql_stmt="DROP INDEX idx_parcels_oidn")
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 def test_spatial_index(tmp_path, suffix):
     test_path = test_helper.get_testfile(
-            "polygon-parcel", dst_dir=tmp_path, suffix=suffix)
+        "polygon-parcel", dst_dir=tmp_path, suffix=suffix
+    )
     layer = gfo.get_only_layer(test_path)
 
     # Check if spatial index present
@@ -498,7 +524,7 @@ def test_to_file(tmp_path, suffix):
     # Append the file again to tmppath
     gfo.to_file(read_gdf, output_path, append=True)
     tmp_gdf = gfo.read_file(output_path)
-    assert 2*len(read_gdf) == len(tmp_gdf)
+    assert 2 * len(read_gdf) == len(tmp_gdf)
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
@@ -506,8 +532,9 @@ def test_to_file_empty(tmp_path, suffix):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
     # Test for gdf with a None geometry + a polygon
-    test_gdf = gpd.GeoDataFrame(geometry=[
-            None, test_helper.TestData.polygon_with_island])
+    test_gdf = gpd.GeoDataFrame(
+        geometry=[None, test_helper.TestData.polygon_with_island]
+    )
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 1
     output_none_path = tmp_path / f"{src.stem}_none{suffix}"
@@ -536,8 +563,9 @@ def test_to_file_none(tmp_path, suffix):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
     # Test for gdf with a None geometry + a polygon
-    test_gdf = gpd.GeoDataFrame(geometry=[
-            None, test_helper.TestData.polygon_with_island])
+    test_gdf = gpd.GeoDataFrame(
+        geometry=[None, test_helper.TestData.polygon_with_island]
+    )
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 1
     output_none_path = tmp_path / f"{src.stem}_none{suffix}"
@@ -550,7 +578,7 @@ def test_to_file_none(tmp_path, suffix):
     assert isinstance(test_read_gdf.geometry[1], sh_geom.Polygon)
     # The geometrytype of the column in the file is also the same as originaly
     test_file_geometrytype = gfo.get_layerinfo(output_none_path).geometrytype
-    if suffix == '.shp':
+    if suffix == ".shp":
         assert test_file_geometrytype == GeometryType.MULTIPOLYGON
     else:
         assert test_file_geometrytype == test_geometrytypes[0]
@@ -566,14 +594,16 @@ def test_to_file_gpd_empty(tmp_path, suffix):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
     # Test for gdf with an empty polygon + a polygon
-    test_gdf = gpd.GeoDataFrame(geometry=[
-            sh_geom.Polygon(), test_helper.TestData.polygon_with_island])
+    test_gdf = gpd.GeoDataFrame(
+        geometry=[sh_geom.Polygon(), test_helper.TestData.polygon_with_island]
+    )
     # By default, get_geometrytypes ignores the type of empty geometries, as
     # they are always stored as GeometryCollection in GeoPandas
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 1
     test_geometrytypes_includingempty = geoseries_util.get_geometrytypes(
-            test_gdf.geometry, ignore_empty_geometries=False)
+        test_gdf.geometry, ignore_empty_geometries=False
+    )
     assert len(test_geometrytypes_includingempty) == 2
     output_empty_path = tmp_path / f"{src.stem}_empty{suffix}"
     test_gdf.to_file(output_empty_path, driver=gfo.GeofileType(suffix).ogrdriver)
@@ -604,8 +634,9 @@ def test_to_file_gpd_none(tmp_path, suffix):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
     # Test for gdf with a None geometry + a polygon
-    test_gdf = gpd.GeoDataFrame(geometry=[
-            None, test_helper.TestData.polygon_with_island])
+    test_gdf = gpd.GeoDataFrame(
+        geometry=[None, test_helper.TestData.polygon_with_island]
+    )
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 1
     output_none_path = tmp_path / f"{src.stem}_none{suffix}"
@@ -654,14 +685,15 @@ def test_launder_columns():
     columns = ["too_LONG_COLUMNNAME", "TOO_long_COLUMNNAME2", "TOO_LONG_columnname3"]
     laundered = fileops._launder_column_names(columns)
     expected = [
-            ("too_LONG_COLUMNNAME", "too_LONG_C"),
-            ("TOO_long_COLUMNNAME2", "TOO_long_1"),
-            ("TOO_LONG_columnname3", "TOO_LONG_2")]
+        ("too_LONG_COLUMNNAME", "too_LONG_C"),
+        ("TOO_long_COLUMNNAME2", "TOO_long_1"),
+        ("TOO_LONG_columnname3", "TOO_LONG_2"),
+    ]
     assert laundered == expected
 
     # Too many similar column names to be supported to launder
     columns = [f"TOO_LONG_COLUMNNAME{index}" for index in range(0, 200)]
     with pytest.raises(
-            NotImplementedError,
-            match="Not supported to launder > 99 columns starting with"):
+        NotImplementedError, match="Not supported to launder > 99 columns starting with"
+    ):
         laundered = fileops._launder_column_names(columns)

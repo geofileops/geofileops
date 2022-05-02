@@ -135,7 +135,7 @@ def vector_translate(
         input_path = Path(input_path)
     gdal_options = _prepare_gdal_options(options, split_by_option_type=True)
 
-    ### Input file parameters ###
+    # Input file parameters
     # Cleanup the input_layers variable.
     if input_path.suffix.lower() == '.shp':
         # For shapefiles, having input_layers not None gives issues
@@ -161,7 +161,7 @@ def vector_translate(
     for option_name, value in gdal_options["INPUT_OPEN"].items():
         args.extend(['-oo', f"{option_name}={value}"])
 
-    ### Output file parameters ###
+    # Output file parameters
     # Get output format from the filename
     output_filetype = GeofileType(output_path)
     input_filetype = GeofileType(input_path)
@@ -208,7 +208,7 @@ def vector_translate(
         for option_name, value in gdal_options["LAYER_CREATION"].items():
             layerCreationOptions.extend([f"{option_name}={value}"])
         
-    ### General configuration options ###
+    # General configuration options
     # Remark: they cannot be passed on as parameter, but are set as 
     # environment variables later on (using a context manager).
     config_options = gdal_options["CONFIG"]
@@ -217,7 +217,7 @@ def vector_translate(
         if "OGR_SQLITE_CACHE" not in config_options:
             config_options["OGR_SQLITE_CACHE"] = "128"
 
-    ### Consolidate all parameters ###
+    # Consolidate all parameters
     options = gdal.VectorTranslateOptions(
             options=args, 
             format=output_filetype.ogrdriver, 
@@ -246,7 +246,7 @@ def vector_translate(
             callback=None, 
             callback_data=None)
 
-    ### Now we can really get to work ###
+    # Now we can really get to work
     input_ds = None
     try: 
         # In some cases gdal only raises the last exception instead of the stack in VectorTranslate, 
@@ -405,7 +405,7 @@ def vector_info(
         verbose: bool = False):
     """"Run a command"""
 
-    ##### Init #####
+    # Init
     if not path.exists():
         raise Exception(f"File does not exist: {path}")
     if os.name == 'nt':
@@ -434,7 +434,7 @@ def vector_info(
 
     # TODO: ideally, the child processes would die when the parent is killed!
 
-    ##### Run ogrinfo #####
+    # Run ogrinfo
     # Geopackage/sqlite files are very sensitive for being locked, so retry till 
     # file is not locked anymore...
     sleep_time = 1

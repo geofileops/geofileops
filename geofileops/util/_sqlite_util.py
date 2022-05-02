@@ -179,7 +179,7 @@ def create_table_as_sql(
                     input1_databasename=input1_databasename,
                     input2_databasename=input2_databasename)
 
-            ### Determine columns/datatypes to create the table ###
+            # Determine columns/datatypes to create the table
             # Create temp table to get the column names + general data types
             # + fetch one row to use it to determine geometrytype.
             sql = f'CREATE TEMPORARY TABLE tmp AS \nSELECT * FROM (\n{sql_stmt}\n)\nLIMIT 1;'
@@ -239,7 +239,7 @@ def create_table_as_sql(
                     else:
                         column_types[columnname] = columntype
 
-            ### Now we can create the table ###
+            # Now we can create the table
             # Create output table using the gpkgAddGeometryColumn() function
             # Problem: the spatialite function gpkgAddGeometryColumn() doesn't support 
             # layer names with special characters (eg. '-')... 

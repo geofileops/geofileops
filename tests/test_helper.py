@@ -26,11 +26,12 @@ DEFAULT_TESTFILES = ["polygon-parcel", "linestring-row-trees", "point"]
 
 
 def prepare_test_file(
-        input_path: Path,
-        output_dir: Path,
-        suffix: str,
-        crs_epsg: Optional[int] = None,
-        use_cachedir: bool = False) -> Path:
+    input_path: Path,
+    output_dir: Path,
+    suffix: str,
+    crs_epsg: Optional[int] = None,
+    use_cachedir: bool = False,
+) -> Path:
 
     # Tmp dir
     if use_cachedir is True:
@@ -70,10 +71,11 @@ def prepare_test_file(
 
 
 def get_testfile(
-        testfile: str,
-        dst_dir: Optional[Path] = None,
-        suffix: str = '.gpkg',
-        epsg: int = 31370) -> Path:
+    testfile: str,
+    dst_dir: Optional[Path] = None,
+    suffix: str = ".gpkg",
+    epsg: int = 31370,
+) -> Path:
     # Prepare original filepath
     testfile_path = _data_dir / f"{testfile}.gpkg"
     if testfile_path.exists is False:
@@ -94,27 +96,37 @@ class TestData:
     multipoint = sh_geom.MultiPoint([(0, 0), (10, 10), (20, 20)])
     linestring = sh_geom.LineString([(0, 0), (10, 10), (20, 20)])
     multilinestring = sh_geom.MultiLineString(
-            [linestring.coords, [(100, 100), (110, 110), (120, 120)]])
+        [linestring.coords, [(100, 100), (110, 110), (120, 120)]]
+    )
     polygon_with_island = sh_geom.Polygon(
-            shell=[(0, 0), (0, 10), (1, 10), (10, 10), (10, 0), (0, 0)],
-            holes=[[(2, 2), (2, 8), (8, 8), (8, 2), (2, 2)]])
+        shell=[(0, 0), (0, 10), (1, 10), (10, 10), (10, 0), (0, 0)],
+        holes=[[(2, 2), (2, 8), (8, 8), (8, 2), (2, 2)]],
+    )
     polygon_no_islands = sh_geom.Polygon(
-            shell=[(100, 100), (100, 110), (110, 110), (110, 100), (100, 100)])
+        shell=[(100, 100), (100, 110), (110, 110), (110, 100), (100, 100)]
+    )
     polygon_with_island2 = sh_geom.Polygon(
-            shell=[(20, 20), (20, 30), (21, 30), (30, 30), (30, 20), (20, 20)],
-            holes=[[(22, 22), (22, 28), (28, 28), (28, 22), (22, 22)]])
+        shell=[(20, 20), (20, 30), (21, 30), (30, 30), (30, 20), (20, 20)],
+        holes=[[(22, 22), (22, 28), (28, 28), (28, 22), (22, 22)]],
+    )
     multipolygon = sh_geom.MultiPolygon([polygon_no_islands, polygon_with_island2])
-    geometrycollection = sh_geom.GeometryCollection([
-            point, multipoint, linestring, multilinestring, polygon_with_island,
-            multipolygon])
+    geometrycollection = sh_geom.GeometryCollection(
+        [
+            point,
+            multipoint,
+            linestring,
+            multilinestring,
+            polygon_with_island,
+            multipolygon,
+        ]
+    )
     polygon_small_island = sh_geom.Polygon(
-            shell=[(40, 40), (40, 50), (41, 50), (50, 50), (50, 40), (40, 40)],
-            holes=[[(42, 42), (42, 43), (43, 43), (43, 42), (42, 42)]])
+        shell=[(40, 40), (40, 50), (41, 50), (50, 50), (50, 40), (40, 40)],
+        holes=[[(42, 42), (42, 43), (43, 43), (43, 42), (42, 42)]],
+    )
 
 
-def create_tempdir(
-        base_dirname: str,
-        parent_dir: Optional[Path] = None) -> Path:
+def create_tempdir(base_dirname: str, parent_dir: Optional[Path] = None) -> Path:
     # Parent
     if parent_dir is None:
         parent_dir = Path(tempfile.gettempdir())
@@ -128,25 +140,27 @@ def create_tempdir(
             continue
 
     raise Exception(
-            "Wasn't able to create a temporary dir with basedir: "
-            f"{parent_dir / base_dirname}")
+        "Wasn't able to create a temporary dir with basedir: "
+        f"{parent_dir / base_dirname}"
+    )
 
 
 def assert_geodataframe_equal(
-        left,
-        right,
-        check_dtype=True,
-        check_index_type="equiv",
-        check_column_type="equiv",
-        check_frame_type=True,
-        check_like=False,
-        check_less_precise=False,
-        check_geom_type=False,
-        check_crs=True,
-        normalize=False,
-        promote_to_multi=False,
-        sort_values=False,
-        output_dir: Optional[Path] = None):
+    left,
+    right,
+    check_dtype=True,
+    check_index_type="equiv",
+    check_column_type="equiv",
+    check_frame_type=True,
+    check_like=False,
+    check_less_precise=False,
+    check_geom_type=False,
+    check_crs=True,
+    normalize=False,
+    promote_to_multi=False,
+    sort_values=False,
+    output_dir: Optional[Path] = None,
+):
     """
     Check that two GeoDataFrames are equal/
 
@@ -189,9 +203,11 @@ def assert_geodataframe_equal(
             right.geometry = gpd.GeoSeries(pygeos.normalize(right.geometry.array.data))
         if promote_to_multi is True:
             left.geometry = geoseries_util.harmonize_geometrytypes(
-                    left.geometry, force_multitype=True)
+                left.geometry, force_multitype=True
+            )
             right.geometry = geoseries_util.harmonize_geometrytypes(
-                    right.geometry, force_multitype=True)
+                right.geometry, force_multitype=True
+            )
         left = geodataframe_util.sort_values(left).reset_index(drop=True)
         right = geodataframe_util.sort_values(right).reset_index(drop=True)
 
@@ -203,14 +219,15 @@ def assert_geodataframe_equal(
         gfo.to_file(right, output_path)
 
     gpd_testing.assert_geodataframe_equal(
-            left=left,
-            right=right,
-            check_dtype=check_dtype,
-            check_index_type=check_index_type,
-            check_column_type=check_column_type,
-            check_frame_type=check_frame_type,
-            check_like=check_like,
-            check_less_precise=check_less_precise,
-            check_geom_type=check_geom_type,
-            check_crs=check_crs,
-            normalize=normalize)
+        left=left,
+        right=right,
+        check_dtype=check_dtype,
+        check_index_type=check_index_type,
+        check_column_type=check_column_type,
+        check_frame_type=check_frame_type,
+        check_like=check_like,
+        check_less_precise=check_less_precise,
+        check_geom_type=check_geom_type,
+        check_crs=check_crs,
+        normalize=normalize,
+    )

@@ -17,11 +17,12 @@ import psutil
 ################################################################################
 
 logger = logging.getLogger(__name__)
-locale.setlocale(locale.LC_ALL, '')
+locale.setlocale(locale.LC_ALL, "")
 
 ################################################################################
 # The real stuff
 ################################################################################
+
 
 class MissingRuntimeDependencyError(Exception):
     """
@@ -30,46 +31,53 @@ class MissingRuntimeDependencyError(Exception):
     Attributes:
         message (str): Exception message
     """
+
     def __init__(self, message):
         self.message = message
         super().__init__(self.message)
+
 
 ################################################################################
 # The real work
 ################################################################################
 
+
 def report_progress(
-        start_time: datetime.datetime,
-        nb_done: int,
-        nb_todo: int,
-        operation: Optional[str] = None,
-        nb_parallel: int = 1):
+    start_time: datetime.datetime,
+    nb_done: int,
+    nb_todo: int,
+    operation: Optional[str] = None,
+    nb_parallel: int = 1,
+):
 
     # If logging level not enabled for INFO, no progress reporting...
     if logger.isEnabledFor(logging.INFO) is False:
         return
 
     message = format_progress(
-            start_time=start_time, 
-            nb_done=nb_done, 
-            nb_todo=nb_todo, 
-            operation=operation, 
-            nb_parallel=nb_parallel)
+        start_time=start_time,
+        nb_done=nb_done,
+        nb_todo=nb_todo,
+        operation=operation,
+        nb_parallel=nb_parallel,
+    )
     if message is not None:
         if nb_done >= nb_todo:
             message += "\n"
         print(f"\r{message}", end="", flush=True)
 
+
 def format_progress(
-        start_time: datetime.datetime,
-        nb_done: int,
-        nb_todo: int,
-        operation: Optional[str] = None,
-        nb_parallel: int = 1) -> Optional[str]:
+    start_time: datetime.datetime,
+    nb_done: int,
+    nb_todo: int,
+    operation: Optional[str] = None,
+    nb_parallel: int = 1,
+) -> Optional[str]:
 
     # Init
-    time_passed = (datetime.datetime.now()-start_time).total_seconds()
-    pct_progress = 100.0-(nb_todo-nb_done)*100/nb_todo
+    time_passed = (datetime.datetime.now() - start_time).total_seconds()
+    pct_progress = 100.0 - (nb_todo - nb_done) * 100 / nb_todo
     nb_todo_str = f"{nb_todo:n}"
     nb_decimal = len(nb_todo_str)
 
@@ -77,16 +85,18 @@ def format_progress(
     if nb_done == 0:
         return f" ?: ?: ? left, {operation} done on {nb_done:{nb_decimal}n} of {nb_todo:{nb_decimal}n} ({pct_progress:3.2f}%)    "
     else:
-        pct_progress = 100.0-(nb_todo-nb_done)*100/nb_todo
+        pct_progress = 100.0 - (nb_todo - nb_done) * 100 / nb_todo
         if time_passed > 0:
             # Else, report progress properly...
-            processed_per_hour = (nb_done/time_passed) * 3600
-            # Correct the nb processed per hour if running parallel 
+            processed_per_hour = (nb_done / time_passed) * 3600
+            # Correct the nb processed per hour if running parallel
             if nb_done < nb_parallel:
                 processed_per_hour = round(processed_per_hour * nb_parallel / nb_done)
-            hours_to_go = (int)((nb_todo - nb_done)/processed_per_hour)
-            min_to_go = (int)((((nb_todo - nb_done)/processed_per_hour)%1)*60)
-            secs_to_go = (int)(((((nb_todo - nb_done)/processed_per_hour)%1)*3600)%60)
+            hours_to_go = (int)((nb_todo - nb_done) / processed_per_hour)
+            min_to_go = (int)((((nb_todo - nb_done) / processed_per_hour) % 1) * 60)
+            secs_to_go = (int)(
+                ((((nb_todo - nb_done) / processed_per_hour) % 1) * 3600) % 60
+            )
             return f"{hours_to_go:02d}:{min_to_go:02d}:{secs_to_go:02d} left, {operation} done on {nb_done:{nb_decimal}n} of {nb_todo:{nb_decimal}n} ({pct_progress:3.2f}%)    "
         elif pct_progress >= 100:
             return f"00:00:00 left, {operation} done on {nb_done:{nb_decimal}n} of {nb_todo:{nb_decimal}n} ({pct_progress:3.2f}%)    "
@@ -105,10 +115,8 @@ class PooledExecutorFactory(object):
             Defaults to None to get automatic determination.
         initialisze (function, optional): Function that does initialisations.
     """
-    def __init__(
-            self, threadpool: bool = True,
-            max_workers=None,
-            initializer=None):
+
+    def __init__(self, threadpool: bool = True, max_workers=None, initializer=None):
         self.threadpool = threadpool
         self.max_workers = max_workers
         self.initializer = initializer
@@ -117,12 +125,12 @@ class PooledExecutorFactory(object):
     def __enter__(self) -> futures.Executor:
         if self.threadpool:
             self.pool = futures.ThreadPoolExecutor(
-                max_workers=self.max_workers,
-                initializer=self.initializer)
+                max_workers=self.max_workers, initializer=self.initializer
+            )
         else:
             self.pool = futures.ProcessPoolExecutor(
-                max_workers=self.max_workers,
-                initializer=self.initializer)
+                max_workers=self.max_workers, initializer=self.initializer
+            )
         return self.pool
 
     def __exit__(self, type, value, traceback):
@@ -137,47 +145,50 @@ def formatbytes(bytes: float):
 
     bytes_float = float(bytes)
     KB = float(1024)
-    MB = float(KB ** 2) # 1,048,576
-    GB = float(KB ** 3) # 1,073,741,824
-    TB = float(KB ** 4) # 1,099,511,627,776
+    MB = float(KB**2)  # 1,048,576
+    GB = float(KB**3)  # 1,073,741,824
+    TB = float(KB**4)  # 1,099,511,627,776
 
     if bytes_float < KB:
-        return '{0} {1}'.format(bytes_float, 'Bytes' if bytes_float > 1 else 'Byte')
+        return "{0} {1}".format(bytes_float, "Bytes" if bytes_float > 1 else "Byte")
     elif KB <= bytes_float < MB:
-        return '{0:.2f} KB'.format(bytes_float/KB)
+        return "{0:.2f} KB".format(bytes_float / KB)
     elif MB <= bytes_float < GB:
-        return '{0:.2f} MB'.format(bytes_float/MB)
+        return "{0:.2f} MB".format(bytes_float / MB)
     elif GB <= bytes_float < TB:
-        return '{0:.2f} GB'.format(bytes_float/GB)
+        return "{0:.2f} GB".format(bytes_float / GB)
     elif TB <= bytes_float:
-        return '{0:.2f} TB'.format(bytes_float/TB)
+        return "{0:.2f} TB".format(bytes_float / TB)
+
 
 def setprocessnice(nice_value: int):
     """
     Set the niceness of the current process.
 
-    The nice value can (typically) range from 19, which gives all other 
-    processes priority, to -20, which means that this process will take 
+    The nice value can (typically) range from 19, which gives all other
+    processes priority, to -20, which means that this process will take
     maximum priority (which isn't very nice ;-)).
 
-    Remarks for windows: 
-        - windows only supports 6 niceness classes. setprocessnice en 
+    Remarks for windows:
+        - windows only supports 6 niceness classes. setprocessnice en
           getprocessnice maps niceness values to these classes.
-        - when setting REALTIME priority (-20 niceness) apparently this 
+        - when setting REALTIME priority (-20 niceness) apparently this
           results only to HIGH priority.
 
     Args:
         nice_value (int): the niceness to be set.
     """
     if nice_value < -20 or nice_value > 19:
-        raise ValueError(f"Invalid value for nice_values (min: -20, max: 19): {nice_value}")
+        raise ValueError(
+            f"Invalid value for nice_values (min: -20, max: 19): {nice_value}"
+        )
     if getprocessnice() == nice_value:
         # If the nice value is already the same... no use setting it
-        return 
+        return
 
     try:
         p = psutil.Process(os.getpid())
-        if os.name == 'nt':
+        if os.name == "nt":
             if nice_value == -20:
                 p.nice(psutil.REALTIME_PRIORITY_CLASS)
             elif nice_value <= -15:
@@ -193,25 +204,28 @@ def setprocessnice(nice_value: int):
         else:
             p.nice(nice_value)
     except Exception as ex:
-        raise Exception(f"Error in setprocessnice with nice_value: {nice_value}") from ex
+        raise Exception(
+            f"Error in setprocessnice with nice_value: {nice_value}"
+        ) from ex
+
 
 def getprocessnice() -> int:
     """
     Get the niceness of the current process.
 
-    The nice value can (typically) range from 19, which gives all other 
-    processes priority, to -20, which means that this process will take 
+    The nice value can (typically) range from 19, which gives all other
+    processes priority, to -20, which means that this process will take
     maximum priority (which isn't very nice ;-)).
 
-    Remarks for windows: 
-        - windows only supports 6 niceness classes. setprocessnice en 
+    Remarks for windows:
+        - windows only supports 6 niceness classes. setprocessnice en
           getprocessnice maps niceness values to these classes.
-        - when setting REALTIME priority (-20 niceness) apparently this 
+        - when setting REALTIME priority (-20 niceness) apparently this
           results only to HIGH priority.
     """
     p = psutil.Process(os.getpid())
     nice_value = p.nice()
-    if os.name == 'nt':
+    if os.name == "nt":
         if nice_value == psutil.REALTIME_PRIORITY_CLASS:
             return -20
         elif nice_value == psutil.HIGH_PRIORITY_CLASS:
@@ -229,11 +243,12 @@ def getprocessnice() -> int:
     else:
         return int(nice_value)
 
+
 def initialize_worker():
     # We don't want the workers to block the entire system, so make them nice
     # if they aren't quite nice already.
-    # Remark: on linux, depending on system settings it is not possible to 
-    # decrease niceness, even if it was you who niced before. 
+    # Remark: on linux, depending on system settings it is not possible to
+    # decrease niceness, even if it was you who niced before.
     nice_value = 15
-    if getprocessnice() < nice_value: 
+    if getprocessnice() < nice_value:
         setprocessnice(nice_value)
