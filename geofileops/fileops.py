@@ -575,58 +575,70 @@ def add_column(
         path: Union[str, 'os.PathLike[Any]'],
         name: str,
         type: Union[DataType, str],
-        expression: Union[str, int, float, None] = None, 
+        expression: Union[str, int, float, None] = None,
+        expression_dialect: Optional[str] = None, 
         layer: Optional[str] = None,
-        force_update: bool = False):
+        force_update: bool = False,
+        width: Optional[int] = None):
     """
     Add a column to a layer of the geofile.
 
     Args:
-        path (PathLike): Path to the geofile
-        name (str): Name for the new column
-        type (DataType, str): Column type of the new column.
+        path (PathLike): Path to the geofile.
+        name (str): Name for the new column.
+        type (str): Column type of the new column.
         expression (str, optional): SQLite expression to use to update 
             the value. Defaults to None.
+        expression_dialect (str, optional): SQL dialect used for the expression.
         layer (str, optional): The layer name. If None and the geofile
             has only one layer, that layer is used. Defaults to None.
         force_update (bool, optional): If the column already exists, execute 
             the update anyway. Defaults to False. 
+        width (int, optional): the width of the field.
 
     Raises:
         ex: [description]
     """
-
-    ##### Init #####
+    # Init
     if isinstance(type, DataType):
         type_str = type.value
     else:
-        type_str = type
-    path_p = Path(path)
+        type_lower = type.lower()
+        if type_lower == "string":
+            # TODO: think whether being flexible here is a good idea...
+            type_str = "TEXT"
+        elif type_lower == "binary":
+            type_str = "BLOB"
+        elif type_lower == "time":
+            type_str = "DATETIME"
+        else:
+            type_str = type
+    path = Path(path)
     if layer is None:
-        layer = get_only_layer(path_p)
-    layerinfo_orig = get_layerinfo(path_p, layer)
+        layer = get_only_layer(path)
+    layerinfo_orig = get_layerinfo(path, layer)
     
-    ##### Go! #####
+    # Go!
     datasource = None
     try:
-        #datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
+        # If column doesn't exist yet, create it
         columns_upper = [column.upper() for column in layerinfo_orig.columns]
         if name.upper() not in columns_upper:
-            # If column doesn't exist yet, create it
-            #if name not in getlayerinfo(path_p, layer=layer).columns:
-            sqlite_stmt = f'ALTER TABLE "{layer}" ADD COLUMN "{name}" {type_str}'
-            _ogr_util.vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
-            #datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
+            width_str = f"({width})" if width is not None else ""
+            sql_stmt = f'ALTER TABLE "{layer}" ADD COLUMN "{name}" {type_str}{width_str}'
+            datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
+            datasource.ExecuteSQL(sql_stmt)
         else:
-            logger.warning(f"Column {name} existed already in {path_p}, layer {layer}")
+            logger.warning(f"Column {name} existed already in {path}, layer {layer}")
             
         # If an expression was provided and update can be done, go for it...
         if(expression is not None 
            and (name not in layerinfo_orig.columns 
                 or force_update is True)):
-            sqlite_stmt = f'UPDATE "{layer}" SET "{name}" = {expression}'
-            _ogr_util.vector_info(path=path_p, sql_stmt=sqlite_stmt, sql_dialect='SQLITE', readonly=False)
-            #datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
+            if datasource is None:
+                datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
+            sql_stmt = f'UPDATE "{layer}" SET "{name}" = {expression}'
+            datasource.ExecuteSQL(sql_stmt, dialect=expression_dialect)
     finally:
         if datasource is not None:
             del datasource
