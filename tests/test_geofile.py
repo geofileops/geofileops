@@ -43,7 +43,7 @@ def test_add_column(tmp_path):
 
     # Add perimeter column
     gfo.add_column(
-            test_path, layer='parcels', name='PERIMETER', type=gfo.DataType.REAL,
+            test_path, name='PERIMETER', type=gfo.DataType.REAL,
             expression='ST_perimeter(geom)')
 
     layerinfo = gfo.get_layerinfo(path=test_path, layer='parcels')
@@ -52,6 +52,14 @@ def test_add_column(tmp_path):
     gdf = gfo.read_file(test_path)
     assert round(gdf['AREA'].astype('float')[0], 1) == \
         round(gdf['OPPERVL'].astype('float')[0], 1)
+
+    # Add a column of different gdal types
+    gdal_types = ["Binary", "Date", "DateTime", "Integer", "Integer64", "String", "Time", "Real"]
+    for type in gdal_types:
+        gfo.add_column(test_path, name=f"column_{type}", type=type)
+    info = gfo.get_layerinfo(test_path)
+    for type in gdal_types:
+        assert f"column_{type}" in info.columns
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
