@@ -515,6 +515,40 @@ def test_split(tmp_path, suffix, epsg):
 @pytest.mark.parametrize(
         "suffix, epsg",
         [(".gpkg", 31370), (".gpkg", 4326), (".shp", 31370)])
+def test_symmetric_difference(tmp_path, suffix, epsg):
+    input1_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
+    input2_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
+    input1_layerinfo = gfo.get_layerinfo(input1_path)
+    batchsize = math.ceil(input1_layerinfo.featurecount/2)
+
+    # Test
+    output_path = tmp_path / f"{input1_path.stem}_symmdiff_{input2_path.stem}{suffix}"
+    gfo.symmetric_difference(
+            input1_path=input1_path,
+            input2_path=input2_path,
+            output_path=output_path,
+            batchsize=batchsize)
+
+    # Check if the tmp file is correctly created
+    assert output_path.exists()
+    output_gdf = gfo.read_file(output_path)
+    assert output_gdf['geometry'][0] is not None
+    input1_gdf = gfo.read_file(input1_path)
+    input2_gdf = gfo.read_file(input2_path)
+    output_gpd_gdf = input1_gdf.overlay(
+            input2_gdf, how="symmetric_difference", keep_geom_type=True)
+    renames = {name_gpd: name_gfo for name_gpd, name_gfo
+               in zip(output_gpd_gdf.columns, output_gdf.columns)}
+    output_gpd_gdf = output_gpd_gdf.rename(columns=renames)
+    assert_geodataframe_equal(
+            output_gdf, output_gpd_gdf, promote_to_multi=True, sort_values=True,
+            check_column_type=False, check_dtype=False, check_less_precise=True,
+            normalize=True)
+
+
+@pytest.mark.parametrize(
+        "suffix, epsg",
+        [(".gpkg", 31370), (".gpkg", 4326), (".shp", 31370)])
 def test_union(tmp_path, suffix, epsg):
     input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
     input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
@@ -551,40 +585,6 @@ def test_union(tmp_path, suffix, epsg):
     assert_geodataframe_equal(
             output_gdf, output_gpd_gdf, promote_to_multi=True, sort_values=True,
             check_less_precise=True, normalize=True)
-
-
-@pytest.mark.parametrize(
-        "suffix, epsg",
-        [(".gpkg", 31370), (".gpkg", 4326), (".shp", 31370)])
-def test_symmetric_difference(tmp_path, suffix, epsg):
-    input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
-    input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
-    input1_layerinfo = gfo.get_layerinfo(input1_path)
-    batchsize = math.ceil(input1_layerinfo.featurecount/2)
-
-    # Test
-    output_path = tmp_path / f"{input1_path.stem}_symmdiff_{input2_path.stem}{suffix}"
-    gfo.symmetric_difference(
-            input1_path=input1_path,
-            input2_path=input2_path,
-            output_path=output_path,
-            batchsize=batchsize)
-
-    # Check if the tmp file is correctly created
-    assert output_path.exists()
-    output_gdf = gfo.read_file(output_path)
-    assert output_gdf['geometry'][0] is not None
-    input1_gdf = gfo.read_file(input1_path)
-    input2_gdf = gfo.read_file(input2_path)
-    output_gpd_gdf = input1_gdf.overlay(
-            input2_gdf, how="symmetric_difference", keep_geom_type=True)
-    renames = {name_gpd: name_gfo for name_gpd, name_gfo
-               in zip(output_gpd_gdf.columns, output_gdf.columns)}
-    output_gpd_gdf = output_gpd_gdf.rename(columns=renames)
-    assert_geodataframe_equal(
-            output_gdf, output_gpd_gdf, promote_to_multi=True, sort_values=True,
-            check_column_type=False, check_dtype=False, check_less_precise=True, 
-            normalize=True)
 
 
 @pytest.mark.parametrize(

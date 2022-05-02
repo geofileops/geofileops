@@ -1173,9 +1173,9 @@ def intersection(
             force=force)
 
 def join_by_location(
-        input1_path: Path,
-        input2_path: Path,
-        output_path: Path,
+        input1_path: Union[str, 'os.PathLike[Any]'],
+        input2_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
         spatial_relations_query: str = "intersects is True",
         discard_nonmatching: bool = True,
         min_area_intersect: Optional[float] = None,
@@ -1269,9 +1269,9 @@ def join_by_location(
             force=force)
 
 def join_nearest(
-        input1_path: Path,
-        input2_path: Path,
-        output_path: Path,
+        input1_path: Union[str, 'os.PathLike[Any]'],
+        input2_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
         nb_nearest: int,
         input1_layer: Optional[str] = None,
         input1_columns: Optional[List[str]] = None,
@@ -1334,9 +1334,9 @@ def join_nearest(
             force=force)
 
 def select_two_layers(
-        input1_path: Path,
-        input2_path: Path,
-        output_path: Path,
+        input1_path: Union[str, 'os.PathLike[Any]'],
+        input2_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
         sql_stmt: str,
         input1_layer: Optional[str] = None,
         input1_columns: Optional[List[str]] = None,
@@ -1512,9 +1512,9 @@ def select_two_layers(
             force=force)
 
 def symmetric_difference(
-        input1_path: Path,
-        input2_path: Path,
-        output_path: Path,
+        input1_path: Union[str, 'os.PathLike[Any]'],
+        input2_path: Union[str, 'os.PathLike[Any]'],
+        output_path: Union[str, 'os.PathLike[Any]'],
         input1_layer: Optional[str] = None,
         input1_columns: Optional[List[str]] = None,
         input1_columns_prefix: str = 'l1_',
