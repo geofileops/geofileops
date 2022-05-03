@@ -7,7 +7,7 @@ with open("geofileops/version.txt", mode="r") as file:
     version = file.readline()
 
 setuptools.setup(
-    name="geofileops", 
+    name="geofileops",
     version=version,
     author="Pieter Roggemans",
     author_email="pieter.roggemans@gmail.com",
@@ -18,11 +18,18 @@ setuptools.setup(
     include_package_data=True,
     packages=setuptools.find_packages(),
     install_requires=[
-            "cloudpickle", "fiona", "gdal", "geopandas>=0.10", "numpy", 
-            "pandas", "psutil", "pygeos", "pyproj", "shapely"],
-    extras_require = {
-        "full": ["simplification"]
-    },
+        "cloudpickle",
+        "fiona",
+        "gdal",
+        "geopandas>=0.10",
+        "numpy",
+        "pandas",
+        "psutil",
+        "pygeos",
+        "pyproj",
+        "shapely",
+    ],
+    extras_require={"full": ["simplification"]},
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",

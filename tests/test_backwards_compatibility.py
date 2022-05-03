@@ -6,8 +6,6 @@ Test if backwards compatibility for old API still works.
 from pathlib import Path
 import sys
 
-import pytest
-
 # Add path so the local geofileops packages are found
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops import geofileops
@@ -34,7 +32,8 @@ def test_old_vector_util_api():
 
     # Test from grid_util
     grid_gdf = vector_util.create_grid2(
-            total_bounds=(40000.0, 160000.0, 45000.0, 210000.0),
-            nb_squarish_tiles=100,
-            crs='epsg:31370')
+        total_bounds=(40000.0, 160000.0, 45000.0, 210000.0),
+        nb_squarish_tiles=100,
+        crs="epsg:31370",
+    )
     assert len(grid_gdf) == 96
