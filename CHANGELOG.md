@@ -12,7 +12,7 @@
 - Add support to specify (any) gdal options in relevant fileops (#83)
 - Speed up creation of an index on a geopackage (#87)
 - Some improvements to the benchmarks
-- Apply pep8/black on the code (#??)
+- Use black to comply to pep8 + minor general improvements (#113)
 
 ### Bugs fixed
 
