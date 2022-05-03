@@ -48,14 +48,15 @@ def test_get_tempfile_locked():
     tempfile3lock_path = None
 
     try:
-        tempfile1_path, tempfile1lock_path = _io_util.get_tempfile_locked('testje')
+        tempfile1_path, tempfile1lock_path = _io_util.get_tempfile_locked("testje")
         assert tempfile1_path.exists() is False
         assert tempfile1lock_path.exists() is True
-        tempfile2_path, tempfile2lock_path = _io_util.get_tempfile_locked('testje')
+        tempfile2_path, tempfile2lock_path = _io_util.get_tempfile_locked("testje")
         assert tempfile2_path.exists() is False
         assert tempfile2lock_path.exists() is True
         tempfile3_path, tempfile3lock_path = _io_util.get_tempfile_locked(
-                'testje', dirname="dir")
+            "testje", dirname="dir"
+        )
         assert tempfile3_path.exists() is False
         assert tempfile3lock_path.exists() is True
     finally:

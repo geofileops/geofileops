@@ -14,11 +14,11 @@ from tests import test_helper
 
 
 def test_exec_spatialite_sql(tmp_path):
-    output_path = tmp_path / 'output.gpkg'
+    output_path = tmp_path / "output.gpkg"
     input1_path = test_helper.get_testfile(testfile="polygon-parcel", dst_dir=tmp_path)
     input2_path = test_helper.get_testfile(testfile="polygon-zone", dst_dir=tmp_path)
 
-    sql_stmt = '''
+    sql_stmt = """
             SELECT CastToMulti(ST_CollectionExtract(
                        ST_Intersection(layer1.geom, layer2.geometry), 3)) as geom
                   ,ST_area(layer1.geom) AS area_intersect
@@ -38,14 +38,15 @@ def test_exec_spatialite_sql(tmp_path):
                AND layer1tree.maxy >= layer2tree.miny
                AND ST_Intersects(layer1.geom, layer2.geometry) = 1
                AND ST_Touches(layer1.geom, layer2.geometry) = 0
-            '''
+            """
 
     _sqlite_util.create_table_as_sql(
-            input1_path=input1_path,
-            input1_layer='parcels',
-            input2_path=input2_path,
-            output_path=output_path,
-            output_layer=output_path.stem,
-            output_geometrytype=GeometryType.MULTIPOLYGON,
-            sql_stmt=sql_stmt,
-            profile=_sqlite_util.SqliteProfile.SPEED)
+        input1_path=input1_path,
+        input1_layer="parcels",
+        input2_path=input2_path,
+        output_path=output_path,
+        output_layer=output_path.stem,
+        output_geometrytype=GeometryType.MULTIPOLYGON,
+        sql_stmt=sql_stmt,
+        profile=_sqlite_util.SqliteProfile.SPEED,
+    )
