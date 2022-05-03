@@ -16,11 +16,6 @@ import shapely.wkb as sh_wkb
 import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
 
-# Import simplification if it is available. Only throw exception in runtime...
-try:
-    import simplification.cutil as simplification
-except ImportError:
-    _ = None
 
 #####################################################################
 # First define/init some general variables/constants
@@ -264,7 +259,8 @@ def collect(
     elif len(geometry_list) == 1:
         return geometry_list[0]
 
-    # Loop over all elements in the list, and determine the appropriate geometry type to create
+    # Loop over all elements in the list, and determine the appropriate geometry
+    # type to create
     result_collection_type = GeometryType(geometry_list[0].geom_type).to_multitype
     for geom in geometry_list:
         # If it is the same as the collection_geom_type, continue checking
@@ -454,9 +450,7 @@ def remove_inner_rings(
             polys.append(remove_inner_rings_polygon(poly, min_area_to_keep, crs=crs))
         return sh_geom.MultiPolygon(polys)
     else:
-        raise Exception(
-            f"remove_inner_rings is not possible with geometrytype: {geometry.type}, geometry: {geometry}"
-        )
+        raise Exception(f"remove_inner_rings impossible on {geometry.type}: {geometry}")
 
 
 #####################################################################
@@ -519,7 +513,8 @@ def simplify_ext(
             import simplification.cutil as simplification
         except ImportError as ex:
             raise ImportError(
-                "To use simplify_ext using rdp or vw, first install simplification with 'pip install simplification'"
+                "To use simplify_ext using rdp or vw, first install "
+                "simplification with 'pip install simplification'"
             ) from ex
 
     # Define some inline funtions
@@ -547,7 +542,8 @@ def simplify_ext(
             if interior_simplified is not None and len(interior_simplified) >= 3:
                 interiors_simplified.append(interior_simplified)
             elif preserve_topology is True:
-                # If result is no ring, but topology needs to be preserved, add original ring
+                # If result is no ring, but topology needs to be preserved,
+                # add original ring
                 interiors_simplified.append(interior.coords)
 
         result_poly = sh_geom.Polygon(exterior_simplified, interiors_simplified)
@@ -557,7 +553,8 @@ def simplify_ext(
             make_valid(result_poly), primitivetype=PrimitiveType.POLYGON
         )
 
-        # If the result is None and the topology needs to be preserved, return original polygon
+        # If the result is None and the topology needs to be preserved, return
+        # original polygon
         if preserve_topology is True and result_poly is None:
             return polygon
 
@@ -577,7 +574,8 @@ def simplify_ext(
         # Simplify
         coords_simplified = simplify_coords(linestring.coords)
 
-        # If preserve_topology is True and the result is no line anymore, return original line
+        # If preserve_topology is True and the result is no line anymore, return
+        # original line
         if preserve_topology is True and (
             coords_simplified is None or len(coords_simplified) < 2
         ):
@@ -696,8 +694,8 @@ def simplify_coords_lang_idx(
 
     Inspiration for the implementation came from:
         * https://github.com/giscan/Generalizer/blob/master/simplify.py
-        * https://github.com/keszegrobert/polyline-simplification/blob/master/6.%20Lang.ipynb
-        * https://web.archive.org/web/20171005193700/http://web.cs.sunyit.edu/~poissad/projects/Curve/about_algorithms/lang.php
+        * https://github.com/keszegrobert/polyline-simplification/blob/master/6.%20Lang.ipynb  # noqa: E501
+        * https://web.archive.org/web/20171005193700/http://web.cs.sunyit.edu/~poissad/projects/Curve/about_algorithms/lang.php  # noqa: E501
 
     Args:
         coords (Union[np.ndarray, list]): list of coordinates to be simplified.

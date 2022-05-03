@@ -37,8 +37,8 @@ import shapely.geometry as sh_geom
 import geofileops as gfo
 from geofileops.util import _general_util
 from geofileops.util import _geoops_sql
-from geofileops.util import geometry_util
 from geofileops.util.geometry_util import GeometryType, PrimitiveType, SimplifyAlgorithm
+from geofileops.util.geometry_util import BufferEndCapStyle, BufferJoinStyle
 from geofileops.util import geoseries_util
 from geofileops.util import grid_util
 from geofileops.util import _io_util
@@ -108,7 +108,7 @@ def get_parallelization_params(
         verbose (bool, optional): [description]. Defaults to False.
 
     Returns:
-        parallelizationParams (NamedTuple('result', [('nb_parallel', int), ('nb_batches_recommended', int), ('nb_rows_per_batch', int)])): The recommended parameters.
+        parallelizationParams: The recommended parameters.
     """
     # Init parallelization config
 
@@ -126,15 +126,12 @@ def get_parallelization_params(
     if nb_parallel == -1:
         nb_parallel = multiprocessing.cpu_count()
 
-    logger.debug(
-        f"memory_usable: {_general_util.formatbytes(parallelization_config_local.bytes_usable)}, with:"
-    )
-    logger.debug(
-        f"  -> mem.available: {_general_util.formatbytes(psutil.virtual_memory().available)}"
-    )
-    logger.debug(
-        f"  -> swap.free: {_general_util.formatbytes(psutil.swap_memory().free)}"
-    )
+    mem_usable = _general_util.formatbytes(parallelization_config_local.bytes_usable)
+    logger.debug(f"memory_usable: {mem_usable}, with:")
+    mem_available = _general_util.formatbytes(psutil.virtual_memory().available)
+    logger.debug(f"  -> mem.available: {mem_available}")
+    swap_free = _general_util.formatbytes(psutil.swap_memory().free)
+    logger.debug(f"  -> swap.free: {swap_free}")
 
     # If not enough memory for the amount of parallellism asked, reduce
     if (
@@ -144,9 +141,7 @@ def get_parallelization_params(
             parallelization_config_local.bytes_usable
             / parallelization_config_local.bytes_min_per_process
         )
-        logger.debug(
-            f"Nb_parallel reduced to {nb_parallel} to evade excessive memory usage"
-        )
+        logger.debug(f"Nb_parallel reduced to {nb_parallel} to reduce memory usage")
 
     # Optimal number of batches and rows per batch based on memory usage
     nb_batches = math.ceil(
@@ -162,6 +157,7 @@ def get_parallelization_params(
     if batch_size > parallelization_config_local.max_avg_rows_per_batch:
         batch_size = parallelization_config_local.max_avg_rows_per_batch
         nb_batches = math.ceil(nb_rows_total / batch_size)
+
     mem_predicted = (
         parallelization_config_local.bytes_basefootprint
         + batch_size * parallelization_config_local.bytes_per_row
@@ -185,9 +181,7 @@ def get_parallelization_params(
     # Log result
     logger.debug(f"nb_batches_recommended: {nb_batches}, rows_per_batch: {batch_size}")
     logger.debug(f" -> nb_rows_input_layer: {nb_rows_total}")
-    logger.debug(
-        f" -> will result in mem_predicted: {_general_util.formatbytes(mem_predicted)}"
-    )
+    logger.debug(f" -> mem_predicted: {_general_util.formatbytes(mem_predicted)}")
 
     return parallelizationParams(nb_parallel, nb_batches, batch_size)
 
@@ -246,8 +240,8 @@ def buffer(
     output_path: Path,
     distance: float,
     quadrantsegments: int = 5,
-    endcap_style: geometry_util.BufferEndCapStyle = geometry_util.BufferEndCapStyle.ROUND,
-    join_style: geometry_util.BufferJoinStyle = geometry_util.BufferJoinStyle.ROUND,
+    endcap_style: BufferEndCapStyle = BufferEndCapStyle.ROUND,
+    join_style: BufferJoinStyle = BufferJoinStyle.ROUND,
     mitre_limit: float = 5.0,
     single_sided: bool = False,
     input_layer: Optional[str] = None,
@@ -472,14 +466,19 @@ def _apply_geooperation_to_layer(
         # TODO: determine the optimal batch sizes with min and max of rowid will
         # in some case improve performance
         """
-        sql_stmt = f'SELECT MIN(rowid) as min_rowid, MAX(rowid) as max_rowid FROM "{input_layer}"'
-        result = geogfo.read_file_sql(path=temp_path, sql_stmt=sql_stmt, layer=input_layer)
+        sql_stmt = f'''SELECT MIN(rowid) as min_rowid, MAX(rowid) as max_rowid
+                         FROM "{input_layer}"'''
+        result = geogfo.read_file_sql(
+            path=temp_path, sql_stmt=sql_stmt, layer=input_layer
+        )
         if len(result) == 1:
             min_rowid = result['min_rowid'].values[0]
             max_rowid = result['max_rowid'].values[0]
             nb_rowids_per_batch = (max_rowid - min_rowid)/nb_batches
         else:
-            raise Exception(f"Error determining min_rowid and max_rowid for {temp_path}, layer {input_layer}")
+            raise Exception(
+                f"Error getting min and max rowid for {temp_path}, layer {input_layer}"
+            )
         """
 
         # Processing in threads is 2x faster for small datasets (on Windows)
@@ -497,10 +496,6 @@ def _apply_geooperation_to_layer(
             batches = {}
             future_to_batch_id = {}
             nb_done = 0
-
-            logger.debug(
-                f"Start calculation on {nb_rows_total} rows in {nb_batches} batches, so {real_batchsize} per batch"
-            )
 
             for batch_id in range(nb_batches):
 
@@ -724,7 +719,10 @@ def dissolve(
     # Check agg_columns param
     columns_upper_dict = {col.upper(): col for col in input_layerinfo.columns}
     if agg_columns is not None:
-        message = 'agg_columns malformed. Options are: {"json": [<list_columns>]} or {"columns": [{"column": "...", "agg": "...", "as": "..."}, ...]}'
+        message = (
+            'agg_columns malformed. Options are: {"json": [<list_columns>]} '
+            'or {"columns": [{"column": "...", "agg": "...", "as": "..."}, ...]}'
+        )
 
         # It should be a dict with one key
         if isinstance(agg_columns, dict) is False or len(agg_columns) != 1:
@@ -757,21 +755,24 @@ def dissolve(
                 if "column" in agg_column:
                     if agg_column["column"].upper() not in columns_upper_dict:
                         raise ValueError(
-                            f"Error: column '{agg_column['column']}' is not available in {input_path}, layer {input_layer}"
+                            f"Error: column '{agg_column['column']}' is not available "
+                            f"in {input_path}, layer {input_layer}"
                         )
                 else:
                     raise ValueError(message)
                 if "agg" in agg_column:
                     if agg_column["agg"].lower() not in supported_aggfuncs:
                         raise ValueError(
-                            f"Error: aggregation {agg_column['agg']} is not supported, use one of {supported_aggfuncs}"
+                            f"Error: aggregation {agg_column['agg']} is not supported, "
+                            f"use one of {supported_aggfuncs}"
                         )
                 else:
                     raise ValueError(message)
                 if "as" in agg_column:
                     if isinstance(agg_column["as"], str) is False:
                         raise ValueError(
-                            f"Error: 'as' column name should be a str value, not: {agg_column['as']}"
+                            f"Error: 'as' column name should be a str value, "
+                            f"not: {agg_column['as']}"
                         )
                 else:
                     raise ValueError(message)
@@ -922,9 +923,7 @@ def dissolve(
                     output_tmp_onborder_path = output_tmp_path
 
                 # Now go!
-                logger.info(
-                    f"Start dissolve pass {pass_id} to {len(tiles_gdf)} tiles (nb_parallel: {nb_parallel})"
-                )
+                logger.info(f"Start dissolve pass {pass_id} to {len(tiles_gdf)} tiles")
                 _ = _dissolve_polygons_pass(
                     input_path=pass_input_path,
                     output_notonborder_path=output_tmp_path,
@@ -1065,42 +1064,48 @@ def dissolve(
                         # in the select() call later on... so just order them.
                         # If a tiled result is asked, also don't collect.
                         sql_stmt = f"""
-                                SELECT {{geometrycolumn}}
-                                    {groupby_select_prefixed_str.format(prefix="layer.")}
-                                FROM "{{input_layer}}" layer
-                                ORDER BY layer.{orderby_column}"""
+                            SELECT {{geometrycolumn}}
+                                  {groupby_select_prefixed_str.format(prefix="layer.")}
+                              FROM "{{input_layer}}" layer
+                             ORDER BY layer.{orderby_column}
+                        """
                     else:
                         # No explodecollections, so collect to one geometry
                         # (per groupby if applicable).
                         sql_stmt = f"""
-                                SELECT ST_Collect({{geometrycolumn}}) AS {{geometrycolumn}}
-                                    {groupby_select_prefixed_str.format(prefix="layer.")}
-                                FROM "{{input_layer}}" layer
-                                {groupby_groupby_prefixed_str.format(prefix="layer.")}
-                                ORDER BY MIN(layer.{orderby_column})"""
+                            SELECT ST_Collect({{geometrycolumn}}) AS {{geometrycolumn}}
+                                  {groupby_select_prefixed_str.format(prefix="layer.")}
+                              FROM "{{input_layer}}" layer
+                              {groupby_groupby_prefixed_str.format(prefix="layer.")}
+                             ORDER BY MIN(layer.{orderby_column})
+                        """
                 else:
                     # If agg_columns specified, postprocessing is a bit more
                     # complicated.
                     sql_stmt = f"""
-                            SELECT geo_data.{{geometrycolumn}}
-                                {groupby_select_prefixed_str.format(prefix="geo_data.")}
-                                {agg_columns_str}
-                            FROM (
-                                SELECT ST_Collect(layer_geo.{{geometrycolumn}}) AS {{geometrycolumn}}
-                                    {groupby_select_prefixed_str.format(prefix="layer_geo.")}
-                                    ,MIN(layer_geo.{orderby_column}) as {orderby_column}
-                                FROM "{{input_layer}}" layer_geo
-                                {groupby_groupby_prefixed_str.format(prefix="layer_geo.")}
-                                ) geo_data
-                            JOIN (
-                                SELECT DISTINCT json_rows_table.value as json_row
-                                    {groupby_select_prefixed_str.format(prefix="layer_for_json.")}
-                                FROM "{{input_layer}}" layer_for_json, json_each(layer_for_json.__DISSOLVE_TOJSON, "$") json_rows_table
-                                ) json_data
-                            WHERE 1=1
-                                {groupby_filter_str}
-                            {groupby_groupby_prefixed_str.format(prefix="geo_data.")}
-                            ORDER BY geo_data.{orderby_column} """
+                        SELECT geo_data.{{geometrycolumn}}
+                              {groupby_select_prefixed_str.format(prefix="geo_data.")}
+                              {agg_columns_str}
+                          FROM (
+                            SELECT ST_Collect(layer_geo.{{geometrycolumn}}
+                                   ) AS {{geometrycolumn}}
+                                  {groupby_select_prefixed_str.format(prefix="layer_geo.")}
+                                  ,MIN(layer_geo.{orderby_column}) as {orderby_column}
+                              FROM "{{input_layer}}" layer_geo
+                              {groupby_groupby_prefixed_str.format(prefix="layer_geo.")}
+                            ) geo_data
+                          JOIN (
+                            SELECT DISTINCT json_rows_table.value as json_row
+                                {groupby_select_prefixed_str.format(prefix="layer_for_json.")}
+                              FROM "{{input_layer}}" layer_for_json
+                              CROSS JOIN json_each(
+                                  layer_for_json.__DISSOLVE_TOJSON, "$") json_rows_table
+                            ) json_data
+                         WHERE 1=1
+                            {groupby_filter_str}
+                          {groupby_groupby_prefixed_str.format(prefix="geo_data.")}
+                          ORDER BY geo_data.{orderby_column}
+                    """
 
                 # Go!
                 _geoops_sql.select(
@@ -1170,17 +1175,14 @@ def _dissolve_polygons_pass(
 
             # Output each batch to a seperate temporary file, otherwise there
             # are timeout issues when processing large files
-            output_notonborder_tmp_partial_path = (
-                tempdir
-                / f"{output_notonborder_path.stem}_{batch_id}{output_notonborder_path.suffix}"
-            )
+            suffix = output_notonborder_path.suffix
+            name = f"{output_notonborder_path.stem}_{batch_id}{suffix}"
+            output_notonborder_tmp_partial_path = tempdir / name
             batches[batch_id][
                 "output_notonborder_tmp_partial_path"
             ] = output_notonborder_tmp_partial_path
-            output_onborder_tmp_partial_path = (
-                tempdir
-                / f"{output_onborder_path.stem}_{batch_id}{output_onborder_path.suffix}"
-            )
+            name = f"{output_onborder_path.stem}_{batch_id}{suffix}"
+            output_onborder_tmp_partial_path = tempdir / name
             batches[batch_id][
                 "output_onborder_tmp_partial_path"
             ] = output_onborder_tmp_partial_path
@@ -1223,7 +1225,8 @@ def _dissolve_polygons_pass(
                             result["nb_rows_done"] / result["total_time"]
                         )
                         logger.debug(
-                            f"Batch {batch_id} ready, processed {result['nb_rows_done']} rows in {rows_per_sec} rows/sec"
+                            f"Batch {batch_id} processed {result['nb_rows_done']} rows "
+                            f"({rows_per_sec}/sec)"
                         )
                         if "perfstring" in result:
                             logger.debug(f"Perfstring: {result['perfstring']}")

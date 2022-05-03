@@ -97,11 +97,17 @@ def format_progress(
             secs_to_go = (int)(
                 ((((nb_todo - nb_done) / processed_per_hour) % 1) * 3600) % 60
             )
-            return f"{hours_to_go:02d}:{min_to_go:02d}:{secs_to_go:02d} left, {operation} done on {nb_done:{nb_decimal}n} of {nb_todo:{nb_decimal}n} ({pct_progress:3.2f}%)    "
+            time_left_str = f"{hours_to_go:02d}:{min_to_go:02d}:{secs_to_go:02d}"
+            nb_left_str = f"{nb_done:{nb_decimal}n} of {nb_todo:{nb_decimal}n}"
+            pct_str = f"({pct_progress:3.2f}%)    "
         elif pct_progress >= 100:
-            return f"00:00:00 left, {operation} done on {nb_done:{nb_decimal}n} of {nb_todo:{nb_decimal}n} ({pct_progress:3.2f}%)    "
+            time_left_str = "00:00:00"
+            nb_left_str = f"{nb_done:{nb_decimal}n} of {nb_todo:{nb_decimal}n}"
+            pct_str = f"({pct_progress:3.2f}%)    "
         else:
             return None
+        message = f"{time_left_str} left, {operation} done on {nb_left_str} {pct_str}"
+        return message
 
 
 class PooledExecutorFactory(object):

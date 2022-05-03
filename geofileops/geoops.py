@@ -7,7 +7,7 @@ import logging
 import logging.config
 import os
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, List, Optional, Union
 import warnings
 
 from geofileops.util import _geoops_gpd
@@ -225,11 +225,11 @@ def buffer(
            - |buffer_mitre_25|
            - |buffer_mitre_10|
 
-    .. |buffer_quadrantsegments_5| image:: ../_static/images/buffer_quadrantsegments_5.png
+    .. |buffer_quadrantsegments_5| image:: ../_static/images/buffer_quadrantsegments_5.png  # noqa: E501
         :alt: Buffer with quadrantsegments=5
-    .. |buffer_quadrantsegments_2| image:: ../_static/images/buffer_quadrantsegments_2.png
+    .. |buffer_quadrantsegments_2| image:: ../_static/images/buffer_quadrantsegments_2.png  # noqa: E501
         :alt: Buffer with quadrantsegments=2
-    .. |buffer_quadrantsegments_1| image:: ../_static/images/buffer_quadrantsegments_1.png
+    .. |buffer_quadrantsegments_1| image:: ../_static/images/buffer_quadrantsegments_1.png  # noqa: E501
         :alt: Buffer with quadrantsegments=1
     .. |buffer_endcap_round| image:: ../_static/images/buffer_endcap_round.png
         :alt: Buffer with endcap_style=BufferEndCapStyle.ROUND (default)
@@ -252,7 +252,8 @@ def buffer(
 
     """
     logger.info(
-        f"Start buffer on {input_path} with distance: {distance} and quadrantsegments: {quadrantsegments}"
+        f"Start buffer on {input_path} "
+        f"(distance: {distance}, quadrantsegments: {quadrantsegments})"
     )
     if (
         endcap_style == BufferEndCapStyle.ROUND
@@ -693,7 +694,7 @@ def select(
 
     .. |spatialite_reference_link| raw:: html
 
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
 
     The result is written to the output file specified.
 
@@ -1045,7 +1046,8 @@ def export_by_location(
             Defaults to False.
     """
     logger.info(
-        f"Start export_by_location: select from {input_to_select_from_path} interacting with {input_to_compare_with_path} to {output_path}"
+        f"Start export_by_location: select from {input_to_select_from_path} "
+        f"interacting with {input_to_compare_with_path} to {output_path}"
     )
     return _geoops_sql.export_by_location(
         input_to_select_from_path=Path(input_to_select_from_path),
@@ -1108,7 +1110,9 @@ def export_by_distance(
             Defaults to False.
     """
     logger.info(
-        f"Start export_by_distance: select from {input_to_select_from_path} within max_distance of {max_distance} from {input_to_compare_with_path} to {output_path}"
+        f"Start export_by_distance: select from {input_to_select_from_path} within "
+        f"max_distance of {max_distance} from {input_to_compare_with_path} "
+        f"to {output_path}"
     )
     return _geoops_sql.export_by_distance(
         input_to_select_from_path=Path(input_to_select_from_path),
@@ -1145,7 +1149,8 @@ def intersect(
 ):
 
     warnings.warn(
-        "intersect() is deprecated because it was renamed intersection(). Will be removed in a future version",
+        "intersect() is deprecated because it was renamed intersection(). "
+        "Will be removed in a future version",
         FutureWarning,
     )
     return intersection(
@@ -1317,7 +1322,8 @@ def join_by_location(
             Defaults to False.
     """
     logger.info(
-        f"Start join_by_location: select from {input1_path} joined with {input2_path} to {output_path}"
+        f"Start join_by_location: select from {input1_path} joined with "
+        f"{input2_path} to {output_path}"
     )
     return _geoops_sql.join_by_location(
         input1_path=Path(input1_path),
@@ -1390,7 +1396,8 @@ def join_nearest(
             Defaults to False.
     """
     logger.info(
-        f"Start join_nearest: select from {input1_path} joined with {input2_path} to {output_path}"
+        f"Start join_nearest: select from {input1_path} joined with "
+        f"{input2_path} to {output_path}"
     )
     return _geoops_sql.join_nearest(
         input1_path=Path(input1_path),
@@ -1500,7 +1507,7 @@ def select_two_layers(
 
     .. |sqlite_reference_link| raw:: html
 
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
 
     The result is written to the output file specified.
 
@@ -1571,7 +1578,8 @@ def select_two_layers(
              ORDER BY distance DESC
     """
     logger.info(
-        f"Start select_two_layers: select from {input1_path} and {input2_path} to {output_path}"
+        f"Start select_two_layers: select from {input1_path} and {input2_path} "
+        f"to {output_path}"
     )
     return _geoops_sql.select_two_layers(
         input1_path=Path(input1_path),
@@ -1646,7 +1654,8 @@ def symmetric_difference(
             Defaults to False.
     """
     logger.info(
-        f"Start symmetric_difference: select from {input1_path} and {input2_path} to {output_path}"
+        f"Start symmetric_difference of {input1_path} and {input2_path} "
+        f"to {output_path}"
     )
     return _geoops_sql.symmetric_difference(
         input1_path=Path(input1_path),

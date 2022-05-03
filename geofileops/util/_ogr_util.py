@@ -358,7 +358,7 @@ def _prepare_gdal_options(options: dict, split_by_option_type: bool = False) -> 
         # Add to prepared options
         if option_name in prepared_options[option_type]:
             raise ValueError(
-                f"option {option_type}.{option_name} is specified multiple times, this is not supported"
+                f"option {option_type}.{option_name} specified more than once"
             )
         prepared_options[option_type][option_name] = str(value)
 
@@ -461,7 +461,8 @@ def vector_info(
     # File and optionally the layer
     args.append(str(path))
     if layer is not None:
-        # ogrinfo doesn't like + need quoted layer names, so remove single and double quotes
+        # ogrinfo doesn't like + need quoted layer names, so remove single and
+        # double quotes
         layer_stripped = layer.strip("'\"")
         args.append(layer_stripped)
 
@@ -487,21 +488,23 @@ def vector_info(
         # If an error occured
         if returncode > 0:
             if str(err).startswith("ERROR 1: database is locked"):
-                logger.warn(
-                    f"'ERROR 1: database is locked' occured during {task_description}, retry nb: {retry_count}"
-                )
+                logger.warn(f"'ERROR 1: database is locked', retry nb: {retry_count}")
                 time.sleep(sleep_time)
                 sleep_time += 1
                 continue
             else:
                 raise Exception(
-                    f"Error executing {pprint.pformat(args)}\n\t-> Return code: {returncode}\n\t-> Error: {err}\n\t->Output: {output}"
+                    f"Error executing {pprint.pformat(args)}\n"
+                    f"\t-> Return code: {returncode}\n"
+                    f"\t-> Error: {err}\n\t->Output: {output}"
                 )
         elif err is not None and err != "":
             # ogrinfo apparently sometimes give a wrong returncode, so if data
             # in stderr, treat as error as well
             raise Exception(
-                f"Error executing {pprint.pformat(args)}\n\t->Return code: {returncode}\n\t->Error: {err}\n\t->Output: {output}"
+                f"Error executing {pprint.pformat(args)}\n"
+                f"\t->Return code: {returncode}\n"
+                f"\t->Error: {err}\n\t->Output: {output}"
             )
         elif verbose is True:
             logger.info(f"Ready executing {pprint.pformat(args)}")

@@ -20,7 +20,7 @@ from geofileops.util import _geoops_gpd, grid_util
 from geofileops.util import geometry_util
 from geofileops.util import _io_util
 from tests import test_helper
-from tests.test_helper import DEFAULT_EPSGS, DEFAULT_SUFFIXES, assert_geodataframe_equal
+from tests.test_helper import DEFAULT_EPSGS, DEFAULT_SUFFIXES
 
 
 def test_get_parallelization_params():

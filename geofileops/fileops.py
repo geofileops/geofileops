@@ -44,7 +44,8 @@ gdal.UseExceptions()
 warnings.filterwarnings(
     action="ignore",
     category=RuntimeWarning,
-    message="Sequential read of iterator was interrupted. Resetting iterator. This can negatively impact the performance.",
+    message="Sequential read of iterator was interrupted. Resetting iterator. "
+    "This can negatively impact the performance.",
 )
 
 # Hardcoded prj string to replace faulty ones
@@ -175,28 +176,28 @@ def get_layerinfo(
         LayerInfo: the information about the layer.
     """
     # Init
-    path_p = Path(path)
-    if not path_p.exists():
-        raise ValueError(f"File does not exist: {path_p}")
+    path = Path(path)
+    if not path.exists():
+        raise ValueError(f"File does not exist: {path}")
 
     datasource = None
     try:
-        datasource = gdal.OpenEx(str(path_p))
-        if layer is not None:  # and GeofileType(path_p).is_singlelayer is False:
+        datasource = gdal.OpenEx(str(path))
+        if layer is not None:
             datasource_layer = datasource.GetLayer(layer)
         elif datasource.GetLayerCount() == 1:
             datasource_layer = datasource.GetLayerByIndex(0)
         else:
-            raise ValueError(f"No layer specified, and file has <> 1 layer: {path_p}")
+            raise ValueError(f"No layer specified, and file has <> 1 layer: {path}")
 
         # If the layer doesn't exist, return
         if datasource_layer is None:
-            raise ValueError(f"Layer {layer} not found in file: {path_p}")
+            raise ValueError(f"Layer {layer} not found in file: {path}")
 
         # Get column info
         columns = {}
         errors = []
-        geofiletype = GeofileType(path_p)
+        geofiletype = GeofileType(path)
         layer_defn = datasource_layer.GetLayerDefn()
         for i in range(layer_defn.GetFieldCount()):
             name = layer_defn.GetFieldDefn(i).GetName()
@@ -210,7 +211,8 @@ def get_layerinfo(
             for illegal_char in illegal_column_chars:
                 if illegal_char in name:
                     errors.append(
-                        f"Column name {name} contains illegal char: {illegal_char} in file {path_p}, layer {layer}"
+                        f"Column name {name} contains illegal char: {illegal_char} "
+                        f"in file {path}, layer {layer}"
                     )
             column_info = ColumnInfo(
                 name=name, gdal_type=gdal_type, width=width, precision=precision
@@ -228,7 +230,7 @@ def get_layerinfo(
 
         # For shape files, the difference between the 'MULTI' variant and the
         # single one doesn't exists... so always report MULTI variant by convention.
-        if GeofileType(path_p) == GeofileType.ESRIShapefile:
+        if GeofileType(path) == GeofileType.ESRIShapefile:
             if (
                 geometrytypename.startswith("POLYGON")
                 or geometrytypename.startswith("LINESTRING")
@@ -275,12 +277,10 @@ def get_layerinfo(
                         crs = pyproj.CRS.from_epsg(31370)
 
                         # If shapefile, add correct 31370 .prj file
-                        if GeofileType(path_p) == GeofileType.ESRIShapefile:
-                            prj_path = path_p.parent / f"{path_p.stem}.prj"
+                        if GeofileType(path) == GeofileType.ESRIShapefile:
+                            prj_path = path.parent / f"{path.stem}.prj"
                             if prj_path.exists():
-                                prj_rename_path = (
-                                    path_p.parent / f"{path_p.stem}_orig.prj"
-                                )
+                                prj_rename_path = path.parent / f"{path.stem}_orig.prj"
                                 if not prj_rename_path.exists():
                                     prj_path.rename(prj_rename_path)
                                 else:
@@ -308,7 +308,7 @@ def get_layerinfo(
     # If we didn't return or raise yet here, there must have been errors
     errors_str = pprint.pformat(errors)
     raise Exception(
-        f"Errors in layer definition of file {path_p}, layer {layer}: \n{errors_str}"
+        f"Errors in layer definition of file {path}, layer {layer}: \n{errors_str}"
     )
 
 
@@ -463,7 +463,10 @@ def has_spatial_index(
         if geofiletype.is_spatialite_based:
             layerinfo = get_layerinfo(path, layer)
             data_source = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_READONLY)
-            sql = f"SELECT HasSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')"
+            sql = f"""
+                SELECT HasSpatialIndex('{layerinfo.name}',
+                                       '{layerinfo.geometrycolumn}')
+            """
             result = data_source.ExecuteSQL(sql, dialect="SQLITE")
             has_spatial_index = result.GetNextFeature().GetField(0) == 1
             return has_spatial_index
@@ -499,7 +502,7 @@ def remove_spatial_index(
         if geofiletype.is_spatialite_based:
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             datasource.ExecuteSQL(
-                f"SELECT DisableSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",
+                f"SELECT DisableSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",  # noqa: E501
                 dialect="SQLITE",
             )
         elif geofiletype == GeofileType.ESRIShapefile:
@@ -587,7 +590,10 @@ def rename_column(
     try:
         if geofiletype.is_spatialite_based:
             datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
-            sql_stmt = f'ALTER TABLE "{layer}" RENAME COLUMN "{column_name}" TO "{new_column_name}"'
+            sql_stmt = (
+                f'ALTER TABLE "{layer}" '
+                f'RENAME COLUMN "{column_name}" TO "{new_column_name}"'
+            )
             datasource.ExecuteSQL(sql_stmt)
         elif geofiletype == GeofileType.ESRIShapefile:
             raise ValueError(f"rename_column is not possible for {geofiletype} file")
@@ -1154,7 +1160,8 @@ def to_file(
                 time_waiting = (datetime.datetime.now() - start_time).total_seconds()
                 if time_waiting > append_timeout_s:
                     raise RuntimeError(
-                        f"to_file timeout of {append_timeout_s} reached, so stop trying append to {path}!"
+                        f"to_file timeout of {append_timeout_s} reached, stop append "
+                        f"to {path}!"
                     )
 
             # Sleep for a second before trying again
@@ -1455,7 +1462,8 @@ def append_to(
             time_waiting = (datetime.datetime.now() - start_time).total_seconds()
             if time_waiting > append_timeout_s:
                 raise RuntimeError(
-                    f"append_to timeout of {append_timeout_s} reached, so stop trying to write to {dst}!"
+                    f"append_to timeout of {append_timeout_s} reached, so stop write "
+                    f"to {dst}!"
                 )
 
         # Sleep for a second before trying again
@@ -1669,7 +1677,8 @@ def _launder_column_names(columns: Iterable) -> List[Tuple[str, str]]:
             for index in range(1, 101):
                 if index >= 100:
                     raise NotImplementedError(
-                        f"Not supported to launder > 99 columns starting with {column_laundered[:8]}"
+                        "Not supported to launder > 99 columns starting "
+                        f"with {column_laundered[:8]}"
                     )
                 if index <= 9:
                     column_laundered = f"{column_laundered[:8]}_{index}"
