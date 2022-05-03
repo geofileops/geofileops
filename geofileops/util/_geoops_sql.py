@@ -105,11 +105,11 @@ def convexhull(
 
     # Prepare sql template for this operation
     sql_template = """
-            SELECT ST_ConvexHull({{geometrycolumn}}) AS geom
-                  {{columns_to_select_str}}
-              FROM "{{input_layer}}" layer
+            SELECT ST_ConvexHull({geometrycolumn}) AS geom
+                  {columns_to_select_str}
+              FROM "{input_layer}" layer
              WHERE 1=1
-               {{batch_filter}}"""
+               {batch_filter}"""
 
     # Output geometry type same as input geometry type
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
@@ -186,13 +186,13 @@ def isvalid(
 
     # Prepare sql template for this operation
     sql_template = """
-            SELECT ST_IsValidDetail({{geometrycolumn}}) AS geom
-                  ,ST_IsValid({{geometrycolumn}}) AS isvalid
-                  ,ST_IsValidReason({{geometrycolumn}}) AS isvalidreason
-                  {{columns_to_select_str}}
-              FROM "{{input_layer}}" layer
-             WHERE ST_IsValid({{geometrycolumn}}) <> 1
-               {{batch_filter}}"""
+            SELECT ST_IsValidDetail({geometrycolumn}) AS geom
+                  ,ST_IsValid({geometrycolumn}) AS isvalid
+                  ,ST_IsValidReason({geometrycolumn}) AS isvalidreason
+                  {columns_to_select_str}
+              FROM "{input_layer}" layer
+             WHERE ST_IsValid({geometrycolumn}) <> 1
+               {batch_filter}"""
 
     _single_layer_vector_operation(
         input_path=input_path,

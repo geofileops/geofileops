@@ -373,9 +373,14 @@ def execute_sql(
             * 'SQLITE': force the use of the SQLITE dialect.
             Defaults to None.
     """
-    _ogr_util.vector_info(
-        path=Path(path), sql_stmt=sql_stmt, sql_dialect=sql_dialect, readonly=False
-    )
+    datasource = None
+    try:
+        datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
+        result = datasource.ExecuteSQL(sql_stmt, dialect=sql_dialect)
+        datasource.ReleaseResultSet(result)
+    finally:
+        if datasource is not None:
+            del datasource
 
 
 def create_spatial_index(
@@ -426,10 +431,12 @@ def create_spatial_index(
             with _ogr_util.set_config_options({"OGR_SQLITE_CACHE": cache_size_mb}):
                 datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
                 sql = f"SELECT CreateSpatialIndex('{layer}', '{geometrycolumn}')"
-                datasource.ExecuteSQL(sql, dialect="SQLITE")
+                result = datasource.ExecuteSQL(sql, dialect="SQLITE")
+                datasource.ReleaseResultSet(result)
         else:
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
-            datasource.ExecuteSQL(f'CREATE SPATIAL INDEX ON "{layer}"')
+            result = datasource.ExecuteSQL(f'CREATE SPATIAL INDEX ON "{layer}"')
+            datasource.ReleaseResultSet(result)
     except Exception as ex:
         raise Exception(f"Error adding spatial index to {path}.{layer}") from ex
     finally:
@@ -462,13 +469,14 @@ def has_spatial_index(
     try:
         if geofiletype.is_spatialite_based:
             layerinfo = get_layerinfo(path, layer)
-            data_source = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_READONLY)
+            datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_READONLY)
             sql = f"""
                 SELECT HasSpatialIndex('{layerinfo.name}',
                                        '{layerinfo.geometrycolumn}')
             """
-            result = data_source.ExecuteSQL(sql, dialect="SQLITE")
+            result = datasource.ExecuteSQL(sql, dialect="SQLITE")
             has_spatial_index = result.GetNextFeature().GetField(0) == 1
+            datasource.ReleaseResultSet(result)
             return has_spatial_index
         elif geofiletype == GeofileType.ESRIShapefile:
             index_path = path.parent / f"{path.stem}.qix"
@@ -501,10 +509,11 @@ def remove_spatial_index(
     try:
         if geofiletype.is_spatialite_based:
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
-            datasource.ExecuteSQL(
+            result = datasource.ExecuteSQL(
                 f"SELECT DisableSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",  # noqa: E501
                 dialect="SQLITE",
             )
+            datasource.ReleaseResultSet(result)
         elif geofiletype == GeofileType.ESRIShapefile:
             # DROP SPATIAL INDEX ON ... command gives an error, so just remove .qix
             index_path = path.parent / f"{path.stem}.qix"
@@ -513,8 +522,6 @@ def remove_spatial_index(
             raise Exception(
                 f"remove_spatial_index is not supported for {path.suffix} file"
             )
-            # datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
-            # datasource.ExecuteSQL(f'DROP SPATIAL INDEX ON "{layerinfo.name}"')
     finally:
         if datasource is not None:
             del datasource
@@ -534,24 +541,23 @@ def rename_layer(
             one layer in the file, this layer is used. Otherwise exception.
     """
     # Check input parameters
-    path_p = Path(path)
+    path = Path(path)
     if layer is None:
-        layer = get_only_layer(path_p)
+        layer = get_only_layer(path)
 
     # Now really rename
     datasource = None
-    geofiletype = GeofileType(path_p)
+    geofiletype = GeofileType(path)
     try:
         if geofiletype.is_spatialite_based:
-            datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
+            datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             sql_stmt = f'ALTER TABLE "{layer}" RENAME TO "{new_layer}"'
-            datasource.ExecuteSQL(sql_stmt)
+            result = datasource.ExecuteSQL(sql_stmt)
+            datasource.ReleaseResultSet(result)
         elif geofiletype == GeofileType.ESRIShapefile:
             raise ValueError(f"rename_layer is not possible for {geofiletype} file")
         else:
-            raise ValueError(
-                f"rename_layer is not implemented for {path_p.suffix} file"
-            )
+            raise ValueError(f"rename_layer is not implemented for {path.suffix} file")
     finally:
         if datasource is not None:
             del datasource
@@ -574,10 +580,10 @@ def rename_column(
             one layer in the file, this layer is used. Otherwise exception.
     """
     # Check input parameters
-    path_p = Path(path)
+    path = Path(path)
     if layer is None:
-        layer = get_only_layer(path_p)
-    info = get_layerinfo(path_p)
+        layer = get_only_layer(path)
+    info = get_layerinfo(path)
     if column_name not in info.columns and new_column_name in info.columns:
         logger.info(
             f"Column {column_name} seems to be renamed already to {new_column_name}"
@@ -586,21 +592,20 @@ def rename_column(
 
     # Now really rename
     datasource = None
-    geofiletype = GeofileType(path_p)
+    geofiletype = GeofileType(path)
     try:
         if geofiletype.is_spatialite_based:
-            datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
+            datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             sql_stmt = (
                 f'ALTER TABLE "{layer}" '
                 f'RENAME COLUMN "{column_name}" TO "{new_column_name}"'
             )
-            datasource.ExecuteSQL(sql_stmt)
+            result = datasource.ExecuteSQL(sql_stmt)
+            datasource.ReleaseResultSet(result)
         elif geofiletype == GeofileType.ESRIShapefile:
             raise ValueError(f"rename_column is not possible for {geofiletype} file")
         else:
-            raise ValueError(
-                f"rename_column is not implemented for {path_p.suffix} file"
-            )
+            raise ValueError(f"rename_column is not implemented for {path.suffix} file")
     finally:
         if datasource is not None:
             del datasource
@@ -688,7 +693,8 @@ def add_column(
                 f'ALTER TABLE "{layer}" ADD COLUMN "{name}" {type_str}{width_str}'
             )
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
-            datasource.ExecuteSQL(sql_stmt)
+            result = datasource.ExecuteSQL(sql_stmt)
+            datasource.ReleaseResultSet(result)
         else:
             logger.warning(f"Column {name} existed already in {path}, layer {layer}")
 
@@ -699,7 +705,8 @@ def add_column(
             if datasource is None:
                 datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             sql_stmt = f'UPDATE "{layer}" SET "{name}" = {expression}'
-            datasource.ExecuteSQL(sql_stmt, dialect=expression_dialect)
+            result = datasource.ExecuteSQL(sql_stmt, dialect=expression_dialect)
+            datasource.ReleaseResultSet(result)
     finally:
         if datasource is not None:
             del datasource
@@ -718,10 +725,10 @@ def drop_column(
             one layer in the file, this layer is used. Otherwise exception.
     """
     # Check input parameters
-    path_p = Path(path)
+    path = Path(path)
     if layer is None:
-        layer = get_only_layer(path_p)
-    info = get_layerinfo(path_p, layer)
+        layer = get_only_layer(path)
+    info = get_layerinfo(path, layer)
     if column_name not in info.columns:
         logger.info(
             f"Column {column_name} not present so cannot be dropped, so just return"
@@ -731,9 +738,10 @@ def drop_column(
     # Now really rename
     datasource = None
     try:
-        datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
+        datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
         sql_stmt = f'ALTER TABLE "{layer}" DROP COLUMN "{column_name}"'
-        datasource.ExecuteSQL(sql_stmt)
+        result = datasource.ExecuteSQL(sql_stmt)
+        datasource.ReleaseResultSet(result)
     finally:
         if datasource is not None:
             del datasource
@@ -764,28 +772,24 @@ def update_column(
     """
 
     # Init
-    path_p = Path(path)
+    path = Path(path)
     if layer is None:
-        layer = get_only_layer(path_p)
-    layerinfo_orig = get_layerinfo(path_p, layer)
+        layer = get_only_layer(path)
+    layerinfo_orig = get_layerinfo(path, layer)
+    columns_upper = [column.upper() for column in layerinfo_orig.columns]
+    if name.upper() not in columns_upper:
+        # If column doesn't exist yet, error!
+        raise ValueError(f"Column {name} doesn't exist in {path}, layer {layer}")
 
     # Go!
     datasource = None
     try:
-        # datasource = gdal.OpenEx(str(path_p), nOpenFlags=gdal.OF_UPDATE)
-        columns_upper = [column.upper() for column in layerinfo_orig.columns]
-        if name.upper() not in columns_upper:
-            # If column doesn't exist yet, error!
-            raise ValueError(f"Column {name} doesn't exist in {path_p}, layer {layer}")
-
-        # If an expression was provided and update can be done, go for it...
+        datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
         sqlite_stmt = f'UPDATE "{layer}" SET "{name}" = {expression}'
         if where is not None:
             sqlite_stmt += f"\n WHERE {where}"
-        _ogr_util.vector_info(
-            path=path_p, sql_stmt=sqlite_stmt, sql_dialect="SQLITE", readonly=False
-        )
-        # datasource.ExecuteSQL(sqlite_stmt, dialect='SQLITE')
+        result = datasource.ExecuteSQL(sqlite_stmt, dialect="SQLITE")
+        datasource.ReleaseResultSet(result)
     finally:
         if datasource is not None:
             del datasource
@@ -913,27 +917,27 @@ def _read_file_base(
         Union[pd.DataFrame, gpd.GeoDataFrame]: the data read.
     """
     # Init
-    path_p = Path(path)
-    if path_p.exists() is False:
+    path = Path(path)
+    if path.exists() is False:
         raise ValueError(f"File doesnt't exist: {path}")
-    geofiletype = GeofileType(path_p)
+    geofiletype = GeofileType(path)
 
     # If no layer name specified, check if there is only one layer in the file.
     if layer is None:
-        layer = get_only_layer(path_p)
+        layer = get_only_layer(path)
 
     # Depending on the extension... different implementations
     if geofiletype == GeofileType.ESRIShapefile:
         result_gdf = gpd.read_file(
-            str(path_p), bbox=bbox, rows=rows, ignore_geometry=ignore_geometry
+            str(path), bbox=bbox, rows=rows, ignore_geometry=ignore_geometry
         )
     elif geofiletype == GeofileType.GeoJSON:
         result_gdf = gpd.read_file(
-            str(path_p), bbox=bbox, rows=rows, ignore_geometry=ignore_geometry
+            str(path), bbox=bbox, rows=rows, ignore_geometry=ignore_geometry
         )
     elif geofiletype.is_spatialite_based:
         result_gdf = gpd.read_file(
-            str(path_p),
+            str(path),
             layer=layer,
             bbox=bbox,
             rows=rows,
@@ -984,7 +988,7 @@ def read_file_sql(
     """
 
     # Check and init some parameters/variables
-    path_p = Path(path)
+    path = Path(path)
     layer_list = None
     if layer is not None:
         layer_list = [layer]
@@ -994,7 +998,7 @@ def read_file_sql(
         # Execute sql against file and write to temp file
         tmp_path = Path(tmpdir) / "read_file_sql_tmp_file.gpkg"
         _ogr_util.vector_translate(
-            input_path=path_p,
+            input_path=path,
             output_path=tmp_path,
             sql_stmt=sql_stmt,
             sql_dialect=sql_dialect,
@@ -1262,25 +1266,25 @@ def copy(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
         dst (PathLike): the location to copy the file(s) to.
     """
     # Check input parameters
-    src_p = Path(src)
-    dst_p = Path(dst)
-    geofiletype = GeofileType(src_p)
+    src = Path(src)
+    dst = Path(dst)
+    geofiletype = GeofileType(src)
 
     # Copy the main file
-    shutil.copy(str(src_p), dst_p)
+    shutil.copy(str(src), dst)
 
     # For some file types, extra files need to be copied
     # If dest is a dir, just use move. Otherwise concat dest filepaths
     if geofiletype.suffixes_extrafiles is not None:
-        if dst_p.is_dir():
+        if dst.is_dir():
             for suffix in geofiletype.suffixes_extrafiles:
-                srcfile = src_p.parent / f"{src_p.stem}{suffix}"
+                srcfile = src.parent / f"{src.stem}{suffix}"
                 if srcfile.exists():
-                    shutil.copy(str(srcfile), dst_p)
+                    shutil.copy(str(srcfile), dst)
         else:
             for suffix in geofiletype.suffixes_extrafiles:
-                srcfile = src_p.parent / f"{src_p.stem}{suffix}"
-                dstfile = dst_p.parent / f"{dst_p.stem}{suffix}"
+                srcfile = src.parent / f"{src.stem}{suffix}"
+                dstfile = dst.parent / f"{dst.stem}{suffix}"
                 if srcfile.exists():
                     shutil.copy(str(srcfile), dstfile)
 
@@ -1295,25 +1299,25 @@ def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
         dst (PathLike): the location to move the file(s) to
     """
     # Check input parameters
-    src_p = Path(src)
-    dst_p = Path(dst)
-    geofiletype = GeofileType(src_p)
+    src = Path(src)
+    dst = Path(dst)
+    geofiletype = GeofileType(src)
 
     # Move the main file
-    shutil.move(str(src_p), dst_p, copy_function=_io_util.copyfile)
+    shutil.move(str(src), dst, copy_function=_io_util.copyfile)
 
     # For some file types, extra files need to be moved
     # If dest is a dir, just use move. Otherwise concat dest filepaths
     if geofiletype.suffixes_extrafiles is not None:
-        if dst_p.is_dir():
+        if dst.is_dir():
             for suffix in geofiletype.suffixes_extrafiles:
-                srcfile = src_p.parent / f"{src_p.stem}{suffix}"
+                srcfile = src.parent / f"{src.stem}{suffix}"
                 if srcfile.exists():
-                    shutil.move(str(srcfile), dst_p, copy_function=_io_util.copyfile)
+                    shutil.move(str(srcfile), dst, copy_function=_io_util.copyfile)
         else:
             for suffix in geofiletype.suffixes_extrafiles:
-                srcfile = src_p.parent / f"{src_p.stem}{suffix}"
-                dstfile = dst_p.parent / f"{dst_p.stem}{suffix}"
+                srcfile = src.parent / f"{src.stem}{suffix}"
+                dstfile = dst.parent / f"{dst.stem}{suffix}"
                 if srcfile.exists():
                     shutil.move(str(srcfile), dstfile, copy_function=_io_util.copyfile)
 
@@ -1328,21 +1332,21 @@ def remove(path: Union[str, "os.PathLike[Any]"]):
         path (PathLike): the file to remove
     """
     # Check input parameters
-    path_p = Path(path)
-    geofiletype = GeofileType(path_p)
+    path = Path(path)
+    geofiletype = GeofileType(path)
 
     # If there is a lock file, remove it
-    lockfile_path = path_p.parent / f"{path_p.name}.lock"
+    lockfile_path = path.parent / f"{path.name}.lock"
     lockfile_path.unlink(missing_ok=True)
 
     # Remove the main file
-    if path_p.exists():
-        path_p.unlink()
+    if path.exists():
+        path.unlink()
 
     # For some file types, extra files need to be removed
     if geofiletype.suffixes_extrafiles is not None:
         for suffix in geofiletype.suffixes_extrafiles:
-            curr_path = path_p.parent / f"{path_p.stem}{suffix}"
+            curr_path = path.parent / f"{path.stem}{suffix}"
             if curr_path.exists():
                 curr_path.unlink()
 
@@ -1583,22 +1587,22 @@ def convert(
         force (bool, optional): overwrite existing output file(s)
             Defaults to False.
     """
-    src_p = Path(src)
-    dst_p = Path(dst)
+    src = Path(src)
+    dst = Path(dst)
 
     # If dest file exists already, remove it
-    if dst_p.exists():
+    if dst.exists():
         if force is True:
-            remove(dst_p)
+            remove(dst)
         else:
-            logger.info(f"Output file exists already, so stop: {dst_p}")
+            logger.info(f"Output file exists already, so stop: {dst}")
             return
 
     # Convert
-    logger.info(f"Convert {src_p} to {dst_p}")
+    logger.info(f"Convert {src} to {dst}")
     _append_to_nolock(
-        src_p,
-        dst_p,
+        src,
+        dst,
         src_layer,
         dst_layer,
         src_crs=src_crs,
