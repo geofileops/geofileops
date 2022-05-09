@@ -850,7 +850,6 @@ def clip(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
@@ -897,8 +896,6 @@ def clip(
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
-        verbose (bool, optional): write more info to the output.
-             Defaults to False.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
@@ -920,7 +917,6 @@ def clip(
         explodecollections=explodecollections,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -1616,14 +1612,14 @@ def symmetric_difference(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
-    Calculates the pairwise "symmtric difference" of the two input layers.
+    Calculates the "symmetric difference" of the two input layers.
 
     Alternative names:
-        - GeoPandas: overlay(how="symmtric_difference")
+        - GeoPandas: overlay(how="symmetric_difference")
+        - QGIS, ArcMap: symmetrical difference
 
     Args:
         input1_path (PathLike): the 1st input file
@@ -1648,8 +1644,6 @@ def symmetric_difference(
             smaller nb_parallel, will reduc
             e the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
-        verbose (bool, optional): write more info to the output.
-            Defaults to False.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
@@ -1671,7 +1665,6 @@ def symmetric_difference(
         explodecollections=explodecollections,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
