@@ -409,9 +409,64 @@ def dissolve(
     force: bool = False,
 ):
     """
-    Applies a dissolve operation on the geometry column of the input file.
+    Applies a dissolve operation on the input file.
 
-    For the other columns, only aggfunc = 'first' is supported at the moment.
+    If groupby_columns are specified, the data is first grouped on those columns
+    before the geometries are unioned.
+
+    Data in other columns can be retained in the output by specifying the
+    agg_columns parameter.
+
+    This is an example of how data in the columns that isn't grouped on can be
+    aggregated to be added to the output file:
+    ```
+    import geofileops as gfo
+
+    gfo.dissolve(
+        input_path=...,
+        output_path=...,
+        groupby_columns=["cropgroup"],
+        agg_columns={
+            "columns": [
+                {"column": "crop", "agg": "max", "as": "crop_max"},
+                {"column": "crop", "agg": "count", "as": "crop_count"},
+                {
+                    "column": "crop",
+                    "agg": "concat",
+                    "distinct": True,
+                    "sep": ";",
+                    "as": "crop_concat",
+                },
+                {"column": "area", "agg": "mean", "as": "area_mean"},
+            ]
+        },
+        explodecollections=False,
+    )
+    ```
+
+    The following example will save all detailed data for the columns
+    "crop_label" and "area" in the output file. The detailed data is encoded
+    per group/row in a "json" text field. Shapefiles only support up to 254 
+    characters in a text field, so this format won't be very suited as output 
+    format for this option.
+    ```
+    import geofileops as gfo
+
+    gfo.dissolve(
+        input_path=...,
+        output_path=...,
+        groupby_columns=["cropgroup"],
+        agg_columns={"json": ["crop", "area"]},
+        explodecollections=False,
+    )
+    ```
+
+    This results in this type of output:
+    ```
+    cropgroup  json
+    Grasses    ["{"crop":"Meadow","area":1295.43,"fid_orig":16}","{"crop":"Pasture",...
+    Maize      ["{"crop":"Silo","area":3889.29,"fid_orig":2}","{"crop":"Fodder",...
+    ```
 
     If the output is tiled (by specifying a tiles_path or nb_squarish_tiles > 1),
     the result will be clipped on the output tiles and the tile borders are
@@ -421,8 +476,8 @@ def dissolve(
         input_path (PathLike): the input file
         output_path (PathLike): the file to write the result to
         explodecollections (bool): True to output only simple geometries. If
-            False is specified, this can result in huge geometries for large
-            files, so beware...
+            False, this can result in huge geometries for large files,
+            especially if no groupby_columns are specified.
         groupby_columns (List[str], optional): columns to group on while
             aggregating. Defaults to None, resulting in a spatial union of all
             geometries that touch.
