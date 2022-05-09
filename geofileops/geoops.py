@@ -411,11 +411,11 @@ def dissolve(
     """
     Applies a dissolve operation on the input file.
 
-    If groupby_columns are specified, the data is first grouped on those columns
-    before the geometries are unioned.
+    If columns are specified with ``groupby_columns``, the data is first grouped
+    on those columns before the geometries are merged.
 
     Data in other columns can be retained in the output by specifying the
-    agg_columns parameter.
+    ``agg_columns`` parameter.
 
     This is an example of how data in the columns that isn't grouped on can be
     aggregated to be added to the output file:
@@ -468,7 +468,7 @@ def dissolve(
         Grasses    ["{"crop":"Meadow","area":1290,"fid_orig":5}","{"crop":"Pasture",...
         Maize      ["{"crop":"Silo","area":3889.29,"fid_orig":2}","{"crop":"Fodder",...
 
-    If the output is tiled (by specifying a tiles_path or nb_squarish_tiles > 1),
+    If the output is tiled (by specifying ``tiles_path`` or ``nb_squarish_tiles`` > 1),
     the result will be clipped on the output tiles and the tile borders are
     never crossed.
 
