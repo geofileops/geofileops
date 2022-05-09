@@ -62,6 +62,7 @@ General layer operations
    add_column
    convert
    create_spatial_index
+   drop_column
    execute_sql
    get_crs
    get_default_layer
