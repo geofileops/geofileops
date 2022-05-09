@@ -225,11 +225,11 @@ def buffer(
            - |buffer_mitre_25|
            - |buffer_mitre_10|
 
-    .. |buffer_quadrantsegments_5| image:: ../_static/images/buffer_quadrantsegments_5.png  # noqa: E501
+    .. |buffer_quadrantsegments_5| image:: ../_static/images/buffer_quadrantsegments_5.png
         :alt: Buffer with quadrantsegments=5
-    .. |buffer_quadrantsegments_2| image:: ../_static/images/buffer_quadrantsegments_2.png  # noqa: E501
+    .. |buffer_quadrantsegments_2| image:: ../_static/images/buffer_quadrantsegments_2.png
         :alt: Buffer with quadrantsegments=2
-    .. |buffer_quadrantsegments_1| image:: ../_static/images/buffer_quadrantsegments_1.png  # noqa: E501
+    .. |buffer_quadrantsegments_1| image:: ../_static/images/buffer_quadrantsegments_1.png
         :alt: Buffer with quadrantsegments=1
     .. |buffer_endcap_round| image:: ../_static/images/buffer_endcap_round.png
         :alt: Buffer with endcap_style=BufferEndCapStyle.ROUND (default)
@@ -419,54 +419,54 @@ def dissolve(
 
     This is an example of how data in the columns that isn't grouped on can be
     aggregated to be added to the output file:
-    ```
-    import geofileops as gfo
+    ::
 
-    gfo.dissolve(
-        input_path=...,
-        output_path=...,
-        groupby_columns=["cropgroup"],
-        agg_columns={
-            "columns": [
-                {"column": "crop", "agg": "max", "as": "crop_max"},
-                {"column": "crop", "agg": "count", "as": "crop_count"},
-                {
-                    "column": "crop",
-                    "agg": "concat",
-                    "distinct": True,
-                    "sep": ";",
-                    "as": "crop_concat",
-                },
-                {"column": "area", "agg": "mean", "as": "area_mean"},
-            ]
-        },
-        explodecollections=False,
-    )
-    ```
+        import geofileops as gfo
+
+        gfo.dissolve(
+            input_path=...,
+            output_path=...,
+            groupby_columns=["cropgroup"],
+            agg_columns={
+                "columns": [
+                    {"column": "crop", "agg": "max", "as": "crop_max"},
+                    {"column": "crop", "agg": "count", "as": "crop_count"},
+                    {
+                        "column": "crop",
+                        "agg": "concat",
+                        "distinct": True,
+                        "sep": ";",
+                        "as": "crop_concat",
+                    },
+                    {"column": "area", "agg": "mean", "as": "area_mean"},
+                ]
+            },
+            explodecollections=False,
+        )
 
     The following example will save all detailed data for the columns
     "crop_label" and "area" in the output file. The detailed data is encoded
-    per group/row in a "json" text field. Shapefiles only support up to 254 
-    characters in a text field, so this format won't be very suited as output 
+    per group/row in a "json" text field. Shapefiles only support up to 254
+    characters in a text field, so this format won't be very suited as output
     format for this option.
-    ```
-    import geofileops as gfo
+    ::
 
-    gfo.dissolve(
-        input_path=...,
-        output_path=...,
-        groupby_columns=["cropgroup"],
-        agg_columns={"json": ["crop", "area"]},
-        explodecollections=False,
-    )
-    ```
+        import geofileops as gfo
+
+        gfo.dissolve(
+            input_path=...,
+            output_path=...,
+            groupby_columns=["cropgroup"],
+            agg_columns={"json": ["crop", "area"]},
+            explodecollections=False,
+        )
 
     This results in this type of output:
-    ```
-    cropgroup  json
-    Grasses    ["{"crop":"Meadow","area":1295.43,"fid_orig":16}","{"crop":"Pasture",...
-    Maize      ["{"crop":"Silo","area":3889.29,"fid_orig":2}","{"crop":"Fodder",...
-    ```
+    ::
+
+        cropgroup  json
+        Grasses    ["{"crop":"Meadow","area":1290,"fid_orig":5}","{"crop":"Pasture",...
+        Maize      ["{"crop":"Silo","area":3889.29,"fid_orig":2}","{"crop":"Fodder",...
 
     If the output is tiled (by specifying a tiles_path or nb_squarish_tiles > 1),
     the result will be clipped on the output tiles and the tile borders are
@@ -1326,6 +1326,7 @@ def join_by_location(
     The spatial_relations_query can be specified either with named spatial
     predicates or masks as defined by the
     [DE-9IM]](https://en.wikipedia.org/wiki/DE-9IM) model:
+
         - "overlaps is True and contains is False"
         - "(T*T***T** is True or 1*T***T** is True) and T*****FF* is False"
 
