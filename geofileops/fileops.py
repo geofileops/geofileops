@@ -423,6 +423,7 @@ def create_spatial_index(
 
     # Now really add index
     datasource = None
+    result = None
     try:
         geofiletype = GeofileType(path)
         if geofiletype.is_spatialite_based:
@@ -432,15 +433,16 @@ def create_spatial_index(
                 datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
                 sql = f"SELECT CreateSpatialIndex('{layer}', '{geometrycolumn}')"
                 result = datasource.ExecuteSQL(sql, dialect="SQLITE")
-                datasource.ReleaseResultSet(result)
         else:
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             result = datasource.ExecuteSQL(f'CREATE SPATIAL INDEX ON "{layer}"')
-            datasource.ReleaseResultSet(result)
+
     except Exception as ex:
         raise Exception(f"Error adding spatial index to {path}.{layer}") from ex
     finally:
         if datasource is not None:
+            if result is not None:
+                datasource.ReleaseResultSet(result)
             del datasource
 
 
@@ -465,6 +467,7 @@ def has_spatial_index(
 
     # Now check the index
     datasource = None
+    result = None
     geofiletype = GeofileType(path)
     try:
         if geofiletype.is_spatialite_based:
@@ -476,7 +479,6 @@ def has_spatial_index(
             """
             result = datasource.ExecuteSQL(sql, dialect="SQLITE")
             has_spatial_index = result.GetNextFeature().GetField(0) == 1
-            datasource.ReleaseResultSet(result)
             return has_spatial_index
         elif geofiletype == GeofileType.ESRIShapefile:
             index_path = path.parent / f"{path.stem}.qix"
@@ -485,6 +487,8 @@ def has_spatial_index(
             raise ValueError(f"has_spatial_index not supported for {path}")
     finally:
         if datasource is not None:
+            if result is not None:
+                datasource.ReleaseResultSet(result)
             del datasource
 
 
@@ -504,6 +508,7 @@ def remove_spatial_index(
 
     # Now really remove index
     datasource = None
+    result = None
     geofiletype = GeofileType(path)
     layerinfo = get_layerinfo(path, layer)
     try:
@@ -513,7 +518,6 @@ def remove_spatial_index(
                 f"SELECT DisableSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",  # noqa: E501
                 dialect="SQLITE",
             )
-            datasource.ReleaseResultSet(result)
         elif geofiletype == GeofileType.ESRIShapefile:
             # DROP SPATIAL INDEX ON ... command gives an error, so just remove .qix
             index_path = path.parent / f"{path.stem}.qix"
@@ -524,6 +528,8 @@ def remove_spatial_index(
             )
     finally:
         if datasource is not None:
+            if result is not None:
+                datasource.ReleaseResultSet(result)
             del datasource
 
 
@@ -547,19 +553,21 @@ def rename_layer(
 
     # Now really rename
     datasource = None
+    result = None
     geofiletype = GeofileType(path)
     try:
         if geofiletype.is_spatialite_based:
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             sql_stmt = f'ALTER TABLE "{layer}" RENAME TO "{new_layer}"'
             result = datasource.ExecuteSQL(sql_stmt)
-            datasource.ReleaseResultSet(result)
         elif geofiletype == GeofileType.ESRIShapefile:
             raise ValueError(f"rename_layer is not possible for {geofiletype} file")
         else:
             raise ValueError(f"rename_layer is not implemented for {path.suffix} file")
     finally:
         if datasource is not None:
+            if result is not None:
+                datasource.ReleaseResultSet(result)
             del datasource
 
 
@@ -592,6 +600,7 @@ def rename_column(
 
     # Now really rename
     datasource = None
+    result = None
     geofiletype = GeofileType(path)
     try:
         if geofiletype.is_spatialite_based:
@@ -601,13 +610,14 @@ def rename_column(
                 f'RENAME COLUMN "{column_name}" TO "{new_column_name}"'
             )
             result = datasource.ExecuteSQL(sql_stmt)
-            datasource.ReleaseResultSet(result)
         elif geofiletype == GeofileType.ESRIShapefile:
             raise ValueError(f"rename_column is not possible for {geofiletype} file")
         else:
             raise ValueError(f"rename_column is not implemented for {path.suffix} file")
     finally:
         if datasource is not None:
+            if result is not None:
+                datasource.ReleaseResultSet(result)
             del datasource
 
 
@@ -684,6 +694,7 @@ def add_column(
 
     # Go!
     datasource = None
+    result = None
     try:
         # If column doesn't exist yet, create it
         columns_upper = [column.upper() for column in layerinfo_orig.columns]
@@ -706,9 +717,10 @@ def add_column(
                 datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             sql_stmt = f'UPDATE "{layer}" SET "{name}" = {expression}'
             result = datasource.ExecuteSQL(sql_stmt, dialect=expression_dialect)
-            datasource.ReleaseResultSet(result)
     finally:
         if datasource is not None:
+            if result is not None:
+                datasource.ReleaseResultSet(result)
             del datasource
 
 
@@ -736,13 +748,15 @@ def drop_column(
 
     # Now really rename
     datasource = None
+    result = None
     try:
         datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
         sql_stmt = f'ALTER TABLE "{layer}" DROP COLUMN "{column_name}"'
         result = datasource.ExecuteSQL(sql_stmt)
-        datasource.ReleaseResultSet(result)
     finally:
         if datasource is not None:
+            if result is not None:
+                datasource.ReleaseResultSet(result)
             del datasource
 
 
@@ -782,15 +796,17 @@ def update_column(
 
     # Go!
     datasource = None
+    result = None
     try:
         datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
         sqlite_stmt = f'UPDATE "{layer}" SET "{name}" = {expression}'
         if where is not None:
             sqlite_stmt += f"\n WHERE {where}"
         result = datasource.ExecuteSQL(sqlite_stmt, dialect="SQLITE")
-        datasource.ReleaseResultSet(result)
     finally:
         if datasource is not None:
+            if result is not None:
+                datasource.ReleaseResultSet(result)
             del datasource
 
 
@@ -1321,7 +1337,7 @@ def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
                     shutil.move(str(srcfile), dstfile, copy_function=_io_util.copyfile)
 
 
-def remove(path: Union[str, "os.PathLike[Any]"]):
+def remove(path: Union[str, "os.PathLike[Any]"], missing_ok: bool = False):
     """
     Removes the geofile. Is it is a geofile composed of multiple files
     (eg. .shp) all files are removed.
@@ -1340,14 +1356,13 @@ def remove(path: Union[str, "os.PathLike[Any]"]):
 
     # Remove the main file
     if path.exists():
-        path.unlink()
+        path.unlink(missing_ok=missing_ok)
 
     # For some file types, extra files need to be removed
     if geofiletype.suffixes_extrafiles is not None:
         for suffix in geofiletype.suffixes_extrafiles:
             curr_path = path.parent / f"{path.stem}{suffix}"
-            if curr_path.exists():
-                curr_path.unlink()
+            curr_path.unlink(missing_ok=True)
 
 
 def append_to(
