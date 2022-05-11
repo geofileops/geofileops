@@ -2017,9 +2017,6 @@ def _prepare_processing_params(
             # If no batchsize specified, add some batches to reduce impact of possible
             # "unbalanced" batches regarding needed processing time.
             nb_batches = returnvalue.nb_parallel * 2
-
-    elif batchsize > 0:
-        nb_batches = math.ceil(input1_layerinfo.featurecount / batchsize)
     else:
         nb_batches = 1
 
