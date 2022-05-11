@@ -97,7 +97,7 @@ def get_parallelization_params(
     parallelization_config: Optional[ParallelizationConfig] = None,
 ) -> parallelizationParams:
     """
-    Determins recommended parallelization params.
+    Determines recommended parallelization params.
 
     Args:
         nb_rows_total (int): The total number of rows that will be processed
@@ -704,7 +704,8 @@ def dissolve(
     ]:
         if tiles_path is not None or nb_squarish_tiles > 1:
             raise Exception(
-                f"Dissolve to tiles (tiles_path, nb_squarish_tiles) is not supported for {input_layerinfo.geometrytype}"
+                "Dissolve to tiles (tiles_path, nb_squarish_tiles) is not supported "
+                f"for {input_layerinfo.geometrytype}"
             )
     if output_path.exists():
         if force is False:
