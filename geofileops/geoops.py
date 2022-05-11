@@ -641,10 +641,6 @@ def makevalid(
     Makes all geometries in the input file valid and writes the result to the
     output path.
 
-    Alternative names:
-        - QGIS: fix geometries
-        - shapely: make_valid
-
     Args:
         input_path (PathLike): The input file.
         output_path (PathLike): The file to write the result to.
