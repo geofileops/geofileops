@@ -1115,6 +1115,7 @@ def dissolve(
                     sql_stmt=sql_stmt,
                     output_layer=output_layer,
                     explodecollections=explodecollections,
+                    nb_parallel=1,
                 )
 
         finally:
