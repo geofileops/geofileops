@@ -1981,8 +1981,13 @@ def _prepare_processing_params(
 
     # Determine the optimal number of parallel processes + batches
     if returnvalue.nb_parallel == -1:
-        # Default, put at least 100 rows in a batch for parallelisation
-        min_rows_per_batch = min(batchsize, 100)
+        # If no batch size specified, put at least 100 rows in a batch
+        if batchsize <= 0:
+            min_rows_per_batch = 100
+        else:
+            # If batchsize is specified, use the batch size
+            min_rows_per_batch = batchsize
+
         max_parallel = max(int(input1_layerinfo.featurecount / min_rows_per_batch), 1)
         returnvalue.nb_parallel = min(multiprocessing.cpu_count(), max_parallel)
 
@@ -2000,7 +2005,12 @@ def _prepare_processing_params(
                 input1_layerinfo.featurecount
                 / (max_rows_parallel / returnvalue.nb_parallel)
             )
+        elif batchsize > 0:
+            # If a batchsize is specified, try to honer it
+            nb_batches = returnvalue.nb_parallel
         else:
+            # If no batchsize specified, add some batches to reduce impact of possible
+            # "unbalanced" batches regarding needed processing time.
             nb_batches = returnvalue.nb_parallel * 2
     else:
         nb_batches = 1
