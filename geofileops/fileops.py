@@ -1337,7 +1337,7 @@ def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
                     shutil.move(str(srcfile), dstfile, copy_function=_io_util.copyfile)
 
 
-def remove(path: Union[str, "os.PathLike[Any]"]):
+def remove(path: Union[str, "os.PathLike[Any]"], missing_ok: bool = False):
     """
     Removes the geofile. Is it is a geofile composed of multiple files
     (eg. .shp) all files are removed.
@@ -1356,14 +1356,13 @@ def remove(path: Union[str, "os.PathLike[Any]"]):
 
     # Remove the main file
     if path.exists():
-        path.unlink()
+        path.unlink(missing_ok=missing_ok)
 
     # For some file types, extra files need to be removed
     if geofiletype.suffixes_extrafiles is not None:
         for suffix in geofiletype.suffixes_extrafiles:
             curr_path = path.parent / f"{path.stem}{suffix}"
-            if curr_path.exists():
-                curr_path.unlink()
+            curr_path.unlink(missing_ok=True)
 
 
 def append_to(
