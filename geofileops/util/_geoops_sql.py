@@ -938,31 +938,57 @@ def intersection(
     # MULTI variant to evade ugly warnings
     force_output_geometrytype = primitivetype_to_extract.to_multitype
 
+    # Format spatial relation filter
+    query = "intersects is True and touches is False"
+    spatial_relation_filter = _format_spatial_relations_filter(
+        query=query, spatial_relation_column="sub.spatial_relation"
+    )
+
     # Prepare sql template for this operation
+    #
+    # Remark: use "LIMIT -1 OFFSET 0" to evade that the sqlite query optimizer
+    #     "flattens" the subquery, as that makes checking the spatial
+    #     relations (using ST_RelateMatch) very slow!
     sql_template = f"""
-        SELECT sub.geom
-             {{layer1_columns_from_subselect_str}}
-             {{layer2_columns_from_subselect_str}}
-          FROM
-            ( SELECT ST_CollectionExtract(
-                       ST_Intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}),
-                       {primitivetype_to_extract.value}) as geom
-                    {{layer1_columns_prefix_alias_str}}
-                    {{layer2_columns_prefix_alias_str}}
-                FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
-               WHERE 1=1
-                 {{batch_filter}}
-                 AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
-                 AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
-                 AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
-                 AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
-            ) sub
-         WHERE sub.geom IS NOT NULL
+        SELECT ST_CollectionExtract(
+                    ST_Intersection(sub.geom1, sub.geom2),
+                    {primitivetype_to_extract.value}) as geom
+              {{layer1_columns_from_subselect_str}}
+              {{layer2_columns_from_subselect_str}}
+          FROM (
+            SELECT layer1.{{input1_geometrycolumn}} as geom1
+                  ,layer2.{{input2_geometrycolumn}} as geom2
+                  {{layer1_columns_prefix_alias_str}}
+                  {{layer2_columns_prefix_alias_str}}
+                  ,ST_relate(layer1.{{input1_geometrycolumn}},
+                             layer2.{{input2_geometrycolumn}}
+                  ) as spatial_relation
+              FROM {{input1_databasename}}."{{input1_layer}}" layer1
+              JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree
+                ON layer1.fid = layer1tree.id
+              JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+              JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree
+                ON layer2.fid = layer2tree.id
+             WHERE 1=1
+               {{batch_filter}}
+               AND layer1tree.minx <= layer2tree.maxx
+               AND layer1tree.maxx >= layer2tree.minx
+               AND layer1tree.miny <= layer2tree.maxy
+               AND layer1tree.maxy >= layer2tree.miny
+             LIMIT -1 OFFSET 0
+          ) sub
+         WHERE {spatial_relation_filter}
+         LIMIT -1 OFFSET 0
         """
 
+    # Remove NULL geometries (can become NULL due to ST_CollectionExtract)
+    sql_template = f"""
+        SELECT *
+          FROM (
+            {sql_template}
+          ) sub2
+         WHERE sub2.geom IS NOT NULL
+        """
     # Go!
     return _two_layer_vector_operation(
         input1_path=input1_path,
@@ -1010,7 +1036,7 @@ def join_by_location(
 
     # Prepare sql template for this operation
     # Prepare intersection area columns/filter
-    area_inters_column_expression = ""
+    area_inters_column_expr = ""
     area_inters_column_in_output = ""
     area_inters_column_0_in_output = ""
     area_inters_filter = ""
@@ -1021,17 +1047,20 @@ def join_by_location(
             area_inters_column_0_in_output = f',0 AS "{area_inters_column_name}"'
         else:
             area_inters_column_name_touse = "area_inters"
-        area_inters_column_expression = f',ST_area(ST_intersection(sub_filter.geom, sub_filter.l2_geom)) as "{area_inters_column_name_touse}"'
+        area_inters_column_expr = f''',ST_area(ST_intersection(sub_filter.geom, sub_filter.l2_geom)
+                                              ) as "{area_inters_column_name_touse}"'''
         if min_area_intersect is not None:
-            area_inters_filter = f'WHERE sub_area."{area_inters_column_name_touse}" >= {min_area_intersect}'
+            area_inters_filter = f"""WHERE sub_area."{area_inters_column_name_touse}"
+                                             >= {min_area_intersect}"""
 
     # Prepare spatial relations filter
     if spatial_relations_query != "intersects is True":
         # joining should only be possible on features that at least have an
         # interaction! So, add "intersects is True" to query to evade errors!
         spatial_relations_query = f"({spatial_relations_query}) and intersects is True"
-    spatial_relations_filter = _prepare_spatial_relations_filter(
-        spatial_relations_query
+    filter = _format_spatial_relations_filter(spatial_relations_query)
+    spatial_relation_filter = filter.format(
+        spatial_relation="sub_filter.spatial_relation"
     )
 
     # Prepare sql template
@@ -1044,7 +1073,7 @@ def join_by_location(
               SELECT sub_area.*
                 FROM (
                   SELECT sub_filter.*
-                        {area_inters_column_expression}
+                        {area_inters_column_expr}
                     FROM (
                       SELECT layer1.{{input1_geometrycolumn}} as geom
                             ,layer1.fid l1_fid
@@ -1055,9 +1084,11 @@ def join_by_location(
                                        layer2.{{input2_geometrycolumn}}
                              ) as spatial_relation
                         FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                        JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                        JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree
+                          ON layer1.fid = layer1tree.id
                         JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                        JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                        JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree
+                          ON layer2.fid = layer2tree.id
                        WHERE 1=1
                          {{batch_filter}}
                          AND layer1tree.minx <= layer2tree.maxx
@@ -1066,7 +1097,7 @@ def join_by_location(
                          AND layer1tree.maxy >= layer2tree.miny
                        LIMIT -1 OFFSET 0
                       ) sub_filter
-                   WHERE {spatial_relations_filter.format(spatial_relation="sub_filter.spatial_relation")}
+                   WHERE {spatial_relation_filter}
                    LIMIT -1 OFFSET 0
                   ) sub_area
                {area_inters_filter}
@@ -1119,7 +1150,9 @@ def join_by_location(
     )
 
 
-def _prepare_spatial_relations_filter(query: str) -> str:
+def _format_spatial_relations_filter(
+    query: str, spatial_relation_column: str = "{spatial_relation}"
+) -> str:
 
     named_spatial_relations = {
         # "disjoint": ["FF*FF****"],
@@ -1161,13 +1194,11 @@ def _prepare_spatial_relations_filter(query: str) -> str:
         elif token in named_spatial_relations:
             match_list = []
             for spatial_relation in named_spatial_relations[token]:
-                match = (
-                    f"ST_RelateMatch({{spatial_relation}}, '{spatial_relation}') = 1"
-                )
+                match = f"ST_RelateMatch({spatial_relation_column}, '{spatial_relation}') = 1"
                 match_list.append(match)
             query_tokens_prepared.append(f"({' or '.join(match_list)})")
         elif len(token) == 9 and re.fullmatch("^[FT012*]+$", token) is not None:
-            token_prepared = f"ST_RelateMatch({{spatial_relation}}, '{token}')"
+            token_prepared = f"ST_RelateMatch({spatial_relation_column}, '{token}')"
             query_tokens_prepared.append(token_prepared)
         else:
             raise ValueError(
