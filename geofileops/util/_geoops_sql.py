@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 import logging
 import logging.config
+import math
 import multiprocessing
 from pathlib import Path
 import shutil
@@ -17,6 +18,7 @@ import pandas as pd
 
 import geofileops as gfo
 from geofileops import GeofileType, GeometryType, PrimitiveType
+from geofileops import fileops
 from geofileops.fileops import _append_to_nolock
 from . import _io_util
 from . import _ogr_util
@@ -308,7 +310,7 @@ def select(
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
     nb_parallel: int = 1,
-    batchsize: int = 1,
+    batchsize: int = -1,
     verbose: bool = False,
     force: bool = False,
 ):
@@ -451,6 +453,15 @@ def _single_layer_vector_operation(
         # If None is returned, just stop.
         if processing_params is None or processing_params.batches is None:
             return
+
+        # If there are multiple batches, there needs to be a {batch_filter}
+        # placeholder in the sql template!
+        if len(processing_params.batches) > 1:
+            if "{batch_filter}" not in sql_template:
+                raise ValueError(
+                    "Error: nb_batches > 1 but no {batch_filter} "
+                    f"placeholder in sql_template\n{sql_template}"
+                )
 
         # Format column string for use in select
         formatted_column_strings = format_column_strings(
@@ -1874,8 +1885,8 @@ def _two_layer_vector_operation(
                 try:
                     # Get the result
                     result = future.result()
-                    if result is not None and verbose is True:
-                        logger.info(result)
+                    if result is not None:
+                        logger.debug(result)
 
                     # Start copy of the result to a common file
                     batch_id = future_to_batch_id[future]
@@ -1888,31 +1899,31 @@ def _two_layer_vector_operation(
                         tmp_partial_output_path.exists()
                         and tmp_partial_output_path.stat().st_size > 0
                     ):
-                        gfo.append_to(
+                        fileops._append_to_nolock(
                             src=tmp_partial_output_path,
                             dst=tmp_output_path,
                             explodecollections=explodecollections,
                             force_output_geometrytype=force_output_geometrytype,
                             create_spatial_index=False,
                         )
-                        # gfo.remove(tmp_partial_output_path)
                     else:
                         logger.debug(f"Result file {tmp_partial_output_path} was empty")
 
-                except Exception:
+                    # Cleanup tmp partial file
+                    gfo.remove(tmp_partial_output_path, missing_ok=True)
+
+                except Exception as ex:
                     batch_id = future_to_batch_id[future]
-                    # calculate_pool.shutdown()
-                    # logger.exception(f"Error executing {batches[batch_id]}")
-                    raise Exception(f"Error executing {batches[batch_id]}, so stop")
+                    raise Exception(f"Error executing {batches[batch_id]}") from ex
 
                 # Log the progress and prediction speed
                 nb_done += 1
                 _general_util.report_progress(
-                    start_time,
-                    nb_done,
-                    len(processing_params.batches),
-                    operation_name,
-                    processing_params.nb_parallel,
+                    start_time=start_time,
+                    nb_done=nb_done,
+                    nb_todo=len(processing_params.batches),
+                    operation=operation_name,
+                    nb_parallel=processing_params.nb_parallel,
                 )
 
         # Round up and clean up
@@ -1975,7 +1986,7 @@ def _prepare_processing_params(
 
     if input1_layerinfo.featurecount == 0:
         logger.info(
-            f"The input layer doesn't contain any rows. File: {input1_path}, layer: {input1_layer}"
+            f"input1 layer contains 0 rows, file: {input1_path}, layer: {input1_layer}"
         )
         return None
 
@@ -2000,7 +2011,10 @@ def _prepare_processing_params(
             max_rows_parallel = batchsize * returnvalue.nb_parallel
         else:
             max_rows_parallel = 200000
+
+        # Adapt number of batches to max_rows_parallel
         if input1_layerinfo.featurecount > max_rows_parallel:
+            # If more rows than can be handled simultanously in parallel
             nb_batches = int(
                 input1_layerinfo.featurecount
                 / (max_rows_parallel / returnvalue.nb_parallel)
@@ -2012,6 +2026,9 @@ def _prepare_processing_params(
             # If no batchsize specified, add some batches to reduce impact of possible
             # "unbalanced" batches regarding needed processing time.
             nb_batches = returnvalue.nb_parallel * 2
+
+    elif batchsize > 0:
+        nb_batches = math.ceil(input1_layerinfo.featurecount / batchsize)
     else:
         nb_batches = 1
 
