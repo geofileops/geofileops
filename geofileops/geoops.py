@@ -641,6 +641,10 @@ def makevalid(
     Makes all geometries in the input file valid and writes the result to the
     output path.
 
+    Alternative names:
+        - QGIS: fix geometries
+        - shapely: make_valid
+
     Args:
         input_path (PathLike): The input file.
         output_path (PathLike): The file to write the result to.
@@ -734,12 +738,15 @@ def select(
 
     Some important remarks:
 
-    * Because some sql statement won't give the same result when parallellized
-      (eg. when using a group by statement), nb_parallel is 1 by default.
-      If you do want to use parallel processing, specify nb_parallel + make
-      sure to include the placeholder {batch_filter} in your sql_stmt.
-      This placeholder will be replaced with a filter of the form
-      'AND rowid >= x AND rowid < y'.
+    * Some sql statements won't give correct results when parallellized/ran in
+      multiple batches, e.g. when using a group by statement. This is why the default
+      value for nb_parallel is 1. If you want to parallellize or run the query in
+      multiple batches (by specifying nb_parallel != 1 or batchsize > 0), you should
+      make sure your query will give correct results if it is executed per batch of
+      rows instead of once on the entire layer.
+      Additionally, if you do so, make sure to include the placeholder {batch_filter}
+      in your sql_stmt. This placeholder will be replaced with a filter of the form
+      'AND rowid >= x AND rowid < y' and will ensure every row is only treated once.
     * Table names are best double quoted as in the example, because some
       characters are otherwise not supported in the table name, eg. '-'.
     * It is recommend to give the table you select from "layer" as alias. If
@@ -772,10 +779,14 @@ def select(
         force_output_geometrytype (GeometryType, optional): The output geometry type to
             force. Defaults to None, and then the geometry type of the input is used
         nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to 1. To use all available cores, pass -1.
+            Defaults to 1. If nb_parallel != 1, make sure your query still returns
+            correct results if it is executed per batch of rows instead of in one go
+            on the entire layer. To use all available cores, pass -1.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage.
+            smaller nb_parallel, will reduce the memory usage. If batchsize != -1,
+            make sure your query still returns correct results if it is executed per
+            batch of rows instead of in one go on the entire layer. 
             Defaults to -1: (try to) determine optimal size automatically.
         verbose (bool, optional): write more info to the output. Defaults to False.
         force (bool, optional): overwrite existing output file(s). Defaults to False.
