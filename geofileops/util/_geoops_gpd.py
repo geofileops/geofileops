@@ -93,7 +93,7 @@ parallelizationParams = NamedTuple(
 def get_parallelization_params(
     nb_rows_total: int,
     nb_parallel: int = -1,
-    prev_nb_batches: Optional[int] = None,
+    nb_batches_previous_pass: Optional[int] = None,
     parallelization_config: Optional[ParallelizationConfig] = None,
 ) -> parallelizationParams:
     """
@@ -103,7 +103,7 @@ def get_parallelization_params(
         nb_rows_total (int): The total number of rows that will be processed
         nb_parallel (int, optional): The level of parallelization requested.
             If -1, tries to use all resources available. Defaults to -1.
-        prev_nb_batches (int, optional): If applicable, the number of batches
+        nb_batches_previous_pass (int, optional): If applicable, the number of batches
             used in a previous pass of the calculation. Defaults to None.
         verbose (bool, optional): [description]. Defaults to False.
 
@@ -171,9 +171,9 @@ def get_parallelization_params(
             / batch_size
         )
         nb_parallel = min(max_parallel_batchsize, nb_parallel)
-        if prev_nb_batches is None:
+        if nb_batches_previous_pass is None:
             nb_batches = round(nb_parallel * 1.25)
-        elif nb_batches < prev_nb_batches / 4:
+        elif nb_batches < nb_batches_previous_pass / 4:
             nb_batches = round(nb_parallel * 1.25)
 
     batch_size = math.ceil(nb_rows_total / nb_batches)
@@ -704,7 +704,8 @@ def dissolve(
     ]:
         if tiles_path is not None or nb_squarish_tiles > 1:
             raise Exception(
-                f"Dissolve to tiles (tiles_path, nb_squarish_tiles) is not supported for {input_layerinfo.geometrytype}"
+                "Dissolve to tiles (tiles_path, nb_squarish_tiles) is not supported "
+                f"for {input_layerinfo.geometrytype}"
             )
     if output_path.exists():
         if force is False:
@@ -875,7 +876,7 @@ def dissolve(
                 nb_parallel, nb_batches_recommended, _ = get_parallelization_params(
                     nb_rows_total=nb_rows_total,
                     nb_parallel=nb_parallel,
-                    prev_nb_batches=prev_nb_batches,
+                    nb_batches_previous_pass=prev_nb_batches,
                     parallelization_config=parallelization_config,
                 )
 

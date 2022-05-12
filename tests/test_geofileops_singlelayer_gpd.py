@@ -278,7 +278,7 @@ def test_dissolve_linestrings(tmp_path, suffix, epsg):
 
 
 @pytest.mark.parametrize(
-    "suffix, epsg, groupby_columns, " "explodecollections, expected_featurecount",
+    "suffix, epsg, groupby_columns, explode, expected_featurecount",
     [
         (".gpkg", 31370, ["GEWASGROEP"], True, 25),
         (".gpkg", 31370, ["GEWASGROEP"], False, 6),
@@ -290,7 +290,7 @@ def test_dissolve_linestrings(tmp_path, suffix, epsg):
     ],
 )
 def test_dissolve_polygons(
-    tmp_path, suffix, epsg, groupby_columns, explodecollections, expected_featurecount
+    tmp_path, suffix, epsg, groupby_columns, explode, expected_featurecount
 ):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
@@ -300,14 +300,13 @@ def test_dissolve_polygons(
     # Test dissolve polygons with groupby + without explodecollections
     groupby = True if (groupby_columns is None or len(groupby_columns) == 0) else False
     output_path = (
-        tmp_path.parent
-        / f"{input_path.stem}_groupby-{groupby}_explode-{explodecollections}{suffix}"
+        tmp_path / f"{input_path.stem}_groupby-{groupby}_explode-{explode}{suffix}"
     )
     gfo.dissolve(
         input_path=input_path,
         output_path=output_path,
         groupby_columns=groupby_columns,
-        explodecollections=explodecollections,
+        explodecollections=explode,
         nb_parallel=2,
         batchsize=batchsize,
     )
@@ -341,7 +340,7 @@ def test_dissolve_polygons(
     else:
         columns += groupby_columns
         output_gpd_gdf = input_gdf[columns].dissolve(by=groupby_columns).reset_index()
-    if explodecollections:
+    if explode:
         output_gpd_gdf = output_gpd_gdf.explode(ignore_index=True)
     output_gpd_path = tmp_path / f"{input_path.stem}_gpd-output{suffix}"
     gfo.to_file(output_gpd_gdf, output_gpd_path)
