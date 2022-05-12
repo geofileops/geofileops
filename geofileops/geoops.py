@@ -739,10 +739,11 @@ def select(
     Some important remarks:
 
     * Some sql statements won't give correct results when parallellized/ran in
-      multiple batches, e.g. when using a group by statement. Hence, the default
+      multiple batches, e.g. when using a group by statement. This is why the default
       value for nb_parallel is 1. If you want to parallellize or run the query in
-      multiple batches (by specifying batchsize > 0), you should make sure your
-      query will give correct results.
+      multiple batches (by specifying nb_parallel != 1 or batchsize > 0), you should
+      make sure your query will give correct results if it is executed per batch of
+      rows instead of once on the entire layer.
       Additionally, if you do so, make sure to include the placeholder {batch_filter}
       in your sql_stmt. This placeholder will be replaced with a filter of the form
       'AND rowid >= x AND rowid < y' and will ensure every row is only treated once.
@@ -778,14 +779,14 @@ def select(
         force_output_geometrytype (GeometryType, optional): The output geometry type to
             force. Defaults to None, and then the geometry type of the input is used
         nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to 1. If passing something else than 1, make sure your query
-            still returns the correct results if it is executed per batch of rows in
-            the file. To use all available cores, pass -1.
+            Defaults to 1. If nb_parallel != 1, make sure your query still returns
+            correct results if it is executed per batch of rows instead of in one go
+            on the entire layer. To use all available cores, pass -1.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage. If passing something
-            else than -1, make sure your query still returns the correct results if
-            it is executed per batch of rows in the file.
+            smaller nb_parallel, will reduce the memory usage. If batchsize != -1,
+            make sure your query still returns correct results if it is executed per
+            batch of rows instead of in one go on the entire layer. 
             Defaults to -1: (try to) determine optimal size automatically.
         verbose (bool, optional): write more info to the output. Defaults to False.
         force (bool, optional): overwrite existing output file(s). Defaults to False.
