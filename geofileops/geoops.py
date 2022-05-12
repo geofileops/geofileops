@@ -778,10 +778,14 @@ def select(
         force_output_geometrytype (GeometryType, optional): The output geometry type to
             force. Defaults to None, and then the geometry type of the input is used
         nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to 1. To use all available cores, pass -1.
+            Defaults to 1. If passing something else than 1, make sure your query
+            still returns the correct results if it is executed per batch of rows in
+            the file. To use all available cores, pass -1.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage.
+            smaller nb_parallel, will reduce the memory usage. If passing something
+            else than -1, make sure your query still returns the correct results if
+            it is executed per batch of rows in the file.
             Defaults to -1: (try to) determine optimal size automatically.
         verbose (bool, optional): write more info to the output. Defaults to False.
         force (bool, optional): overwrite existing output file(s). Defaults to False.
