@@ -310,7 +310,7 @@ def select(
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
     nb_parallel: int = 1,
-    batchsize: int = 1,
+    batchsize: int = -1,
     verbose: bool = False,
     force: bool = False,
 ):
@@ -453,6 +453,15 @@ def _single_layer_vector_operation(
         # If None is returned, just stop.
         if processing_params is None or processing_params.batches is None:
             return
+
+        # If there are multiple batches, there needs to be a {batch_filter}
+        # placeholder in the sql template!
+        if len(processing_params.batches) > 1:
+            if "{batch_filter}" not in sql_template:
+                raise ValueError(
+                    "Error: nb_batches > 1 but no {batch_filter} "
+                    f"placeholder in sql_template\n{sql_template}"
+                )
 
         # Format column string for use in select
         formatted_column_strings = format_column_strings(
@@ -2017,6 +2026,9 @@ def _prepare_processing_params(
             # If no batchsize specified, add some batches to reduce impact of possible
             # "unbalanced" batches regarding needed processing time.
             nb_batches = returnvalue.nb_parallel * 2
+
+    elif batchsize > 0:
+        nb_batches = math.ceil(input1_layerinfo.featurecount / batchsize)
     else:
         nb_batches = 1
 

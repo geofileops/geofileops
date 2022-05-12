@@ -738,12 +738,14 @@ def select(
 
     Some important remarks:
 
-    * Because some sql statement won't give the same result when parallellized
-      (eg. when using a group by statement), nb_parallel is 1 by default.
-      If you do want to use parallel processing, specify nb_parallel + make
-      sure to include the placeholder {batch_filter} in your sql_stmt.
-      This placeholder will be replaced with a filter of the form
-      'AND rowid >= x AND rowid < y'.
+    * Some sql statements won't give correct results when parallellized/ran in
+      multiple batches, e.g. when using a group by statement. Hence, the default
+      value for nb_parallel is 1. If you want to parallellize or run the query in
+      multiple batches (by specifying batchsize > 0), you should make sure your
+      query will give correct results.
+      Additionally, if you do so, make sure to include the placeholder {batch_filter}
+      in your sql_stmt. This placeholder will be replaced with a filter of the form
+      'AND rowid >= x AND rowid < y' and will ensure every row is only treated once.
     * Table names are best double quoted as in the example, because some
       characters are otherwise not supported in the table name, eg. '-'.
     * It is recommend to give the table you select from "layer" as alias. If
