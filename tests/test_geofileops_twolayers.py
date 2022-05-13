@@ -241,7 +241,7 @@ def test_prepare_spatial_relations_filter():
     ]
     for relation in named_relations:
         query = f"{relation} is True"
-        filter = _geoops_sql._format_spatial_relations_filter(query)
+        filter = _geoops_sql._prepare_spatial_relations_filter(query)
         assert filter is not None and filter != ""
 
     # Test extra queries that should work
@@ -251,7 +251,7 @@ def test_prepare_spatial_relations_filter():
         "(((T******** is False)))",
     ]
     for query in ok_queries:
-        filter = _geoops_sql._format_spatial_relations_filter(query)
+        filter = _geoops_sql._prepare_spatial_relations_filter(query)
         assert filter is not None and filter != ""
 
     # Test queries that should fail
@@ -270,7 +270,7 @@ def test_prepare_spatial_relations_filter():
     ]
     for query, error_reason in error_queries:
         try:
-            _ = _geoops_sql._format_spatial_relations_filter(query)
+            _ = _geoops_sql._prepare_spatial_relations_filter(query)
             error = False
         except Exception:
             error = True
