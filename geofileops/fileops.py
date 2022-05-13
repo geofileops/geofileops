@@ -334,7 +334,7 @@ def get_layerinfo(
 
 
 def get_only_layer(
-    path: Union[str, "os.PathLike[Any]"], only_spatial_layers: bool = True
+    path: Union[str, "os.PathLike[Any]"]
 ) -> str:
     """
     Get the layername for a file that only contains one layer.
@@ -343,8 +343,6 @@ def get_only_layer(
 
     Args:
         path (PathLike): the file.
-        only_spatial_layers (bool, optional): True to only take spatial layers in
-            account. False to list all tables.
 
     Raises:
         ValueError: an invalid parameter value was passed.
