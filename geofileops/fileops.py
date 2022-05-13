@@ -18,6 +18,7 @@ import warnings
 
 import fiona
 import geopandas as gpd
+from geopandas.io import file as gpd_io_file
 from osgeo import gdal
 import pandas as pd
 import pyproj
@@ -69,19 +70,41 @@ PRJ_EPSG_31370 = (
 
 
 def listlayers(
-    path: Union[str, "os.PathLike[Any]"], verbose: bool = False
+    path: Union[str, "os.PathLike[Any]"],
+    only_spatial_layers: bool = True,
 ) -> List[str]:
     """
     Get the list of layers in a geofile.
 
     Args:
         path (PathLike): path to the file to get info about
-        verbose (bool, optional): True to enable verbose logging. Defaults to False.
+        only_spatial_layers (bool, optional): True to only list spatial layers.
+            False to list all tables.
 
     Returns:
         List[str]: the list of layers
     """
-    return fiona.listlayers(str(path))
+    path = Path(path)
+    if path.suffix.lower() == ".shp":
+        return [path.stem]
+
+    datasource = None
+    layers = []
+    try:
+        datasource = gdal.OpenEx(str(path))
+        nb_layers = datasource.GetLayerCount()
+        for layer_id in range(nb_layers):
+            datasource_layer = datasource.GetLayerByIndex(layer_id)
+            if (
+                only_spatial_layers is False
+                or datasource_layer.GetGeometryColumn() != ""
+            ):
+                layers.append(datasource_layer.GetName())
+    finally:
+        if datasource is not None:
+            del datasource
+
+    return layers
 
 
 class ColumnInfo:
@@ -180,15 +203,13 @@ def get_layerinfo(
     if not path.exists():
         raise ValueError(f"File does not exist: {path}")
 
+    if layer is None:
+        layer = get_only_layer(path)
+
     datasource = None
     try:
         datasource = gdal.OpenEx(str(path))
-        if layer is not None:
-            datasource_layer = datasource.GetLayer(layer)
-        elif datasource.GetLayerCount() == 1:
-            datasource_layer = datasource.GetLayerByIndex(0)
-        else:
-            raise ValueError(f"No layer specified, and file has <> 1 layer: {path}")
+        datasource_layer = datasource.GetLayer(layer)
 
         # If the layer doesn't exist, return
         if datasource_layer is None:
@@ -312,7 +333,9 @@ def get_layerinfo(
     )
 
 
-def get_only_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
+def get_only_layer(
+    path: Union[str, "os.PathLike[Any]"], only_spatial_layers: bool = True
+) -> str:
     """
     Get the layername for a file that only contains one layer.
 
@@ -320,6 +343,8 @@ def get_only_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
 
     Args:
         path (PathLike): the file.
+        only_spatial_layers (bool, optional): True to only take spatial layers in
+            account. False to list all tables.
 
     Raises:
         ValueError: an invalid parameter value was passed.
@@ -327,14 +352,28 @@ def get_only_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
     Returns:
         str: the layer name
     """
-    layers = fiona.listlayers(str(path))
-    nb_layers = len(layers)
-    if nb_layers == 1:
-        return layers[0]
-    elif nb_layers == 0:
-        raise ValueError(f"Error: No layers found in {path}")
-    else:
-        raise ValueError(f"Error: More than 1 layer found in {path}: {layers}")
+    datasource = None
+    try:
+        datasource_layer = None
+        datasource = gdal.OpenEx(str(path))
+        nb_layers = datasource.GetLayerCount()
+        if nb_layers == 1:
+            datasource_layer = datasource.GetLayerByIndex(0)
+        elif nb_layers == 0:
+            raise ValueError(f"Error: No layers found in {path}")
+        else:
+            # Check if there is only one spatial layer
+            layers = listlayers(path, only_spatial_layers=True)
+            if len(layers) == 1:
+                datasource_layer = datasource.GetLayer(layers[0])
+            else:
+                raise ValueError(f"Layer has > 1 layer: {path}: {layers}")
+
+        return datasource_layer.GetName()
+
+    finally:
+        if datasource is not None:
+            del datasource
 
 
 def get_default_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
@@ -1056,6 +1095,16 @@ def to_file(
         # logger.warn(f"Cannot write an empty dataframe to {filepath}.{layer}")
         return
 
+    # If no geometry, prepare to be written as attribute table.
+    # Add geometry column with None geometries
+    schema = None
+    if isinstance(gdf, gpd.GeoDataFrame) is False or (
+        isinstance(gdf, gpd.GeoDataFrame) and "geometry" not in gdf.columns
+    ):
+        gdf = gpd.GeoDataFrame(gdf, geometry=[None for i in gdf.index])
+        schema = gpd_io_file.infer_schema(gdf)
+        schema["geometry"] = "None"
+
     def write_to_file(
         gdf: gpd.GeoDataFrame,
         path: Path,
@@ -1063,6 +1112,7 @@ def to_file(
         index: bool = True,
         force_multitype: bool = False,
         append: bool = False,
+        schema: Optional[dict] = None,
     ):
 
         # Change mode if append is true
@@ -1085,11 +1135,16 @@ def to_file(
             # Try to harmonize the geometrytype to one (multi)type, as GPKG
             # doesn't like > 1 type in a layer
             gdf_to_write = gdf.copy()
-            gdf_to_write.geometry = geoseries_util.harmonize_geometrytypes(
-                gdf.geometry, force_multitype=force_multitype
-            )
+            if schema is None or schema["geometry"] != "None":
+                gdf_to_write.geometry = geoseries_util.harmonize_geometrytypes(
+                    gdf.geometry, force_multitype=force_multitype
+                )
             gdf_to_write.to_file(
-                str(path), layer=layer, driver=geofiletype.ogrdriver, mode=mode
+                str(path),
+                layer=layer,
+                driver=geofiletype.ogrdriver,
+                mode=mode,
+                schema=schema,
             )
         elif geofiletype == GeofileType.SQLite:
             gdf.to_file(str(path), layer=layer, driver=geofiletype.ogrdriver, mode=mode)
@@ -1107,6 +1162,7 @@ def to_file(
             index=index,
             force_multitype=force_multitype,
             append=append,
+            schema=schema,
         )
     else:
         # If append is asked, check if the fiona driver supports appending. If
@@ -1131,6 +1187,7 @@ def to_file(
                 layer=layer,
                 index=index,
                 force_multitype=force_multitype,
+                schema=schema,
             )
 
         # Files don't typically support having multiple processes writing
@@ -1149,6 +1206,7 @@ def to_file(
                             index=index,
                             force_multitype=force_multitype,
                             append=True,
+                            schema=schema,
                         )
                     else:
                         # If gdf written to temp file, use append_to_nolock + cleanup
@@ -1412,7 +1470,6 @@ def append_to(
         transaction_size (int, optional): Transaction size.
             Defaults to 50000.
         options (dict, optional): options to pass to gdal.
-        verbose (bool, optional): True to write verbose output. Defaults to False.
 
     Raises:
         ValueError: an invalid parameter value was passed.
