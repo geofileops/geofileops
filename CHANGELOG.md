@@ -7,6 +7,7 @@
 - Add `gfo.clip` geo operation, more info [here](https://geofileops.readthedocs.io/en/latest/api/geofileops.clip.html) (#4)
 - Add `gfo.symmetric_difference` geo operation, more info [here](https://geofileops.readthedocs.io/en/latest/api/geofileops.symmetric_difference.html) (#85)
 - Add support for all relevant spatial operations to join_by_location (#79)
+- In `gfo.dissolve`, support aggregations on a groupby column and None data in aggregation columns (#130)
 - Add support to reproject to `gfo.convert` (#89)
 - Add function `gfo.drop_column` (#92)
 - Add detailed column info in `gfo.get_layerinfo` (#110)
