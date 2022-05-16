@@ -403,10 +403,10 @@ class set_config_options(object):
         # gdal.SetConfigOptions(self.config_options_backup)
 
 
-def _getfileinfo(path: Path, readonly: bool = True, verbose: bool = False) -> dict:
+def _getfileinfo(path: Path, readonly: bool = True) -> dict:
 
     # Get info
-    info_str = vector_info(path=path, readonly=readonly, verbose=verbose)
+    info_str = vector_info(path=path, readonly=readonly)
 
     # Prepare result
     result_dict = {}
@@ -434,7 +434,6 @@ def vector_info(
     sql_stmt: Optional[str] = None,
     sql_dialect: Optional[str] = None,
     skip_health_check: bool = False,
-    verbose: bool = False,
 ):
     """ "Run a command"""
 
@@ -506,9 +505,8 @@ def vector_info(
                 f"\t->Return code: {returncode}\n"
                 f"\t->Error: {err}\n\t->Output: {output}"
             )
-        elif verbose is True:
-            logger.info(f"Ready executing {pprint.pformat(args)}")
 
+        logger.debug(f"Ready executing {pprint.pformat(args)}")
         return output
 
     # If we get here, the retries didn't suffice to get it executed properly
