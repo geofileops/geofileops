@@ -47,7 +47,6 @@ def buffer(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
 
@@ -87,7 +86,6 @@ def buffer(
         force_output_geometrytype=force_output_geometrytype,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -101,7 +99,6 @@ def convexhull(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
 
@@ -127,7 +124,6 @@ def convexhull(
         force_output_geometrytype=input_layer_info.geometrytype,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -139,7 +135,6 @@ def delete_duplicate_geometries(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
-    verbose: bool = False,
     force: bool = False,
 ):
 
@@ -170,7 +165,6 @@ def delete_duplicate_geometries(
         force_output_geometrytype=input_layer_info.geometrytype,
         filter_null_geoms=True,
         nb_parallel=1,
-        verbose=verbose,
         force=force,
     )
 
@@ -182,7 +176,6 @@ def isvalid(
     output_layer: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ) -> bool:
 
@@ -205,7 +198,6 @@ def isvalid(
         output_layer=output_layer,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -243,7 +235,6 @@ def makevalid(
     precision: Optional[float] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
 
@@ -289,7 +280,6 @@ def makevalid(
         # filter_null_geoms=False,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -311,7 +301,6 @@ def select(
     force_output_geometrytype: Optional[GeometryType] = None,
     nb_parallel: int = 1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
 
@@ -320,10 +309,7 @@ def select(
         if force is False:
             logger.info(f"Stop select: output exists already {output_path}")
             return
-    if verbose:
-        logger.info(f"  -> select to execute:\n{sql_stmt}")
-    else:
-        logger.debug(f"  -> select to execute:\n{sql_stmt}")
+    logger.debug(f"  -> select to execute:\n{sql_stmt}")
 
     # If no output geometrytype is specified, use the geometrytype of the input layer
     if force_output_geometrytype is None:
@@ -349,7 +335,6 @@ def select(
         filter_null_geoms=False,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -364,7 +349,6 @@ def simplify(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
 
@@ -390,7 +374,6 @@ def simplify(
         force_output_geometrytype=input_layer_info.geometrytype,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -408,7 +391,6 @@ def _single_layer_vector_operation(
     filter_null_geoms: bool = True,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
 
@@ -685,7 +667,6 @@ def erase(
     output_with_spatial_index: bool = True,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
 
@@ -753,7 +734,6 @@ def erase(
         output_with_spatial_index=output_with_spatial_index,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -771,7 +751,6 @@ def export_by_location(
     output_layer: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
 
@@ -857,7 +836,6 @@ def export_by_location(
         force_output_geometrytype=input_layer_info.geometrytype,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -873,7 +851,6 @@ def export_by_distance(
     output_layer: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
 
@@ -911,7 +888,6 @@ def export_by_distance(
         force_output_geometrytype=input_layer_info.geometrytype,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -930,7 +906,6 @@ def intersection(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
 
@@ -992,7 +967,6 @@ def intersection(
         force_output_geometrytype=force_output_geometrytype,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -1015,7 +989,6 @@ def join_by_location(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
 
@@ -1125,7 +1098,6 @@ def join_by_location(
         explodecollections=explodecollections,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -1210,7 +1182,6 @@ def join_nearest(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
 
@@ -1294,7 +1265,6 @@ def join_nearest(
         use_ogr=True,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -1315,7 +1285,6 @@ def select_two_layers(
     explodecollections: bool = False,
     nb_parallel: int = 1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
 
@@ -1337,7 +1306,6 @@ def select_two_layers(
         explodecollections=explodecollections,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -1357,7 +1325,6 @@ def split(
     output_with_spatial_index: bool = True,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
 
@@ -1449,7 +1416,6 @@ def split(
         output_with_spatial_index=output_with_spatial_index,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -1566,7 +1532,6 @@ def union(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
 
@@ -1599,7 +1564,6 @@ def union(
             output_with_spatial_index=False,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
-            verbose=verbose,
             force=force,
         )
 
@@ -1618,7 +1582,6 @@ def union(
             output_with_spatial_index=False,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
-            verbose=verbose,
             force=force,
         )
 
@@ -1661,7 +1624,6 @@ def _two_layer_vector_operation(
     use_ogr: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
@@ -2268,7 +2230,6 @@ def dissolve_singlethread(
     explodecollections: bool = False,
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
@@ -2414,7 +2375,6 @@ def dissolve_cardsheets(
         output_layer: Optional[str] = None,
         nb_parallel: int = -1,
         batchsize: int = -1,
-        verbose: bool = False,
         force: bool = False):
 
     # Init
@@ -2439,11 +2399,11 @@ def dissolve_cardsheets(
         # Remark: this temp file doesn't need spatial index
         logger.info(f"Copy {input_path} to {input_tmp_path} using ogr2ogr")
         ogr_util.vector_translate(
-                input_path=input_path,
-                output_path=input_tmp_path,
-                create_spatial_index=False,
-                output_layer=input_layer,
-                verbose=verbose)
+            input_path=input_path,
+            output_path=input_tmp_path,
+            create_spatial_index=False,
+            output_layer=input_layer
+        )
         logger.debug("Copy ready")
 
     if input_layer is None:
@@ -2516,18 +2476,18 @@ def dissolve_cardsheets(
                 translate_description = f"Async dissolve {batch_id} of {nb_batches}, bounds: {cardsheet.geometry.bounds}"
                 # Remark: this temp file doesn't need spatial index
                 translate_info = ogr_util.VectorTranslateInfo(
-                        input_path=input_tmp_path,
-                        output_path=output_tmp_partial_path,
-                        translate_description=translate_description,
-                        output_layer=output_layer,
-                        #clip_bounds=cardsheet.geometry.bounds,
-                        sql_stmt=sql_stmt,
-                        sql_dialect='SQLITE',
-                        append=True,
-                        update=True,
-                        explodecollections=True,
-                        force_output_geometrytype=force_output_geometrytype,
-                        verbose=verbose)
+                    input_path=input_tmp_path,
+                    output_path=output_tmp_partial_path,
+                    translate_description=translate_description,
+                    output_layer=output_layer,
+                    #clip_bounds=cardsheet.geometry.bounds,
+                    sql_stmt=sql_stmt,
+                    sql_dialect='SQLITE',
+                    append=True,
+                    update=True,
+                    explodecollections=True,
+                    force_output_geometrytype=force_output_geometrytype
+                )
                 future = calculate_pool.submit(
                         ogr_util.vector_translate_by_info,
                         info=translate_info)
@@ -2547,16 +2507,16 @@ def dissolve_cardsheets(
                     if tmp_partial_output_path.exists():
                         translate_description = f"Copy result {batch_id} of {nb_batches} to {output_layer}"
                         translate_info = ogr_util.VectorTranslateInfo(
-                                input_path=tmp_partial_output_path,
-                                output_path=tmp_output_path,
-                                translate_description=translate_description,
-                                output_layer=output_layer,
-                                transaction_size=200000,
-                                append=True,
-                                update=True,
-                                create_spatial_index=False,
-                                force_output_geometrytype=GeometryType.MULTIPOLYGON,
-                                verbose=verbose)
+                            input_path=tmp_partial_output_path,
+                            output_path=tmp_output_path,
+                            translate_description=translate_description,
+                            output_layer=output_layer,
+                            transaction_size=200000,
+                            append=True,
+                            update=True,
+                            create_spatial_index=False,
+                            force_output_geometrytype=GeometryType.MULTIPOLYGON,
+                        )
                         ogr_util.vector_translate_by_info(info=translate_info)
                         gfo.remove(tmp_partial_output_path)
                 except Exception as ex:

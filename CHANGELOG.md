@@ -33,7 +33,7 @@
 - Property column of `gfo.get_layerinfo` is now a Dict[str, ColumnInfo] instead of a 
   List[str] (#110)
 - For the simplify operation, use rdp version that preserves topology (#105)
-- Removed deprecated `verbose` parameter in some functions
+- Removed redundant `verbose` parameter in all functions (#133)
 - Attribute tables are not listed anymore by default in e.g. `gfo.listlayers` (#124)
 - Rename some files in util that are rather private (#84)
 - Remove long-time deprecated `clip_on_tiles` parameter in `gfo.dissolve` (#95)
