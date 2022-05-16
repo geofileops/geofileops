@@ -486,7 +486,7 @@ def dissolve(
             value of the dict, the output for the aggregation is different:
 
                 - "json": dump all data per group to one "json" column. The
-                  value should be the list of columns to include.
+                  value can be None (= all columns) or a list of columns to include.
                 - "columns": aggregate to seperate columns. The value should
                   be a list of dicts with the following keys:
 
@@ -502,6 +502,8 @@ def dissolve(
                         - concat
 
                     - "as": column name in the output file.
+                    - "distinct" (optional): True to distinct the values before
+                      aggregation.
 
         tiles_path (PathLike, optional): a path to a geofile containing tiles.
             If specified, the output will be dissolved/unioned only within the
@@ -786,7 +788,7 @@ def select(
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage. If batchsize != -1,
             make sure your query still returns correct results if it is executed per
-            batch of rows instead of in one go on the entire layer. 
+            batch of rows instead of in one go on the entire layer.
             Defaults to -1: (try to) determine optimal size automatically.
         verbose (bool, optional): write more info to the output. Defaults to False.
         force (bool, optional): overwrite existing output file(s). Defaults to False.
