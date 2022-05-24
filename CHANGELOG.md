@@ -15,6 +15,7 @@
 - Add support to write an attribute table (=no geometry column) to geopackage (#125)
 - Don't list attribute tables in e.g. `gfo.listlayers` by default anymore (#124)
 - Speed up creation of an index on a geopackage (#87)
+- Add `view_angles` function for geometries, geoseries (#136)
 - Some improvements to the benchmarks
 - Use black to comply to pep8 + minor general improvements (#113)
 
