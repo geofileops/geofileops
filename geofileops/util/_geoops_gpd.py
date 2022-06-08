@@ -105,7 +105,6 @@ def get_parallelization_params(
             If -1, tries to use all resources available. Defaults to -1.
         nb_batches_previous_pass (int, optional): If applicable, the number of batches
             used in a previous pass of the calculation. Defaults to None.
-        verbose (bool, optional): [description]. Defaults to False.
 
     Returns:
         parallelizationParams: The recommended parameters.
@@ -209,7 +208,6 @@ def apply(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     # Init
@@ -230,7 +228,6 @@ def apply(
         explodecollections=explodecollections,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -250,7 +247,6 @@ def buffer(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     # Init
@@ -275,7 +271,6 @@ def buffer(
         explodecollections=explodecollections,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -289,7 +284,6 @@ def convexhull(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     # Init
@@ -307,7 +301,6 @@ def convexhull(
         explodecollections=explodecollections,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -324,7 +317,6 @@ def simplify(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     # Init
@@ -346,7 +338,6 @@ def simplify(
         explodecollections=explodecollections,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -362,7 +353,6 @@ def _apply_geooperation_to_layer(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
@@ -417,7 +407,6 @@ def _apply_geooperation_to_layer(
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
-        verbose (bool, optional): [description]. Defaults to False.
         force (bool, optional): [description]. Defaults to False.
     """
     # Init
@@ -527,7 +516,6 @@ def _apply_geooperation_to_layer(
                     output_layer=output_layer,
                     rows=rows,
                     explodecollections=explodecollections,
-                    verbose=verbose,
                     force=force,
                 )
                 future_to_batch_id[future] = batch_id
@@ -593,7 +581,6 @@ def _apply_geooperation(
     columns: Optional[List[str]] = None,
     rows=None,
     explodecollections: bool = False,
-    verbose: bool = False,
     force: bool = False,
 ) -> str:
 
@@ -680,7 +667,6 @@ def dissolve(
     output_layer: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ) -> dict:
     """
@@ -854,7 +840,6 @@ def dissolve(
             agg_columns=agg_columns,
             input_layer=input_layer,
             output_layer=output_layer,
-            verbose=verbose,
             force=force,
         )
 

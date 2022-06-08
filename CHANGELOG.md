@@ -15,6 +15,7 @@
 - Add support to write an attribute table (=no geometry column) to geopackage (#125)
 - Don't list attribute tables in e.g. `gfo.listlayers` by default anymore (#124)
 - Speed up creation of an index on a geopackage (#87)
+- Add `view_angles` function for geometries, geoseries (#136)
 - Some improvements to the benchmarks
 - Use black to comply to pep8 + minor general improvements (#113)
 
@@ -33,7 +34,7 @@
 - Property column of `gfo.get_layerinfo` is now a Dict[str, ColumnInfo] instead of a 
   List[str] (#110)
 - For the simplify operation, use rdp version that preserves topology (#105)
-- Removed deprecated `verbose` parameter in some functions
+- Removed redundant `verbose` parameter in all functions (#133)
 - Attribute tables are not listed anymore by default in e.g. `gfo.listlayers` (#124)
 - Rename some files in util that are rather private (#84)
 - Remove long-time deprecated `clip_on_tiles` parameter in `gfo.dissolve` (#95)

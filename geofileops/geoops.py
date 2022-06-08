@@ -41,7 +41,6 @@ def apply(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
@@ -79,8 +78,6 @@ def apply(
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
-        verbose (bool, optional): write more info to the output.
-            Defaults to False.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
@@ -96,7 +93,6 @@ def apply(
         explodecollections=explodecollections,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -116,7 +112,6 @@ def buffer(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
@@ -167,8 +162,6 @@ def buffer(
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
-        verbose (bool, optional): write more info to the output.
-            Defaults to False.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
@@ -272,7 +265,6 @@ def buffer(
             explodecollections=explodecollections,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
-            verbose=verbose,
             force=force,
         )
     else:
@@ -292,7 +284,6 @@ def buffer(
             explodecollections=explodecollections,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
-            verbose=verbose,
             force=force,
         )
 
@@ -306,7 +297,6 @@ def convexhull(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
@@ -331,8 +321,6 @@ def convexhull(
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
-        verbose (bool, optional): write more info to the output.
-            Defaults to False.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
@@ -346,7 +334,6 @@ def convexhull(
         explodecollections=explodecollections,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -358,7 +345,6 @@ def delete_duplicate_geometries(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
@@ -375,8 +361,6 @@ def delete_duplicate_geometries(
             specified. Defaults to None.
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
-        verbose (bool, optional): write more info to the output.
-            Defaults to False.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
@@ -388,7 +372,6 @@ def delete_duplicate_geometries(
         output_layer=output_layer,
         columns=columns,
         explodecollections=explodecollections,
-        verbose=verbose,
         force=force,
     )
 
@@ -405,7 +388,6 @@ def dissolve(
     output_layer: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
@@ -529,8 +511,6 @@ def dissolve(
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
-        verbose (bool, optional): write more info to the output.
-            Defaults to False.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
@@ -556,7 +536,6 @@ def dissolve(
         output_layer=output_layer,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -569,7 +548,6 @@ def isvalid(
     output_layer: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ) -> bool:
     """
@@ -593,8 +571,6 @@ def isvalid(
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
-        verbose (bool, optional): write more info to the output.
-            Defaults to False.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
@@ -620,7 +596,6 @@ def isvalid(
         output_layer=output_layer,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -636,7 +611,6 @@ def makevalid(
     precision: Optional[float] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
@@ -669,8 +643,6 @@ def makevalid(
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
-        verbose (bool, optional): write more info to the output.
-            Defaults to False.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
@@ -687,7 +659,6 @@ def makevalid(
         precision=precision,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -704,7 +675,6 @@ def select(
     force_output_geometrytype: Union[GeometryType, str, None] = None,
     nb_parallel: int = 1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
@@ -790,7 +760,6 @@ def select(
             make sure your query still returns correct results if it is executed per
             batch of rows instead of in one go on the entire layer.
             Defaults to -1: (try to) determine optimal size automatically.
-        verbose (bool, optional): write more info to the output. Defaults to False.
         force (bool, optional): overwrite existing output file(s). Defaults to False.
     """
     logger.info(f"Start select on {input_path}")
@@ -811,7 +780,6 @@ def select(
         force_output_geometrytype=force_output_geometrytype,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -828,7 +796,6 @@ def simplify(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
@@ -864,8 +831,6 @@ def simplify(
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
-        verbose (bool, optional): write more info to the output.
-            Defaults to False.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
@@ -881,7 +846,6 @@ def simplify(
             explodecollections=explodecollections,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
-            verbose=verbose,
             force=force,
         )
     else:
@@ -897,7 +861,6 @@ def simplify(
             explodecollections=explodecollections,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
-            verbose=verbose,
             force=force,
         )
 
@@ -1000,7 +963,6 @@ def erase(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
@@ -1034,8 +996,6 @@ def erase(
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
-        verbose (bool, optional): write more info to the output.
-             Defaults to False.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
@@ -1052,7 +1012,6 @@ def erase(
         explodecollections=explodecollections,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -1070,7 +1029,6 @@ def export_by_location(
     output_layer: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
@@ -1104,8 +1062,6 @@ def export_by_location(
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
-        verbose (bool, optional): write more info to the output.
-            Defaults to False.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
@@ -1126,7 +1082,6 @@ def export_by_location(
         output_layer=output_layer,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -1142,7 +1097,6 @@ def export_by_distance(
     output_layer: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
@@ -1168,8 +1122,6 @@ def export_by_distance(
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
-        verbose (bool, optional): write more info to the output.
-            Defaults to False.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
@@ -1189,7 +1141,6 @@ def export_by_distance(
         output_layer=output_layer,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -1208,7 +1159,6 @@ def intersect(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
 
@@ -1231,7 +1181,6 @@ def intersect(
         explodecollections=explodecollections,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -1250,7 +1199,6 @@ def intersection(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
@@ -1282,8 +1230,6 @@ def intersection(
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
-        verbose (bool, optional): write more info to the output.
-            Defaults to False.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
@@ -1304,7 +1250,6 @@ def intersection(
         explodecollections=explodecollections,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -1326,7 +1271,6 @@ def join_by_location(
     output_layer: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
@@ -1381,8 +1325,6 @@ def join_by_location(
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
-        verbose (bool, optional): write more info to the output.
-            Defaults to False.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
@@ -1407,7 +1349,6 @@ def join_by_location(
         output_layer=output_layer,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -1426,7 +1367,6 @@ def join_nearest(
     output_layer: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
@@ -1455,8 +1395,6 @@ def join_nearest(
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
-        verbose (bool, optional): write more info to the output.
-            Defaults to False.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
@@ -1478,7 +1416,6 @@ def join_nearest(
         output_layer=output_layer,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -1499,7 +1436,6 @@ def select_two_layers(
     force_output_geometrytype: Optional[GeometryType] = None,
     nb_parallel: int = 1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
@@ -1601,8 +1537,6 @@ def select_two_layers(
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
-        verbose (bool, optional): write more info to the output.
-            Defaults to False.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
@@ -1662,7 +1596,6 @@ def select_two_layers(
         force_output_geometrytype=force_output_geometrytype,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -1752,7 +1685,6 @@ def split(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
@@ -1787,8 +1719,6 @@ def split(
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
-        verbose (bool, optional): write more info to the output.
-            Defaults to False.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
@@ -1807,7 +1737,6 @@ def split(
         explodecollections=explodecollections,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -1826,7 +1755,6 @@ def union(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
@@ -1857,8 +1785,6 @@ def union(
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
-        verbose (bool, optional): write more info to the output.
-            Defaults to False.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
@@ -1879,6 +1805,5 @@ def union(
         explodecollections=explodecollections,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )

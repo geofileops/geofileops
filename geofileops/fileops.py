@@ -436,7 +436,7 @@ def create_spatial_index(
             one layer in the file, this layer is used. Otherwise exception.
         cache_size_mb (int, optional): memory in MB that can be used while
             creating spatial index for spatialite files (.gpkg or .sqlite).
-            Defaults to 512.
+            Defaults to 128.
         exist_ok (bool, options): If True and the index exists already, don't
             throw an error.
         force_rebuild (bool, options): True to force rebuild even if index
