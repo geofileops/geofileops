@@ -1,9 +1,6 @@
 # CHANGELOG
 
-## 0.5.0 (2022-06-08)
-
-The main improvements in this version are the geo operations `gfo.clip` and
-`gfo.symmetric_difference` that were added.
+## 0.5.0
 
 ### Improvements
 
