@@ -8,7 +8,7 @@ version: 2
 # Set the version of os and other tools you might need
 # Using mambaforge should solve excessive memory use issues
 build:
-  os: "ubuntu-20.04"
+  os: "ubuntu-22.04"
   tools:
     python: "mambaforge-4.10"
     
