@@ -662,24 +662,14 @@ def test_to_file_attribute_table_gpkg(tmp_path):
     # Prepare test data
     test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
 
-    # Test writing a GeoDataFrame without geometry column
+    # Test writing a DataFrame to geopackage
     test_gdf = gfo.read_file(test_path)
-    test_gdf = test_gdf.drop(columns="geometry")
-    assert isinstance(test_gdf, gpd.GeoDataFrame)
-    gfo.to_file(test_gdf, test_path)
-
-    # Now check the result if the data is still the same after being read again
-    assert len(gfo.listlayers(test_path)) == 1
-    assert len(gfo.listlayers(test_path, only_spatial_layers=False)) == 2
-
-    # Test writing a DataFrame
-    test_gdf = gfo.read_file(test_path)
-    test_df = pd.DataFrame(test_gdf.drop(columns="geometry"))
+    test_df = test_gdf.drop(columns="geometry")
     assert isinstance(test_df, pd.DataFrame)
     assert isinstance(test_df, gpd.GeoDataFrame) is False
     gfo.to_file(test_df, test_path)
 
-    # Now check the result if the data is still the same after being read again
+    # Now check if the layer are correctly found afterwards
     assert len(gfo.listlayers(test_path)) == 1
     assert len(gfo.listlayers(test_path, only_spatial_layers=False)) == 2
 
