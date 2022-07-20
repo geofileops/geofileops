@@ -1,12 +1,11 @@
 name: geofileopsdev
 channels:
   - conda-forge
-  - defaults
 dependencies:
   - python=3.9
   - pip
   - cloudpickle
-  - geopandas=0.10.2
+  - geopandas
   - pygeos
   - psutil
   - pydata-sphinx-theme

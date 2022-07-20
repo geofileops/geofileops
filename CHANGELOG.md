@@ -1,6 +1,21 @@
 # CHANGELOG
 
-## 0.5.0
+## 0.?.?
+
+### Improvements
+
+- Add (private) function to calculate view angles from a point towards a GeoDataFrame (#140)
+
+### Bugs fixed
+
+- Fix typo in hardcoded 31370 custom prj string (#142)
+
+### Deprecations and compatibility notes
+
+## 0.5.0 (2022-06-08)
+
+The main improvements in this version are the geo operations `gfo.clip` and
+`gfo.symmetric_difference` that were added.
 
 ### Improvements
 
