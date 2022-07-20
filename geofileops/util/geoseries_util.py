@@ -4,13 +4,15 @@ Module containing utilities regarding operations on geoseries.
 """
 
 import logging
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import pygeos
 from shapely import geometry as sh_geom
+import topojson
+import topojson.ops
 
 from . import geometry_util
 from .geometry_util import GeometryType, PrimitiveType
@@ -199,21 +201,53 @@ def polygons_to_lines(geoseries: gpd.GeoSeries) -> gpd.GeoSeries:
     return gpd.GeoSeries(polygons_lines)
 
 
+def toposimplify_ext(
+    gdf,
+    algorithm: geometry_util.SimplifyAlgorithm,
+    tolerance: float,
+    lookahead: int = 8,
+    keep_points_on: Optional[sh_geom.base.BaseGeometry] = None,
+):
+    topo = topojson.Topology(gdf, prequantize=False)
+    topolines = sh_geom.MultiLineString(topo.output["arcs"])
+    topolines_simpl = geometry_util.simplify_ext(
+        geometry=topolines,
+        tolerance=tolerance,
+        algorithm=algorithm,
+        lookahead=lookahead,
+        keep_points_on=keep_points_on,
+    )
+    assert isinstance(topolines_simpl, sh_geom.MultiLineString)
+    topo.output["arcs"] = [list(geom.coords) for geom in topolines_simpl.geoms]
+
+    topo_simpl_gdf = topo.to_gdf()
+    return topo_simpl_gdf
+
+
 def simplify_ext(
     geoseries: gpd.GeoSeries,
     algorithm: geometry_util.SimplifyAlgorithm,
     tolerance: float,
     lookahead: int = 8,
+    keep_points_on: Optional[sh_geom.base.BaseGeometry] = None,
 ) -> gpd.GeoSeries:
     # If ramer-douglas-peucker, use standard geopandas algorithm
     if algorithm is geometry_util.SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER:
+        if keep_points_on is not None:
+            raise ValueError(
+                "keep_points_on is True is not supported with algorythm rdp"
+            )
         return geoseries.simplify(tolerance=tolerance, preserve_topology=True)
     else:
         # For other algorithms, use vector_util.simplify_ext()
         return gpd.GeoSeries(
             [
                 geometry_util.simplify_ext(
-                    geom, algorithm=algorithm, tolerance=tolerance, lookahead=lookahead
+                    geom,
+                    algorithm=algorithm,
+                    tolerance=tolerance,
+                    lookahead=lookahead,
+                    keep_points_on=keep_points_on,
                 )
                 for geom in geoseries
             ]
