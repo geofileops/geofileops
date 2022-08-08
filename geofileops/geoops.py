@@ -7,11 +7,12 @@ import logging
 import logging.config
 import os
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Union
+from typing import Any, Callable, List, Optional, Tuple, Union
 import warnings
 
 from geofileops.util import _geoops_gpd
 from geofileops.util import _geoops_sql
+from geofileops.util import _geoops_ogr
 from geofileops.util.geometry_util import (
     BufferEndCapStyle,
     BufferJoinStyle,
@@ -540,6 +541,94 @@ def dissolve(
     )
 
 
+def export_by_spatial_filter(
+    input_path: Union[str, "os.PathLike[Any]"],
+    output_path: Union[str, "os.PathLike[Any]"],
+    spatial_filter: Union[Tuple[float, float, float, float], str],
+    input_layer: Optional[str] = None,
+    output_layer: Optional[str] = None,
+    columns: Optional[List[str]] = None,
+    explodecollections: bool = False,
+    force: bool = False,
+):
+    """
+    Export the rows.
+
+    Args:
+        input_path (PathLike): the input file
+        output_path (PathLike): the file to write the result to
+        spatial_filter (Union[Tuple[float, float, float, float], str]): the bounds
+            or WKT geometry to filter with.
+        input_layer (str, optional): input layer name. Optional if the
+            file only contains one layer.
+        output_layer (str, optional): input layer name. Optional if the
+            file only contains one layer.
+        columns (Optional[List[str]], optional): _description_. Defaults to None.
+        explodecollections (bool): True to output only simple geometries. If
+            False, this can result in huge geometries for large files,
+            especially if no groupby_columns are specified.
+       force (bool, optional): overwrite existing output file(s).
+            Defaults to False.
+
+    Returns:
+        _type_: _description_
+    """
+    return _geoops_ogr.export_by_spatial_filter(
+        input_path=Path(input_path),
+        output_path=Path(output_path),
+        spatial_filter=spatial_filter,
+        input_layer=input_layer,
+        output_layer=output_layer,
+        columns=columns,
+        explodecollections=explodecollections,
+        force=force,
+    )
+
+
+def export_clipped(
+    input_path: Union[str, "os.PathLike[Any]"],
+    output_path: Union[str, "os.PathLike[Any]"],
+    clip_filter: Union[Tuple[float, float, float, float], str],
+    input_layer: Optional[str] = None,
+    output_layer: Optional[str] = None,
+    columns: Optional[List[str]] = None,
+    explodecollections: bool = False,
+    force: bool = False,
+):
+    """
+    Export the rows.
+
+    Args:
+        input_path (PathLike): the input file
+        output_path (PathLike): the file to write the result to
+        clip_filter (Union[Tuple[float, float, float, float], str]): the bounds
+            or WKT geometry to clip with.
+        input_layer (str, optional): input layer name. Optional if the
+            file only contains one layer.
+        output_layer (str, optional): input layer name. Optional if the
+            file only contains one layer.
+        columns (Optional[List[str]], optional): _description_. Defaults to None.
+        explodecollections (bool): True to output only simple geometries. If
+            False, this can result in huge geometries for large files,
+            especially if no groupby_columns are specified.
+       force (bool, optional): overwrite existing output file(s).
+            Defaults to False.
+
+    Returns:
+        _type_: _description_
+    """
+    return _geoops_ogr.clip_by_geometry(
+        input_path=Path(input_path),
+        output_path=Path(output_path),
+        clip_geometry=clip_filter,
+        input_layer=input_layer,
+        output_layer=output_layer,
+        columns=columns,
+        explodecollections=explodecollections,
+        force=force,
+    )
+
+
 def isvalid(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]", None] = None,
@@ -657,6 +746,63 @@ def makevalid(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         precision=precision,
+        nb_parallel=nb_parallel,
+        batchsize=batchsize,
+        force=force,
+    )
+
+
+def rubbersheet(
+    input_path: Union[str, "os.PathLike[Any]"],
+    output_path: Union[str, "os.PathLike[Any]"],
+    input_layer: Optional[str] = None,
+    output_layer: Optional[str] = None,
+    columns: Optional[List[str]] = None,
+    explodecollections: bool = False,
+    force_output_geometrytype: Optional[GeometryType] = None,
+    nb_parallel: int = -1,
+    batchsize: int = -1,
+    force: bool = False,
+):
+    """
+    Makes all geometries in the input file valid and writes the result to the
+    output path.
+
+    Alternative names:
+        - warp
+
+    Args:
+        input_path (PathLike): The input file.
+        output_path (PathLike): The file to write the result to.
+        input_layer (str, optional): input layer name. Optional if the
+            file only contains one layer.
+        output_layer (str, optional): input layer name. Optional if the
+            file only contains one layer.
+        columns (List[str], optional): If not None, only output the columns
+            specified. Defaults to None.
+        explodecollections (bool, optional): True to output only simple geometries.
+            Defaults to False.
+        force_output_geometrytype (GeometryType, optional): The output geometry type to
+            force. Defaults to None, and then the geometry type of the input is used
+        nb_parallel (int, optional): the number of parallel processes to use.
+            Defaults to -1: use all available processors.
+        batchsize (int, optional): indicative number of rows to process per
+            batch. A smaller batch size, possibly in combination with a
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
+        force (bool, optional): overwrite existing output file(s).
+            Defaults to False.
+    """
+
+    logger.info(f"Start makevalid on {input_path}")
+    _geoops_sql.makevalid(
+        input_path=Path(input_path),
+        output_path=Path(output_path),
+        input_layer=input_layer,
+        output_layer=output_layer,
+        columns=columns,
+        explodecollections=explodecollections,
+        force_output_geometrytype=force_output_geometrytype,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,

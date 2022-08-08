@@ -3,7 +3,6 @@
 Module containing the implementation of Geofile operations using GeoPandas.
 """
 
-import ast
 from concurrent import futures
 from datetime import datetime
 import enum

@@ -5,6 +5,7 @@
 ### Improvements
 
 - Add (private) function to calculate view angles from a point towards a GeoDataFrame (#140)
+- Add operations for export_by_spatial_filter and clip_by_geometry (#)
 
 ### Bugs fixed
 
