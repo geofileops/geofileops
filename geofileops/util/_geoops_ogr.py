@@ -35,7 +35,6 @@ def clip_by_geometry(
         geom = wkt.loads(clip_geometry)
         spatial_filter = tuple(geom.bounds)
 
-    # Run
     _run_ogr(
         operation="clip_by_geometry",
         input_path=input_path,
@@ -50,26 +49,56 @@ def clip_by_geometry(
     )
 
 
-def export_by_spatial_filter(
+def export_by_bounds(
     input_path: Path,
     output_path: Path,
-    spatial_filter: Tuple[float, float, float, float],
+    bounds: Tuple[float, float, float, float],
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     force: bool = False,
 ):
-    # Run
     _run_ogr(
-        operation="export_by_geometry",
+        operation="export_by_bounds",
         input_path=input_path,
         output_path=output_path,
-        spatial_filter=spatial_filter,
+        spatial_filter=bounds,
         input_layer=input_layer,
         output_layer=output_layer,
         columns=columns,
         explodecollections=explodecollections,
+        force=force,
+    )
+
+
+def warp(
+    input_path: Path,
+    output_path: Path,
+    gcps: List[Tuple[float, float, float, float]],
+    algorithm: str = "polynomial",
+    order: Optional[int] = None,
+    input_layer: Optional[str] = None,
+    output_layer: Optional[str] = None,
+    columns: Optional[List[str]] = None,
+    explodecollections: bool = False,
+    force: bool = False,
+):
+    warp = {
+        "gcps": gcps,
+        "algorithm": algorithm,
+        "order": order,
+    }
+
+    _run_ogr(
+        operation="warp",
+        input_path=input_path,
+        output_path=output_path,
+        input_layer=input_layer,
+        output_layer=output_layer,
+        columns=columns,
+        explodecollections=explodecollections,
+        warp=warp,
         force=force,
     )
 
@@ -94,6 +123,7 @@ def _run_ogr(
     force_output_geometrytype: Optional[GeometryType] = None,
     options: dict = {},
     columns: Optional[List[str]] = None,
+    warp: Optional[dict] = None,
     force: bool = False,
 ) -> bool:
     # Init
@@ -131,6 +161,7 @@ def _run_ogr(
         force_output_geometrytype=force_output_geometrytype,
         options=options,
         columns=columns,
+        warp=warp,
     )
 
     # Run + return result

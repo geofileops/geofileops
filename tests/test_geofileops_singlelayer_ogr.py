@@ -54,7 +54,7 @@ def test_export_by_geometry(tmp_path, suffix):
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
     filter = (156036, 196691, 156368, 196927)
     _geoops_ogr.export_by_spatial_filter(
-        input_path=input_path, output_path=output_path, spatial_filter=filter
+        input_path=input_path, output_path=output_path, bounds=filter
     )
 
     # Now check if the output file is correctly created
