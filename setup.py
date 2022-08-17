@@ -27,7 +27,7 @@ setuptools.setup(
         "psutil",
         "pygeos",
         "pyproj",
-        "shapely",
+        "shapely<1.8.3",
     ],
     extras_require={"full": ["simplification"]},
     classifiers=[

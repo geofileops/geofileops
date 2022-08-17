@@ -14,7 +14,7 @@ dependencies:
   - psutil
   - pygeos
   - pyproj
-  - shapely
+  - shapely<1.8.3
   # testing
   - pytest
   - pytest-cov
