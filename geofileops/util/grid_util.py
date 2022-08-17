@@ -227,4 +227,4 @@ def split_tiles(
             result_tiles.append(tile._replace(geometry=tile_split_part))
 
     # We should be ready...
-    return gpd.GeoDataFrame(result_tiles, crs=input_tiles.crs)
+    return gpd.GeoDataFrame(geometry=result_tiles, crs=input_tiles.crs)
