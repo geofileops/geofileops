@@ -9,6 +9,7 @@ dependencies:
   - pygeos
   - psutil
   - pydata-sphinx-theme
+  - topojson
   - pip:
     - sphinx-automodapi==0.13
     - simplification
