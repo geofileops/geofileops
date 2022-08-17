@@ -399,11 +399,13 @@ def test_read_file(suffix):
     assert isinstance(read_gdf, gpd.GeoDataFrame)
     assert len(read_gdf) == 46
 
-    # Test specific columns (+ test case insensitivity)
+    # Test specific columns (+ test case insensitivity + order)
     columns = ["OIDN", "uidn", "HFDTLT", "lblhfdtlt", "GEWASGROEP", "lengte", "OPPERVL"]
     read_gdf = gfo.read_file(src, columns=columns)
     assert len(read_gdf) == 46
-    assert len(read_gdf.columns) == (len(columns) + 1)
+    columns.append("geometry")
+    for index, column in enumerate(read_gdf.columns):
+        assert column.casefold() == columns[index].casefold()
 
     # Test no geom
     read_gdf = gfo.read_file_nogeom(src)
@@ -413,7 +415,7 @@ def test_read_file(suffix):
     # Test ignore_geometry, no columns
     read_gdf = gfo.read_file_nogeom(src, columns=[])
     assert isinstance(read_gdf, pd.DataFrame)
-    assert len(read_gdf) == 46
+    assert len(read_gdf) == 0
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)

@@ -62,7 +62,7 @@ def prepare_test_file(
         input_prepared_path = tmp_cache_dir / f"{input_path.stem}{suffix}"
         if input_prepared_path.exists() is False:
             gfo.convert(input_path, input_prepared_path)
-        
+
     # Now copy the prepared file to the output dir
     output_path = output_dir / input_prepared_path.name
     if str(input_prepared_path) != str(output_path):
@@ -158,6 +158,7 @@ def assert_geodataframe_equal(
     check_crs=True,
     normalize=False,
     promote_to_multi=False,
+    sort_columns=False,
     sort_values=False,
     output_dir: Optional[Path] = None,
 ):
@@ -189,6 +190,8 @@ def assert_geodataframe_equal(
         ``geom_almost_equals`` and requires exact coordinate order.
     promote_to_multi: bool, default False
         If True, promotes to multi.
+    sort_columns: bool, default False
+        If True, sort the columns of the dataframe before compare.
     sort_values: bool, default False
         If True, sort the values of the geodataframe, including the geometry
         (as WKT).
@@ -197,11 +200,15 @@ def assert_geodataframe_equal(
         directory as geojson files. If normalize, promote_to_multi and/or
         sort_values are True, the will be applied before writing.
     """
-    if sort_values is True:
-        if normalize is True:
+    if sort_columns:
+        left = left[sorted(left.columns)]
+        right = right[sorted(right.columns)]
+
+    if sort_values:
+        if normalize:
             left.geometry = gpd.GeoSeries(pygeos.normalize(left.geometry.array.data))
             right.geometry = gpd.GeoSeries(pygeos.normalize(right.geometry.array.data))
-        if promote_to_multi is True:
+        if promote_to_multi:
             left.geometry = geoseries_util.harmonize_geometrytypes(
                 left.geometry, force_multitype=True
             )
