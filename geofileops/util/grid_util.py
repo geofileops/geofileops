@@ -91,7 +91,7 @@ def create_grid3(
         cell_left += width
         cell_right += width
 
-    return gpd.GeoDataFrame({"geometry": polygons}, crs=crs)
+    return gpd.GeoDataFrame(geometry=polygons, crs=crs)
 
 
 def create_grid2(
