@@ -20,6 +20,7 @@ from geofileops.util.geometry_util import GeometryType
 from geofileops.util import _io_util
 from tests import test_helper
 from tests.test_helper import DEFAULT_SUFFIXES
+from tests.test_helper import assert_geodataframe_equal
 
 
 def test_add_column(tmp_path):
@@ -518,13 +519,14 @@ def test_to_file(tmp_path, suffix):
     # Read test file and write to tmppath
     read_gdf = gfo.read_file(src)
     gfo.to_file(read_gdf, output_path)
-    tmp_gdf = gfo.read_file(output_path)
-    assert len(read_gdf) == len(tmp_gdf)
+    written_gdf = gfo.read_file(output_path)
+    assert len(read_gdf) == len(written_gdf)
+    assert_geodataframe_equal(written_gdf, read_gdf)
 
     # Append the file again to tmppath
     gfo.to_file(read_gdf, output_path, append=True)
-    tmp_gdf = gfo.read_file(output_path)
-    assert 2 * len(read_gdf) == len(tmp_gdf)
+    written_gdf = gfo.read_file(output_path)
+    assert 2 * len(read_gdf) == len(written_gdf)
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
