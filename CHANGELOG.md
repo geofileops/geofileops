@@ -1,17 +1,37 @@
 # CHANGELOG
 
-## 0.5.0
+## 0.?.?
+
+### Improvements
+
+- Add (private) function to calculate view angles from a point towards a GeoDataFrame (#140)
+- Add operations for export_by_spatial_filter and clip_by_geometry (#144)
+
+### Bugs fixed
+
+- Fix typo in hardcoded 31370 custom prj string (#142)
+
+### Deprecations and compatibility notes
+
+## 0.5.0 (2022-06-08)
+
+The main improvements in this version are the geo operations `gfo.clip` and
+`gfo.symmetric_difference` that were added.
 
 ### Improvements
 
 - Add `gfo.clip` geo operation, more info [here](https://geofileops.readthedocs.io/en/latest/api/geofileops.clip.html) (#4)
 - Add `gfo.symmetric_difference` geo operation, more info [here](https://geofileops.readthedocs.io/en/latest/api/geofileops.symmetric_difference.html) (#85)
 - Add support for all relevant spatial operations to join_by_location (#79)
+- In `gfo.dissolve`, support aggregations on a groupby column and None data in aggregation columns (#130)
 - Add support to reproject to `gfo.convert` (#89)
 - Add function `gfo.drop_column` (#92)
 - Add detailed column info in `gfo.get_layerinfo` (#110)
 - Add support to specify (any) gdal options in relevant fileops (#83)
+- Add support to write an attribute table (=no geometry column) to geopackage (#125)
+- Don't list attribute tables in e.g. `gfo.listlayers` by default anymore (#124)
 - Speed up creation of an index on a geopackage (#87)
+- Add `view_angles` function for geometries, geoseries (#136)
 - Some improvements to the benchmarks
 - Use black to comply to pep8 + minor general improvements (#113)
 
@@ -30,7 +50,8 @@
 - Property column of `gfo.get_layerinfo` is now a Dict[str, ColumnInfo] instead of a 
   List[str] (#110)
 - For the simplify operation, use rdp version that preserves topology (#105)
-- Removed deprecated `verbose` parameter in some functions 
+- Removed redundant `verbose` parameter in all functions (#133)
+- Attribute tables are not listed anymore by default in e.g. `gfo.listlayers` (#124)
 - Rename some files in util that are rather private (#84)
 - Remove long-time deprecated `clip_on_tiles` parameter in `gfo.dissolve` (#95)
 - Deprecate `gfo.intersect` for new name `gfo.intersection` to be 

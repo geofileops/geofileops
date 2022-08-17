@@ -61,8 +61,8 @@ class VectorTranslateInfo:
         input_srs: Union[int, str, None] = None,
         output_srs: Union[int, str, None] = None,
         reproject: bool = False,
-        spatial_filter: Optional[Tuple[float, float, float, float]] = None,
-        clip_bounds: Optional[Tuple[float, float, float, float]] = None,
+        spatial_filter: Optional[Union[Tuple[float, float, float, float], str]] = None,
+        clip_geometry: Optional[Union[Tuple[float, float, float, float], str]] = None,
         sql_stmt: Optional[str] = None,
         sql_dialect: Optional[str] = None,
         transaction_size: int = 65536,
@@ -71,6 +71,7 @@ class VectorTranslateInfo:
         explodecollections: bool = False,
         force_output_geometrytype: Optional[GeometryType] = None,
         options: dict = {},
+        columns: Optional[List[str]] = None,
     ):
         self.input_path = input_path
         self.output_path = output_path
@@ -80,7 +81,7 @@ class VectorTranslateInfo:
         self.output_srs = output_srs
         self.reproject = reproject
         self.spatial_filter = spatial_filter
-        self.clip_bounds = clip_bounds
+        self.clip_geometry = clip_geometry
         self.sql_stmt = sql_stmt
         self.sql_dialect = sql_dialect
         self.transaction_size = transaction_size
@@ -89,6 +90,7 @@ class VectorTranslateInfo:
         self.explodecollections = explodecollections
         self.force_output_geometrytype = force_output_geometrytype
         self.options = options
+        self.columns = columns
 
 
 def vector_translate_by_info(info: VectorTranslateInfo):
@@ -102,7 +104,7 @@ def vector_translate_by_info(info: VectorTranslateInfo):
         output_srs=info.output_srs,
         reproject=info.reproject,
         spatial_filter=info.spatial_filter,
-        clip_bounds=info.clip_bounds,
+        clip_geometry=info.clip_geometry,
         sql_stmt=info.sql_stmt,
         sql_dialect=info.sql_dialect,
         transaction_size=info.transaction_size,
@@ -111,6 +113,7 @@ def vector_translate_by_info(info: VectorTranslateInfo):
         explodecollections=info.explodecollections,
         force_output_geometrytype=info.force_output_geometrytype,
         options=info.options,
+        columns=info.columns,
     )
 
 
@@ -123,7 +126,7 @@ def vector_translate(
     output_srs: Union[int, str, None] = None,
     reproject: bool = False,
     spatial_filter: Optional[Tuple[float, float, float, float]] = None,
-    clip_bounds: Optional[Tuple[float, float, float, float]] = None,
+    clip_geometry: Optional[Union[Tuple[float, float, float, float], str]] = None,
     sql_stmt: Optional[str] = None,
     sql_dialect: Optional[str] = None,
     transaction_size: int = 65536,
@@ -132,6 +135,7 @@ def vector_translate(
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
     options: dict = {},
+    columns: Optional[List[str]] = None,
 ) -> bool:
 
     # Remark: when executing a select statement, I keep getting error that
@@ -159,29 +163,22 @@ def vector_translate(
 
     # Sql'ing, Filtering, clipping
     if spatial_filter is not None:
-        args.extend(
-            [
-                "-spat",
-                str(spatial_filter[0]),
-                str(spatial_filter[1]),
-                str(spatial_filter[2]),
-                str(spatial_filter[3]),
-            ]
-        )
-    if clip_bounds is not None:
-        args.extend(
-            [
-                "-clipsrc",
-                str(clip_bounds[0]),
-                str(clip_bounds[1]),
-                str(clip_bounds[2]),
-                str(clip_bounds[3]),
-            ]
-        )
+        args.extend(["-spat"])
+        bounds = [str(coord) for coord in spatial_filter]
+        args.extend(bounds)
+    if clip_geometry is not None:
+        args.extend(["-clipsrc"])
+        if isinstance(clip_geometry, str):
+            args.extend([clip_geometry])
+        else:
+            bounds = [str(coord) for coord in clip_geometry]
+            args.extend(bounds)
 
     # Input dataset open options
     for option_name, value in gdal_options["INPUT_OPEN"].items():
         args.extend(["-oo", f"{option_name}={value}"])
+    if columns is not None:
+        args.extend(["-select", ",".join(columns)])
 
     # Output file parameters
     # Get output format from the filename
@@ -403,10 +400,10 @@ class set_config_options(object):
         # gdal.SetConfigOptions(self.config_options_backup)
 
 
-def _getfileinfo(path: Path, readonly: bool = True, verbose: bool = False) -> dict:
+def _getfileinfo(path: Path, readonly: bool = True) -> dict:
 
     # Get info
-    info_str = vector_info(path=path, readonly=readonly, verbose=verbose)
+    info_str = vector_info(path=path, readonly=readonly)
 
     # Prepare result
     result_dict = {}
@@ -434,7 +431,6 @@ def vector_info(
     sql_stmt: Optional[str] = None,
     sql_dialect: Optional[str] = None,
     skip_health_check: bool = False,
-    verbose: bool = False,
 ):
     """ "Run a command"""
 
@@ -506,9 +502,8 @@ def vector_info(
                 f"\t->Return code: {returncode}\n"
                 f"\t->Error: {err}\n\t->Output: {output}"
             )
-        elif verbose is True:
-            logger.info(f"Ready executing {pprint.pformat(args)}")
 
+        logger.debug(f"Ready executing {pprint.pformat(args)}")
         return output
 
     # If we get here, the retries didn't suffice to get it executed properly

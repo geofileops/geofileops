@@ -3,13 +3,13 @@
 Module containing utilities regarding operations on geoseries.
 """
 
-import datetime
 import logging
-from typing import List
+from typing import List, Tuple
 
 import geopandas as gpd
 import numpy as np
-import pygeos as pg
+import pandas as pd
+import pygeos
 from shapely import geometry as sh_geom
 
 from . import geometry_util
@@ -136,7 +136,7 @@ def _harmonize_to_multitype(
     geometries_arr = geoseries.array.data.copy()  # type: ignore
 
     # Set empty geometries to None
-    empty_idxs = pg.get_type_id(geometries_arr) == 7
+    empty_idxs = pygeos.get_type_id(geometries_arr) == 7
     if empty_idxs.sum():
         geometries_arr[empty_idxs] = None
 
@@ -145,27 +145,27 @@ def _harmonize_to_multitype(
     # returned geoseries
     if dest_geometrytype is GeometryType.MULTIPOLYGON:
         # Convert polygons to multipolygons
-        single_idxs = pg.get_type_id(geometries_arr) == 3
+        single_idxs = pygeos.get_type_id(geometries_arr) == 3
         if single_idxs.sum():
             geometries_arr[single_idxs] = np.apply_along_axis(
-                pg.multipolygons,
+                pygeos.multipolygons,
                 arr=(np.expand_dims(geometries_arr[single_idxs], 1)),
                 axis=1,
             )
     elif dest_geometrytype is GeometryType.MULTILINESTRING:
         # Convert linestrings to multilinestrings
-        single_idxs = pg.get_type_id(geometries_arr) == 1
+        single_idxs = pygeos.get_type_id(geometries_arr) == 1
         if single_idxs.sum():
             geometries_arr[single_idxs] = np.apply_along_axis(
-                pg.multilinestrings,
+                pygeos.multilinestrings,
                 arr=(np.expand_dims(geometries_arr[single_idxs], 1)),
                 axis=1,
             )
     elif dest_geometrytype is GeometryType.MULTIPOINT:
-        single_idxs = pg.get_type_id(geometries_arr) == 0
+        single_idxs = pygeos.get_type_id(geometries_arr) == 0
         if single_idxs.sum():
             geometries_arr[single_idxs] = np.apply_along_axis(
-                pg.multipoints,
+                pygeos.multipoints,
                 arr=(np.expand_dims(geometries_arr[single_idxs], 1)),
                 axis=1,
             )
@@ -218,3 +218,56 @@ def simplify_ext(
                 for geom in geoseries
             ]
         )
+
+
+def view_angles(
+    viewpoints: gpd.GeoSeries,
+    visible_geoms: gpd.GeoSeries,
+) -> pd.DataFrame:
+    """
+    Returns the start and end view angles from the viewpoints towards each
+    geometry in visible_geoms.
+
+    Args:
+        viewpoints (gpd.GeoSeries): the points that are being viewed from.
+        visible_geoms (gpd.GeoSeries): the visible geometries to calculate the
+            angles to.
+
+    Raises:
+        Exception: _description_
+
+    Returns:
+        pd.DataFrame: a dataframe with columns angle_start and angle_end.
+    """
+    # Check and prepare input
+    if len(visible_geoms) != len(viewpoints):
+        raise ValueError("Both input GeoSeries should have the same length")
+
+    # Combine both input arrays
+    geoms_arr = np.concatenate(
+        [
+            np.expand_dims(viewpoints.array.data.copy(), 1),  # type: ignore
+            np.expand_dims(visible_geoms.array.data.copy(), 1),  # type: ignore
+        ],
+        axis=1,
+    )
+
+    # Calculate the view angles for one point, geom pair
+    def calculate_angles(input) -> Tuple[float, float]:
+        viewpoint_geom, visible_geom = input
+        return geometry_util.view_angles(viewpoint_geom, visible_geom)
+
+    # Calculate angles for all elements
+    angles_arr = np.apply_along_axis(
+        calculate_angles,
+        arr=geoms_arr,
+        axis=1,
+    )
+
+    # Recover original indexes, add angles and return
+    angles_result = visible_geoms.copy()
+    angles_result_df = pd.DataFrame(angles_result)
+    angles_result_df["angle_start"] = angles_arr[:, 0]
+    angles_result_df["angle_end"] = angles_arr[:, 1]
+    angles_result_df = angles_result_df.drop(columns="geometry")
+    return angles_result_df

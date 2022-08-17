@@ -278,7 +278,7 @@ def test_dissolve_linestrings(tmp_path, suffix, epsg):
 
 
 @pytest.mark.parametrize(
-    "suffix, epsg, groupby_columns, " "explodecollections, expected_featurecount",
+    "suffix, epsg, groupby_columns, explode, expected_featurecount",
     [
         (".gpkg", 31370, ["GEWASGROEP"], True, 25),
         (".gpkg", 31370, ["GEWASGROEP"], False, 6),
@@ -290,7 +290,7 @@ def test_dissolve_linestrings(tmp_path, suffix, epsg):
     ],
 )
 def test_dissolve_polygons(
-    tmp_path, suffix, epsg, groupby_columns, explodecollections, expected_featurecount
+    tmp_path, suffix, epsg, groupby_columns, explode, expected_featurecount
 ):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
@@ -300,14 +300,13 @@ def test_dissolve_polygons(
     # Test dissolve polygons with groupby + without explodecollections
     groupby = True if (groupby_columns is None or len(groupby_columns) == 0) else False
     output_path = (
-        tmp_path.parent
-        / f"{input_path.stem}_groupby-{groupby}_explode-{explodecollections}{suffix}"
+        tmp_path / f"{input_path.stem}_groupby-{groupby}_explode-{explode}{suffix}"
     )
     gfo.dissolve(
         input_path=input_path,
         output_path=output_path,
         groupby_columns=groupby_columns,
-        explodecollections=explodecollections,
+        explodecollections=explode,
         nb_parallel=2,
         batchsize=batchsize,
     )
@@ -341,7 +340,7 @@ def test_dissolve_polygons(
     else:
         columns += groupby_columns
         output_gpd_gdf = input_gdf[columns].dissolve(by=groupby_columns).reset_index()
-    if explodecollections:
+    if explode:
         output_gpd_gdf = output_gpd_gdf.explode(ignore_index=True)
     output_gpd_path = tmp_path / f"{input_path.stem}_gpd-output{suffix}"
     gfo.to_file(output_gpd_gdf, output_gpd_path)
@@ -461,7 +460,7 @@ def test_dissolve_polygons_specialcases(tmp_path, suffix):
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-def test_dissolve_polygons_aggcolumns(tmp_path, suffix):
+def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     input_layerinfo = gfo.get_layerinfo(input_path)
@@ -484,6 +483,7 @@ def test_dissolve_polygons_aggcolumns(tmp_path, suffix):
         agg_columns={
             "columns": [
                 {"column": "lblhfdtlt", "agg": "max", "as": "lbl_max"},
+                {"column": "GEWASGROEP", "agg": "count", "as": "gwsgrp_cnt"},
                 {"column": "lblhfdtlt", "agg": "count", "as": "lbl_count"},
                 {
                     "column": "lblhfdtlt",
@@ -518,7 +518,7 @@ def test_dissolve_polygons_aggcolumns(tmp_path, suffix):
     assert output_path.exists()
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == 6
-    assert len(output_layerinfo.columns) == 1 + 9
+    assert len(output_layerinfo.columns) == 1 + 10
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
 
     # Now check the contents of the result file
@@ -531,6 +531,7 @@ def test_dissolve_polygons_aggcolumns(tmp_path, suffix):
     # Check agg_columns results
     grasland_idx = output_gdf[output_gdf["GEWASGROEP"] == "Grasland"].index.to_list()[0]
     assert output_gdf["lbl_max"][grasland_idx] == "Grasland"
+    assert output_gdf["gwsgrp_cnt"][grasland_idx] == 30
     assert output_gdf["lbl_count"][grasland_idx] == 30
     print(f"output_gdf.lbl_concat_distinct: {output_gdf['lbl_conc_d'][grasland_idx]}")
     assert output_gdf["lbl_cnt_d"][grasland_idx] == 1
@@ -550,6 +551,16 @@ def test_dissolve_polygons_aggcolumns(tmp_path, suffix):
         "f{output_gdf['lbl_conc_d'][groenten_idx]}"
     )
     assert output_gdf["lbl_cnt_d"][groenten_idx] == 4
+
+
+def test_dissolve_polygons_aggcolumns_json(tmp_path, suffix=".gpkg"):
+    # In shapefiles, the length of str columns is very limited, so the json
+    # test would fail.
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    input_layerinfo = gfo.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+    output_basepath = tmp_path / f"{input_path.stem}-output{suffix}"
 
     # Test dissolve polygons with groupby + agg_columns to json
     output_path = (
@@ -579,12 +590,39 @@ def test_dissolve_polygons_aggcolumns(tmp_path, suffix):
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == output_layerinfo.featurecount
     assert output_gdf["geometry"][0] is not None
+    grasland_json = json.loads(output_gdf["json"][0])
+    assert len(grasland_json) == 30
 
-    # In shapefiles, the length of str columns is very limited, so the json
-    # test would fail.
-    if input_path.suffix != ".shp":
-        grasland_json = json.loads(output_gdf["json"][0])
-        assert len(grasland_json) == 30
+    # Test dissolve polygons with groupby + all columns to json
+    output_path = (
+        output_basepath.parent
+        / f"{output_basepath.stem}_group_aggjson_all{output_basepath.suffix}"
+    )
+    gfo.dissolve(
+        input_path=input_path,
+        output_path=output_path,
+        groupby_columns=["GEWASGROEP"],
+        agg_columns={"json": None},
+        explodecollections=False,
+        nb_parallel=2,
+        batchsize=batchsize,
+    )
+
+    # Now check if the tmp file is correctly created
+    assert output_path.exists()
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.featurecount == 6
+    assert len(output_layerinfo.columns) == 2
+    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+
+    # Now check the contents of the result file
+    input_gdf = gfo.read_file(input_path)
+    output_gdf = gfo.read_file(output_path)
+    assert input_gdf.crs == output_gdf.crs
+    assert len(output_gdf) == output_layerinfo.featurecount
+    assert output_gdf["geometry"][0] is not None
+    grasland_json = json.loads(output_gdf["json"][0])
+    assert len(grasland_json) == 30
 
 
 @pytest.mark.parametrize(

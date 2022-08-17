@@ -3,7 +3,6 @@
 Module containing the implementation of Geofile operations using GeoPandas.
 """
 
-import ast
 from concurrent import futures
 from datetime import datetime
 import enum
@@ -93,7 +92,7 @@ parallelizationParams = NamedTuple(
 def get_parallelization_params(
     nb_rows_total: int,
     nb_parallel: int = -1,
-    prev_nb_batches: Optional[int] = None,
+    nb_batches_previous_pass: Optional[int] = None,
     parallelization_config: Optional[ParallelizationConfig] = None,
 ) -> parallelizationParams:
     """
@@ -103,9 +102,8 @@ def get_parallelization_params(
         nb_rows_total (int): The total number of rows that will be processed
         nb_parallel (int, optional): The level of parallelization requested.
             If -1, tries to use all resources available. Defaults to -1.
-        prev_nb_batches (int, optional): If applicable, the number of batches
+        nb_batches_previous_pass (int, optional): If applicable, the number of batches
             used in a previous pass of the calculation. Defaults to None.
-        verbose (bool, optional): [description]. Defaults to False.
 
     Returns:
         parallelizationParams: The recommended parameters.
@@ -171,9 +169,9 @@ def get_parallelization_params(
             / batch_size
         )
         nb_parallel = min(max_parallel_batchsize, nb_parallel)
-        if prev_nb_batches is None:
+        if nb_batches_previous_pass is None:
             nb_batches = round(nb_parallel * 1.25)
-        elif nb_batches < prev_nb_batches / 4:
+        elif nb_batches < nb_batches_previous_pass / 4:
             nb_batches = round(nb_parallel * 1.25)
 
     batch_size = math.ceil(nb_rows_total / nb_batches)
@@ -209,7 +207,6 @@ def apply(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     # Init
@@ -230,7 +227,6 @@ def apply(
         explodecollections=explodecollections,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -250,7 +246,6 @@ def buffer(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     # Init
@@ -275,7 +270,6 @@ def buffer(
         explodecollections=explodecollections,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -289,7 +283,6 @@ def convexhull(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     # Init
@@ -307,7 +300,6 @@ def convexhull(
         explodecollections=explodecollections,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -324,7 +316,6 @@ def simplify(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     # Init
@@ -346,7 +337,6 @@ def simplify(
         explodecollections=explodecollections,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        verbose=verbose,
         force=force,
     )
 
@@ -362,7 +352,6 @@ def _apply_geooperation_to_layer(
     explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ):
     """
@@ -417,7 +406,6 @@ def _apply_geooperation_to_layer(
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
-        verbose (bool, optional): [description]. Defaults to False.
         force (bool, optional): [description]. Defaults to False.
     """
     # Init
@@ -527,7 +515,6 @@ def _apply_geooperation_to_layer(
                     output_layer=output_layer,
                     rows=rows,
                     explodecollections=explodecollections,
-                    verbose=verbose,
                     force=force,
                 )
                 future_to_batch_id[future] = batch_id
@@ -593,7 +580,6 @@ def _apply_geooperation(
     columns: Optional[List[str]] = None,
     rows=None,
     explodecollections: bool = False,
-    verbose: bool = False,
     force: bool = False,
 ) -> str:
 
@@ -611,7 +597,10 @@ def _apply_geooperation(
         path=input_path, layer=input_layer, columns=columns, rows=rows
     )
     if len(data_gdf) == 0:
-        message = f"No input geometries found for rows: {rows} in layer: {input_layer} in input_path: {input_path}"
+        message = (
+            "No input geometries found for rows: "
+            f"{rows}, layer: {input_layer}, input_path: {input_path}"
+        )
         return message
 
     if operation is GeoOperation.BUFFER:
@@ -623,7 +612,6 @@ def _apply_geooperation(
             mitre_limit=operation_params["mitre_limit"],
             single_sided=operation_params["single_sided"],
         )
-        # data_gdf['geometry'] = [sh_geom.Polygon(sh_geom.mapping(x)['coordinates']) for x in data_gdf.geometry]
     elif operation is GeoOperation.CONVEXHULL:
         data_gdf.geometry = data_gdf.geometry.convex_hull
     elif operation is GeoOperation.SIMPLIFY:
@@ -678,7 +666,6 @@ def dissolve(
     output_layer: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    verbose: bool = False,
     force: bool = False,
 ) -> dict:
     """
@@ -704,13 +691,14 @@ def dissolve(
     ]:
         if tiles_path is not None or nb_squarish_tiles > 1:
             raise Exception(
-                f"Dissolve to tiles (tiles_path, nb_squarish_tiles) is not supported for {input_layerinfo.geometrytype}"
+                "Dissolve to tiles (tiles_path, nb_squarish_tiles) is not supported "
+                f"for {input_layerinfo.geometrytype}"
             )
     if output_path.exists():
         if force is False:
             result_info[
                 "message"
-            ] = f"Stop {operation}: output exists already {output_path} and force is false"
+            ] = f"output exists already {output_path} and force is false"
             logger.info(result_info["message"])
             return result_info
         else:
@@ -724,13 +712,38 @@ def dissolve(
             'or {"columns": [{"column": "...", "agg": "...", "as": "..."}, ...]}'
         )
 
+        # First take a deep copy, as values can be changed further on to treat columns
+        # case insensitive
+        agg_columns = json.loads(json.dumps(agg_columns))
+
         # It should be a dict with one key
-        if isinstance(agg_columns, dict) is False or len(agg_columns) != 1:
+        if (
+            agg_columns is None
+            or isinstance(agg_columns, dict) is False
+            or len(agg_columns) != 1
+        ):
             raise ValueError(message)
 
-        # Depending on the top level key, proceed
         if "json" in agg_columns:
-            extra_columns = agg_columns["json"]
+            if agg_columns["json"] is None:
+                # agg_columns["json"] = list(input_layerinfo.columns)
+                agg_columns["json"] = [
+                    col for col in input_layerinfo.columns if col.upper() != "INDEX"
+                ]
+            else:
+                # Check if column exists + set casing same as in data
+                columns_in_data = []
+                for column in agg_columns["json"]:
+                    column_in_data = columns_upper_dict.get(column.upper())
+                    if column_in_data is not None:
+                        columns_in_data.append(column_in_data)
+                    else:
+                        raise ValueError(
+                            f"Error: column '{column}' is not available "
+                            f"in {input_path}, layer {input_layer}"
+                        )
+                agg_columns["json"] = columns_in_data
+
         elif "columns" in agg_columns:
             supported_aggfuncs = [
                 "count",
@@ -751,9 +764,14 @@ def dissolve(
                 if isinstance(agg_column, dict) is False:
                     raise ValueError(message)
 
-                # Check if column keys is available + if column exists
+                # Check if column exists + set casing same as in data
                 if "column" in agg_column:
-                    if agg_column["column"].upper() not in columns_upper_dict:
+                    column_in_data = columns_upper_dict.get(
+                        agg_column["column"].upper()
+                    )
+                    if column_in_data is not None:
+                        agg_column["column"] = column_in_data
+                    else:
                         raise ValueError(
                             f"Error: column '{agg_column['column']}' is not available "
                             f"in {input_path}, layer {input_layer}"
@@ -821,7 +839,6 @@ def dissolve(
             agg_columns=agg_columns,
             input_layer=input_layer,
             output_layer=output_layer,
-            verbose=verbose,
             force=force,
         )
 
@@ -875,7 +892,7 @@ def dissolve(
                 nb_parallel, nb_batches_recommended, _ = get_parallelization_params(
                     nb_rows_total=nb_rows_total,
                     nb_parallel=nb_parallel,
-                    prev_nb_batches=prev_nb_batches,
+                    nb_batches_previous_pass=prev_nb_batches,
                     parallelization_config=parallelization_config,
                 )
 
@@ -996,7 +1013,6 @@ def dissolve(
                 if agg_columns is not None:
                     if "json" in agg_columns:
                         # The aggregation is to a json column, so add
-                        # agg_columns_str += ",replace(json_group_array(json_data.json_row), '\\', '') as json"
                         agg_columns_str += (
                             ",json_group_array(DISTINCT json_data.json_row) as json"
                         )
@@ -1023,7 +1039,7 @@ def dissolve(
                                     extra_param_str = f", '{agg_column['sep']}'"
                             else:
                                 raise ValueError(
-                                    f"Error: aggregation {agg_column['agg']} is not supported!"
+                                    f"aggregation {agg_column['agg']} is not supported"
                                 )
 
                             # If distinct is specified, add the distinct keyword
@@ -1310,6 +1326,7 @@ def _dissolve_polygons(
     # Read all records that are in the bbox
     retry_count = 0
     start_read = datetime.now()
+    agg_columns_needed = None
     while True:
         try:
             columns_to_read = set()
@@ -1325,17 +1342,13 @@ def _dissolve_polygons(
                     # The first pass, so read all relevant columns to code
                     # them in json
                     if "json" in agg_columns:
-                        if agg_columns["json"] is None:
-                            columns_to_read.update(info.columns)
-                        else:
-                            columns_to_read.update(agg_columns["json"])
+                        agg_columns_needed = agg_columns["json"]
                     elif "columns" in agg_columns:
-                        columns_to_read.update(
-                            [
-                                agg_column["column"]
-                                for agg_column in agg_columns["columns"]
-                            ]
-                        )
+                        agg_columns_needed = [
+                            agg_column["column"]
+                            for agg_column in agg_columns["columns"]
+                        ]
+                    columns_to_read.update(agg_columns_needed)
 
                     # TODO: remove VERY DIRTY HACK to get fid for geopackages
                     columns_to_read.add("__TMP_GEOFILEOPS_FID")
@@ -1349,6 +1362,8 @@ def _dissolve_polygons(
                 input_gdf = input_gdf.rename(
                     columns={"__TMP_GEOFILEOPS_FID": "fid_orig"}
                 )
+                if agg_columns_needed is not None:
+                    agg_columns_needed.append("fid_orig")
                 assert isinstance(input_gdf, gpd.GeoDataFrame)
 
             break
@@ -1375,8 +1390,8 @@ def _dissolve_polygons(
     # Now the real processing
     if agg_columns is not None:
         if "__DISSOLVE_TOJSON" not in input_gdf.columns:
-            # First pass -> put all columns to json
-            aggfunc = "to_json"
+            # First pass -> put relevant columns in json field
+            aggfunc = {"to_json": agg_columns_needed}
         else:
             # Columns already coded in a json column, so merge json lists
             aggfunc = "merge_json_lists"
@@ -1544,7 +1559,7 @@ def _dissolve(
     by : string, default None
         Column whose values define groups to be dissolved. If None,
         whole GeoDataFrame is considered a single group.
-    aggfunc : function or string, default "first"
+    aggfunc : function, string or dict, default "first"
         Aggregation function for manipulation of data associated
         with each group. Passed to pandas `groupby.agg` method.
     as_index : boolean, default True
@@ -1617,36 +1632,42 @@ def _dissolve(
     # Process non-spatial component
     data = pd.DataFrame(df.drop(columns=df.geometry.name))
 
-    if isinstance(aggfunc, str) is True and aggfunc == "to_json":
-        agg_columns = list(data.columns)
-        if by is not None:
-            for column in by:
-                agg_columns.remove(column)
+    if isinstance(aggfunc, dict) is True and "to_json" in aggfunc:
+        agg_columns = list(set(aggfunc["to_json"]))
         aggregated_data = (
             data.groupby(**groupby_kwargs)
             .apply(lambda g: g[agg_columns].to_json(orient="records"))
             .to_frame(name="__DISSOLVE_TOJSON")
         )
     elif isinstance(aggfunc, str) is True and aggfunc == "merge_json_lists":
+        # Merge and flatten the json lists in the groups
+        def group_flatten_json_list(g):
+
+            # Evaluate all grouped rows to json objects. This results in a list of
+            # lists of json objects.
+            json_nested_lists = [
+                json.loads(json_values) for json_values in g["__DISSOLVE_TOJSON"]
+            ]
+
+            # Extract the rows from the nested lists + put in a flat list as strings
+            jsonstr_flat = [
+                json.dumps(json_value)
+                for json_values in json_nested_lists
+                for json_value in json_values
+            ]
+
+            # Remove duplicates
+            jsonsstr_distinct = set(jsonstr_flat)
+
+            # Convert the data again to a list of json objects
+            json_distinct = [json.loads(json_value) for json_value in jsonsstr_distinct]
+
+            # Return as json string
+            return json.dumps(json_distinct)
+
         aggregated_data = (
             data.groupby(**groupby_kwargs)
-            .apply(
-                lambda g: json.dumps(
-                    [
-                        json.loads(json_value)
-                        for json_value in set(
-                            [
-                                json.dumps(json_value)
-                                for json_values in [
-                                    ast.literal_eval(json_values)
-                                    for json_values in g["__DISSOLVE_TOJSON"]
-                                ]
-                                for json_value in json_values
-                            ]
-                        )
-                    ]
-                )
-            )
+            .apply(lambda g: group_flatten_json_list(g))
             .to_frame(name="__DISSOLVE_TOJSON")
         )
     else:

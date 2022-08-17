@@ -274,9 +274,7 @@ def test_get_layerinfo(testfile, suffix, layer):
 
     # Multiple layers available, but no layer specified
     if len(gfo.listlayers(src)) > 1:
-        with pytest.raises(
-            ValueError, match="No layer specified, and file has <> 1 layer"
-        ):
+        with pytest.raises(ValueError, match="Layer has > 1 layer"):
             layerinfo = gfo.get_layerinfo(src)
 
 
@@ -296,7 +294,7 @@ def test_get_only_layer_two_layers():
     src = test_helper.get_testfile("polygon-twolayers")
     layers = gfo.listlayers(src)
     assert len(layers) == 2
-    with pytest.raises(ValueError, match="Error: More than 1 layer found in"):
+    with pytest.raises(ValueError, match="Layer has > 1 layer"):
         _ = gfo.get_only_layer(src)
 
 
@@ -662,6 +660,22 @@ def test_to_file_gpd_none(tmp_path, suffix):
     test_read_geometrytypes = geoseries_util.get_geometrytypes(test_read_gdf.geometry)
     assert len(test_gdf) == len(test_read_gdf)
     assert test_read_geometrytypes == test_geometrytypes
+
+
+def test_to_file_attribute_table_gpkg(tmp_path):
+    # Prepare test data
+    test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+
+    # Test writing a DataFrame to geopackage
+    test_gdf = gfo.read_file(test_path)
+    test_df = test_gdf.drop(columns="geometry")
+    assert isinstance(test_df, pd.DataFrame)
+    assert isinstance(test_df, gpd.GeoDataFrame) is False
+    gfo.to_file(test_df, test_path)
+
+    # Now check if the layer are correctly found afterwards
+    assert len(gfo.listlayers(test_path)) == 1
+    assert len(gfo.listlayers(test_path, only_spatial_layers=False)) == 2
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)

@@ -18,6 +18,7 @@ import warnings
 
 import fiona
 import geopandas as gpd
+from geopandas.io import file as gpd_io_file
 from osgeo import gdal
 import pandas as pd
 import pyproj
@@ -48,19 +49,24 @@ warnings.filterwarnings(
     "This can negatively impact the performance.",
 )
 
-# Hardcoded prj string to replace faulty ones
+# Hardcoded 31370 prj string to replace faulty ones
 PRJ_EPSG_31370 = (
-    'PROJCS["Belge_1972_Belgian_Lambert_72",GEOGCS["Belge 1972",'
+    'PROJCS["Belge_1972_Belgian_Lambert_72",'
+    'GEOGCS["Belge 1972",'
     'DATUM["D_Belge_1972",SPHEROID["International_1924",6378388,297]],'
-    'PRIMEM["Greenwich",0],UNIT["Degree",0.017453292519943295]],'
+    'PRIMEM["Greenwich",0],'
+    'UNIT["Degree",0.017453292519943295]'
+    "],"
     'PROJECTION["Lambert_Conformal_Conic"],'
     'PARAMETER["standard_parallel_1",51.16666723333333],'
     'PARAMETER["standard_parallel_2",49.8333339],'
     'PARAMETER["latitude_of_origin",90],'
     'PARAMETER["central_meridian",4.367486666666666],'
     'PARAMETER["false_easting",150000.013],'
-    'PARAMETER["false_northing",5400088.438],('
-    'UNIT["Meter",1],AUTHORITY["EPSG",31370]]'
+    'PARAMETER["false_northing",5400088.438],'
+    'UNIT["Meter",1],'
+    'AUTHORITY["EPSG",31370]'
+    "]"
 )
 
 #####################################################################
@@ -69,19 +75,41 @@ PRJ_EPSG_31370 = (
 
 
 def listlayers(
-    path: Union[str, "os.PathLike[Any]"], verbose: bool = False
+    path: Union[str, "os.PathLike[Any]"],
+    only_spatial_layers: bool = True,
 ) -> List[str]:
     """
     Get the list of layers in a geofile.
 
     Args:
         path (PathLike): path to the file to get info about
-        verbose (bool, optional): True to enable verbose logging. Defaults to False.
+        only_spatial_layers (bool, optional): True to only list spatial layers.
+            False to list all tables.
 
     Returns:
         List[str]: the list of layers
     """
-    return fiona.listlayers(str(path))
+    path = Path(path)
+    if path.suffix.lower() == ".shp":
+        return [path.stem]
+
+    datasource = None
+    layers = []
+    try:
+        datasource = gdal.OpenEx(str(path))
+        nb_layers = datasource.GetLayerCount()
+        for layer_id in range(nb_layers):
+            datasource_layer = datasource.GetLayerByIndex(layer_id)
+            if (
+                only_spatial_layers is False
+                or datasource_layer.GetGeometryColumn() != ""
+            ):
+                layers.append(datasource_layer.GetName())
+    finally:
+        if datasource is not None:
+            del datasource
+
+    return layers
 
 
 class ColumnInfo:
@@ -180,15 +208,13 @@ def get_layerinfo(
     if not path.exists():
         raise ValueError(f"File does not exist: {path}")
 
+    if layer is None:
+        layer = get_only_layer(path)
+
     datasource = None
     try:
         datasource = gdal.OpenEx(str(path))
-        if layer is not None:
-            datasource_layer = datasource.GetLayer(layer)
-        elif datasource.GetLayerCount() == 1:
-            datasource_layer = datasource.GetLayerByIndex(0)
-        else:
-            raise ValueError(f"No layer specified, and file has <> 1 layer: {path}")
+        datasource_layer = datasource.GetLayer(layer)
 
         # If the layer doesn't exist, return
         if datasource_layer is None:
@@ -327,14 +353,28 @@ def get_only_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
     Returns:
         str: the layer name
     """
-    layers = fiona.listlayers(str(path))
-    nb_layers = len(layers)
-    if nb_layers == 1:
-        return layers[0]
-    elif nb_layers == 0:
-        raise ValueError(f"Error: No layers found in {path}")
-    else:
-        raise ValueError(f"Error: More than 1 layer found in {path}: {layers}")
+    datasource = None
+    try:
+        datasource_layer = None
+        datasource = gdal.OpenEx(str(path))
+        nb_layers = datasource.GetLayerCount()
+        if nb_layers == 1:
+            datasource_layer = datasource.GetLayerByIndex(0)
+        elif nb_layers == 0:
+            raise ValueError(f"Error: No layers found in {path}")
+        else:
+            # Check if there is only one spatial layer
+            layers = listlayers(path, only_spatial_layers=True)
+            if len(layers) == 1:
+                datasource_layer = datasource.GetLayer(layers[0])
+            else:
+                raise ValueError(f"Layer has > 1 layer: {path}: {layers}")
+
+        return datasource_layer.GetName()
+
+    finally:
+        if datasource is not None:
+            del datasource
 
 
 def get_default_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
@@ -399,7 +439,7 @@ def create_spatial_index(
             one layer in the file, this layer is used. Otherwise exception.
         cache_size_mb (int, optional): memory in MB that can be used while
             creating spatial index for spatialite files (.gpkg or .sqlite).
-            Defaults to 512.
+            Defaults to 128.
         exist_ok (bool, options): If True and the index exists already, don't
             throw an error.
         force_rebuild (bool, options): True to force rebuild even if index
@@ -1056,6 +1096,16 @@ def to_file(
         # logger.warn(f"Cannot write an empty dataframe to {filepath}.{layer}")
         return
 
+    # If no geometry, prepare to be written as attribute table.
+    # Add geometry column with None geometries
+    schema = None
+    if isinstance(gdf, gpd.GeoDataFrame) is False or (
+        isinstance(gdf, gpd.GeoDataFrame) and "geometry" not in gdf.columns
+    ):
+        gdf = gpd.GeoDataFrame(gdf, geometry=[None for i in gdf.index])
+        schema = gpd_io_file.infer_schema(gdf)
+        schema["geometry"] = "None"
+
     def write_to_file(
         gdf: gpd.GeoDataFrame,
         path: Path,
@@ -1063,6 +1113,7 @@ def to_file(
         index: bool = True,
         force_multitype: bool = False,
         append: bool = False,
+        schema: Optional[dict] = None,
     ):
 
         # Change mode if append is true
@@ -1085,11 +1136,16 @@ def to_file(
             # Try to harmonize the geometrytype to one (multi)type, as GPKG
             # doesn't like > 1 type in a layer
             gdf_to_write = gdf.copy()
-            gdf_to_write.geometry = geoseries_util.harmonize_geometrytypes(
-                gdf.geometry, force_multitype=force_multitype
-            )
+            if schema is None or schema["geometry"] != "None":
+                gdf_to_write.geometry = geoseries_util.harmonize_geometrytypes(
+                    gdf.geometry, force_multitype=force_multitype
+                )
             gdf_to_write.to_file(
-                str(path), layer=layer, driver=geofiletype.ogrdriver, mode=mode
+                str(path),
+                layer=layer,
+                driver=geofiletype.ogrdriver,
+                mode=mode,
+                schema=schema,
             )
         elif geofiletype == GeofileType.SQLite:
             gdf.to_file(str(path), layer=layer, driver=geofiletype.ogrdriver, mode=mode)
@@ -1107,6 +1163,7 @@ def to_file(
             index=index,
             force_multitype=force_multitype,
             append=append,
+            schema=schema,
         )
     else:
         # If append is asked, check if the fiona driver supports appending. If
@@ -1131,6 +1188,7 @@ def to_file(
                 layer=layer,
                 index=index,
                 force_multitype=force_multitype,
+                schema=schema,
             )
 
         # Files don't typically support having multiple processes writing
@@ -1149,6 +1207,7 @@ def to_file(
                             index=index,
                             force_multitype=force_multitype,
                             append=True,
+                            schema=schema,
                         )
                     else:
                         # If gdf written to temp file, use append_to_nolock + cleanup
@@ -1321,7 +1380,7 @@ def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
                     shutil.move(str(srcfile), dstfile, copy_function=_io_util.copyfile)
 
 
-def remove(path: Union[str, "os.PathLike[Any]"]):
+def remove(path: Union[str, "os.PathLike[Any]"], missing_ok: bool = False):
     """
     Removes the geofile. Is it is a geofile composed of multiple files
     (eg. .shp) all files are removed.
@@ -1340,14 +1399,13 @@ def remove(path: Union[str, "os.PathLike[Any]"]):
 
     # Remove the main file
     if path.exists():
-        path.unlink()
+        path.unlink(missing_ok=missing_ok)
 
     # For some file types, extra files need to be removed
     if geofiletype.suffixes_extrafiles is not None:
         for suffix in geofiletype.suffixes_extrafiles:
             curr_path = path.parent / f"{path.stem}{suffix}"
-            if curr_path.exists():
-                curr_path.unlink()
+            curr_path.unlink(missing_ok=True)
 
 
 def append_to(
@@ -1413,7 +1471,6 @@ def append_to(
         transaction_size (int, optional): Transaction size.
             Defaults to 50000.
         options (dict, optional): options to pass to gdal.
-        verbose (bool, optional): True to write verbose output. Defaults to False.
 
     Raises:
         ValueError: an invalid parameter value was passed.
