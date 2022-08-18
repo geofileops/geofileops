@@ -10,12 +10,15 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 from pandas.testing import assert_frame_equal
+import pytest
 import shapely.geometry as sh_geom
 
 # Add path so the local geofileops packages are found
+# Add path so the local geofileops packages are found
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import geofileops as gfo
 from geofileops.util import geoseries_util
-from geofileops.util.geometry_util import GeometryType, PrimitiveType
+from geofileops.util.geometry_util import GeometryType, PrimitiveType, SimplifyAlgorithm
 from tests import test_helper
 
 
@@ -216,8 +219,8 @@ def test_harmonize_geometrytypes():
 
 def test_polygons_to_lines():
     # Test with polygons
-    test_gdf = gpd.GeoDataFrame(
-        geometry=[
+    test_geoseries = gpd.GeoSeries(
+        data=[
             None,
             sh_geom.Polygon(),
             test_helper.TestData.multipolygon,
@@ -226,8 +229,40 @@ def test_polygons_to_lines():
             test_helper.TestData.multipolygon,
         ]
     )
-    lines_series = geoseries_util.polygons_to_lines(test_gdf.geometry)
+    lines_series = geoseries_util.polygons_to_lines(test_geoseries)
     assert len(lines_series) == 9
+
+
+@pytest.mark.parametrize(
+    "algorithm", [SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER, SimplifyAlgorithm.LANG]
+)
+def test_simplify_ext(algorithm):
+    input_path = test_helper.get_testfile("polygon-parcel")
+    input_gdf = gfo.read_file(input_path)
+    result_geoseries = geoseries_util.simplify_ext(
+        input_gdf.geometry, tolerance=1, algorithm=algorithm
+    )
+
+    assert len(result_geoseries) == len(input_gdf.geometry)
+    assert len(result_geoseries[1].exterior.coords) < len(
+        input_gdf.geometry[1].geoms[0].exterior.coords
+    )
+
+
+@pytest.mark.parametrize(
+    "algorithm", [SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER, SimplifyAlgorithm.LANG]
+)
+def test_simplify_topo_ext(algorithm):
+    input_path = test_helper.get_testfile("polygon-parcel")
+    input_gdf = gfo.read_file(input_path)
+    result_geoseries = geoseries_util.simplify_topo_ext(
+        input_gdf.geometry, tolerance=1, algorithm=algorithm
+    )
+
+    assert len(result_geoseries) == len(input_gdf.geometry)
+    assert len(result_geoseries[1].geoms[0].exterior.coords) < len(
+        input_gdf.geometry[1].geoms[0].exterior.coords
+    )
 
 
 def test_view_angles():
