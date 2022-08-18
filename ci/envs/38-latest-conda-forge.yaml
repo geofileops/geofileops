@@ -16,6 +16,7 @@ dependencies:
   - pyogrio
   - pyproj
   - shapely
+  - topojson
   # testing
   - pytest
   - pytest-cov

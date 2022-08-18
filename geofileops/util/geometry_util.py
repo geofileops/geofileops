@@ -821,9 +821,7 @@ def view_angles(
     # To make it easy to calculate the angles, treat the viewpoint as the origin
     # of the coordinate system.
     def subtract_viewpoint(coords):
-        return np.column_stack(
-            [coords[:, 0] - viewpoint_x, coords[:, 1] - viewpoint_y]
-        )
+        return np.column_stack([coords[:, 0] - viewpoint_x, coords[:, 1] - viewpoint_y])
 
     visible_geom = pygeos.apply(visible_geom, subtract_viewpoint)
 
