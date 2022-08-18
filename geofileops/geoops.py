@@ -32,8 +32,8 @@ logger = logging.getLogger(__name__)
 
 
 def apply(
-    input_path: Path,
-    output_path: Path,
+    input_path: Union[str, "os.PathLike[Any]"],
+    output_path: Union[str, "os.PathLike[Any]"],
     func: Callable[[Any], Any],
     only_geom_input: bool = True,
     input_layer: Optional[str] = None,
@@ -179,9 +179,9 @@ def buffer(
          * - 5 (default)
            - 2
            - 1
-         * - |buffer_quadrantsegments_5|
-           - |buffer_quadrantsegments_2|
-           - |buffer_quadrantsegments_1|
+         * - |buffer_quadrantsegm_5|
+           - |buffer_quadrantsegm_2|
+           - |buffer_quadrantsegm_1|
 
     - **endcap_style** *(BufferEndCapStyle)*
 
@@ -219,11 +219,11 @@ def buffer(
            - |buffer_mitre_25|
            - |buffer_mitre_10|
 
-    .. |buffer_quadrantsegments_5| image:: ../_static/images/buffer_quadrantsegments_5.png
+    .. |buffer_quadrantsegm_5| image:: ../_static/images/buffer_quadrantsegments_5.png
         :alt: Buffer with quadrantsegments=5
-    .. |buffer_quadrantsegments_2| image:: ../_static/images/buffer_quadrantsegments_2.png
+    .. |buffer_quadrantsegm_2| image:: ../_static/images/buffer_quadrantsegments_2.png
         :alt: Buffer with quadrantsegments=2
-    .. |buffer_quadrantsegments_1| image:: ../_static/images/buffer_quadrantsegments_1.png
+    .. |buffer_quadrantsegm_1| image:: ../_static/images/buffer_quadrantsegments_1.png
         :alt: Buffer with quadrantsegments=1
     .. |buffer_endcap_round| image:: ../_static/images/buffer_endcap_round.png
         :alt: Buffer with endcap_style=BufferEndCapStyle.ROUND (default)
@@ -287,6 +287,47 @@ def buffer(
             batchsize=batchsize,
             force=force,
         )
+
+
+def clip_by_geometry(
+    input_path: Union[str, "os.PathLike[Any]"],
+    output_path: Union[str, "os.PathLike[Any]"],
+    clip_geometry: Union[Tuple[float, float, float, float], str],
+    input_layer: Optional[str] = None,
+    output_layer: Optional[str] = None,
+    columns: Optional[List[str]] = None,
+    explodecollections: bool = False,
+    force: bool = False,
+):
+    """
+    Clip all geometries in the imput file by the geometry provided.
+
+    Args:
+        input_path (PathLike): the input file
+        output_path (PathLike): the file to write the result to
+        clip_geometry (Union[Tuple[float, float, float, float], str]): the bounds
+            or WKT geometry to clip with.
+        input_layer (str, optional): input layer name. Optional if the
+            file only contains one layer.
+        output_layer (str, optional): input layer name. Optional if the
+            file only contains one layer.
+        columns (List[str], optional): list of columns to return. If None,
+            all columns are returned.
+        explodecollections (bool, optional): True to output only simple geometries.
+            Defaults to False.
+       force (bool, optional): overwrite existing output file(s).
+            Defaults to False.
+    """
+    return _geoops_ogr.clip_by_geometry(
+        input_path=Path(input_path),
+        output_path=Path(output_path),
+        clip_geometry=clip_geometry,
+        input_layer=input_layer,
+        output_layer=output_layer,
+        columns=columns,
+        explodecollections=explodecollections,
+        force=force,
+    )
 
 
 def convexhull(
@@ -541,10 +582,10 @@ def dissolve(
     )
 
 
-def export_by_spatial_filter(
+def export_by_bounds(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
-    spatial_filter: Union[Tuple[float, float, float, float], str],
+    bounds: Tuple[float, float, float, float],
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
@@ -552,75 +593,27 @@ def export_by_spatial_filter(
     force: bool = False,
 ):
     """
-    Export the rows.
+    Export the rows that intersect with the bounds specified.
 
     Args:
         input_path (PathLike): the input file
         output_path (PathLike): the file to write the result to
-        spatial_filter (Union[Tuple[float, float, float, float], str]): the bounds
-            or WKT geometry to filter with.
+        bounds (Tuple[float, float, float, float]): the bounds to filter on.
         input_layer (str, optional): input layer name. Optional if the
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the
             file only contains one layer.
-        columns (Optional[List[str]], optional): _description_. Defaults to None.
-        explodecollections (bool): True to output only simple geometries. If
-            False, this can result in huge geometries for large files,
-            especially if no groupby_columns are specified.
+        columns (List[str], optional): list of columns to return. If None,
+            all columns are returned.
+        explodecollections (bool, optional): True to output only simple geometries.
+            Defaults to False.
        force (bool, optional): overwrite existing output file(s).
             Defaults to False.
-
-    Returns:
-        _type_: _description_
     """
-    return _geoops_ogr.export_by_spatial_filter(
+    return _geoops_ogr.export_by_bounds(
         input_path=Path(input_path),
         output_path=Path(output_path),
-        spatial_filter=spatial_filter,
-        input_layer=input_layer,
-        output_layer=output_layer,
-        columns=columns,
-        explodecollections=explodecollections,
-        force=force,
-    )
-
-
-def export_clipped(
-    input_path: Union[str, "os.PathLike[Any]"],
-    output_path: Union[str, "os.PathLike[Any]"],
-    clip_filter: Union[Tuple[float, float, float, float], str],
-    input_layer: Optional[str] = None,
-    output_layer: Optional[str] = None,
-    columns: Optional[List[str]] = None,
-    explodecollections: bool = False,
-    force: bool = False,
-):
-    """
-    Export the rows.
-
-    Args:
-        input_path (PathLike): the input file
-        output_path (PathLike): the file to write the result to
-        clip_filter (Union[Tuple[float, float, float, float], str]): the bounds
-            or WKT geometry to clip with.
-        input_layer (str, optional): input layer name. Optional if the
-            file only contains one layer.
-        output_layer (str, optional): input layer name. Optional if the
-            file only contains one layer.
-        columns (Optional[List[str]], optional): _description_. Defaults to None.
-        explodecollections (bool): True to output only simple geometries. If
-            False, this can result in huge geometries for large files,
-            especially if no groupby_columns are specified.
-       force (bool, optional): overwrite existing output file(s).
-            Defaults to False.
-
-    Returns:
-        _type_: _description_
-    """
-    return _geoops_ogr.clip_by_geometry(
-        input_path=Path(input_path),
-        output_path=Path(output_path),
-        clip_geometry=clip_filter,
+        bounds=bounds,
         input_layer=input_layer,
         output_layer=output_layer,
         columns=columns,
@@ -752,16 +745,16 @@ def makevalid(
     )
 
 
-def rubbersheet(
-    input_path: Union[str, "os.PathLike[Any]"],
-    output_path: Union[str, "os.PathLike[Any]"],
+def warp(
+    input_path: Path,
+    output_path: Path,
+    gcps: List[Tuple[float, float, float, float, Optional[float]]],
+    algorithm: str = "polynomial",
+    order: Optional[int] = None,
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
-    force_output_geometrytype: Optional[GeometryType] = None,
-    nb_parallel: int = -1,
-    batchsize: int = -1,
     force: bool = False,
 ):
     """
@@ -769,11 +762,20 @@ def rubbersheet(
     output path.
 
     Alternative names:
-        - warp
+        - rubbersheet, rubbersheeting
 
     Args:
         input_path (PathLike): The input file.
         output_path (PathLike): The file to write the result to.
+        gcps (List[Tuple[float, float, float, float]]): ground control points to
+            use to warp the input geometries. This is a list of tuples like this:
+            [(x_orig, y_orig, x_dest, y_dest, elevation), ...].
+        algorithm (str, optional): algorithm to use to warp:
+            - "polynomial": use a polynomial transformation
+            - "tps": use a thin plate spline transformer
+            Defaults to "polynomial".
+        order (int, optional): if algorithm is "polynomial", the order of the
+            polynomial to use for warping.
         input_layer (str, optional): input layer name. Optional if the
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the
@@ -782,29 +784,21 @@ def rubbersheet(
             specified. Defaults to None.
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
-        force_output_geometrytype (GeometryType, optional): The output geometry type to
-            force. Defaults to None, and then the geometry type of the input is used
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available processors.
-        batchsize (int, optional): indicative number of rows to process per
-            batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage.
-            Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
 
-    logger.info(f"Start makevalid on {input_path}")
-    _geoops_sql.makevalid(
+    logger.info(f"Start warp on {input_path}")
+    _geoops_ogr.warp(
         input_path=Path(input_path),
         output_path=Path(output_path),
+        gcps=gcps,
+        algorithm=algorithm,
+        order=order,
         input_layer=input_layer,
         output_layer=output_layer,
         columns=columns,
         explodecollections=explodecollections,
-        force_output_geometrytype=force_output_geometrytype,
-        nb_parallel=nb_parallel,
-        batchsize=batchsize,
         force=force,
     )
 

@@ -4,16 +4,18 @@ Module containing utilities regarding operations on geoseries.
 """
 
 import logging
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import pygeos
 from shapely import geometry as sh_geom
+import topojson
+import topojson.ops
 
 from . import geometry_util
-from .geometry_util import GeometryType, PrimitiveType
+from .geometry_util import GeometryType, PrimitiveType, SimplifyAlgorithm
 
 #####################################################################
 # First define/init some general variables/constants
@@ -199,21 +201,112 @@ def polygons_to_lines(geoseries: gpd.GeoSeries) -> gpd.GeoSeries:
     return gpd.GeoSeries(polygons_lines)
 
 
+def simplify_topo_ext(
+    geoseries: gpd.GeoSeries,
+    tolerance: float,
+    algorithm: SimplifyAlgorithm = SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER,
+    lookahead: int = 8,
+    keep_points_on: Optional[sh_geom.base.BaseGeometry] = None,
+) -> gpd.GeoSeries:
+    """
+    Applies simplify while retaining common boundaries between geometries in the
+    geoseries.
+
+    Args:
+        geoseries (gpd.GeoSeries): the geoseries to simplify.
+        algorithm (SimplifyAlgorithm): algorithm to use.
+        tolerance (float): tolerance to use for simplify
+        lookahead (int, optional): lookahead value for algorithms that use this.
+            Defaults to 8.
+        keep_points_on (Optional[sh_geom.base.BaseGeometry], optional): points that
+            intersect with this geometry won't be removed by the simplification.
+            Defaults to None.
+
+    Returns:
+        gpd.GeoSeries: the simplified geoseries
+    """
+    topo = topojson.Topology(geoseries, prequantize=False)
+    topolines = sh_geom.MultiLineString(topo.output["arcs"])
+    topolines_simpl = geometry_util.simplify_ext(
+        geometry=topolines,
+        tolerance=tolerance,
+        algorithm=algorithm,
+        lookahead=lookahead,
+        keep_points_on=keep_points_on,
+        preserve_topology=True,
+    )
+    assert topolines_simpl is not None
+
+    # Copy the results of the simplified lines
+    if algorithm == SimplifyAlgorithm.LANG:
+        # For LANG, a simple copy is OK
+        assert isinstance(topolines_simpl, sh_geom.MultiLineString)
+        topo.output["arcs"] = [list(geom.coords) for geom in topolines_simpl.geoms]
+    else:
+        # For RDP, only overwrite the lines that have a valid result
+        for index in range(len(topo.output["arcs"])):
+            # If the result of the simplify is a point, keep original
+            topoline_simpl = topolines_simpl.geoms[index].coords  # type: ignore
+            if len(topoline_simpl) < 2:
+                continue
+            elif (
+                list(topoline_simpl[0]) != topo.output["arcs"][index][0]
+                or list(topoline_simpl[-1]) != topo.output["arcs"][index][-1]
+            ):
+                # Start or end point of the simplified version is not the same anymore
+                continue
+            else:
+                topo.output["arcs"][index] = list(topoline_simpl)
+
+    topo_simpl_geoseries = topo.to_gdf(crs=geoseries.crs).geometry
+    topo_simpl_geoseries.array.data = pygeos.make_valid(topo_simpl_geoseries.array.data)
+    geometry_types_orig = geoseries.type.unique()
+    geometry_types_simpl = topo_simpl_geoseries.type.unique()
+    if len(geometry_types_orig) == 1 and len(geometry_types_simpl) > 1:
+        topo_simpl_geoseries = geometry_collection_extract(
+            topo_simpl_geoseries,
+            GeometryType(geometry_types_orig[0]).to_primitivetype,
+        )
+    return topo_simpl_geoseries
+
+
 def simplify_ext(
     geoseries: gpd.GeoSeries,
-    algorithm: geometry_util.SimplifyAlgorithm,
     tolerance: float,
+    algorithm: SimplifyAlgorithm = SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER,
     lookahead: int = 8,
+    keep_points_on: Optional[sh_geom.base.BaseGeometry] = None,
 ) -> gpd.GeoSeries:
-    # If ramer-douglas-peucker, use standard geopandas algorithm
-    if algorithm is geometry_util.SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER:
+    """
+    Applies simplify on the geometries in the geoseries.
+
+    Args:
+        geoseries (gpd.GeoSeries): the geoseries to simplify.
+        algorithm (SimplifyAlgorithm): algorithm to use.
+        tolerance (float): tolerance to use for simplify
+        lookahead (int, optional): lookahead value for algorithms that use this.
+            Defaults to 8.
+        keep_points_on (Optional[sh_geom.base.BaseGeometry], optional): points that
+            intersect with this geometry won't be removed by the simplification.
+            Defaults to None.
+
+    Returns:
+        gpd.GeoSeries: the simplified geoseries
+    """
+    # If ramer-douglas-peucker and no keep_points_on, use standard geopandas algorithm
+    if algorithm is SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER and keep_points_on is None:
         return geoseries.simplify(tolerance=tolerance, preserve_topology=True)
     else:
         # For other algorithms, use vector_util.simplify_ext()
         return gpd.GeoSeries(
             [
                 geometry_util.simplify_ext(
-                    geom, algorithm=algorithm, tolerance=tolerance, lookahead=lookahead
+                    geom,
+                    algorithm=algorithm,
+                    tolerance=tolerance,
+                    lookahead=lookahead,
+                    keep_points_on=keep_points_on,
+                    preserve_topology=True,
                 )
                 for geom in geoseries
             ]

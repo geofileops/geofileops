@@ -10,19 +10,22 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 from pandas.testing import assert_frame_equal
+import pytest
 import shapely.geometry as sh_geom
 
 # Add path so the local geofileops packages are found
+# Add path so the local geofileops packages are found
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import geofileops as gfo
 from geofileops.util import geoseries_util
-from geofileops.util.geometry_util import GeometryType, PrimitiveType
+from geofileops.util.geometry_util import GeometryType, PrimitiveType, SimplifyAlgorithm
 from tests import test_helper
 
 
 def test_get_geometrytypes():
     # None and empty geometries are by default ignored in get_geometrytypes
     test_gdf = gpd.GeoDataFrame(
-        geometry=[
+        geometry=[  # type: ignore
             None,
             sh_geom.Point(),
             sh_geom.LineString(),
@@ -40,7 +43,7 @@ def test_get_geometrytypes():
 
     # None and empty geometries are by default ignored in get_geometrytypes
     test_gdf = gpd.GeoDataFrame(
-        geometry=[
+        geometry=[  # type: ignore
             None,
             sh_geom.Point(),
             sh_geom.LineString(),
@@ -55,7 +58,7 @@ def test_get_geometrytypes():
     # Empty geometries are counted with ignore_empty_geometries=False, but
     # are always treated as GeometryCollection in GeoPandas.
     test_gdf = gpd.GeoDataFrame(
-        geometry=[
+        geometry=[  # type: ignore
             None,
             sh_geom.Point(),
             sh_geom.LineString(),
@@ -74,7 +77,7 @@ def test_get_geometrytypes():
 def test_geometry_collection_extract():
     # Test for gdf with all types of geometrytypes, extract!
     test_gdf = gpd.GeoDataFrame(
-        geometry=[
+        geometry=[  # type: ignore
             test_helper.TestData.point,
             test_helper.TestData.multipoint,
             test_helper.TestData.polygon_with_island,
@@ -100,7 +103,7 @@ def test_geometry_collection_extract():
 def test_harmonize_geometrytypes():
     # Test for gdf with None + point + multipoint -> all multipoint
     test_gdf = gpd.GeoDataFrame(
-        geometry=[
+        geometry=[  # type: ignore
             None,
             sh_geom.Point(),
             test_helper.TestData.point,
@@ -128,7 +131,7 @@ def test_harmonize_geometrytypes():
 
     # Test for gdf with linestring + multilinestring -> all multilinestring
     test_gdf = gpd.GeoDataFrame(
-        geometry=[
+        geometry=[  # type: ignore
             None,
             sh_geom.LineString(),
             test_helper.TestData.linestring,
@@ -156,7 +159,7 @@ def test_harmonize_geometrytypes():
 
     # Test for gdf with polygon + multipolygon -> all multipolygon
     test_gdf = gpd.GeoDataFrame(
-        geometry=[
+        geometry=[  # type: ignore
             test_helper.TestData.polygon_with_island,
             None,
             sh_geom.Polygon(),
@@ -185,7 +188,7 @@ def test_harmonize_geometrytypes():
 
     # Test for gdf with all types of geometrytypes -> no harmonization possible
     test_gdf = gpd.GeoDataFrame(
-        geometry=[
+        geometry=[  # type: ignore
             None,
             sh_geom.Polygon(),
             test_helper.TestData.point,
@@ -216,8 +219,8 @@ def test_harmonize_geometrytypes():
 
 def test_polygons_to_lines():
     # Test with polygons
-    test_gdf = gpd.GeoDataFrame(
-        geometry=[
+    test_geoseries = gpd.GeoSeries(
+        data=[
             None,
             sh_geom.Polygon(),
             test_helper.TestData.multipolygon,
@@ -226,8 +229,40 @@ def test_polygons_to_lines():
             test_helper.TestData.multipolygon,
         ]
     )
-    lines_series = geoseries_util.polygons_to_lines(test_gdf.geometry)
+    lines_series = geoseries_util.polygons_to_lines(test_geoseries)
     assert len(lines_series) == 9
+
+
+@pytest.mark.parametrize(
+    "algorithm", [SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER, SimplifyAlgorithm.LANG]
+)
+def test_simplify_ext(algorithm):
+    input_path = test_helper.get_testfile("polygon-parcel")
+    input_gdf = gfo.read_file(input_path)
+    result_geoseries = geoseries_util.simplify_ext(
+        input_gdf.geometry, tolerance=1, algorithm=algorithm
+    )
+
+    assert len(result_geoseries) == len(input_gdf.geometry)
+    assert len(result_geoseries[1].exterior.coords) < len(
+        input_gdf.geometry[1].geoms[0].exterior.coords
+    )
+
+
+@pytest.mark.parametrize(
+    "algorithm", [SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER, SimplifyAlgorithm.LANG]
+)
+def test_simplify_topo_ext(algorithm):
+    input_path = test_helper.get_testfile("polygon-parcel")
+    input_gdf = gfo.read_file(input_path)
+    result_geoseries = geoseries_util.simplify_topo_ext(
+        input_gdf.geometry, tolerance=1, algorithm=algorithm
+    )
+
+    assert len(result_geoseries) == len(input_gdf.geometry)
+    assert len(result_geoseries[1].geoms[0].exterior.coords) < len(
+        input_gdf.geometry[1].geoms[0].exterior.coords
+    )
 
 
 def test_view_angles():
@@ -244,7 +279,7 @@ def test_view_angles():
     df = pd.DataFrame(visible_geoms, columns=columns)
     gs = gpd.GeoSeries.from_wkt(df["wkt"])
     df = df.drop(columns="wkt")
-    visible_geoms_gdf = gpd.GeoDataFrame(df, geometry=gs)
+    visible_geoms_gdf = gpd.GeoDataFrame(df, geometry=gs)  # type: ignore
     # Remove a row to test if the index is properly maintained in view_angles
     visible_geoms_gdf = visible_geoms_gdf.drop([3], axis=0)
 

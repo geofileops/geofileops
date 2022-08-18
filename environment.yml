@@ -7,8 +7,10 @@ dependencies:
   - cloudpickle
   - geopandas
   - pygeos
+  - pyogrio
   - psutil
   - pydata-sphinx-theme
+  - topojson
   - pip:
     - sphinx-automodapi==0.13
     - simplification

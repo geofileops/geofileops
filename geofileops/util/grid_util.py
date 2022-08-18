@@ -91,7 +91,7 @@ def create_grid3(
         cell_left += width
         cell_right += width
 
-    return gpd.GeoDataFrame({"geometry": polygons}, crs=crs)
+    return gpd.GeoDataFrame(geometry=polygons, crs=crs)  # type: ignore
 
 
 def create_grid2(
@@ -227,4 +227,4 @@ def split_tiles(
             result_tiles.append(tile._replace(geometry=tile_split_part))
 
     # We should be ready...
-    return gpd.GeoDataFrame(result_tiles, crs=input_tiles.crs)
+    return gpd.GeoDataFrame(data=result_tiles, crs=input_tiles.crs)  # type: ignore
