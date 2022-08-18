@@ -187,7 +187,8 @@ def vector_translate(
     if warp is not None:
         gcps = warp.get("gcps", [])
         for gcp in gcps:
-            args.extend(["-gcp", str(gcp[0]), str(gcp[1]), str(gcp[2]), str(gcp[3])])
+            args.extend(["-gcp"])
+            args.extend([str(coord) for coord in gcp if coord is not None])
         algorithm = warp.get("algorithm", "polynomial")
         if algorithm == "polynomial":
             order = warp.get("order", None)
@@ -201,8 +202,6 @@ def vector_translate(
     # Input dataset open options
     for option_name, value in gdal_options["INPUT_OPEN"].items():
         args.extend(["-oo", f"{option_name}={value}"])
-
-
 
     # Output file parameters
     # Get output format from the filename

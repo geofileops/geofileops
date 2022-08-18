@@ -75,7 +75,7 @@ def export_by_bounds(
 def warp(
     input_path: Path,
     output_path: Path,
-    gcps: List[Tuple[float, float, float, float]],
+    gcps: List[Tuple[float, float, float, float, Optional[float]]],
     algorithm: str = "polynomial",
     order: Optional[int] = None,
     input_layer: Optional[str] = None,

@@ -748,7 +748,7 @@ def makevalid(
 def warp(
     input_path: Path,
     output_path: Path,
-    gcps: List[Tuple[float, float, float, float]],
+    gcps: List[Tuple[float, float, float, float, Optional[float]]],
     algorithm: str = "polynomial",
     order: Optional[int] = None,
     input_layer: Optional[str] = None,
@@ -769,7 +769,7 @@ def warp(
         output_path (PathLike): The file to write the result to.
         gcps (List[Tuple[float, float, float, float]]): ground control points to
             use to warp the input geometries. This is a list of tuples like this:
-            [(x_orig, y_orig, x_dest, y_dest), ...].
+            [(x_orig, y_orig, x_dest, y_dest, elevation), ...].
         algorithm (str, optional): algorithm to use to warp:
             - "polynomial": use a polynomial transformation
             - "tps": use a thin plate spline transformer
