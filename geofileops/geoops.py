@@ -179,9 +179,9 @@ def buffer(
          * - 5 (default)
            - 2
            - 1
-         * - |buffer_quadrantsegments_5|
-           - |buffer_quadrantsegments_2|
-           - |buffer_quadrantsegments_1|
+         * - |buffer_quadrantsegm_5|
+           - |buffer_quadrantsegm_2|
+           - |buffer_quadrantsegm_1|
 
     - **endcap_style** *(BufferEndCapStyle)*
 
@@ -219,11 +219,11 @@ def buffer(
            - |buffer_mitre_25|
            - |buffer_mitre_10|
 
-    .. |buffer_quadrantsegments_5| image:: ../_static/images/buffer_quadrantsegments_5.png
+    .. |buffer_quadrantsegm_5| image:: ../_static/images/buffer_quadrantsegments_5.png
         :alt: Buffer with quadrantsegments=5
-    .. |buffer_quadrantsegments_2| image:: ../_static/images/buffer_quadrantsegments_2.png
+    .. |buffer_quadrantsegm_2| image:: ../_static/images/buffer_quadrantsegments_2.png
         :alt: Buffer with quadrantsegments=2
-    .. |buffer_quadrantsegments_1| image:: ../_static/images/buffer_quadrantsegments_1.png
+    .. |buffer_quadrantsegm_1| image:: ../_static/images/buffer_quadrantsegments_1.png
         :alt: Buffer with quadrantsegments=1
     .. |buffer_endcap_round| image:: ../_static/images/buffer_endcap_round.png
         :alt: Buffer with endcap_style=BufferEndCapStyle.ROUND (default)
