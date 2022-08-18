@@ -5,7 +5,9 @@
 ### Improvements
 
 - Add (private) function to calculate view angles from a point towards a GeoDataFrame (#140)
-- Add operations for export_by_spatial_filter and clip_by_geometry (#144)
+- Add single layer function export_by bounds (#149)
+- Add single layer function to clip a layer by a geometry (#150)
+- Add single layer function to warp geometries based on GCP's (#151)
 
 ### Bugs fixed
 
