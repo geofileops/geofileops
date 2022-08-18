@@ -246,7 +246,7 @@ def test_buffer_negative_explode(tmp_path, fileops_module):
     # Remove rows where geom is empty
     expected_gdf = expected_gdf[~expected_gdf.geometry.is_empty]
     expected_gdf = expected_gdf[~expected_gdf.geometry.isna()]
-    expected_gdf = expected_gdf.explode(ignore_index=True)
+    expected_gdf = expected_gdf.explode(ignore_index=True)  # type: ignore
     assert_geodataframe_equal(
         output_gdf, expected_gdf, promote_to_multi=True, sort_values=True
     )

@@ -25,7 +25,7 @@ from tests import test_helper
 def test_get_geometrytypes():
     # None and empty geometries are by default ignored in get_geometrytypes
     test_gdf = gpd.GeoDataFrame(
-        geometry=[
+        geometry=[  # type: ignore
             None,
             sh_geom.Point(),
             sh_geom.LineString(),
@@ -43,7 +43,7 @@ def test_get_geometrytypes():
 
     # None and empty geometries are by default ignored in get_geometrytypes
     test_gdf = gpd.GeoDataFrame(
-        geometry=[
+        geometry=[  # type: ignore
             None,
             sh_geom.Point(),
             sh_geom.LineString(),
@@ -58,7 +58,7 @@ def test_get_geometrytypes():
     # Empty geometries are counted with ignore_empty_geometries=False, but
     # are always treated as GeometryCollection in GeoPandas.
     test_gdf = gpd.GeoDataFrame(
-        geometry=[
+        geometry=[  # type: ignore
             None,
             sh_geom.Point(),
             sh_geom.LineString(),
@@ -77,7 +77,7 @@ def test_get_geometrytypes():
 def test_geometry_collection_extract():
     # Test for gdf with all types of geometrytypes, extract!
     test_gdf = gpd.GeoDataFrame(
-        geometry=[
+        geometry=[  # type: ignore
             test_helper.TestData.point,
             test_helper.TestData.multipoint,
             test_helper.TestData.polygon_with_island,
@@ -103,7 +103,7 @@ def test_geometry_collection_extract():
 def test_harmonize_geometrytypes():
     # Test for gdf with None + point + multipoint -> all multipoint
     test_gdf = gpd.GeoDataFrame(
-        geometry=[
+        geometry=[  # type: ignore
             None,
             sh_geom.Point(),
             test_helper.TestData.point,
@@ -131,7 +131,7 @@ def test_harmonize_geometrytypes():
 
     # Test for gdf with linestring + multilinestring -> all multilinestring
     test_gdf = gpd.GeoDataFrame(
-        geometry=[
+        geometry=[  # type: ignore
             None,
             sh_geom.LineString(),
             test_helper.TestData.linestring,
@@ -159,7 +159,7 @@ def test_harmonize_geometrytypes():
 
     # Test for gdf with polygon + multipolygon -> all multipolygon
     test_gdf = gpd.GeoDataFrame(
-        geometry=[
+        geometry=[  # type: ignore
             test_helper.TestData.polygon_with_island,
             None,
             sh_geom.Polygon(),
@@ -188,7 +188,7 @@ def test_harmonize_geometrytypes():
 
     # Test for gdf with all types of geometrytypes -> no harmonization possible
     test_gdf = gpd.GeoDataFrame(
-        geometry=[
+        geometry=[  # type: ignore
             None,
             sh_geom.Polygon(),
             test_helper.TestData.point,
@@ -279,7 +279,7 @@ def test_view_angles():
     df = pd.DataFrame(visible_geoms, columns=columns)
     gs = gpd.GeoSeries.from_wkt(df["wkt"])
     df = df.drop(columns="wkt")
-    visible_geoms_gdf = gpd.GeoDataFrame(df, geometry=gs)
+    visible_geoms_gdf = gpd.GeoDataFrame(df, geometry=gs)  # type: ignore
     # Remove a row to test if the index is properly maintained in view_angles
     visible_geoms_gdf = visible_geoms_gdf.drop([3], axis=0)
 

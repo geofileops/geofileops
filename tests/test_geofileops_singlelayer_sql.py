@@ -21,14 +21,14 @@ from tests.test_helper import DEFAULT_EPSGS, DEFAULT_SUFFIXES
 def test_delete_duplicate_geometries(tmp_path):
     # Prepare test data
     test_gdf = gpd.GeoDataFrame(
-        geometry=[
+        geometry=[  # type: ignore
             test_helper.TestData.polygon_with_island,
             test_helper.TestData.polygon_with_island,
             test_helper.TestData.polygon_no_islands,
             test_helper.TestData.polygon_no_islands,
             test_helper.TestData.polygon_with_island2,
         ],
-        crs=test_helper.TestData.crs_epsg,
+        crs=test_helper.TestData.crs_epsg,  # type: ignore
     )
     suffix = ".gpkg"
     input_path = tmp_path / f"input_test_data{suffix}"

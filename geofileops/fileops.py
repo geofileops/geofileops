@@ -25,7 +25,7 @@ import pyogrio
 import pyproj
 
 from geofileops.util import geometry_util
-from geofileops.util.geometry_util import GeometryType, PrimitiveType
+from geofileops.util.geometry_util import GeometryType, PrimitiveType  # noqa: F401
 from geofileops.util import geoseries_util
 from geofileops.util import _io_util
 from geofileops.util import _ogr_util
@@ -1126,7 +1126,7 @@ def to_file(
     if isinstance(gdf, gpd.GeoDataFrame) is False or (
         isinstance(gdf, gpd.GeoDataFrame) and "geometry" not in gdf.columns
     ):
-        gdf = gpd.GeoDataFrame(gdf, geometry=[None for i in gdf.index])
+        gdf = gpd.GeoDataFrame(gdf, geometry=[None for i in gdf.index])  # type: ignore
         schema = gpd_io_file.infer_schema(gdf)
         schema["geometry"] = "None"
     assert isinstance(gdf, gpd.GeoDataFrame)

@@ -268,8 +268,9 @@ def vector_translate(
     # Now we can really get to work
     input_ds = None
     try:
-        # In some cases gdal only raises the last exception instead of the stack in VectorTranslate,
-        # so you lose necessary details! -> uncomment gdal.DontUseExceptions() when debugging!
+        # In some cases gdal only raises the last exception instead of the stack in
+        # VectorTranslate, so you lose necessary details!
+        # -> uncomment gdal.DontUseExceptions() when debugging!
 
         # gdal.DontUseExceptions()
         gdal.UseExceptions()
@@ -345,7 +346,7 @@ def _prepare_gdal_options(options: dict, split_by_option_type: bool = False) -> 
         option_name = option_name.strip().upper()
         if option_type not in option_types:
             raise ValueError(
-                f"Unsupported option type: {option_type}, should be one of {option_types}"
+                f"Unsupported option type: {option_type}, not one of {option_types}"
             )
 
         # Prepare value

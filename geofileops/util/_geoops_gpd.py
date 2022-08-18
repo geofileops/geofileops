@@ -23,6 +23,7 @@ from typing import (
     NamedTuple,
     Optional,
     Tuple,
+    Union,
 )
 import warnings
 
@@ -1059,7 +1060,7 @@ def dissolve(
 
                             # Now put everything together
                             agg_columns_str += (
-                                f', {aggregation_str}({distinct_str}{column_str}'
+                                f", {aggregation_str}({distinct_str}{column_str}"
                                 f'{extra_param_str}) AS "{agg_column["as"]}"'
                             )
 
@@ -1437,7 +1438,9 @@ def _dissolve_polygons(
                 (bbox[0], bbox[1]),
             ]
         )
-        bbox_gdf = gpd.GeoDataFrame([1], geometry=[bbox_polygon], crs=input_gdf.crs)
+        bbox_gdf = gpd.GeoDataFrame(
+            data=[1], geometry=[bbox_polygon], crs=input_gdf.crs  # type: ignore
+        )
 
         # keep_geom_type=True gave sometimes error, and still does in 0.9.0
         # so use own implementation of keep_geom_type
@@ -1488,10 +1491,10 @@ def _dissolve_polygons(
     else:
         # If not, save the polygons on the border seperately
         bbox_lines_gdf = gpd.GeoDataFrame(
-            geometry=geoseries_util.polygons_to_lines(
+            geometry=geoseries_util.polygons_to_lines(  # type: ignore
                 gpd.GeoSeries([sh_geom.box(bbox[0], bbox[1], bbox[2], bbox[3])])
             ),
-            crs=input_gdf.crs,
+            crs=input_gdf.crs,  # type: ignore
         )
         onborder_gdf = gpd.sjoin(diss_gdf, bbox_lines_gdf, predicate="intersects")
         onborder_gdf.drop("index_right", axis=1, inplace=True)
@@ -1546,7 +1549,7 @@ def _dissolve_polygons(
 def _dissolve(
     df: gpd.GeoDataFrame,
     by=None,
-    aggfunc="first",
+    aggfunc: Optional[Union[str, dict]] = "first",
     as_index=True,
     level=None,
     sort=True,
@@ -1637,14 +1640,14 @@ def _dissolve(
     # Process non-spatial component
     data = pd.DataFrame(df.drop(columns=df.geometry.name))
 
-    if isinstance(aggfunc, dict) is True and "to_json" in aggfunc:
+    if aggfunc is not None and isinstance(aggfunc, dict) and "to_json" in aggfunc:
         agg_columns = list(set(aggfunc["to_json"]))
         aggregated_data = (
             data.groupby(**groupby_kwargs)
             .apply(lambda g: g[agg_columns].to_json(orient="records"))
             .to_frame(name="__DISSOLVE_TOJSON")
         )
-    elif isinstance(aggfunc, str) is True and aggfunc == "merge_json_lists":
+    elif isinstance(aggfunc, str) and aggfunc == "merge_json_lists":
         # Merge and flatten the json lists in the groups
         def group_flatten_json_list(g):
 
@@ -1699,7 +1702,9 @@ def _dissolve(
     )
 
     # Aggregate
-    aggregated_geometry = gpd.GeoDataFrame(g, geometry=df.geometry.name, crs=df.crs)
+    aggregated_geometry = gpd.GeoDataFrame(
+        data=g, geometry=df.geometry.name, crs=df.crs  # type: ignore
+    )
     # Recombine
     aggregated = aggregated_geometry.join(aggregated_data)
 

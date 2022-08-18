@@ -56,20 +56,23 @@ def buffer(
         # Negative buffer creates invalid stuff, so use collectionextract
         # to keep only polygons
         sql_template = f"""
-                SELECT ST_CollectionExtract(
-                          ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}),
-                          3) AS geom
-                    {{columns_to_select_str}}
-                FROM "{{input_layer}}" layer
-                WHERE 1=1
-                    {{batch_filter}}"""
+            SELECT ST_CollectionExtract(
+                       ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}),
+                       3
+                   ) AS geom
+                  {{columns_to_select_str}}
+              FROM "{{input_layer}}" layer
+             WHERE 1=1
+                  {{batch_filter}}
+        """
     else:
         sql_template = f"""
-                SELECT ST_Buffer({{geometrycolumn}}, {distance}, {quadrantsegments}) AS geom
-                    {{columns_to_select_str}}
-                FROM "{{input_layer}}" layer
-                WHERE 1=1
-                    {{batch_filter}}"""
+            SELECT ST_Buffer({{geometrycolumn}}, {distance}, {quadrantsegments}) AS geom
+                  {{columns_to_select_str}}
+              FROM "{{input_layer}}" layer
+             WHERE 1=1
+                  {{batch_filter}}
+        """
 
     # Buffer operation always results in polygons...
     force_output_geometrytype = GeometryType.MULTIPOLYGON
@@ -598,22 +601,33 @@ def clip(
     # Remarks:
     #   - ST_intersection(geometry , NULL) gives NULL as result! -> hence the CASE
     #   - use of the with instead of an inline view is a lot faster
-    #   - WHERE geom IS NOT NULL to evade rows with a NULL geom, they give issues in later operations
+    #   - WHERE geom IS NOT NULL to evade rows with a NULL geom, they give issues in
+    #     later operations
+    input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
+    input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
     sql_template = f"""
           SELECT * FROM (
             WITH layer2_unioned AS (
               SELECT layer1.rowid AS layer1_rowid
                     ,ST_union(layer2.{{input2_geometrycolumn}}) AS geom
                 FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                  ON layer1.fid = layer1tree.id
                 JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                  ON layer2.fid = layer2tree.id
                WHERE 1=1
                  {{batch_filter}}
-                 AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
-                 AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
-                 AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
-                 AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
+                 AND layer1tree.minx <= layer2tree.maxx
+                 AND layer1tree.maxx >= layer2tree.minx
+                 AND layer1tree.miny <= layer2tree.maxy
+                 AND layer1tree.maxy >= layer2tree.miny
+                 AND ST_Intersects(
+                        layer1.{{input1_geometrycolumn}},
+                        layer2.{{input2_geometrycolumn}}) = 1
+                 AND ST_Touches(
+                        layer1.{{input1_geometrycolumn}},
+                        layer2.{{input2_geometrycolumn}}) = 0
                GROUP BY layer1.rowid
             )
             SELECT CASE WHEN layer2_unioned.geom IS NULL THEN NULL
@@ -685,26 +699,42 @@ def erase(
     # Remarks:
     #   - ST_difference(geometry , NULL) gives NULL as result! -> hence the CASE
     #   - use of the with instead of an inline view is a lot faster
-    #   - WHERE geom IS NOT NULL to evade rows with a NULL geom, they give issues in later operations
+    #   - WHERE geom IS NOT NULL to evade rows with a NULL geom, they give issues in
+    #     later operations
+    input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
+    input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
     sql_template = f"""
           SELECT * FROM (
             WITH layer2_unioned AS (
               SELECT layer1.rowid AS layer1_rowid
                     ,ST_union(layer2.{{input2_geometrycolumn}}) AS geom
                 FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                  ON layer1.fid = layer1tree.id
                 JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                  ON layer2.fid = layer2tree.id
                WHERE 1=1
                  {{batch_filter}}
-                 AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
-                 AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
-                 AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
-                 AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
+                 AND layer1tree.minx <= layer2tree.maxx
+                 AND layer1tree.maxx >= layer2tree.minx
+                 AND layer1tree.miny <= layer2tree.maxy
+                 AND layer1tree.maxy >= layer2tree.miny
+                 AND ST_Intersects(
+                        layer1.{{input1_geometrycolumn}},
+                        layer2.{{input2_geometrycolumn}}) = 1
+                 AND ST_Touches(
+                        layer1.{{input1_geometrycolumn}},
+                        layer2.{{input2_geometrycolumn}}) = 0
                GROUP BY layer1.rowid
             )
-            SELECT CASE WHEN layer2_unioned.geom IS NULL THEN layer1.{{input1_geometrycolumn}}
-                        ELSE ST_CollectionExtract(ST_difference(layer1.{{input1_geometrycolumn}}, layer2_unioned.geom), {primitivetypeid})
+            SELECT CASE WHEN layer2_unioned.geom IS NULL
+                        THEN layer1.{{input1_geometrycolumn}}
+                        ELSE ST_CollectionExtract(
+                                ST_difference(
+                                    layer1.{{input1_geometrycolumn}},
+                                    layer2_unioned.geom),
+                                    {primitivetypeid})
                    END as geom
                   {{layer1_columns_prefix_alias_str}}
               FROM {{input1_databasename}}."{{input1_layer}}" layer1
@@ -756,18 +786,20 @@ def export_by_location(
 
     # Prepare sql template for this operation
     # TODO: test performance difference between the following two queries
-    sql_template = """
+    input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
+    input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
+    sql_template = f"""
             SELECT layer1.{{input1_geometrycolumn}} AS geom
                   {{layer1_columns_prefix_alias_str}}
               FROM {{input1_databasename}}."{{input1_layer}}" layer1
-              JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree
+              JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
                 ON layer1.fid = layer1tree.id
              WHERE 1=1
                {{batch_filter}}
                AND EXISTS (
                   SELECT 1
                     FROM {{input2_databasename}}."{{input2_layer}}" layer2
-                    JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree
+                    JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
                       ON layer2.fid = layer2tree.id
                    WHERE layer1tree.minx <= layer2tree.maxx
                      AND layer1tree.maxx >= layer2tree.minx
@@ -793,10 +825,10 @@ def export_by_location(
                   {{layer1_columns_prefix_str}}
                   {area_inters_column_expression}
               FROM {{input1_databasename}}."{{input1_layer}}" layer1
-              JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree
+              JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
                 ON layer1.fid = layer1tree.id
               JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-              JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree
+              JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
                 ON layer2.fid = layer2tree.id
              WHERE 1=1
                {{batch_filter}}
@@ -855,22 +887,29 @@ def export_by_distance(
 ):
 
     # Prepare sql template for this operation
+    input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
+    input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
     sql_template = f"""
-            SELECT geom
-                  {{layer1_columns_prefix_alias_str}}
-                FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                WHERE 1=1
-                  {{batch_filter}}
-                  AND EXISTS (
-                      SELECT 1
-                        FROM {{input2_databasename}}."{{input2_layer}}" layer2
-                        JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
-                        WHERE (layer1tree.minx-{max_distance}) <= layer2tree.maxx
-                          AND (layer1tree.maxx+{max_distance}) >= layer2tree.minx
-                          AND (layer1tree.miny-{max_distance}) <= layer2tree.maxy
-                          AND (layer1tree.maxy+{max_distance}) >= layer2tree.miny
-                          AND ST_distance(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) <= {max_distance})"""
+        SELECT geom
+              {{layer1_columns_prefix_alias_str}}
+          FROM {{input1_databasename}}."{{input1_layer}}" layer1
+          JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+            ON layer1.fid = layer1tree.id
+         WHERE 1=1
+               {{batch_filter}}
+               AND EXISTS (
+                    SELECT 1
+                      FROM {{input2_databasename}}."{{input2_layer}}" layer2
+                      JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                        ON layer2.fid = layer2tree.id
+                     WHERE (layer1tree.minx-{max_distance}) <= layer2tree.maxx
+                       AND (layer1tree.maxx+{max_distance}) >= layer2tree.minx
+                       AND (layer1tree.miny-{max_distance}) <= layer2tree.maxy
+                       AND (layer1tree.maxy+{max_distance}) >= layer2tree.miny
+                       AND ST_distance(
+                            layer1.{{input1_geometrycolumn}},
+                            layer2.{{input2_geometrycolumn}}) <= {max_distance})
+    """
 
     input_layer_info = gfo.get_layerinfo(input_to_select_from_path, input1_layer)
 
@@ -925,29 +964,41 @@ def intersection(
     force_output_geometrytype = primitivetype_to_extract.to_multitype
 
     # Prepare sql template for this operation
+    input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
+    input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
     sql_template = f"""
         SELECT sub.geom
              {{layer1_columns_from_subselect_str}}
              {{layer2_columns_from_subselect_str}}
           FROM
             ( SELECT ST_CollectionExtract(
-                       ST_Intersection(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}),
-                       {primitivetype_to_extract.value}) as geom
+                       ST_Intersection(
+                            layer1.{{input1_geometrycolumn}},
+                            layer2.{{input2_geometrycolumn}}),
+                            {primitivetype_to_extract.value}) as geom
                     {{layer1_columns_prefix_alias_str}}
                     {{layer2_columns_prefix_alias_str}}
                 FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
+                JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                  ON layer1.fid = layer1tree.id
                 JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
+                JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                  ON layer2.fid = layer2tree.id
                WHERE 1=1
                  {{batch_filter}}
-                 AND layer1tree.minx <= layer2tree.maxx AND layer1tree.maxx >= layer2tree.minx
-                 AND layer1tree.miny <= layer2tree.maxy AND layer1tree.maxy >= layer2tree.miny
-                 AND ST_Intersects(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 1
-                 AND ST_Touches(layer1.{{input1_geometrycolumn}}, layer2.{{input2_geometrycolumn}}) = 0
+                 AND layer1tree.minx <= layer2tree.maxx
+                 AND layer1tree.maxx >= layer2tree.minx
+                 AND layer1tree.miny <= layer2tree.maxy
+                 AND layer1tree.maxy >= layer2tree.miny
+                 AND ST_Intersects(
+                        layer1.{{input1_geometrycolumn}},
+                        layer2.{{input2_geometrycolumn}}) = 1
+                 AND ST_Touches(
+                        layer1.{{input1_geometrycolumn}},
+                        layer2.{{input2_geometrycolumn}}) = 0
             ) sub
          WHERE sub.geom IS NOT NULL
-        """
+    """
 
     # Go!
     return _two_layer_vector_operation(
@@ -1005,9 +1056,15 @@ def join_by_location(
             area_inters_column_0_in_output = f',0 AS "{area_inters_column_name}"'
         else:
             area_inters_column_name_touse = "area_inters"
-        area_inters_column_expression = f',ST_area(ST_intersection(sub_filter.geom, sub_filter.l2_geom)) as "{area_inters_column_name_touse}"'
+        area_inters_column_expression = (
+            ',ST_area(ST_intersection(sub_filter.geom, sub_filter.l2_geom)) '
+            f'as "{area_inters_column_name_touse}"'
+        )
         if min_area_intersect is not None:
-            area_inters_filter = f'WHERE sub_area."{area_inters_column_name_touse}" >= {min_area_intersect}'
+            area_inters_filter = (
+                f'WHERE sub_area."{area_inters_column_name_touse}" '
+                f'>= {min_area_intersect}'
+            )
 
     # Prepare spatial relations filter
     if spatial_relations_query != "intersects is True":
@@ -1023,61 +1080,67 @@ def join_by_location(
     # Remark: use "LIMIT -1 OFFSET 0" to evade that the sqlite query optimizer
     #     "flattens" the subquery, as that makes checking the spatial
     #     relations (using ST_RelateMatch) very slow!
+    input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
+    input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
     sql_template = f"""
-            WITH layer1_relations_filtered AS (
-              SELECT sub_area.*
+        WITH layer1_relations_filtered AS (
+          SELECT sub_area.*
+            FROM (
+              SELECT sub_filter.*
+                    {area_inters_column_expression}
                 FROM (
-                  SELECT sub_filter.*
-                        {area_inters_column_expression}
-                    FROM (
-                      SELECT layer1.{{input1_geometrycolumn}} as geom
-                            ,layer1.fid l1_fid
-                            ,layer2.{{input2_geometrycolumn}} as l2_geom
-                            {{layer1_columns_prefix_alias_str}}
-                            {{layer2_columns_prefix_alias_str}}
-                            ,ST_relate(layer1.{{input1_geometrycolumn}},
-                                       layer2.{{input2_geometrycolumn}}
-                             ) as spatial_relation
-                        FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                        JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                        JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                        JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
-                       WHERE 1=1
-                         {{batch_filter}}
-                         AND layer1tree.minx <= layer2tree.maxx
-                         AND layer1tree.maxx >= layer2tree.minx
-                         AND layer1tree.miny <= layer2tree.maxy
-                         AND layer1tree.maxy >= layer2tree.miny
-                       LIMIT -1 OFFSET 0
-                      ) sub_filter
-                   WHERE {spatial_relations_filter.format(spatial_relation="sub_filter.spatial_relation")}
+                  SELECT layer1.{{input1_geometrycolumn}} as geom
+                        ,layer1.fid l1_fid
+                        ,layer2.{{input2_geometrycolumn}} as l2_geom
+                        {{layer1_columns_prefix_alias_str}}
+                        {{layer2_columns_prefix_alias_str}}
+                        ,ST_relate(layer1.{{input1_geometrycolumn}},
+                                   layer2.{{input2_geometrycolumn}}) as spatial_relation
+                    FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                    JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                      ON layer1.fid = layer1tree.id
+                    JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                    JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                      ON layer2.fid = layer2tree.id
+                   WHERE 1=1
+                     {{batch_filter}}
+                     AND layer1tree.minx <= layer2tree.maxx
+                     AND layer1tree.maxx >= layer2tree.minx
+                     AND layer1tree.miny <= layer2tree.maxy
+                     AND layer1tree.maxy >= layer2tree.miny
                    LIMIT -1 OFFSET 0
-                  ) sub_area
-               {area_inters_filter}
-              )
-            SELECT sub.geom
-                  {{layer1_columns_from_subselect_str}}
-                  {{layer2_columns_from_subselect_str}}
-                  ,sub.spatial_relation
-                  {area_inters_column_in_output}
-              FROM layer1_relations_filtered sub """
+                  ) sub_filter
+               WHERE {spatial_relations_filter.format(
+                    spatial_relation="sub_filter.spatial_relation")}
+               LIMIT -1 OFFSET 0
+              ) sub_area
+           {area_inters_filter}
+          )
+        SELECT sub.geom
+              {{layer1_columns_from_subselect_str}}
+              {{layer2_columns_from_subselect_str}}
+              ,sub.spatial_relation
+              {area_inters_column_in_output}
+          FROM layer1_relations_filtered sub
+    """
 
     # If a left join is asked, add all features from layer1 that weren't
     # matched.
     if discard_nonmatching is False:
         sql_template = f"""
-                {sql_template}
-                UNION ALL
-                SELECT layer1.{{input1_geometrycolumn}} as geom
-                      {{layer1_columns_prefix_alias_str}}
-                      {{layer2_columns_prefix_alias_null_str}}
-                      ,NULL as spatial_relation
-                      {area_inters_column_0_in_output}
-                  FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                 WHERE 1=1
-                   {{batch_filter}}
-                   AND layer1.fid NOT IN (
-                       SELECT l1_fid FROM layer1_relations_filtered) """
+            {sql_template}
+            UNION ALL
+            SELECT layer1.{{input1_geometrycolumn}} as geom
+                  {{layer1_columns_prefix_alias_str}}
+                  {{layer2_columns_prefix_alias_null_str}}
+                  ,NULL as spatial_relation
+                  {area_inters_column_0_in_output}
+              FROM {{input1_databasename}}."{{input1_layer}}" layer1
+             WHERE 1=1
+               {{batch_filter}}
+               AND layer1.fid NOT IN (
+                   SELECT l1_fid FROM layer1_relations_filtered)
+        """
 
     # Go!
     input1_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
@@ -1338,64 +1401,71 @@ def split(
     force_output_geometrytype = primitivetype_to_extract.to_multitype
 
     # Prepare sql template for this operation
+    input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
+    input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
     sql_template = f"""
-            SELECT * FROM
-              ( WITH layer2_unioned AS (
-                  SELECT layer1.rowid AS layer1_rowid
-                        ,ST_union(layer2.{{input2_geometrycolumn}}) AS geom
-                    FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                    JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                    JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                    JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
-                   WHERE 1=1
-                     {{batch_filter}}
-                     AND layer1tree.minx <= layer2tree.maxx
-                     AND layer1tree.maxx >= layer2tree.minx
-                     AND layer1tree.miny <= layer2tree.maxy
-                     AND layer1tree.maxy >= layer2tree.miny
-                     AND ST_Intersects(layer1.{{input1_geometrycolumn}},
-                                       layer2.{{input2_geometrycolumn}}) = 1
-                     AND ST_Touches(layer1.{{input1_geometrycolumn}},
-                                    layer2.{{input2_geometrycolumn}}) = 0
-                   GROUP BY layer1.rowid
-                )
-                SELECT ST_CollectionExtract(
-                            ST_intersection(layer1.{{input1_geometrycolumn}},
-                                            layer2.{{input2_geometrycolumn}}),
-                            {primitivetype_to_extract.value}) as geom
-                      {{layer1_columns_prefix_alias_str}}
-                      {{layer2_columns_prefix_alias_str}}
-                 FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                 JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree ON layer1.fid = layer1tree.id
-                 JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                 JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree ON layer2.fid = layer2tree.id
-                WHERE 1=1
-                  {{batch_filter}}
-                  AND layer1tree.minx <= layer2tree.maxx
-                  AND layer1tree.maxx >= layer2tree.minx
-                  AND layer1tree.miny <= layer2tree.maxy
-                  AND layer1tree.maxy >= layer2tree.miny
-                  AND ST_Intersects(layer1.{{input1_geometrycolumn}},
-                                    layer2.{{input2_geometrycolumn}}) = 1
-                  AND ST_Touches(layer1.{{input1_geometrycolumn}},
-                                 layer2.{{input2_geometrycolumn}}) = 0
-                UNION ALL
-                SELECT CASE WHEN layer2_unioned.geom IS NULL THEN layer1.{{input1_geometrycolumn}}
-                            ELSE ST_CollectionExtract(
-                                    ST_difference(layer1.{{input1_geometrycolumn}},
-                                                  layer2_unioned.geom),
-                                    {primitivetype_to_extract.value})
-                       END as geom
-                       {{layer1_columns_prefix_alias_str}}
-                       {{layer2_columns_prefix_alias_null_str}}
-                  FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                  LEFT JOIN layer2_unioned ON layer1.rowid = layer2_unioned.layer1_rowid
-                 WHERE 1=1
-                   {{batch_filter}}
-               )
-             WHERE geom IS NOT NULL
-               AND ST_NPoints(geom) > 0   -- ST_CollectionExtract outputs empty, but not NULL geoms in spatialite 4.3
-            """
+        SELECT * FROM
+          ( WITH layer2_unioned AS (
+              SELECT layer1.rowid AS layer1_rowid
+                    ,ST_union(layer2.{{input2_geometrycolumn}}) AS geom
+                FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                  ON layer1.fid = layer1tree.id
+                JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                  ON layer2.fid = layer2tree.id
+               WHERE 1=1
+                 {{batch_filter}}
+                 AND layer1tree.minx <= layer2tree.maxx
+                 AND layer1tree.maxx >= layer2tree.minx
+                 AND layer1tree.miny <= layer2tree.maxy
+                 AND layer1tree.maxy >= layer2tree.miny
+                 AND ST_Intersects(layer1.{{input1_geometrycolumn}},
+                                   layer2.{{input2_geometrycolumn}}) = 1
+                 AND ST_Touches(layer1.{{input1_geometrycolumn}},
+                                layer2.{{input2_geometrycolumn}}) = 0
+               GROUP BY layer1.rowid
+            )
+            SELECT ST_CollectionExtract(
+                        ST_intersection(layer1.{{input1_geometrycolumn}},
+                                        layer2.{{input2_geometrycolumn}}),
+                        {primitivetype_to_extract.value}) as geom
+                  {{layer1_columns_prefix_alias_str}}
+                  {{layer2_columns_prefix_alias_str}}
+              FROM {{input1_databasename}}."{{input1_layer}}" layer1
+              JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                ON layer1.fid = layer1tree.id
+              JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+              JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                ON layer2.fid = layer2tree.id
+             WHERE 1=1
+               {{batch_filter}}
+               AND layer1tree.minx <= layer2tree.maxx
+               AND layer1tree.maxx >= layer2tree.minx
+               AND layer1tree.miny <= layer2tree.maxy
+               AND layer1tree.maxy >= layer2tree.miny
+               AND ST_Intersects(layer1.{{input1_geometrycolumn}},
+                                 layer2.{{input2_geometrycolumn}}) = 1
+               AND ST_Touches(layer1.{{input1_geometrycolumn}},
+                              layer2.{{input2_geometrycolumn}}) = 0
+            UNION ALL
+            SELECT CASE WHEN layer2_unioned.geom IS NULL
+                        THEN layer1.{{input1_geometrycolumn}}
+                        ELSE ST_CollectionExtract(
+                                ST_difference(layer1.{{input1_geometrycolumn}},
+                                              layer2_unioned.geom),
+                                {primitivetype_to_extract.value})
+                   END as geom
+                  {{layer1_columns_prefix_alias_str}}
+                  {{layer2_columns_prefix_alias_null_str}}
+              FROM {{input1_databasename}}."{{input1_layer}}" layer1
+              LEFT JOIN layer2_unioned ON layer1.rowid = layer2_unioned.layer1_rowid
+             WHERE 1=1
+               {{batch_filter}}
+           )
+         WHERE geom IS NOT NULL
+           AND ST_NPoints(geom) > 0
+    """
 
     # Go!
     return _two_layer_vector_operation(
@@ -1640,7 +1710,8 @@ def _two_layer_vector_operation(
         input2_columns
         input2_columns_prefix
         output_layer (str, optional): [description]. Defaults to None.
-        explodecollections (bool, optional): Explode collecions in output. Defaults to False.
+        explodecollections (bool, optional): Explode collecions in output.
+            Defaults to False.
         force_output_geometrytype (GeometryType, optional): Defaults to None.
         use_ogr (bool, optional): If True, ogr is used to do the processing,
             In this case different input files (input1_path, input2_path) are
@@ -1667,7 +1738,7 @@ def _two_layer_vector_operation(
         )
     if use_ogr is True and input1_path != input2_path:
         raise Exception(
-            f"Error {operation_name}: if use_ogr is True, input1_path must equal input2_path!"
+            f"Error {operation_name}: if use_ogr True, input1_path == input2_path!"
         )
     if output_path.exists():
         if force is False:
@@ -1723,7 +1794,7 @@ def _two_layer_vector_operation(
         input1_tmp_layerinfo = gfo.get_layerinfo(
             processing_params.input1_path, processing_params.input1_layer
         )
-        input1_columnstrings = format_column_strings(
+        input1_strs = format_column_strings(
             columns_specified=input1_columns,
             columns_available=input1_tmp_layerinfo.columns,
             table_alias="layer1",
@@ -1733,7 +1804,7 @@ def _two_layer_vector_operation(
         input2_tmp_layerinfo = gfo.get_layerinfo(
             processing_params.input2_path, processing_params.input2_layer
         )
-        input2_columnstrings = format_column_strings(
+        input2_strs = format_column_strings(
             columns_specified=input2_columns,
             columns_available=input2_tmp_layerinfo.columns,
             table_alias="layer2",
@@ -1743,7 +1814,8 @@ def _two_layer_vector_operation(
         # Check input crs'es
         if input1_tmp_layerinfo.crs != input2_tmp_layerinfo.crs:
             logger.warning(
-                f"input1 has a different crs than input2: \n\tinput1: {input1_tmp_layerinfo.crs} \n\tinput2: {input2_tmp_layerinfo.crs}"
+                "input1 has a different crs than input2: \n\tinput1: "
+                f"{input1_tmp_layerinfo.crs} \n\tinput2: {input2_tmp_layerinfo.crs}"
             )
 
         # Calculate
@@ -1752,7 +1824,7 @@ def _two_layer_vector_operation(
             True if input1_tmp_layerinfo.featurecount <= 100 else False
         )
         logger.info(
-            f"Start {operation_name} in {processing_params.nb_parallel} parallel workers"
+            f"Start {operation_name} ({processing_params.nb_parallel} parallel workers)"
         )
         with _general_util.PooledExecutorFactory(
             threadpool=calculate_in_threads,
@@ -1778,16 +1850,16 @@ def _two_layer_vector_operation(
                 sql_stmt = sql_template.format(
                     input1_databasename="{input1_databasename}",
                     input2_databasename="{input2_databasename}",
-                    layer1_columns_from_subselect_str=input1_columnstrings.columns_from_subselect,
-                    layer1_columns_prefix_alias_str=input1_columnstrings.columns_prefix_alias,
-                    layer1_columns_prefix_str=input1_columnstrings.columns_prefix,
+                    layer1_columns_from_subselect_str=input1_strs.columns_subselect,
+                    layer1_columns_prefix_alias_str=input1_strs.columns_prefix_alias,
+                    layer1_columns_prefix_str=input1_strs.columns_prefix,
                     input1_layer=processing_params.batches[batch_id]["layer"],
                     input1_tmp_layer=processing_params.batches[batch_id]["layer"],
                     input1_geometrycolumn=input1_tmp_layerinfo.geometrycolumn,
-                    layer2_columns_from_subselect_str=input2_columnstrings.columns_from_subselect,
-                    layer2_columns_prefix_alias_str=input2_columnstrings.columns_prefix_alias,
-                    layer2_columns_prefix_str=input2_columnstrings.columns_prefix,
-                    layer2_columns_prefix_alias_null_str=input2_columnstrings.columns_prefix_alias_null,
+                    layer2_columns_from_subselect_str=input2_strs.columns_subselect,
+                    layer2_columns_prefix_alias_str=input2_strs.columns_prefix_alias,
+                    layer2_columns_prefix_str=input2_strs.columns_prefix,
+                    layer2_columns_prefix_alias_null_str=input2_strs.columns_prefix_alias_null,  # noqa: E501
                     input2_layer=processing_params.input2_layer,
                     input2_tmp_layer=processing_params.input2_layer,
                     input2_geometrycolumn=input2_tmp_layerinfo.geometrycolumn,
@@ -2130,13 +2202,14 @@ def _prepare_processing_params(
 
             # The batch filter
             if batch_info.id < nb_batches:
-                batches[batch_info.id][
-                    "batch_filter"
-                ] = f"AND ({layer_alias_d}rowid >= {batch_info.start_rowid} AND {layer_alias_d}rowid <= {batch_info.end_rowid}) "
+                batches[batch_info.id]["batch_filter"] = (
+                    f"AND ({layer_alias_d}rowid >= {batch_info.start_rowid} "
+                    f"AND {layer_alias_d}rowid <= {batch_info.end_rowid}) "
+                )
             else:
-                batches[batch_info.id][
-                    "batch_filter"
-                ] = f"AND {layer_alias_d}rowid >= {batch_info.start_rowid} "
+                batches[batch_info.id]["batch_filter"] = (
+                    f"AND {layer_alias_d}rowid >= {batch_info.start_rowid} "
+                )
 
     # No use starting more processes than the number of batches...
     if len(batches) < returnvalue.nb_parallel:
@@ -2152,7 +2225,7 @@ class FormattedColumnStrings:
     columns_prefix: str
     columns_prefix_alias: str
     columns_prefix_alias_null: str
-    columns_from_subselect: str
+    columns_subselect: str
 
 
 def format_column_strings(
@@ -2173,7 +2246,8 @@ def format_column_strings(
         ]
         if len(missing_columns) > 0:
             raise Exception(
-                f"Error, columns_specified contains following columns not in columns_available: {missing_columns}. Existing columns: {columns_available}"
+                "Error, columns_specified contains columns not in "
+                f"columns_available: {missing_columns}. Available: {columns_available}"
             )
 
         # Create column list to keep in the casing of the original columns
@@ -2182,7 +2256,7 @@ def format_column_strings(
             col for col in columns_available if (col.upper() in columns_specified_upper)
         ]
     else:
-        columns = columns_available
+        columns = list(columns_available)
 
     # Now format the column strings
     columns_quoted_str = ""
@@ -2218,7 +2292,7 @@ def format_column_strings(
         columns_prefix=columns_prefix_str,
         columns_prefix_alias=columns_prefix_alias_str,
         columns_prefix_alias_null=columns_prefix_alias_null_str,
-        columns_from_subselect=columns_from_subselect_str,
+        columns_subselect=columns_from_subselect_str,
     )
 
 
@@ -2325,7 +2399,10 @@ def dissolve_singlethread(
                 )
 
                 # Now put everything togethers
-                agg_columns_str += f', {aggregation_str}({distinct_str}{column_str}{extra_param_str}) AS "{agg_column["as"]}"'
+                agg_columns_str += (
+                    f', {aggregation_str}({distinct_str}{column_str}{extra_param_str}) '
+                    f'AS "{agg_column["as"]}"'
+                )
 
     # Now prepare the sql statement
     # Remark: calculating the area in the enclosing selects halves the
@@ -2362,174 +2439,3 @@ def dissolve_singlethread(
     )
 
     logger.info(f"Processing ready, took {datetime.now()-start_time}!")
-
-
-'''
-def dissolve_cardsheets(
-        input_path: Path,
-        input_cardsheets_path: Path,
-        output_path: Path,
-        groupby_columns: Optional[List[str]] = None,
-        explodecollections: bool = False,
-        input_layer: Optional[str] = None,
-        output_layer: Optional[str] = None,
-        nb_parallel: int = -1,
-        batchsize: int = -1,
-        force: bool = False):
-
-    # Init
-    start_time = datetime.now()
-    if output_path.exists():
-        if force is False:
-            logger.info(f"Stop dissolve_cardsheets: output exists already {output_path}, so stop")
-            return
-        else:
-            gfo.remove(output_path)
-    if nb_parallel == -1:
-        nb_parallel = multiprocessing.cpu_count()
-
-    # Get input data to temp gpkg file
-    tempdir = io_util.create_tempdir("geofileops/dissolve_cardsheets")
-    input_tmp_path = tempdir / "input_layers.gpkg"
-    if(input_path.suffix.lower() == '.gpkg'):
-        logger.info(f"Copy {input_path} to {input_tmp_path}")
-        gfo.copy(input_path, input_tmp_path)
-        logger.debug("Copy ready")
-    else:
-        # Remark: this temp file doesn't need spatial index
-        logger.info(f"Copy {input_path} to {input_tmp_path} using ogr2ogr")
-        ogr_util.vector_translate(
-            input_path=input_path,
-            output_path=input_tmp_path,
-            create_spatial_index=False,
-            output_layer=input_layer
-        )
-        logger.debug("Copy ready")
-
-    if input_layer is None:
-        input_layer = gfo.get_only_layer(input_tmp_path)
-    if output_layer is None:
-        output_layer = gfo.get_default_layer(output_path)
-
-    # Prepare tmp files
-
-    # Prepare the strings to use in the select statement
-    if groupby_columns is not None:
-        # Because the query uses a subselect, the groupby columns need to be prefixed
-        columns_with_prefix = [f"layer.{column}" for column in groupby_columns]
-        groupby_columns_str = ", ".join(columns_with_prefix)
-        groupby_columns_for_groupby_str = groupby_columns_str
-        groupby_columns_for_select_str = ", " + groupby_columns_str
-    else:
-        # Even if no groupby is provided, we still need to use a groupby clause, otherwise
-        # ST_union doesn't seem to work
-        groupby_columns_for_groupby_str = "'1'"
-        groupby_columns_for_select_str = ""
-
-    # Load the cardsheets we want the dissolve to be bound on
-    cardsheets_gdf = gfo.read_file(input_cardsheets_path)
-
-    try:
-        # Start calculation of intersections in parallel
-        logger.info(f"Start calculation of dissolves in file {input_tmp_path} to partial files")
-        tmp_output_path = tempdir / output_path.name
-
-        # Processing in threads is 2x faster for small datasets (on Windows)
-        input_layerinfo = gfo.get_layerinfo(input_path)
-        calculate_in_threads = True if input_layerinfo.featurecount <= 100 else False
-        with _general_util.PooledExecutorFactory(
-                threadpool=calculate_in_threads,
-                max_workers=nb_parallel,
-                initializer=_general_util.initialize_worker()) as calculate_pool:
-
-            translate_jobs = {}
-            future_to_batch_id = {}
-            nb_batches = len(cardsheets_gdf)
-            for batch_id, cardsheet in enumerate(cardsheets_gdf.itertuples()):
-
-                translate_jobs[batch_id] = {}
-                translate_jobs[batch_id]['layer'] = output_layer
-
-                output_tmp_partial_path = tempdir / f"{output_path.stem}_{batch_id}{output_path.suffix}"
-                translate_jobs[batch_id]['tmp_partial_output_path'] = output_tmp_partial_path
-
-                # Remarks:
-                #   - calculating the area in the enclosing selects halves the processing time
-                #   - ST_union() gives same performance as ST_unaryunion(ST_collect())!
-                bbox_xmin, bbox_ymin, bbox_xmax, bbox_ymax = cardsheet.geometry.bounds
-                bbox_wkt = f"POLYGON (({bbox_xmin} {bbox_ymin}, {bbox_xmax} {bbox_ymin}, {bbox_xmax} {bbox_ymax}, {bbox_xmin} {bbox_ymax}, {bbox_xmin} {bbox_ymin}))"
-                sql_stmt = f"""
-                        SELECT ST_union(ST_intersection(layer.geom, ST_GeomFromText('{bbox_wkt}'))) AS geom{groupby_columns_for_select_str}
-                          FROM {input_layer} layer
-                          JOIN rtree_{input_layer}_geom t_tree ON layer.fid = t_tree.id
-                         WHERE t_tree.minx <= {bbox_xmax} AND t_tree.maxx >= {bbox_xmin}
-                           AND t_tree.miny <= {bbox_ymax} AND t_tree.maxy >= {bbox_ymin}
-                           AND ST_Intersects(layer.geom, ST_GeomFromText('{bbox_wkt}')) = 1
-                           AND ST_Touches(layer.geom, ST_GeomFromText('{bbox_wkt}')) = 0
-                         GROUP BY {groupby_columns_for_groupby_str}"""
-
-                # Force geometrytype to multipolygon, because normal polygons easily are turned into
-                # multipolygon if self-touching...
-                force_output_geometrytype = GeometryType.MULTIPOLYGON
-
-                translate_jobs[batch_id]['sqlite_stmt'] = sql_stmt
-                translate_description = f"Async dissolve {batch_id} of {nb_batches}, bounds: {cardsheet.geometry.bounds}"
-                # Remark: this temp file doesn't need spatial index
-                translate_info = ogr_util.VectorTranslateInfo(
-                    input_path=input_tmp_path,
-                    output_path=output_tmp_partial_path,
-                    translate_description=translate_description,
-                    output_layer=output_layer,
-                    #clip_bounds=cardsheet.geometry.bounds,
-                    sql_stmt=sql_stmt,
-                    sql_dialect='SQLITE',
-                    append=True,
-                    update=True,
-                    explodecollections=True,
-                    force_output_geometrytype=force_output_geometrytype
-                )
-                future = calculate_pool.submit(
-                        ogr_util.vector_translate_by_info,
-                        info=translate_info)
-                future_to_batch_id[future] = batch_id
-
-            # Loop till all parallel processes are ready, but process each one that is
-            # ready already
-            for future in futures.as_completed(future_to_batch_id):
-                try:
-                    _ = future.result()
-
-                    # Start copy of the result to a common file
-                    # Remark: give higher priority, because this is the slowest factor
-                    batch_id = future_to_batch_id[future]
-                    # If the calculate gave results, copy to output
-                    tmp_partial_output_path = translate_jobs[batch_id]['tmp_partial_output_path']
-                    if tmp_partial_output_path.exists():
-                        translate_description = f"Copy result {batch_id} of {nb_batches} to {output_layer}"
-                        translate_info = ogr_util.VectorTranslateInfo(
-                            input_path=tmp_partial_output_path,
-                            output_path=tmp_output_path,
-                            translate_description=translate_description,
-                            output_layer=output_layer,
-                            transaction_size=200000,
-                            append=True,
-                            update=True,
-                            create_spatial_index=False,
-                            force_output_geometrytype=GeometryType.MULTIPOLYGON,
-                        )
-                        ogr_util.vector_translate_by_info(info=translate_info)
-                        gfo.remove(tmp_partial_output_path)
-                except Exception as ex:
-                    batch_id = future_to_batch_id[future]
-                    #calculate_pool.shutdown()
-                    logger.error(f"Error executing {translate_jobs[batch_id]}: {ex}")
-
-        # Round up and clean up
-        # Now create spatial index and move to output location
-        gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
-        gfo.move(tmp_output_path, output_path)
-    finally:
-        # Clean tmp dir
-        shutil.rmtree(tempdir)
-        logger.info(f"Processing ready, took {datetime.now()-start_time}!")
-'''
