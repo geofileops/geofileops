@@ -9,7 +9,6 @@ dependencies:
   - pygeos
   - psutil
   - pydata-sphinx-theme
-  - shapely<1.8.3
   - pip:
     - sphinx-automodapi==0.13
     - simplification
