@@ -61,7 +61,7 @@ class VectorTranslateInfo:
         input_srs: Union[int, str, None] = None,
         output_srs: Union[int, str, None] = None,
         reproject: bool = False,
-        spatial_filter: Optional[Union[Tuple[float, float, float, float], str]] = None,
+        spatial_filter: Optional[Tuple[float, float, float, float]] = None,
         clip_geometry: Optional[Union[Tuple[float, float, float, float], str]] = None,
         sql_stmt: Optional[str] = None,
         sql_dialect: Optional[str] = None,
@@ -72,6 +72,7 @@ class VectorTranslateInfo:
         force_output_geometrytype: Optional[GeometryType] = None,
         options: dict = {},
         columns: Optional[List[str]] = None,
+        warp: Optional[dict] = None,
     ):
         self.input_path = input_path
         self.output_path = output_path
@@ -91,6 +92,7 @@ class VectorTranslateInfo:
         self.force_output_geometrytype = force_output_geometrytype
         self.options = options
         self.columns = columns
+        self.warp = warp
 
 
 def vector_translate_by_info(info: VectorTranslateInfo):
@@ -114,6 +116,7 @@ def vector_translate_by_info(info: VectorTranslateInfo):
         force_output_geometrytype=info.force_output_geometrytype,
         options=info.options,
         columns=info.columns,
+        warp=info.warp,
     )
 
 
@@ -136,12 +139,16 @@ def vector_translate(
     force_output_geometrytype: Optional[GeometryType] = None,
     options: dict = {},
     columns: Optional[List[str]] = None,
+    warp: Optional[dict] = None,
 ) -> bool:
 
     # Remark: when executing a select statement, I keep getting error that
     # there are two columns named "geom" as he doesnt see the "geom" column
     # in the select as a geometry column. Probably a version issue. Maybe
     # try again later.
+    #
+    # API Doc of VectorTranslateOptions:
+    #   https://gdal.org/api/python/osgeo.gdal.html#osgeo.gdal.VectorTranslateOptions
     args = []
     if isinstance(input_path, str):
         input_path = Path(input_path)
@@ -173,12 +180,28 @@ def vector_translate(
         else:
             bounds = [str(coord) for coord in clip_geometry]
             args.extend(bounds)
+    if columns is not None:
+        args.extend(["-select", ",".join(columns)])
+
+    # Warp
+    if warp is not None:
+        gcps = warp.get("gcps", [])
+        for gcp in gcps:
+            args.extend(["-gcp"])
+            args.extend([str(coord) for coord in gcp if coord is not None])
+        algorithm = warp.get("algorithm", "polynomial")
+        if algorithm == "polynomial":
+            order = warp.get("order", None)
+            if order is not None:
+                args.extend(["-order", order])
+        elif algorithm == "tps":
+            args.extend(["-tps"])
+        else:
+            raise ValueError(f"unsupported warp algorithm: {algorithm}")
 
     # Input dataset open options
     for option_name, value in gdal_options["INPUT_OPEN"].items():
         args.extend(["-oo", f"{option_name}={value}"])
-    if columns is not None:
-        args.extend(["-select", ",".join(columns)])
 
     # Output file parameters
     # Get output format from the filename
