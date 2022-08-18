@@ -21,6 +21,7 @@ import geopandas as gpd
 from geopandas.io import file as gpd_io_file
 from osgeo import gdal
 import pandas as pd
+import pyogrio
 import pyproj
 
 from geofileops.util import geometry_util
@@ -898,7 +899,7 @@ def read_file_nogeom(
         layer (str, optional): The layer to read. Defaults to None,
             then reads the only layer in the file or throws error.
         columns (Iterable[str], optional): The (non-geometry) columns to read will
-            be returned in the order specified. If None, all columns are read. 
+            be returned in the order specified. If None, all columns are read.
             Defaults to None.
         bbox ([type], optional): Read only geometries intersecting this bbox.
             Defaults to None, then all rows are read.
@@ -943,7 +944,7 @@ def _read_file_base(
         layer (str, optional): The layer to read. Defaults to None,
             then reads the only layer in the file or throws error.
         columns (Iterable[str], optional): The (non-geometry) columns to read will
-            be returned in the order specified. If None, all columns are read. 
+            be returned in the order specified. If None, all columns are read.
             Defaults to None.
         bbox ([type], optional): Read only geometries intersecting this bbox.
             Defaults to None, then all rows are read.
@@ -964,39 +965,55 @@ def _read_file_base(
         raise ValueError(f"File doesnt't exist: {path}")
     geofiletype = GeofileType(path)
 
+    # Convert slice object to pyogrio parameters
+    if rows is not None:
+        skip_features = rows.start
+        max_features = rows.stop - rows.start
+    else:
+        skip_features = 0
+        max_features = None
+
     # If no layer name specified, check if there is only one layer in the file.
     if layer is None:
         layer = get_only_layer(path)
 
+    # Checking if column names should be read is case sensitive in pyogrio, so
+    # make sure the column names specified have the same casing.
+    columns_originalcasing = None
+    if columns is not None:
+        layerinfo = get_layerinfo(path, layer=layer)
+        columns_upper = [column.upper() for column in columns]
+        columns_originalcasing = [
+            column for column in layerinfo.columns if column.upper() in columns_upper
+        ]
+
     # Depending on the extension... different implementations
-    if geofiletype == GeofileType.ESRIShapefile:
-        result_gdf = gpd.read_file(
-            str(path), bbox=bbox, rows=rows, ignore_geometry=ignore_geometry
-        )
-    elif geofiletype == GeofileType.GeoJSON:
-        result_gdf = gpd.read_file(
-            str(path), bbox=bbox, rows=rows, ignore_geometry=ignore_geometry
+    if geofiletype in [GeofileType.ESRIShapefile, GeofileType.GeoJSON]:
+        result_gdf = pyogrio.read_dataframe(
+            path,
+            columns=columns_originalcasing,
+            bbox=bbox,
+            skip_features=skip_features,
+            max_features=max_features,
+            read_geometry=not ignore_geometry,
         )
     elif geofiletype.is_spatialite_based:
-        result_gdf = gpd.read_file(
-            str(path),
+        result_gdf = pyogrio.read_dataframe(
+            path,
             layer=layer,
+            columns=columns_originalcasing,
             bbox=bbox,
-            rows=rows,
-            ignore_geometry=ignore_geometry,
+            skip_features=skip_features,
+            max_features=max_features,
+            read_geometry=not ignore_geometry,
         )
     else:
         raise ValueError(f"Not implemented for geofiletype {geofiletype}")
 
-    # If columns to read are specified... filter non-geometry columns
-    # case-insensitive
-    if columns is not None:
-        columns_upper = [column.upper() for column in columns]
-        columns_upper.append("GEOMETRY")
-        columns_to_keep = [
-            col for col in result_gdf.columns if (col.upper() in columns_upper)
-        ]
-        result_gdf = result_gdf[columns_to_keep]
+    # Reorder columns so they are the same as columns parameter
+    if columns_originalcasing is not None and len(columns_originalcasing) > 0:
+        columns_originalcasing.append("geometry")
+        result_gdf = result_gdf[columns_originalcasing]
 
     # assert to evade pyLance warning
     assert isinstance(result_gdf, pd.DataFrame) or isinstance(
@@ -1089,6 +1106,10 @@ def to_file(
     # them to next function, example encoding, float_format,...
 
     # Check input parameters
+    """
+    if not isinstance(gdf, gpd.GeoDataFrame):
+        raise Exception(f"gdf is of an invalid type: {type(gdf)}")
+    """
     path = Path(path)
 
     # If no layer name specified, use the filename (without extension)
@@ -1135,26 +1156,48 @@ def to_file(
                 gdf_to_write = gdf.reset_index(drop=True)
             else:
                 gdf_to_write = gdf
-            gdf_to_write.to_file(str(path), driver=geofiletype.ogrdriver, mode=mode)
-        elif geofiletype == GeofileType.GPKG:
-            # Try to harmonize the geometrytype to one (multi)type, as GPKG
-            # doesn't like > 1 type in a layer
-            gdf_to_write = gdf.copy()
-            if schema is None or schema["geometry"] != "None":
-                gdf_to_write.geometry = geoseries_util.harmonize_geometrytypes(
-                    gdf.geometry, force_multitype=force_multitype
+            if mode == "w" and schema is None:
+                # pyogrio only supports write
+                pyogrio.write_dataframe(
+                    gdf_to_write, str(path), driver=geofiletype.ogrdriver
                 )
-            gdf_to_write.to_file(
-                str(path),
-                layer=layer,
-                driver=geofiletype.ogrdriver,
-                mode=mode,
-                schema=schema,
-            )
-        elif geofiletype == GeofileType.SQLite:
-            gdf.to_file(str(path), layer=layer, driver=geofiletype.ogrdriver, mode=mode)
-        elif geofiletype == GeofileType.GeoJSON:
-            gdf.to_file(str(path), driver=geofiletype.ogrdriver, mode=mode)
+            else:
+                gdf_to_write.to_file(str(path), driver=geofiletype.ogrdriver, mode=mode)
+        elif geofiletype == GeofileType.GPKG:
+            if mode == "w" and schema is None:
+                # pyogrio only supports write
+                pyogrio.write_dataframe(
+                    df=gdf, path=path, layer=layer, driver=geofiletype.ogrdriver
+                )
+            else:
+                # Try to harmonize the geometrytype to one (multi)type, as GPKG
+                # doesn't like > 1 type in a layer
+                gdf_to_write = gdf.copy()
+                if schema is None or schema["geometry"] != "None":
+                    gdf_to_write.geometry = geoseries_util.harmonize_geometrytypes(
+                        gdf.geometry, force_multitype=force_multitype
+                    )
+                gdf_to_write.to_file(
+                    path,
+                    layer=layer,
+                    driver=geofiletype.ogrdriver,
+                    mode=mode,
+                    schema=schema,
+                )
+        elif geofiletype in [GeofileType.SQLite, GeofileType.GeoJSON]:
+            if mode == "w" and schema is None:
+                # pyogrio only supports write
+                pyogrio.write_dataframe(
+                    gdf, str(path), layer=layer, driver=geofiletype.ogrdriver
+                )
+            else:
+                gdf.to_file(
+                    str(path),
+                    layer=layer,
+                    driver=geofiletype.ogrdriver,
+                    mode=mode,
+                    schema=schema,
+                )
         else:
             raise ValueError(f"Not implemented for geofiletype {geofiletype}")
 

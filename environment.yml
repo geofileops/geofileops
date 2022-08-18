@@ -7,6 +7,7 @@ dependencies:
   - cloudpickle
   - geopandas
   - pygeos
+  - pyogrio
   - psutil
   - pydata-sphinx-theme
   - topojson
