@@ -4,10 +4,11 @@
 
 ### Improvements
 
+- Add single layer function `gfo.export_by_bounds` (#149)
+- Add single layer function `gfo.clip_by_geometry` (#150)
+- Add single layer function `gfo.warp` to warp geometries based on GCP's (#151)
 - Add (private) function to calculate view angles from a point towards a GeoDataFrame (#140)
-- Add single layer function export_by bounds (#149)
-- Add single layer function to clip a layer by a geometry (#150)
-- Add single layer function to warp geometries based on GCP's (#151)
+- Add (private) function to calculate topologic simplify (#146)
 
 ### Bugs fixed
 
