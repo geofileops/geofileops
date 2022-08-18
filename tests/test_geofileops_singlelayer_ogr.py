@@ -53,7 +53,7 @@ def test_export_by_geometry(tmp_path, suffix):
     # Do operation
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
     filter = (156036, 196691, 156368, 196927)
-    _geoops_ogr.export_by_spatial_filter(
+    _geoops_ogr.export_by_bounds(
         input_path=input_path, output_path=output_path, bounds=filter
     )
 
