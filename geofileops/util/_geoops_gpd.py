@@ -999,7 +999,8 @@ def dissolve(
                     )
 
                     groupby_filter_list = [
-                        f' AND geo_data."{columns_upper_dict[column.upper()]}" = json_data."{columns_upper_dict[column.upper()]}"'
+                        f' AND geo_data."{columns_upper_dict[column.upper()]}" '
+                        f'= json_data."{columns_upper_dict[column.upper()]}"'
                         for column in groupby_columns
                     ]
                     groupby_filter_str = " ".join(groupby_filter_list)
@@ -1057,7 +1058,10 @@ def dissolve(
                             )
 
                             # Now put everything together
-                            agg_columns_str += f', {aggregation_str}({distinct_str}{column_str}{extra_param_str}) AS "{agg_column["as"]}"'
+                            agg_columns_str += (
+                                f', {aggregation_str}({distinct_str}{column_str}'
+                                f'{extra_param_str}) AS "{agg_column["as"]}"'
+                            )
 
                 # Add a column to order the result by to evade having all
                 # complex geometries together in the output file.
@@ -1348,7 +1352,8 @@ def _dissolve_polygons(
                             agg_column["column"]
                             for agg_column in agg_columns["columns"]
                         ]
-                    columns_to_read.update(agg_columns_needed)
+                    if agg_columns_needed is not None:
+                        columns_to_read.update(agg_columns_needed)
 
                     # TODO: remove VERY DIRTY HACK to get fid for geopackages
                     columns_to_read.add("__TMP_GEOFILEOPS_FID")

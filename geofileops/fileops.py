@@ -127,8 +127,8 @@ class ColumnInfo:
         self,
         name: str,
         gdal_type: str,
-        width: int,
-        precision: int,
+        width: Optional[int],
+        precision: Optional[int],
     ):
         self.name = name
         self.gdal_type = gdal_type
@@ -853,7 +853,7 @@ def read_file(
         layer (str, optional): The layer to read. Defaults to None,
             then reads the only layer in the file or throws error.
         columns (Iterable[str], optional): The (non-geometry) columns to read will
-            be returned in the order specified. If None, all columns are read. 
+            be returned in the order specified. If None, all columns are read.
             Defaults to None.
         bbox ([type], optional): Read only geometries intersecting this bbox.
             Defaults to None, then all rows are read.
@@ -899,7 +899,7 @@ def read_file_nogeom(
         layer (str, optional): The layer to read. Defaults to None,
             then reads the only layer in the file or throws error.
         columns (Iterable[str], optional): The (non-geometry) columns to read will
-            be returned in the order specified. If None, all columns are read. 
+            be returned in the order specified. If None, all columns are read.
             Defaults to None.
         bbox ([type], optional): Read only geometries intersecting this bbox.
             Defaults to None, then all rows are read.
@@ -944,7 +944,7 @@ def _read_file_base(
         layer (str, optional): The layer to read. Defaults to None,
             then reads the only layer in the file or throws error.
         columns (Iterable[str], optional): The (non-geometry) columns to read will
-            be returned in the order specified. If None, all columns are read. 
+            be returned in the order specified. If None, all columns are read.
             Defaults to None.
         bbox ([type], optional): Read only geometries intersecting this bbox.
             Defaults to None, then all rows are read.
@@ -1070,7 +1070,7 @@ def read_file_sql(
 
 
 def to_file(
-    gdf: gpd.GeoDataFrame,
+    gdf: Union[pd.DataFrame, gpd.GeoDataFrame],
     path: Union[str, "os.PathLike[Any]"],
     layer: Optional[str] = None,
     force_multitype: bool = False,
@@ -1129,6 +1129,7 @@ def to_file(
         gdf = gpd.GeoDataFrame(gdf, geometry=[None for i in gdf.index])
         schema = gpd_io_file.infer_schema(gdf)
         schema["geometry"] = "None"
+    assert isinstance(gdf, gpd.GeoDataFrame)
 
     def write_to_file(
         gdf: gpd.GeoDataFrame,
