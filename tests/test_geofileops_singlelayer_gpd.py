@@ -32,12 +32,12 @@ def test_get_parallelization_params():
 def test_apply(tmp_path, suffix):
     # Prepare test data
     test_gdf = gpd.GeoDataFrame(
-        geometry=[
+        geometry=[  # type: ignore
             test_helper.TestData.polygon_small_island,
             test_helper.TestData.polygon_with_island,
             None,
         ],
-        crs=31370,
+        crs=31370,  # type: ignore
     )
     input_path = tmp_path / f"polygons_small_holes_{suffix}"
     gfo.to_file(test_gdf, input_path)

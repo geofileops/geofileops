@@ -605,7 +605,7 @@ def simplify_ext(
         coords_on_border_idx = []
         if keep_points_on is not None:
             coords_gdf = gpd.GeoDataFrame(
-                geometry=list(sh_geom.MultiPoint(coords).geoms)
+                geometry=list(sh_geom.MultiPoint(coords).geoms)  # type: ignore
             )
             coords_on_border_series = coords_gdf.intersects(keep_points_on)
             coords_on_border_idx = np.array(
