@@ -988,19 +988,13 @@ def _read_file_base(
         ]
 
     # Depending on the extension... different implementations
-    if geofiletype in [GeofileType.ESRIShapefile, GeofileType.GeoJSON]:
+    if geofiletype in [
+        GeofileType.ESRIShapefile,
+        GeofileType.GeoJSON,
+        geofiletype.is_spatialite_based,
+    ]:
         result_gdf = pyogrio.read_dataframe(
             path,
-            columns=columns_originalcasing,
-            bbox=bbox,
-            skip_features=skip_features,
-            max_features=max_features,
-            read_geometry=not ignore_geometry,
-        )
-    elif geofiletype.is_spatialite_based:
-        result_gdf = pyogrio.read_dataframe(
-            path,
-            layer=layer,
             columns=columns_originalcasing,
             bbox=bbox,
             skip_features=skip_features,
