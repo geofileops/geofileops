@@ -42,12 +42,21 @@ logger = logging.getLogger(__name__)
 # Enable exceptions for GDAL
 gdal.UseExceptions()
 
-# Disable this annoying warning in fiona
+# Disable this warning in fiona
 warnings.filterwarnings(
     action="ignore",
     category=RuntimeWarning,
-    message="Sequential read of iterator was interrupted. Resetting iterator. "
-    "This can negatively impact the performance.",
+    message=(
+        "^Sequential read of iterator was interrupted. Resetting iterator. "
+        "This can negatively impact the performance.$"
+    ),
+)
+
+# Disable this warning in pyogrio
+warnings.filterwarnings(
+    action="ignore",
+    category=UserWarning,
+    message="^Layer .* does not have any features to read$",
 )
 
 # Hardcoded 31370 prj string to replace faulty ones
@@ -853,7 +862,7 @@ def read_file(
         layer (str, optional): The layer to read. Defaults to None,
             then reads the only layer in the file or throws error.
         columns (Iterable[str], optional): The (non-geometry) columns to read will
-            be returned in the order specified. If None, all columns are read. 
+            be returned in the order specified. If None, all columns are read.
             Defaults to None.
         bbox ([type], optional): Read only geometries intersecting this bbox.
             Defaults to None, then all rows are read.
@@ -899,7 +908,7 @@ def read_file_nogeom(
         layer (str, optional): The layer to read. Defaults to None,
             then reads the only layer in the file or throws error.
         columns (Iterable[str], optional): The (non-geometry) columns to read will
-            be returned in the order specified. If None, all columns are read. 
+            be returned in the order specified. If None, all columns are read.
             Defaults to None.
         bbox ([type], optional): Read only geometries intersecting this bbox.
             Defaults to None, then all rows are read.
@@ -944,7 +953,7 @@ def _read_file_base(
         layer (str, optional): The layer to read. Defaults to None,
             then reads the only layer in the file or throws error.
         columns (Iterable[str], optional): The (non-geometry) columns to read will
-            be returned in the order specified. If None, all columns are read. 
+            be returned in the order specified. If None, all columns are read.
             Defaults to None.
         bbox ([type], optional): Read only geometries intersecting this bbox.
             Defaults to None, then all rows are read.
@@ -988,19 +997,13 @@ def _read_file_base(
         ]
 
     # Depending on the extension... different implementations
-    if geofiletype in [GeofileType.ESRIShapefile, GeofileType.GeoJSON]:
+    if geofiletype in [
+        GeofileType.ESRIShapefile,
+        GeofileType.GeoJSON,
+        geofiletype.is_spatialite_based,
+    ]:
         result_gdf = pyogrio.read_dataframe(
             path,
-            columns=columns_originalcasing,
-            bbox=bbox,
-            skip_features=skip_features,
-            max_features=max_features,
-            read_geometry=not ignore_geometry,
-        )
-    elif geofiletype.is_spatialite_based:
-        result_gdf = pyogrio.read_dataframe(
-            path,
-            layer=layer,
             columns=columns_originalcasing,
             bbox=bbox,
             skip_features=skip_features,

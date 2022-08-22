@@ -1,11 +1,15 @@
 # CHANGELOG
 
-## 0.?.?
+## 0.6.0 (2022-08-18)
 
 ### Improvements
 
+- Add single layer function `gfo.export_by_bounds` (#149)
+- Add single layer function `gfo.clip_by_geometry` (#150)
+- Add single layer function `gfo.warp` to warp geometries based on GCP's (#151)
 - Add (private) function to calculate view angles from a point towards a GeoDataFrame (#140)
-- Add operations for export_by_spatial_filter and clip_by_geometry (#144)
+- Add (private) function to calculate topologic simplify (#146)
+- Small changes to support geopandas 0.11, newer pandas versions,...
 
 ### Bugs fixed
 
