@@ -42,12 +42,21 @@ logger = logging.getLogger(__name__)
 # Enable exceptions for GDAL
 gdal.UseExceptions()
 
-# Disable this annoying warning in fiona
+# Disable this warning in fiona
 warnings.filterwarnings(
     action="ignore",
     category=RuntimeWarning,
-    message="Sequential read of iterator was interrupted. Resetting iterator. "
-    "This can negatively impact the performance.",
+    message=(
+        "^Sequential read of iterator was interrupted. Resetting iterator. "
+        "This can negatively impact the performance.$"
+    ),
+)
+
+# Disable this warning in pyogrio
+warnings.filterwarnings(
+    action="ignore",
+    category=UserWarning,
+    message="^Layer .* does not have any features to read$",
 )
 
 # Hardcoded 31370 prj string to replace faulty ones
