@@ -5,7 +5,6 @@ Module containing some general utilities.
 
 from concurrent import futures
 import datetime
-import locale
 import logging
 import os
 from typing import Optional
@@ -17,7 +16,6 @@ import psutil
 ################################################################################
 
 logger = logging.getLogger(__name__)
-locale.setlocale(locale.LC_ALL, "")
 
 ################################################################################
 # The real stuff
