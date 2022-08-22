@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## 0.?.?
+## 0.6.0 (2022-08-22)
 
 ### Improvements
 
