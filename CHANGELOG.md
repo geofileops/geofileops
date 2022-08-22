@@ -9,6 +9,7 @@
 - Add single layer function `gfo.warp` to warp geometries based on GCP's (#151)
 - Add (private) function to calculate view angles from a point towards a GeoDataFrame (#140)
 - Add (private) function to calculate topologic simplify (#146)
+- Small changes to support geopandas 0.11, newer pandas versions,... (#153)
 
 ### Bugs fixed
 

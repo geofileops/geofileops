@@ -3,4 +3,3 @@ ESRIShapefile, "ESRI Shapefile", "['.shp']",     False,               "['.shp', 
 GeoJSON,       GeoJSON,          "['.geojson']", False,               
 GPKG,          GPKG,             "['.gpkg']",    True,                "['gpkg-journal']"
 SQLite,        SQLite,           "['.sqlite']",  True,                
-FlatGeobuf,    FlatGeobuf,       "['.fgb']",     False,               
