@@ -1,6 +1,12 @@
 # CHANGELOG
 
-## 0.6.0 (2022-08-18)
+## 0.7.0
+
+### Improvements
+
+- Use pyogrio for GeoDataFrame io to improve performance for some operations (#???)
+
+## 0.6.0
 
 ### Improvements
 
