@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 0.7.0
+
+### Improvements
+
+- Use pyogrio for GeoDataFrame io to improve performance for some operations (#???)
+
 ## 0.?.?
 
 ### Improvements
