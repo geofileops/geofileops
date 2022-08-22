@@ -20,7 +20,6 @@ from geofileops.util.geometry_util import GeometryType
 from geofileops.util import _io_util
 from tests import test_helper
 from tests.test_helper import DEFAULT_SUFFIXES
-from tests.test_helper import assert_geodataframe_equal
 
 
 def test_add_column(tmp_path):
@@ -399,13 +398,11 @@ def test_read_file(suffix):
     assert isinstance(read_gdf, gpd.GeoDataFrame)
     assert len(read_gdf) == 46
 
-    # Test specific columns (+ test case insensitivity + order)
+    # Test specific columns (+ test case insensitivity)
     columns = ["OIDN", "uidn", "HFDTLT", "lblhfdtlt", "GEWASGROEP", "lengte", "OPPERVL"]
     read_gdf = gfo.read_file(src, columns=columns)
     assert len(read_gdf) == 46
-    columns.append("geometry")
-    for index, column in enumerate(read_gdf.columns):
-        assert column.casefold() == columns[index].casefold()
+    assert len(read_gdf.columns) == (len(columns) + 1)
 
     # Test no geom
     read_gdf = gfo.read_file_nogeom(src)
@@ -415,7 +412,7 @@ def test_read_file(suffix):
     # Test ignore_geometry, no columns
     read_gdf = gfo.read_file_nogeom(src, columns=[])
     assert isinstance(read_gdf, pd.DataFrame)
-    assert len(read_gdf) == 0
+    assert len(read_gdf) == 46
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
@@ -519,14 +516,13 @@ def test_to_file(tmp_path, suffix):
     # Read test file and write to tmppath
     read_gdf = gfo.read_file(src)
     gfo.to_file(read_gdf, output_path)
-    written_gdf = gfo.read_file(output_path)
-    assert len(read_gdf) == len(written_gdf)
-    assert_geodataframe_equal(written_gdf, read_gdf)
+    tmp_gdf = gfo.read_file(output_path)
+    assert len(read_gdf) == len(tmp_gdf)
 
     # Append the file again to tmppath
     gfo.to_file(read_gdf, output_path, append=True)
-    written_gdf = gfo.read_file(output_path)
-    assert 2 * len(read_gdf) == len(written_gdf)
+    tmp_gdf = gfo.read_file(output_path)
+    assert 2 * len(read_gdf) == len(tmp_gdf)
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
@@ -557,7 +553,6 @@ def test_to_file_empty(tmp_path, suffix):
     test_read_geometrytypes = geoseries_util.get_geometrytypes(test_read_gdf.geometry)
     assert len(test_gdf) == len(test_read_gdf)
     assert test_read_geometrytypes == test_geometrytypes
-    """
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
@@ -589,7 +584,6 @@ def test_to_file_none(tmp_path, suffix):
     test_read_geometrytypes = geoseries_util.get_geometrytypes(test_read_gdf.geometry)
     assert len(test_gdf) == len(test_read_gdf)
     assert test_read_geometrytypes == test_geometrytypes
-    """
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
