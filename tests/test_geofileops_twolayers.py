@@ -223,9 +223,7 @@ def test_intersection(tmp_path, testfile, suffix, epsg):
         for name_gpd, name_gfo in zip(output_gpd_gdf.columns, output_gdf.columns)
     }
     output_gpd_gdf = output_gpd_gdf.rename(columns=renames)
-    assert_geodataframe_equal(
-        output_gdf, output_gpd_gdf, check_dtype=False, sort_values=True
-    )
+    assert_geodataframe_equal(output_gdf, output_gpd_gdf, sort_values=True)
 
 
 def test_prepare_spatial_relations_filter():
@@ -379,6 +377,76 @@ def test_join_nearest(tmp_path, suffix, epsg):
     # TODO: this test should be more elaborate...
     output_gdf = gfo.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
+
+
+@pytest.mark.parametrize(
+    "suffix, epsg, overlay_operation, discard_nonmatching, expected_featurecount",
+    [
+        (".gpkg", 31370, "difference", False, 46),
+        (".gpkg", 31370, "identity", True, 0),
+        (".gpkg", 31370, "intersection", False, 48),
+        (".gpkg", 31370, "symmetric_difference", False, 49),
+        (".gpkg", 31370, "union", True, 25),
+        (".gpkg", 4326, "intersection", False, 49),
+        (".shp", 31370, "intersection", False, 49),
+    ],
+)
+def test_overlay(
+    tmp_path,
+    suffix: str,
+    epsg: int,
+    overlay_operation: str,
+    discard_nonmatching: bool,
+    expected_featurecount: int,
+):
+    input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
+    input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
+    input1_layerinfo = gfo.get_layerinfo(input1_path)
+    batchsize = math.ceil(input1_layerinfo.featurecount / 2)
+
+    # Test
+    """
+    output_path = tmp_dir / f"{input1_path.stem}_{overlay_operation}_{input2_path.stem}_{discard_nonmatching}{suffix}"
+    gfo.overlay(
+            input1_path=input1_path,
+            input2_path=input2_path,
+            output_path=output_path,
+            spatial_relations_query=spatial_relations_query,
+            discard_nonmatching=discard_nonmatching,
+            min_area_intersect=min_area_intersect,
+            batchsize=batchsize,
+            force=True)
+
+    # If no result expected, the output files shouldn't exist
+    if expected_featurecount == 0:
+        assert output_path.exists() is False
+        return
+
+    # Check if the output file is correctly created
+    assert output_path.exists() is True
+    layerinfo_input1 = gfo.get_layerinfo(input1_path)
+    layerinfo_input2 = gfo.get_layerinfo(input2_path)
+    layerinfo_output = gfo.get_layerinfo(output_path)
+    assert layerinfo_output.featurecount == expected_featurecount
+    assert len(layerinfo_output.columns) == (
+            len(layerinfo_input1.columns) + len(layerinfo_input2.columns) + 1)
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
+
+    # Now check the contents of the result file
+    output_gdf = gfo.read_file(output_path)
+    assert output_gdf['geometry'][0] is not None
+    """
+    input1_gdf = gfo.read_file(input1_path)
+    input2_gdf = gfo.read_file(input2_path)
+
+    result_gdf = input1_gdf.overlay(
+        input2_gdf, how=overlay_operation, keep_geom_type=True
+    )
+    output_gpd_path = (
+        tmp_path
+        / f"{input1_path.stem}_{overlay_operation}-gpd_{input2_path.stem}_{discard_nonmatching}{suffix}"
+    )
+    gfo.to_file(result_gdf, output_gpd_path)
 
 
 @pytest.mark.parametrize(
