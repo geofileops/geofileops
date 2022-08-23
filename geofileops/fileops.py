@@ -997,10 +997,9 @@ def _read_file_base(
         ]
 
     # Depending on the extension... different implementations
-    if geofiletype in [
+    if geofiletype.is_spatialite_based or geofiletype in [
         GeofileType.ESRIShapefile,
         GeofileType.GeoJSON,
-        geofiletype.is_spatialite_based,
     ]:
         result_gdf = pyogrio.read_dataframe(
             path,
