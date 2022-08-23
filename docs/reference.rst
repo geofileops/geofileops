@@ -22,13 +22,16 @@ Spatial operations on a single layer
 
    apply
    buffer
+   clip_by_geometry
    convexhull
    delete_duplicate_geometries
    dissolve
+   export_by_bounds
    isvalid
    makevalid
    select
    simplify
+   warp
 
 .. _API-reference-two-layers:
 
