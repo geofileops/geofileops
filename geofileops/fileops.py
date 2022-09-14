@@ -898,7 +898,7 @@ def read_file_nogeom(
         layer (str, optional): The layer to read. Defaults to None,
             then reads the only layer in the file or throws error.
         columns (Iterable[str], optional): The (non-geometry) columns to read will
-            be returned in the order specified. If None, all columns are read. 
+            be returned in the order specified. If None, all columns are read.
             Defaults to None.
         bbox ([type], optional): Read only geometries intersecting this bbox.
             Defaults to None, then all rows are read.
@@ -943,7 +943,7 @@ def _read_file_base(
         layer (str, optional): The layer to read. Defaults to None,
             then reads the only layer in the file or throws error.
         columns (Iterable[str], optional): The (non-geometry) columns to read will
-            be returned in the order specified. If None, all columns are read. 
+            be returned in the order specified. If None, all columns are read.
             Defaults to None.
         bbox ([type], optional): Read only geometries intersecting this bbox.
             Defaults to None, then all rows are read.
@@ -1159,7 +1159,7 @@ def to_file(
             raise ValueError(f"Not implemented for geofiletype {geofiletype}")
 
     # If no append, just write to output path
-    if append is False:
+    if not append:
         write_to_file(
             gdf=gdf,
             path=path,
@@ -1170,7 +1170,7 @@ def to_file(
             schema=schema,
         )
     else:
-        # If append is asked, check if the fiona driver supports appending. If
+        # Append is asked, check if the fiona driver supports appending. If
         # not, write to temporary output file
 
         # Remark: fiona pre-1.8.14 didn't support appending to geopackage. Once
@@ -1202,6 +1202,11 @@ def to_file(
         while True:
             if _io_util.create_file_atomic(lockfile) is True:
                 try:
+                    # Get info of source and dest file to compare results afterwards
+                    dst_info = None
+                    if path.exists():
+                        dst_info = get_layerinfo(path, layer)
+
                     # If gdf wasn't written to temp file, use standard write-to-file
                     if gdftemp_path is None:
                         write_to_file(
@@ -1219,6 +1224,14 @@ def to_file(
                         remove(gdftemp_path)
                         if gdftemp_lockpath is not None:
                             gdftemp_lockpath.unlink()
+
+                    if dst_info is not None:
+                        res_info = get_layerinfo(path, layer)
+                        if res_info.featurecount <= dst_info.featurecount:
+                            raise ValueError(
+                                "No rows appended to output, maybe input columns != "
+                                f"output colummns, with path: {path}")
+
                 finally:
                     lockfile.unlink()
                     return
@@ -1553,12 +1566,20 @@ def _append_to_nolock(
     if "LAYER_CREATION.SPATIAL_INDEX" not in options:
         options["LAYER_CREATION.SPATIAL_INDEX"] = create_spatial_index
 
+    # Get info of dest file to compare results afterwards
+    dst_info = None
+    if dst.exists():
+        if dst_layer is None:
+            dst_layer = src_layer
+        dst_info = get_layerinfo(dst, dst_layer)
+
     # When creating/appending to a shapefile, launder the columns names via
     # a sql statement, otherwise when appending the laundered columns will
     # get NULL values instead of the data.
     sql_stmt = None
     if dst.suffix.lower() == ".shp":
-        src_columns = get_layerinfo(src).columns
+        src_info = get_layerinfo(src)
+        src_columns = src_info.columns
         columns_laundered = _launder_column_names(src_columns)
         columns_aliased = [
             f'"{column}" AS "{laundered}"' for column, laundered in columns_laundered
@@ -1585,6 +1606,14 @@ def _append_to_nolock(
         options=options,
     )
     _ogr_util.vector_translate_by_info(info=translate_info)
+
+    # If destination file existed already, we are appending
+    if dst_info is not None:
+        res_info = get_layerinfo(dst, dst_layer)
+        if res_info.featurecount == dst_info.featurecount:
+            raise ValueError(
+                "No rows appended to output, maybe input columns != output colummns, "
+                f"with src: {src}, dst: {dst}")
 
 
 def convert(

@@ -76,6 +76,18 @@ def test_add_column(tmp_path):
         assert f"column_{type}" in info.columns
 
 
+def test_append_different_columns(tmp_path):
+    src_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    dst_path = tmp_path / "dst.gpkg"
+    gfo.copy(src_path, dst_path)
+    gfo.add_column(src_path, name="extra_column", type=gfo.DataType.INTEGER)
+    gfo.append_to(src_path, dst_path)
+
+    src_info = gfo.get_layerinfo(src_path)
+    res_info = gfo.get_layerinfo(dst_path)
+    assert (src_info.featurecount * 2) == res_info.featurecount
+
+
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 def test_cmp(tmp_path, suffix):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
@@ -525,6 +537,18 @@ def test_to_file(tmp_path, suffix):
     assert 2 * len(read_gdf) == len(tmp_gdf)
 
 
+def test_to_file_append_different_columns(tmp_path):
+    test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+
+    test_gdf = gfo.read_file(test_path)
+    test_gdf["extra_column"] = 123
+    # with pytest.raises(ValueError, match="No rows appended to dst.*"):
+    gfo.to_file(test_gdf, path=test_path, append=True)
+
+    test_after_append_gdf = gfo.read_file(path=test_path)
+    assert len(test_after_append_gdf) == len(test_gdf)
+
+
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 def test_to_file_empty(tmp_path, suffix):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
@@ -594,7 +618,8 @@ def test_to_file_gpd_empty(tmp_path, suffix):
     # Test for gdf with an empty polygon + a polygon
     test_gdf = gpd.GeoDataFrame(
         geometry=[  # type: ignore
-            sh_geom.Polygon(), test_helper.TestData.polygon_with_island
+            sh_geom.Polygon(),
+            test_helper.TestData.polygon_with_island,
         ]
     )
     # By default, get_geometrytypes ignores the type of empty geometries, as
