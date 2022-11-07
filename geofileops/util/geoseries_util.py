@@ -130,6 +130,14 @@ def harmonize_geometrytypes(
         return geoseries
 
 
+def is_valid_reason(geoseries: gpd.GeoSeries) -> pd.Series:
+    # Get result and keep geoseries indexes
+    return pd.Series(
+        data=pygeos.is_valid_reason(geoseries.array.data),  # type: ignore
+        index=geoseries.index,
+    )
+
+
 def _harmonize_to_multitype(
     geoseries: gpd.GeoSeries, dest_geometrytype: GeometryType
 ) -> gpd.GeoSeries:
