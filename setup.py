@@ -30,7 +30,7 @@ setuptools.setup(
         "shapely",
         "topojson"
     ],
-    extras_require={"full": ["simplification"]},
+    extras_require={"full": ["simplification", "topojson"]},
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",
