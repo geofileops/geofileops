@@ -96,7 +96,7 @@ def test_geometry_collection_extract():
         test_result_gdf.geometry
     )
     assert len(test_result_geometrytypes) == 2
-    for index, geom in test_result_gdf.iteritems():
+    for index, geom in test_result_gdf.items():
         assert geom is not None
 
 
@@ -123,7 +123,7 @@ def test_harmonize_geometrytypes():
     )
     assert len(test_result_geometrytypes) == 1
     assert test_result_geometrytypes[0] == GeometryType.MULTIPOINT
-    for index, geom in test_result_gdf.geometry.iteritems():
+    for index, geom in test_result_gdf.geometry.items():
         if index in [0, 1]:
             assert geom is None
         else:
@@ -151,7 +151,7 @@ def test_harmonize_geometrytypes():
     )
     assert len(test_result_geometrytypes) == 1
     assert test_result_geometrytypes[0] == GeometryType.MULTILINESTRING
-    for index, geom in test_result_gdf.geometry.iteritems():
+    for index, geom in test_result_gdf.geometry.items():
         if index in [0, 1]:
             assert geom is None
         else:
@@ -180,7 +180,7 @@ def test_harmonize_geometrytypes():
     )
     assert len(test_result_geometrytypes) == 1
     assert test_result_geometrytypes[0] == GeometryType.MULTIPOLYGON
-    for index, geom in test_result_gdf.geometry.iteritems():
+    for index, geom in test_result_gdf.geometry.items():
         if index in [1, 2]:
             assert geom is None
         else:
@@ -209,7 +209,7 @@ def test_harmonize_geometrytypes():
         test_result_gdf.geometry
     )
     assert len(test_result_geometrytypes) == 5
-    for index, geom in test_result_gdf.geometry.iteritems():
+    for index, geom in test_result_gdf.geometry.items():
         if index in [0]:
             # Only None is None, empty geometry is not changed!
             assert geom is None
