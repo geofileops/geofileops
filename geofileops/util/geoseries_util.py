@@ -11,8 +11,6 @@ import numpy as np
 import pandas as pd
 import pygeos
 from shapely import geometry as sh_geom
-import topojson
-import topojson.ops
 
 from . import geometry_util
 from .geometry_util import GeometryType, PrimitiveType, SimplifyAlgorithm
@@ -36,11 +34,11 @@ def geometry_collection_extract(
     """
     # Apply the collection_extract
     return gpd.GeoSeries(
-            [geometry_util.collection_extract(geom, primitivetype) for geom in geoseries])
+        [geometry_util.collection_extract(geom, primitivetype) for geom in geoseries])
     """
     # Apply the collection_extract
     geoseries_copy = geoseries.copy()
-    for index, geom in geoseries_copy.iteritems():
+    for index, geom in geoseries_copy.items():
         geoseries_copy[index] = geometry_util.collection_extract(geom, primitivetype)
     assert isinstance(geoseries_copy, gpd.GeoSeries)
     return geoseries_copy
@@ -128,6 +126,14 @@ def harmonize_geometrytypes(
     else:
         # Too difficult to harmonize, so just return
         return geoseries
+
+
+def is_valid_reason(geoseries: gpd.GeoSeries) -> pd.Series:
+    # Get result and keep geoseries indexes
+    return pd.Series(
+        data=pygeos.is_valid_reason(geoseries.array.data),  # type: ignore
+        index=geoseries.index,
+    )
 
 
 def _harmonize_to_multitype(
@@ -225,6 +231,15 @@ def simplify_topo_ext(
     Returns:
         gpd.GeoSeries: the simplified geoseries
     """
+    try:
+        import topojson
+        import topojson.ops
+    except ImportError as ex:
+        raise ImportError(
+            "simplify_topo_ext needs an optional package. Install with "
+            "'pip install topojson'"
+        ) from ex
+
     topo = topojson.Topology(geoseries, prequantize=False)
     topolines = sh_geom.MultiLineString(topo.output["arcs"])
     topolines_simpl = geometry_util.simplify_ext(
