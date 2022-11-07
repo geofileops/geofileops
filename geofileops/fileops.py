@@ -1647,9 +1647,13 @@ def convert(
         force (bool, optional): overwrite existing output file(s)
             Defaults to False.
     """
+    # Init
     src = Path(src)
     dst = Path(dst)
 
+    # If source file doesn't exist, raise error
+    if not src.exists():
+        raise ValueError(f"src file doesn't exist: {src}")
     # If dest file exists already, remove it
     if dst.exists():
         if force is True:
