@@ -40,7 +40,7 @@ def geometry_collection_extract(
     """
     # Apply the collection_extract
     geoseries_copy = geoseries.copy()
-    for index, geom in geoseries_copy.iteritems():
+    for index, geom in geoseries_copy.items():
         geoseries_copy[index] = geometry_util.collection_extract(geom, primitivetype)
     assert isinstance(geoseries_copy, gpd.GeoSeries)
     return geoseries_copy
@@ -128,6 +128,14 @@ def harmonize_geometrytypes(
     else:
         # Too difficult to harmonize, so just return
         return geoseries
+
+
+def is_valid_reason(geoseries: gpd.GeoSeries) -> pd.Series:
+    # Get result and keep geoseries indexes
+    return pd.Series(
+        data=pygeos.is_valid_reason(geoseries.array.data),  # type: ignore
+        index=geoseries.index,
+    )
 
 
 def _harmonize_to_multitype(

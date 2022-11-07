@@ -96,7 +96,7 @@ def test_geometry_collection_extract():
         test_result_gdf.geometry
     )
     assert len(test_result_geometrytypes) == 2
-    for index, geom in test_result_gdf.iteritems():
+    for index, geom in test_result_gdf.items():
         assert geom is not None
 
 
@@ -123,7 +123,7 @@ def test_harmonize_geometrytypes():
     )
     assert len(test_result_geometrytypes) == 1
     assert test_result_geometrytypes[0] == GeometryType.MULTIPOINT
-    for index, geom in test_result_gdf.geometry.iteritems():
+    for index, geom in test_result_gdf.geometry.items():
         if index in [0, 1]:
             assert geom is None
         else:
@@ -151,7 +151,7 @@ def test_harmonize_geometrytypes():
     )
     assert len(test_result_geometrytypes) == 1
     assert test_result_geometrytypes[0] == GeometryType.MULTILINESTRING
-    for index, geom in test_result_gdf.geometry.iteritems():
+    for index, geom in test_result_gdf.geometry.items():
         if index in [0, 1]:
             assert geom is None
         else:
@@ -180,7 +180,7 @@ def test_harmonize_geometrytypes():
     )
     assert len(test_result_geometrytypes) == 1
     assert test_result_geometrytypes[0] == GeometryType.MULTIPOLYGON
-    for index, geom in test_result_gdf.geometry.iteritems():
+    for index, geom in test_result_gdf.geometry.items():
         if index in [1, 2]:
             assert geom is None
         else:
@@ -209,12 +209,59 @@ def test_harmonize_geometrytypes():
         test_result_gdf.geometry
     )
     assert len(test_result_geometrytypes) == 5
-    for index, geom in test_result_gdf.geometry.iteritems():
+    for index, geom in test_result_gdf.geometry.items():
         if index in [0]:
             # Only None is None, empty geometry is not changed!
             assert geom is None
         else:
             assert geom is not None
+
+
+def test_is_valid_reason(tmp_path):
+    # Test with valid data + Empty geometry
+    # -------------------------------------
+    test_gdf = gpd.GeoDataFrame(
+        geometry=[  # type: ignore
+            sh_geom.Polygon(),
+            test_helper.TestData.point,
+            test_helper.TestData.multipoint,
+            test_helper.TestData.polygon_with_island,
+            test_helper.TestData.polygon_no_islands,
+            test_helper.TestData.multipolygon,
+            test_helper.TestData.geometrycollection,
+        ]
+    )
+    result = geoseries_util.is_valid_reason(test_gdf.geometry)
+
+    assert len(result) == len(test_gdf)
+    assert result.unique() == "Valid Geometry"
+
+    # Test if indexas are retained
+    # ----------------------------
+    test_filtered_gdf = test_gdf[3:-1]
+    result = geoseries_util.is_valid_reason(test_filtered_gdf.geometry)
+
+    assert len(result) == len(test_filtered_gdf)
+    assert result.unique() == "Valid Geometry"
+    assert result.index.to_list() == test_filtered_gdf.index.to_list()
+
+    # Test with None
+    # --------------
+    test_gdf = gpd.GeoDataFrame(geometry=[None])  # type: ignore
+    result = geoseries_util.is_valid_reason(test_gdf.geometry)
+
+    # is_valid_reason returns None for None geometries
+    assert result[0] is None
+
+    # Test with invalid data
+    # ----------------------
+    # Prepare test data
+    path = test_helper.get_testfile("polygon-invalid")
+    gdf = gfo.read_file(path)
+    result = geoseries_util.is_valid_reason(gdf.geometry)
+
+    assert len(result) == len(gdf)
+    assert result[0].startswith("Ring Self-intersection")
 
 
 def test_polygons_to_lines():
