@@ -190,6 +190,7 @@ class GeoOperation(enum.Enum):
     BUFFER = "buffer"
     CONVEXHULL = "convexhull"
     APPLY = "apply"
+    CENTERLINE = "centerline"
 
 
 ################################################################################
@@ -264,6 +265,37 @@ def buffer(
         input_path=input_path,
         output_path=output_path,
         operation=GeoOperation.BUFFER,
+        operation_params=operation_params,
+        input_layer=input_layer,
+        output_layer=output_layer,
+        columns=columns,
+        explodecollections=explodecollections,
+        nb_parallel=nb_parallel,
+        batchsize=batchsize,
+        force=force,
+    )
+
+
+def centerline(
+    input_path: Path,
+    output_path: Path,
+    densify_distance: float = 0.5,
+    input_layer: Optional[str] = None,
+    output_layer: Optional[str] = None,
+    columns: Optional[List[str]] = None,
+    explodecollections: bool = False,
+    nb_parallel: int = -1,
+    batchsize: int = -1,
+    force: bool = False,
+):
+    # Init
+    operation_params = {"densify_distance": densify_distance}
+
+    # Go!
+    return _apply_geooperation_to_layer(
+        input_path=input_path,
+        output_path=output_path,
+        operation=GeoOperation.CENTERLINE,
         operation_params=operation_params,
         input_layer=input_layer,
         output_layer=output_layer,
@@ -389,6 +421,9 @@ def _apply_geooperation_to_layer(
           - pickled_func: lambda function to apply, pickled to bytes.
           - only_geom_input: if True, only the geometry is available as
             input for the lambda function. If false, the row is the input.
+      - CENTERLINE: calculate centerline of the input geometries. Operation parameters:
+          - densify_distance: densify the input geometry’s border by placing
+            additional points at this distance.
 
     Args:
         input_path (Path): [description]
@@ -443,8 +478,12 @@ def _apply_geooperation_to_layer(
                 max_avg_rows_per_batch=batchsize,
             )
         else:
+            if operation == GeoOperation.CENTERLINE:
+                max_avg_rows_per_batch = 10000
+            else:
+                max_avg_rows_per_batch = 50000
             parallellization_config = ParallelizationConfig(
-                max_avg_rows_per_batch=50000
+                max_avg_rows_per_batch=max_avg_rows_per_batch
             )
         nb_parallel, nb_batches, real_batchsize = get_parallelization_params(
             nb_rows_total=nb_rows_total,
@@ -612,6 +651,11 @@ def _apply_geooperation(
             join_style=operation_params["join_style"].value,
             mitre_limit=operation_params["mitre_limit"],
             single_sided=operation_params["single_sided"],
+        )
+    elif operation is GeoOperation.CENTERLINE:
+        data_gdf.geometry = geoseries_util.centerline(
+            data_gdf.geometry,
+            densify_distance=operation_params["densify_distance"],
         )
     elif operation is GeoOperation.CONVEXHULL:
         data_gdf.geometry = data_gdf.geometry.convex_hull

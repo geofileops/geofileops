@@ -15,6 +15,7 @@ import pyproj
 import shapely.wkb as sh_wkb
 import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
+from shapely.strtree import STRtree
 
 
 #####################################################################
@@ -26,6 +27,10 @@ import shapely.ops as sh_ops
 logger = logging.getLogger(__name__)
 # logger.setLevel(logging.DEBUG)
 
+# Variables to check if an optional package is already imported
+centerline_imported = False
+centerline_geom = None
+centerline_exception = None
 
 #####################################################################
 # Buffer helpers
@@ -172,6 +177,213 @@ class PrimitiveType(enum.Enum):
             return GeometryType.MULTIPOLYGON
         else:
             raise Exception(f"No multitype implemented for: {self}")
+
+
+def centerline_old(
+    geom: Optional[sh_geom.base.BaseGeometry], densify_distance: float = 0.5
+) -> sh_geom.base.BaseGeometry:
+
+    # Import optional dependency: centerline
+    global centerline_imported
+    global centerline_geom
+    global centerline_exceptions
+
+    # Reimporting a package many times apparently is slow, so use trick to avoid it!
+    if centerline_imported is False:
+        try:
+            import centerline.geometry as centerline_geom
+            import centerline.exceptions as centerline_exceptions
+
+            centerline_imported = True
+        except ImportError as ex:
+            raise ImportError(
+                "centerline function needs an optional package. Install with "
+                "'pip install centerline'"
+            ) from ex
+
+    if centerline_geom is None:
+        raise Exception("It seems centerline wasn't properly imported or ???")
+
+    # Now it is imported, calculate centerline
+    try:
+        geom_centerline = centerline_geom.Centerline(
+            geom, interpolation_tolerance=densify_distance
+        )
+        assert isinstance(geom_centerline, sh_geom.base.BaseGeometry)
+        return geom_centerline
+
+    except centerline_exceptions.TooFewRidgesError:
+        # If the centerline cannot be calculated, return empty geom
+        return sh_geom.LineString(None)
+
+
+def centerline(
+    geom: Optional[sh_geom.base.BaseGeometry],
+    densify_distance: Optional[float] = None,
+    min_axis_length: Optional[float] = -1,
+) -> Optional[sh_geom.base.BaseGeometry]:
+    """
+    def concave_points(line: np.ndarray, outer: bool) -> np.ndarray:
+        # If only 2 points, no concave points possible
+        if len(line) <= 2:
+            return np.empty_like(line)
+        # Prepare "points"
+        p1_x = line[:-2, 0]
+        p1_y = line[:-2, 1]
+        p2_x = line[1:-1, 0]
+        p2_y = line[1:-1, 1]
+        p3_x = line[2:, 0]
+        p3_y = line[2:, 1]
+
+        # Calculate
+        if outer:
+            concave_mask = (p2_x - p1_x) * (p3_y - p1_y) < (p3_x - p1_x) * (p2_y - p1_y)  # type: ignore
+        else:
+            concave_mask = (p2_x - p1_x) * (p3_y - p1_y) > (p3_x - p1_x) * (p2_y - p1_y)  # type: ignore
+        concave_mask = np.concatenate([[False], concave_mask, [False]])
+        return line[~np.array(concave_mask)]
+
+    def concave_points_poly(_geom: sh_geom.base.BaseGeometry) -> list:
+        result = []
+        if isinstance(_geom, sh_geom.Polygon):
+            result.extend(
+                concave_points(np.array(_geom.exterior.coords), outer=True).tolist()
+            )
+            for interior in _geom.interiors:
+                result.extend(
+                    concave_points(np.array(interior.coords), outer=False).tolist()
+                )
+        elif isinstance(_geom, sh_geom.MultiPolygon):
+            for poly in _geom.geoms:
+                result.extend(
+                    concave_points(np.array(poly.exterior.coords), outer=True).tolist()
+                )
+                for interior in poly.interiors:
+                    result.extend(
+                        concave_points(np.array(interior.coords), outer=False).tolist()
+                    )
+        elif _geom is None:
+            return []
+
+        return result
+    """
+
+    if geom is None or geom.is_empty:
+        return geom
+
+    if densify_distance is not None:
+        geom = pygeos.to_shapely(
+            pygeos.segmentize(pygeos.from_shapely(geom), tolerance=densify_distance)
+        )
+        assert geom is not None
+    voronoi_edges = sh_ops.voronoi_diagram(geom, edges=True)
+    if not isinstance(voronoi_edges, sh_geom.base.BaseMultipartGeometry):
+        raise Exception("voronoi edges didn't return MultipartGeometry???")
+    if len(voronoi_edges.geoms) > 1:
+        raise Exception("voronoi edges returned in moreone geom???")
+    else:
+        voronoi_edges = voronoi_edges.geoms[0]
+
+    """
+    voronoi_clipped = geom.intersection(voronoi_edges)
+    geom_concave_points = sh_geom.MultiPoint(concave_points_poly(geom))
+    voronoi_edges_to_keep = []
+    for voronoi_edge in voronoi_clipped.geoms:
+        if not voronoi_edge.intersects(geom_concave_points):
+            voronoi_edges_to_keep.append(voronoi_edge)
+    result = sh_geom.MultiLineString(voronoi_edges_to_keep)
+    """
+    # Only keep edges that are within polygon
+    edges_within = [edge for edge in voronoi_edges.geoms if edge.within(geom)]
+    edges_merged = sh_ops.linemerge(edges_within)
+
+    # If this result in no result, try intersection
+    if edges_merged is None or edges_merged.is_empty:
+        voronoi_clipped = geom.intersection(voronoi_edges)
+        edges_merged = sh_ops.linemerge(voronoi_clipped)
+
+    """
+    gpd.GeoSeries(geom).plot()
+    gpd.GeoSeries(edges_merged).plot()
+    plt.show()
+    """
+
+    # If the result is a multilinestring, check if there are short sideways linestrings
+    if min_axis_length is not None and isinstance(
+        edges_merged, sh_geom.MultiLineString
+    ):
+        # Automatically determine min axis length
+        if min_axis_length < 0:
+            min_axis_length = abs(min_axis_length) * geom.area / edges_merged.length
+            logger.info(f"min_axis_length: {min_axis_length}")
+
+        # Remove edges that are too short
+        # Keep removing edges till no more short dangling edges present
+        while True:
+            # Check for each edge if we keep it
+            edges_tree = STRtree(edges_merged.geoms)
+            edges_to_keep = []
+            for index, edge in enumerate(edges_merged.geoms):
+                # 40235,5553 156658,1253
+                # If the edge is long enough, always keep it
+                if edge.length >= min_axis_length:
+                    edges_to_keep.append(edge)
+                    continue
+
+                # Remove (short) "dangling nodes": if only one endpoint of the line is
+                # adjacent to another linestring, remove it
+                # Check first point
+                search_point = sh_geom.Point(edge.coords[0])
+                near_lines = list(edges_tree.query_items(search_point))
+                startpoint_adjacency = False
+
+                # If only one found, it is itself and so there is nothing else adjacent.
+                if len(near_lines) > 1:
+                    for near_line in near_lines:
+                        # If the near line is itself, skip
+                        if near_line == index:
+                            continue
+                        # Check if the near line really intersects
+                        if edges_merged.geoms[near_line].intersects(search_point):
+                            startpoint_adjacency = True
+                            break
+
+                # Check 2nd point
+                search_point = sh_geom.Point(edge.coords[-1])
+                near_lines = list(edges_tree.query_items(search_point))
+                endpoint_adjacency = False
+
+                # If only one found, it is itself and so there is nothing else adjacent.
+                if len(near_lines) > 1:
+                    for near_line in near_lines:
+                        # If the near line is itself, skip
+                        if near_line == index:
+                            continue
+                        # Check if the near line really intersects
+                        if edges_merged.geoms[near_line].intersects(search_point):
+                            endpoint_adjacency = True
+                            break
+                if startpoint_adjacency is False and endpoint_adjacency is False:
+                    # Standalone line, keep it
+                    edges_to_keep.append(edge)
+                elif startpoint_adjacency and endpoint_adjacency:
+                    # Line between two others, keep it
+                    edges_to_keep.append(edge)
+                else:
+                    # Only either start or end point has no adjacency: dangling node
+                    continue
+
+            # If no edges were removed, we are ready
+            if len(edges_merged.geoms) == len(edges_to_keep):
+                break
+
+            edges_merged = sh_ops.linemerge(sh_geom.MultiLineString(edges_to_keep))
+
+            # If the result is a simple linestring, we are ready
+            if not isinstance(edges_merged, sh_geom.MultiLineString):
+                break
+
+    return edges_merged.normalize()
 
 
 def collection_extract(

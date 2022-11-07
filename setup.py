@@ -28,9 +28,8 @@ setuptools.setup(
         "pygeos",
         "pyproj",
         "shapely",
-        "topojson"
     ],
-    extras_require={"full": ["simplification"]},
+    extras_require={"full": ["centerline", "simplification", "topojson"]},
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",

@@ -313,6 +313,34 @@ def simplify_ext(
         )
 
 
+def centerline(
+    geoseries: gpd.GeoSeries, densify_distance: float = 5.0
+) -> gpd.GeoSeries:
+
+    return gpd.GeoSeries(
+        [
+            geometry_util.centerline_old(geom, densify_distance=densify_distance)
+            for geom in geoseries
+        ]
+    )
+
+
+def centerline_sh(
+    geoseries: gpd.GeoSeries,
+    densify_distance: Optional[float] = None,
+    min_axis_length: Optional[float] = -1,
+) -> gpd.GeoSeries:
+
+    return gpd.GeoSeries(
+        [
+            geometry_util.centerline(
+                geom, densify_distance=densify_distance, min_axis_length=min_axis_length
+            )
+            for geom in geoseries
+        ]
+    )
+
+
 def view_angles(
     viewpoints: gpd.GeoSeries,
     visible_geoms: gpd.GeoSeries,

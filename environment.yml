@@ -11,5 +11,6 @@ dependencies:
   - pydata-sphinx-theme
   - topojson
   - pip:
-    - sphinx-automodapi==0.13
+    - centerline
     - simplification
+    - sphinx-automodapi==0.13

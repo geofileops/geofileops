@@ -289,6 +289,60 @@ def buffer(
         )
 
 
+def centerline(
+    input_path: Union[str, "os.PathLike[Any]"],
+    output_path: Union[str, "os.PathLike[Any]"],
+    densify_distance: float = 5.0,
+    input_layer: Optional[str] = None,
+    output_layer: Optional[str] = None,
+    columns: Optional[List[str]] = None,
+    explodecollections: bool = False,
+    nb_parallel: int = -1,
+    batchsize: int = -1,
+    force: bool = False,
+):
+    """
+    Applies a centerline operation on the input file.
+
+    The result is written to the output file specified.
+
+    Args:
+        input_path (PathLike): the input file
+        output_path (PathLike): the file to write the result to
+        densify_distance (float, optional): densify the input geometry’s border
+            by placing additional points at this distance, defaults to 0.5 [meter]
+        input_layer (str, optional): input layer name. Optional if the input
+            file only contains one layer.
+        output_layer (str, optional): input layer name. Optional if the input
+            file only contains one layer.
+        columns (List[str], optional): If not None, only output the columns
+            specified. Defaults to None.
+        explodecollections (bool, optional): True to output only simple geometries.
+            Defaults to False.
+        nb_parallel (int, optional): the number of parallel processes to use.
+            Defaults to -1: use all available processors.
+        batchsize (int, optional): indicative number of rows to process per
+            batch. A smaller batch size, possibly in combination with a
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
+        force (bool, optional): overwrite existing output file(s).
+            Defaults to False.
+    """
+    logger.info(f"Start centerline on {input_path}")
+    return _geoops_gpd.centerline(
+        input_path=Path(input_path),
+        output_path=Path(output_path),
+        densify_distance=densify_distance,
+        input_layer=input_layer,
+        output_layer=output_layer,
+        columns=columns,
+        explodecollections=explodecollections,
+        nb_parallel=nb_parallel,
+        batchsize=batchsize,
+        force=force,
+    )
+
+
 def clip_by_geometry(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
