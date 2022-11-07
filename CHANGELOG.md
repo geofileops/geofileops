@@ -16,6 +16,10 @@
 
 - Fix typo in hardcoded 31370 custom prj string (#142)
 
+### Deprecations and compatibility notes
+
+- Make topojson an optional dependency (#165)
+
 ## 0.5.0 (2022-06-08)
 
 The main improvements in this version are the geo operations `gfo.clip` and
