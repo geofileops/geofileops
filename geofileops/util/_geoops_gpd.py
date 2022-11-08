@@ -1668,7 +1668,7 @@ def _dissolve(
             .to_frame(name="__DISSOLVE_TOJSON")
         )
     else:
-        aggregated_data = data.groupby(**groupby_kwargs).agg(aggfunc)
+        aggregated_data = data.groupby(**groupby_kwargs).agg(aggfunc)  # type: ignore
         # Check if all columns were properly aggregated
         columns_to_agg = [column for column in data.columns if column not in by_local]
         if len(columns_to_agg) != len(aggregated_data.columns):
