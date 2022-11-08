@@ -644,6 +644,10 @@ def test_dissolve_polygons_aggcolumns_json(tmp_path, suffix=".gpkg"):
     ],
 )
 def test_simplify_vw(tmp_path, suffix, epsg, testfile):
+    # Skip test if simplification is not available
+    _ = pytest.importorskip("simplification")
+
+    # Init
     input_path = test_helper.get_testfile(testfile, suffix=suffix, epsg=epsg)
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
