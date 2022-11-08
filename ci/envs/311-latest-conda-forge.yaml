@@ -19,5 +19,5 @@ dependencies:
   # testing
   - pytest
   - pytest-cov
-  - pip:
-    - simplification
+  #- pip:
+  #  - simplification
