@@ -7,7 +7,7 @@ from concurrent import futures
 import datetime
 import logging
 import os
-from typing import Optional
+from typing import Iterable, List, Optional
 
 import psutil
 
@@ -38,6 +38,64 @@ class MissingRuntimeDependencyError(Exception):
 ################################################################################
 # The real work
 ################################################################################
+
+
+def align_casing(
+    string_to_align: str, strings_to_align_to: Iterable
+) -> str:
+    """
+    Align the casing of a string to the strings in strings_to_align_to so they
+    have the same casing.
+
+    If the string is not found in strings_to_align_to, a ValueError is thrown.
+
+    Args:
+        string_to_align (str): string to align the casing of to strings_to_align_to.
+        strings_to_align_to (Iterable): strings to align the casing with.
+
+    Raises:
+        ValueError: the string was not found in strings_to_align_to.
+
+    Returns:
+        str: the aligned string.
+    """
+    return align_casing_list([string_to_align], strings_to_align_to)[0]
+
+
+def align_casing_list(
+    strings_to_align: List[str], strings_to_align_to: Iterable
+) -> List[str]:
+    """
+    Align the strings in strings_to_align to the strings in strings_to_align_to so they
+    have the same casing.
+
+    If a string is not found in strings_to_align_to, a ValueError is thrown.
+
+    Args:
+        strings_to_align (List[str]): strings to align the casing of to
+            strings_to_align_to.
+        strings_to_align_to (Iterable): strings to align the casing with.
+
+    Raises:
+        ValueError: a string in strings_to_align was nog found in strings_to_align_to.
+
+    Returns:
+        List[str]: the aligned list of strings.
+    """
+    strings_to_align_to_upper_dict = {
+        string.upper(): string for string in strings_to_align_to
+    }
+    strings_aligned = []
+    for string in strings_to_align:
+        string_aligned = strings_to_align_to_upper_dict.get(string.upper())
+        if string_aligned is not None:
+            strings_aligned.append(string_aligned)
+        else:
+            raise ValueError(
+                f"Error in align_casing: string '{string}' is not available "
+                f"in strings_to_align_to: {strings_to_align_to}"
+            )
+    return strings_aligned
 
 
 def report_progress(

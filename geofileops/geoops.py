@@ -502,8 +502,8 @@ def dissolve(
         explodecollections (bool): True to output only simple geometries. If
             False, this can result in huge geometries for large files,
             especially if no groupby_columns are specified.
-        groupby_columns (List[str], optional): columns to group on while
-            aggregating. Defaults to None, resulting in a spatial union of all
+        groupby_columns (List[str], optional): columns (case insensitive) to group on
+            while aggregating. Defaults to None, resulting in a spatial union of all
             geometries that touch.
         agg_columns (dict, optional): columns to aggregate based on
             the groupings by groupby columns. Depending on the top-level key
@@ -514,7 +514,7 @@ def dissolve(
                 - "columns": aggregate to seperate columns. The value should
                   be a list of dicts with the following keys:
 
-                    - "column": column name in the input file.
+                    - "column": column name (case insensitive) in the input file.
                     - "agg": aggregation to use:
 
                         - count: the number of items
