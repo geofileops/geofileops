@@ -300,6 +300,9 @@ def test_simplify_ext(algorithm):
     "algorithm", [SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER, SimplifyAlgorithm.LANG]
 )
 def test_simplify_topo_ext(algorithm):
+    # Skip test if simplification is not available
+    _ = pytest.importorskip("simplification")
+
     input_path = test_helper.get_testfile("polygon-parcel")
     input_gdf = gfo.read_file(input_path)
     result_geoseries = geoseries_util.simplify_topo_ext(
