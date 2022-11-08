@@ -587,7 +587,7 @@ def test_to_file_none(tmp_path, suffix):
     # Test for gdf with a None geometry + a polygon
     test_gdf = gpd.GeoDataFrame(
         geometry=[None, test_helper.TestData.polygon_with_island]
-    )
+    )  # type: ignore
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 1
     output_none_path = tmp_path / f"{src.stem}_none{suffix}"

@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 0.6.1 (???)
+
+### Improvements
+
+- Add (private) function `is_valid_reason` for GeoSeries (#164)
+- Small improvements in logging, formatting, avoid deprecation warnings,... (#163, #166, #171)
+- Add CI tests for python 3.10 and 3.11. On python 3.11 the simplification library is 
+  not available (#170) 
+
+### Bugs fixed
+
+- Fix groupby columns in dissolve not being treated case insensitive (#162)
+
 ## 0.6.0 (2022-08-23)
 
 ### Improvements

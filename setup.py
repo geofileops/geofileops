@@ -28,7 +28,7 @@ setuptools.setup(
         "pygeos",
         "pyproj",
         "shapely",
-        "topojson"
+        "topojson",
     ],
     extras_require={"full": ["simplification"]},
     classifiers=[

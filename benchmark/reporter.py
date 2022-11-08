@@ -7,7 +7,7 @@ import ast
 import math
 import os
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Literal, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -87,7 +87,7 @@ def generate_reports(results_path: Path, output_dir: Path):
     )
     # Drop the "secs_taken" level to cleanup legend in chart
     benchmark_maxversion_df = benchmark_maxversion_df.droplevel(level=0, axis=1)
-    results_report_path = output_dir / f"GeoBenchmark.png"
+    results_report_path = output_dir / "GeoBenchmark.png"
     save_chart(
         df=benchmark_maxversion_df,
         title="Comparison of libraries, time in sec",
@@ -105,13 +105,25 @@ def save_chart(
     df: pd.DataFrame,
     title: str,
     output_path: Path,
-    yscale: Optional[str] = None,
+    yscale: Optional[Literal["linear", "log", "symlog", "logit"]] = None,
     y_value_formatter: Optional[str] = None,
     print_labels_on_points: bool = False,
     open_output_file: bool = False,
     size: Tuple[float, float] = (8, 4),
-    plot_kind: str = "line",
-    gridlines: Optional[str] = None,
+    plot_kind: Literal[
+        "line",
+        "bar",
+        "barh",
+        "hist",
+        "box",
+        "kde",
+        "density",
+        "area",
+        "pie",
+        "scatter",
+        "hexbin",
+    ] = "line",
+    gridlines: Optional[Literal['both', 'x', 'y']] = None,
     linestyle: Optional[str] = None,
 ):
     """
@@ -121,7 +133,7 @@ def save_chart(
         df (pd.DataFrame): _description_
         title (str): _description_
         output_path (Path): _description_
-        yscale (str): y scale to use.
+        yscale (Literal["linear", "log", "symlog", "logit"], optional): y scale to use.
         y_value_formatter (str, optional): a formatter for the y axes and
             labels. Examples:
               - {0:.2%} for a percentage.
@@ -170,12 +182,16 @@ def save_chart(
 
     # Show y axes as percentages is asked
     if y_value_formatter is not None:
-        axs.yaxis.set_major_formatter(plt.FuncFormatter(y_value_formatter.format))
-        axs.yaxis.set_minor_formatter(plt.FuncFormatter(y_value_formatter.format))
+        axs.yaxis.set_major_formatter(
+            plt.FuncFormatter(y_value_formatter.format)  # type: ignore
+        )
+        axs.yaxis.set_minor_formatter(
+            plt.FuncFormatter(y_value_formatter.format)  # type: ignore
+        )
 
     # Show grid lines if specified
     if gridlines is not None:
-        axs.grid(axis=gridlines, which="both")  # type: ignore
+        axs.grid(axis=gridlines, which="both")
 
     # Set different markers + print labels
     # Set different markers for each line + get mn/max values + print labels
@@ -231,7 +247,7 @@ def save_chart(
     plt.tight_layout()
 
     # Save and open if wanted
-    fig.savefig(output_path)
+    fig.savefig(str(output_path))
     if open_output_file is True:
         os.startfile(output_path)
 
