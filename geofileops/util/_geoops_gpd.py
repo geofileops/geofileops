@@ -1193,6 +1193,7 @@ def _dissolve_polygons_pass(
 
             batches[batch_id] = {}
             batches[batch_id]["layer"] = output_layer
+            batches[batch_id]["bounds"] = tile_row.geometry.bounds
 
             # Output each batch to a seperate temporary file, otherwise there
             # are timeout issues when processing large files
