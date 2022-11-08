@@ -9,6 +9,7 @@
 
 ### Bugs fixed
 
+- Fix groupby columns in dissolve not being treated case insensitive (#162)
 
 ### Deprecations and compatibility notes
 

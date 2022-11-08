@@ -675,7 +675,8 @@ def dissolve(
     More detailed documentation in module geoops!
     """
 
-    # Init
+    # Init and validate input parameters
+    # ----------------------------------
     start_time = datetime.now()
     operation = "dissolve"
     result_info = {}
@@ -695,18 +696,14 @@ def dissolve(
                 "Dissolve to tiles (tiles_path, nb_squarish_tiles) is not supported "
                 f"for {input_layerinfo.geometrytype}"
             )
-    if output_path.exists():
-        if force is False:
-            result_info[
-                "message"
-            ] = f"output exists already {output_path} and force is false"
-            logger.info(result_info["message"])
-            return result_info
-        else:
-            gfo.remove(output_path)
+
+    # Check columns in groupby_columns + make case insensitive
+    if groupby_columns is not None:
+        groupby_columns = _general_util.align_casing_list(
+            list(groupby_columns), input_layerinfo.columns
+        )
 
     # Check agg_columns param
-    columns_upper_dict = {col.upper(): col for col in input_layerinfo.columns}
     if agg_columns is not None:
         message = (
             'agg_columns malformed. Options are: {"json": [<list_columns>]} '
@@ -727,23 +724,14 @@ def dissolve(
 
         if "json" in agg_columns:
             if agg_columns["json"] is None:
-                # agg_columns["json"] = list(input_layerinfo.columns)
                 agg_columns["json"] = [
                     col for col in input_layerinfo.columns if col.upper() != "INDEX"
                 ]
             else:
-                # Check if column exists + set casing same as in data
-                columns_in_data = []
-                for column in agg_columns["json"]:
-                    column_in_data = columns_upper_dict.get(column.upper())
-                    if column_in_data is not None:
-                        columns_in_data.append(column_in_data)
-                    else:
-                        raise ValueError(
-                            f"Error: column '{column}' is not available "
-                            f"in {input_path}, layer {input_layer}"
-                        )
-                agg_columns["json"] = columns_in_data
+                # Align casing of column names to data
+                agg_columns["json"] = _general_util.align_casing_list(
+                    agg_columns["json"], input_layerinfo.columns
+                )
 
         elif "columns" in agg_columns:
             supported_aggfuncs = [
@@ -767,16 +755,9 @@ def dissolve(
 
                 # Check if column exists + set casing same as in data
                 if "column" in agg_column:
-                    column_in_data = columns_upper_dict.get(
-                        agg_column["column"].upper()
+                    agg_column["column"] = _general_util.align_casing(
+                        agg_column["column"], input_layerinfo.columns
                     )
-                    if column_in_data is not None:
-                        agg_column["column"] = column_in_data
-                    else:
-                        raise ValueError(
-                            f"Error: column '{agg_column['column']}' is not available "
-                            f"in {input_path}, layer {input_layer}"
-                        )
                 else:
                     raise ValueError(message)
                 if "agg" in agg_column:
@@ -797,6 +778,17 @@ def dissolve(
                     raise ValueError(message)
         else:
             raise ValueError(message)
+
+    # Now input parameters are checked, check if we need to calcalate anyway
+    if output_path.exists():
+        if force is False:
+            result_info[
+                "message"
+            ] = f"output exists already {output_path} and force is false"
+            logger.info(result_info["message"])
+            return result_info
+        else:
+            gfo.remove(output_path)
 
     # If a tiles_path is specified, read those tiles...
     result_tiles_gdf = None
@@ -821,7 +813,7 @@ def dissolve(
         result_tiles_gdf["tile_id"] = result_tiles_gdf.reset_index().index
 
     # Now start dissolving
-
+    # --------------------
     # Line and point layers are:
     #   * not so large (memory-wise)
     #   * aren't computationally heavy
@@ -984,13 +976,11 @@ def dissolve(
                     else:
                         groupby_columns = list(groupby_columns).copy()
                         groupby_columns.append("tile_id")
-                    columns_upper_dict = {col.upper(): col for col in groupby_columns}
 
                 # Prepare strings to use in select based on groupby_columns
                 if groupby_columns is not None:
                     groupby_prefixed_list = [
-                        f'{{prefix}}"{columns_upper_dict[column.upper()]}"'
-                        for column in groupby_columns
+                        f'{{prefix}}"{column}"' for column in groupby_columns
                     ]
                     groupby_select_prefixed_str = (
                         f", {', '.join(groupby_prefixed_list)}"
@@ -1000,8 +990,7 @@ def dissolve(
                     )
 
                     groupby_filter_list = [
-                        f' AND geo_data."{columns_upper_dict[column.upper()]}" '
-                        f'= json_data."{columns_upper_dict[column.upper()]}"'
+                        f' AND geo_data."{column}" = json_data."{column}"'
                         for column in groupby_columns
                     ]
                     groupby_filter_str = " ".join(groupby_filter_list)
@@ -1052,10 +1041,9 @@ def dissolve(
                                 distinct_str = "DISTINCT "
 
                             # Prepare column name string.
-                            # Make sure the columns name casing is same as input file
-                            column = columns_upper_dict[agg_column["column"].upper()]
                             column_str = (
-                                f'json_extract(json_data.json_row, "$.{column}")'
+                                "json_extract(json_data.json_row, "
+                                f'"$.{agg_column["column"]}")'
                             )
 
                             # Now put everything together
