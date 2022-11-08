@@ -414,7 +414,89 @@ def test_simplify_ext_invalid():
     assert len(geom_simplified.geoms) == 3
 
 
-def test_simplify_ext_keep_points_on(tmp_path):
+def test_simplify_ext_keep_points_on_lang(tmp_path):
+    # First init some stuff
+    input_path = test_helper.get_testfile("polygon-simplify-onborder-testcase")
+    input_gdf = gfo.read_file(input_path)
+
+    # Create geometry where we want the points kept
+    grid_gdf = grid_util.create_grid(
+        total_bounds=(
+            210431.875 - 1000,
+            176640.125 - 1000,
+            210431.875 + 1000,
+            176640.125 + 1000,
+        ),
+        nb_columns=2,
+        nb_rows=2,
+        crs="epsg:31370",
+    )
+    gfo.to_file(grid_gdf, tmp_path / "grid.gpkg")
+    grid_coords = [tile.exterior.coords for tile in grid_gdf["geometry"]]
+    grid_lines_geom = sh_geom.MultiLineString(grid_coords)
+
+    # Test lang
+    # Without keep_points_on, the following point that is on the test data +
+    # on the grid is removed by lang
+    point_on_input_and_border = sh_geom.Point(210431.875, 176606.125)
+    tolerance_lang = 0.25
+    step_lang = 8
+
+    # Determine the number of intersects with the input test data
+    nb_intersects_with_input = len(
+        input_gdf[input_gdf.intersects(point_on_input_and_border)]
+    )
+    assert nb_intersects_with_input > 0
+    # Test if intersects > 0
+    assert len(input_gdf[grid_gdf.intersects(point_on_input_and_border)]) > 0
+
+    # Without keep_points_on the number of intersections changes
+    simplified_gdf = input_gdf.copy()
+    # assert to evade pyLance warning
+    assert isinstance(simplified_gdf, gpd.GeoDataFrame)
+    simplified_gdf.geometry = input_gdf.geometry.apply(
+        lambda geom: geometry_util.simplify_ext(
+            geom,
+            algorithm=geometry_util.SimplifyAlgorithm.LANG,
+            tolerance=tolerance_lang,
+            lookahead=step_lang,
+        )
+    )
+    gfo.to_file(
+        simplified_gdf, tmp_path / f"simplified_lang;{tolerance_lang};{step_lang}.gpkg"
+    )
+    assert (
+        len(simplified_gdf[simplified_gdf.intersects(point_on_input_and_border)])
+        != nb_intersects_with_input
+    )
+
+    # With keep_points_on specified, the number of intersections stays the same
+    simplified_gdf = input_gdf.copy()
+    # assert to evade pyLance warning
+    assert isinstance(simplified_gdf, gpd.GeoDataFrame)
+    simplified_gdf.geometry = input_gdf.geometry.apply(
+        lambda geom: geometry_util.simplify_ext(
+            geom,
+            algorithm=geometry_util.SimplifyAlgorithm.LANG,
+            tolerance=tolerance_lang,
+            lookahead=step_lang,
+            keep_points_on=grid_lines_geom,
+        )
+    )
+    output_path = (
+        tmp_path / f"simplified_lang;{tolerance_lang};{step_lang}_keep_points_on.gpkg"
+    )
+    gfo.to_file(simplified_gdf, output_path)
+    assert (
+        len(simplified_gdf[simplified_gdf.intersects(point_on_input_and_border)])
+        == nb_intersects_with_input
+    )
+
+
+def test_simplify_ext_keep_points_on_rdp(tmp_path):
+    # Skip test if simplification is not available
+    _ = pytest.importorskip("simplification")
+
     # First init some stuff
     input_path = test_helper.get_testfile("polygon-simplify-onborder-testcase")
     input_gdf = gfo.read_file(input_path)
@@ -486,6 +568,31 @@ def test_simplify_ext_keep_points_on(tmp_path):
         == nb_intersects_with_input
     )
 
+
+def test_simplify_ext_keep_points_on_vw(tmp_path):
+    # Skip test if simplification is not available
+    _ = pytest.importorskip("simplification")
+
+    # First init some stuff
+    input_path = test_helper.get_testfile("polygon-simplify-onborder-testcase")
+    input_gdf = gfo.read_file(input_path)
+
+    # Create geometry where we want the points kept
+    grid_gdf = grid_util.create_grid(
+        total_bounds=(
+            210431.875 - 1000,
+            176640.125 - 1000,
+            210431.875 + 1000,
+            176640.125 + 1000,
+        ),
+        nb_columns=2,
+        nb_rows=2,
+        crs="epsg:31370",
+    )
+    gfo.to_file(grid_gdf, tmp_path / "grid.gpkg")
+    grid_coords = [tile.exterior.coords for tile in grid_gdf["geometry"]]
+    grid_lines_geom = sh_geom.MultiLineString(grid_coords)
+
     # Test vw (visvalingam-whyatt)
     # Without keep_points_on, the following point that is on the test data +
     # on the grid is removed by vw
@@ -532,63 +639,6 @@ def test_simplify_ext_keep_points_on(tmp_path):
     gfo.to_file(
         simplified_gdf, tmp_path / f"simplified_vw{tolerance_vw}_keep_points_on.gpkg"
     )
-    assert (
-        len(simplified_gdf[simplified_gdf.intersects(point_on_input_and_border)])
-        == nb_intersects_with_input
-    )
-
-    # Test lang
-    # Without keep_points_on, the following point that is on the test data +
-    # on the grid is removed by lang
-    point_on_input_and_border = sh_geom.Point(210431.875, 176606.125)
-    tolerance_lang = 0.25
-    step_lang = 8
-
-    # Determine the number of intersects with the input test data
-    nb_intersects_with_input = len(
-        input_gdf[input_gdf.intersects(point_on_input_and_border)]
-    )
-    assert nb_intersects_with_input > 0
-    # Test if intersects > 0
-    assert len(input_gdf[grid_gdf.intersects(point_on_input_and_border)]) > 0
-
-    # Without keep_points_on the number of intersections changes
-    simplified_gdf = input_gdf.copy()
-    # assert to evade pyLance warning
-    assert isinstance(simplified_gdf, gpd.GeoDataFrame)
-    simplified_gdf.geometry = input_gdf.geometry.apply(
-        lambda geom: geometry_util.simplify_ext(
-            geom,
-            algorithm=geometry_util.SimplifyAlgorithm.LANG,
-            tolerance=tolerance_lang,
-            lookahead=step_lang,
-        )
-    )
-    gfo.to_file(
-        simplified_gdf, tmp_path / f"simplified_lang;{tolerance_lang};{step_lang}.gpkg"
-    )
-    assert (
-        len(simplified_gdf[simplified_gdf.intersects(point_on_input_and_border)])
-        != nb_intersects_with_input
-    )
-
-    # With keep_points_on specified, the number of intersections stays the same
-    simplified_gdf = input_gdf.copy()
-    # assert to evade pyLance warning
-    assert isinstance(simplified_gdf, gpd.GeoDataFrame)
-    simplified_gdf.geometry = input_gdf.geometry.apply(
-        lambda geom: geometry_util.simplify_ext(
-            geom,
-            algorithm=geometry_util.SimplifyAlgorithm.LANG,
-            tolerance=tolerance_lang,
-            lookahead=step_lang,
-            keep_points_on=grid_lines_geom,
-        )
-    )
-    output_path = (
-        tmp_path / f"simplified_lang;{tolerance_lang};{step_lang}_keep_points_on.gpkg"
-    )
-    gfo.to_file(simplified_gdf, output_path)
     assert (
         len(simplified_gdf[simplified_gdf.intersects(point_on_input_and_border)])
         == nb_intersects_with_input
