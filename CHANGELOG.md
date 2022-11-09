@@ -12,6 +12,7 @@
 ### Bugs fixed
 
 - Fix groupby columns in dissolve not being treated case insensitive (#162)
+- Fix to_file doesn't throw an error nor saves data when appending a dataframe with different columns than file (#159)
 
 ## 0.6.0 (2022-08-23)
 
