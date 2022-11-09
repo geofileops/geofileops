@@ -1091,13 +1091,18 @@ def to_file(
     # Check input parameters
     path = Path(path)
 
-    # If no layer name specified, use the filename (without extension)
-    if layer is None:
-        layer = Path(path).stem
-    # If the dataframe is empty, log warning and return
+    # If the dataframe is empty, return
     if len(gdf) <= 0:
-        # logger.warn(f"Cannot write an empty dataframe to {filepath}.{layer}")
         return
+    if append and not path.exists():
+        raise ValueError(f"append is True but path does not exist: {path}")
+
+    # If no layer name specified, determine one
+    if layer is None:
+        if append and path.exists():
+            layer = get_only_layer(path)
+        else:
+            layer = Path(path).stem
 
     # If no geometry, prepare to be written as attribute table.
     # Add geometry column with None geometries
@@ -1129,6 +1134,19 @@ def to_file(
         else:
             mode = "w"
 
+        """
+        # Fiona silently doesn't append data to an existing layer if the columns don't
+        # match. To be able to raise an exception when this happens, get info of dest
+        # layer now to compare results afterwards.
+        dst_info_orig = None
+        if mode == "a":
+            # If dst_layer exists in the dst file
+            if layer is not None and layer in listlayers(path):
+                # If source data actually contains data
+                if len(gdf) > 0:
+                    dst_info_orig = get_layerinfo(path, layer)
+        """
+
         geofiletype = GeofileType(path)
         if geofiletype == GeofileType.ESRIShapefile:
             if index is True:
@@ -1157,6 +1175,20 @@ def to_file(
             gdf.to_file(str(path), driver=geofiletype.ogrdriver, mode=mode)
         else:
             raise ValueError(f"Not implemented for geofiletype {geofiletype}")
+
+        """
+        # If appending to existing layer, check if fiona didn't silently failed.
+        if dst_info_orig is not None:
+            res_info = get_layerinfo(path, layer)
+            if res_info.featurecount == dst_info_orig.featurecount:
+                raise ValueError(
+                    "to_file did not append any rows, "
+                    "maybe input columns != output colummns "
+                    f"with gdf.columns: {gdf.columns}, "
+                    f"file columns: {list(dst_info_orig.columns)}, "
+                    f"path: {path}"
+                )
+        """
 
     # If no append, just write to output path
     if not append:
@@ -1199,14 +1231,10 @@ def to_file(
         # simultanously to them, so use lock file to synchronize access.
         lockfile = Path(f"{str(path)}.lock")
         start_time = datetime.datetime.now()
-        while True:
+        ready = False
+        while not ready:
             if _io_util.create_file_atomic(lockfile) is True:
                 try:
-                    # Get info of source and dest file to compare results afterwards
-                    dst_info = None
-                    if path.exists():
-                        dst_info = get_layerinfo(path, layer)
-
                     # If gdf wasn't written to temp file, use standard write-to-file
                     if gdftemp_path is None:
                         write_to_file(
@@ -1224,17 +1252,9 @@ def to_file(
                         remove(gdftemp_path)
                         if gdftemp_lockpath is not None:
                             gdftemp_lockpath.unlink()
-
-                    if dst_info is not None:
-                        res_info = get_layerinfo(path, layer)
-                        if res_info.featurecount <= dst_info.featurecount:
-                            raise ValueError(
-                                "No rows appended to output, maybe input columns != "
-                                f"output colummns, with path: {path}")
-
                 finally:
+                    ready = True
                     lockfile.unlink()
-                    return
             else:
                 time_waiting = (datetime.datetime.now() - start_time).total_seconds()
                 if time_waiting > append_timeout_s:
@@ -1513,7 +1533,8 @@ def append_to(
 
     # Creating lockfile and append
     start_time = datetime.datetime.now()
-    while True:
+    ready = False
+    while not ready:
 
         if _io_util.create_file_atomic(lockfile) is True:
             try:
@@ -1533,8 +1554,8 @@ def append_to(
                     options=options,
                 )
             finally:
+                ready = True
                 lockfile.unlink()
-                return
         else:
             time_waiting = (datetime.datetime.now() - start_time).total_seconds()
             if time_waiting > append_timeout_s:
@@ -1565,13 +1586,6 @@ def _append_to_nolock(
     options = _ogr_util._prepare_gdal_options(options)
     if "LAYER_CREATION.SPATIAL_INDEX" not in options:
         options["LAYER_CREATION.SPATIAL_INDEX"] = create_spatial_index
-
-    # Get info of dest file to compare results afterwards
-    dst_info = None
-    if dst.exists():
-        if dst_layer is None:
-            dst_layer = src_layer
-        dst_info = get_layerinfo(dst, dst_layer)
 
     # When creating/appending to a shapefile, launder the columns names via
     # a sql statement, otherwise when appending the laundered columns will
@@ -1606,14 +1620,6 @@ def _append_to_nolock(
         options=options,
     )
     _ogr_util.vector_translate_by_info(info=translate_info)
-
-    # If destination file existed already, we are appending
-    if dst_info is not None:
-        res_info = get_layerinfo(dst, dst_layer)
-        if res_info.featurecount == dst_info.featurecount:
-            raise ValueError(
-                "No rows appended to output, maybe input columns != output colummns, "
-                f"with src: {src}, dst: {dst}")
 
 
 def convert(

@@ -76,16 +76,39 @@ def test_add_column(tmp_path):
         assert f"column_{type}" in info.columns
 
 
-def test_append_different_columns(tmp_path):
+def test_append_different_layer(tmp_path):
+    # Init
     src_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
     dst_path = tmp_path / "dst.gpkg"
+
+    # Copy src file to dst file to "layer1"
+    gfo.append_to(src_path, dst_path, dst_layer="layer1")
+    src_info = gfo.get_layerinfo(src_path)
+    dst_layer1_info = gfo.get_layerinfo(dst_path, "layer1")
+    assert src_info.featurecount == dst_layer1_info.featurecount
+
+    # Append src file layer to dst file to new layer: "layer2"
+    gfo.append_to(src_path, dst_path, dst_layer="layer2")
+    dst_layer2_info = gfo.get_layerinfo(dst_path, "layer2")
+    assert dst_layer1_info.featurecount == dst_layer2_info.featurecount
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_append_different_columns(tmp_path, suffix):
+    src_path = test_helper.get_testfile(
+        "polygon-parcel", dst_dir=tmp_path, suffix=suffix
+    )
+    dst_path = tmp_path / f"dst{suffix}"
     gfo.copy(src_path, dst_path)
     gfo.add_column(src_path, name="extra_column", type=gfo.DataType.INTEGER)
     gfo.append_to(src_path, dst_path)
 
     src_info = gfo.get_layerinfo(src_path)
     res_info = gfo.get_layerinfo(dst_path)
+
+    # All rows are appended tot the dst layer, but the extra column is not!
     assert (src_info.featurecount * 2) == res_info.featurecount
+    assert len(src_info.columns) == len(res_info.columns) + 1
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
@@ -542,11 +565,8 @@ def test_to_file_append_different_columns(tmp_path):
 
     test_gdf = gfo.read_file(test_path)
     test_gdf["extra_column"] = 123
-    # with pytest.raises(ValueError, match="No rows appended to dst.*"):
-    gfo.to_file(test_gdf, path=test_path, append=True)
-
-    test_after_append_gdf = gfo.read_file(path=test_path)
-    assert len(test_after_append_gdf) == len(test_gdf)
+    with pytest.raises(ValueError, match="Record does not match collection schema"):
+        gfo.to_file(test_gdf, path=test_path, append=True)
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
