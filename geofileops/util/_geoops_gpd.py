@@ -895,7 +895,7 @@ def dissolve(
                 if nb_batches_recommended <= len(result_tiles_gdf) * 1.1:
                     tiles_gdf = result_tiles_gdf
                     last_pass = True
-                    nb_parallel = len(result_tiles_gdf)
+                    nb_parallel = min(len(result_tiles_gdf), nb_parallel)
                 elif len(result_tiles_gdf) == 1:
                     # Create a grid based on the ideal number of batches, but make
                     # sure the number is smaller than the maximum...
