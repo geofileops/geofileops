@@ -89,6 +89,7 @@ def test_geometry_collection_extract():
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 5
     test_result_gdf = test_gdf.copy()
+    assert isinstance(test_result_gdf, gpd.GeoDataFrame)
     test_result_gdf.geometry = geoseries_util.geometry_collection_extract(
         test_result_gdf.geometry, PrimitiveType.POLYGON
     )
@@ -115,6 +116,7 @@ def test_harmonize_geometrytypes():
     test_gdf_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_gdf_geometrytypes) == 2
     test_result_gdf = test_gdf.copy()
+    assert isinstance(test_result_gdf, gpd.GeoDataFrame)
     test_result_gdf.geometry = geoseries_util.harmonize_geometrytypes(
         test_result_gdf.geometry
     )
@@ -143,6 +145,7 @@ def test_harmonize_geometrytypes():
     test_gdf_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_gdf_geometrytypes) == 2
     test_result_gdf = test_gdf.copy()
+    assert isinstance(test_result_gdf, gpd.GeoDataFrame)
     test_result_gdf.geometry = geoseries_util.harmonize_geometrytypes(
         test_result_gdf.geometry
     )
@@ -172,6 +175,7 @@ def test_harmonize_geometrytypes():
     # Filter the gdf a bit to test that the indexes are retained properly in
     test_gdf = test_gdf.iloc[[1, 2, 3, 4]]  # type: ignore
     test_result_gdf = test_gdf.copy()
+    assert isinstance(test_result_gdf, gpd.GeoDataFrame)
     test_result_gdf.geometry = geoseries_util.harmonize_geometrytypes(
         test_result_gdf.geometry
     )
@@ -202,6 +206,7 @@ def test_harmonize_geometrytypes():
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 5
     test_result_gdf = test_gdf.copy()
+    assert isinstance(test_result_gdf, gpd.GeoDataFrame)
     test_result_gdf.geometry = geoseries_util.harmonize_geometrytypes(
         test_result_gdf.geometry
     )
