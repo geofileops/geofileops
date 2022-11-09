@@ -898,7 +898,7 @@ def read_file_nogeom(
         layer (str, optional): The layer to read. Defaults to None,
             then reads the only layer in the file or throws error.
         columns (Iterable[str], optional): The (non-geometry) columns to read will
-            be returned in the order specified. If None, all columns are read. 
+            be returned in the order specified. If None, all columns are read.
             Defaults to None.
         bbox ([type], optional): Read only geometries intersecting this bbox.
             Defaults to None, then all rows are read.
@@ -943,7 +943,7 @@ def _read_file_base(
         layer (str, optional): The layer to read. Defaults to None,
             then reads the only layer in the file or throws error.
         columns (Iterable[str], optional): The (non-geometry) columns to read will
-            be returned in the order specified. If None, all columns are read. 
+            be returned in the order specified. If None, all columns are read.
             Defaults to None.
         bbox ([type], optional): Read only geometries intersecting this bbox.
             Defaults to None, then all rows are read.
@@ -1091,13 +1091,18 @@ def to_file(
     # Check input parameters
     path = Path(path)
 
-    # If no layer name specified, use the filename (without extension)
-    if layer is None:
-        layer = Path(path).stem
-    # If the dataframe is empty, log warning and return
+    # If the dataframe is empty, return
     if len(gdf) <= 0:
-        # logger.warn(f"Cannot write an empty dataframe to {filepath}.{layer}")
         return
+    if append and not path.exists():
+        raise ValueError(f"append is True but path does not exist: {path}")
+
+    # If no layer name specified, determine one
+    if layer is None:
+        if append and path.exists():
+            layer = get_only_layer(path)
+        else:
+            layer = Path(path).stem
 
     # If no geometry, prepare to be written as attribute table.
     # Add geometry column with None geometries
@@ -1129,6 +1134,19 @@ def to_file(
         else:
             mode = "w"
 
+        """
+        # Fiona silently doesn't append data to an existing layer if the columns don't
+        # match. To be able to raise an exception when this happens, get info of dest
+        # layer now to compare results afterwards.
+        dst_info_orig = None
+        if mode == "a":
+            # If dst_layer exists in the dst file
+            if layer is not None and layer in listlayers(path):
+                # If source data actually contains data
+                if len(gdf) > 0:
+                    dst_info_orig = get_layerinfo(path, layer)
+        """
+
         geofiletype = GeofileType(path)
         if geofiletype == GeofileType.ESRIShapefile:
             if index is True:
@@ -1158,8 +1176,22 @@ def to_file(
         else:
             raise ValueError(f"Not implemented for geofiletype {geofiletype}")
 
+        """
+        # If appending to existing layer, check if fiona didn't silently failed.
+        if dst_info_orig is not None:
+            res_info = get_layerinfo(path, layer)
+            if res_info.featurecount == dst_info_orig.featurecount:
+                raise ValueError(
+                    "to_file did not append any rows, "
+                    "maybe input columns != output colummns "
+                    f"with gdf.columns: {gdf.columns}, "
+                    f"file columns: {list(dst_info_orig.columns)}, "
+                    f"path: {path}"
+                )
+        """
+
     # If no append, just write to output path
-    if append is False:
+    if not append:
         write_to_file(
             gdf=gdf,
             path=path,
@@ -1170,7 +1202,7 @@ def to_file(
             schema=schema,
         )
     else:
-        # If append is asked, check if the fiona driver supports appending. If
+        # Append is asked, check if the fiona driver supports appending. If
         # not, write to temporary output file
 
         # Remark: fiona pre-1.8.14 didn't support appending to geopackage. Once
@@ -1199,7 +1231,8 @@ def to_file(
         # simultanously to them, so use lock file to synchronize access.
         lockfile = Path(f"{str(path)}.lock")
         start_time = datetime.datetime.now()
-        while True:
+        ready = False
+        while not ready:
             if _io_util.create_file_atomic(lockfile) is True:
                 try:
                     # If gdf wasn't written to temp file, use standard write-to-file
@@ -1220,8 +1253,8 @@ def to_file(
                         if gdftemp_lockpath is not None:
                             gdftemp_lockpath.unlink()
                 finally:
+                    ready = True
                     lockfile.unlink()
-                    return
             else:
                 time_waiting = (datetime.datetime.now() - start_time).total_seconds()
                 if time_waiting > append_timeout_s:
@@ -1500,7 +1533,8 @@ def append_to(
 
     # Creating lockfile and append
     start_time = datetime.datetime.now()
-    while True:
+    ready = False
+    while not ready:
 
         if _io_util.create_file_atomic(lockfile) is True:
             try:
@@ -1520,8 +1554,8 @@ def append_to(
                     options=options,
                 )
             finally:
+                ready = True
                 lockfile.unlink()
-                return
         else:
             time_waiting = (datetime.datetime.now() - start_time).total_seconds()
             if time_waiting > append_timeout_s:
@@ -1558,7 +1592,8 @@ def _append_to_nolock(
     # get NULL values instead of the data.
     sql_stmt = None
     if dst.suffix.lower() == ".shp":
-        src_columns = get_layerinfo(src).columns
+        src_info = get_layerinfo(src)
+        src_columns = src_info.columns
         columns_laundered = _launder_column_names(src_columns)
         columns_aliased = [
             f'"{column}" AS "{laundered}"' for column, laundered in columns_laundered
