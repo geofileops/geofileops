@@ -180,7 +180,10 @@ class PooledExecutorFactory(object):
 
     def __init__(self, threadpool: bool = True, max_workers=None, initializer=None):
         self.threadpool = threadpool
-        self.max_workers = max_workers
+        if max_workers is not None and os.name == "nt":
+            self.max_workers = min(max_workers, 61)
+        else:
+            self.max_workers = max_workers
         self.initializer = initializer
         self.pool = None
 
