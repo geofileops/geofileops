@@ -296,7 +296,7 @@ def select(
     input_path: Path,
     output_path: Path,
     sql_stmt: str,
-    sql_dialect: str = "SQLITE",
+    sql_dialect: Optional[str] = "SQLITE",
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
@@ -335,6 +335,7 @@ def select(
         columns=columns,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
+        sql_dialect=sql_dialect,
         filter_null_geoms=False,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -391,6 +392,7 @@ def _single_layer_vector_operation(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
+    sql_dialect: Optional[str] = "SQLITE",
     filter_null_geoms: bool = True,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -502,7 +504,7 @@ def _single_layer_vector_operation(
                     output_path=tmp_partial_output_path,
                     output_layer=output_layer,
                     sql_stmt=sql_stmt,
-                    sql_dialect="SQLITE",
+                    sql_dialect=sql_dialect,
                     explodecollections=explodecollections,
                     force_output_geometrytype=force_output_geometrytype,
                     options={"LAYER_CREATION.SPATIAL_INDEX": False},
@@ -1057,13 +1059,13 @@ def join_by_location(
         else:
             area_inters_column_name_touse = "area_inters"
         area_inters_column_expression = (
-            ',ST_area(ST_intersection(sub_filter.geom, sub_filter.l2_geom)) '
+            ",ST_area(ST_intersection(sub_filter.geom, sub_filter.l2_geom)) "
             f'as "{area_inters_column_name_touse}"'
         )
         if min_area_intersect is not None:
             area_inters_filter = (
                 f'WHERE sub_area."{area_inters_column_name_touse}" '
-                f'>= {min_area_intersect}'
+                f">= {min_area_intersect}"
             )
 
     # Prepare spatial relations filter
@@ -2207,9 +2209,9 @@ def _prepare_processing_params(
                     f"AND {layer_alias_d}rowid <= {batch_info.end_rowid}) "
                 )
             else:
-                batches[batch_info.id]["batch_filter"] = (
-                    f"AND {layer_alias_d}rowid >= {batch_info.start_rowid} "
-                )
+                batches[batch_info.id][
+                    "batch_filter"
+                ] = f"AND {layer_alias_d}rowid >= {batch_info.start_rowid} "
 
     # No use starting more processes than the number of batches...
     if len(batches) < returnvalue.nb_parallel:
@@ -2400,7 +2402,7 @@ def dissolve_singlethread(
 
                 # Now put everything togethers
                 agg_columns_str += (
-                    f', {aggregation_str}({distinct_str}{column_str}{extra_param_str}) '
+                    f", {aggregation_str}({distinct_str}{column_str}{extra_param_str}) "
                     f'AS "{agg_column["as"]}"'
                 )
 

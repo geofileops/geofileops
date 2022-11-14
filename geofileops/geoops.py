@@ -807,7 +807,7 @@ def select(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
     sql_stmt: str,
-    sql_dialect: str = "SQLITE",
+    sql_dialect: Optional[str] = "SQLITE",
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
@@ -818,7 +818,7 @@ def select(
     force: bool = False,
 ):
     """
-    Execute an sqlite style SQL query on the file.
+    Execute an SQL query on the file.
 
     By convention, the sqlite query can contain following placeholders that
     will be automatically replaced for you:
@@ -863,7 +863,7 @@ def select(
       characters are otherwise not supported in the table name, eg. '-'.
     * It is recommend to give the table you select from "layer" as alias. If
       you use the {batch_filter} placeholder this is even mandatory.
-    * Besides the standard sqlite sql syntacs, you can use the spatialite
+    * When using the (default) "SQLITE" sql dialect, you can also use the spatialite
       functions as documented here: |spatialite_reference_link|
 
     .. |spatialite_reference_link| raw:: html
@@ -876,9 +876,8 @@ def select(
         input_path (PathLike): the input file
         output_path (PathLike): the file to write the result to
         sql_stmt (str): the statement to execute
-        sql_dialect (str, optional): the sql dialect to use. If None is passed,
-            the default sql dialect of the underlying source is used. The
-            default is 'SQLITE'.
+        sql_dialect (str, optional): the sql dialect to use. If None, the default sql
+            dialect of the underlying source is used. Defaults to "SQLITE".
         input_layer (str, optional): input layer name. Optional if the input
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input
