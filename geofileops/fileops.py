@@ -1074,7 +1074,8 @@ def to_file(
         force_multitype (bool, optional): force the geometry type to a multitype
             for file types that require one geometrytype per layer.
             Defaults to False.
-        append (bool, optional): True to append to the file. Defaults to False.
+        append (bool, optional): True to append to the file/layer if it exists already.
+            If it doesn't exist yet, it is created. Defaults to False.
         append_timeout_s (int, optional): The maximum timeout to wait when the
             output file is already being written to by another process.
             Defaults to 600.
@@ -1094,9 +1095,7 @@ def to_file(
     # If the dataframe is empty, return
     if len(gdf) <= 0:
         return
-    if append and not path.exists():
-        raise ValueError(f"append is True but path does not exist: {path}")
-
+    
     # If no layer name specified, determine one
     if layer is None:
         if append and path.exists():

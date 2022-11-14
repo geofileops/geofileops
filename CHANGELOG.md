@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 0.6.2 (2022-11-14)
+
+### Bugs fixed
+
+- Fix regression in to_file to support append to unexisting file (#177)
+
 ## 0.6.1 (2022-11-14)
 
 ### Improvements
