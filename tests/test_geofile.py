@@ -560,6 +560,13 @@ def test_to_file(tmp_path, suffix):
     assert 2 * len(read_gdf) == len(tmp_gdf)
 
 
+def test_to_file_append_unexisting_file(tmp_path):
+    test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    test_gdf = gfo.read_file(test_path)
+    dst_path = tmp_path / "dst.gpkg"
+    gfo.to_file(test_gdf, path=dst_path, append=True)
+
+
 def test_to_file_append_different_columns(tmp_path):
     test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
 
