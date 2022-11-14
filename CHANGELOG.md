@@ -14,6 +14,7 @@
 - Fix groupby columns in dissolve not being treated case insensitive (#162)
 - Fix to_file doesn't throw an error nor saves data when appending a dataframe with different columns than file (#159)
 - Fix ValueError: max_workers must be <= 61 in dissolve (#160)
+- Fix sql_dialect parameter is ignored in select operation (#115)
 
 ## 0.6.0 (2022-08-23)
 
