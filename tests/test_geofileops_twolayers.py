@@ -144,6 +144,15 @@ def test_export_by_location(tmp_path, suffix):
     output_gdf = gfo.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
 
+    # Add column to make sure the output file isn't locked
+    if suffix == ".gpkg":
+        gfo.add_column(
+            output_path,
+            name="PERIMETER",
+            type=gfo.DataType.REAL,
+            expression="ST_perimeter(geom)",
+        )
+
 
 @pytest.mark.parametrize("testfile", ["polygon-parcel"])
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
