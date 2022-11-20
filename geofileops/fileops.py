@@ -1398,7 +1398,7 @@ def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
     geofiletype = GeofileType(src)
 
     # Move the main file
-    shutil.move(str(src), dst, copy_function=_io_util.copyfile)
+    shutil.move(str(src), dst)
 
     # For some file types, extra files need to be moved
     # If dest is a dir, just use move. Otherwise concat dest filepaths
@@ -1407,13 +1407,13 @@ def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
             for suffix in geofiletype.suffixes_extrafiles:
                 srcfile = src.parent / f"{src.stem}{suffix}"
                 if srcfile.exists():
-                    shutil.move(str(srcfile), dst, copy_function=_io_util.copyfile)
+                    shutil.move(str(srcfile), dst)
         else:
             for suffix in geofiletype.suffixes_extrafiles:
                 srcfile = src.parent / f"{src.stem}{suffix}"
                 dstfile = dst.parent / f"{dst.stem}{suffix}"
                 if srcfile.exists():
-                    shutil.move(str(srcfile), dstfile, copy_function=_io_util.copyfile)
+                    shutil.move(str(srcfile), dstfile)
 
 
 def remove(path: Union[str, "os.PathLike[Any]"], missing_ok: bool = False):
