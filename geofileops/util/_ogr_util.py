@@ -290,6 +290,7 @@ def vector_translate(
 
     # Now we can really get to work
     input_ds = None
+    result_ds = None
     try:
         # In some cases gdal only raises the last exception instead of the stack in
         # VectorTranslate, so you lose necessary details!
@@ -312,7 +313,7 @@ def vector_translate(
             raise Exception("BOOM")
         else:
             if result_ds.GetLayerCount() == 0:
-                del result_ds
+                result_ds = None
                 if output_path.exists():
                     gfo.remove(output_path)
     except Exception as ex:
@@ -322,6 +323,8 @@ def vector_translate(
     finally:
         if input_ds is not None:
             del input_ds
+        if result_ds is not None:
+            del result_ds
 
     return True
 
