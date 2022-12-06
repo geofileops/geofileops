@@ -124,14 +124,7 @@ def copyfile(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[A
 
     else:
         # If the destination is a dir, make it a full file path
-        dst_p = Path(dst)
-        if dst_p.is_dir():
-            src_p = Path(src)
-            dst_p = dst_p / src_p.name
-
-        buffer_size = 1024 * 1024 * 5
-        with open(src, "rb") as fsrc, open(dst_p, "wb") as fdest:
-            shutil.copyfileobj(fsrc, fdest, buffer_size)
+        shutil.copy2(src=src, dst=dst)
 
 
 '''
