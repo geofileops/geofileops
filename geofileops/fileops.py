@@ -356,7 +356,9 @@ def get_only_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
     datasource = None
     try:
         datasource_layer = None
-        datasource = gdal.OpenEx(str(path))
+        datasource = gdal.OpenEx(
+            str(path), nOpenFlags=gdal.OF_VECTOR | gdal.OF_READONLY | gdal.OF_SHARED
+        )
         nb_layers = datasource.GetLayerCount()
         if nb_layers == 1:
             datasource_layer = datasource.GetLayerByIndex(0)
@@ -1095,7 +1097,7 @@ def to_file(
     # If the dataframe is empty, return
     if len(gdf) <= 0:
         return
-    
+
     # If no layer name specified, determine one
     if layer is None:
         if append and path.exists():
@@ -1132,19 +1134,6 @@ def to_file(
                 mode = "w"
         else:
             mode = "w"
-
-        """
-        # Fiona silently doesn't append data to an existing layer if the columns don't
-        # match. To be able to raise an exception when this happens, get info of dest
-        # layer now to compare results afterwards.
-        dst_info_orig = None
-        if mode == "a":
-            # If dst_layer exists in the dst file
-            if layer is not None and layer in listlayers(path):
-                # If source data actually contains data
-                if len(gdf) > 0:
-                    dst_info_orig = get_layerinfo(path, layer)
-        """
 
         geofiletype = GeofileType(path)
         if geofiletype == GeofileType.ESRIShapefile:
@@ -1251,6 +1240,13 @@ def to_file(
                         remove(gdftemp_path)
                         if gdftemp_lockpath is not None:
                             gdftemp_lockpath.unlink()
+                except Exception as ex:
+                    # If sqlite output file locked, also retry
+                    if geofiletype.is_spatialite_based and str(ex) not in [
+                        "database is locked",
+                        "attempt to write a readonly database",
+                    ]:
+                        raise ex
                 finally:
                     ready = True
                     lockfile.unlink()
@@ -1398,7 +1394,7 @@ def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
     geofiletype = GeofileType(src)
 
     # Move the main file
-    shutil.move(str(src), dst, copy_function=_io_util.copyfile)
+    shutil.move(str(src), dst)
 
     # For some file types, extra files need to be moved
     # If dest is a dir, just use move. Otherwise concat dest filepaths
@@ -1407,13 +1403,13 @@ def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
             for suffix in geofiletype.suffixes_extrafiles:
                 srcfile = src.parent / f"{src.stem}{suffix}"
                 if srcfile.exists():
-                    shutil.move(str(srcfile), dst, copy_function=_io_util.copyfile)
+                    shutil.move(str(srcfile), dst)
         else:
             for suffix in geofiletype.suffixes_extrafiles:
                 srcfile = src.parent / f"{src.stem}{suffix}"
                 dstfile = dst.parent / f"{dst.stem}{suffix}"
                 if srcfile.exists():
-                    shutil.move(str(srcfile), dstfile, copy_function=_io_util.copyfile)
+                    shutil.move(str(srcfile), dstfile)
 
 
 def remove(path: Union[str, "os.PathLike[Any]"], missing_ok: bool = False):

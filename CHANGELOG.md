@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 0.6.3 (???)
+
+### Bugs fixed
+
+- Make writing to gpkg more robust in locking situations (#179)
+
 ## 0.6.2 (2022-11-14)
 
 ### Bugs fixed
