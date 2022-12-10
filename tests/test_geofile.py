@@ -383,6 +383,15 @@ def test_move(tmp_path, suffix):
     if suffix == ".shp":
         assert dst.with_suffix(".shx").exists()
 
+    # Add column to make sure the dst file isn't locked
+    if suffix == ".gpkg":
+        gfo.add_column(
+            path=dst,
+            name="PERIMETER",
+            type=gfo.DataType.REAL,
+            expression="ST_perimeter(geom)",
+        )
+
 
 def test_update_column(tmp_path):
     test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
