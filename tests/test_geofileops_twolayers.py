@@ -555,8 +555,13 @@ def test_symmetric_difference(tmp_path, suffix, epsg):
     "suffix, epsg", [(".gpkg", 31370), (".gpkg", 4326), (".shp", 31370)]
 )
 def test_union(tmp_path, suffix, epsg):
-    input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
-    input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
+    # Prepare test files
+    input1_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=suffix, epsg=epsg)
+    input2_path = test_helper.get_testfile("polygon-zone", dst_dir=tmp_path, suffix=suffix, epsg=epsg)
+    # Add null TEXT column to each file to make sure it stays TEXT type after union
+    gfo.add_column(input1_path, name="test1_null", type=gfo.DataType.TEXT)
+    gfo.add_column(input2_path, name="test2_null", type=gfo.DataType.TEXT)
+    
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input1_layerinfo.featurecount / 2)
 
