@@ -361,6 +361,35 @@ def test_dissolve_polygons(
     assert len(output_gdf) == len(output_gpd_gdf)
 
 
+def test_dissolve_polygons_groupby_None(tmp_path):
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    gfo.add_column(input_path, name="none_values", type=gfo.DataType.TEXT)
+    input_layerinfo = gfo.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+
+    # Test dissolve polygons with different options for groupby and explodecollections
+    # --------------------------------------------------------------------------------
+    output_path = tmp_path / "output.gpkg"
+    gfo.dissolve(
+        input_path=input_path,
+        output_path=output_path,
+        groupby_columns="none_values",
+        explodecollections=True,
+        nb_parallel=2,
+        batchsize=batchsize,
+    )
+
+    # Now check if the tmp file is correctly created
+    assert output_path.exists()
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+    assert (
+        output_layerinfo.columns["none_values"].gdal_type
+        == input_layerinfo.columns["none_values"].gdal_type
+    )
+
+
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 def test_dissolve_polygons_specialcases(tmp_path, suffix):
     # Prepare test data
