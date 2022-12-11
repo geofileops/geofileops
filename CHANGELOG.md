@@ -5,6 +5,11 @@
 ### Bugs fixed
 
 - Make writing to gpkg more robust in locking situations (#179)
+- Add create_spatial_index parameter to to_file (#183)
+
+### Deprecations and compatibility notes
+
+- In to_file, the default behaviour is now also for .shp to create a spatial index, consistent with convert,... (#183)
 
 ## 0.6.2 (2022-11-14)
 
