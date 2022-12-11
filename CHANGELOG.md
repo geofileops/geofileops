@@ -2,10 +2,15 @@
 
 ## 0.6.3 (???)
 
-### Bugs fixed
+### Improvements
 
 - Make writing to gpkg more robust in locking situations (#179)
 - Add create_spatial_index parameter to to_file (#183)
+- Small general improvements (#180)
+
+### Bugs fixed
+
+- Fix groupby columns in dissolve sometimes becoming all NULL values (#181)
 
 ### Deprecations and compatibility notes
 

@@ -1701,6 +1701,17 @@ def _dissolve(
     if not as_index:
         aggregated = aggregated.reset_index()
 
+    # Make sure output types of grouped columns are the same as input types.
+    # E.g. object columns become float if all values are None.
+    if by is not None:
+        if isinstance(by, str):
+            if by in aggregated.columns and df[by].dtype != aggregated[by].dtype:
+                aggregated[by] = aggregated[by].astype(df[by].dtype)
+        elif isinstance(by, Iterable):
+            for col in by:
+                if col in aggregated.columns and df[col].dtype != aggregated[col].dtype:
+                    aggregated[col] = aggregated[col].astype(df[col].dtype)
+
     assert isinstance(aggregated, gpd.GeoDataFrame)
     return aggregated
 

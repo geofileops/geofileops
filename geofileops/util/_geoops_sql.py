@@ -1617,6 +1617,7 @@ def union(
     if output_layer is None:
         output_layer = gfo.get_default_layer(output_path)
 
+    start_time = datetime.now()
     tempdir = _io_util.create_tempdir("geofileops/union")
     try:
         # First split input1 with input2 to a temporary output gfo...
@@ -1675,6 +1676,8 @@ def union(
 
     finally:
         shutil.rmtree(tempdir)
+
+    logger.info(f"union ready, took {datetime.now()-start_time}!")
 
 
 def _two_layer_vector_operation(
