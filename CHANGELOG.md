@@ -5,6 +5,7 @@
 ### Improvements
 
 - Make writing to gpkg more robust in locking situations (#179)
+- Fix groupby columns in dissolve sometimes becoming all NULL values (#181)
 - Small general improvements (#180)
 
 ## 0.6.2 (2022-11-14)
