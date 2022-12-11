@@ -2,9 +2,10 @@
 
 ## 0.6.3 (???)
 
-### Bugs fixed
+### Improvements
 
 - Make writing to gpkg more robust in locking situations (#179)
+- Small general improvements (#180)
 
 ## 0.6.2 (2022-11-14)
 
