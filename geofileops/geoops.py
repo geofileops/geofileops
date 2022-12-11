@@ -422,7 +422,7 @@ def dissolve(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
     explodecollections: bool,
-    groupby_columns: Optional[List[str]] = None,
+    groupby_columns: Union[List[str], str, None] = None,
     agg_columns: Optional[dict] = None,
     tiles_path: Union[str, "os.PathLike[Any]", None] = None,
     nb_squarish_tiles: int = 1,
@@ -502,9 +502,9 @@ def dissolve(
         explodecollections (bool): True to output only simple geometries. If
             False, this can result in huge geometries for large files,
             especially if no groupby_columns are specified.
-        groupby_columns (List[str], optional): columns (case insensitive) to group on
-            while aggregating. Defaults to None, resulting in a spatial union of all
-            geometries that touch.
+        groupby_columns (Union[List[str], str], optional): columns (case insensitive) to
+            group on while aggregating. Defaults to None, resulting in a spatial union
+            of all geometries that touch.
         agg_columns (dict, optional): columns to aggregate based on
             the groupings by groupby columns. Depending on the top-level key
             value of the dict, the output for the aggregation is different:
@@ -560,10 +560,14 @@ def dissolve(
     if tiles_path is not None:
         tiles_path = Path(tiles_path)
 
-    # If an empty list of geometry columns is passed, convert it to None to
-    # simplify the rest of the code
-    if groupby_columns is not None and len(groupby_columns) == 0:
-        groupby_columns = None
+    # Standardize parameter to simplify the rest of the code
+    if groupby_columns is not None:
+        if isinstance(groupby_columns, str):
+            # If a string is passed, convert to list
+            groupby_columns = [groupby_columns]
+        elif len(groupby_columns) == 0:
+            # If an empty list of geometry columns is passed, convert it to None
+            groupby_columns = None
 
     logger.info(f"Start dissolve on {input_path} to {output_path}")
     return _geoops_gpd.dissolve(
