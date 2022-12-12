@@ -6,6 +6,7 @@
 
 - Make writing to gpkg more robust in locking situations (#179)
 - Add create_spatial_index parameter to to_file (#183)
+- Ignore pandas futurewarning in dissolve (#184)
 - Small general improvements (#180)
 
 ### Bugs fixed
