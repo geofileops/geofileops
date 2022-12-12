@@ -36,6 +36,7 @@ import psutil
 import shapely.geometry as sh_geom
 
 import geofileops as gfo
+from geofileops import fileops
 from geofileops.util import _general_util
 from geofileops.util import _geoops_sql
 from geofileops.util.geometry_util import GeometryType, PrimitiveType, SimplifyAlgorithm
@@ -1156,6 +1157,9 @@ def _dissolve_polygons_pass(
     nb_parallel: int,
 ) -> dict:
 
+    # Make sure the input file has a spatial index
+    gfo.create_spatial_index(input_path, exist_ok=True)
+
     # Start calculation in parallel
     start_time = datetime.now()
     result_info = {}
@@ -1253,9 +1257,10 @@ def _dissolve_polygons_pass(
                         output_notonborder_tmp_partial_path.exists()
                         and output_notonborder_tmp_partial_path.stat().st_size > 0
                     ):
-                        gfo.append_to(
+                        fileops._append_to_nolock(
                             src=output_notonborder_tmp_partial_path,
                             dst=output_notonborder_path,
+                            create_spatial_index=False,
                         )
                         gfo.remove(output_notonborder_tmp_partial_path)
 
@@ -1267,9 +1272,10 @@ def _dissolve_polygons_pass(
                         output_onborder_tmp_partial_path.exists()
                         and output_onborder_tmp_partial_path.stat().st_size > 0
                     ):
-                        gfo.append_to(
+                        fileops._append_to_nolock(
                             src=output_onborder_tmp_partial_path,
                             dst=output_onborder_path,
+                            create_spatial_index=False,
                         )
                         gfo.remove(output_onborder_tmp_partial_path)
 
@@ -1487,6 +1493,7 @@ def _dissolve_polygons(
             layer=output_layer,
             force_multitype=True,
             index=False,
+            create_spatial_index=False,
         )
     else:
         # If not, save the polygons on the border seperately
@@ -1508,6 +1515,7 @@ def _dissolve_polygons(
                 output_onborder_path,
                 layer=output_layer,
                 force_multitype=True,
+                create_spatial_index=False,
             )
 
         notonborder_gdf = diss_gdf[~diss_gdf.index.isin(onborder_gdf.index)]
@@ -1522,6 +1530,7 @@ def _dissolve_polygons(
                 layer=output_layer,
                 force_multitype=True,
                 index=False,
+                create_spatial_index=False,
             )
     perfinfo["time_to_file"] = (datetime.now() - start_to_file).total_seconds()
 
