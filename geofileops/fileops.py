@@ -1062,6 +1062,7 @@ def to_file(
     append: bool = False,
     append_timeout_s: int = 600,
     index: bool = True,
+    create_spatial_index: Optional[bool] = True,
 ):
     """
     Writes a pandas dataframe to file.
@@ -1083,6 +1084,9 @@ def to_file(
             Defaults to 600.
         index (bool, optional): True to write the pandas index to the file as
             well. Defaults to True.
+        create_spatial_index (bool, optional): True to force creation of spatial index,
+            False to avoid creation. None leads to the default behaviour of gdal.
+            Defaults to True.
 
     Raises:
         ValueError: an invalid parameter value was passed.
@@ -1124,8 +1128,8 @@ def to_file(
         force_multitype: bool = False,
         append: bool = False,
         schema: Optional[dict] = None,
+        create_spatial_index: Optional[bool] = True,
     ):
-
         # Change mode if append is true
         if append is True:
             if path.exists():
@@ -1135,13 +1139,18 @@ def to_file(
         else:
             mode = "w"
 
+        kwargs = {}
+        if create_spatial_index is not None:
+            kwargs = {"SPATIAL_INDEX": create_spatial_index}
         geofiletype = GeofileType(path)
         if geofiletype == GeofileType.ESRIShapefile:
             if index is True:
                 gdf_to_write = gdf.reset_index(drop=True)
             else:
                 gdf_to_write = gdf
-            gdf_to_write.to_file(str(path), driver=geofiletype.ogrdriver, mode=mode)
+            gdf_to_write.to_file(
+                str(path), driver=geofiletype.ogrdriver, mode=mode, **kwargs
+            )
         elif geofiletype == GeofileType.GPKG:
             # Try to harmonize the geometrytype to one (multi)type, as GPKG
             # doesn't like > 1 type in a layer
@@ -1156,27 +1165,20 @@ def to_file(
                 driver=geofiletype.ogrdriver,
                 mode=mode,
                 schema=schema,
+                **kwargs,
             )
         elif geofiletype == GeofileType.SQLite:
-            gdf.to_file(str(path), layer=layer, driver=geofiletype.ogrdriver, mode=mode)
+            gdf.to_file(
+                str(path),
+                layer=layer,
+                driver=geofiletype.ogrdriver,
+                mode=mode,
+                **kwargs,
+            )
         elif geofiletype == GeofileType.GeoJSON:
-            gdf.to_file(str(path), driver=geofiletype.ogrdriver, mode=mode)
+            gdf.to_file(str(path), driver=geofiletype.ogrdriver, mode=mode, **kwargs)
         else:
             raise ValueError(f"Not implemented for geofiletype {geofiletype}")
-
-        """
-        # If appending to existing layer, check if fiona didn't silently failed.
-        if dst_info_orig is not None:
-            res_info = get_layerinfo(path, layer)
-            if res_info.featurecount == dst_info_orig.featurecount:
-                raise ValueError(
-                    "to_file did not append any rows, "
-                    "maybe input columns != output colummns "
-                    f"with gdf.columns: {gdf.columns}, "
-                    f"file columns: {list(dst_info_orig.columns)}, "
-                    f"path: {path}"
-                )
-        """
 
     # If no append, just write to output path
     if not append:
@@ -1188,6 +1190,7 @@ def to_file(
             force_multitype=force_multitype,
             append=append,
             schema=schema,
+            create_spatial_index=create_spatial_index,
         )
     else:
         # Append is asked, check if the fiona driver supports appending. If
@@ -1213,6 +1216,7 @@ def to_file(
                 index=index,
                 force_multitype=force_multitype,
                 schema=schema,
+                create_spatial_index=create_spatial_index,
             )
 
         # Files don't typically support having multiple processes writing
@@ -1233,10 +1237,16 @@ def to_file(
                             force_multitype=force_multitype,
                             append=True,
                             schema=schema,
+                            create_spatial_index=create_spatial_index,
                         )
                     else:
                         # If gdf written to temp file, use append_to_nolock + cleanup
-                        _append_to_nolock(src=gdftemp_path, dst=path, dst_layer=layer)
+                        _append_to_nolock(
+                            src=gdftemp_path,
+                            dst=path,
+                            dst_layer=layer,
+                            create_spatial_index=create_spatial_index,
+                        )
                         remove(gdftemp_path)
                         if gdftemp_lockpath is not None:
                             gdftemp_lockpath.unlink()
@@ -1450,7 +1460,7 @@ def append_to(
     reproject: bool = False,
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
-    create_spatial_index: bool = True,
+    create_spatial_index: Optional[bool] = True,
     append_timeout_s: int = 600,
     transaction_size: int = 50000,
     options: dict = {},
@@ -1495,7 +1505,8 @@ def append_to(
         force_output_geometrytype (GeometryType, optional): geometry type.
             to (try to) force the output to. Defaults to None.
         create_spatial_index (bool, optional): True to create a spatial index
-            on the destination file/layer. If the LAYER_CREATION.SPATIAL_INDEX
+            on the destination file/layer. If None, the default behaviour by gdal for
+            that file type is respected. If the LAYER_CREATION.SPATIAL_INDEX
             parameter is specified in options, create_spatial_index is ignored.
             Defaults to True.
         append_timeout_s (int, optional): timeout to use if the output file is
@@ -1572,14 +1583,17 @@ def _append_to_nolock(
     dst_crs: Union[int, str, None] = None,
     reproject: bool = False,
     explodecollections: bool = False,
-    create_spatial_index: bool = True,
+    create_spatial_index: Optional[bool] = True,
     force_output_geometrytype: Optional[GeometryType] = None,
     transaction_size: int = 50000,
     options: dict = {},
 ):
     # Check/clean input params
     options = _ogr_util._prepare_gdal_options(options)
-    if "LAYER_CREATION.SPATIAL_INDEX" not in options:
+    if (
+        create_spatial_index is not None
+        and "LAYER_CREATION.SPATIAL_INDEX" not in options
+    ):
         options["LAYER_CREATION.SPATIAL_INDEX"] = create_spatial_index
 
     # When creating/appending to a shapefile, launder the columns names via
@@ -1627,7 +1641,7 @@ def convert(
     reproject: bool = False,
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
-    create_spatial_index: bool = True,
+    create_spatial_index: Optional[bool] = True,
     options: dict = {},
     force: bool = False,
 ):
@@ -1670,7 +1684,8 @@ def convert(
         force_output_geometrytype (GeometryType, optional): Geometry type.
             to (try to) force the output to. Defaults to None.
         create_spatial_index (bool, optional): True to create a spatial index
-            on the destination file/layer. If the LAYER_CREATION.SPATIAL_INDEX
+            on the destination file/layer. If None, the default behaviour by gdal for
+            that file type is respected. If the LAYER_CREATION.SPATIAL_INDEX
             parameter is specified in options, create_spatial_index is ignored.
             Defaults to True.
         options (dict, optional): options to pass to gdal.

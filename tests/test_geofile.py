@@ -621,6 +621,29 @@ def test_to_file_empty(tmp_path, suffix):
     assert test_read_geometrytypes == test_geometrytypes
 
 
+@pytest.mark.parametrize(
+    "suffix, create_spatial_index, expected_spatial_index",
+    [
+        [".gpkg", True, True],
+        [".gpkg", False, False],
+        [".gpkg", None, True],
+        [".shp", True, True],
+        [".shp", False, False],
+        [".shp", None, False],
+    ],
+)
+def test_to_file_create_spatial_index(
+    tmp_path, suffix: str, create_spatial_index: bool, expected_spatial_index: bool
+):
+    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    output_path = tmp_path / f"{src.stem}-output{suffix}"
+
+    # Read test file and write to tmppath
+    read_gdf = gfo.read_file(src)
+    gfo.to_file(read_gdf, output_path, create_spatial_index=create_spatial_index)
+    assert gfo.has_spatial_index(output_path) is expected_spatial_index
+
+
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 def test_to_file_none(tmp_path, suffix):
     # Prepare test data
