@@ -13,6 +13,7 @@ import math
 import multiprocessing
 from pathlib import Path
 import pickle
+import re
 import shutil
 import time
 from typing import (
@@ -1437,10 +1438,20 @@ def _dissolve_polygons(
             data=[1], geometry=[bbox_polygon], crs=input_gdf.crs  # type: ignore
         )
 
-        # keep_geom_type=True gave sometimes error, and still does in 0.9.0
-        # so use own implementation of keep_geom_type
-        diss_gdf = gpd.clip(diss_gdf, bbox_gdf)  # , keep_geom_type=True)
-        assert isinstance(diss_gdf, gpd.GeoDataFrame)
+        # Catch irrelevant pandas future warning
+        # TODO: when removed in later version of pandas, can be removed here
+        with warnings.catch_warnings():
+            message = (
+                "In a future version, `df.iloc[:, i] = newvals` will attempt to "
+                "set the values inplace instead of always setting a new array."
+            )
+            warnings.filterwarnings(
+                action="ignore", category=FutureWarning, message=re.escape(message)
+            )
+            # keep_geom_type=True gave sometimes error, and still does in 0.9.0
+            # so use own implementation of keep_geom_type
+            diss_gdf = gpd.clip(diss_gdf, bbox_gdf)  # , keep_geom_type=True)
+            assert isinstance(diss_gdf, gpd.GeoDataFrame)
 
         # Only keep geometries of the primitive type specified after clip...
         assert isinstance(diss_gdf, gpd.GeoDataFrame)

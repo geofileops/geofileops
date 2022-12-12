@@ -5,8 +5,17 @@
 ### Improvements
 
 - Make writing to gpkg more robust in locking situations (#179)
-- Fix groupby columns in dissolve sometimes becoming all NULL values (#181)
+- Add create_spatial_index parameter to to_file (#183)
+- Ignore pandas futurewarning in dissolve (#184)
 - Small general improvements (#180)
+
+### Bugs fixed
+
+- Fix groupby columns in dissolve sometimes becoming all NULL values (#181)
+
+### Deprecations and compatibility notes
+
+- In to_file, the default behaviour is now also for .shp to create a spatial index, consistent with convert,... (#183)
 
 ## 0.6.2 (2022-11-14)
 
