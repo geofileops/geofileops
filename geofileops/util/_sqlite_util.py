@@ -100,8 +100,39 @@ def create_table_as_sql(
     append: bool = False,
     update: bool = False,
     create_spatial_index: bool = True,
+    empty_output_ok: bool = True,
     profile: SqliteProfile = SqliteProfile.DEFAULT,
 ):
+    """
+    Execute sql statement and save the result in the output file.
+
+    Args:
+        input1_path (Path): _description_
+        input1_layer (str): _description_
+        input2_path (Path): _description_
+        output_path (Path): _description_
+        sql_stmt (str): _description_
+        output_layer (str): _description_
+        output_geometrytype (Optional[GeometryType]): _description_
+        append (bool, optional): _description_. Defaults to False.
+        update (bool, optional): _description_. Defaults to False.
+        create_spatial_index (bool, optional): _description_. Defaults to True.
+        empty_output_ok (bool, optional): If the sql_stmt doesn't return any rows and
+            True, create an empty output file. If False, throw EmptyResultError.
+            Defaults to True.
+        profile (SqliteProfile, optional): _description_.
+            Defaults to SqliteProfile.DEFAULT.
+
+    Raises:
+        Exception: _description_
+        Exception: _description_
+        Exception: _description_
+        EmptyResultError: _description_
+        Exception: _description_
+
+    Returns:
+        _type_: _description_
+    """
 
     # Check input parameters
     if append is True or update is True:
@@ -201,10 +232,12 @@ def create_table_as_sql(
             cur = conn.execute(sql)
             tmpcolumns = cur.fetchall()
 
-            # Fetch one row to try to get more detailed data types
-            sql = sql_stmt
+            # Fetch one row to try to get more detailed data types if needed
+            sql = "SELECT * FROM tmp"
             tmpdata = conn.execute(sql).fetchone()
-            if tmpdata is None or len(tmpdata) == 0:
+            if tmpdata is not None and len(tmpdata) == 0:
+                tmpdata = None
+            if not empty_output_ok and tmpdata is None:
                 # If no row was returned, stop
                 raise EmptyResultError(f"Query didn't return any rows: {sql_stmt}")
 
@@ -221,33 +254,40 @@ def create_table_as_sql(
                     # based on the data + apply to_multitype to be sure
                     if output_geometrytype is None:
                         sql = f"SELECT ST_GeometryType({columnname}) FROM tmp;"
-                        column_geometrytypename = conn.execute(sql).fetchall()[0][0]
-                        output_geometrytype = GeometryType[
-                            column_geometrytypename
-                        ].to_multitype
+                        result = conn.execute(sql).fetchall()
+                        if len(result) > 0:
+                            output_geometrytype = GeometryType[
+                                result[0][0]
+                            ].to_multitype
+                        else:
+                            output_geometrytype = GeometryType["GEOMETRY"]
                     column_types[columnname] = output_geometrytype.name
                 else:
                     # If PRAGMA TABLE_INFO doesn't specify the datatype,
                     # determine based on data
                     if columntype is None or columntype == "":
                         sql = f"SELECT typeof({columnname}) FROM tmp;"
-                        result = conn.execute(sql).fetchall()[0][0]
-                        if result is not None:
+                        result = conn.execute(sql).fetchall()
+                        if len(result) > 0 and result[0][0] is not None:
                             column_types[columnname] = result
                         else:
                             # If unknown, take the most general types
                             column_types[columnname] = "NUMERIC"
                     elif columntype == "NUM":
-                        # PRAGMA TABLE_INFO sometimes returns 'NUM', but
+                        # PRAGMA TABLE_INFO sometimes returns8 'NUM', but
                         # apparently this cannot be used in "CREATE TABLE"
-                        if isinstance(tmpdata[column_index], datetime.date):
+                        if tmpdata is not None and isinstance(
+                            tmpdata[column_index], datetime.date
+                        ):
                             column_types[columnname] = "DATE"
-                        elif isinstance(tmpdata[column_index], datetime.datetime):
+                        elif tmpdata is not None and isinstance(
+                            tmpdata[column_index], datetime.datetime
+                        ):
                             column_types[columnname] = "DATETIME"
                         else:
                             sql = f'SELECT datetime("{columnname}") FROM tmp;'
-                            result = conn.execute(sql).fetchall()[0][0]
-                            if result is not None:
+                            result = conn.execute(sql).fetchall()
+                            if len(result) > 0 and result[0][0] is not None:
                                 column_types[columnname] = "DATETIME"
                             else:
                                 column_types[columnname] = "NUMERIC"
@@ -260,7 +300,7 @@ def create_table_as_sql(
             # layer names with special characters (eg. '-')...
             # Solution: mimic the behaviour of gpkgAddGeometryColumn manually.
             # Create table without geom column
-            """ 
+            """
             columns_for_create = [
                 f'"{columnname}" {column_types[columnname]}\n' for columnname
                 in column_types if columnname != 'geom'
@@ -340,14 +380,14 @@ def create_table_as_sql(
                     sql = f"SELECT CreateSpatialIndex('{output_layer}', 'geom');"
                 conn.execute(sql)
 
-    except EmptyResultError as ex:
+    except EmptyResultError:
         logger.info(f"Query didn't return any rows: {sql_stmt}")
         conn.close()
         conn = None
         if output_path.exists():
             output_path.unlink()
     except Exception as ex:
-        raise Exception(f"Error executing {sql}") from ex
+        raise Exception(f"Error {ex} executing {sql}") from ex
     finally:
         if conn is not None:
             conn.close()

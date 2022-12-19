@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## 0.7.0 (???)
+
+### Improvements
+
+- When a geo operation results in an empty result, no output file is written (#188)
+
+### Bugs fixed
+
+### Deprecations and compatibility notes
+
+- When a spatial operation has an empty result, an empty output file is now written to
+  be consistent with most other geospatial libraries (QGIS, ArcGIS). Before, no output
+  file was written in this case.
+
 ## 0.6.3 (2022-12-12)
 
 ### Improvements

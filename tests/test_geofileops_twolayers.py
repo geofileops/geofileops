@@ -226,6 +226,50 @@ def test_intersection(tmp_path, testfile, suffix, epsg):
     assert_geodataframe_equal(output_gdf, output_gpd_gdf, sort_values=True)
 
 
+@pytest.mark.parametrize("suffix", [".gpkg", ".shp"])
+def test_intersection_empty(tmp_path, suffix):
+    # Prepare test data
+    # -----------------
+    input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    input2_path = test_helper.get_testfile(
+        "polygon-zone", suffix=suffix, dst_dir=tmp_path
+    )
+    input1_layerinfo = gfo.get_layerinfo(input1_path)
+    batchsize = math.ceil(input1_layerinfo.featurecount / 2)
+    # Remove all rows from input2_path to get an empty result for intersection. GDAL
+    # only supports DELETE statements using SQLITE dialect, not with OGRSQL.
+    input2_layerinfo = gfo.get_layerinfo(input2_path)
+    gfo.execute_sql(
+        input2_path,
+        sql_stmt=f'DELETE FROM "{input2_layerinfo.name}"',
+        sql_dialect="SQLITE",
+    )
+    input2_layerinfo = gfo.get_layerinfo(input2_path)
+    assert input2_layerinfo.featurecount == 0
+
+    # Now run test
+    # ------------
+    output_path = (
+        tmp_path / f"{input1_path.stem}_intersection_{input2_path.stem}{suffix}"
+    )
+    gfo.intersection(
+        input1_path=input1_path,
+        input2_path=input2_path,
+        output_path=output_path,
+        nb_parallel=2,
+        batchsize=batchsize,
+    )
+
+    # Check if the tmp file is correctly created
+    assert output_path.exists()
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.featurecount == 0
+    assert len(output_layerinfo.columns) == (
+        len(input1_layerinfo.columns) + len(input2_layerinfo.columns)
+    )
+    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+
+
 def test_prepare_spatial_relations_filter():
     # Test all existing named relations
     named_relations = [
@@ -319,11 +363,6 @@ def test_join_by_location(
         batchsize=batchsize,
         force=True,
     )
-
-    # If no result expected, the output files shouldn't exist
-    if expected_featurecount == 0:
-        assert output_path.exists() is False
-        return
 
     # Check if the output file is correctly created
     assert output_path.exists() is True
@@ -556,12 +595,16 @@ def test_symmetric_difference(tmp_path, suffix, epsg):
 )
 def test_union(tmp_path, suffix, epsg):
     # Prepare test files
-    input1_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=suffix, epsg=epsg)
-    input2_path = test_helper.get_testfile("polygon-zone", dst_dir=tmp_path, suffix=suffix, epsg=epsg)
+    input1_path = test_helper.get_testfile(
+        "polygon-parcel", dst_dir=tmp_path, suffix=suffix, epsg=epsg
+    )
+    input2_path = test_helper.get_testfile(
+        "polygon-zone", dst_dir=tmp_path, suffix=suffix, epsg=epsg
+    )
     # Add null TEXT column to each file to make sure it stays TEXT type after union
     gfo.add_column(input1_path, name="test1_null", type=gfo.DataType.TEXT)
     gfo.add_column(input2_path, name="test2_null", type=gfo.DataType.TEXT)
-    
+
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input1_layerinfo.featurecount / 2)
 
