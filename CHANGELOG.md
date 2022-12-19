@@ -4,7 +4,7 @@
 
 ### Improvements
 
-- When a geo operation results in an empty result, no output file is written (#188)
+- When a geo operation results in an empty result, write an empty output file (#188)
 
 ### Bugs fixed
 
