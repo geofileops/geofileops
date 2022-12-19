@@ -101,6 +101,7 @@ def create_table_as_sql(
     update: bool = False,
     create_spatial_index: bool = True,
     empty_output_ok: bool = True,
+    column_datatypes: Optional[dict] = None,
     profile: SqliteProfile = SqliteProfile.DEFAULT,
 ):
     """
@@ -120,6 +121,10 @@ def create_table_as_sql(
         empty_output_ok (bool, optional): If the sql_stmt doesn't return any rows and
             True, create an empty output file. If False, throw EmptyResultError.
             Defaults to True.
+        column_datatypes (dict, optional): Can be used to specify the data types of
+            columns in the form of {"columnname": "datatype"}. If the data type of
+            (some) columns is not specified, it it automatically determined as good as
+            possible. Defaults to None.
         profile (SqliteProfile, optional): _description_.
             Defaults to SqliteProfile.DEFAULT.
 
@@ -247,7 +252,9 @@ def create_table_as_sql(
                 columnname = column[1]
                 columntype = column[2]
 
-                if columnname == "geom":
+                if column_datatypes is not None and columnname in column_datatypes:
+                    column_types[columnname] = column_datatypes[columnname]
+                elif columnname == "geom":
                     # PRAGMA TABLE_INFO gives None as column type for a
                     # geometry column. So if output_geometrytype not specified,
                     # Use ST_GeometryType to get the type
@@ -269,7 +276,7 @@ def create_table_as_sql(
                         sql = f"SELECT typeof({columnname}) FROM tmp;"
                         result = conn.execute(sql).fetchall()
                         if len(result) > 0 and result[0][0] is not None:
-                            column_types[columnname] = result
+                            column_types[columnname] = result[0][0]
                         else:
                             # If unknown, take the most general types
                             column_types[columnname] = "NUMERIC"
