@@ -6,6 +6,7 @@ Tests for operations using GeoPandas.
 import json
 import math
 from pathlib import Path
+import platform
 import sys
 
 import geopandas as gpd

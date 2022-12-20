@@ -139,28 +139,33 @@ def test_convert(tmp_path, suffix):
     assert src_layerinfo.featurecount == dst_layerinfo.featurecount
     assert len(src_layerinfo.columns) == len(dst_layerinfo.columns)
 
-    # Convert with reproject
-    dst = tmp_path / f"{src.stem}-output_reproj4326{suffix}"
-    gfo.convert(src, dst, dst_crs=4326, reproject=True)
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_convert_emptyfile(tmp_path, suffix):
+    # Prepare test date
+    # -----------------
+    src = test_helper.get_testfile("polygon-parcel", suffix=suffix, dst_dir=tmp_path)
+    # Remove all rows from src to get an empty result for intersection. GDAL
+    # only supports DELETE statements using SQLITE dialect, not with OGRSQL.
+    src_layerinfo = gfo.get_layerinfo(src)
+    gfo.execute_sql(
+        src,
+        sql_stmt=f'DELETE FROM "{src_layerinfo.name}"',
+        sql_dialect="SQLITE",
+    )
+    src_layerinfo = gfo.get_layerinfo(src)
+    assert src_layerinfo.featurecount == 0
+
+    # Convert
+    # -------
+    dst = tmp_path / f"{src.stem}-output{suffix}"
+    gfo.convert(src, dst)
 
     # Now compare source and dst file
-    src_layerinfo = gfo.get_layerinfo(src)
+    assert dst.exists()
     dst_layerinfo = gfo.get_layerinfo(dst)
     assert src_layerinfo.featurecount == dst_layerinfo.featurecount
-    assert src_layerinfo.crs is not None
-    assert src_layerinfo.crs.to_epsg() == 31370
-    assert dst_layerinfo.crs is not None
-    assert dst_layerinfo.crs.to_epsg() == 4326
-
-    # Check if dst file actually seems to contain lat lon coordinates
-    dst_gdf = gfo.read_file(dst)
-    first_geom = dst_gdf.geometry[0]
-    first_poly = (
-        first_geom if isinstance(first_geom, sh_geom.Polygon) else first_geom.geoms[0]
-    )
-    assert first_poly.exterior is not None
-    for x, y in first_poly.exterior.coords:
-        assert x < 100 and y < 100
+    assert len(src_layerinfo.columns) == len(dst_layerinfo.columns)
 
 
 @pytest.mark.parametrize(
@@ -183,6 +188,34 @@ def test_convert_force_output_geometrytype(tmp_path, testfile, force_geometrytyp
     dst = tmp_path / f"{src.stem}_to_{force_geometrytype}.gpkg"
     gfo.convert(src, dst, force_output_geometrytype=force_geometrytype)
     assert gfo.get_layerinfo(dst).geometrytype == force_geometrytype
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_convert_reproject(tmp_path, suffix):
+    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+
+    # Convert with reproject
+    dst = tmp_path / f"{src.stem}-output_reproj4326{suffix}"
+    gfo.convert(src, dst, dst_crs=4326, reproject=True)
+
+    # Now compare source and dst file
+    src_layerinfo = gfo.get_layerinfo(src)
+    dst_layerinfo = gfo.get_layerinfo(dst)
+    assert src_layerinfo.featurecount == dst_layerinfo.featurecount
+    assert src_layerinfo.crs is not None
+    assert src_layerinfo.crs.to_epsg() == 31370
+    assert dst_layerinfo.crs is not None
+    assert dst_layerinfo.crs.to_epsg() == 4326
+
+    # Check if dst file actually seems to contain lat lon coordinates
+    dst_gdf = gfo.read_file(dst)
+    first_geom = dst_gdf.geometry[0]
+    first_poly = (
+        first_geom if isinstance(first_geom, sh_geom.Polygon) else first_geom.geoms[0]
+    )
+    assert first_poly.exterior is not None
+    for x, y in first_poly.exterior.coords:
+        assert x < 100 and y < 100
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
@@ -460,6 +493,18 @@ def test_read_file(suffix):
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_read_file_sql(suffix):
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+
+    # Test
+    src_layerinfo = gfo.get_layerinfo(src)
+    read_gdf = gfo.read_file_sql(src, sql_stmt=f'SELECT * FROM "{src_layerinfo.name}"')
+    assert isinstance(read_gdf, gpd.GeoDataFrame)
+    assert len(read_gdf) == 46
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 def test_rename_column(tmp_path, suffix):
     test_path = test_helper.get_testfile(
         "polygon-parcel", dst_dir=tmp_path, suffix=suffix
@@ -591,34 +636,20 @@ def test_to_file_append_different_columns(tmp_path):
         gfo.to_file(test_gdf, path=test_path, append=True)
 
 
-@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-def test_to_file_empty(tmp_path, suffix):
-    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+def test_to_file_attribute_table_gpkg(tmp_path):
+    # Prepare test data
+    test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
 
-    # Test for gdf with a None geometry + a polygon
-    test_gdf = gpd.GeoDataFrame(
-        geometry=[None, test_helper.TestData.polygon_with_island]  # type: ignore
-    )
-    test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
-    assert len(test_geometrytypes) == 1
-    output_none_path = tmp_path / f"{src.stem}_none{suffix}"
-    gfo.to_file(test_gdf, output_none_path)
+    # Test writing a DataFrame to geopackage
+    test_gdf = gfo.read_file(test_path)
+    test_df = test_gdf.drop(columns="geometry")
+    assert isinstance(test_df, pd.DataFrame)
+    assert isinstance(test_df, gpd.GeoDataFrame) is False
+    gfo.to_file(test_df, test_path)
 
-    # Now check the result if the data is still the same after being read again
-    test_read_gdf = gfo.read_file(output_none_path)
-    # Result is the same as the original input
-    assert test_read_gdf.geometry[0] is None
-    assert isinstance(test_read_gdf.geometry[1], sh_geom.Polygon)
-    # The geometrytype of the column in the file is also the same as originaly
-    test_file_geometrytype = gfo.get_layerinfo(output_none_path).geometrytype
-    if suffix == ".shp":
-        assert test_file_geometrytype == GeometryType.MULTIPOLYGON
-    else:
-        assert test_file_geometrytype == test_geometrytypes[0]
-    # The result type in the geodataframe is also the same as originaly
-    test_read_geometrytypes = geoseries_util.get_geometrytypes(test_read_gdf.geometry)
-    assert len(test_gdf) == len(test_read_gdf)
-    assert test_read_geometrytypes == test_geometrytypes
+    # Now check if the layer are correctly found afterwards
+    assert len(gfo.listlayers(test_path)) == 1
+    assert len(gfo.listlayers(test_path, only_spatial_layers=False)) == 2
 
 
 @pytest.mark.parametrize(
@@ -645,57 +676,22 @@ def test_to_file_create_spatial_index(
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-def test_to_file_none(tmp_path, suffix):
-    # Prepare test data
-    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
-
-    # Test for gdf with a None geometry + a polygon
-    test_gdf = gpd.GeoDataFrame(
-        geometry=[None, test_helper.TestData.polygon_with_island]
-    )  # type: ignore
-    test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
-    assert len(test_geometrytypes) == 1
-    output_none_path = tmp_path / f"{src.stem}_none{suffix}"
-    gfo.to_file(test_gdf, output_none_path)
-
-    # Now check the result if the data is still the same after being read again
-    test_read_gdf = gfo.read_file(output_none_path)
-    # Result is the same as the original input
-    assert test_read_gdf.geometry[0] is None
-    assert isinstance(test_read_gdf.geometry[1], sh_geom.Polygon)
-    # The geometrytype of the column in the file is also the same as originaly
-    test_file_geometrytype = gfo.get_layerinfo(output_none_path).geometrytype
-    if suffix == ".shp":
-        assert test_file_geometrytype == GeometryType.MULTIPOLYGON
-    else:
-        assert test_file_geometrytype == test_geometrytypes[0]
-    # The result type in the geodataframe is also the same as originaly
-    test_read_geometrytypes = geoseries_util.get_geometrytypes(test_read_gdf.geometry)
-    assert len(test_gdf) == len(test_read_gdf)
-    assert test_read_geometrytypes == test_geometrytypes
-
-
-@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-def test_to_file_gpd_empty(tmp_path, suffix):
-    # Prepare test data
-    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
-
+def test_to_file_geomempty(tmp_path, suffix):
     # Test for gdf with an empty polygon + a polygon
     test_gdf = gpd.GeoDataFrame(
         geometry=[  # type: ignore
-            sh_geom.Polygon(),
+            sh_geom.GeometryCollection(),
             test_helper.TestData.polygon_with_island,
         ]
     )
-    # By default, get_geometrytypes ignores the type of empty geometries, as
-    # they are always stored as GeometryCollection in GeoPandas
+    # By default, get_geometrytypes ignores the type of empty geometries.
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 1
     test_geometrytypes_includingempty = geoseries_util.get_geometrytypes(
         test_gdf.geometry, ignore_empty_geometries=False
     )
     assert len(test_geometrytypes_includingempty) == 2
-    output_empty_path = tmp_path / f"{src.stem}_empty{suffix}"
+    output_empty_path = tmp_path / f"testfile_with_emptygeom{suffix}"
     test_gdf.to_file(output_empty_path, driver=gfo.GeofileType(suffix).ogrdriver)
 
     # Now check the result if the data is still the same after being read again
@@ -719,18 +715,15 @@ def test_to_file_gpd_empty(tmp_path, suffix):
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-def test_to_file_gpd_none(tmp_path, suffix):
-    # Prepare test data
-    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
-
+def test_to_file_geomnone(tmp_path, suffix):
     # Test for gdf with a None geometry + a polygon
     test_gdf = gpd.GeoDataFrame(
         geometry=[None, test_helper.TestData.polygon_with_island]  # type: ignore
     )
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 1
-    output_none_path = tmp_path / f"{src.stem}_none{suffix}"
-    test_gdf.to_file(output_none_path, driver=gfo.GeofileType(suffix).ogrdriver)
+    output_none_path = tmp_path / f"file_with_nonegeom{suffix}"
+    gfo.to_file(test_gdf, output_none_path)
 
     # Now check the result if the data is still the same after being read again
     test_read_gdf = gfo.read_file(output_none_path)
@@ -740,30 +733,13 @@ def test_to_file_gpd_none(tmp_path, suffix):
     # The geometrytype of the column in the file is also the same as originaly
     test_file_geometrytype = gfo.get_layerinfo(output_none_path).geometrytype
     if suffix == ".shp":
-        # Geometrytype of shapefile always returns the multitype
-        assert test_file_geometrytype == test_geometrytypes[0].to_multitype
+        assert test_file_geometrytype == GeometryType.MULTIPOLYGON
     else:
         assert test_file_geometrytype == test_geometrytypes[0]
     # The result type in the geodataframe is also the same as originaly
     test_read_geometrytypes = geoseries_util.get_geometrytypes(test_read_gdf.geometry)
     assert len(test_gdf) == len(test_read_gdf)
     assert test_read_geometrytypes == test_geometrytypes
-
-
-def test_to_file_attribute_table_gpkg(tmp_path):
-    # Prepare test data
-    test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
-
-    # Test writing a DataFrame to geopackage
-    test_gdf = gfo.read_file(test_path)
-    test_df = test_gdf.drop(columns="geometry")
-    assert isinstance(test_df, pd.DataFrame)
-    assert isinstance(test_df, gpd.GeoDataFrame) is False
-    gfo.to_file(test_df, test_path)
-
-    # Now check if the layer are correctly found afterwards
-    assert len(gfo.listlayers(test_path)) == 1
-    assert len(gfo.listlayers(test_path, only_spatial_layers=False)) == 2
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
