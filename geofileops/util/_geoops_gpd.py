@@ -1767,4 +1767,4 @@ def _add_orderby_column(path: Path, layer: str, name: str):
     # Now we can actually add the column.
     gfo.add_column(path=path, name=name, type=gfo.DataType.TEXT, expression=expression)
     sqlite_stmt = f'CREATE INDEX {name}_idx ON "{layer}"({name})'
-    _ogr_util.vector_info(path=path, sql_stmt=sqlite_stmt, readonly=False)
+    gfo.execute_sql(path=path, sql_stmt=sqlite_stmt)
