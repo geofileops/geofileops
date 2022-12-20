@@ -1,4 +1,6 @@
 from pathlib import Path
+import os
+os.environ['USE_PYGEOS'] = '1'
 
 from geofileops.fileops import *
 from geofileops.geoops import *

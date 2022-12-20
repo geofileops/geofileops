@@ -5,6 +5,7 @@
 ### Improvements
 
 - When a geo operation results in an empty result, write an empty output file (#188)
+- Support geopandas 12 with shapely 2.0 + pygeos (#191)
 
 ### Bugs fixed
 

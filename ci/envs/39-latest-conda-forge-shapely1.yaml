@@ -1,4 +1,4 @@
-name: geofileopsdev
+name: test
 channels:
   - conda-forge
 dependencies:
@@ -8,23 +8,16 @@ dependencies:
   - cloudpickle
   - fiona
   - gdal
-  - geopandas>=0.11
-  - libspatialite>=5.0
+  - geopandas
   - numpy
   - pandas
   - psutil
   - pygeos
   - pyproj
-  - shapely
+  - shapely<2
   - topojson
   # testing
   - pytest
   - pytest-cov
-  # linting
-  - black
-  - flake8
-  # docs
-  - pydata-sphinx-theme
   - pip:
-    - sphinx-automodapi==0.13
     - simplification
