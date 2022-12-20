@@ -32,6 +32,9 @@ jobs:
           - ci/envs/310-latest-conda-forge.yaml
           - ci/envs/311-latest-conda-forge.yaml
         include:
+          - env: ci/envs/39-latest-conda-forge-shapely1.yaml
+            os: ubuntu-latest
+            dev: false
           - env: ci/envs/39-latest-conda-forge.yaml
             os: macos-latest
             dev: false
