@@ -50,14 +50,10 @@ def get_geometrytypes(
     """
     Determine the geometry types in the GeoDataFrame.
 
-    In a GeoDataFrame, empty geometries are always treated as
-    geometrycollections. These are by default ignored.
-
     Args:
         geoseries (gpd.GeoSeries): input geoseries.
         ignore_empty_geometries (bool, optional): True to ignore empty
-            geometries, as they are always stored as GeometryCollections by
-            GeoPandas. Defaults to True.
+            geometries as they can be of a different type. Defaults to True.
 
     Returns:
         List[GeometryType]: [description]
@@ -88,8 +84,7 @@ def harmonize_geometrytypes(
     Eg. if Polygons and MultiPolygons are present in the geoseries, all
     geometries are converted to MultiPolygons.
 
-    Empty geometries are changed to None, because Empty geometries are always
-    treated as GeometryCollections by GeoPandas.
+    Empty geometries are changed to None.
 
     If they cannot be harmonized, the original series is returned...
 
