@@ -3,20 +3,19 @@ channels:
   - conda-forge
 dependencies:
   - python=3.9
-  - cryptography<=36
   - pip
   # required
   - cloudpickle
   - fiona
   - gdal
   - geopandas>=0.11,<=0.12
+  - libspatialite>=5.0
   - numpy
   - pandas
   - psutil
   - pygeos
   - pyproj
   - shapely
-  - libspatialite>=5.0
   - topojson
   # testing
   - pytest
