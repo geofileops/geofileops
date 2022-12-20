@@ -311,13 +311,13 @@ def vector_translate(
 
         if result_ds is None:
             raise Exception("BOOM")
-        else:
-            if result_ds.GetLayerCount() == 0:
-                result_ds = None
-                if output_path.exists():
-                    gfo.remove(output_path)
+        if result_ds.GetLayerCount() == 0:
+            result_ds = None
+            if output_path.exists():
+                gfo.remove(output_path)
+
     except Exception as ex:
-        message = f"Error executing {sql_stmt}"
+        message = f"Error {ex} executing {sql_stmt}"
         logger.exception(message)
         raise Exception(message) from ex
     finally:
