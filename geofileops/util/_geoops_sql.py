@@ -2023,12 +2023,6 @@ def _prepare_processing_params(
     returnvalue = ProcessingParams(nb_parallel=nb_parallel)
     input1_layerinfo = gfo.get_layerinfo(input1_path, input1_layer)
 
-    if input1_layerinfo.featurecount == 0:
-        logger.info(
-            f"input1 layer contains 0 rows, file: {input1_path}, layer: {input1_layer}"
-        )
-        return None
-
     # Determine the optimal number of parallel processes + batches
     if returnvalue.nb_parallel == -1:
         # If no batch size specified, put at least 100 rows in a batch

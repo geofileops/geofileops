@@ -228,7 +228,7 @@ def test_intersection(tmp_path, testfile, suffix, epsg):
 
 
 @pytest.mark.parametrize("suffix", [".gpkg", ".shp"])
-def test_intersection_empty(tmp_path, suffix):
+def test_intersection_resultempty(tmp_path, suffix):
     # Prepare test data
     # -----------------
     input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
