@@ -6,6 +6,7 @@ Tests for operations using GeoPandas.
 import json
 import math
 from pathlib import Path
+import platform
 import sys
 
 import geopandas as gpd
@@ -390,6 +391,10 @@ def test_dissolve_polygons_groupby_None(tmp_path):
     )
 
 
+@pytest.mark.skipif(
+    platform.system() == "Darwin",
+    reason="test gives a segmentation fault on MacOS since 20522-12-20?",
+)
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 def test_dissolve_polygons_specialcases(tmp_path, suffix):
     # Prepare test data
