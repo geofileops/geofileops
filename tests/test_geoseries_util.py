@@ -11,7 +11,10 @@ import numpy as np
 import pandas as pd
 from pandas.testing import assert_frame_equal
 import pytest
+import shapely
 import shapely.geometry as sh_geom
+
+SHAPELY_GE_20 = str(shapely.__version__).split(".")[0] >= "2"
 
 # Add path so the local geofileops packages are found
 # Add path so the local geofileops packages are found
@@ -23,7 +26,6 @@ from tests import test_helper
 
 
 def test_get_geometrytypes():
-    # None and empty geometries are by default ignored in get_geometrytypes
     test_gdf = gpd.GeoDataFrame(
         geometry=[  # type: ignore
             None,
@@ -38,10 +40,10 @@ def test_get_geometrytypes():
             test_helper.TestData.geometrycollection,
         ]
     )
+    # None and empty geometries are by default ignored in get_geometrytypes
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 5
 
-    # None and empty geometries are by default ignored in get_geometrytypes
     test_gdf = gpd.GeoDataFrame(
         geometry=[  # type: ignore
             None,
@@ -51,12 +53,12 @@ def test_get_geometrytypes():
             test_helper.TestData.point,
         ]
     )
+    # None and empty geometries are by default ignored in get_geometrytypes
     test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 1
     assert GeometryType.POINT in test_geometrytypes
 
-    # Empty geometries are counted with ignore_empty_geometries=False, but
-    # are always treated as GeometryCollection in GeoPandas.
+    # Empty geometries are counted with ignore_empty_geometries=False.
     test_gdf = gpd.GeoDataFrame(
         geometry=[  # type: ignore
             None,
@@ -69,9 +71,16 @@ def test_get_geometrytypes():
     test_geometrytypes = geoseries_util.get_geometrytypes(
         test_gdf.geometry, ignore_empty_geometries=False
     )
-    assert len(test_geometrytypes) == 2
-    assert GeometryType.POINT in test_geometrytypes
-    assert GeometryType.GEOMETRYCOLLECTION in test_geometrytypes
+    # In shapely 2, empty geometries get the correct type, in shapely 1 they were always
+    # of type geometrycollection
+    if SHAPELY_GE_20:
+        assert len(test_geometrytypes) == 3
+        assert GeometryType.POINT in test_geometrytypes
+        assert GeometryType.LINESTRING in test_geometrytypes
+        assert GeometryType.POLYGON in test_geometrytypes
+        assert GeometryType.GEOMETRYCOLLECTION not in test_geometrytypes
+    else:
+        assert len(test_geometrytypes) == 2
 
 
 def test_geometry_collection_extract():
