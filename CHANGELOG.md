@@ -4,7 +4,7 @@
 
 ### Improvements
 
-- Support geopandas 12 with shapely 2.0 + pygeos (#191)
+- Support geopandas 12 with shapely 2.0 + pygeos (#191, #193)
 
 ## 0.6.3 (2022-12-12)
 
