@@ -193,7 +193,7 @@ def polygons_to_lines(geoseries: gpd.GeoSeries) -> gpd.GeoSeries:
         ):
             raise ValueError(f"Invalid geometry: {geom}")
         boundary = geom.boundary
-        if boundary.type == "MultiLineString":
+        if boundary.geom_type == "MultiLineString":
             for line in boundary.geoms:
                 polygons_lines.append(line)
         else:
@@ -270,8 +270,8 @@ def simplify_topo_ext(
 
     topo_simpl_geoseries = topo.to_gdf(crs=geoseries.crs).geometry
     topo_simpl_geoseries.array.data = pygeos.make_valid(topo_simpl_geoseries.array.data)
-    geometry_types_orig = geoseries.type.unique()
-    geometry_types_simpl = topo_simpl_geoseries.type.unique()
+    geometry_types_orig = geoseries.geom_type.unique()
+    geometry_types_simpl = topo_simpl_geoseries.geom_type.unique()
     if len(geometry_types_orig) == 1 and len(geometry_types_simpl) > 1:
         topo_simpl_geoseries = geometry_collection_extract(
             topo_simpl_geoseries,

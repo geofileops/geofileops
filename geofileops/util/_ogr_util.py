@@ -312,6 +312,7 @@ def vector_translate(
         if result_ds is None:
             raise Exception("BOOM")
         else:
+            assert isinstance(result_ds, gdal.Dataset)
             if result_ds.GetLayerCount() == 0:
                 result_ds = None
                 if output_path.exists():
