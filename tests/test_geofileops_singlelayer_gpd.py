@@ -6,6 +6,7 @@ Tests for operations using GeoPandas.
 import json
 import math
 from pathlib import Path
+import platform
 import sys
 
 import geopandas as gpd
@@ -282,6 +283,7 @@ def test_dissolve_linestrings(tmp_path, suffix, epsg):
     [
         (".gpkg", 31370, ["GEWASGROEP"], True, 25),
         (".gpkg", 31370, ["GEWASGROEP"], False, 6),
+        (".gpkg", 31370, ["gewasGROEP"], False, 6),
         (".gpkg", 31370, [], True, 23),
         (".gpkg", 31370, None, False, 1),
         (".gpkg", 4326, ["GEWASGROEP"], True, 25),
@@ -297,7 +299,8 @@ def test_dissolve_polygons(
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
-    # Test dissolve polygons with groupby + without explodecollections
+    # Test dissolve polygons with different options for groupby and explodecollections
+    # --------------------------------------------------------------------------------
     groupby = True if (groupby_columns is None or len(groupby_columns) == 0) else False
     output_path = (
         tmp_path / f"{input_path.stem}_groupby-{groupby}_explode-{explode}{suffix}"
@@ -338,8 +341,11 @@ def test_dissolve_polygons(
     if groupby_columns is None or len(groupby_columns) == 0:
         output_gpd_gdf = input_gdf[columns].dissolve()
     else:
-        columns += groupby_columns
-        output_gpd_gdf = input_gdf[columns].dissolve(by=groupby_columns).reset_index()
+        groupby_columns_upper = [column.upper() for column in groupby_columns]
+        columns += groupby_columns_upper
+        output_gpd_gdf = (
+            input_gdf[columns].dissolve(by=groupby_columns_upper).reset_index()
+        )
     if explode:
         output_gpd_gdf = output_gpd_gdf.explode(ignore_index=True)
     output_gpd_path = tmp_path / f"{input_path.stem}_gpd-output{suffix}"
@@ -356,6 +362,35 @@ def test_dissolve_polygons(
     assert len(output_gdf) == len(output_gpd_gdf)
 
 
+def test_dissolve_polygons_groupby_None(tmp_path):
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    gfo.add_column(input_path, name="none_values", type=gfo.DataType.TEXT)
+    input_layerinfo = gfo.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+
+    # Test dissolve polygons with different options for groupby and explodecollections
+    # --------------------------------------------------------------------------------
+    output_path = tmp_path / "output.gpkg"
+    gfo.dissolve(
+        input_path=input_path,
+        output_path=output_path,
+        groupby_columns="none_values",
+        explodecollections=True,
+        nb_parallel=2,
+        batchsize=batchsize,
+    )
+
+    # Now check if the tmp file is correctly created
+    assert output_path.exists()
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+    assert (
+        output_layerinfo.columns["none_values"].gdal_type
+        == input_layerinfo.columns["none_values"].gdal_type
+    )
+
+
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 def test_dissolve_polygons_specialcases(tmp_path, suffix):
     # Prepare test data
@@ -365,6 +400,7 @@ def test_dissolve_polygons_specialcases(tmp_path, suffix):
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
     # Test dissolve polygons with specified output layer
+    # --------------------------------------------------
     # A different output layer is not supported for shapefile!!!
     output_path = (
         output_basepath.parent
@@ -402,6 +438,7 @@ def test_dissolve_polygons_specialcases(tmp_path, suffix):
         assert output_gdf["geometry"][0] is not None
 
     # Test dissolve polygons with tiles_path
+    # --------------------------------------
     output_path = (
         output_basepath.parent
         / f"{output_basepath.stem}_tilespath{output_basepath.suffix}"
@@ -442,6 +479,7 @@ def test_dissolve_polygons_specialcases(tmp_path, suffix):
     assert output_gdf["geometry"][0] is not None
 
     # Test dissolve to existing output path without and without force
+    # ---------------------------------------------------------------
     for force in [True, False]:
         assert output_path.exists() is True
         mtime_orig = output_path.stat().st_mtime
@@ -636,6 +674,10 @@ def test_dissolve_polygons_aggcolumns_json(tmp_path, suffix=".gpkg"):
     ],
 )
 def test_simplify_vw(tmp_path, suffix, epsg, testfile):
+    # Skip test if simplification is not available
+    _ = pytest.importorskip("simplification")
+
+    # Init
     input_path = test_helper.get_testfile(testfile, suffix=suffix, epsg=epsg)
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)

@@ -4,12 +4,20 @@ channels:
 dependencies:
   - python=3.9
   - pip
+  # required
   - cloudpickle
+  - fiona
+  - gdal
   - geopandas
-  - pygeos
+  - numpy
+  - pandas
   - psutil
-  - pydata-sphinx-theme
+  - pygeos
+  - pyproj
+  - shapely
   - topojson
+  # docs
+  - pydata-sphinx-theme
   - pip:
     - centerline
     - simplification

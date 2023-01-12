@@ -476,7 +476,7 @@ def dissolve(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
     explodecollections: bool,
-    groupby_columns: Optional[List[str]] = None,
+    groupby_columns: Union[List[str], str, None] = None,
     agg_columns: Optional[dict] = None,
     tiles_path: Union[str, "os.PathLike[Any]", None] = None,
     nb_squarish_tiles: int = 1,
@@ -556,9 +556,9 @@ def dissolve(
         explodecollections (bool): True to output only simple geometries. If
             False, this can result in huge geometries for large files,
             especially if no groupby_columns are specified.
-        groupby_columns (List[str], optional): columns to group on while
-            aggregating. Defaults to None, resulting in a spatial union of all
-            geometries that touch.
+        groupby_columns (Union[List[str], str], optional): columns (case insensitive) to
+            group on while aggregating. Defaults to None, resulting in a spatial union
+            of all geometries that touch.
         agg_columns (dict, optional): columns to aggregate based on
             the groupings by groupby columns. Depending on the top-level key
             value of the dict, the output for the aggregation is different:
@@ -568,7 +568,7 @@ def dissolve(
                 - "columns": aggregate to seperate columns. The value should
                   be a list of dicts with the following keys:
 
-                    - "column": column name in the input file.
+                    - "column": column name (case insensitive) in the input file.
                     - "agg": aggregation to use:
 
                         - count: the number of items
@@ -614,10 +614,14 @@ def dissolve(
     if tiles_path is not None:
         tiles_path = Path(tiles_path)
 
-    # If an empty list of geometry columns is passed, convert it to None to
-    # simplify the rest of the code
-    if groupby_columns is not None and len(groupby_columns) == 0:
-        groupby_columns = None
+    # Standardize parameter to simplify the rest of the code
+    if groupby_columns is not None:
+        if isinstance(groupby_columns, str):
+            # If a string is passed, convert to list
+            groupby_columns = [groupby_columns]
+        elif len(groupby_columns) == 0:
+            # If an empty list of geometry columns is passed, convert it to None
+            groupby_columns = None
 
     logger.info(f"Start dissolve on {input_path} to {output_path}")
     return _geoops_gpd.dissolve(
@@ -861,7 +865,7 @@ def select(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
     sql_stmt: str,
-    sql_dialect: str = "SQLITE",
+    sql_dialect: Optional[str] = "SQLITE",
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
@@ -872,7 +876,7 @@ def select(
     force: bool = False,
 ):
     """
-    Execute an sqlite style SQL query on the file.
+    Execute an SQL query on the file.
 
     By convention, the sqlite query can contain following placeholders that
     will be automatically replaced for you:
@@ -917,7 +921,7 @@ def select(
       characters are otherwise not supported in the table name, eg. '-'.
     * It is recommend to give the table you select from "layer" as alias. If
       you use the {batch_filter} placeholder this is even mandatory.
-    * Besides the standard sqlite sql syntacs, you can use the spatialite
+    * When using the (default) "SQLITE" sql dialect, you can also use the spatialite
       functions as documented here: |spatialite_reference_link|
 
     .. |spatialite_reference_link| raw:: html
@@ -930,9 +934,8 @@ def select(
         input_path (PathLike): the input file
         output_path (PathLike): the file to write the result to
         sql_stmt (str): the statement to execute
-        sql_dialect (str, optional): the sql dialect to use. If None is passed,
-            the default sql dialect of the underlying source is used. The
-            default is 'SQLITE'.
+        sql_dialect (str, optional): the sql dialect to use. If None, the default sql
+            dialect of the underlying source is used. Defaults to "SQLITE".
         input_layer (str, optional): input layer name. Optional if the input
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input

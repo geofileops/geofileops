@@ -6,12 +6,13 @@ Module containing utilities regarding low level vector operations.
 import enum
 import logging
 import math
-from typing import Any, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import geopandas as gpd
 import numpy as np
 import pygeos
 import pyproj
+import shapely.coords as sh_coords
 import shapely.wkb as sh_wkb
 import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
@@ -664,7 +665,9 @@ def remove_inner_rings(
             polys.append(remove_inner_rings_polygon(poly, min_area_to_keep, crs=crs))
         return sh_geom.MultiPolygon(polys)
     else:
-        raise Exception(f"remove_inner_rings impossible on {geometry.type}: {geometry}")
+        raise Exception(
+            f"remove_inner_rings impossible on {geometry.geom_type}: {geometry}"
+        )
 
 
 #####################################################################
@@ -797,7 +800,11 @@ def simplify_ext(
         else:
             return sh_geom.LineString(coords_simplified)
 
-    def simplify_coords(coords: list) -> List[Any]:
+    def simplify_coords(
+        coords: Union[np.ndarray, sh_coords.CoordinateSequence]
+    ) -> np.ndarray:
+        if isinstance(coords, sh_coords.CoordinateSequence):
+            coords = np.asarray(coords)
         # Determine the indexes of the coordinates to keep after simplification
         if algorithm is SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER:
             coords_simplify_idx = simplification.simplify_coords_idx(coords, tolerance)
@@ -822,11 +829,15 @@ def simplify_ext(
             coords_on_border_series = coords_gdf.intersects(keep_points_on)
             coords_on_border_idx = np.array(
                 coords_on_border_series.index[coords_on_border_series]
-            ).tolist()
+            )
 
         # Extracts coordinates that need to be kept
-        coords_to_keep = sorted(set(coords_simplify_idx + coords_on_border_idx))
-        return np.array(coords)[coords_to_keep].tolist()
+        coords_to_keep = coords_simplify_idx
+        if len(coords_on_border_idx) > 0:
+            coords_to_keep = np.concatenate(
+                [coords_to_keep, coords_on_border_idx], dtype=np.int64
+            )
+        return coords[coords_to_keep]
 
     # Loop over the rings, and simplify them one by one...
     # If the geometry is None, just return...
@@ -864,7 +875,9 @@ def simplify_ext(
 
 
 def simplify_coords_lang(
-    coords: Union[np.ndarray, list], tolerance: float, lookahead: int
+    coords: Union[np.ndarray, list, sh_coords.CoordinateSequence],
+    tolerance: float,
+    lookahead: int,
 ) -> Union[np.ndarray, list]:
     """
     Simplify a line using lang algorithm.
@@ -883,6 +896,8 @@ def simplify_coords_lang(
     # Init variables
     if isinstance(coords, np.ndarray):
         coords_arr = coords
+    elif isinstance(coords, sh_coords.CoordinateSequence):
+        coords_arr = np.asarray(coords)
     else:
         coords_arr = np.array(list(coords))
 
@@ -893,14 +908,18 @@ def simplify_coords_lang(
     coords_simplified_arr = coords_arr[coords_to_keep_idx]
 
     # If input was np.ndarray, return np.ndarray, otherwise list
-    if isinstance(coords, np.ndarray):
+    if isinstance(coords, np.ndarray) or isinstance(
+        coords, sh_coords.CoordinateSequence
+    ):
         return coords_simplified_arr
     else:
         return coords_simplified_arr.tolist()
 
 
 def simplify_coords_lang_idx(
-    coords: Union[np.ndarray, list], tolerance: float, lookahead: int = 8
+    coords: Union[np.ndarray, list, sh_coords.CoordinateSequence],
+    tolerance: float,
+    lookahead: int = 8,
 ) -> Union[np.ndarray, list]:
     """
     Simplify a line using lang algorithm and return the coordinate indexes to
@@ -942,6 +961,8 @@ def simplify_coords_lang_idx(
     # Init variables
     if isinstance(coords, np.ndarray):
         line_arr = coords
+    elif isinstance(coords, sh_coords.CoordinateSequence):
+        line_arr = np.asarray(coords)
     else:
         line_arr = np.array(list(coords))
 
