@@ -323,7 +323,7 @@ def simplify_ext(
         )
 
 
-def centerline(
+def centerline_old(
     geoseries: gpd.GeoSeries, densify_distance: float = 5.0
 ) -> gpd.GeoSeries:
 
@@ -335,7 +335,7 @@ def centerline(
     )
 
 
-def centerline_sh(
+def centerline(
     geoseries: gpd.GeoSeries,
     densify_distance: Optional[float] = None,
     min_axis_length: Optional[float] = -1,
