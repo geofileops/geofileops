@@ -316,7 +316,7 @@ def centerline(
         # Automatically determine min axis length
         if min_axis_length < 0:
             min_axis_length = abs(min_axis_length) * geom.area / edges_merged.length
-            logger.info(f"min_axis_length: {min_axis_length}")
+            # logger.info(f"min_axis_length: {min_axis_length}")
 
         # Remove edges that are too short
         # Keep removing edges till no more short dangling edges present
@@ -335,7 +335,7 @@ def centerline(
                 # adjacent to another linestring, remove it
                 # Check first point
                 search_point = sh_geom.Point(edge.coords[0])
-                near_lines = list(edges_tree.query_items(search_point))
+                near_lines = list(edges_tree.query(search_point))
                 startpoint_adjacency = False
 
                 # If only one found, it is itself and so there is nothing else adjacent.
@@ -351,7 +351,7 @@ def centerline(
 
                 # Check 2nd point
                 search_point = sh_geom.Point(edge.coords[-1])
-                near_lines = list(edges_tree.query_items(search_point))
+                near_lines = list(edges_tree.query(search_point))
                 endpoint_adjacency = False
 
                 # If only one found, it is itself and so there is nothing else adjacent.
