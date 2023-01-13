@@ -124,12 +124,12 @@ else
   # List of dependencies + reasons for specific versions.
   # python: 3.8, possibly 3.8 features are used, not sure
   # geopandas: > 0.10 because in sjoin a parameter renamed
-  conda install -y python=3.8 cloudpickle "geopandas>=0.10,<0.11" "libspatialite>=5.0" psutil pygeos pyogrio pyproj
+  conda install -y python=3.9 cloudpickle "geopandas>=0.11,<0.12" "libspatialite>=5.0" psutil pygeos pyogrio pyproj
 
   echo
   echo Prepare for development: conda install dev tools
   echo
-  conda install -y pylint pytest pytest-cov rope pydata-sphinx-theme sphinx-automodapi
+  conda install -y black pylint pytest pytest-cov rope pydata-sphinx-theme sphinx-automodapi
 
   echo
   echo Prepare for development: pip install needed dependencies

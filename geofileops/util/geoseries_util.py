@@ -11,8 +11,6 @@ import numpy as np
 import pandas as pd
 import pygeos
 from shapely import geometry as sh_geom
-import topojson
-import topojson.ops
 
 from . import geometry_util
 from .geometry_util import GeometryType, PrimitiveType, SimplifyAlgorithm
@@ -36,11 +34,11 @@ def geometry_collection_extract(
     """
     # Apply the collection_extract
     return gpd.GeoSeries(
-            [geometry_util.collection_extract(geom, primitivetype) for geom in geoseries])
+        [geometry_util.collection_extract(geom, primitivetype) for geom in geoseries])
     """
     # Apply the collection_extract
     geoseries_copy = geoseries.copy()
-    for index, geom in geoseries_copy.iteritems():
+    for index, geom in geoseries_copy.items():
         geoseries_copy[index] = geometry_util.collection_extract(geom, primitivetype)
     assert isinstance(geoseries_copy, gpd.GeoSeries)
     return geoseries_copy
@@ -52,14 +50,10 @@ def get_geometrytypes(
     """
     Determine the geometry types in the GeoDataFrame.
 
-    In a GeoDataFrame, empty geometries are always treated as
-    geometrycollections. These are by default ignored.
-
     Args:
         geoseries (gpd.GeoSeries): input geoseries.
-        ignore_empty_geometries (bool, optional): True to ignore empty
-            geometries, as they are always stored as GeometryCollections by
-            GeoPandas. Defaults to True.
+        ignore_empty_geometries (bool, optional): True to ignore empty geometries.
+            Defaults to True.
 
     Returns:
         List[GeometryType]: [description]
@@ -90,8 +84,7 @@ def harmonize_geometrytypes(
     Eg. if Polygons and MultiPolygons are present in the geoseries, all
     geometries are converted to MultiPolygons.
 
-    Empty geometries are changed to None, because Empty geometries are always
-    treated as GeometryCollections by GeoPandas.
+    Empty geometries are changed to None.
 
     If they cannot be harmonized, the original series is returned...
 
@@ -130,6 +123,14 @@ def harmonize_geometrytypes(
         return geoseries
 
 
+def is_valid_reason(geoseries: gpd.GeoSeries) -> pd.Series:
+    # Get result and keep geoseries indexes
+    return pd.Series(
+        data=pygeos.is_valid_reason(geoseries.array.data),  # type: ignore
+        index=geoseries.index,
+    )
+
+
 def _harmonize_to_multitype(
     geoseries: gpd.GeoSeries, dest_geometrytype: GeometryType
 ) -> gpd.GeoSeries:
@@ -138,7 +139,7 @@ def _harmonize_to_multitype(
     geometries_arr = geoseries.array.data.copy()  # type: ignore
 
     # Set empty geometries to None
-    empty_idxs = pygeos.get_type_id(geometries_arr) == 7
+    empty_idxs = pygeos.is_empty(geometries_arr)
     if empty_idxs.sum():
         geometries_arr[empty_idxs] = None
 
@@ -192,7 +193,7 @@ def polygons_to_lines(geoseries: gpd.GeoSeries) -> gpd.GeoSeries:
         ):
             raise ValueError(f"Invalid geometry: {geom}")
         boundary = geom.boundary
-        if boundary.type == "MultiLineString":
+        if boundary.geom_type == "MultiLineString":
             for line in boundary.geoms:
                 polygons_lines.append(line)
         else:
@@ -225,6 +226,15 @@ def simplify_topo_ext(
     Returns:
         gpd.GeoSeries: the simplified geoseries
     """
+    try:
+        import topojson
+        import topojson.ops
+    except ImportError as ex:
+        raise ImportError(
+            "simplify_topo_ext needs an optional package. Install with "
+            "'pip install topojson'"
+        ) from ex
+
     topo = topojson.Topology(geoseries, prequantize=False)
     topolines = sh_geom.MultiLineString(topo.output["arcs"])
     topolines_simpl = geometry_util.simplify_ext(
@@ -260,8 +270,8 @@ def simplify_topo_ext(
 
     topo_simpl_geoseries = topo.to_gdf(crs=geoseries.crs).geometry
     topo_simpl_geoseries.array.data = pygeos.make_valid(topo_simpl_geoseries.array.data)
-    geometry_types_orig = geoseries.type.unique()
-    geometry_types_simpl = topo_simpl_geoseries.type.unique()
+    geometry_types_orig = geoseries.geom_type.unique()
+    geometry_types_simpl = topo_simpl_geoseries.geom_type.unique()
     if len(geometry_types_orig) == 1 and len(geometry_types_simpl) > 1:
         topo_simpl_geoseries = geometry_collection_extract(
             topo_simpl_geoseries,

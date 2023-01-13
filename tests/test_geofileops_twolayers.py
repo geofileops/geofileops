@@ -103,7 +103,7 @@ def test_erase_explodecollections(tmp_path):
     output_gpd_gdf = gpd.overlay(
         input_gdf, erase_gdf, how="difference", keep_geom_type=True
     )
-    output_gpd_gdf = output_gpd_gdf.explode(ignore_index=True)
+    output_gpd_gdf = output_gpd_gdf.explode(ignore_index=True)  # type: ignore
     assert_geodataframe_equal(
         output_gdf,
         output_gpd_gdf,
@@ -400,37 +400,39 @@ def test_select_two_layers(tmp_path, suffix, epsg):
             input2_layer_info.geometrytype.to_primitivetype.value,
         )
     )
+    rtree_layer1 = "rtree_{input1_layer}_{input1_geometrycolumn}"
+    rtree_layer2 = "rtree_{input2_layer}_{input2_geometrycolumn}"
     sql_stmt = f"""
-            SELECT ST_CollectionExtract(
-                    ST_Intersection(
-                            layer1.{{input1_geometrycolumn}},
-                            layer2.{{input2_geometrycolumn}}),
-                    {primitivetype_to_extract.value}) as geom
-                    {{layer1_columns_prefix_alias_str}}
-                    {{layer2_columns_prefix_alias_str}}
-                    ,CASE
-                        WHEN layer2.naam = 'zone1' THEN 'in_zone1'
-                        ELSE 'niet_in_zone1'
-                        END AS category
-                FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                JOIN {{input1_databasename}}."rtree_{{input1_layer}}_{{input1_geometrycolumn}}" layer1tree
-                     ON layer1.fid = layer1tree.id
-                JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                JOIN {{input2_databasename}}."rtree_{{input2_layer}}_{{input2_geometrycolumn}}" layer2tree
-                     ON layer2.fid = layer2tree.id
-            WHERE 1=1
-                {{batch_filter}}
-                AND layer1tree.minx <= layer2tree.maxx
-                AND layer1tree.maxx >= layer2tree.minx
-                AND layer1tree.miny <= layer2tree.maxy
-                AND layer1tree.maxy >= layer2tree.miny
-                AND ST_Intersects(
-                        layer1.{{input1_geometrycolumn}},
-                        layer2.{{input2_geometrycolumn}}) = 1
-                AND ST_Touches(
-                        layer1.{{input1_geometrycolumn}},
-                        layer2.{{input2_geometrycolumn}}) = 0
-            """
+        SELECT ST_CollectionExtract(
+                 ST_Intersection(
+                     layer1.{{input1_geometrycolumn}},
+                     layer2.{{input2_geometrycolumn}}),
+              {primitivetype_to_extract.value}) as geom
+              {{layer1_columns_prefix_alias_str}}
+              {{layer2_columns_prefix_alias_str}}
+              ,CASE
+                 WHEN layer2.naam = 'zone1' THEN 'in_zone1'
+                 ELSE 'niet_in_zone1'
+               END AS category
+          FROM {{input1_databasename}}."{{input1_layer}}" layer1
+          JOIN {{input1_databasename}}."{rtree_layer1}" layer1tree
+            ON layer1.fid = layer1tree.id
+          JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+          JOIN {{input2_databasename}}."{rtree_layer2}" layer2tree
+            ON layer2.fid = layer2tree.id
+         WHERE 1=1
+           {{batch_filter}}
+           AND layer1tree.minx <= layer2tree.maxx
+           AND layer1tree.maxx >= layer2tree.minx
+           AND layer1tree.miny <= layer2tree.maxy
+           AND layer1tree.maxy >= layer2tree.miny
+           AND ST_Intersects(
+                  layer1.{{input1_geometrycolumn}},
+                  layer2.{{input2_geometrycolumn}}) = 1
+           AND ST_Touches(
+                  layer1.{{input1_geometrycolumn}},
+                  layer2.{{input2_geometrycolumn}}) = 0
+    """
     gfo.select_two_layers(
         input1_path=input1_path,
         input2_path=input2_path,
@@ -555,8 +557,13 @@ def test_symmetric_difference(tmp_path, suffix, epsg):
     "suffix, epsg", [(".gpkg", 31370), (".gpkg", 4326), (".shp", 31370)]
 )
 def test_union(tmp_path, suffix, epsg):
-    input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
-    input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
+    # Prepare test files
+    input1_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=suffix, epsg=epsg)
+    input2_path = test_helper.get_testfile("polygon-zone", dst_dir=tmp_path, suffix=suffix, epsg=epsg)
+    # Add null TEXT column to each file to make sure it stays TEXT type after union
+    gfo.add_column(input1_path, name="test1_null", type=gfo.DataType.TEXT)
+    gfo.add_column(input2_path, name="test2_null", type=gfo.DataType.TEXT)
+    
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input1_layerinfo.featurecount / 2)
 

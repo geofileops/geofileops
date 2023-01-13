@@ -21,4 +21,4 @@ formats: []
 
 # Specify conda env required to build docs 
 conda:
-  environment: environment.yml
+  environment: ci/envs/readthedocs.yml

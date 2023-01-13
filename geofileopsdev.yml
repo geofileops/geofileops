@@ -1,0 +1,30 @@
+name: geofileopsdev
+channels:
+  - conda-forge
+dependencies:
+  - python=3.9
+  - pip
+  # required
+  - cloudpickle
+  - fiona
+  - gdal
+  - geopandas>=0.11
+  - libspatialite>=5.0
+  - numpy
+  - pandas
+  - psutil
+  - pygeos
+  - pyproj
+  - shapely
+  - topojson
+  # testing
+  - pytest
+  - pytest-cov
+  # linting
+  - black
+  - flake8
+  # docs
+  - pydata-sphinx-theme
+  - pip:
+    - sphinx-automodapi==0.13
+    - simplification

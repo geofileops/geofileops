@@ -124,14 +124,7 @@ def copyfile(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[A
 
     else:
         # If the destination is a dir, make it a full file path
-        dst_p = Path(dst)
-        if dst_p.is_dir():
-            src_p = Path(src)
-            dst_p = dst_p / src_p.name
-
-        buffer_size = 1024 * 1024 * 5
-        with open(src, "rb") as fsrc, open(dst_p, "wb") as fdest:
-            shutil.copyfileobj(fsrc, fdest, buffer_size)
+        shutil.copy2(src=src, dst=dst)
 
 
 '''
@@ -164,7 +157,8 @@ def create_file_atomic(filename) -> bool:
     """
     Create a lock file in an atomic way, so it is threadsafe.
 
-    Returns True if the file was created by this thread, False if the file existed already.
+    Returns True if the file was created by this thread, False if the file existed
+    already.
     """
     try:
         fd = os.open(filename, os.O_CREAT | os.O_EXCL)

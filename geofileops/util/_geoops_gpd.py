@@ -13,6 +13,7 @@ import math
 import multiprocessing
 from pathlib import Path
 import pickle
+import re
 import shutil
 import time
 from typing import (
@@ -35,6 +36,7 @@ import psutil
 import shapely.geometry as sh_geom
 
 import geofileops as gfo
+from geofileops import fileops
 from geofileops.util import _general_util
 from geofileops.util import _geoops_sql
 from geofileops.util.geometry_util import GeometryType, PrimitiveType, SimplifyAlgorithm
@@ -675,7 +677,8 @@ def dissolve(
     More detailed documentation in module geoops!
     """
 
-    # Init
+    # Init and validate input parameters
+    # ----------------------------------
     start_time = datetime.now()
     operation = "dissolve"
     result_info = {}
@@ -695,18 +698,14 @@ def dissolve(
                 "Dissolve to tiles (tiles_path, nb_squarish_tiles) is not supported "
                 f"for {input_layerinfo.geometrytype}"
             )
-    if output_path.exists():
-        if force is False:
-            result_info[
-                "message"
-            ] = f"output exists already {output_path} and force is false"
-            logger.info(result_info["message"])
-            return result_info
-        else:
-            gfo.remove(output_path)
+
+    # Check columns in groupby_columns + make case insensitive
+    if groupby_columns is not None:
+        groupby_columns = _general_util.align_casing_list(
+            list(groupby_columns), input_layerinfo.columns
+        )
 
     # Check agg_columns param
-    columns_upper_dict = {col.upper(): col for col in input_layerinfo.columns}
     if agg_columns is not None:
         message = (
             'agg_columns malformed. Options are: {"json": [<list_columns>]} '
@@ -727,23 +726,14 @@ def dissolve(
 
         if "json" in agg_columns:
             if agg_columns["json"] is None:
-                # agg_columns["json"] = list(input_layerinfo.columns)
                 agg_columns["json"] = [
                     col for col in input_layerinfo.columns if col.upper() != "INDEX"
                 ]
             else:
-                # Check if column exists + set casing same as in data
-                columns_in_data = []
-                for column in agg_columns["json"]:
-                    column_in_data = columns_upper_dict.get(column.upper())
-                    if column_in_data is not None:
-                        columns_in_data.append(column_in_data)
-                    else:
-                        raise ValueError(
-                            f"Error: column '{column}' is not available "
-                            f"in {input_path}, layer {input_layer}"
-                        )
-                agg_columns["json"] = columns_in_data
+                # Align casing of column names to data
+                agg_columns["json"] = _general_util.align_casing_list(
+                    agg_columns["json"], input_layerinfo.columns
+                )
 
         elif "columns" in agg_columns:
             supported_aggfuncs = [
@@ -767,16 +757,9 @@ def dissolve(
 
                 # Check if column exists + set casing same as in data
                 if "column" in agg_column:
-                    column_in_data = columns_upper_dict.get(
-                        agg_column["column"].upper()
+                    agg_column["column"] = _general_util.align_casing(
+                        agg_column["column"], input_layerinfo.columns
                     )
-                    if column_in_data is not None:
-                        agg_column["column"] = column_in_data
-                    else:
-                        raise ValueError(
-                            f"Error: column '{agg_column['column']}' is not available "
-                            f"in {input_path}, layer {input_layer}"
-                        )
                 else:
                     raise ValueError(message)
                 if "agg" in agg_column:
@@ -797,6 +780,17 @@ def dissolve(
                     raise ValueError(message)
         else:
             raise ValueError(message)
+
+    # Now input parameters are checked, check if we need to calcalate anyway
+    if output_path.exists():
+        if force is False:
+            result_info[
+                "message"
+            ] = f"output exists already {output_path} and force is false"
+            logger.info(result_info["message"])
+            return result_info
+        else:
+            gfo.remove(output_path)
 
     # If a tiles_path is specified, read those tiles...
     result_tiles_gdf = None
@@ -821,7 +815,7 @@ def dissolve(
         result_tiles_gdf["tile_id"] = result_tiles_gdf.reset_index().index
 
     # Now start dissolving
-
+    # --------------------
     # Line and point layers are:
     #   * not so large (memory-wise)
     #   * aren't computationally heavy
@@ -903,7 +897,7 @@ def dissolve(
                 if nb_batches_recommended <= len(result_tiles_gdf) * 1.1:
                     tiles_gdf = result_tiles_gdf
                     last_pass = True
-                    nb_parallel = len(result_tiles_gdf)
+                    nb_parallel = min(len(result_tiles_gdf), nb_parallel)
                 elif len(result_tiles_gdf) == 1:
                     # Create a grid based on the ideal number of batches, but make
                     # sure the number is smaller than the maximum...
@@ -984,13 +978,11 @@ def dissolve(
                     else:
                         groupby_columns = list(groupby_columns).copy()
                         groupby_columns.append("tile_id")
-                    columns_upper_dict = {col.upper(): col for col in groupby_columns}
 
                 # Prepare strings to use in select based on groupby_columns
                 if groupby_columns is not None:
                     groupby_prefixed_list = [
-                        f'{{prefix}}"{columns_upper_dict[column.upper()]}"'
-                        for column in groupby_columns
+                        f'{{prefix}}"{column}"' for column in groupby_columns
                     ]
                     groupby_select_prefixed_str = (
                         f", {', '.join(groupby_prefixed_list)}"
@@ -1000,8 +992,7 @@ def dissolve(
                     )
 
                     groupby_filter_list = [
-                        f' AND geo_data."{columns_upper_dict[column.upper()]}" '
-                        f'= json_data."{columns_upper_dict[column.upper()]}"'
+                        f' AND geo_data."{column}" = json_data."{column}"'
                         for column in groupby_columns
                     ]
                     groupby_filter_str = " ".join(groupby_filter_list)
@@ -1052,10 +1043,9 @@ def dissolve(
                                 distinct_str = "DISTINCT "
 
                             # Prepare column name string.
-                            # Make sure the columns name casing is same as input file
-                            column = columns_upper_dict[agg_column["column"].upper()]
                             column_str = (
-                                f'json_extract(json_data.json_row, "$.{column}")'
+                                "json_extract(json_data.json_row, "
+                                f'"$.{agg_column["column"]}")'
                             )
 
                             # Now put everything together
@@ -1167,6 +1157,9 @@ def _dissolve_polygons_pass(
     nb_parallel: int,
 ) -> dict:
 
+    # Make sure the input file has a spatial index
+    gfo.create_spatial_index(input_path, exist_ok=True)
+
     # Start calculation in parallel
     start_time = datetime.now()
     result_info = {}
@@ -1193,6 +1186,7 @@ def _dissolve_polygons_pass(
 
             batches[batch_id] = {}
             batches[batch_id]["layer"] = output_layer
+            batches[batch_id]["bounds"] = tile_row.geometry.bounds
 
             # Output each batch to a seperate temporary file, otherwise there
             # are timeout issues when processing large files
@@ -1263,9 +1257,10 @@ def _dissolve_polygons_pass(
                         output_notonborder_tmp_partial_path.exists()
                         and output_notonborder_tmp_partial_path.stat().st_size > 0
                     ):
-                        gfo.append_to(
+                        fileops._append_to_nolock(
                             src=output_notonborder_tmp_partial_path,
                             dst=output_notonborder_path,
+                            create_spatial_index=False,
                         )
                         gfo.remove(output_notonborder_tmp_partial_path)
 
@@ -1277,9 +1272,10 @@ def _dissolve_polygons_pass(
                         output_onborder_tmp_partial_path.exists()
                         and output_onborder_tmp_partial_path.stat().st_size > 0
                     ):
-                        gfo.append_to(
+                        fileops._append_to_nolock(
                             src=output_onborder_tmp_partial_path,
                             dst=output_onborder_path,
+                            create_spatial_index=False,
                         )
                         gfo.remove(output_onborder_tmp_partial_path)
 
@@ -1442,10 +1438,20 @@ def _dissolve_polygons(
             data=[1], geometry=[bbox_polygon], crs=input_gdf.crs  # type: ignore
         )
 
-        # keep_geom_type=True gave sometimes error, and still does in 0.9.0
-        # so use own implementation of keep_geom_type
-        diss_gdf = gpd.clip(diss_gdf, bbox_gdf)  # , keep_geom_type=True)
-        assert isinstance(diss_gdf, gpd.GeoDataFrame)
+        # Catch irrelevant pandas future warning
+        # TODO: when removed in later version of pandas, can be removed here
+        with warnings.catch_warnings():
+            message = (
+                "In a future version, `df.iloc[:, i] = newvals` will attempt to "
+                "set the values inplace instead of always setting a new array."
+            )
+            warnings.filterwarnings(
+                action="ignore", category=FutureWarning, message=re.escape(message)
+            )
+            # keep_geom_type=True gave sometimes error, and still does in 0.9.0
+            # so use own implementation of keep_geom_type
+            diss_gdf = gpd.clip(diss_gdf, bbox_gdf)  # , keep_geom_type=True)
+            assert isinstance(diss_gdf, gpd.GeoDataFrame)
 
         # Only keep geometries of the primitive type specified after clip...
         assert isinstance(diss_gdf, gpd.GeoDataFrame)
@@ -1487,6 +1493,7 @@ def _dissolve_polygons(
             layer=output_layer,
             force_multitype=True,
             index=False,
+            create_spatial_index=False,
         )
     else:
         # If not, save the polygons on the border seperately
@@ -1508,6 +1515,7 @@ def _dissolve_polygons(
                 output_onborder_path,
                 layer=output_layer,
                 force_multitype=True,
+                create_spatial_index=False,
             )
 
         notonborder_gdf = diss_gdf[~diss_gdf.index.isin(onborder_gdf.index)]
@@ -1522,6 +1530,7 @@ def _dissolve_polygons(
                 layer=output_layer,
                 force_multitype=True,
                 index=False,
+                create_spatial_index=False,
             )
     perfinfo["time_to_file"] = (datetime.now() - start_to_file).total_seconds()
 
@@ -1679,7 +1688,7 @@ def _dissolve(
             .to_frame(name="__DISSOLVE_TOJSON")
         )
     else:
-        aggregated_data = data.groupby(**groupby_kwargs).agg(aggfunc)
+        aggregated_data = data.groupby(**groupby_kwargs).agg(aggfunc)  # type: ignore
         # Check if all columns were properly aggregated
         columns_to_agg = [column for column in data.columns if column not in by_local]
         if len(columns_to_agg) != len(aggregated_data.columns):
@@ -1711,6 +1720,17 @@ def _dissolve(
     # Reset if requested
     if not as_index:
         aggregated = aggregated.reset_index()
+
+    # Make sure output types of grouped columns are the same as input types.
+    # E.g. object columns become float if all values are None.
+    if by is not None:
+        if isinstance(by, str):
+            if by in aggregated.columns and df[by].dtype != aggregated[by].dtype:
+                aggregated[by] = aggregated[by].astype(df[by].dtype)
+        elif isinstance(by, Iterable):
+            for col in by:
+                if col in aggregated.columns and df[col].dtype != aggregated[col].dtype:
+                    aggregated[col] = aggregated[col].astype(df[col].dtype)
 
     assert isinstance(aggregated, gpd.GeoDataFrame)
     return aggregated
@@ -1747,4 +1767,4 @@ def _add_orderby_column(path: Path, layer: str, name: str):
     # Now we can actually add the column.
     gfo.add_column(path=path, name=name, type=gfo.DataType.TEXT, expression=expression)
     sqlite_stmt = f'CREATE INDEX {name}_idx ON "{layer}"({name})'
-    _ogr_util.vector_info(path=path, sql_stmt=sqlite_stmt, readonly=False)
+    gfo.execute_sql(path=path, sql_stmt=sqlite_stmt)

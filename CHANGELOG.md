@@ -1,10 +1,51 @@
 # CHANGELOG
 
-## 0.7.0
+## 0.7.0 (???)
 
 ### Improvements
 
+- Support geopandas 12 with shapely 2.0 + pygeos (#191, #193)
 - Use pyogrio for GeoDataFrame io to improve performance for some operations (#64)
+
+## 0.6.3 (2022-12-12)
+
+### Improvements
+
+- Make writing to gpkg more robust in locking situations (#179)
+- Add create_spatial_index parameter to to_file (#183)
+- Ignore pandas futurewarning in dissolve (#184)
+- Improve dissolve performance (#185)
+- Small general improvements (#180)
+
+### Bugs fixed
+
+- Fix groupby columns in dissolve sometimes becoming all NULL values (#181)
+
+### Deprecations and compatibility notes
+
+- In to_file, the default behaviour is now also for .shp to create a spatial index, consistent with convert,... (#183)
+
+## 0.6.2 (2022-11-14)
+
+### Bugs fixed
+
+- Fix regression in to_file to support append to unexisting file (#177)
+
+## 0.6.1 (2022-11-14)
+
+### Improvements
+
+- Add (private) function `is_valid_reason` for GeoSeries (#164)
+- Small improvements in logging, formatting, avoid deprecation warnings,... (#163, #166, #171)
+- Add CI tests for python 3.10 and 3.11. On python 3.11 the simplification library is 
+  not available (#170) 
+
+### Bugs fixed
+
+- Fix groupby columns in dissolve not being treated case insensitive (#162)
+- Fix to_file doesn't throw an error nor saves data when appending a dataframe with different columns than file (#159)
+- Fix ValueError: max_workers must be <= 61 in dissolve (#160)
+- Fix sql_dialect parameter is ignored in select operation (#115)
 
 ## 0.6.0 (2022-08-23)
 

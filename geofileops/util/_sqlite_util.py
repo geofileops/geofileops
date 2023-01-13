@@ -192,7 +192,10 @@ def create_table_as_sql(
             # Determine columns/datatypes to create the table
             # Create temp table to get the column names + general data types
             # + fetch one row to use it to determine geometrytype.
-            sql = f"CREATE TEMPORARY TABLE tmp AS \nSELECT * FROM (\n{sql_stmt}\n)\nLIMIT 1;"
+            sql = (
+                f"CREATE TEMPORARY TABLE tmp AS \n"
+                f"    SELECT * FROM (\n{sql_stmt}\n)\nLIMIT 1;"
+            )
             conn.execute(sql)
             sql = "PRAGMA TABLE_INFO(tmp)"
             cur = conn.execute(sql)
@@ -258,19 +261,32 @@ def create_table_as_sql(
             # Solution: mimic the behaviour of gpkgAddGeometryColumn manually.
             # Create table without geom column
             """ 
-            columns_for_create = [f'"{columnname}" {column_types[columnname]}\n' for columnname in column_types if columnname != 'geom']
-            sql = f'CREATE TABLE {output_databasename}."{output_layer}" ({", ".join(columns_for_create)})'
+            columns_for_create = [
+                f'"{columnname}" {column_types[columnname]}\n' for columnname
+                in column_types if columnname != 'geom'
+            ]
+            sql = (
+                f'CREATE TABLE {output_databasename}."{output_layer}" '
+                f'({", ".join(columns_for_create)})'
+            )
             conn.execute(sql)
             # Add geom column with gpkgAddGeometryColumn()
-            # Remark: output_geometrytype.name should be detemined from data if needed, see above...
-            sql = f"SELECT gpkgAddGeometryColumn('{output_layer}', 'geom', '{output_geometrytype.name}', 0, 0, {to_string_for_sql(crs_epsg)});"
+            # Remark: output_geometrytype.name should be detemined from data if needed,
+            # see above...
+            sql = (
+                f"SELECT gpkgAddGeometryColumn("
+                f"    '{output_layer}', 'geom', '{output_geometrytype.name}', 0, 0, "
+                f"    {to_string_for_sql(crs_epsg)});"
             conn.execute(sql)
             """
             columns_for_create = [
                 f'"{columnname}" {column_types[columnname]}\n'
                 for columnname in column_types
             ]
-            sql = f'CREATE TABLE {output_databasename}."{output_layer}" ({", ".join(columns_for_create)})'
+            sql = (
+                f'CREATE TABLE {output_databasename}."{output_layer}" '
+                f'({", ".join(columns_for_create)})'
+            )
             conn.execute(sql)
 
             # Add metadata
@@ -278,17 +294,19 @@ def create_table_as_sql(
             if output_suffix_lower == ".gpkg":
                 # ~ mimic behaviour of gpkgAddGeometryColumn()
                 sql = f"""
-                        INSERT INTO {output_databasename}.gpkg_contents (
-                                table_name, data_type, identifier, description, last_change, 
-                                min_x, min_y, max_x, max_y, srs_id)
-                            VALUES ('{output_layer}', 'features', NULL, '', DATETIME(),
-                                NULL, NULL, NULL, NULL, {to_string_for_sql(crs_epsg)});"""
+                    INSERT INTO {output_databasename}.gpkg_contents (
+                        table_name, data_type, identifier, description, last_change,
+                        min_x, min_y, max_x, max_y, srs_id)
+                    VALUES ('{output_layer}', 'features', NULL, '', DATETIME(),
+                        NULL, NULL, NULL, NULL, {to_string_for_sql(crs_epsg)});
+                """
                 conn.execute(sql)
                 sql = f"""
-                        INSERT INTO {output_databasename}.gpkg_geometry_columns (
-                                table_name, column_name, geometry_type_name, srs_id, z, m)
-                            VALUES ('{output_layer}', 'geom', '{output_geometrytype.name}', 
-                                    {to_string_for_sql(crs_epsg)}, 0, 0);"""
+                    INSERT INTO {output_databasename}.gpkg_geometry_columns (
+                        table_name, column_name, geometry_type_name, srs_id, z, m)
+                    VALUES ('{output_layer}', 'geom', '{output_geometrytype.name}',
+                        {to_string_for_sql(crs_epsg)}, 0, 0);
+                """
                 conn.execute(sql)
 
                 # Now add geom triggers
@@ -298,14 +316,18 @@ def create_table_as_sql(
             elif output_suffix_lower == ".sqlite":
                 # Create metadata for the geometry column
                 sql = f"""
-                        SELECT RecoverGeometryColumn(
-                            '{output_layer}', 'geom',
-                            {to_string_for_sql(crs_epsg)}, '{output_geometrytype.name}');"""
+                    SELECT RecoverGeometryColumn(
+                        '{output_layer}', 'geom',
+                        {to_string_for_sql(crs_epsg)}, '{output_geometrytype.name}');
+                """
                 conn.execute(sql)
 
             # Insert data using the sql statement specified
             columns_for_insert = [f'"{column[1]}"' for column in tmpcolumns]
-            sql = f'INSERT INTO {output_databasename}."{output_layer}" ({", ".join(columns_for_insert)})\n{sql_stmt}'
+            sql = (
+                f'INSERT INTO {output_databasename}."{output_layer}" '
+                f'({", ".join(columns_for_insert)})\n{sql_stmt}'
+            )
             conn.execute(sql)
 
             # Create spatial index if needed

@@ -366,7 +366,9 @@ def get_only_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
     datasource = None
     try:
         datasource_layer = None
-        datasource = gdal.OpenEx(str(path))
+        datasource = gdal.OpenEx(
+            str(path), nOpenFlags=gdal.OF_VECTOR | gdal.OF_READONLY | gdal.OF_SHARED
+        )
         nb_layers = datasource.GetLayerCount()
         if nb_layers == 1:
             datasource_layer = datasource.GetLayerByIndex(0)
@@ -1079,6 +1081,7 @@ def to_file(
     append: bool = False,
     append_timeout_s: int = 600,
     index: bool = True,
+    create_spatial_index: Optional[bool] = True,
 ):
     """
     Writes a pandas dataframe to file.
@@ -1093,12 +1096,16 @@ def to_file(
         force_multitype (bool, optional): force the geometry type to a multitype
             for file types that require one geometrytype per layer.
             Defaults to False.
-        append (bool, optional): True to append to the file. Defaults to False.
+        append (bool, optional): True to append to the file/layer if it exists already.
+            If it doesn't exist yet, it is created. Defaults to False.
         append_timeout_s (int, optional): The maximum timeout to wait when the
             output file is already being written to by another process.
             Defaults to 600.
         index (bool, optional): True to write the pandas index to the file as
             well. Defaults to True.
+        create_spatial_index (bool, optional): True to force creation of spatial index,
+            False to avoid creation. None leads to the default behaviour of gdal.
+            Defaults to True.
 
     Raises:
         ValueError: an invalid parameter value was passed.
@@ -1114,13 +1121,16 @@ def to_file(
     """
     path = Path(path)
 
-    # If no layer name specified, use the filename (without extension)
-    if layer is None:
-        layer = Path(path).stem
-    # If the dataframe is empty, log warning and return
+    # If the dataframe is empty, return
     if len(gdf) <= 0:
-        # logger.warn(f"Cannot write an empty dataframe to {filepath}.{layer}")
         return
+
+    # If no layer name specified, determine one
+    if layer is None:
+        if append and path.exists():
+            layer = get_only_layer(path)
+        else:
+            layer = Path(path).stem
 
     # If no geometry, prepare to be written as attribute table.
     # Add geometry column with None geometries
@@ -1141,8 +1151,8 @@ def to_file(
         force_multitype: bool = False,
         append: bool = False,
         schema: Optional[dict] = None,
+        create_spatial_index: Optional[bool] = True,
     ):
-
         # Change mode if append is true
         if append is True:
             if path.exists():
@@ -1152,59 +1162,40 @@ def to_file(
         else:
             mode = "w"
 
+        kwargs = {}
+        if create_spatial_index is not None:
+            kwargs = {"SPATIAL_INDEX": create_spatial_index}
         geofiletype = GeofileType(path)
         if geofiletype == GeofileType.ESRIShapefile:
             if index is True:
                 gdf_to_write = gdf.reset_index(drop=True)
             else:
                 gdf_to_write = gdf
-            if mode == "w" and schema is None:
-                # pyogrio only supports write
-                pyogrio.write_dataframe(
-                    gdf_to_write, str(path), driver=geofiletype.ogrdriver
-                )
-            else:
-                gdf_to_write.to_file(str(path), driver=geofiletype.ogrdriver, mode=mode)
+            gdf_to_write.to_file(str(path), driver=geofiletype.ogrdriver, mode=mode)
         elif geofiletype == GeofileType.GPKG:
-            if mode == "w" and schema is None:
-                # pyogrio only supports write
-                pyogrio.write_dataframe(
-                    df=gdf, path=path, layer=layer, driver=geofiletype.ogrdriver
+            # Try to harmonize the geometrytype to one (multi)type, as GPKG
+            # doesn't like > 1 type in a layer
+            gdf_to_write = gdf.copy()
+            if schema is None or schema["geometry"] != "None":
+                gdf_to_write.geometry = geoseries_util.harmonize_geometrytypes(
+                    gdf.geometry, force_multitype=force_multitype
                 )
-            else:
-                # Try to harmonize the geometrytype to one (multi)type, as GPKG
-                # doesn't like > 1 type in a layer
-                gdf_to_write = gdf.copy()
-                if schema is None or schema["geometry"] != "None":
-                    gdf_to_write.geometry = geoseries_util.harmonize_geometrytypes(
-                        gdf.geometry, force_multitype=force_multitype
-                    )
-                gdf_to_write.to_file(
-                    path,
-                    layer=layer,
-                    driver=geofiletype.ogrdriver,
-                    mode=mode,
-                    schema=schema,
-                )
-        elif geofiletype in [GeofileType.SQLite, GeofileType.GeoJSON]:
-            if mode == "w" and schema is None:
-                # pyogrio only supports write
-                pyogrio.write_dataframe(
-                    gdf, str(path), layer=layer, driver=geofiletype.ogrdriver
-                )
-            else:
-                gdf.to_file(
-                    str(path),
-                    layer=layer,
-                    driver=geofiletype.ogrdriver,
-                    mode=mode,
-                    schema=schema,
-                )
+            gdf_to_write.to_file(
+                str(path),
+                layer=layer,
+                driver=geofiletype.ogrdriver,
+                mode=mode,
+                schema=schema,
+            )
+        elif geofiletype == GeofileType.SQLite:
+            gdf.to_file(str(path), layer=layer, driver=geofiletype.ogrdriver, mode=mode)
+        elif geofiletype == GeofileType.GeoJSON:
+            gdf.to_file(str(path), driver=geofiletype.ogrdriver, mode=mode)
         else:
             raise ValueError(f"Not implemented for geofiletype {geofiletype}")
 
     # If no append, just write to output path
-    if append is False:
+    if not append:
         write_to_file(
             gdf=gdf,
             path=path,
@@ -1213,9 +1204,10 @@ def to_file(
             force_multitype=force_multitype,
             append=append,
             schema=schema,
+            create_spatial_index=create_spatial_index,
         )
     else:
-        # If append is asked, check if the fiona driver supports appending. If
+        # Append is asked, check if the fiona driver supports appending. If
         # not, write to temporary output file
 
         # Remark: fiona pre-1.8.14 didn't support appending to geopackage. Once
@@ -1238,13 +1230,15 @@ def to_file(
                 index=index,
                 force_multitype=force_multitype,
                 schema=schema,
+                create_spatial_index=create_spatial_index,
             )
 
         # Files don't typically support having multiple processes writing
         # simultanously to them, so use lock file to synchronize access.
         lockfile = Path(f"{str(path)}.lock")
         start_time = datetime.datetime.now()
-        while True:
+        ready = False
+        while not ready:
             if _io_util.create_file_atomic(lockfile) is True:
                 try:
                     # If gdf wasn't written to temp file, use standard write-to-file
@@ -1257,16 +1251,29 @@ def to_file(
                             force_multitype=force_multitype,
                             append=True,
                             schema=schema,
+                            create_spatial_index=create_spatial_index,
                         )
                     else:
                         # If gdf written to temp file, use append_to_nolock + cleanup
-                        _append_to_nolock(src=gdftemp_path, dst=path, dst_layer=layer)
+                        _append_to_nolock(
+                            src=gdftemp_path,
+                            dst=path,
+                            dst_layer=layer,
+                            create_spatial_index=create_spatial_index,
+                        )
                         remove(gdftemp_path)
                         if gdftemp_lockpath is not None:
                             gdftemp_lockpath.unlink()
+                except Exception as ex:
+                    # If sqlite output file locked, also retry
+                    if geofiletype.is_spatialite_based and str(ex) not in [
+                        "database is locked",
+                        "attempt to write a readonly database",
+                    ]:
+                        raise ex
                 finally:
+                    ready = True
                     lockfile.unlink()
-                    return
             else:
                 time_waiting = (datetime.datetime.now() - start_time).total_seconds()
                 if time_waiting > append_timeout_s:
@@ -1411,7 +1418,7 @@ def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
     geofiletype = GeofileType(src)
 
     # Move the main file
-    shutil.move(str(src), dst, copy_function=_io_util.copyfile)
+    shutil.move(str(src), dst)
 
     # For some file types, extra files need to be moved
     # If dest is a dir, just use move. Otherwise concat dest filepaths
@@ -1420,13 +1427,13 @@ def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
             for suffix in geofiletype.suffixes_extrafiles:
                 srcfile = src.parent / f"{src.stem}{suffix}"
                 if srcfile.exists():
-                    shutil.move(str(srcfile), dst, copy_function=_io_util.copyfile)
+                    shutil.move(str(srcfile), dst)
         else:
             for suffix in geofiletype.suffixes_extrafiles:
                 srcfile = src.parent / f"{src.stem}{suffix}"
                 dstfile = dst.parent / f"{dst.stem}{suffix}"
                 if srcfile.exists():
-                    shutil.move(str(srcfile), dstfile, copy_function=_io_util.copyfile)
+                    shutil.move(str(srcfile), dstfile)
 
 
 def remove(path: Union[str, "os.PathLike[Any]"], missing_ok: bool = False):
@@ -1467,7 +1474,7 @@ def append_to(
     reproject: bool = False,
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
-    create_spatial_index: bool = True,
+    create_spatial_index: Optional[bool] = True,
     append_timeout_s: int = 600,
     transaction_size: int = 50000,
     options: dict = {},
@@ -1512,7 +1519,8 @@ def append_to(
         force_output_geometrytype (GeometryType, optional): geometry type.
             to (try to) force the output to. Defaults to None.
         create_spatial_index (bool, optional): True to create a spatial index
-            on the destination file/layer. If the LAYER_CREATION.SPATIAL_INDEX
+            on the destination file/layer. If None, the default behaviour by gdal for
+            that file type is respected. If the LAYER_CREATION.SPATIAL_INDEX
             parameter is specified in options, create_spatial_index is ignored.
             Defaults to True.
         append_timeout_s (int, optional): timeout to use if the output file is
@@ -1545,7 +1553,8 @@ def append_to(
 
     # Creating lockfile and append
     start_time = datetime.datetime.now()
-    while True:
+    ready = False
+    while not ready:
 
         if _io_util.create_file_atomic(lockfile) is True:
             try:
@@ -1565,8 +1574,8 @@ def append_to(
                     options=options,
                 )
             finally:
+                ready = True
                 lockfile.unlink()
-                return
         else:
             time_waiting = (datetime.datetime.now() - start_time).total_seconds()
             if time_waiting > append_timeout_s:
@@ -1588,14 +1597,17 @@ def _append_to_nolock(
     dst_crs: Union[int, str, None] = None,
     reproject: bool = False,
     explodecollections: bool = False,
-    create_spatial_index: bool = True,
+    create_spatial_index: Optional[bool] = True,
     force_output_geometrytype: Optional[GeometryType] = None,
     transaction_size: int = 50000,
     options: dict = {},
 ):
     # Check/clean input params
     options = _ogr_util._prepare_gdal_options(options)
-    if "LAYER_CREATION.SPATIAL_INDEX" not in options:
+    if (
+        create_spatial_index is not None
+        and "LAYER_CREATION.SPATIAL_INDEX" not in options
+    ):
         options["LAYER_CREATION.SPATIAL_INDEX"] = create_spatial_index
 
     # When creating/appending to a shapefile, launder the columns names via
@@ -1603,7 +1615,8 @@ def _append_to_nolock(
     # get NULL values instead of the data.
     sql_stmt = None
     if dst.suffix.lower() == ".shp":
-        src_columns = get_layerinfo(src).columns
+        src_info = get_layerinfo(src)
+        src_columns = src_info.columns
         columns_laundered = _launder_column_names(src_columns)
         columns_aliased = [
             f'"{column}" AS "{laundered}"' for column, laundered in columns_laundered
@@ -1642,7 +1655,7 @@ def convert(
     reproject: bool = False,
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
-    create_spatial_index: bool = True,
+    create_spatial_index: Optional[bool] = True,
     options: dict = {},
     force: bool = False,
 ):
@@ -1685,16 +1698,21 @@ def convert(
         force_output_geometrytype (GeometryType, optional): Geometry type.
             to (try to) force the output to. Defaults to None.
         create_spatial_index (bool, optional): True to create a spatial index
-            on the destination file/layer. If the LAYER_CREATION.SPATIAL_INDEX
+            on the destination file/layer. If None, the default behaviour by gdal for
+            that file type is respected. If the LAYER_CREATION.SPATIAL_INDEX
             parameter is specified in options, create_spatial_index is ignored.
             Defaults to True.
         options (dict, optional): options to pass to gdal.
         force (bool, optional): overwrite existing output file(s)
             Defaults to False.
     """
+    # Init
     src = Path(src)
     dst = Path(dst)
 
+    # If source file doesn't exist, raise error
+    if not src.exists():
+        raise ValueError(f"src file doesn't exist: {src}")
     # If dest file exists already, remove it
     if dst.exists():
         if force is True:
