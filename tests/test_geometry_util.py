@@ -199,6 +199,17 @@ def test_simplify_coords_lang():
     coords_simplified = geometry_util.simplify_coords_lang(
         coords=linestring.coords, tolerance=1, lookahead=-1
     )
+    assert isinstance(coords_simplified, np.ndarray)
+    assert len(coords_simplified) < len(linestring.coords)
+    assert len(coords_simplified) == 2
+
+
+def test_simplify_coords_lang_list():
+    # Test LineString, lookahead -1, via coordinates
+    linestring = sh_geom.LineString([(0, 0), (10, 10), (20, 20)])
+    coords_simplified = geometry_util.simplify_coords_lang(
+        coords=list(linestring.coords), tolerance=1, lookahead=-1
+    )
     assert isinstance(coords_simplified, list)
     assert len(coords_simplified) < len(linestring.coords)
     assert len(coords_simplified) == 2

@@ -157,7 +157,8 @@ def create_file_atomic(filename) -> bool:
     """
     Create a lock file in an atomic way, so it is threadsafe.
 
-    Returns True if the file was created by this thread, False if the file existed already.
+    Returns True if the file was created by this thread, False if the file existed
+    already.
     """
     try:
         fd = os.open(filename, os.O_CREAT | os.O_EXCL)
