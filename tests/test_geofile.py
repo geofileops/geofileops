@@ -482,7 +482,7 @@ def test_read_file(suffix):
     assert len(read_gdf) == 46
     columns.append("geometry")
     for index, column in enumerate(read_gdf.columns):
-        assert column.casefold() == columns[index].casefold()
+        assert str(column).casefold() == columns[index].casefold()
 
     # Test no geom
     read_gdf = gfo.read_file_nogeom(src)
@@ -638,7 +638,6 @@ def test_to_file_append_different_columns(tmp_path):
     test_gdf["extra_column"] = 123
     with pytest.raises(ValueError, match="Record does not match collection schema"):
         gfo.to_file(test_gdf, path=test_path, append=True)
-    """
 
 
 def test_to_file_attribute_table_gpkg(tmp_path):
@@ -672,7 +671,6 @@ def test_to_file_create_spatial_index(
     tmp_path, suffix: str, create_spatial_index: bool, expected_spatial_index: bool
 ):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
-    output_path = tmp_path / f"{src.stem}-output{suffix}"
 
     # Test for gdf with a None geometry + a polygon
     test_gdf = gpd.GeoDataFrame(
