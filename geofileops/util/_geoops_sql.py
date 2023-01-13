@@ -199,6 +199,7 @@ def isvalid(
         operation_name="isvalid",
         input_layer=input_layer,
         output_layer=output_layer,
+        force_output_geometrytype=GeometryType.POINT,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
