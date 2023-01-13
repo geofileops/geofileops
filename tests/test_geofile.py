@@ -671,31 +671,12 @@ def test_to_file_create_spatial_index(
     tmp_path, suffix: str, create_spatial_index: bool, expected_spatial_index: bool
 ):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    output_path = tmp_path / f"{src.stem}-output{suffix}"
 
-    # Test for gdf with a None geometry + a polygon
-    test_gdf = gpd.GeoDataFrame(
-        geometry=[None, test_helper.TestData.polygon_with_island]
-    )
-    test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
-    assert len(test_geometrytypes) == 1
-    output_none_path = tmp_path / f"{src.stem}_none{suffix}"
-    gfo.to_file(test_gdf, output_none_path)
-
-    # Now check the result if the data is still the same after being read again
-    test_read_gdf = gfo.read_file(output_none_path)
-    # Result is the same as the original input
-    assert test_read_gdf.geometry[0] is None
-    assert isinstance(test_read_gdf.geometry[1], sh_geom.Polygon)
-    # The geometrytype of the column in the file is also the same as originaly
-    test_file_geometrytype = gfo.get_layerinfo(output_none_path).geometrytype
-    if suffix == ".shp":
-        assert test_file_geometrytype == GeometryType.MULTIPOLYGON
-    else:
-        assert test_file_geometrytype == test_geometrytypes[0]
-    # The result type in the geodataframe is also the same as originaly
-    test_read_geometrytypes = geoseries_util.get_geometrytypes(test_read_gdf.geometry)
-    assert len(test_gdf) == len(test_read_gdf)
-    assert test_read_geometrytypes == test_geometrytypes
+    # Read test file and write to tmppath
+    read_gdf = gfo.read_file(src)
+    gfo.to_file(read_gdf, output_path, create_spatial_index=create_spatial_index)
+    assert gfo.has_spatial_index(output_path) is expected_spatial_index
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
