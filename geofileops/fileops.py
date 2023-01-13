@@ -1164,14 +1164,18 @@ def to_file(
 
         kwargs = {}
         if create_spatial_index is not None:
-            kwargs = {"SPATIAL_INDEX": create_spatial_index}
+            kwargs["SPATIAL_INDEX"] = create_spatial_index
+        if schema is not None:
+            kwargs["schema"] = schema
         geofiletype = GeofileType(path)
         if geofiletype == GeofileType.ESRIShapefile:
             if index is True:
                 gdf_to_write = gdf.reset_index(drop=True)
             else:
                 gdf_to_write = gdf
-            gdf_to_write.to_file(str(path), driver=geofiletype.ogrdriver, mode=mode)
+            gdf_to_write.to_file(
+                str(path), driver=geofiletype.ogrdriver, mode=mode, **kwargs
+            )
         elif geofiletype == GeofileType.GPKG:
             # Try to harmonize the geometrytype to one (multi)type, as GPKG
             # doesn't like > 1 type in a layer
@@ -1185,12 +1189,18 @@ def to_file(
                 layer=layer,
                 driver=geofiletype.ogrdriver,
                 mode=mode,
-                schema=schema,
+                **kwargs,
             )
         elif geofiletype == GeofileType.SQLite:
-            gdf.to_file(str(path), layer=layer, driver=geofiletype.ogrdriver, mode=mode)
+            gdf.to_file(
+                str(path),
+                layer=layer,
+                driver=geofiletype.ogrdriver,
+                mode=mode,
+                **kwargs,
+            )
         elif geofiletype == GeofileType.GeoJSON:
-            gdf.to_file(str(path), driver=geofiletype.ogrdriver, mode=mode)
+            gdf.to_file(str(path), driver=geofiletype.ogrdriver, mode=mode, **kwargs)
         else:
             raise ValueError(f"Not implemented for geofiletype {geofiletype}")
 
