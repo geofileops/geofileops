@@ -1070,7 +1070,10 @@ def read_file_sql(
         )
 
         # Read and return result
-        return _read_file_base(tmp_path, ignore_geometry=ignore_geometry)
+        if tmp_path.exists():
+            return _read_file_base(tmp_path, ignore_geometry=ignore_geometry)
+        else:
+            return pd.DataFrame()
 
 
 def to_file(

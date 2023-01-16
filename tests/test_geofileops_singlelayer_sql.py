@@ -92,6 +92,11 @@ def test_makevalid(tmp_path, suffix):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-invalid", suffix=suffix)
 
+    # Make sure the input file is not valid
+    output_isvalid_path = tmp_path / f"{input_path.stem}_is-valid{input_path.suffix}"
+    isvalid = gfo.isvalid(input_path=input_path, output_path=output_isvalid_path)
+    assert isvalid is False, "Input file should contain invalid features"
+
     # Do operation
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
     gfo.makevalid(input_path=input_path, output_path=output_path, nb_parallel=2)
@@ -108,16 +113,9 @@ def test_makevalid(tmp_path, suffix):
     output_gdf = gfo.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
 
-    # Make sure the input file was not valid
-    output_isvalid_path = (
-        output_path.parent / f"{output_path.stem}_is-valid{output_path.suffix}"
-    )
-    isvalid = gfo.isvalid(input_path=input_path, output_path=output_isvalid_path)
-    assert isvalid is False, "Input file should contain invalid features"
-
     # Check if the result file is valid
     output_new_isvalid_path = (
-        output_path.parent / f"{output_path.stem}_new_is-valid{output_path.suffix}"
+        tmp_path / f"{output_path.stem}_new_is-valid{output_path.suffix}"
     )
     isvalid = gfo.isvalid(input_path=output_path, output_path=output_new_isvalid_path)
     assert isvalid is True, "Output file shouldn't contain invalid features"
