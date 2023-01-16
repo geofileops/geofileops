@@ -17,6 +17,8 @@ dependencies:
   - shapely
   - topojson
   # docs
+  # Restrict sphinx version to < 6 to avoid logo error
+  - sphinx<6
   - pydata-sphinx-theme
   - pip:
     - centerline
