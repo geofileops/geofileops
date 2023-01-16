@@ -205,7 +205,7 @@ def isvalid(
         force=force,
     )
 
-    # If no invalid geoms are found, there won't be an output file
+    # If there is no output file, there weren't invalid geoms
     if not output_path.exists():
         # If output is a geopackage, check if all data can be read
         try:
@@ -220,12 +220,16 @@ def isvalid(
             return False
 
         return True
-    else:
-        layerinfo = gfo.get_layerinfo(output_path)
-        logger.info(
-            f"Found {layerinfo.featurecount} invalid geometries in {output_path}"
-        )
-        return False
+
+    # Output file exists, so check result
+    layerinfo = gfo.get_layerinfo(output_path)
+    if layerinfo.featurecount == 0:
+        # Empty result, so everything was valid: remove output file + return True
+        gfo.remove(output_path)
+        return True
+
+    logger.info(f"Found {layerinfo.featurecount} invalid geoms in {output_path}")
+    return False
 
 
 def makevalid(
