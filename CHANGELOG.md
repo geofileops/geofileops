@@ -1,10 +1,11 @@
 # CHANGELOG
 
-## 0.7.0 (???)
+## 0.6.4 (???)
 
 ### Improvements
 
 - Support geopandas 12 with shapely 2.0 + pygeos (#191, #193)
+- Support improvements in gdal 3.6.2 (#195)
 
 ## 0.6.3 (2022-12-12)
 
