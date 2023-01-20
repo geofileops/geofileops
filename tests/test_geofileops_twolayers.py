@@ -561,7 +561,7 @@ def test_union(tmp_path, suffix, epsg):
     # Add null TEXT column to each file to make sure it stays TEXT type after union
     gfo.add_column(input1_path, name="test1_null", type=gfo.DataType.TEXT)
     gfo.add_column(input2_path, name="test2_null", type=gfo.DataType.TEXT)
-    
+
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input1_layerinfo.featurecount / 2)
 
