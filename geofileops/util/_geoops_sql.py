@@ -1408,6 +1408,11 @@ def split(
     force_output_geometrytype = primitivetype_to_extract.to_multitype
 
     # Prepare sql template for this operation
+    # Remarks:
+    #   - ST_difference(geometry , NULL) gives NULL as result! -> hence the CASE
+    #   - the group by layer1.rowid should be directly in the subquery. If it is
+    #     applied on an (other) with it is slow.
+    #   - a left join is a lot faster and memory efficient than a NOT IN or NOT EXISTS.
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
     input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
     sql_template = f"""
