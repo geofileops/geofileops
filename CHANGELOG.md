@@ -7,9 +7,11 @@
 - Support geopandas 12 with shapely 2.0 + pygeos (#191, #193)
 - Support improvements in gdal 3.6.2 (#195)
 
-### Bugs fixed
+### Deprecations and compatibility notes
 
-- Using read_file with fiona >= 1.9, string columns with all None values end up as float64 column (#199)
+- Due to a change in fiona >= 1.9, using read_file on string columns with all None values ended up as a float64 column (#199)
+- In to_file, the default behaviour is now also for .shp to create a spatial index, consistent with convert,... (#183)
+- Because geofileops uses pygeos directly, pin geopandas to < 0.14 for reasons explained here: https://github.com/geopandas/geopandas/issues/2691 (#)
 
 ## 0.6.3 (2022-12-12)
 
