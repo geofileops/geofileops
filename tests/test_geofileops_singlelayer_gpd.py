@@ -363,14 +363,19 @@ def test_dissolve_polygons(
 
 
 def test_dissolve_polygons_groupby_None(tmp_path):
+    """
+    Test dissolve polygons with a column with None values. There was once an issue
+    that the type of the column with None Values always ended up as a REAL column after
+    the dissolve/group by instead of the original type.
+    """
+
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
     gfo.add_column(input_path, name="none_values", type=gfo.DataType.TEXT)
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
-    # Test dissolve polygons with different options for groupby and explodecollections
-    # --------------------------------------------------------------------------------
+    # Run test
     output_path = tmp_path / "output.gpkg"
     gfo.dissolve(
         input_path=input_path,

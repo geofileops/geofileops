@@ -9,11 +9,7 @@
 
 ### Bugs fixed
 
-- Fix: using read_file with fiona >= 1.9, string columns with all None values end up as float64 column (#199)
-
-### Deprecations and compatibility notes
-
-- In to_file, the default behaviour is now also for .shp to create a spatial index, consistent with convert,... (#183)
+- Using read_file with fiona >= 1.9, string columns with all None values end up as float64 column (#199)
 
 ## 0.6.3 (2022-12-12)
 
