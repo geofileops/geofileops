@@ -7,6 +7,10 @@
 - Support geopandas 12 with shapely 2.0 + pygeos (#191, #193)
 - Support improvements in gdal 3.6.2 (#195)
 
+### Bugs fixed
+
+- Using read_file with fiona >= 1.9, string columns with all None values end up as float64 column (#199)
+
 ## 0.6.3 (2022-12-12)
 
 ### Improvements
