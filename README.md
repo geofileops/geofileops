@@ -1,6 +1,6 @@
 # geofileops 
 
-[![Actions Status](https://github.com/geofileops/geofileops/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/geofileops/geofileops/actions?query=workflow%3ATests) 
+[![Actions Status](https://github.com/geofileops/geofileops/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/geofileops/geofileops/actions/workflows/tests.yml?query=workflow%3ATests) 
 [![Coverage Status](https://codecov.io/gh/geofileops/geofileops/branch/master/graph/badge.svg)](https://codecov.io/gh/geofileops/geofileops)
 [![PyPI version](https://img.shields.io/pypi/v/geofileops.svg)](https://pypi.org/project/geofileops)
 [![Conda version](https://anaconda.org/conda-forge/geofileops/badges/version.svg)](https://anaconda.org/conda-forge/geofileops)
