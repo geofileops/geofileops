@@ -632,7 +632,7 @@ def test_dissolve_polygons_aggcolumns_json(tmp_path, suffix=".gpkg"):
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == output_layerinfo.featurecount
     assert output_gdf["geometry"][0] is not None
-    grasland_json = json.loads(output_gdf["json"][0])
+    grasland_json = json.loads(str(output_gdf["json"][0]))
     assert len(grasland_json) == 30
 
     # Test dissolve polygons with groupby + all columns to json
@@ -663,7 +663,7 @@ def test_dissolve_polygons_aggcolumns_json(tmp_path, suffix=".gpkg"):
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == output_layerinfo.featurecount
     assert output_gdf["geometry"][0] is not None
-    grasland_json = json.loads(output_gdf["json"][0])
+    grasland_json = json.loads(str(output_gdf["json"][0]))
     assert len(grasland_json) == 30
 
 

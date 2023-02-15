@@ -23,7 +23,9 @@ logger = logging.getLogger(__name__)
 def sort_values(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     result_gdf = gdf.copy()
     result_gdf["tmp_sort_geometry_wkt"] = result_gdf.geometry.to_wkt()
-    columns_no_geom = [column for column in result_gdf.columns if column != "geometry"]
+    columns_no_geom = [
+        str(column) for column in result_gdf.columns if column != "geometry"
+    ]
     result_gdf = result_gdf.sort_values(by=columns_no_geom)
     result_gdf = result_gdf.drop(columns="tmp_sort_geometry_wkt")
 

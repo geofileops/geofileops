@@ -823,8 +823,9 @@ def export_by_location(
         if area_inters_column_name is None:
             area_inters_column_name = "area_inters"
         area_inters_column_expression = f""",ST_area(ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}),
-                    ST_union(layer2.{{input2_geometrycolumn}}))
-                 ) as {area_inters_column_name}"""
+                     ST_union(layer2.{{input2_geometrycolumn}}))
+                 ) as {area_inters_column_name}
+            """
 
     # Prepare sql template for this operation
     sql_template = f"""
