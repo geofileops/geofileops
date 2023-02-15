@@ -6,6 +6,7 @@
 
 - Support geopandas 12 with shapely 2.0 + pygeos (#191, #193)
 - Support improvements in gdal 3.6.2 (#195)
+- Improve performance of sql-based operations for very large input files (#201)
 
 ### Deprecations and compatibility notes
 
