@@ -19,6 +19,7 @@ import warnings
 import fiona
 import geopandas as gpd
 from geopandas.io import file as gpd_io_file
+import numpy as np
 from osgeo import gdal
 import pandas as pd
 import pyogrio
