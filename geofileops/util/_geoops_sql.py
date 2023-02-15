@@ -2153,13 +2153,17 @@ def _prepare_processing_params(
         batches[0]["batch_filter"] = ""
     else:
         # Determine the min_rowid and max_rowid
-        sql_stmt = f'''SELECT MIN(rowid) as min_rowid, MAX(rowid) as max_rowid
-                         FROM "{layer1_info.name}"'''
+        # Remark: SELECT MIN(rowid), MAX(rowid) FROM ... is a lot slower than UNION ALL!
+        sql_stmt = f'''
+            SELECT MIN(rowid) minmax_rowid FROM "{layer1_info.name}"
+            UNION ALL
+            SELECT MAX(rowid) minmax_rowid FROM "{layer1_info.name}" 
+        '''
         batch_info_df = gfo.read_file_sql(
-            path=returnvalue.input1_path, sql_stmt=sql_stmt
+            path=returnvalue.input1_path, sql_stmt=sql_stmt, ignore_geometry=True
         )
-        min_rowid = pd.to_numeric(batch_info_df["min_rowid"][0])
-        max_rowid = pd.to_numeric(batch_info_df["max_rowid"][0])
+        min_rowid = pd.to_numeric(batch_info_df["minmax_rowid"][0]).item()
+        max_rowid = pd.to_numeric(batch_info_df["minmax_rowid"][1]).item()
 
         # Determine the exact batches to use
         if ((max_rowid - min_rowid) / nb_rows_input_layer) < 1.1:
