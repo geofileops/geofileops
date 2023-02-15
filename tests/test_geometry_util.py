@@ -443,7 +443,7 @@ def test_simplify_ext_keep_points_on_lang(tmp_path):
         crs="epsg:31370",
     )
     gfo.to_file(grid_gdf, tmp_path / "grid.gpkg")
-    grid_coords = [tile.exterior.coords for tile in grid_gdf["geometry"]]
+    grid_coords = [tile.exterior.coords for tile in grid_gdf.geometry]
     grid_lines_geom = sh_geom.MultiLineString(grid_coords)
 
     # Test lang
@@ -525,7 +525,7 @@ def test_simplify_ext_keep_points_on_rdp(tmp_path):
         crs="epsg:31370",
     )
     gfo.to_file(grid_gdf, tmp_path / "grid.gpkg")
-    grid_coords = [tile.exterior.coords for tile in grid_gdf["geometry"]]
+    grid_coords = [tile.exterior.coords for tile in grid_gdf.geometry]
     grid_lines_geom = sh_geom.MultiLineString(grid_coords)
 
     # Test rdp (ramer–douglas–peucker)
@@ -601,7 +601,7 @@ def test_simplify_ext_keep_points_on_vw(tmp_path):
         crs="epsg:31370",
     )
     gfo.to_file(grid_gdf, tmp_path / "grid.gpkg")
-    grid_coords = [tile.exterior.coords for tile in grid_gdf["geometry"]]
+    grid_coords = [tile.exterior.coords for tile in grid_gdf.geometry]
     grid_lines_geom = sh_geom.MultiLineString(grid_coords)
 
     # Test vw (visvalingam-whyatt)

@@ -253,6 +253,7 @@ def test_is_valid_reason(tmp_path):
     # Test if indexas are retained
     # ----------------------------
     test_filtered_gdf = test_gdf[3:-1]
+    assert isinstance(test_filtered_gdf.geometry, gpd.GeoSeries)
     result = geoseries_util.is_valid_reason(test_filtered_gdf.geometry)
 
     assert len(result) == len(test_filtered_gdf)
