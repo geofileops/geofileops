@@ -11,7 +11,7 @@
 
 - Due to a change in fiona >= 1.9, using read_file on string columns with all None values ended up as a float64 column (#199)
 - In to_file, the default behaviour is now also for .shp to create a spatial index, consistent with convert,... (#183)
-- Because geofileops uses pygeos directly, pin geopandas to < 0.14 for reasons explained here: https://github.com/geopandas/geopandas/issues/2691 (#200)
+- Because geofileops uses pygeos directly, pin geopandas to < 1.0 for reasons explained here: https://github.com/geopandas/geopandas/issues/2691 (#200)
 
 ## 0.6.3 (2022-12-12)
 
