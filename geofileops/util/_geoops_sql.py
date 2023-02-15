@@ -822,10 +822,12 @@ def export_by_location(
     if area_inters_column_name is not None or min_area_intersect is not None:
         if area_inters_column_name is None:
             area_inters_column_name = "area_inters"
-        area_inters_column_expression = f""",ST_area(ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}),
-                     ST_union(layer2.{{input2_geometrycolumn}}))
+        area_inters_column_expression = (
+            f""",ST_area(ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}),
+                    ST_union(layer2.{{input2_geometrycolumn}}))
                  ) as {area_inters_column_name}
             """
+        )
 
     # Prepare sql template for this operation
     sql_template = f"""
@@ -2157,7 +2159,7 @@ def _prepare_processing_params(
         sql_stmt = f'''
             SELECT MIN(rowid) minmax_rowid FROM "{layer1_info.name}"
             UNION ALL
-            SELECT MAX(rowid) minmax_rowid FROM "{layer1_info.name}" 
+            SELECT MAX(rowid) minmax_rowid FROM "{layer1_info.name}"
         '''
         batch_info_df = gfo.read_file_sql(
             path=returnvalue.input1_path, sql_stmt=sql_stmt, ignore_geometry=True
