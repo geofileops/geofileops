@@ -298,7 +298,6 @@ def vector_translate(
     )
 
     # Now we can really get to work
-    input_ds = None
     result_ds = None
     gdallog_dir = Path(tempfile.gettempdir()) / "geofileops/gdal_log"
     try:
@@ -456,9 +455,13 @@ class set_config_options(object):
         # self.config_options_backup = gdal.GetConfigOptions()
         for name, value in self.config_options.items():
             # Prepare value
-            if isinstance(value, bool):
+            if value is None:
+                pass
+            elif isinstance(value, bool):
                 value = "YES" if value is True else "NO"
-            gdal.SetConfigOption(str(name), str(value))
+            else:
+                value = str(value)
+            gdal.SetConfigOption(str(name), value)
 
     def __exit__(self, type, value, traceback):
         # Remove config options that were set
@@ -529,9 +532,6 @@ def vector_info(
         # double quotes
         layer_stripped = layer.strip("'\"")
         args.append(layer_stripped)
-
-
-    # TODO: ideally, the child processes would die when the parent is killed!
 
     # Run ogrinfo
     # Geopackage/sqlite files are very sensitive for being locked, so retry till
