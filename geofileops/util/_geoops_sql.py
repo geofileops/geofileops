@@ -57,13 +57,12 @@ def buffer(
         # to keep only polygons
         sql_template = f"""
             SELECT ST_CollectionExtract(
-                       ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}),
-                       3
+                       ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}), 3
                    ) AS geom
                   {{columns_to_select_str}}
               FROM "{{input_layer}}" layer
              WHERE 1=1
-                  {{batch_filter}}
+               {{batch_filter}}
         """
     else:
         sql_template = f"""
@@ -71,7 +70,7 @@ def buffer(
                   {{columns_to_select_str}}
               FROM "{{input_layer}}" layer
              WHERE 1=1
-                  {{batch_filter}}
+               {{batch_filter}}
         """
 
     # Buffer operation always results in polygons...
@@ -107,11 +106,12 @@ def convexhull(
 
     # Prepare sql template for this operation
     sql_template = """
-            SELECT ST_ConvexHull({geometrycolumn}) AS geom
-                  {columns_to_select_str}
-              FROM "{input_layer}" layer
-             WHERE 1=1
-               {batch_filter}"""
+        SELECT ST_ConvexHull({geometrycolumn}) AS geom
+              {columns_to_select_str}
+          FROM "{input_layer}" layer
+         WHERE 1=1
+           {batch_filter}
+    """
 
     # Output geometry type same as input geometry type
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
@@ -144,15 +144,15 @@ def delete_duplicate_geometries(
     # The query as written doesn't give correct results when parallellized,
     # but it isn't useful to do it for this operation.
     sql_template = """
-            SELECT {geometrycolumn} AS geom
-                  {columns_to_select_str}
-              FROM "{input_layer}" layer
-             WHERE layer.rowid IN (
-                    SELECT MIN(layer_sub.rowid) AS rowid_to_keep
-                      FROM "{input_layer}" layer_sub
-                     GROUP BY layer_sub.{geometrycolumn}
-                )
-            """
+        SELECT {geometrycolumn} AS geom
+              {columns_to_select_str}
+          FROM "{input_layer}" layer
+         WHERE layer.rowid IN (
+                SELECT MIN(layer_sub.rowid) AS rowid_to_keep
+                  FROM "{input_layer}" layer_sub
+                 GROUP BY layer_sub.{geometrycolumn}
+            )
+    """
 
     # Go!
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
@@ -184,13 +184,14 @@ def isvalid(
 
     # Prepare sql template for this operation
     sql_template = """
-            SELECT ST_IsValidDetail({geometrycolumn}) AS geom
-                  ,ST_IsValid({geometrycolumn}) AS isvalid
-                  ,ST_IsValidReason({geometrycolumn}) AS isvalidreason
-                  {columns_to_select_str}
-              FROM "{input_layer}" layer
-             WHERE ST_IsValid({geometrycolumn}) <> 1
-               {batch_filter}"""
+        SELECT ST_IsValidDetail({geometrycolumn}) AS geom
+              ,ST_IsValid({geometrycolumn}) AS isvalid
+              ,ST_IsValidReason({geometrycolumn}) AS isvalidreason
+              {columns_to_select_str}
+          FROM "{input_layer}" layer
+         WHERE ST_IsValid({geometrycolumn}) <> 1
+           {batch_filter}
+    """
 
     _single_layer_vector_operation(
         input_path=input_path,
@@ -269,11 +270,12 @@ def makevalid(
 
     # Now we can prepare the entire statement
     sql_template = f"""
-            SELECT {operation} AS geom
-                {{columns_to_select_str}}
-            FROM "{{input_layer}}" layer
-            WHERE 1=1
-                {{batch_filter}}"""
+        SELECT {operation} AS geom
+              {{columns_to_select_str}}
+          FROM "{{input_layer}}" layer
+         WHERE 1=1
+           {{batch_filter}}
+    """
 
     _single_layer_vector_operation(
         input_path=input_path,
@@ -363,11 +365,12 @@ def simplify(
 
     # Prepare sql template for this operation
     sql_template = f"""
-            SELECT ST_SimplifyPreserveTopology({{geometrycolumn}}, {tolerance}) AS geom
-                  {{columns_to_select_str}}
-              FROM "{{input_layer}}" layer
-             WHERE 1=1
-               {{batch_filter}}"""
+        SELECT ST_SimplifyPreserveTopology({{geometrycolumn}}, {tolerance}) AS geom
+              {{columns_to_select_str}}
+          FROM "{{input_layer}}" layer
+         WHERE 1=1
+           {{batch_filter}}
+    """
 
     # Output geometry type same as input geometry type
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
@@ -495,11 +498,11 @@ def _single_layer_vector_operation(
                 # Make sure no NULL geoms are outputted...
                 if filter_null_geoms is True:
                     sql_stmt = f"""
-                            SELECT sub.*
-                            FROM
-                                ( {sql_stmt}
-                                ) sub
-                            WHERE sub.geom IS NOT NULL"""
+                        SELECT sub.* FROM
+                          ( {sql_stmt}
+                          ) sub
+                         WHERE sub.geom IS NOT NULL
+                    """
 
                 batches[batch_id]["sql_stmt"] = sql_stmt
 
@@ -613,8 +616,8 @@ def clip(
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
     input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
     sql_template = f"""
-          SELECT * FROM (
-            WITH layer2_unioned AS (
+        SELECT * FROM
+          ( WITH layer2_unioned AS (
               SELECT layer1.rowid AS layer1_rowid
                     ,ST_union(layer2.{{input2_geometrycolumn}}) AS geom
                 FROM {{input1_databasename}}."{{input1_layer}}" layer1
@@ -648,10 +651,10 @@ def clip(
              WHERE 1=1
                {{batch_filter}}
           )
-          WHERE geom IS NOT NULL
-            AND ST_NPoints(geom) > 0
-            -- ST_CollectionExtract outputs empty, but not NULL geoms in spatialite 4.3
-            """
+         WHERE geom IS NOT NULL
+           AND ST_NPoints(geom) > 0
+           -- ST_CollectionExtract outputs empty, but not NULL geoms in spatialite 4.3
+    """
 
     # Go!
     return _two_layer_vector_operation(
@@ -711,8 +714,8 @@ def erase(
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
     input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
     sql_template = f"""
-          SELECT * FROM (
-            WITH layer2_unioned AS (
+        SELECT * FROM
+          ( WITH layer2_unioned AS (
               SELECT layer1.rowid AS layer1_rowid
                     ,ST_union(layer2.{{input2_geometrycolumn}}) AS geom
                 FROM {{input1_databasename}}."{{input1_layer}}" layer1
@@ -749,10 +752,10 @@ def erase(
              WHERE 1=1
                {{batch_filter}}
           )
-          WHERE geom IS NOT NULL
-            AND ST_NPoints(geom) > 0
-            -- ST_CollectionExtract outputs empty, but not NULL geoms in spatialite 4.3
-            """
+         WHERE geom IS NOT NULL
+           AND ST_NPoints(geom) > 0
+           -- ST_CollectionExtract outputs empty, but not NULL geoms in spatialite 4.3
+    """
 
     # Go!
     return _two_layer_vector_operation(
@@ -796,27 +799,28 @@ def export_by_location(
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
     input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
     sql_template = f"""
-            SELECT layer1.{{input1_geometrycolumn}} AS geom
-                  {{layer1_columns_prefix_alias_str}}
-              FROM {{input1_databasename}}."{{input1_layer}}" layer1
-              JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
-                ON layer1.fid = layer1tree.id
-             WHERE 1=1
-               {{batch_filter}}
-               AND EXISTS (
-                  SELECT 1
-                    FROM {{input2_databasename}}."{{input2_layer}}" layer2
-                    JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
-                      ON layer2.fid = layer2tree.id
-                   WHERE layer1tree.minx <= layer2tree.maxx
-                     AND layer1tree.maxx >= layer2tree.minx
-                     AND layer1tree.miny <= layer2tree.maxy
-                     AND layer1tree.maxy >= layer2tree.miny
-                     AND ST_intersects(layer1.{{input1_geometrycolumn}},
-                                       layer2.{{input2_geometrycolumn}}) = 1
-                     AND ST_touches(layer1.{{input1_geometrycolumn}},
-                                    layer2.{{input2_geometrycolumn}}) = 0)
-            """
+        SELECT layer1.{{input1_geometrycolumn}} AS geom
+              {{layer1_columns_prefix_alias_str}}
+          FROM {{input1_databasename}}."{{input1_layer}}" layer1
+          JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+            ON layer1.fid = layer1tree.id
+         WHERE 1=1
+           {{batch_filter}}
+           AND EXISTS (
+              SELECT 1
+                FROM {{input2_databasename}}."{{input2_layer}}" layer2
+                JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                  ON layer2.fid = layer2tree.id
+               WHERE layer1tree.minx <= layer2tree.maxx
+                 AND layer1tree.maxx >= layer2tree.minx
+                 AND layer1tree.miny <= layer2tree.maxy
+                 AND layer1tree.maxy >= layer2tree.miny
+                 AND ST_intersects(layer1.{{input1_geometrycolumn}},
+                                   layer2.{{input2_geometrycolumn}}) = 1
+                 AND ST_touches(layer1.{{input1_geometrycolumn}},
+                                layer2.{{input2_geometrycolumn}}) = 0)
+    """
+
     # Calculate intersect area if necessary
     area_inters_column_expression = ""
     if area_inters_column_name is not None or min_area_intersect is not None:
@@ -831,36 +835,36 @@ def export_by_location(
 
     # Prepare sql template for this operation
     sql_template = f"""
-            SELECT ST_union(layer1.{{input1_geometrycolumn}}) as geom
-                  {{layer1_columns_prefix_str}}
-                  {area_inters_column_expression}
-              FROM {{input1_databasename}}."{{input1_layer}}" layer1
-              JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
-                ON layer1.fid = layer1tree.id
-              JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-              JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
-                ON layer2.fid = layer2tree.id
-             WHERE 1=1
-               {{batch_filter}}
-               AND layer1tree.minx <= layer2tree.maxx
-               AND layer1tree.maxx >= layer2tree.minx
-               AND layer1tree.miny <= layer2tree.maxy
-               AND layer1tree.maxy >= layer2tree.miny
-               AND ST_Intersects(layer1.{{input1_geometrycolumn}},
-                                 layer2.{{input2_geometrycolumn}}) = 1
-               AND ST_Touches(layer1.{{input1_geometrycolumn}},
-                              layer2.{{input2_geometrycolumn}}) = 0
-             GROUP BY layer1.rowid {{layer1_columns_prefix_str}}
-            """
+        SELECT ST_union(layer1.{{input1_geometrycolumn}}) as geom
+              {{layer1_columns_prefix_str}}
+              {area_inters_column_expression}
+          FROM {{input1_databasename}}."{{input1_layer}}" layer1
+          JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+            ON layer1.fid = layer1tree.id
+          JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+          JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+            ON layer2.fid = layer2tree.id
+         WHERE 1=1
+           {{batch_filter}}
+           AND layer1tree.minx <= layer2tree.maxx
+           AND layer1tree.maxx >= layer2tree.minx
+           AND layer1tree.miny <= layer2tree.maxy
+           AND layer1tree.maxy >= layer2tree.miny
+           AND ST_Intersects(layer1.{{input1_geometrycolumn}},
+                             layer2.{{input2_geometrycolumn}}) = 1
+           AND ST_Touches(layer1.{{input1_geometrycolumn}},
+                          layer2.{{input2_geometrycolumn}}) = 0
+         GROUP BY layer1.rowid {{layer1_columns_prefix_str}}
+    """
 
     # Filter on intersect area if necessary
     if min_area_intersect is not None:
         sql_template = f"""
-                SELECT sub.*
-                  FROM
-                    ( {sql_template}
-                    ) sub
-                 WHERE sub.{area_inters_column_name} >= {min_area_intersect}"""
+            SELECT sub.* FROM
+              ( {sql_template}
+              ) sub
+             WHERE sub.{area_inters_column_name} >= {min_area_intersect}
+        """
 
     # Go!
     input_layer_info = gfo.get_layerinfo(input_to_select_from_path, input1_layer)
@@ -1302,20 +1306,20 @@ def join_nearest(
 
     # Remark: the 2 input layers need to be in one file!
     sql_template = f"""
-            SELECT layer1.{{input1_geometrycolumn}} as geom
-                  {{layer1_columns_prefix_alias_str}}
-                  {{layer2_columns_prefix_alias_str}}
-                  ,k.pos, k.distance
-              FROM {{input1_databasename}}."{{input1_layer}}" layer1
-              JOIN {{input2_databasename}}.knn k
-              JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                ON layer2.rowid = k.fid
-             WHERE k.f_table_name = '{{input2_layer}}'
-                AND k.f_geometry_column = '{{input2_geometrycolumn}}'
-                AND k.ref_geometry = layer1.{{input1_geometrycolumn}}
-                AND k.max_items = {nb_nearest}
-                {{batch_filter}}
-            """
+        SELECT layer1.{{input1_geometrycolumn}} as geom
+              {{layer1_columns_prefix_alias_str}}
+              {{layer2_columns_prefix_alias_str}}
+              ,k.pos, k.distance
+          FROM {{input1_databasename}}."{{input1_layer}}" layer1
+          JOIN {{input2_databasename}}.knn k
+          JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+            ON layer2.rowid = k.fid
+         WHERE k.f_table_name = '{{input2_layer}}'
+           AND k.f_geometry_column = '{{input2_geometrycolumn}}'
+           AND k.ref_geometry = layer1.{{input1_geometrycolumn}}
+           AND k.max_items = {nb_nearest}
+           {{batch_filter}}
+    """
 
     input1_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
 
@@ -2196,16 +2200,17 @@ def _prepare_processing_params(
             # ranges for each batch so each batch has same number of elements
             # Remark: this might take some seconds for larger datasets!
             sql_stmt = f"""
-                    SELECT batch_id AS id
-                        ,COUNT(*) AS nb_rows
-                        ,MIN(rowid) AS start_rowid
-                        ,MAX(rowid) AS end_rowid
-                    FROM (SELECT rowid
-                                ,NTILE({nb_batches}) OVER (ORDER BY rowid) batch_id
-                            FROM "{layer1_info.name}"
-                        )
-                    GROUP BY batch_id;
-                    """
+                SELECT batch_id AS id
+                      ,COUNT(*) AS nb_rows
+                      ,MIN(rowid) AS start_rowid
+                      ,MAX(rowid) AS end_rowid
+                  FROM
+                    ( SELECT rowid
+                            ,NTILE({nb_batches}) OVER (ORDER BY rowid) batch_id
+                        FROM "{layer1_info.name}"
+                    )
+                 GROUP BY batch_id;
+            """
             batch_info_df = gfo.read_file_sql(
                 path=returnvalue.input1_path, sql_stmt=sql_stmt
             )
@@ -2444,11 +2449,12 @@ def dissolve_singlethread(
             force_output_geometrytype = GeometryType.LINESTRING
 
     sql_stmt = f"""
-            SELECT {operation} AS geom
-                  {groupby_columns_for_select_str}
-                  {agg_columns_str}
-              FROM "{input_layer}" layer
-             GROUP BY {groupby_columns_for_groupby_str}"""
+        SELECT {operation} AS geom
+              {groupby_columns_for_select_str}
+              {agg_columns_str}
+          FROM "{input_layer}" layer
+         GROUP BY {groupby_columns_for_groupby_str}
+    """
 
     _ogr_util.vector_translate(
         input_path=input_path,
