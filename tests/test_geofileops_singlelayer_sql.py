@@ -88,30 +88,45 @@ def test_isvalid(tmp_path, suffix, epsg):
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-def test_makevalid(tmp_path, suffix):
+@pytest.mark.parametrize("input_empty", [True, False])
+def test_makevalid(tmp_path, suffix, input_empty):
     # Prepare test data
-    input_path = test_helper.get_testfile("polygon-invalid", suffix=suffix)
+    input_path = test_helper.get_testfile(
+        "polygon-invalid", suffix=suffix, empty=input_empty
+    )
+
+    # If the input file is not empty, it should have invalid geoms
+    if not input_empty:
+        input_isvalid_path = tmp_path / f"{input_path.stem}_is-valid{suffix}"
+        isvalid = gfo.isvalid(input_path=input_path, output_path=input_isvalid_path)
+        assert isvalid is False, "Input file should contain invalid features"
 
     # Make sure the input file is not valid
-    output_isvalid_path = tmp_path / f"{input_path.stem}_is-valid{input_path.suffix}"
-    isvalid = gfo.isvalid(input_path=input_path, output_path=output_isvalid_path)
-    assert isvalid is False, "Input file should contain invalid features"
+    if not input_empty:
+        output_isvalid_path = (
+            tmp_path / f"{input_path.stem}_is-valid{input_path.suffix}"
+        )
+        isvalid = gfo.isvalid(input_path=input_path, output_path=output_isvalid_path)
+        assert isvalid is False, "Input file should contain invalid features"
 
     # Do operation
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
-    gfo.makevalid(input_path=input_path, output_path=output_path, nb_parallel=2)
+    gfo.makevalid(
+        input_path=input_path,
+        output_path=output_path,
+        nb_parallel=2,
+        force_output_geometrytype=gfo.GeometryType.MULTIPOLYGON,
+    )
 
     # Now check if the output file is correctly created
     assert output_path.exists()
     layerinfo_orig = gfo.get_layerinfo(input_path)
     layerinfo_output = gfo.get_layerinfo(output_path)
-    assert layerinfo_orig.featurecount == layerinfo_output.featurecount
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
-    # Now check the contents of the result file
-    output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
+    if not input_empty:
+        assert layerinfo_orig.featurecount == layerinfo_output.featurecount
 
     # Check if the result file is valid
     output_new_isvalid_path = (
@@ -147,6 +162,92 @@ def test_select(tmp_path, input_suffix, output_suffix):
     # Now check the contents of the result file
     output_gdf = gfo.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
+
+
+@pytest.mark.parametrize("input_suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize("output_suffix", DEFAULT_SUFFIXES)
+def test_select_emptyinput(tmp_path, input_suffix, output_suffix):
+    # Prepare test data
+    input_path = test_helper.get_testfile(
+        "polygon-parcel", suffix=input_suffix, dst_dir=tmp_path, empty=True
+    )
+    input_layerinfo = gfo.get_layerinfo(input_path)
+    assert input_layerinfo.featurecount == 0
+
+    # Test with simple select
+    # -----------------------
+    output_stem = f"{input_path.stem}-{input_suffix.replace('.', '')}-simple"
+    output_path = tmp_path / f"{output_stem}{output_suffix}"
+    sql_stmt = 'SELECT {geometrycolumn}, oidn, uidn FROM "{input_layer}"'
+
+    gfo.select(input_path=input_path, output_path=output_path, sql_stmt=sql_stmt)
+
+    # Now check if the tmp file is correctly created
+    layerinfo_output = gfo.get_layerinfo(output_path)
+    assert layerinfo_output.featurecount == 0
+    assert "OIDN" in layerinfo_output.columns
+    assert "UIDN" in layerinfo_output.columns
+    assert len(layerinfo_output.columns) == 2
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
+
+
+@pytest.mark.parametrize(
+    "input_suffix, output_suffix",
+    [
+        (".gpkg", ".gpkg"),
+        # (".gpkg", ".shp"),
+        (".shp", ".gpkg"),
+        (".shp", ".shp"),
+    ],
+)
+def test_select_emptyinput_operation(tmp_path, input_suffix, output_suffix):
+    """
+    A select with a geometry operation (eg. buffer,...) on an empty input file should
+    result in an empty output file.
+    """
+    # Prepare test data
+    input_path = test_helper.get_testfile(
+        "polygon-parcel", suffix=input_suffix, dst_dir=tmp_path, empty=True
+    )
+
+    input_layerinfo = gfo.get_layerinfo(input_path)
+    assert input_layerinfo.featurecount == 0
+
+    # Test with complex select: with geometry operation
+    # -------------------------------------------------
+    output_stem = f"{input_path.stem}-{input_suffix.replace('.', '')}-complex"
+    output_path = tmp_path / f"{output_stem}{output_suffix}"
+    sql_stmt = """
+        SELECT st_buffer({geometrycolumn}, 1, 5) as geom, oidn, uidn
+          FROM "{input_layer}"
+    """
+    gfo.select(input_path=input_path, output_path=output_path, sql_stmt=sql_stmt)
+
+    assert output_path.exists()
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.featurecount == 0
+
+
+@pytest.mark.parametrize("input_suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize("output_suffix", DEFAULT_SUFFIXES)
+def test_select_emptyresult(tmp_path, input_suffix, output_suffix):
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=input_suffix)
+
+    # Now run test
+    output_stem = f"{input_path.stem}-{input_suffix.replace('.', '')}-output"
+    output_path = tmp_path / f"{output_stem}{output_suffix}"
+    sql_stmt = 'SELECT {geometrycolumn}, oidn, uidn FROM "{input_layer}" WHERE 1=0'
+
+    gfo.select(input_path=input_path, output_path=output_path, sql_stmt=sql_stmt)
+
+    # Now check if the tmp file is correctly created
+    layerinfo_output = gfo.get_layerinfo(output_path)
+    assert layerinfo_output.featurecount == 0
+    assert "OIDN" in layerinfo_output.columns
+    assert "UIDN" in layerinfo_output.columns
+    assert len(layerinfo_output.columns) == 2
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)

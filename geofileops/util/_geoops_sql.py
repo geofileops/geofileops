@@ -49,9 +49,19 @@ def buffer(
     batchsize: int = -1,
     force: bool = False,
 ):
-
-    if distance < 0:
-        # For a double sided buffer, aA negative buffer is only relevant
+    # Init + prepare sql template for this operation
+    # ----------------------------------------------
+    input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
+    if input_layerinfo.featurecount == 0:
+        sql_template = """
+            SELECT {geometrycolumn} AS geom
+                  {columns_to_select_str}
+              FROM "{input_layer}" layer
+             WHERE 1=1
+               {batch_filter}
+        """
+    elif distance < 0:
+        # For a double sided buffer, a negative buffer is only relevant
         # for polygon types, so only keep polygon results
         # Negative buffer creates invalid stuff, so use collectionextract
         # to keep only polygons
@@ -74,8 +84,13 @@ def buffer(
         """
 
     # Buffer operation always results in polygons...
-    force_output_geometrytype = GeometryType.MULTIPOLYGON
+    if explodecollections:
+        force_output_geometrytype = GeometryType.POLYGON
+    else:
+        force_output_geometrytype = GeometryType.MULTIPOLYGON
 
+    # Go!
+    # ---
     return _single_layer_vector_operation(
         input_path=input_path,
         output_path=output_path,
@@ -103,18 +118,30 @@ def convexhull(
     batchsize: int = -1,
     force: bool = False,
 ):
+    # Init + prepare sql template for this operation
+    # ----------------------------------------------
+    input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
+    # TODO: writeemptyfile: remove seperate code for empty input again?
+    if input_layerinfo.featurecount == 0:
+        sql_template = """
+            SELECT {geometrycolumn} as geom
+                  {columns_to_select_str}
+              FROM "{input_layer}" layer
+             WHERE 1=1
+               {batch_filter}
+        """
+    else:
+        sql_template = """
+            SELECT ST_ConvexHull({geometrycolumn}) AS geom
+                  {columns_to_select_str}
+              FROM "{input_layer}" layer
+             WHERE 1=1
+               {batch_filter}
+        """
 
-    # Prepare sql template for this operation
-    sql_template = """
-        SELECT ST_ConvexHull({geometrycolumn}) AS geom
-              {columns_to_select_str}
-          FROM "{input_layer}" layer
-         WHERE 1=1
-           {batch_filter}
-    """
-
+    # Go!
+    # ---
     # Output geometry type same as input geometry type
-    input_layer_info = gfo.get_layerinfo(input_path, input_layer)
     return _single_layer_vector_operation(
         input_path=input_path,
         output_path=output_path,
@@ -124,7 +151,7 @@ def convexhull(
         output_layer=output_layer,
         columns=columns,
         explodecollections=explodecollections,
-        force_output_geometrytype=input_layer_info.geometrytype,
+        force_output_geometrytype=input_layerinfo.geometrytype,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -140,7 +167,6 @@ def delete_duplicate_geometries(
     explodecollections: bool = False,
     force: bool = False,
 ):
-
     # The query as written doesn't give correct results when parallellized,
     # but it isn't useful to do it for this operation.
     sql_template = """
@@ -246,36 +272,48 @@ def makevalid(
     batchsize: int = -1,
     force: bool = False,
 ):
+    # Init + prepare sql template for this operation
+    # ----------------------------------------------
+    input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
 
-    # Specify output_geomatrytype, because otherwise makevalid results in
+    # Specify output_geometrytype, because otherwise makevalid results in
     # column type 'GEOMETRY'/'UNKNOWN(ANY)'
-    layerinfo = gfo.get_layerinfo(input_path, input_layer)
     if force_output_geometrytype is None:
-        force_output_geometrytype = layerinfo.geometrytype
+        force_output_geometrytype = input_layerinfo.geometrytype
 
-    # First compose the operation to be done on the geometries
-    # If the number of decimals of coordinates should be limited
-    if precision is not None:
-        operation = f"SnapToGrid({{geometrycolumn}}, {precision})"
+    # TODO: writeemptyfile: remove seperate code for empty input again?
+    if input_layerinfo.featurecount == 0:
+        sql_template = """
+            SELECT {geometrycolumn} AS geom
+                  {columns_to_select_str}
+              FROM "{input_layer}" layer
+             WHERE 1=1
+               {batch_filter}
+        """
     else:
-        operation = "{geometrycolumn}"
+        # First compose the operation to be done on the geometries
+        # If the number of decimals of coordinates should be limited
+        if precision is not None:
+            operation = f"SnapToGrid({{geometrycolumn}}, {precision})"
+        else:
+            operation = "{geometrycolumn}"
 
-    # Prepare sql template for this operation
-    operation = f"ST_MakeValid({operation})"
+        # Prepare sql template for this operation
+        operation = f"ST_MakeValid({operation})"
 
-    # If we want a specific geometrytype as result, extract it
-    if force_output_geometrytype is not GeometryType.GEOMETRYCOLLECTION:
-        primitivetypeid = force_output_geometrytype.to_primitivetype.value
-        operation = f"ST_CollectionExtract({operation}, {primitivetypeid})"
+        # If we want a specific geometrytype as result, extract it
+        if force_output_geometrytype is not GeometryType.GEOMETRYCOLLECTION:
+            primitivetypeid = force_output_geometrytype.to_primitivetype.value
+            operation = f"ST_CollectionExtract({operation}, {primitivetypeid})"
 
-    # Now we can prepare the entire statement
-    sql_template = f"""
-        SELECT {operation} AS geom
-              {{columns_to_select_str}}
-          FROM "{{input_layer}}" layer
-         WHERE 1=1
-           {{batch_filter}}
-    """
+        # Now we can prepare the entire statement
+        sql_template = f"""
+            SELECT {operation} AS geom
+                  {{columns_to_select_str}}
+              FROM "{{input_layer}}" layer
+             WHERE 1=1
+               {{batch_filter}}
+        """
 
     _single_layer_vector_operation(
         input_path=input_path,
@@ -313,7 +351,6 @@ def select(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # Check if output exists already here, to evade to much logging to be written
     if output_path.exists():
         if force is False:
@@ -362,15 +399,26 @@ def simplify(
     batchsize: int = -1,
     force: bool = False,
 ):
-
-    # Prepare sql template for this operation
-    sql_template = f"""
-        SELECT ST_SimplifyPreserveTopology({{geometrycolumn}}, {tolerance}) AS geom
-              {{columns_to_select_str}}
-          FROM "{{input_layer}}" layer
-         WHERE 1=1
-           {{batch_filter}}
-    """
+    # Init + prepare sql template for this operation
+    # ----------------------------------------------
+    input_info = gfo.get_layerinfo(input_path, input_layer)
+    # TODO: writeemptyfile: remove seperate code for empty input again?
+    if input_info.featurecount == 0:
+        sql_template = """
+            SELECT {geometrycolumn} AS geom
+                  {columns_to_select_str}
+              FROM "{input_layer}" layer
+             WHERE 1=1
+               {batch_filter}
+        """
+    else:
+        sql_template = f"""
+            SELECT ST_SimplifyPreserveTopology({{geometrycolumn}}, {tolerance}) AS geom
+                  {{columns_to_select_str}}
+              FROM "{{input_layer}}" layer
+             WHERE 1=1
+               {{batch_filter}}
+        """
 
     # Output geometry type same as input geometry type
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
@@ -491,6 +539,9 @@ def _single_layer_vector_operation(
                 sql_stmt = sql_template.format(
                     geometrycolumn=input_layerinfo.geometrycolumn,
                     columns_to_select_str=formatted_column_strings.columns,
+                    columns_to_select_nocomma=formatted_column_strings.columns.lstrip(
+                        ","
+                    ),  # noqa: E501
                     input_layer=processing_params.batches[batch_id]["layer"],
                     batch_filter=processing_params.batches[batch_id]["batch_filter"],
                 )

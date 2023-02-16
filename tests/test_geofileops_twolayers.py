@@ -233,18 +233,10 @@ def test_intersection_resultempty(tmp_path, suffix):
     # -----------------
     input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     input2_path = test_helper.get_testfile(
-        "polygon-zone", suffix=suffix, dst_dir=tmp_path
+        "polygon-zone", suffix=suffix, dst_dir=tmp_path, empty=True
     )
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input1_layerinfo.featurecount / 2)
-    # Remove all rows from input2_path to get an empty result for intersection. GDAL
-    # only supports DELETE statements using SQLITE dialect, not with OGRSQL.
-    input2_layerinfo = gfo.get_layerinfo(input2_path)
-    gfo.execute_sql(
-        input2_path,
-        sql_stmt=f'DELETE FROM "{input2_layerinfo.name}"',
-        sql_dialect="SQLITE",
-    )
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     assert input2_layerinfo.featurecount == 0
 
@@ -261,7 +253,7 @@ def test_intersection_resultempty(tmp_path, suffix):
         batchsize=batchsize,
     )
 
-    # Check if the tmp file is correctly created
+    # Check if the output file is correctly created
     assert output_path.exists()
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == 0

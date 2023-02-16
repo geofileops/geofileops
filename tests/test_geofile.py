@@ -144,14 +144,8 @@ def test_convert(tmp_path, suffix):
 def test_convert_emptyfile(tmp_path, suffix):
     # Prepare test date
     # -----------------
-    src = test_helper.get_testfile("polygon-parcel", suffix=suffix, dst_dir=tmp_path)
-    # Remove all rows from src to get an empty result for intersection. GDAL
-    # only supports DELETE statements using SQLITE dialect, not with OGRSQL.
-    src_layerinfo = gfo.get_layerinfo(src)
-    gfo.execute_sql(
-        src,
-        sql_stmt=f'DELETE FROM "{src_layerinfo.name}"',
-        sql_dialect="SQLITE",
+    src = test_helper.get_testfile(
+        "polygon-parcel", suffix=suffix, dst_dir=tmp_path, empty=True
     )
     src_layerinfo = gfo.get_layerinfo(src)
     assert src_layerinfo.featurecount == 0

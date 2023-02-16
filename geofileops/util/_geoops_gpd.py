@@ -259,6 +259,12 @@ def buffer(
         "mitre_limit": mitre_limit,
         "single_sided": single_sided,
     }
+    
+    # Buffer operation always results in polygons...
+    if explodecollections:
+        force_output_geometrytype = GeometryType.POLYGON.name
+    else:
+        force_output_geometrytype = GeometryType.MULTIPOLYGON.name
 
     # Go!
     return _apply_geooperation_to_layer(
@@ -270,6 +276,7 @@ def buffer(
         output_layer=output_layer,
         columns=columns,
         explodecollections=explodecollections,
+        force_output_geometrytype=force_output_geometrytype,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -352,6 +359,7 @@ def _apply_geooperation_to_layer(
     columns: Optional[List[str]] = None,
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
+    force_output_geometrytype: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -403,6 +411,7 @@ def _apply_geooperation_to_layer(
             specified. Defaults to None.
         explodecollections (bool, optional): True to convert all multi-geometries to
             singular ones during the geooperation. Defaults to False.
+        force_output_geometrytype
         nb_parallel (int, optional): [description]. Defaults to -1.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
@@ -517,6 +526,7 @@ def _apply_geooperation_to_layer(
                     output_layer=output_layer,
                     rows=rows,
                     explodecollections=explodecollections,
+                    force_output_geometrytype=force_output_geometrytype,
                     force=force,
                 )
                 future_to_batch_id[future] = batch_id
@@ -543,6 +553,7 @@ def _apply_geooperation_to_layer(
                         gfo.append_to(
                             src=tmp_partial_output_path,
                             dst=output_tmp_path,
+                            force_output_geometrytype=force_output_geometrytype,
                             create_spatial_index=False,
                         )
                         gfo.remove(tmp_partial_output_path)
@@ -582,6 +593,7 @@ def _apply_geooperation(
     columns: Optional[List[str]] = None,
     rows=None,
     explodecollections: bool = False,
+    force_output_geometrytype: Optional[str] = None,
     force: bool = False,
 ) -> str:
 
@@ -598,12 +610,6 @@ def _apply_geooperation(
     data_gdf = gfo.read_file(
         path=input_path, layer=input_layer, columns=columns, rows=rows
     )
-    if len(data_gdf) == 0:
-        message = (
-            "No input geometries found for rows: "
-            f"{rows}, layer: {input_layer}, input_path: {input_path}"
-        )
-        return message
 
     if operation is GeoOperation.BUFFER:
         data_gdf.geometry = data_gdf.geometry.buffer(
@@ -639,18 +645,24 @@ def _apply_geooperation(
     if explodecollections:
         data_gdf = data_gdf.explode(ignore_index=True)  # type: ignore
 
-    if len(data_gdf) > 0:
-        # assert to evade pyLance warning
-        assert isinstance(data_gdf, gpd.GeoDataFrame)
-        # Use force_multitype, to evade warnings when some batches contain
-        # singletype and some contain multitype geometries
-        gfo.to_file(
-            gdf=data_gdf,
-            path=output_path,
-            layer=output_layer,
-            index=False,
-            force_multitype=True,
-        )
+    # If the result is empty, and no output geometrytype specified, use input
+    # geometrytype
+    if len(data_gdf) == 0 and force_output_geometrytype is None:
+        input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
+        force_output_geometrytype = input_layerinfo.geometrytypename
+
+    # assert to evade pyLance warning
+    assert isinstance(data_gdf, gpd.GeoDataFrame)
+    # Use force_multitype, to evade warnings when some batches contain
+    # singletype and some contain multitype geometries
+    gfo.to_file(
+        gdf=data_gdf,
+        path=output_path,
+        layer=output_layer,
+        index=False,
+        force_output_geometrytype=force_output_geometrytype,
+        force_multitype=True,
+    )
 
     message = f"Took {datetime.now()-start_time} for {len(data_gdf)} rows ({rows})!"
     return message
