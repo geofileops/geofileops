@@ -528,7 +528,7 @@ def has_spatial_index(
             raise ValueError(f"has_spatial_index not supported for {path}")
     finally:
         if datasource is not None:
-            del datasource
+            datasource = None
 
 
 def remove_spatial_index(
@@ -1078,6 +1078,7 @@ def to_file(
     gdf: Union[pd.DataFrame, gpd.GeoDataFrame],
     path: Union[str, "os.PathLike[Any]"],
     layer: Optional[str] = None,
+    force_output_geometrytype: Union[GeometryType, str, None] = None,
     force_multitype: bool = False,
     append: bool = False,
     append_timeout_s: int = 600,
@@ -1094,6 +1095,8 @@ def to_file(
         path (Union[str,): The file path to write to.
         layer (str, optional): The layer to read. If no layer is specified,
             reads the only layer in the file or throws an Exception.
+        force_output_geometrytype (Union[GeometryType, str], optional): Geometry type
+            to (try to) force the output to. Defaults to None.
         force_multitype (bool, optional): force the geometry type to a multitype
             for file types that require one geometrytype per layer.
             Defaults to False.
@@ -1118,10 +1121,6 @@ def to_file(
     # Check input parameters
     path = Path(path)
 
-    # If the dataframe is empty, return
-    if len(gdf) <= 0:
-        return
-
     # If no layer name specified, determine one
     if layer is None:
         if append and path.exists():
@@ -1129,28 +1128,47 @@ def to_file(
         else:
             layer = Path(path).stem
 
-    # If no geometry, prepare to be written as attribute table.
-    # Add geometry column with None geometries
+    # Handle some specific cases where the file schema needs to be manipulated.
     schema = None
     if isinstance(gdf, gpd.GeoDataFrame) is False or (
         isinstance(gdf, gpd.GeoDataFrame) and "geometry" not in gdf.columns
     ):
+        # If no geometry, prepare to be written as attribute table.
+        # Add geometry column with None geometries
         gdf = gpd.GeoDataFrame(gdf, geometry=[None for i in gdf.index])  # type: ignore
         schema = gpd_io_file.infer_schema(gdf)
         schema["geometry"] = "None"
+    elif len(gdf) == 0 and force_output_geometrytype is not None:
+        # If the gdf is empty but a geometry type is specified, use the specified type
+        if isinstance(force_output_geometrytype, str):
+            try:
+                # Verify if it is a "standard" geometry type, as GDAL also supports
+                # special geometry types like "PROMOTE_TO_MULTI"
+                force_output_geometrytype = GeometryType[force_output_geometrytype]
+            except Exception:
+                pass
+        if isinstance(force_output_geometrytype, GeometryType):
+            schema = gpd_io_file.infer_schema(gdf)
+            # Geometry type must be in camelcase for fiona
+            schema["geometry"] = force_output_geometrytype.name_camelcase
     assert isinstance(gdf, gpd.GeoDataFrame)
+
+    # Convert force_output_geometrytype to string to simplify code afterwards
+    if isinstance(force_output_geometrytype, GeometryType):
+        force_output_geometrytype = force_output_geometrytype.name
 
     def write_to_file(
         gdf: gpd.GeoDataFrame,
         path: Path,
         layer: str,
         index: bool = True,
+        force_output_geometrytype: Optional[str] = None,
         force_multitype: bool = False,
         append: bool = False,
         schema: Optional[dict] = None,
         create_spatial_index: Optional[bool] = True,
     ):
-        # Change mode if append is true
+        # Prepare args for to_file
         if append is True:
             if path.exists():
                 mode = "a"
@@ -1160,43 +1178,38 @@ def to_file(
             mode = "w"
 
         kwargs = {}
-        if create_spatial_index is not None:
-            kwargs = {"SPATIAL_INDEX": create_spatial_index}
+        kwargs["mode"] = mode
         geofiletype = GeofileType(path)
+        kwargs["driver"] = geofiletype.ogrdriver
+        if create_spatial_index is not None:
+            kwargs["SPATIAL_INDEX"] = create_spatial_index
+        if force_output_geometrytype is not None:
+            kwargs["geometrytype"] = force_output_geometrytype
+        if schema is not None:
+            kwargs["schema"] = schema
+
+        # Now we can write
         if geofiletype == GeofileType.ESRIShapefile:
             if index is True:
                 gdf_to_write = gdf.reset_index(drop=True)
             else:
                 gdf_to_write = gdf
-            gdf_to_write.to_file(
-                str(path), driver=geofiletype.ogrdriver, mode=mode, **kwargs
-            )
+            gdf_to_write.to_file(str(path), **kwargs)
         elif geofiletype == GeofileType.GPKG:
             # Try to harmonize the geometrytype to one (multi)type, as GPKG
             # doesn't like > 1 type in a layer
-            gdf_to_write = gdf.copy()
-            if schema is None or schema["geometry"] != "None":
+            if schema is None or (len(gdf) > 0 and schema["geometry"] != "None"):
+                gdf_to_write = gdf.copy()
                 gdf_to_write.geometry = geoseries_util.harmonize_geometrytypes(
                     gdf.geometry, force_multitype=force_multitype
                 )
-            gdf_to_write.to_file(
-                str(path),
-                layer=layer,
-                driver=geofiletype.ogrdriver,
-                mode=mode,
-                schema=schema,
-                **kwargs,
-            )
+            else:
+                gdf_to_write = gdf
+            gdf_to_write.to_file(str(path), layer=layer, **kwargs)
         elif geofiletype == GeofileType.SQLite:
-            gdf.to_file(
-                str(path),
-                layer=layer,
-                driver=geofiletype.ogrdriver,
-                mode=mode,
-                **kwargs,
-            )
+            gdf.to_file(str(path), layer=layer, **kwargs)
         elif geofiletype == GeofileType.GeoJSON:
-            gdf.to_file(str(path), driver=geofiletype.ogrdriver, mode=mode, **kwargs)
+            gdf.to_file(str(path), **kwargs)
         else:
             raise ValueError(f"Not implemented for geofiletype {geofiletype}")
 
@@ -1207,6 +1220,7 @@ def to_file(
             path=path,
             layer=layer,
             index=index,
+            force_output_geometrytype=force_output_geometrytype,
             force_multitype=force_multitype,
             append=append,
             schema=schema,
@@ -1234,6 +1248,7 @@ def to_file(
                 path=gdftemp_path,
                 layer=layer,
                 index=index,
+                force_output_geometrytype=force_output_geometrytype,
                 force_multitype=force_multitype,
                 schema=schema,
                 create_spatial_index=create_spatial_index,
@@ -1254,6 +1269,7 @@ def to_file(
                             path=path,
                             layer=layer,
                             index=index,
+                            force_output_geometrytype=force_output_geometrytype,
                             force_multitype=force_multitype,
                             append=True,
                             schema=schema,
@@ -1265,6 +1281,7 @@ def to_file(
                             src=gdftemp_path,
                             dst=path,
                             dst_layer=layer,
+                            force_output_geometrytype=force_output_geometrytype,
                             create_spatial_index=create_spatial_index,
                         )
                         remove(gdftemp_path)
@@ -1522,7 +1539,7 @@ def append_to(
             file. Defaults to False.
         explodecollections (bool), optional): True to output only simple geometries.
             Defaults to False.
-        force_output_geometrytype (GeometryType, optional): geometry type.
+        force_output_geometrytype (Union[GeometryType, str], optional): Geometry type.
             to (try to) force the output to. Defaults to None.
         create_spatial_index (bool, optional): True to create a spatial index
             on the destination file/layer. If None, the default behaviour by gdal for
@@ -1551,7 +1568,7 @@ def append_to(
 
     # If the destination file doesn't exist yet, but the lockfile does,
     # try removing the lockfile as it might be a ghost lockfile.
-    if dst.exists() is False and lockfile.exists() is True:
+    if not dst.exists() and lockfile.exists():
         try:
             lockfile.unlink()
         except Exception:
@@ -1604,7 +1621,7 @@ def _append_to_nolock(
     reproject: bool = False,
     explodecollections: bool = False,
     create_spatial_index: Optional[bool] = True,
-    force_output_geometrytype: Optional[GeometryType] = None,
+    force_output_geometrytype: Union[GeometryType, str, None] = None,
     transaction_size: int = 50000,
     options: dict = {},
 ):
@@ -1620,15 +1637,23 @@ def _append_to_nolock(
     # a sql statement, otherwise when appending the laundered columns will
     # get NULL values instead of the data.
     sql_stmt = None
+    src_layerinfo = None
     if dst.suffix.lower() == ".shp":
-        src_info = get_layerinfo(src)
-        src_columns = src_info.columns
+        src_layerinfo = get_layerinfo(src, src_layer)
+        src_columns = src_layerinfo.columns
         columns_laundered = _launder_column_names(src_columns)
         columns_aliased = [
             f'"{column}" AS "{laundered}"' for column, laundered in columns_laundered
         ]
         layer = src_layer if src_layer is not None else get_only_layer(src)
         sql_stmt = f'SELECT {", ".join(columns_aliased)} FROM "{layer}"'
+
+    # When dst file doesn't exist and src is empty force_output_geometrytype should be
+    # specified, otherwise invalid output.
+    if force_output_geometrytype is None and not dst.exists():
+        if src_layerinfo is None:
+            src_layerinfo = get_layerinfo(src, src_layer)
+        force_output_geometrytype = src_layerinfo.geometrytype
 
     # Go!
     translate_info = _ogr_util.VectorTranslateInfo(
@@ -1660,13 +1685,15 @@ def convert(
     dst_crs: Union[str, int, None] = None,
     reproject: bool = False,
     explodecollections: bool = False,
-    force_output_geometrytype: Optional[GeometryType] = None,
+    force_output_geometrytype: Union[GeometryType, str, None] = None,
     create_spatial_index: Optional[bool] = True,
     options: dict = {},
     force: bool = False,
 ):
     """
-    Append src file to the dst file.
+    Read a layer from a source file and write it to a new destination file.
+
+    Typically used to convert from one fileformat to another or to reproject.
 
     The options parameter can be used to pass any type of options to GDAL in
     the following form:
@@ -1701,7 +1728,7 @@ def convert(
             file. Defaults to False.
         explodecollections (bool, optional): True to output only simple
             geometries. Defaults to False.
-        force_output_geometrytype (GeometryType, optional): Geometry type.
+        force_output_geometrytype (Union[GeometryType, str], optional): Geometry type.
             to (try to) force the output to. Defaults to None.
         create_spatial_index (bool, optional): True to create a spatial index
             on the destination file/layer. If None, the default behaviour by gdal for
