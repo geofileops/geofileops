@@ -199,6 +199,17 @@ def test_simplify_coords_lang():
     coords_simplified = geometry_util.simplify_coords_lang(
         coords=linestring.coords, tolerance=1, lookahead=-1
     )
+    assert isinstance(coords_simplified, np.ndarray)
+    assert len(coords_simplified) < len(linestring.coords)
+    assert len(coords_simplified) == 2
+
+
+def test_simplify_coords_lang_list():
+    # Test LineString, lookahead -1, via coordinates
+    linestring = sh_geom.LineString([(0, 0), (10, 10), (20, 20)])
+    coords_simplified = geometry_util.simplify_coords_lang(
+        coords=list(linestring.coords), tolerance=1, lookahead=-1
+    )
     assert isinstance(coords_simplified, list)
     assert len(coords_simplified) < len(linestring.coords)
     assert len(coords_simplified) == 2
@@ -432,7 +443,7 @@ def test_simplify_ext_keep_points_on_lang(tmp_path):
         crs="epsg:31370",
     )
     gfo.to_file(grid_gdf, tmp_path / "grid.gpkg")
-    grid_coords = [tile.exterior.coords for tile in grid_gdf["geometry"]]
+    grid_coords = [tile.exterior.coords for tile in grid_gdf.geometry]
     grid_lines_geom = sh_geom.MultiLineString(grid_coords)
 
     # Test lang
@@ -514,7 +525,7 @@ def test_simplify_ext_keep_points_on_rdp(tmp_path):
         crs="epsg:31370",
     )
     gfo.to_file(grid_gdf, tmp_path / "grid.gpkg")
-    grid_coords = [tile.exterior.coords for tile in grid_gdf["geometry"]]
+    grid_coords = [tile.exterior.coords for tile in grid_gdf.geometry]
     grid_lines_geom = sh_geom.MultiLineString(grid_coords)
 
     # Test rdp (ramer–douglas–peucker)
@@ -590,7 +601,7 @@ def test_simplify_ext_keep_points_on_vw(tmp_path):
         crs="epsg:31370",
     )
     gfo.to_file(grid_gdf, tmp_path / "grid.gpkg")
-    grid_coords = [tile.exterior.coords for tile in grid_gdf["geometry"]]
+    grid_coords = [tile.exterior.coords for tile in grid_gdf.geometry]
     grid_lines_geom = sh_geom.MultiLineString(grid_coords)
 
     # Test vw (visvalingam-whyatt)

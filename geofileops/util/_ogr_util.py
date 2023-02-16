@@ -43,6 +43,10 @@ logger = logging.getLogger(__name__)
 #####################################################################
 
 
+class GFOError(Exception):
+    pass
+
+
 def get_drivers() -> dict:
     drivers = {}
     for i in range(gdal.GetDriverCount()):
@@ -173,6 +177,11 @@ def vector_translate(
         args.extend(["-spat"])
         bounds = [str(coord) for coord in spatial_filter]
         args.extend(bounds)
+    if sql_stmt is not None:
+        # If sql_stmt starts with "\n" or "\t" for gpkg or with " " for a shp,
+        # VectorTranslate outputs no or an invalid file if the statement doesn't return
+        # any rows...
+        sql_stmt = sql_stmt.lstrip("\n\t ")
     if clip_geometry is not None:
         args.extend(["-clipsrc"])
         if isinstance(clip_geometry, str):
@@ -289,8 +298,8 @@ def vector_translate(
     )
 
     # Now we can really get to work
-    input_ds = None
     result_ds = None
+    gdallog_dir = Path(tempfile.gettempdir()) / "geofileops/gdal_log"
     try:
         # In some cases gdal only raises the last exception instead of the stack in
         # VectorTranslate, so you lose necessary details!
@@ -298,33 +307,64 @@ def vector_translate(
 
         # gdal.DontUseExceptions()
         gdal.UseExceptions()
-        gdal.ConfigurePythonLogging(logger_name="gdal", enable_debug=False)
+        enable_debug = True if logger.level == logging.DEBUG else False
+        gdal.ConfigurePythonLogging(logger_name="gdal", enable_debug=enable_debug)
 
+        # Sometimes GDAL doesn't log to standard logging nor throw an exception but just
+        # writes to a seperate logging system. Enable this seperate logging to check it
+        # afterwards.
+        errorlog_path = gdallog_dir / f"gdal_errors_{os.getpid()}.log"
+        config_options["CPL_LOG"] = str(errorlog_path)
+        config_options["CPL_LOG_ERRORS"] = "ON"
+
+        # Go!
         logger.debug(f"Execute {sql_stmt} on {input_path}")
         with set_config_options(config_options):
-            input_ds = gdal.OpenEx(str(input_path))
-
-            # TODO: memory output support might be interesting to support
             result_ds = gdal.VectorTranslate(
-                destNameOrDestDS=str(output_path), srcDS=input_ds, options=options
+                destNameOrDestDS=str(output_path),
+                srcDS=str(input_path),
+                options=options,
             )
 
+        # If there is CPL_LOG logging, write to standard logger as well, extract last
+        # error and clean log file.
+        cpl_error = None
+        if errorlog_path.exists() and errorlog_path.stat().st_size > 0:
+            with open(errorlog_path, "r+") as errorlog_file:
+                lines = errorlog_file.readlines()
+                for line in lines:
+                    line = line.lstrip("\0")
+                    if line.startswith("ERROR"):
+                        logger.error(line)
+                        cpl_error = line
+                    else:
+                        logger.info(line)
+                errorlog_file.truncate(0)  # size '0' when using r+
+
+        # Check in several ways if an error occured
         if result_ds is None:
-            raise Exception("BOOM")
-        if result_ds.GetLayerCount() == 0:
-            result_ds = None
-            if output_path.exists():
+            raise GFOError(f"result_ds is None ({cpl_error})")
+        result_ds = None
+        # Sometimes an invalid output file is written, so try to open it.
+        if output_path.exists():
+            try:
+                result_ds = gdal.OpenEx(str(output_path))
+            except Exception as ex:
+                logger.info(
+                    f"Opening output file gave error, probably the input file was "
+                    f"empty, no rows were selected or geom was NULL: {ex}")
                 gfo.remove(output_path)
+            finally:
+                result_ds = None
 
     except Exception as ex:
-        message = f"Error {ex} executing {sql_stmt}"
-        logger.exception(message)
-        raise Exception(message) from ex
+        result_ds = None
+        message = f"Error {ex} while creating {output_path}"
+        if sql_stmt is not None:
+            message = f"{message} using sql_stmt {sql_stmt}"
+        raise GFOError(message)
     finally:
-        if input_ds is not None:
-            del input_ds
-        if result_ds is not None:
-            del result_ds
+        result_ds = None
 
     return True
 
@@ -415,9 +455,13 @@ class set_config_options(object):
         # self.config_options_backup = gdal.GetConfigOptions()
         for name, value in self.config_options.items():
             # Prepare value
-            if isinstance(value, bool):
+            if value is None:
+                pass
+            elif isinstance(value, bool):
                 value = "YES" if value is True else "NO"
-            gdal.SetConfigOption(str(name), str(value))
+            else:
+                value = str(value)
+            gdal.SetConfigOption(str(name), value)
 
     def __exit__(self, type, value, traceback):
         # Remove config options that were set
@@ -488,8 +532,6 @@ def vector_info(
         # double quotes
         layer_stripped = layer.strip("'\"")
         args.append(layer_stripped)
-
-    # TODO: ideally, the child processes would die when the parent is killed!
 
     # Run ogrinfo
     # Geopackage/sqlite files are very sensitive for being locked, so retry till

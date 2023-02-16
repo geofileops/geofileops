@@ -19,6 +19,7 @@ import warnings
 import fiona
 import geopandas as gpd
 from geopandas.io import file as gpd_io_file
+import numpy as np
 from osgeo import gdal
 import pandas as pd
 import pyproj
@@ -996,9 +997,25 @@ def _read_file_base(
         columns_upper = [column.upper() for column in columns]
         columns_upper.append("GEOMETRY")
         columns_to_keep = [
-            col for col in result_gdf.columns if (col.upper() in columns_upper)
+            col for col in result_gdf.columns if (str(col).upper() in columns_upper)
         ]
         result_gdf = result_gdf[columns_to_keep]
+
+    # Starting from fiona 1.9, string columns with all None values are read as being
+    # float columns. Convert them to object type.
+    float_cols = list(result_gdf.select_dtypes(["float64"]).columns)
+    if len(float_cols) > 0:
+        # Check for all float columns found if they should be object columns instead
+        with fiona.open(path, layer=layer) as collection:
+            assert collection.schema is not None
+            properties = collection.schema["properties"]
+            for col in float_cols:
+                if col in properties and properties[col].startswith("str"):
+                    result_gdf[col] = (
+                        result_gdf[col]  # type: ignore
+                        .astype(object)
+                        .replace(np.nan, None)
+                    )
 
     # assert to evade pyLance warning
     assert isinstance(result_gdf, pd.DataFrame) or isinstance(
@@ -1051,7 +1068,10 @@ def read_file_sql(
         )
 
         # Read and return result
-        return _read_file_base(tmp_path, ignore_geometry=ignore_geometry)
+        if tmp_path.exists():
+            return _read_file_base(tmp_path, ignore_geometry=ignore_geometry)
+        else:
+            return pd.DataFrame()
 
 
 def to_file(

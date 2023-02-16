@@ -5,7 +5,20 @@
 ### Improvements
 
 - When a geo operation results in an empty result, write an empty output file (#188)
-- Support geopandas 12 with shapely 2.0 + pygeos (#191)
+
+## 0.6.4 (2023-02-15)
+
+### Improvements
+
+- Support geopandas 12 with shapely 2.0 + pygeos (#191, #193)
+- Support improvements in gdal 3.6.2 (#195)
+- Improve performance of sql-based operations for very large input files (#201)
+- Small improvements to formatting, linting,... (#202)
+
+### Deprecations and compatibility notes
+
+- Fix: Due to a change in fiona >= 1.9, using read_file on string columns with all None values ended up as a float64 column (#199)
+- Because geofileops uses pygeos directly, pin geopandas to < 1.0. More info: https://github.com/geopandas/geopandas/issues/2691 (#200)
 
 ### Bugs fixed
 

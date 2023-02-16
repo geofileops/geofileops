@@ -6,7 +6,6 @@ Tests for operations using GeoPandas.
 import json
 import math
 from pathlib import Path
-import platform
 import sys
 
 import geopandas as gpd
@@ -363,14 +362,19 @@ def test_dissolve_polygons(
 
 
 def test_dissolve_polygons_groupby_None(tmp_path):
+    """
+    Test dissolve polygons with a column with None values. There was once an issue
+    that the type of the column with None Values always ended up as a REAL column after
+    the dissolve/group by instead of the original type.
+    """
+
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
     gfo.add_column(input_path, name="none_values", type=gfo.DataType.TEXT)
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
-    # Test dissolve polygons with different options for groupby and explodecollections
-    # --------------------------------------------------------------------------------
+    # Run test
     output_path = tmp_path / "output.gpkg"
     gfo.dissolve(
         input_path=input_path,
@@ -628,7 +632,7 @@ def test_dissolve_polygons_aggcolumns_json(tmp_path, suffix=".gpkg"):
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == output_layerinfo.featurecount
     assert output_gdf["geometry"][0] is not None
-    grasland_json = json.loads(output_gdf["json"][0])
+    grasland_json = json.loads(str(output_gdf["json"][0]))
     assert len(grasland_json) == 30
 
     # Test dissolve polygons with groupby + all columns to json
@@ -659,7 +663,7 @@ def test_dissolve_polygons_aggcolumns_json(tmp_path, suffix=".gpkg"):
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == output_layerinfo.featurecount
     assert output_gdf["geometry"][0] is not None
-    grasland_json = json.loads(output_gdf["json"][0])
+    grasland_json = json.loads(str(output_gdf["json"][0]))
     assert len(grasland_json) == 30
 
 

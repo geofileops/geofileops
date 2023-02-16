@@ -222,7 +222,8 @@ def test_buffer_negative(tmp_path, suffix, fileops_module, testfile):
         GeometryType.MULTILINESTRING,
     ]:
         # A Negative buffer of points or linestrings doesn't give a result.
-        assert output_path.exists() is False
+        if output_path.exists():
+            assert fileops.get_layerinfo(output_path).featurecount == 0
     else:
         # A Negative buffer of polygons gives a result for large polygons.
         assert output_path.exists()
