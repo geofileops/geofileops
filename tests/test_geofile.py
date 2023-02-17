@@ -142,27 +142,16 @@ def test_convert(tmp_path, suffix):
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 def test_convert_emptyfile(tmp_path, suffix):
-    # Prepare test date
-    # -----------------
-    src = test_helper.get_testfile("polygon-parcel", suffix=suffix, dst_dir=tmp_path)
-    # Remove all rows from src to get an empty result for intersection. GDAL
-    # only supports DELETE statements using SQLITE dialect, not with OGRSQL.
-    src_layerinfo = gfo.get_layerinfo(src)
-    gfo.execute_sql(
-        src,
-        sql_stmt=f'DELETE FROM "{src_layerinfo.name}"',
-        sql_dialect="SQLITE",
-    )
-    src_layerinfo = gfo.get_layerinfo(src)
-    assert src_layerinfo.featurecount == 0
-
     # Convert
-    # -------
+    src = test_helper.get_testfile(
+        "polygon-parcel", suffix=suffix, dst_dir=tmp_path, empty=True
+    )
     dst = tmp_path / f"{src.stem}-output{suffix}"
     gfo.convert(src, dst)
 
     # Now compare source and dst file
     assert dst.exists()
+    src_layerinfo = gfo.get_layerinfo(src)
     dst_layerinfo = gfo.get_layerinfo(dst)
     assert src_layerinfo.featurecount == dst_layerinfo.featurecount
     assert len(src_layerinfo.columns) == len(dst_layerinfo.columns)
@@ -673,6 +662,54 @@ def test_to_file_create_spatial_index(
     read_gdf = gfo.read_file(src)
     gfo.to_file(read_gdf, output_path, create_spatial_index=create_spatial_index)
     assert gfo.has_spatial_index(output_path) is expected_spatial_index
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_to_file_emptyfile(tmp_path, suffix):
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    input_layerinfo = gfo.get_layerinfo(input_path)
+    read_gdf = gfo.read_file(input_path)
+    empty_gdf = read_gdf.drop(read_gdf.index)
+    assert isinstance(empty_gdf, gpd.GeoDataFrame)
+
+    # Test
+    # Remark: if no force_output_geometrytype is specified, the ouput geometry type in
+    # the depends on the file type, eg. Geometry for gpkg, MultiLinestring for shp.
+    output_path = tmp_path / f"output-emptyfile{suffix}"
+    gfo.to_file(
+        empty_gdf, output_path, force_output_geometrytype=input_layerinfo.geometrytype
+    )
+
+    # Check result
+    input_layerinfo = gfo.get_layerinfo(input_path)
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.featurecount == 0
+    assert len(input_layerinfo.columns) == len(output_layerinfo.columns)
+    assert input_layerinfo.geometrytype == output_layerinfo.geometrytype
+
+
+def test_to_file_force_geometrytype(tmp_path):
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel")
+    read_gdf = gfo.read_file(input_path)
+    read_gdf.geometry = read_gdf.geometry.buffer(0)
+    poly_gdf = read_gdf[read_gdf.geometry.geom_type == "Polygon"]
+    assert isinstance(poly_gdf, gpd.GeoDataFrame)
+
+    output_path = tmp_path / f"{input_path.stem}-output.gpkg"
+    gfo.to_file(poly_gdf, output_path)
+    output_info = gfo.get_layerinfo(output_path)
+    assert output_info.featurecount == len(poly_gdf)
+    assert output_info.geometrytype == GeometryType.POLYGON
+
+    output_force_path = tmp_path / f"{input_path.stem}-output-force.gpkg"
+    gfo.to_file(
+        poly_gdf, output_force_path, force_output_geometrytype=GeometryType.MULTIPOLYGON
+    )
+    output_force_info = gfo.get_layerinfo(output_force_path)
+    assert output_force_info.featurecount == len(poly_gdf)
+    assert output_force_info.geometrytype == GeometryType.MULTIPOLYGON
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
