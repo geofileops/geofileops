@@ -10,8 +10,11 @@ be as well.
 Create development environment
 ------------------------------
 
-If you don't have miniconda or anaconda installed yet, here is a link to the 
-`miniconda installer`_
+The first step would be Now, if you fork the |geofileOps git repository|, you should be able to run/debug the code.
+
+If you don't have the conda package manager installed yet, here is a link to the 
+`miniforge installer`_
+
 
 Then you'll need to create a new conda environment with the necessary 
 dependencies::
@@ -23,9 +26,9 @@ dependencies::
     conda install python=3.9 geopandas=0.10 psutil
     conda install pylint pytest rope pydata-sphinx-theme sphinx-automodapi
 
-Now, if you fork the |geofileOps git repository|, you should be able to run/debug the code.
 
-.. _miniconda installer : https://conda.io/projects/conda/en/latest/user-guide/install/index.html
+
+.. _miniforge installer : https://github.com/conda-forge/miniforge#miniforge3
 
 .. |geofileOps git repository| raw:: html
 
