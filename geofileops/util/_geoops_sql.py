@@ -52,6 +52,7 @@ def buffer(
     # Init + prepare sql template for this operation
     # ----------------------------------------------
     input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
+    # TODO: writeemptyfile: remove code for empty input once gdal 3.6.3 is released
     if input_layerinfo.featurecount == 0:
         sql_template = """
             SELECT {geometrycolumn} AS geom
@@ -121,7 +122,7 @@ def convexhull(
     # Init + prepare sql template for this operation
     # ----------------------------------------------
     input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
-    # TODO: writeemptyfile: remove seperate code for empty input again?
+    # TODO: writeemptyfile: remove code for empty input once gdal 3.6.3 is released
     if input_layerinfo.featurecount == 0:
         sql_template = """
             SELECT {geometrycolumn} as geom
@@ -281,7 +282,7 @@ def makevalid(
     if force_output_geometrytype is None:
         force_output_geometrytype = input_layerinfo.geometrytype
 
-    # TODO: writeemptyfile: remove seperate code for empty input again?
+    # TODO: writeemptyfile: remove code for empty input once gdal 3.6.3 is released
     if input_layerinfo.featurecount == 0:
         sql_template = """
             SELECT {geometrycolumn} AS geom
@@ -402,7 +403,7 @@ def simplify(
     # Init + prepare sql template for this operation
     # ----------------------------------------------
     input_info = gfo.get_layerinfo(input_path, input_layer)
-    # TODO: writeemptyfile: remove seperate code for empty input again?
+    # TODO: writeemptyfile: remove code for empty input once gdal 3.6.3 is released
     if input_info.featurecount == 0:
         sql_template = """
             SELECT {geometrycolumn} AS geom
