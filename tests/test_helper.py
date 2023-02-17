@@ -75,6 +75,7 @@ def get_testfile(
     dst_dir: Optional[Path] = None,
     suffix: str = ".gpkg",
     epsg: int = 31370,
+    empty: bool = False,
 ) -> Path:
     # Prepare original filepath
     testfile_path = _data_dir / f"{testfile}.gpkg"
@@ -85,7 +86,8 @@ def get_testfile(
     dst_dir.mkdir(parents=True, exist_ok=True)
 
     # Prepare file + return
-    prepared_path = dst_dir / f"{testfile_path.stem}_{epsg}{suffix}"
+    empty_str = "_empty" if empty else ""
+    prepared_path = dst_dir / f"{testfile_path.stem}_{epsg}{empty_str}{suffix}"
     if prepared_path.exists():
         return prepared_path
     layers = gfo.listlayers(testfile_path)
@@ -99,6 +101,16 @@ def get_testfile(
             reproject=True,
             append=True,
         )
+        # If all rows need to be deleted
+        if empty:
+            # Remove all rows from input2_path to get an empty result for intersection. GDAL
+            # only supports DELETE statements using SQLITE dialect, not with OGRSQL.
+            gfo.execute_sql(
+                prepared_path,
+                sql_stmt=f'DELETE FROM "{layer}"',
+                sql_dialect="SQLITE",
+            )
+
     return prepared_path
 
 
