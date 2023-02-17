@@ -5,6 +5,7 @@
 ### Improvements
 
 - When a geo operation results in an empty result, write an empty output file (#188)
+- Add support to to_file to write empty dataframe + add parameter force_output_geometrytype (#205)
 
 ## 0.6.4 (2023-02-15)
 

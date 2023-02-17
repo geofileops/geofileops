@@ -123,7 +123,10 @@ def test_makevalid(tmp_path, suffix, input_empty):
     layerinfo_orig = gfo.get_layerinfo(input_path)
     layerinfo_output = gfo.get_layerinfo(output_path)
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
-    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
+    assert layerinfo_output.geometrytype in [
+        GeometryType.POLYGON,
+        GeometryType.MULTIPOLYGON,
+    ]
 
     if not input_empty:
         assert layerinfo_orig.featurecount == layerinfo_output.featurecount

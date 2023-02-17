@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import pprint
 import re
+import shutil
 import subprocess
 import tempfile
 from threading import Lock
@@ -21,10 +22,8 @@ from typing import List, Optional, Tuple, Union
 import geopandas as gpd
 from osgeo import gdal
 
-gdal.UseExceptions()
-gdal.ConfigurePythonLogging(logger_name="gdal", enable_debug=False)
-
 import geofileops as gfo
+from geofileops.util import _io_util
 from geofileops.util.geofiletype import GeofileType
 from geofileops.util.geometry_util import GeometryType
 
@@ -73,7 +72,7 @@ class VectorTranslateInfo:
         append: bool = False,
         update: bool = False,
         explodecollections: bool = False,
-        force_output_geometrytype: Optional[GeometryType] = None,
+        force_output_geometrytype: Union[GeometryType, str, None] = None,
         options: dict = {},
         columns: Optional[List[str]] = None,
         warp: Optional[dict] = None,
@@ -140,17 +139,11 @@ def vector_translate(
     append: bool = False,
     update: bool = False,
     explodecollections: bool = False,
-    force_output_geometrytype: Optional[GeometryType] = None,
+    force_output_geometrytype: Union[GeometryType, str, None] = None,
     options: dict = {},
     columns: Optional[List[str]] = None,
     warp: Optional[dict] = None,
 ) -> bool:
-
-    # Remark: when executing a select statement, I keep getting error that
-    # there are two columns named "geom" as he doesnt see the "geom" column
-    # in the select as a geometry column. Probably a version issue. Maybe
-    # try again later.
-    #
     # API Doc of VectorTranslateOptions:
     #   https://gdal.org/api/python/osgeo.gdal.html#osgeo.gdal.VectorTranslateOptions
     args = []
@@ -243,11 +236,13 @@ def vector_translate(
     # Output layer options
     if explodecollections is True:
         args.append("-explodecollections")
-    if output_layer is not None:
-        args.extend(["-nln", output_layer])
+    output_geometrytypes = []
     if force_output_geometrytype is not None:
-        args.extend(["-nlt", force_output_geometrytype.name])
-    args.extend(["-nlt", "PROMOTE_TO_MULTI"])
+        if isinstance(force_output_geometrytype, GeometryType):
+            output_geometrytypes.append(force_output_geometrytype.name)
+        else:
+            output_geometrytypes.append(force_output_geometrytype)
+    output_geometrytypes.append("PROMOTE_TO_MULTI")
     if transaction_size is not None:
         args.extend(["-gt", str(transaction_size)])
 
@@ -267,44 +262,46 @@ def vector_translate(
         if "OGR_SQLITE_CACHE" not in config_options:
             config_options["OGR_SQLITE_CACHE"] = "128"
 
-    # Consolidate all parameters
-    options = gdal.VectorTranslateOptions(
-        options=args,
-        format=output_filetype.ogrdriver,
-        accessMode=None,
-        srcSRS=input_srs,
-        dstSRS=output_srs,
-        reproject=reproject,
-        SQLStatement=sql_stmt,
-        SQLDialect=sql_dialect,
-        where=None,  # "geom IS NOT NULL",
-        selectFields=None,
-        addFields=False,
-        forceNullable=False,
-        spatFilter=spatial_filter,
-        spatSRS=None,
-        datasetCreationOptions=datasetCreationOptions,
-        layerCreationOptions=layerCreationOptions,
-        layers=input_layers,
-        layerName=output_layer,
-        geometryType=None,
-        dim=None,
-        segmentizeMaxDist=None,
-        zField=None,
-        skipFailures=False,
-        limit=None,
-        callback=None,
-        callback_data=None,
-    )
-
     # Now we can really get to work
     result_ds = None
     gdallog_dir = Path(tempfile.gettempdir()) / "geofileops/gdal_log"
     try:
+        # Consolidate all parameters
+        # First take copy of args, because gdal.VectorTranslateOptions adds all
+        # other parameters to the list passed (by ref)!!!
+        args_copy = list(args)
+        options = gdal.VectorTranslateOptions(
+            options=args_copy,
+            format=output_filetype.ogrdriver,
+            accessMode=None,
+            srcSRS=input_srs,
+            dstSRS=output_srs,
+            reproject=reproject,
+            SQLStatement=sql_stmt,
+            SQLDialect=sql_dialect,
+            where=None,  # "geom IS NOT NULL",
+            selectFields=None,
+            addFields=False,
+            forceNullable=False,
+            spatFilter=spatial_filter,
+            spatSRS=None,
+            datasetCreationOptions=datasetCreationOptions,
+            layerCreationOptions=layerCreationOptions,
+            layers=input_layers,
+            layerName=output_layer,
+            geometryType=output_geometrytypes,
+            dim=None,
+            segmentizeMaxDist=None,
+            zField=None,
+            skipFailures=False,
+            limit=None,
+            callback=None,
+            callback_data=None,
+        )
+
         # In some cases gdal only raises the last exception instead of the stack in
         # VectorTranslate, so you lose necessary details!
         # -> uncomment gdal.DontUseExceptions() when debugging!
-
         # gdal.DontUseExceptions()
         gdal.UseExceptions()
         enable_debug = True if logger.level == logging.DEBUG else False
