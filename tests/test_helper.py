@@ -88,9 +88,17 @@ def get_testfile(
     # Prepare file + return
     empty_str = "_empty" if empty else ""
     prepared_path = dst_dir / f"{testfile_path.stem}_{epsg}{empty_str}{suffix}"
+    dst_geofiletype = gfo.GeofileType(prepared_path)
     if prepared_path.exists():
         return prepared_path
     layers = gfo.listlayers(testfile_path)
+    if len(layers) > 1 and dst_geofiletype.is_singlelayer:
+        raise ValueError(
+            f"multilayer testfile ({testfile}) cannot be converted to single layer "
+            f"geofiletype: {dst_geofiletype}"
+        )
+    
+    # Convert all layers found
     for layer in layers:
         gfo.convert(
             testfile_path,
@@ -103,8 +111,11 @@ def get_testfile(
         )
         # If all rows need to be deleted
         if empty:
-            # Remove all rows from input2_path to get an empty result for intersection. GDAL
-            # only supports DELETE statements using SQLITE dialect, not with OGRSQL.
+            # Remove all rows from destination layer.
+            # GDAL only supports DELETE using SQLITE dialect, not with OGRSQL.
+            if dst_geofiletype.is_singlelayer:
+                # Layer name can be different for singlelayer output files
+                layer = gfo.listlayers(prepared_path)[0]
             gfo.execute_sql(
                 prepared_path,
                 sql_stmt=f'DELETE FROM "{layer}"',
