@@ -2494,13 +2494,24 @@ def dissolve_singlethread(
         if explodecollections is True:
             force_output_geometrytype = GeometryType.LINESTRING
 
-    sql_stmt = f"""
-        SELECT {operation} AS geom
-              {groupby_columns_for_select_str}
-              {agg_columns_str}
-          FROM "{input_layer}" layer
-         GROUP BY {groupby_columns_for_groupby_str}
-    """
+    # TODO: writeemptyfile: remove code for empty input once gdal 3.6.3 is released
+    if layerinfo.featurecount == 0:
+        sql_stmt = f"""
+            SELECT {layerinfo.geometrycolumn} AS geom
+                {groupby_columns_for_select_str}
+                {agg_columns_str}
+            FROM "{input_layer}" layer
+            GROUP BY {groupby_columns_for_groupby_str}
+        """
+        force_output_geometrytype = layerinfo.geometrytype
+    else:
+        sql_stmt = f"""
+            SELECT {operation} AS geom
+                {groupby_columns_for_select_str}
+                {agg_columns_str}
+            FROM "{input_layer}" layer
+            GROUP BY {groupby_columns_for_groupby_str}
+        """
 
     _ogr_util.vector_translate(
         input_path=input_path,

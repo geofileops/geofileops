@@ -259,7 +259,7 @@ def buffer(
         "mitre_limit": mitre_limit,
         "single_sided": single_sided,
     }
-    
+
     # Buffer operation always results in polygons...
     if explodecollections:
         force_output_geometrytype = GeometryType.POLYGON.name
@@ -803,40 +803,21 @@ def dissolve(
         else:
             gfo.remove(output_path)
 
-    # If a tiles_path is specified, read those tiles...
-    result_tiles_gdf = None
-    if tiles_path is not None:
-        result_tiles_gdf = gfo.read_file(tiles_path)
-        if nb_parallel == -1:
-            nb_cpu = multiprocessing.cpu_count()
-            nb_parallel = nb_cpu  # int(1.25 * nb_cpu)
-            logger.debug(f"Nb cpus found: {nb_cpu}, nb_parallel: {nb_parallel}")
-    else:
-        # Else, create a grid based on the number of tiles wanted as result
-        result_tiles_gdf = grid_util.create_grid2(
-            input_layerinfo.total_bounds, nb_squarish_tiles, input_layerinfo.crs
-        )
-        if len(result_tiles_gdf) > 1:
-            gfo.to_file(
-                result_tiles_gdf, output_path.parent / f"{output_path.stem}_tiles.gpkg"
-            )
-
-    # If a tiled result is asked, add tile_id to group on for the result
-    if len(result_tiles_gdf) > 1:
-        result_tiles_gdf["tile_id"] = result_tiles_gdf.reset_index().index
-
     # Now start dissolving
     # --------------------
-    # Line and point layers are:
+    # Empty or Line and point layers are:
     #   * not so large (memory-wise)
     #   * aren't computationally heavy
     # Additionally line layers are a pain to handle correctly because of
-    # rounding issues at the borders of tiles... so just dissolve them using
-    # geopandas.
-    if input_layerinfo.geometrytype.to_primitivetype in [
-        PrimitiveType.POINT,
-        PrimitiveType.LINESTRING,
-    ]:
+    # rounding issues at the borders of tiles... so just dissolve them in one go.
+    if (
+        input_layerinfo.featurecount == 0
+        or input_layerinfo.geometrytype.to_primitivetype
+        in [
+            PrimitiveType.POINT,
+            PrimitiveType.LINESTRING,
+        ]
+    ):
         _geoops_sql.dissolve_singlethread(
             input_path=input_path,
             output_path=output_path,
@@ -849,6 +830,28 @@ def dissolve(
         )
 
     elif input_layerinfo.geometrytype.to_primitivetype is PrimitiveType.POLYGON:
+
+        # If a tiles_path is specified, read those tiles...
+        result_tiles_gdf = None
+        if tiles_path is not None:
+            result_tiles_gdf = gfo.read_file(tiles_path)
+            if nb_parallel == -1:
+                nb_cpu = multiprocessing.cpu_count()
+                nb_parallel = nb_cpu  # int(1.25 * nb_cpu)
+                logger.debug(f"Nb cpus found: {nb_cpu}, nb_parallel: {nb_parallel}")
+        else:
+            # Else, create a grid based on the number of tiles wanted as result
+            result_tiles_gdf = grid_util.create_grid2(
+                input_layerinfo.total_bounds, nb_squarish_tiles, input_layerinfo.crs
+            )
+            if len(result_tiles_gdf) > 1:
+                gfo.to_file(
+                    result_tiles_gdf, output_path.parent / f"{output_path.stem}_tiles.gpkg"
+                )
+
+        # If a tiled result is asked, add tile_id to group on for the result
+        if len(result_tiles_gdf) > 1:
+            result_tiles_gdf["tile_id"] = result_tiles_gdf.reset_index().index
 
         # The dissolve for polygons is done in several passes, and after the first
         # pass, only the 'onborder' features are further dissolved, as the

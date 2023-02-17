@@ -277,88 +277,28 @@ def test_dissolve_linestrings(tmp_path, suffix, epsg):
     # TODO: add more in depth check of result
 
 
-@pytest.mark.parametrize(
-    "suffix, epsg, groupby_columns, explode, expected_featurecount",
-    [
-        (".gpkg", 31370, ["GEWASGROEP"], True, 25),
-        (".gpkg", 31370, ["GEWASGROEP"], False, 6),
-        (".gpkg", 31370, ["gewasGROEP"], False, 6),
-        (".gpkg", 31370, [], True, 23),
-        (".gpkg", 31370, None, False, 1),
-        (".gpkg", 4326, ["GEWASGROEP"], True, 25),
-        (".shp", 31370, ["GEWASGROEP"], True, 25),
-        (".shp", 31370, [], True, 23),
-    ],
-)
-def test_dissolve_polygons(
-    tmp_path, suffix, epsg, groupby_columns, explode, expected_featurecount
-):
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_dissolve_emptyfile(tmp_path, suffix):
     # Prepare test data
-    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
-    input_layerinfo = gfo.get_layerinfo(input_path)
-    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, empty=True)
 
     # Test dissolve polygons with different options for groupby and explodecollections
-    # --------------------------------------------------------------------------------
-    groupby = True if (groupby_columns is None or len(groupby_columns) == 0) else False
-    output_path = (
-        tmp_path / f"{input_path.stem}_groupby-{groupby}_explode-{explode}{suffix}"
-    )
+    output_path = tmp_path / f"{input_path.stem}_dissolve-emptyfile{suffix}"
+    groupby_columns = ["GEWASGROEP"]
     gfo.dissolve(
         input_path=input_path,
         output_path=output_path,
+        explodecollections=True,
         groupby_columns=groupby_columns,
-        explodecollections=explode,
-        nb_parallel=2,
-        batchsize=batchsize,
     )
 
     # Now check if the tmp file is correctly created
     assert output_path.exists()
+    input_layerinfo = gfo.get_layerinfo(input_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert output_layerinfo.featurecount == expected_featurecount
-    if groupby is True:
-        # No groupby -> normally no columns.
-        # Shapefile needs at least one column, if no columns: fid
-        if suffix == ".shp":
-            assert len(output_layerinfo.columns) == 1
-        else:
-            assert len(output_layerinfo.columns) == 0
-    else:
-        assert len(output_layerinfo.columns) == len(groupby_columns)
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
-
-    # Now check the contents of the result file
-    input_gdf = gfo.read_file(input_path)
-    output_gdf = gfo.read_file(output_path)
-    assert input_gdf.crs == output_gdf.crs
-    assert len(output_gdf) == output_layerinfo.featurecount
-    assert output_gdf["geometry"][0] is not None
-
-    # Compare result with geopandas
-    columns = ["geometry"]
-    if groupby_columns is None or len(groupby_columns) == 0:
-        output_gpd_gdf = input_gdf[columns].dissolve()
-    else:
-        groupby_columns_upper = [column.upper() for column in groupby_columns]
-        columns += groupby_columns_upper
-        output_gpd_gdf = (
-            input_gdf[columns].dissolve(by=groupby_columns_upper).reset_index()
-        )
-    if explode:
-        output_gpd_gdf = output_gpd_gdf.explode(ignore_index=True)
-    output_gpd_path = tmp_path / f"{input_path.stem}_gpd-output{suffix}"
-    gfo.to_file(output_gpd_gdf, output_gpd_path)
-
-    # Small differences with the geopandas result are expected, because gfo
-    # adds points in the tiling process. So only basic checks possible.
-    # assert_geodataframe_equal(
-    #        output_gdf, output_gpd_gdf, promote_to_multi=True, sort_values=True,
-    #        normalize=True, check_less_precise=True, output_dir=tmp_path)
-    if suffix != ".shp":
-        # Shapefile needs at least one column, if no columns: fid
-        assert list(output_gdf.columns) == list(output_gpd_gdf.columns)
-    assert len(output_gdf) == len(output_gpd_gdf)
+    assert output_layerinfo.featurecount == 0
+    assert output_layerinfo.geometrytype == input_layerinfo.geometrytype
+    assert list(output_layerinfo.columns) == groupby_columns
 
 
 def test_dissolve_polygons_groupby_None(tmp_path):
