@@ -2,13 +2,13 @@ name: geofileopsdev
 channels:
   - conda-forge
 dependencies:
-  - python=3.9
+  - python =3.9
   - pip
   # required
   - cloudpickle
   - fiona
   - gdal
-  - geopandas
+  - geopandas >=0.11,<1.0
   - numpy
   - pandas
   - psutil
@@ -18,9 +18,9 @@ dependencies:
   - topojson
   # docs
   # Restrict sphinx version to < 6 to avoid logo error
-  - sphinx<6
+  - sphinx <6
   - pydata-sphinx-theme
   - pip:
     - centerline
     - simplification
-    - sphinx-automodapi==0.13
+    - sphinx-automodapi ==0.13

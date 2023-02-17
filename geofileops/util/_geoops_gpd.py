@@ -44,7 +44,6 @@ from geofileops.util.geometry_util import BufferEndCapStyle, BufferJoinStyle
 from geofileops.util import geoseries_util
 from geofileops.util import grid_util
 from geofileops.util import _io_util
-from geofileops.util import _ogr_util
 
 ################################################################################
 # Some init
@@ -1734,6 +1733,7 @@ def _dissolve(
     else:
         aggregated_data = data.groupby(**groupby_kwargs).agg(aggfunc)  # type: ignore
         # Check if all columns were properly aggregated
+        assert by_local is not None
         columns_to_agg = [column for column in data.columns if column not in by_local]
         if len(columns_to_agg) != len(aggregated_data.columns):
             dropped_columns = [

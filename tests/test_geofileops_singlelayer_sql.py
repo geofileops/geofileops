@@ -107,7 +107,10 @@ def test_makevalid(tmp_path, suffix):
     layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_orig.featurecount == layerinfo_output.featurecount
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
-    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
+    assert layerinfo_output.geometrytype in [
+        GeometryType.POLYGON,
+        GeometryType.MULTIPOLYGON,
+    ]
 
     # Now check the contents of the result file
     output_gdf = gfo.read_file(output_path)

@@ -105,9 +105,32 @@ class GeometryType(enum.Enum):
         return super()._missing_(value)
 
     @property
+    def name_camelcase(self) -> str:
+        """Get the name in camel case."""
+        if self is GeometryType.POINT:
+            return "Point"
+        elif self is GeometryType.LINESTRING:
+            return "LineString"
+        elif self is GeometryType.POLYGON:
+            return "Polygon"
+        elif self is GeometryType.MULTIPOINT:
+            return "MultiPoint"
+        elif self is GeometryType.MULTILINESTRING:
+            return "MultiLineString"
+        elif self is GeometryType.MULTIPOLYGON:
+            return "MultiPolygon"
+        elif self is GeometryType.GEOMETRYCOLLECTION:
+            return "GeometryCollection"
+        elif self is GeometryType.GEOMETRY:
+            return "Geometry"
+        else:
+            raise ValueError(f"No camelcase name implemented for: {self}")
+
+    @property
     def is_multitype(self):
         """Returns if the geometry type is a multi type."""
         return self in (
+            GeometryType.GEOMETRY,
             GeometryType.MULTIPOINT,
             GeometryType.MULTILINESTRING,
             GeometryType.MULTIPOLYGON,
@@ -118,6 +141,7 @@ class GeometryType(enum.Enum):
     def to_multitype(self):
         """Get the corresponding multitype."""
         if self in [
+            GeometryType.GEOMETRY,
             GeometryType.MULTIPOINT,
             GeometryType.MULTILINESTRING,
             GeometryType.MULTIPOLYGON,
