@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 0.7.0 (???)
+
+### Improvements
+
+- Add support to to_file to write empty dataframe + add parameter force_output_geometrytype (#205)
+
 ## 0.6.4 (2023-02-15)
 
 ### Improvements
