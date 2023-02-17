@@ -86,7 +86,19 @@ def get_testfile(
 
     # Prepare file + return
     prepared_path = dst_dir / f"{testfile_path.stem}_{epsg}{suffix}"
-    gfo.convert(testfile_path, prepared_path, dst_crs=epsg, reproject=True)
+    if prepared_path.exists():
+        return prepared_path
+    layers = gfo.listlayers(testfile_path)
+    for layer in layers:
+        gfo.convert(
+            testfile_path,
+            prepared_path,
+            src_layer=layer,
+            dst_layer=layer,
+            dst_crs=epsg,
+            reproject=True,
+            append=True,
+        )
     return prepared_path
 
 

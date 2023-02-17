@@ -1097,6 +1097,12 @@ def to_file(
             reads the only layer in the file or throws an Exception.
         force_output_geometrytype (Union[GeometryType, str], optional): Geometry type
             to (try to) force the output to. Defaults to None.
+            Mark: compared to other functions in gfo with this parameter, the behaviour
+            here is limited to the following:
+                - for empty input gdf's, a standard geometry type (eg. Polygon,...) can
+                  be used to force the geometry column to be of that type.
+                - if force_output_geometrytype is a MULTI type, parameter
+                  force_multitype becomes True.
         force_multitype (bool, optional): force the geometry type to a multitype
             for file types that require one geometrytype per layer.
             Defaults to False.
@@ -1119,6 +1125,7 @@ def to_file(
     # them to next function, example encoding, float_format,...
 
     # Check input parameters
+    # ----------------------
     path = Path(path)
 
     # If no layer name specified, determine one
@@ -1128,35 +1135,52 @@ def to_file(
         else:
             layer = Path(path).stem
 
+    # Check and interpret force_output_geometrytype
+    # ---------------------------------------------
+    # If force_output_geometrytype is a string, check if it is a "standard" geometry
+    # type, as GDAL also supports special geometry types like "PROMOTE_TO_MULTI"
+    if isinstance(force_output_geometrytype, str):
+        force_output_geometrytype = force_output_geometrytype.upper()
+        try:
+            # Verify if it is a "standard" geometry type, as GDAL also supports
+            # special geometry types like "PROMOTE_TO_MULTI"
+            force_output_geometrytype = GeometryType[force_output_geometrytype]
+        except Exception:
+            raise ValueError(
+                f"Unsupported force_output_geometrytype: {force_output_geometrytype}"
+            )
+    if force_output_geometrytype is not None and force_output_geometrytype.is_multitype:
+        force_multitype = True
+
     # Handle some specific cases where the file schema needs to be manipulated.
     schema = None
     if isinstance(gdf, gpd.GeoDataFrame) is False or (
         isinstance(gdf, gpd.GeoDataFrame) and "geometry" not in gdf.columns
     ):
-        # If no geometry, prepare to be written as attribute table.
-        # Add geometry column with None geometries
+        # No geometry, so prepare to be written as attribute table: add geometry column
+        # with None geometry type in schema
         gdf = gpd.GeoDataFrame(gdf, geometry=[None for i in gdf.index])  # type: ignore
         schema = gpd_io_file.infer_schema(gdf)
         schema["geometry"] = "None"
-    elif len(gdf) == 0 and force_output_geometrytype is not None:
+    elif (
+        len(gdf) == 0
+        and force_output_geometrytype is not None
+        and isinstance(force_output_geometrytype, GeometryType)
+    ):
         # If the gdf is empty but a geometry type is specified, use the specified type
-        if isinstance(force_output_geometrytype, str):
-            try:
-                # Verify if it is a "standard" geometry type, as GDAL also supports
-                # special geometry types like "PROMOTE_TO_MULTI"
-                force_output_geometrytype = GeometryType[force_output_geometrytype]
-            except Exception:
-                pass
-        if isinstance(force_output_geometrytype, GeometryType):
-            schema = gpd_io_file.infer_schema(gdf)
-            # Geometry type must be in camelcase for fiona
-            schema["geometry"] = force_output_geometrytype.name_camelcase
+        schema = gpd_io_file.infer_schema(gdf)
+        # Geometry type must be in camelcase for fiona
+        schema["geometry"] = force_output_geometrytype.name_camelcase
     assert isinstance(gdf, gpd.GeoDataFrame)
 
     # Convert force_output_geometrytype to string to simplify code afterwards
     if isinstance(force_output_geometrytype, GeometryType):
         force_output_geometrytype = force_output_geometrytype.name
 
+    # No the file can actually be written
+    # -----------------------------------
+    # Fiona doesn't support the output geometrytype parameter as used in gdal, so as a
+    # lightweight implementation just set force
     def write_to_file(
         gdf: gpd.GeoDataFrame,
         path: Path,
@@ -1688,6 +1712,7 @@ def convert(
     force_output_geometrytype: Union[GeometryType, str, None] = None,
     create_spatial_index: Optional[bool] = True,
     options: dict = {},
+    append: bool = False,
     force: bool = False,
 ):
     """
@@ -1736,6 +1761,8 @@ def convert(
             parameter is specified in options, create_spatial_index is ignored.
             Defaults to True.
         options (dict, optional): options to pass to gdal.
+        append (bool, optional): True to append to the output file if it exists.
+            Defaults to False.
         force (bool, optional): overwrite existing output file(s)
             Defaults to False.
     """
@@ -1747,7 +1774,7 @@ def convert(
     if not src.exists():
         raise ValueError(f"src file doesn't exist: {src}")
     # If dest file exists already, remove it
-    if dst.exists():
+    if not append and dst.exists():
         if force is True:
             remove(dst)
         else:

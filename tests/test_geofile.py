@@ -675,6 +675,29 @@ def test_to_file_create_spatial_index(
     assert gfo.has_spatial_index(output_path) is expected_spatial_index
 
 
+def test_to_file_force_geometrytype(tmp_path):
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel")
+    read_gdf = gfo.read_file(input_path)
+    read_gdf.geometry = read_gdf.geometry.buffer(0)
+    poly_gdf = read_gdf[read_gdf.geometry.geom_type == "Polygon"]
+    assert isinstance(poly_gdf, gpd.GeoDataFrame)
+
+    output_path = tmp_path / f"{input_path.stem}-output.gpkg"
+    gfo.to_file(poly_gdf, output_path)
+    output_info = gfo.get_layerinfo(output_path)
+    assert output_info.featurecount == len(poly_gdf)
+    assert output_info.geometrytype == GeometryType.POLYGON
+
+    output_force_path = tmp_path / f"{input_path.stem}-output-force.gpkg"
+    gfo.to_file(
+        poly_gdf, output_force_path, force_output_geometrytype=GeometryType.MULTIPOLYGON
+    )
+    output_force_info = gfo.get_layerinfo(output_force_path)
+    assert output_force_info.featurecount == len(poly_gdf)
+    assert output_force_info.geometrytype == GeometryType.MULTIPOLYGON
+
+
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 def test_to_file_geomempty(tmp_path, suffix):
     # Test for gdf with an empty polygon + a polygon
