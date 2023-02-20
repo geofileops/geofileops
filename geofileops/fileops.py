@@ -1218,6 +1218,7 @@ def to_file(
             kwargs["geometrytype"] = force_output_geometrytype
         if schema is not None:
             kwargs["schema"] = schema
+        kwargs["engine"] = "pyogrio"
 
         # Now we can write
         if geofiletype == GeofileType.ESRIShapefile:
