@@ -4,7 +4,13 @@
 
 ### Improvements
 
-- Add support to to_file to write empty dataframe + add parameter force_output_geometrytype (#205)
+- Add support to to_file to write empty dataframe + add parameter 
+  force_output_geometrytype (#205)
+
+### Deprecations and compatibility notes
+
+- The (private) function `view_angles` is moved to 
+  [pygeoops](https://github.com/pygeoops/pygeoops) (#209)
 
 ## 0.6.4 (2023-02-15)
 
@@ -17,8 +23,10 @@
 
 ### Deprecations and compatibility notes
 
-- Fix: Due to a change in fiona >= 1.9, using read_file on string columns with all None values ended up as a float64 column (#199)
-- Because geofileops uses pygeos directly, pin geopandas to < 1.0. More info: https://github.com/geopandas/geopandas/issues/2691 (#200)
+- Fix: Due to a change in fiona >= 1.9, using read_file on string columns with all None
+  values ended up as a float64 column (#199)
+- Because geofileops uses pygeos directly, pin geopandas to < 1.0. More info: 
+  [geopandas#2691](https://github.com/geopandas/geopandas/issues/2691) (#200)
 
 ## 0.6.3 (2022-12-12)
 
