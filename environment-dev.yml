@@ -1,4 +1,4 @@
-name: geofileopsdev
+name: geofileops-dev
 channels:
   - conda-forge
 dependencies:
@@ -23,6 +23,7 @@ dependencies:
   # linting
   - black
   - flake8
+  - pre-commit
   # docs
   - pydata-sphinx-theme
   - pip:

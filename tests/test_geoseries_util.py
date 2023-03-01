@@ -7,9 +7,6 @@ from pathlib import Path
 import sys
 
 import geopandas as gpd
-import numpy as np
-import pandas as pd
-from pandas.testing import assert_frame_equal
 import pytest
 import shapely
 import shapely.geometry as sh_geom
@@ -328,48 +325,3 @@ def test_simplify_topo_ext(algorithm):
     assert len(result_geoseries[1].geoms[0].exterior.coords) < len(
         input_gdf.geometry[1].geoms[0].exterior.coords
     )
-
-
-def test_view_angles():
-    # Prepare raw test data
-    columns = ["descr", "exp_angle_start", "exp_angle_end", "wkt"]
-    visible_geoms = [
-        ["Geom EMPTY", np.nan, np.nan, "POLYGON(EMPTY)"],
-        ["Geom None", np.nan, np.nan, None],
-        ["NE_SE", 315.0, 45.0, "POLYGON((1 1, 1 -1, 2 -1, 2 1, 1 1))"],
-        ["NE, y=0", 0.0, 45.0, "POLYGON((1 0, 1 1, 2 1, 2 0, 1 0))"],
-        ["NW", 135.0, 180.0, "POLYGON((-1 0, -1 1, -2 1, -2 0, -1 0))"],
-        ["NW_SE", 135.0, 315.0, "POLYGON((-1 1, -1 0.5, 1 -1, -3 1, -1 1))"],
-    ]
-    df = pd.DataFrame(visible_geoms, columns=columns)
-    gs = gpd.GeoSeries.from_wkt(df["wkt"])
-    df = df.drop(columns="wkt")
-    visible_geoms_gdf = gpd.GeoDataFrame(df, geometry=gs)  # type: ignore
-    # Remove a row to test if the index is properly maintained in view_angles
-    visible_geoms_gdf = visible_geoms_gdf.drop([3], axis=0)
-
-    # View location
-    viewpoint_x = 10
-    viewpoint_y = 20
-    viewpoint_gs = gpd.GeoSeries(
-        [
-            sh_geom.Point((viewpoint_x, viewpoint_y))
-            for i in range(len(visible_geoms_gdf))
-        ]
-    )
-
-    # The raw testdata is based on a view location of 0,0. Adapt it to the
-    # view location used as 0,0 wouldn't have a good test coverage.
-    visible_geoms_gdf.geometry = visible_geoms_gdf.geometry.translate(
-        xoff=viewpoint_x, yoff=viewpoint_y
-    )
-
-    angles_df = geoseries_util.view_angles(viewpoint_gs, visible_geoms_gdf.geometry)
-    exp_angles_df = visible_geoms_gdf[["exp_angle_start", "exp_angle_end"]]
-    exp_angles_df = exp_angles_df.rename(  # type: ignore
-        columns={
-            "exp_angle_start": "angle_start",
-            "exp_angle_end": "angle_end",
-        }
-    )
-    assert_frame_equal(angles_df, exp_angles_df)

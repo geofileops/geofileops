@@ -32,7 +32,6 @@ def prepare_test_file(
     crs_epsg: Optional[int] = None,
     use_cachedir: bool = False,
 ) -> Path:
-
     # Tmp dir
     if use_cachedir is True:
         tmp_cache_dir = Path(tempfile.gettempdir()) / "geofileops_test_data"
@@ -97,7 +96,7 @@ def get_testfile(
             f"multilayer testfile ({testfile}) cannot be converted to single layer "
             f"geofiletype: {dst_geofiletype}"
         )
-    
+
     # Convert all layers found
     for layer in layers:
         gfo.convert(

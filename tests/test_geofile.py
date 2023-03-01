@@ -795,7 +795,6 @@ def test_remove(tmp_path, suffix):
 
 
 def test_launder_columns():
-
     columns = [f"TOO_LONG_COLUMNNAME{index}" for index in range(0, 21)]
     laundered = fileops._launder_column_names(columns)
     assert laundered[0] == ("TOO_LONG_COLUMNNAME0", "TOO_LONG_C")

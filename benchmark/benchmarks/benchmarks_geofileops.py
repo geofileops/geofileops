@@ -149,7 +149,9 @@ def dissolve_groupby(tmp_dir: Path) -> RunResult:
         package_version=_get_version(),
         operation="dissolve_groupby",
         secs_taken=(datetime.now() - start_time).total_seconds(),
-        operation_descr="dissolve on agri parcels BEFL (~500.000 polygons), groupby=[GEWASGROEP]",
+        operation_descr=(
+            "dissolve on agri parcels BEFL (~500.000 polygons), groupby=[GEWASGROEP]"
+        ),
         run_details={"nb_cpu": multiprocessing.cpu_count()},
     )
 
@@ -205,7 +207,9 @@ def intersection(tmp_dir: Path) -> RunResult:
         package_version=_get_version(),
         operation="intersection",
         secs_taken=(datetime.now() - start_time).total_seconds(),
-        operation_descr="intersection between 2 agri parcel layers BEFL (2*~500.000 polygons)",
+        operation_descr=(
+            "intersection between 2 agri parcel layers BEFL (2*~500.000 polygons)"
+        ),
         run_details={"nb_cpu": multiprocessing.cpu_count()},
     )
 
@@ -223,8 +227,8 @@ def join_by_location_intersects(tmp_dir: Path) -> RunResult:
     input2_all_path = testdata.TestFile.COMMUNES.get_file(tmp_dir)
     input2_path = input2_all_path.parent / f"{input2_all_path.stem}_filtered.gpkg"
     sql_stmt = f"""
-                SELECT * 
-                    FROM "{{input_layer}}" layer 
+                SELECT *
+                    FROM "{{input_layer}}" layer
                     WHERE """
     gfo.select(
             input_path=input2_all_path,
@@ -250,7 +254,10 @@ def join_by_location_intersects(tmp_dir: Path) -> RunResult:
         package_version=_get_version(),
         operation="join_by_location_intersects",
         secs_taken=(datetime.now() - start_time).total_seconds(),
-        operation_descr="join_by_location_intersects between 2 agri parcel layers BEFL (2*~500.000 polygons)",
+        operation_descr=(
+            "join_by_location_intersects between 2 agri parcel layers BEFL "
+            "(2*~500.000 polygons)"
+        ),
         run_details={"nb_cpu": multiprocessing.cpu_count()},
     )
 

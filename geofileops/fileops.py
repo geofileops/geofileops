@@ -19,7 +19,6 @@ import warnings
 import fiona
 import geopandas as gpd
 from geopandas.io import file as gpd_io_file
-import numpy as np
 from osgeo import gdal
 import pandas as pd
 import pyogrio
@@ -1610,7 +1609,6 @@ def append_to(
     start_time = datetime.datetime.now()
     ready = False
     while not ready:
-
         if _io_util.create_file_atomic(lockfile) is True:
             try:
                 # append

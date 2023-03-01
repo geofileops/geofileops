@@ -1304,7 +1304,6 @@ def intersect(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     warnings.warn(
         "intersect() is deprecated because it was renamed intersection(). "
         "Will be removed in a future version",

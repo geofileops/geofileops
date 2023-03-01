@@ -558,8 +558,12 @@ def test_symmetric_difference(tmp_path, suffix, epsg):
 )
 def test_union(tmp_path, suffix, epsg):
     # Prepare test files
-    input1_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=suffix, epsg=epsg)
-    input2_path = test_helper.get_testfile("polygon-zone", dst_dir=tmp_path, suffix=suffix, epsg=epsg)
+    input1_path = test_helper.get_testfile(
+        "polygon-parcel", dst_dir=tmp_path, suffix=suffix, epsg=epsg
+    )
+    input2_path = test_helper.get_testfile(
+        "polygon-zone", dst_dir=tmp_path, suffix=suffix, epsg=epsg
+    )
     # Add null TEXT column to each file to make sure it stays TEXT type after union
     gfo.add_column(input1_path, name="test1_null", type=gfo.DataType.TEXT)
     gfo.add_column(input2_path, name="test2_null", type=gfo.DataType.TEXT)
