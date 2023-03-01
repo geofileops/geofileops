@@ -411,7 +411,7 @@ def _apply_geooperation_to_layer(
         force (bool, optional): [description]. Defaults to False.
     """
     # Init
-    start_time = datetime.now()
+    start_time_global = datetime.now()
     if input_layer is None:
         input_layer = gfo.get_only_layer(input_path)
     if output_path.exists():
@@ -478,7 +478,6 @@ def _apply_geooperation_to_layer(
             max_workers=nb_parallel,
             initializer=_general_util.initialize_worker(),
         ) as calculate_pool:
-
             # Prepare output filename
             output_tmp_path = tempdir / output_path.name
 
@@ -488,7 +487,6 @@ def _apply_geooperation_to_layer(
             nb_done = 0
 
             for batch_id in range(nb_batches):
-
                 batches[batch_id] = {}
                 batches[batch_id]["layer"] = output_layer
 
@@ -524,12 +522,14 @@ def _apply_geooperation_to_layer(
 
             # Loop till all parallel processes are ready, but process each one
             # that is ready already
+            start_time = datetime.now()
             _general_util.report_progress(
                 start_time, nb_done, nb_batches, operation.value, nb_parallel
             )
             for future in futures.as_completed(future_to_batch_id):
                 try:
-                    _ = future.result()
+                    message = future.result()
+                    logger.debug(message)
 
                     # If the calculate gave results, copy to output
                     batch_id = future_to_batch_id[future]
@@ -569,7 +569,7 @@ def _apply_geooperation_to_layer(
     finally:
         # Clean tmp dir
         shutil.rmtree(tempdir)
-        logger.info(f"{operation} ready, took {datetime.now()-start_time}!")
+        logger.info(f"{operation} ready, took {datetime.now()-start_time_global}!")
 
 
 def _apply_geooperation(
@@ -584,7 +584,6 @@ def _apply_geooperation(
     explodecollections: bool = False,
     force: bool = False,
 ) -> str:
-
     # Init
     if output_path.exists():
         if force is False:
@@ -837,7 +836,6 @@ def dissolve(
         )
 
     elif input_layerinfo.geometrytype.to_primitivetype is PrimitiveType.POLYGON:
-
         # The dissolve for polygons is done in several passes, and after the first
         # pass, only the 'onborder' features are further dissolved, as the
         # 'notonborder' features are already OK.
@@ -1155,7 +1153,6 @@ def _dissolve_polygons_pass(
     output_layer: Optional[str],
     nb_parallel: int,
 ) -> dict:
-
     # Make sure the input file has a spatial index
     gfo.create_spatial_index(input_path, exist_ok=True)
 
@@ -1172,7 +1169,6 @@ def _dissolve_polygons_pass(
         max_workers=nb_parallel,
         initializer=_general_util.initialize_worker(),
     ) as calculate_pool:
-
         # Prepare output filename
         tempdir = output_onborder_path.parent
 
@@ -1182,7 +1178,6 @@ def _dissolve_polygons_pass(
         future_to_batch_id = {}
         nb_rows_done = 0
         for batch_id, tile_row in enumerate(tiles_gdf.itertuples()):
-
             batches[batch_id] = {}
             batches[batch_id]["layer"] = output_layer
             batches[batch_id]["bounds"] = tile_row.geometry.bounds
@@ -1308,7 +1303,6 @@ def _dissolve_polygons(
     bbox: Tuple[float, float, float, float],
     tile_id: Optional[int],
 ) -> dict:
-
     # Init
     perfinfo = {}
     start_time = datetime.now()
@@ -1658,7 +1652,6 @@ def _dissolve(
     elif isinstance(aggfunc, str) and aggfunc == "merge_json_lists":
         # Merge and flatten the json lists in the groups
         def group_flatten_json_list(g):
-
             # Evaluate all grouped rows to json objects. This results in a list of
             # lists of json objects.
             json_nested_lists = [
@@ -1737,7 +1730,6 @@ def _dissolve(
 
 
 def _add_orderby_column(path: Path, layer: str, name: str):
-
     # Prepare the expression to calculate the orderby column.
     # In a spatial file, a spatial order will make later use more efficiënt,
     # so use a geohash.

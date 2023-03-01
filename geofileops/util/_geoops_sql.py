@@ -49,7 +49,6 @@ def buffer(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     if distance < 0:
         # For a double sided buffer, aA negative buffer is only relevant
         # for polygon types, so only keep polygon results
@@ -103,7 +102,6 @@ def convexhull(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # Prepare sql template for this operation
     sql_template = """
         SELECT ST_ConvexHull({geometrycolumn}) AS geom
@@ -140,7 +138,6 @@ def delete_duplicate_geometries(
     explodecollections: bool = False,
     force: bool = False,
 ):
-
     # The query as written doesn't give correct results when parallellized,
     # but it isn't useful to do it for this operation.
     sql_template = """
@@ -181,7 +178,6 @@ def isvalid(
     batchsize: int = -1,
     force: bool = False,
 ) -> bool:
-
     # Prepare sql template for this operation
     sql_template = """
         SELECT ST_IsValidDetail({geometrycolumn}) AS geom
@@ -246,7 +242,6 @@ def makevalid(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # Specify output_geomatrytype, because otherwise makevalid results in
     # column type 'GEOMETRY'/'UNKNOWN(ANY)'
     layerinfo = gfo.get_layerinfo(input_path, input_layer)
@@ -313,7 +308,6 @@ def select(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # Check if output exists already here, to evade to much logging to be written
     if output_path.exists():
         if force is False:
@@ -362,7 +356,6 @@ def simplify(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # Prepare sql template for this operation
     sql_template = f"""
         SELECT ST_SimplifyPreserveTopology({{geometrycolumn}}, {tolerance}) AS geom
@@ -406,7 +399,6 @@ def _single_layer_vector_operation(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # Init
     start_time = datetime.now()
 
@@ -474,11 +466,9 @@ def _single_layer_vector_operation(
             max_workers=processing_params.nb_parallel,
             initializer=_general_util.initialize_worker(),
         ) as calculate_pool:
-
             batches = {}
             future_to_batch_id = {}
             for batch_id in processing_params.batches:
-
                 batches[batch_id] = {}
                 batches[batch_id]["layer"] = output_layer
 
@@ -599,7 +589,6 @@ def clip(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # Init
     # In the query, important to only extract the geometry types that are expected
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
@@ -697,7 +686,6 @@ def erase(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # Init
     # In the query, important to only extract the geometry types that are expected
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
@@ -797,7 +785,6 @@ def export_by_location(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # Prepare sql template for this operation
     # TODO: test performance difference between the following two queries
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
@@ -830,12 +817,12 @@ def export_by_location(
     if area_inters_column_name is not None or min_area_intersect is not None:
         if area_inters_column_name is None:
             area_inters_column_name = "area_inters"
-        area_inters_column_expression = (
-            f""",ST_area(ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}),
-                    ST_union(layer2.{{input2_geometrycolumn}}))
-                 ) as {area_inters_column_name}
-            """
-        )
+        area_inters_column_expression = f"""
+            ,ST_area(ST_intersection(
+                 ST_union(layer1.{{input1_geometrycolumn}}),
+                 ST_union(layer2.{{input2_geometrycolumn}})
+             )) AS {area_inters_column_name}
+        """
 
     # Prepare sql template for this operation
     sql_template = f"""
@@ -903,7 +890,6 @@ def export_by_distance(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # Prepare sql template for this operation
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
     input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
@@ -965,7 +951,6 @@ def intersection(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # In the query, important to only extract the geometry types that are expected
     # TODO: test for geometrycollection, line, point,...
     input1_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
@@ -1060,7 +1045,6 @@ def join_by_location(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # Prepare sql template for this operation
     # Prepare intersection area columns/filter
     area_inters_column_expression = ""
@@ -1184,7 +1168,6 @@ def join_by_location(
 
 
 def _prepare_spatial_relations_filter(query: str) -> str:
-
     named_spatial_relations = {
         # "disjoint": ["FF*FF****"],
         "equals": ["TFFF*FFF*"],
@@ -1265,7 +1248,6 @@ def join_nearest(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # Init some things...
     # Because there is preprocessing done in this function, check output path
     # here already
@@ -1368,7 +1350,6 @@ def select_two_layers(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # Go!
     return _two_layer_vector_operation(
         input1_path=input1_path,
@@ -1408,7 +1389,6 @@ def split(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # In the query, important to only extract the geometry types that are
     # expected, so the primitive type of input1_layer
     # TODO: test for geometrycollection, line, point,...
@@ -1529,7 +1509,6 @@ def symmetric_difference(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # A symmetric difference can be simulated by doing an "erase" of input1
     # and input2 and then append the result of an erase of input2 with
     # input1...
@@ -1627,7 +1606,6 @@ def union(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # A union can be simulated by doing a "split" of input1 and input2 and
     # then append the result of an erase of input2 with input1...
 
@@ -1857,12 +1835,10 @@ def _two_layer_vector_operation(
             max_workers=processing_params.nb_parallel,
             initializer=_general_util.initialize_worker(),
         ) as calculate_pool:
-
             # Start looping
             batches = {}
             future_to_batch_id = {}
             for batch_id in processing_params.batches:
-
                 batches[batch_id] = {}
                 batches[batch_id]["layer"] = output_layer
 
@@ -2039,7 +2015,6 @@ def _prepare_processing_params(
     input2_path: Optional[Path] = None,
     input2_layer: Optional[str] = None,
 ) -> Optional[ProcessingParams]:
-
     # Init
     returnvalue = ProcessingParams(nb_parallel=nb_parallel)
     input1_layerinfo = gfo.get_layerinfo(input1_path, input1_layer)
@@ -2164,11 +2139,11 @@ def _prepare_processing_params(
     else:
         # Determine the min_rowid and max_rowid
         # Remark: SELECT MIN(rowid), MAX(rowid) FROM ... is a lot slower than UNION ALL!
-        sql_stmt = f'''
+        sql_stmt = f"""
             SELECT MIN(rowid) minmax_rowid FROM "{layer1_info.name}"
             UNION ALL
             SELECT MAX(rowid) minmax_rowid FROM "{layer1_info.name}"
-        '''
+        """
         batch_info_df = gfo.read_file_sql(
             path=returnvalue.input1_path, sql_stmt=sql_stmt, ignore_geometry=True
         )
@@ -2265,7 +2240,6 @@ def format_column_strings(
     table_alias: str = "",
     columnname_prefix: str = "",
 ) -> FormattedColumnStrings:
-
     # First prepare the actual column list to use
     if columns_specified is not None:
         # Case-insensitive check if input1_columns contains columns not in layer...
