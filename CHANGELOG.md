@@ -9,7 +9,7 @@
 
 ### Deprecations and compatibility notes
 
-- The (private) function `view_angles` is moved to 
+- The (private) util function `view_angles` is moved to 
   [pygeoops](https://github.com/pygeoops/pygeoops) (#209)
 
 ## 0.6.4 (2023-02-15)
