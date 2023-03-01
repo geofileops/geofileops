@@ -40,7 +40,8 @@ def create_tempdir(base_dirname: str) -> Path:
             continue
 
     raise Exception(
-        f"Wasn't able to create a temporary dir with basedir: {defaulttempdir / base_dirname}"
+        f"Wasn't able to create a temporary dir with basedir: "
+        f"{defaulttempdir / base_dirname}"
     )
 
 
@@ -95,7 +96,8 @@ def get_tempfile_locked(
                 tempfilelock_path.unlink()
 
     raise Exception(
-        f"Wasn't able to create a temporary file with base_filename: {base_filename}, dir: {dir}"
+        f"Wasn't able to create a temporary file with base_filename: {base_filename}, "
+        f"dir: {dir}"
     )
 
 

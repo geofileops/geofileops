@@ -8,7 +8,6 @@ import sys
 
 import geopandas as gpd
 import numpy as np
-import pygeos
 import pytest
 import shapely.geometry as sh_geom
 
@@ -190,7 +189,7 @@ def test_remove_inner_rings():
         multipoly_removerings, min_area_to_keep=3, crs=None
     )
     assert isinstance(poly_result, sh_geom.MultiPolygon)
-    assert len(poly_result.geoms[0].interiors) == 1
+    assert len(poly_result.geoms[0].interiors) == 1  # type: ignore
 
 
 def test_simplify_coords_lang():
@@ -281,7 +280,9 @@ def test_simplify_ext_lang_basic():
     )
     assert isinstance(geom_simplified, sh_geom.MultiLineString)
     assert len(geom_simplified.geoms) == 2
-    assert len(geom_simplified.geoms[0].coords) < len(multilinestring.geoms[0].coords)
+    assert len(geom_simplified.geoms[0].coords) < len(
+        multilinestring.geoms[0].coords  # type: ignore
+    )
     assert len(geom_simplified.geoms[0].coords) == 2
 
     # Test Polygon simplification

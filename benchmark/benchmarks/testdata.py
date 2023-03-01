@@ -32,17 +32,17 @@ logger = logging.getLogger(__name__)
 class TestFile(enum.Enum):
     AGRIPRC_2018 = (
         0,
-        "https://downloadagiv.blob.core.windows.net/landbouwgebruikspercelen/2018/Landbouwgebruikspercelen_LV_2018_GewVLA_Shape.zip",
+        "https://downloadagiv.blob.core.windows.net/landbouwgebruikspercelen/2018/Landbouwgebruikspercelen_LV_2018_GewVLA_Shape.zip",  # noqa: E501
         "agriprc_2018.gpkg",
     )
     AGRIPRC_2019 = (
         1,
-        "https://downloadagiv.blob.core.windows.net/landbouwgebruikspercelen/2019/Landbouwgebruikspercelen_LV_2019_GewVLA_Shapefile.zip",
+        "https://downloadagiv.blob.core.windows.net/landbouwgebruikspercelen/2019/Landbouwgebruikspercelen_LV_2019_GewVLA_Shapefile.zip",  # noqa: E501
         "agriprc_2019.gpkg",
     )
     COMMUNES = (
         2,
-        "https://downloadagiv.blob.core.windows.net/referentiebestand-gemeenten/VoorlopigRefBestandGemeentegrenzen_2019-01-01/VRBG_toestand_16_05_2018_(geldend_vanaf_01_01_2019)_GewVLA_Shape.zip",
+        "https://downloadagiv.blob.core.windows.net/referentiebestand-gemeenten/VoorlopigRefBestandGemeentegrenzen_2019-01-01/VRBG_toestand_16_05_2018_(geldend_vanaf_01_01_2019)_GewVLA_Shape.zip",  # noqa: E501
         "communes.gpkg",
     )
 
@@ -127,7 +127,8 @@ def download_samplefile(
                     tmp_path = tmp_paths[0]
                 else:
                     raise Exception(
-                        f"Should find 1 geofile, found {len(tmp_paths)}: \n{pprint.pformat(tmp_paths)}"
+                        f"Should find 1 geofile, found {len(tmp_paths)}: \n"
+                        f"{pprint.pformat(tmp_paths)}"
                     )
 
             if dst_path.suffix == tmp_path.suffix:

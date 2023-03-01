@@ -40,9 +40,7 @@ class MissingRuntimeDependencyError(Exception):
 ################################################################################
 
 
-def align_casing(
-    string_to_align: str, strings_to_align_to: Iterable
-) -> str:
+def align_casing(string_to_align: str, strings_to_align_to: Iterable) -> str:
     """
     Align the casing of a string to the strings in strings_to_align_to so they
     have the same casing.
@@ -105,7 +103,6 @@ def report_progress(
     operation: Optional[str] = None,
     nb_parallel: int = 1,
 ):
-
     # If logging level not enabled for INFO, no progress reporting...
     if logger.isEnabledFor(logging.INFO) is False:
         return
@@ -130,7 +127,6 @@ def format_progress(
     operation: Optional[str] = None,
     nb_parallel: int = 1,
 ) -> Optional[str]:
-
     # Init
     time_passed = (datetime.datetime.now() - start_time).total_seconds()
     pct_progress = 100.0 - (nb_todo - nb_done) * 100 / nb_todo
@@ -139,7 +135,10 @@ def format_progress(
 
     # If we haven't really started yet, don't report time estimate yet
     if nb_done == 0:
-        return f" ?: ?: ? left, {operation} done on {nb_done:{nb_decimal}n} of {nb_todo:{nb_decimal}n} ({pct_progress:3.2f}%)    "
+        return (
+            f" ?: ?: ? left, {operation} done on {nb_done:{nb_decimal}n} of "
+            f"{nb_todo:{nb_decimal}n} ({pct_progress:3.2f}%)    "
+        )
     else:
         pct_progress = 100.0 - (nb_todo - nb_done) * 100 / nb_todo
         if time_passed > 0:

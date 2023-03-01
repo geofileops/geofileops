@@ -4,7 +4,7 @@ Module containing utilities regarding operations on geoseries.
 """
 
 import logging
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import geopandas as gpd
 import numpy as np
@@ -134,7 +134,6 @@ def is_valid_reason(geoseries: gpd.GeoSeries) -> pd.Series:
 def _harmonize_to_multitype(
     geoseries: gpd.GeoSeries, dest_geometrytype: GeometryType
 ) -> gpd.GeoSeries:
-
     # Copy geoseries to pygeos array
     geometries_arr = geoseries.array.data.copy()  # type: ignore
 
@@ -321,56 +320,3 @@ def simplify_ext(
                 for geom in geoseries
             ]
         )
-
-
-def view_angles(
-    viewpoints: gpd.GeoSeries,
-    visible_geoms: gpd.GeoSeries,
-) -> pd.DataFrame:
-    """
-    Returns the start and end view angles from the viewpoints towards each
-    geometry in visible_geoms.
-
-    Args:
-        viewpoints (gpd.GeoSeries): the points that are being viewed from.
-        visible_geoms (gpd.GeoSeries): the visible geometries to calculate the
-            angles to.
-
-    Raises:
-        Exception: _description_
-
-    Returns:
-        pd.DataFrame: a dataframe with columns angle_start and angle_end.
-    """
-    # Check and prepare input
-    if len(visible_geoms) != len(viewpoints):
-        raise ValueError("Both input GeoSeries should have the same length")
-
-    # Combine both input arrays
-    geoms_arr = np.concatenate(
-        [
-            np.expand_dims(viewpoints.array.data.copy(), 1),  # type: ignore
-            np.expand_dims(visible_geoms.array.data.copy(), 1),  # type: ignore
-        ],
-        axis=1,
-    )
-
-    # Calculate the view angles for one point, geom pair
-    def calculate_angles(input) -> Tuple[float, float]:
-        viewpoint_geom, visible_geom = input
-        return geometry_util.view_angles(viewpoint_geom, visible_geom)
-
-    # Calculate angles for all elements
-    angles_arr = np.apply_along_axis(
-        calculate_angles,
-        arr=geoms_arr,
-        axis=1,
-    )
-
-    # Recover original indexes, add angles and return
-    angles_result = visible_geoms.copy()
-    angles_result_df = pd.DataFrame(angles_result)
-    angles_result_df["angle_start"] = angles_arr[:, 0]
-    angles_result_df["angle_end"] = angles_arr[:, 1]
-    angles_result_df = angles_result_df.drop(columns="geometry")
-    return angles_result_df

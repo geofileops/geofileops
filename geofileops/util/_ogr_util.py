@@ -12,7 +12,6 @@ import os
 from pathlib import Path
 import pprint
 import re
-import shutil
 import subprocess
 import tempfile
 from threading import Lock
@@ -23,7 +22,6 @@ import geopandas as gpd
 from osgeo import gdal
 
 import geofileops as gfo
-from geofileops.util import _io_util
 from geofileops.util.geofiletype import GeofileType
 from geofileops.util.geometry_util import GeometryType
 
@@ -99,7 +97,6 @@ class VectorTranslateInfo:
 
 
 def vector_translate_by_info(info: VectorTranslateInfo):
-
     return vector_translate(
         input_path=info.input_path,
         output_path=info.output_path,
@@ -315,7 +312,6 @@ def vector_translate(
         config_options["CPL_LOG_ERRORS"] = "ON"
 
         # Go!
-        logger.debug(f"Execute {sql_stmt} on {input_path}")
         with set_config_options(config_options):
             result_ds = gdal.VectorTranslate(
                 destNameOrDestDS=str(output_path),
@@ -349,7 +345,8 @@ def vector_translate(
             except Exception as ex:
                 logger.info(
                     f"Opening output file gave error, probably the input file was "
-                    f"empty, no rows were selected or geom was NULL: {ex}")
+                    f"empty, no rows were selected or geom was NULL: {ex}"
+                )
                 gfo.remove(output_path)
             finally:
                 result_ds = None
@@ -469,7 +466,6 @@ class set_config_options(object):
 
 
 def _getfileinfo(path: Path, readonly: bool = True) -> dict:
-
     # Get info
     info_str = vector_info(path=path, readonly=readonly)
 
@@ -581,7 +577,6 @@ def vector_info(
 def _execute_sql(
     path: Path, sqlite_stmt: str, sql_dialect: Optional[str] = None
 ) -> gpd.GeoDataFrame:
-
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir) / "ogr_util_execute_sql_tmp_file.gpkg"
         vector_translate(
