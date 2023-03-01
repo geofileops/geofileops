@@ -534,10 +534,11 @@ def _single_layer_vector_operation(
                     if len(processing_params.batches) == 1:
                         gfo.move(tmp_partial_output_path, tmp_output_path)
                     else:
-                        gfo.append_to(
+                        fileops._append_to_nolock(
                             src=tmp_partial_output_path,
                             dst=tmp_output_path,
-                            dst_layer=output_layer,
+                            explodecollections=explodecollections,
+                            force_output_geometrytype=force_output_geometrytype,
                             create_spatial_index=False,
                         )
                         gfo.remove(tmp_partial_output_path)
@@ -1924,10 +1925,8 @@ def _two_layer_vector_operation(
                     if result is not None:
                         logger.debug(result)
 
-                    # Start copy of the result to a common file
+                    # If the calculate gave results, copy/append to output
                     batch_id = future_to_batch_id[future]
-
-                    # If the calculate gave results, copy to output
                     tmp_partial_output_path = batches[batch_id][
                         "tmp_partial_output_path"
                     ]
@@ -1935,13 +1934,16 @@ def _two_layer_vector_operation(
                         tmp_partial_output_path.exists()
                         and tmp_partial_output_path.stat().st_size > 0
                     ):
-                        fileops._append_to_nolock(
-                            src=tmp_partial_output_path,
-                            dst=tmp_output_path,
-                            explodecollections=explodecollections,
-                            force_output_geometrytype=force_output_geometrytype,
-                            create_spatial_index=False,
-                        )
+                        if len(processing_params.batches) == 1:
+                            gfo.move(tmp_partial_output_path, tmp_output_path)
+                        else:
+                            fileops._append_to_nolock(
+                                src=tmp_partial_output_path,
+                                dst=tmp_output_path,
+                                explodecollections=explodecollections,
+                                force_output_geometrytype=force_output_geometrytype,
+                                create_spatial_index=False,
+                            )
                     else:
                         logger.debug(f"Result file {tmp_partial_output_path} was empty")
 
