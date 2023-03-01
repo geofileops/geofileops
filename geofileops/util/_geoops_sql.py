@@ -496,7 +496,8 @@ def _single_layer_vector_operation(
 
                 batches[batch_id]["sql_stmt"] = sql_stmt
 
-                # Remark: this temp file doesn't need spatial index
+                # Remark: this temp file doesn't need spatial index, and even if only
+                # one batch creating the index immediately isn't faster.
                 translate_info = _ogr_util.VectorTranslateInfo(
                     input_path=processing_params.batches[batch_id]["path"],
                     output_path=tmp_partial_output_path,
@@ -513,9 +514,9 @@ def _single_layer_vector_operation(
                 future_to_batch_id[future] = batch_id
 
             # Loop till all parallel processes are ready, but process each one
-            # that is ready already
+            # that is ready already.
             # Calculating can be done in parallel, but only one process can write to
-            # the same file at the time
+            # the same file at the time.
             for future in futures.as_completed(future_to_batch_id):
                 try:
                     _ = future.result()
@@ -2045,7 +2046,9 @@ def _prepare_processing_params(
         if batchsize > 0:
             max_rows_parallel = batchsize * returnvalue.nb_parallel
         else:
-            max_rows_parallel = 200000
+            max_rows_parallel = 1000000
+            if input2_path is not None:
+                max_rows_parallel = 200000
 
         # Adapt number of batches to max_rows_parallel
         if input1_layerinfo.featurecount > max_rows_parallel:
@@ -2058,9 +2061,11 @@ def _prepare_processing_params(
             # If a batchsize is specified, try to honer it
             nb_batches = returnvalue.nb_parallel
         else:
-            # If no batchsize specified, add some batches to reduce impact of possible
-            # "unbalanced" batches regarding needed processing time.
-            nb_batches = returnvalue.nb_parallel * 2
+            # If no batchsize specified and 2 layer processing, add some batches to
+            # reduce impact of possible unbalanced batches on total processing time.
+            nb_batches = returnvalue.nb_parallel
+            if input2_path is not None:
+                nb_batches = returnvalue.nb_parallel * 2
 
     elif batchsize > 0:
         nb_batches = math.ceil(input1_layerinfo.featurecount / batchsize)
