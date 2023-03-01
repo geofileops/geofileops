@@ -540,13 +540,17 @@ def _single_layer_vector_operation(
                 tmp_partial_output_path = batches[batch_id]["tmp_partial_output_path"]
 
                 if tmp_partial_output_path.exists():
-                    gfo.append_to(
-                        src=tmp_partial_output_path,
-                        dst=tmp_output_path,
-                        dst_layer=output_layer,
-                        create_spatial_index=False,
-                    )
-                    gfo.remove(tmp_partial_output_path)
+                    # If there is only one batch, just rename
+                    if len(processing_params.batches) == 1:
+                        gfo.move(tmp_partial_output_path, tmp_output_path)
+                    else:
+                        gfo.append_to(
+                            src=tmp_partial_output_path,
+                            dst=tmp_output_path,
+                            dst_layer=output_layer,
+                            create_spatial_index=False,
+                        )
+                        gfo.remove(tmp_partial_output_path)
                 else:
                     logger.debug(f"Result file {tmp_partial_output_path} was empty")
 
