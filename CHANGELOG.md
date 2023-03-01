@@ -6,6 +6,7 @@
 
 - Add support to to_file to write empty dataframe + add parameter 
   force_output_geometrytype (#205)
+- Optimize number batches for single layer sql operations (#214)
 
 ### Deprecations and compatibility notes
 
