@@ -479,7 +479,7 @@ def _apply_geooperation_to_layer(
             initializer=_general_util.initialize_worker(),
         ) as calculate_pool:
             # Prepare output filename
-            output_tmp_path = tempdir / output_path.name
+            tmp_output_path = tempdir / output_path.name
 
             row_offset = 0
             batches = {}
@@ -540,12 +540,16 @@ def _apply_geooperation_to_layer(
                         tmp_partial_output_path.exists()
                         and tmp_partial_output_path.stat().st_size > 0
                     ):
-                        gfo.append_to(
-                            src=tmp_partial_output_path,
-                            dst=output_tmp_path,
-                            create_spatial_index=False,
-                        )
-                        gfo.remove(tmp_partial_output_path)
+                        if nb_batches == 1:
+                            gfo.move(tmp_partial_output_path, tmp_output_path)
+                        else:
+                            fileops._append_to_nolock(
+                                src=tmp_partial_output_path,
+                                dst=tmp_output_path,
+                                explodecollections=explodecollections,
+                                create_spatial_index=False,
+                            )
+                            gfo.remove(tmp_partial_output_path)
 
                 except Exception:
                     batch_id = future_to_batch_id[future]
@@ -560,9 +564,9 @@ def _apply_geooperation_to_layer(
 
         # Round up and clean up
         # Now create spatial index and move to output location
-        if output_tmp_path.exists():
-            gfo.create_spatial_index(path=output_tmp_path, layer=output_layer)
-            gfo.move(output_tmp_path, output_path)
+        if tmp_output_path.exists():
+            gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
+            gfo.move(tmp_output_path, output_path)
         else:
             logger.debug(f"Result of {operation} was empty!")
 
