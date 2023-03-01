@@ -19,7 +19,6 @@ A4_SHORT_SIDE = 8.27
 
 
 def generate_reports(results_path: Path, output_dir: Path):
-
     benchmark_df = pd.read_csv(results_path)
 
     def format_run_details(input: dict) -> str:
@@ -123,7 +122,7 @@ def save_chart(
         "scatter",
         "hexbin",
     ] = "line",
-    gridlines: Optional[Literal['both', 'x', 'y']] = None,
+    gridlines: Optional[Literal["both", "x", "y"]] = None,
     linestyle: Optional[str] = None,
 ):
     """
@@ -253,7 +252,6 @@ def save_chart(
 
 
 if __name__ == "__main__":
-
     results_path = Path(__file__).resolve().parent / "results/benchmark_results.csv"
     output_dir = Path(__file__).resolve().parent / "results"
     generate_reports(results_path, output_dir)

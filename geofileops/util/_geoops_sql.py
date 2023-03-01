@@ -208,7 +208,6 @@ def isvalid(
     batchsize: int = -1,
     force: bool = False,
 ) -> bool:
-
     # Prepare sql template for this operation
     sql_template = """
         SELECT ST_IsValidDetail({geometrycolumn}) AS geom
@@ -455,7 +454,6 @@ def _single_layer_vector_operation(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # Init
     start_time = datetime.now()
 
@@ -523,11 +521,9 @@ def _single_layer_vector_operation(
             max_workers=processing_params.nb_parallel,
             initializer=_general_util.initialize_worker(),
         ) as calculate_pool:
-
             batches = {}
             future_to_batch_id = {}
             for batch_id in processing_params.batches:
-
                 batches[batch_id] = {}
                 batches[batch_id]["layer"] = output_layer
 
@@ -558,7 +554,8 @@ def _single_layer_vector_operation(
 
                 batches[batch_id]["sql_stmt"] = sql_stmt
 
-                # Remark: this temp file doesn't need spatial index
+                # Remark: this temp file doesn't need spatial index, and even if only
+                # one batch creating the index immediately isn't faster.
                 translate_info = _ogr_util.VectorTranslateInfo(
                     input_path=processing_params.batches[batch_id]["path"],
                     output_path=tmp_partial_output_path,
@@ -575,9 +572,9 @@ def _single_layer_vector_operation(
                 future_to_batch_id[future] = batch_id
 
             # Loop till all parallel processes are ready, but process each one
-            # that is ready already
+            # that is ready already.
             # Calculating can be done in parallel, but only one process can write to
-            # the same file at the time
+            # the same file at the time.
             for future in futures.as_completed(future_to_batch_id):
                 try:
                     _ = future.result()
@@ -592,13 +589,18 @@ def _single_layer_vector_operation(
                 tmp_partial_output_path = batches[batch_id]["tmp_partial_output_path"]
 
                 if tmp_partial_output_path.exists():
-                    gfo.append_to(
-                        src=tmp_partial_output_path,
-                        dst=tmp_output_path,
-                        dst_layer=output_layer,
-                        create_spatial_index=False,
-                    )
-                    gfo.remove(tmp_partial_output_path)
+                    # If there is only one batch, just rename
+                    if len(processing_params.batches) == 1:
+                        gfo.move(tmp_partial_output_path, tmp_output_path)
+                    else:
+                        fileops._append_to_nolock(
+                            src=tmp_partial_output_path,
+                            dst=tmp_output_path,
+                            explodecollections=explodecollections,
+                            force_output_geometrytype=force_output_geometrytype,
+                            create_spatial_index=False,
+                        )
+                        gfo.remove(tmp_partial_output_path)
                 else:
                     logger.debug(f"Result file {tmp_partial_output_path} was empty")
 
@@ -647,7 +649,6 @@ def clip(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # Init
     # In the query, important to only extract the geometry types that are expected
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
@@ -745,7 +746,6 @@ def erase(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # Init
     # In the query, important to only extract the geometry types that are expected
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
@@ -845,7 +845,6 @@ def export_by_location(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # Prepare sql template for this operation
     # TODO: test performance difference between the following two queries
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
@@ -878,12 +877,12 @@ def export_by_location(
     if area_inters_column_name is not None or min_area_intersect is not None:
         if area_inters_column_name is None:
             area_inters_column_name = "area_inters"
-        area_inters_column_expression = (
-            f""",ST_area(ST_intersection(ST_union(layer1.{{input1_geometrycolumn}}),
-                    ST_union(layer2.{{input2_geometrycolumn}}))
-                 ) as {area_inters_column_name}
-            """
-        )
+        area_inters_column_expression = f"""
+            ,ST_area(ST_intersection(
+                 ST_union(layer1.{{input1_geometrycolumn}}),
+                 ST_union(layer2.{{input2_geometrycolumn}})
+             )) AS {area_inters_column_name}
+        """
 
     # Prepare sql template for this operation
     sql_template = f"""
@@ -951,7 +950,6 @@ def export_by_distance(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # Prepare sql template for this operation
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
     input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
@@ -1013,7 +1011,6 @@ def intersection(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # In the query, important to only extract the geometry types that are expected
     # TODO: test for geometrycollection, line, point,...
     input1_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
@@ -1108,7 +1105,6 @@ def join_by_location(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # Prepare sql template for this operation
     # Prepare intersection area columns/filter
     area_inters_column_expression = ""
@@ -1232,7 +1228,6 @@ def join_by_location(
 
 
 def _prepare_spatial_relations_filter(query: str) -> str:
-
     named_spatial_relations = {
         # "disjoint": ["FF*FF****"],
         "equals": ["TFFF*FFF*"],
@@ -1313,7 +1308,6 @@ def join_nearest(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # Init some things...
     # Because there is preprocessing done in this function, check output path
     # here already
@@ -1416,7 +1410,6 @@ def select_two_layers(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # Go!
     return _two_layer_vector_operation(
         input1_path=input1_path,
@@ -1456,7 +1449,6 @@ def split(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # In the query, important to only extract the geometry types that are
     # expected, so the primitive type of input1_layer
     # TODO: test for geometrycollection, line, point,...
@@ -1577,7 +1569,6 @@ def symmetric_difference(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # A symmetric difference can be simulated by doing an "erase" of input1
     # and input2 and then append the result of an erase of input2 with
     # input1...
@@ -1675,7 +1666,6 @@ def union(
     batchsize: int = -1,
     force: bool = False,
 ):
-
     # A union can be simulated by doing a "split" of input1 and input2 and
     # then append the result of an erase of input2 with input1...
 
@@ -1905,12 +1895,10 @@ def _two_layer_vector_operation(
             max_workers=processing_params.nb_parallel,
             initializer=_general_util.initialize_worker(),
         ) as calculate_pool:
-
             # Start looping
             batches = {}
             future_to_batch_id = {}
             for batch_id in processing_params.batches:
-
                 batches[batch_id] = {}
                 batches[batch_id]["layer"] = output_layer
 
@@ -1996,10 +1984,8 @@ def _two_layer_vector_operation(
                     if result is not None:
                         logger.debug(result)
 
-                    # Start copy of the result to a common file
+                    # If the calculate gave results, copy/append to output
                     batch_id = future_to_batch_id[future]
-
-                    # If the calculate gave results, copy to output
                     tmp_partial_output_path = batches[batch_id][
                         "tmp_partial_output_path"
                     ]
@@ -2007,13 +1993,21 @@ def _two_layer_vector_operation(
                         tmp_partial_output_path.exists()
                         and tmp_partial_output_path.stat().st_size > 0
                     ):
-                        fileops._append_to_nolock(
-                            src=tmp_partial_output_path,
-                            dst=tmp_output_path,
-                            explodecollections=explodecollections,
-                            force_output_geometrytype=force_output_geometrytype,
-                            create_spatial_index=False,
-                        )
+                        # If only one batch and output format same as tmp, rename file
+                        if (
+                            len(processing_params.batches) == 1
+                            and tmp_partial_output_path.suffix.lower()
+                            == tmp_output_path.suffix.lower()
+                        ):
+                            gfo.move(tmp_partial_output_path, tmp_output_path)
+                        else:
+                            fileops._append_to_nolock(
+                                src=tmp_partial_output_path,
+                                dst=tmp_output_path,
+                                explodecollections=explodecollections,
+                                force_output_geometrytype=force_output_geometrytype,
+                                create_spatial_index=False,
+                            )
                     else:
                         logger.debug(f"Result file {tmp_partial_output_path} was empty")
 
@@ -2087,7 +2081,6 @@ def _prepare_processing_params(
     input2_path: Optional[Path] = None,
     input2_layer: Optional[str] = None,
 ) -> Optional[ProcessingParams]:
-
     # Init
     returnvalue = ProcessingParams(nb_parallel=nb_parallel)
     input1_layerinfo = gfo.get_layerinfo(input1_path, input1_layer)
@@ -2112,7 +2105,9 @@ def _prepare_processing_params(
         if batchsize > 0:
             max_rows_parallel = batchsize * returnvalue.nb_parallel
         else:
-            max_rows_parallel = 200000
+            max_rows_parallel = 1000000
+            if input2_path is not None:
+                max_rows_parallel = 200000
 
         # Adapt number of batches to max_rows_parallel
         if input1_layerinfo.featurecount > max_rows_parallel:
@@ -2125,9 +2120,11 @@ def _prepare_processing_params(
             # If a batchsize is specified, try to honer it
             nb_batches = returnvalue.nb_parallel
         else:
-            # If no batchsize specified, add some batches to reduce impact of possible
-            # "unbalanced" batches regarding needed processing time.
-            nb_batches = returnvalue.nb_parallel * 2
+            # If no batchsize specified and 2 layer processing, add some batches to
+            # reduce impact of possible unbalanced batches on total processing time.
+            nb_batches = returnvalue.nb_parallel
+            if input2_path is not None:
+                nb_batches = returnvalue.nb_parallel * 2
 
     elif batchsize > 0:
         nb_batches = math.ceil(input1_layerinfo.featurecount / batchsize)
@@ -2206,11 +2203,11 @@ def _prepare_processing_params(
     else:
         # Determine the min_rowid and max_rowid
         # Remark: SELECT MIN(rowid), MAX(rowid) FROM ... is a lot slower than UNION ALL!
-        sql_stmt = f'''
+        sql_stmt = f"""
             SELECT MIN(rowid) minmax_rowid FROM "{layer1_info.name}"
             UNION ALL
             SELECT MAX(rowid) minmax_rowid FROM "{layer1_info.name}"
-        '''
+        """
         batch_info_df = gfo.read_file_sql(
             path=returnvalue.input1_path, sql_stmt=sql_stmt, ignore_geometry=True
         )
@@ -2307,7 +2304,6 @@ def format_column_strings(
     table_alias: str = "",
     columnname_prefix: str = "",
 ) -> FormattedColumnStrings:
-
     # First prepare the actual column list to use
     if columns_specified is not None:
         # Case-insensitive check if input1_columns contains columns not in layer...

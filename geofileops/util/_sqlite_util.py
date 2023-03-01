@@ -54,7 +54,6 @@ class SqliteProfile(enum.Enum):
 
 
 def create_new_spatialdb(path: Path, crs_epsg: Optional[int] = None):
-
     # Connect to sqlite
     conn = sqlite3.connect(path)
     sql = None
@@ -401,7 +400,6 @@ def create_table_as_sql(
 
 
 def execute_sql(path: Path, sql_stmt: str, use_spatialite: bool = True):
-
     # Connect to database file
     conn = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
     sql = None
@@ -433,7 +431,6 @@ def execute_sql(path: Path, sql_stmt: str, use_spatialite: bool = True):
 def execute_select_sql(
     path: Path, sql_stmt: str, use_spatialite: bool = True
 ) -> List[Any]:
-
     # Connect to database file
     conn = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
     sql = None
@@ -461,7 +458,6 @@ def execute_select_sql(
 
 
 def test_data_integrity(path: Path, use_spatialite: bool = True):
-
     # Get list of layers in database
     layers = gfo.listlayers(path=path)
 
@@ -503,7 +499,6 @@ def test_data_integrity(path: Path, use_spatialite: bool = True):
 def execute_select_sql_df(
     path: Path, sql_stmt: str, use_spatialite: bool = True
 ) -> pd.DataFrame:
-
     # Connect to database file
     conn = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
     sql = None

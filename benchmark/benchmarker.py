@@ -69,7 +69,6 @@ def run_benchmarks(
     modules_to_run: Optional[List[str]] = None,
     functions_to_run: Optional[List[str]] = None,
 ):
-
     # Init logging
     logging.basicConfig(
         format="%(asctime)s.%(msecs)03d|%(levelname)s|%(name)s|%(message)s",
@@ -90,7 +89,8 @@ def run_benchmarks(
             if modules_to_run is not None and module_name not in modules_to_run:
                 # Benchmark whitelist specified, and this one isn't in it
                 logger.info(
-                    f"module {module_name} skipped, because not in modules_to_run: {modules_to_run}"
+                    f"module {module_name} skipped, because not in modules_to_run: "
+                    f"{modules_to_run}"
                 )
                 continue
 
@@ -109,7 +109,8 @@ def run_benchmarks(
                 ):
                     # Function whitelist specified, and this one isn't in it
                     logger.info(
-                        f"function {function_name} skipped, because not in functions_to_run: {functions_to_run}"
+                        f"function {function_name} skipped, because not in "
+                        f"functions_to_run: {functions_to_run}"
                     )
                     continue
 
@@ -118,12 +119,14 @@ def run_benchmarks(
                 result = function(tmp_dir=tmp_dir)
                 if result is not None and isinstance(result, RunResult) is True:
                     logger.info(
-                        f"benchmarks.{module_name}.{function_name} ready in {result.secs_taken:.2f} s"
+                        f"benchmarks.{module_name}.{function_name} ready in "
+                        f"{result.secs_taken:.2f} s"
                     )
                     results.append(result)
                 else:
                     logger.warning(
-                        f"benchmarks.{module_name}.{function_name} ignored: instead of a RunResult it returned {result}"
+                        f"benchmarks.{module_name}.{function_name} ignored: instead of "
+                        f"a RunResult it returned {result}"
                     )
 
     # Add results to csv file

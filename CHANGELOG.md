@@ -6,12 +6,16 @@
 
 - Add support in to_file to write an empty dataframe + add parameter
   force_output_geometrytype. (#205)
+- Optimize performance of operations when only one batch is used (#19)
+- Optimize number batches for single layer sql operations (#214)
 
 ### Deprecations and compatibility notes
 
 - When a geo operation results in an empty result, gfo now always writes an empty output
   file instead of no output. This is also the behaviour of other high level libraries
   like in the toolbox of QGIS or ArcGIS. (#188)
+- The (private) util function `view_angles` is moved to 
+  [pygeoops](https://github.com/pygeoops/pygeoops) (#209)
 
 ## 0.6.4 (2023-02-15)
 
@@ -26,16 +30,8 @@
 
 - Fix: Due to a change in fiona >= 1.9, using read_file on string columns with all None
   values ended up as a float64 column (#199)
-- Because geofileops uses pygeos directly, pin geopandas to < 1.0.
-  More info: https://github.com/geopandas/geopandas/issues/2691 (#200)
-
-### Bugs fixed
-
-### Deprecations and compatibility notes
-
-- When a spatial operation has an empty result, an empty output file is now written to
-  be consistent with most other geospatial libraries (QGIS, ArcGIS). Before, no output
-  file was written in this case.
+- Because geofileops uses pygeos directly, pin geopandas to < 1.0. More info: 
+  [geopandas#2691](https://github.com/geopandas/geopandas/issues/2691) (#200)
 
 ## 0.6.3 (2022-12-12)
 
