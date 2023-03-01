@@ -1934,7 +1934,12 @@ def _two_layer_vector_operation(
                         tmp_partial_output_path.exists()
                         and tmp_partial_output_path.stat().st_size > 0
                     ):
-                        if len(processing_params.batches) == 1:
+                        # If only one batch and output format same as tmp, rename file
+                        if (
+                            len(processing_params.batches) == 1
+                            and tmp_partial_output_path.suffix.lower()
+                            == tmp_output_path.suffix.lower()
+                        ):
                             gfo.move(tmp_partial_output_path, tmp_output_path)
                         else:
                             fileops._append_to_nolock(
