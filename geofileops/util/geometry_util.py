@@ -6,7 +6,7 @@ Module containing utilities regarding low level vector operations.
 import enum
 import logging
 import math
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Union
 
 import geopandas as gpd
 import numpy as np
@@ -429,7 +429,6 @@ def remove_inner_rings(
         min_area_to_keep: Optional[float] = None,
         crs: Optional[pyproj.CRS] = None,
     ) -> sh_geom.Polygon:
-
         # If all inner rings need to be removed...
         if min_area_to_keep is None or min_area_to_keep == 0.0:
             # If there are no interior rings anyway, just return input
@@ -443,7 +442,6 @@ def remove_inner_rings(
         ring_coords_to_keep = []
         small_ring_found = False
         for ring in geom_poly.interiors:
-
             # Calculate area
             if crs is None:
                 ring_area = sh_ops.Polygon(ring).area

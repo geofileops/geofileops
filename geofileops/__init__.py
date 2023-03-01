@@ -1,9 +1,10 @@
 from pathlib import Path
 import os
-os.environ['USE_PYGEOS'] = '1'
 
-from geofileops.fileops import *
-from geofileops.geoops import *
+os.environ["USE_PYGEOS"] = "1"
+
+from geofileops.fileops import *  # noqa: F403, F401
+from geofileops.geoops import *  # noqa: F403, F401
 
 
 def _get_version():

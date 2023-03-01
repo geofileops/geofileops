@@ -54,7 +54,6 @@ class SqliteProfile(enum.Enum):
 
 
 def create_new_spatialdb(path: Path, crs_epsg: Optional[int] = None):
-
     # Connect to sqlite
     conn = sqlite3.connect(path)
     sql = None
@@ -102,7 +101,6 @@ def create_table_as_sql(
     create_spatial_index: bool = True,
     profile: SqliteProfile = SqliteProfile.DEFAULT,
 ):
-
     # Check input parameters
     if append is True or update is True:
         raise Exception("Not implemented")
@@ -260,7 +258,7 @@ def create_table_as_sql(
             # layer names with special characters (eg. '-')...
             # Solution: mimic the behaviour of gpkgAddGeometryColumn manually.
             # Create table without geom column
-            """ 
+            """
             columns_for_create = [
                 f'"{columnname}" {column_types[columnname]}\n' for columnname
                 in column_types if columnname != 'geom'
@@ -340,7 +338,7 @@ def create_table_as_sql(
                     sql = f"SELECT CreateSpatialIndex('{output_layer}', 'geom');"
                 conn.execute(sql)
 
-    except EmptyResultError as ex:
+    except EmptyResultError:
         logger.info(f"Query didn't return any rows: {sql_stmt}")
         conn.close()
         conn = None
@@ -354,7 +352,6 @@ def create_table_as_sql(
 
 
 def execute_sql(path: Path, sql_stmt: str, use_spatialite: bool = True):
-
     # Connect to database file
     conn = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
     sql = None
@@ -386,7 +383,6 @@ def execute_sql(path: Path, sql_stmt: str, use_spatialite: bool = True):
 def execute_select_sql(
     path: Path, sql_stmt: str, use_spatialite: bool = True
 ) -> List[Any]:
-
     # Connect to database file
     conn = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
     sql = None
@@ -414,7 +410,6 @@ def execute_select_sql(
 
 
 def test_data_integrity(path: Path, use_spatialite: bool = True):
-
     # Get list of layers in database
     layers = gfo.listlayers(path=path)
 
@@ -456,7 +451,6 @@ def test_data_integrity(path: Path, use_spatialite: bool = True):
 def execute_select_sql_df(
     path: Path, sql_stmt: str, use_spatialite: bool = True
 ) -> pd.DataFrame:
-
     # Connect to database file
     conn = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
     sql = None

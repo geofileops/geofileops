@@ -31,7 +31,6 @@ def create_grid(
     nb_rows: int,
     crs: Union[pyproj.CRS, int, str, None],
 ) -> gpd.GeoDataFrame:
-
     xmin, ymin, xmax, ymax = total_bounds
     width = (xmax - xmin) / nb_columns
     height = (ymax - ymin) / nb_rows
@@ -153,7 +152,6 @@ def create_grid2(
 def split_tiles(
     input_tiles: gpd.GeoDataFrame, nb_tiles_wanted: int
 ) -> gpd.GeoDataFrame:
-
     nb_tiles = len(input_tiles)
     if nb_tiles >= nb_tiles_wanted:
         return input_tiles
@@ -163,13 +161,11 @@ def split_tiles(
     # Loop over all tiles in the grid
     result_tiles = []
     for tile in input_tiles.itertuples():
-
         # For this tile, as long as the curr_nb_tiles_ratio_todo is not 1, keep
         # splitting
         curr_nb_tiles_ratio_todo = nb_tiles_ratio_target
         curr_tiles_being_split = [tile.geometry]
         while curr_nb_tiles_ratio_todo > 1:
-
             # Check in how many parts the tiles are split in this iteration
             divisor = 0
             if round(curr_nb_tiles_ratio_todo) == 3:

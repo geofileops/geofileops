@@ -15,7 +15,8 @@ import sys
 
 sys.path.insert(0, os.path.abspath(".."))
 
-# This will include the necessary source files folders in the PATH to be able to generate the documentation from.
+# This will include the necessary source files folders in the PATH to be able to
+# generate the documentation from.
 devdir = "./"
 # try:
 # if os.environ['DEVDIR']:

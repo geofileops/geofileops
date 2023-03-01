@@ -1602,7 +1602,6 @@ def append_to(
     start_time = datetime.datetime.now()
     ready = False
     while not ready:
-
         if _io_util.create_file_atomic(lockfile) is True:
             try:
                 # append
