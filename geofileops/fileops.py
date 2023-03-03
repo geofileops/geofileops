@@ -860,6 +860,10 @@ def read_file(
 
     The file format is detected based on the filepath extension.
 
+    The underlying library used to read the file can be choosen using the
+    "GFO_IO_ENGINE" environment variable. Possible values are "fiona" and "pyogrio".
+    Default engine is "pyogrio".
+
     Args:
         path (file path): path to the file to read from
         layer (str, optional): The layer to read. Defaults to None,
@@ -905,6 +909,10 @@ def read_file_nogeom(
     Reads a file to a pandas Dataframe.
 
     The file format is detected based on the filepath extension.
+
+    The underlying library used to read the file can be choosen using the
+    "GFO_IO_ENGINE" environment variable. Possible values are "fiona" and "pyogrio".
+    Default engine is "pyogrio".
 
     Args:
         path (file path): path to the file to read from
