@@ -1006,6 +1006,9 @@ def _read_file_base_fiona(
     """
     Reads a file to a pandas Dataframe using fiona.
     """
+    if ignore_geometry and columns == []:
+        return pd.DataFrame()
+
     # Init
     path = Path(path)
     if path.exists() is False:
