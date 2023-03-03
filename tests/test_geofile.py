@@ -3,6 +3,7 @@
 Tests for functionalities in geofileops.general.
 """
 
+import os
 from pathlib import Path
 import sys
 
@@ -21,6 +22,24 @@ from geofileops.util import _io_util
 from tests import test_helper
 from tests.test_helper import DEFAULT_SUFFIXES
 from tests.test_helper import assert_geodataframe_equal
+
+
+ENGINES = ["fiona", "pyogrio"]
+
+
+@pytest.fixture(scope="module", params=ENGINES)
+def engine_setter(request):
+    engine = request.param
+    engine_backup = os.environ.get("GFO_IO_ENGINE", None)
+    if engine is None:
+        del os.environ["GFO_IO_ENGINE"]
+    else:
+        os.environ["GFO_IO_ENGINE"] = engine
+    yield engine
+    if engine_backup is None:
+        del os.environ["GFO_IO_ENGINE"]
+    else:
+        os.environ["GFO_IO_ENGINE"] = engine_backup
 
 
 def test_add_column(tmp_path):
@@ -590,7 +609,7 @@ def test_spatial_index(tmp_path, suffix):
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-def test_to_file(tmp_path, suffix):
+def test_to_file(tmp_path, suffix, engine_setter):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     output_path = tmp_path / f"{src.stem}-output{suffix}"
 
@@ -608,7 +627,7 @@ def test_to_file(tmp_path, suffix):
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-def test_to_file_append_to_unexisting_file(tmp_path, suffix):
+def test_to_file_append_to_unexisting_file(tmp_path, suffix, engine_setter):
     test_path = test_helper.get_testfile(
         "polygon-parcel", dst_dir=tmp_path, suffix=suffix
     )
@@ -620,16 +639,20 @@ def test_to_file_append_to_unexisting_file(tmp_path, suffix):
     assert dst_info.featurecount == len(test_gdf)
 
 
-def test_to_file_append_different_columns(tmp_path):
+def test_to_file_append_different_columns(tmp_path, engine_setter):
     test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
 
     test_gdf = gfo.read_file(test_path)
     test_gdf["extra_column"] = 123
-    with pytest.raises(ValueError, match="Record does not match collection schema"):
+    if engine_setter == "fiona":
+        ex_message = "Record does not match collection schema"
+    else:
+        ex_message = "destination layer doesn't have the same columns as gdf"
+    with pytest.raises(ValueError, match=ex_message):
         gfo.to_file(test_gdf, path=test_path, append=True)
 
 
-def test_to_file_attribute_table_gpkg(tmp_path):
+def test_to_file_attribute_table_gpkg(tmp_path, engine_setter):
     # Prepare test data
     test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
 
@@ -657,7 +680,11 @@ def test_to_file_attribute_table_gpkg(tmp_path):
     ],
 )
 def test_to_file_create_spatial_index(
-    tmp_path, suffix: str, create_spatial_index: bool, expected_spatial_index: bool
+    tmp_path,
+    suffix: str,
+    create_spatial_index: bool,
+    expected_spatial_index: bool,
+    engine_setter,
 ):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     output_path = tmp_path / f"{src.stem}-output{suffix}"
@@ -682,7 +709,9 @@ def test_to_file_emptyfile(tmp_path, suffix):
     # the depends on the file type, eg. Geometry for gpkg, MultiLinestring for shp.
     output_path = tmp_path / f"output-emptyfile{suffix}"
     gfo.to_file(
-        empty_gdf, output_path, force_output_geometrytype=input_layerinfo.geometrytype
+        empty_gdf,
+        output_path,
+        force_output_geometrytype=input_layerinfo.geometrytype,
     )
 
     # Check result
@@ -693,7 +722,7 @@ def test_to_file_emptyfile(tmp_path, suffix):
     assert input_layerinfo.geometrytype == output_layerinfo.geometrytype
 
 
-def test_to_file_force_geometrytype(tmp_path):
+def test_to_file_force_geometrytype_multitype(tmp_path, engine_setter):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel")
     read_gdf = gfo.read_file(input_path)
@@ -701,23 +730,34 @@ def test_to_file_force_geometrytype(tmp_path):
     poly_gdf = read_gdf[read_gdf.geometry.geom_type == "Polygon"]
     assert isinstance(poly_gdf, gpd.GeoDataFrame)
 
+    # Default behaviour -> Polygon
     output_path = tmp_path / f"{input_path.stem}-output.gpkg"
     gfo.to_file(poly_gdf, output_path)
     output_info = gfo.get_layerinfo(output_path)
     assert output_info.featurecount == len(poly_gdf)
     assert output_info.geometrytype == GeometryType.POLYGON
 
+    # force_output_geometrytype=GeometryType.MULTIPOLYGON -> MultiPolygon
     output_force_path = tmp_path / f"{input_path.stem}-output-force.gpkg"
     gfo.to_file(
-        poly_gdf, output_force_path, force_output_geometrytype=GeometryType.MULTIPOLYGON
+        poly_gdf,
+        output_force_path,
+        force_output_geometrytype=GeometryType.MULTIPOLYGON,
     )
+    output_force_info = gfo.get_layerinfo(output_force_path)
+    assert output_force_info.featurecount == len(poly_gdf)
+    assert output_force_info.geometrytype == GeometryType.MULTIPOLYGON
+
+    # force_multitype=True -> MultiPolygon
+    output_force_path = tmp_path / f"{input_path.stem}-output-force.gpkg"
+    gfo.to_file(poly_gdf, output_force_path, force_multitype=True)
     output_force_info = gfo.get_layerinfo(output_force_path)
     assert output_force_info.featurecount == len(poly_gdf)
     assert output_force_info.geometrytype == GeometryType.MULTIPOLYGON
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-def test_to_file_geomempty(tmp_path, suffix):
+def test_to_file_geomempty(tmp_path, suffix, engine_setter):
     # Test for gdf with an empty polygon + a polygon
     test_gdf = gpd.GeoDataFrame(
         geometry=[  # type: ignore
@@ -746,8 +786,8 @@ def test_to_file_geomempty(tmp_path, suffix):
         assert test_read_geometrytypes[0] is GeometryType.MULTILINESTRING
     else:
         # When written to Geopackage... the empty geometries are actually saved
-        # as None, so when read again they are None as well.
-        assert test_read_gdf.geometry[0] is None
+        # as None. When read again they are None for fiona and empty for pyogrio.
+        assert test_read_gdf.geometry[0] is None or test_read_gdf.geometry[0].is_empty
         assert isinstance(test_read_gdf.geometry[1], sh_geom.Polygon)
 
         # So the geometrytype of the resulting GeoDataFrame is also POLYGON
@@ -756,7 +796,7 @@ def test_to_file_geomempty(tmp_path, suffix):
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-def test_to_file_geomnone(tmp_path, suffix):
+def test_to_file_geomnone(tmp_path, suffix, engine_setter):
     # Test for gdf with a None geometry + a polygon
     test_gdf = gpd.GeoDataFrame(
         geometry=[None, test_helper.TestData.polygon_with_island]  # type: ignore
