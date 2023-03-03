@@ -9,6 +9,8 @@
   force_output_geometrytype (#205)
 - Optimize performance of operations when only one batch is used (#19)
 - Optimize number batches for single layer sql operations (#214)
+- Add fid_as_index parameter to read_file (#215)
+- Small improvements/code cleanup (#216)
 
 ### Deprecations and compatibility notes
 
