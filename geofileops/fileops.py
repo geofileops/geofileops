@@ -22,6 +22,7 @@ from geopandas.io import file as gpd_io_file
 import numpy as np
 from osgeo import gdal
 import pandas as pd
+import pyogrio
 import pyproj
 
 from geofileops.util import geometry_util
@@ -42,12 +43,21 @@ logger = logging.getLogger(__name__)
 # Enable exceptions for GDAL
 gdal.UseExceptions()
 
-# Disable this annoying warning in fiona
+# Disable this warning in fiona
 warnings.filterwarnings(
     action="ignore",
     category=RuntimeWarning,
-    message="Sequential read of iterator was interrupted. Resetting iterator. "
-    "This can negatively impact the performance.",
+    message=(
+        "^Sequential read of iterator was interrupted. Resetting iterator. "
+        "This can negatively impact the performance.$"
+    ),
+)
+
+# Disable this warning in pyogrio
+warnings.filterwarnings(
+    action="ignore",
+    category=UserWarning,
+    message="^Layer .* does not have any features to read$",
 )
 
 # Hardcoded 31370 prj string to replace faulty ones
@@ -850,6 +860,10 @@ def read_file(
 
     The file format is detected based on the filepath extension.
 
+    The underlying library used to read the file can be choosen using the
+    "GFO_IO_ENGINE" environment variable. Possible values are "fiona" and "pyogrio".
+    Default engine is "pyogrio".
+
     Args:
         path (file path): path to the file to read from
         layer (str, optional): The layer to read. Defaults to None,
@@ -895,6 +909,10 @@ def read_file_nogeom(
     Reads a file to a pandas Dataframe.
 
     The file format is detected based on the filepath extension.
+
+    The underlying library used to read the file can be choosen using the
+    "GFO_IO_ENGINE" environment variable. Possible values are "fiona" and "pyogrio".
+    Default engine is "pyogrio".
 
     Args:
         path (file path): path to the file to read from
@@ -961,6 +979,41 @@ def _read_file_base(
     Returns:
         Union[pd.DataFrame, gpd.GeoDataFrame]: the data read.
     """
+    # Read with the engine specified
+    engine = _get_engine()
+    if engine == "pyogrio":
+        return _read_file_base_pyogrio(
+            path=path,
+            layer=layer,
+            columns=columns,
+            bbox=bbox,
+            rows=rows,
+            ignore_geometry=ignore_geometry,
+        )
+    elif engine == "fiona":
+        return _read_file_base_fiona(
+            path=path,
+            layer=layer,
+            columns=columns,
+            bbox=bbox,
+            rows=rows,
+            ignore_geometry=ignore_geometry,
+        )
+    else:
+        raise ValueError(f"Unsupported engine: {engine}")
+
+
+def _read_file_base_fiona(
+    path: Union[str, "os.PathLike[Any]"],
+    layer: Optional[str] = None,
+    columns: Optional[Iterable[str]] = None,
+    bbox=None,
+    rows=None,
+    ignore_geometry: bool = False,
+) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
+    """
+    Reads a file to a pandas Dataframe using fiona.
+    """
     # Init
     path = Path(path)
     if path.exists() is False:
@@ -1016,6 +1069,73 @@ def _read_file_base(
                         .astype(object)
                         .replace(np.nan, None)
                     )
+
+    # assert to evade pyLance warning
+    assert isinstance(result_gdf, pd.DataFrame) or isinstance(
+        result_gdf, gpd.GeoDataFrame
+    )
+    return result_gdf
+
+
+def _read_file_base_pyogrio(
+    path: Union[str, "os.PathLike[Any]"],
+    layer: Optional[str] = None,
+    columns: Optional[Iterable[str]] = None,
+    bbox=None,
+    rows=None,
+    ignore_geometry: bool = False,
+) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
+    """
+    Reads a file to a pandas Dataframe using pyogrio.
+    """
+    # Init
+    path = Path(path)
+    if path.exists() is False:
+        raise ValueError(f"File doesnt't exist: {path}")
+    geofiletype = GeofileType(path)
+
+    # Convert slice object to pyogrio parameters
+    if rows is not None:
+        skip_features = rows.start
+        max_features = rows.stop - rows.start
+    else:
+        skip_features = 0
+        max_features = None
+
+    # If no layer name specified, check if there is only one layer in the file.
+    if layer is None:
+        layer = get_only_layer(path)
+
+    # Checking if column names should be read is case sensitive in pyogrio, so
+    # make sure the column names specified have the same casing.
+    columns_originalcasing = None
+    if columns is not None:
+        layerinfo = get_layerinfo(path, layer=layer)
+        columns_upper = [column.upper() for column in columns]
+        columns_originalcasing = [
+            column for column in layerinfo.columns if column.upper() in columns_upper
+        ]
+
+    # Depending on the extension... different implementations
+    if geofiletype.is_spatialite_based or geofiletype in [
+        GeofileType.ESRIShapefile,
+        GeofileType.GeoJSON,
+    ]:
+        result_gdf = pyogrio.read_dataframe(
+            path,
+            columns=columns_originalcasing,
+            bbox=bbox,
+            skip_features=skip_features,
+            max_features=max_features,
+            read_geometry=not ignore_geometry,
+        )
+    else:
+        raise ValueError(f"Not implemented for geofiletype {geofiletype}")
+
+    # Reorder columns so they are the same as columns parameter
+    if columns_originalcasing is not None and len(columns_originalcasing) > 0:
+        columns_originalcasing.append("geometry")
+        result_gdf = result_gdf[columns_originalcasing]
 
     # assert to evade pyLance warning
     assert isinstance(result_gdf, pd.DataFrame) or isinstance(
@@ -1090,6 +1210,10 @@ def to_file(
 
     The fileformat is detected based on the filepath extension.
 
+    The underlying library used to write the file can be choosen using the
+    "GFO_IO_ENGINE" environment variable. Possible values are "fiona" and "pyogrio".
+    Default engine is "pyogrio".
+
     Args:
         gdf (gpd.GeoDataFrame): The GeoDataFrame to export to file.
         path (Union[str,): The file path to write to.
@@ -1121,9 +1245,6 @@ def to_file(
         ValueError: an invalid parameter value was passed.
         RuntimeError: timeout was reached while trying to append data to path.
     """
-    # TODO: think about if possible/how to support adding optional parameter and pass
-    # them to next function, example encoding, float_format,...
-
     # Check input parameters
     # ----------------------
     path = Path(path)
@@ -1135,8 +1256,6 @@ def to_file(
         else:
             layer = Path(path).stem
 
-    # Check and interpret force_output_geometrytype
-    # ---------------------------------------------
     # If force_output_geometrytype is a string, check if it is a "standard" geometry
     # type, as GDAL also supports special geometry types like "PROMOTE_TO_MULTI"
     if isinstance(force_output_geometrytype, str):
@@ -1152,6 +1271,62 @@ def to_file(
     if force_output_geometrytype is not None and force_output_geometrytype.is_multitype:
         force_multitype = True
 
+    # If there is no geometry column in the input, always use fiona, as pyogrio doesn't
+    # support that yet at time of writing.
+    if isinstance(gdf, gpd.GeoDataFrame) is False or (
+        isinstance(gdf, gpd.GeoDataFrame) and "geometry" not in gdf.columns
+    ):
+        engine = "fiona"
+    else:
+        engine = _get_engine()
+
+    # Now write with the correct engine
+    if engine == "pyogrio":
+        return _to_file_pyogrio(
+            gdf=gdf,
+            path=path,
+            layer=layer,
+            force_output_geometrytype=force_output_geometrytype,
+            force_multitype=force_multitype,
+            append=append,
+            append_timeout_s=append_timeout_s,
+            index=index,
+            create_spatial_index=create_spatial_index,
+        )
+    elif engine == "fiona":
+        return _to_file_fiona(
+            gdf=gdf,
+            path=path,
+            layer=layer,
+            force_output_geometrytype=force_output_geometrytype,
+            force_multitype=force_multitype,
+            append=append,
+            append_timeout_s=append_timeout_s,
+            index=index,
+            create_spatial_index=create_spatial_index,
+        )
+    else:
+        raise ValueError(f"Unsupported engine: {engine}")
+
+
+def _get_engine():
+    return os.environ.get("GFO_IO_ENGINE", "pyogrio")
+
+
+def _to_file_fiona(
+    gdf: Union[pd.DataFrame, gpd.GeoDataFrame],
+    path: Path,
+    layer: str,
+    force_output_geometrytype: Union[GeometryType, str, None] = None,
+    force_multitype: bool = False,
+    append: bool = False,
+    append_timeout_s: int = 600,
+    index: bool = True,
+    create_spatial_index: Optional[bool] = True,
+):
+    """
+    Writes a pandas dataframe to file using fiona.
+    """
     # Handle some specific cases where the file schema needs to be manipulated.
     schema = None
     if isinstance(gdf, gpd.GeoDataFrame) is False or (
@@ -1331,6 +1506,61 @@ def to_file(
 
             # Sleep for a second before trying again
             time.sleep(1)
+
+
+def _to_file_pyogrio(
+    gdf: Union[pd.DataFrame, gpd.GeoDataFrame],
+    path: Path,
+    layer: str,
+    force_output_geometrytype: Union[GeometryType, str, None] = None,
+    force_multitype: bool = False,
+    append: bool = False,
+    append_timeout_s: int = 600,
+    index: bool = True,
+    create_spatial_index: Optional[bool] = True,
+):
+    """
+    Writes a pandas dataframe to file using pyogrio.
+    """
+    # Prepare args for write_dataframe
+    kwargs = {}
+
+    if append is True and path.exists():
+        kwargs["append"] = True
+        layerinfo = get_layerinfo(path, layer)
+        file_cols = [col.upper() for col in layerinfo.columns]
+        gdf_cols = [col.upper() for col in gdf.columns if col != gdf.geometry.name]
+        if gdf_cols != file_cols:
+            raise ValueError(
+                "destination layer doesn't have the same columns as gdf: "
+                f"{file_cols} vs {gdf_cols}"
+            )
+
+    if create_spatial_index is not None:
+        kwargs["SPATIAL_INDEX"] = create_spatial_index
+    geofiletype = GeofileType(path)
+    kwargs["driver"] = geofiletype.ogrdriver
+    if create_spatial_index is not None:
+        kwargs["SPATIAL_INDEX"] = create_spatial_index
+    if force_output_geometrytype is not None:
+        if isinstance(force_output_geometrytype, GeometryType):
+            force_output_geometrytype = force_output_geometrytype.name_camelcase
+        kwargs["geometry_type"] = force_output_geometrytype
+    if force_multitype:
+        kwargs["promote_to_multi"] = True
+
+    # Now we can write
+    gdf_to_write = gdf
+    if geofiletype == GeofileType.ESRIShapefile:
+        if index is True:
+            gdf_to_write = gdf.reset_index(drop=True)
+
+    if geofiletype.is_singlelayer:
+        pyogrio.write_dataframe(gdf_to_write, str(path), **kwargs)
+    else:
+        pyogrio.write_dataframe(gdf_to_write, str(path), layer=layer, **kwargs)
+
+    return
 
 
 def get_crs(path: Union[str, "os.PathLike[Any]"]) -> pyproj.CRS:
