@@ -1692,7 +1692,7 @@ def select_two_layers(
 
     .. |geofileops_sql_link| raw:: html
 
-        <a href="https://github.com/theroggy/geofileops/blob/master/geofileops/util/geofileops_sql.py" target="_blank">geofileops_sql.py</a>
+        <a href="https://github.com/geofileops/geofileops/blob/main/geofileops/util/geofileops_sql.py" target="_blank">geofileops_sql.py</a>
 
     *Join nearest features*
 
