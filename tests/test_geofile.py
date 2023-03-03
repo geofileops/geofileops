@@ -477,11 +477,13 @@ def test_read_file(suffix):
     # Test with defaults
     read_gdf = gfo.read_file(src)
     assert isinstance(read_gdf, gpd.GeoDataFrame)
+    assert len(read_gdf.columns) == 12
     assert len(read_gdf) == 46
 
     # Test no columns
     read_gdf = gfo.read_file(src, columns=[])
     assert isinstance(read_gdf, gpd.GeoDataFrame)
+    assert len(read_gdf.columns) == 1
     assert len(read_gdf) == 46
 
     # Test specific columns (+ test case insensitivity + order)
@@ -501,6 +503,30 @@ def test_read_file(suffix):
     read_gdf = gfo.read_file_nogeom(src, columns=[])
     assert isinstance(read_gdf, pd.DataFrame)
     assert len(read_gdf) == 0
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_read_file_fid_as_index(suffix, engine_setter):
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+
+    # First read without fid_as_index=True
+    read_gdf = gfo.read_file(src, rows=slice(5, 10))
+    assert isinstance(read_gdf, pd.DataFrame)
+    assert len(read_gdf.columns) == 12
+    assert len(read_gdf) == 5
+    assert read_gdf.index[0] == 0
+
+    # Now with fid_as_index=True
+    read_gdf = gfo.read_file(src, rows=slice(5, 10), fid_as_index=True)
+    assert isinstance(read_gdf, pd.DataFrame)
+    assert len(read_gdf.columns) == 12
+    assert len(read_gdf) == 5
+    if suffix == ".gpkg":
+        # Geopackage fid starts at 1
+        assert read_gdf.index[0] == 6
+    else:
+        assert read_gdf.index[0] == 5
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
