@@ -4,6 +4,7 @@
 
 ### Improvements
 
+- Use pyogrio for GeoDataFrame io to improve performance for some operations (#64)
 - Add support to to_file to write empty dataframe + add parameter 
   force_output_geometrytype (#205)
 - Optimize performance of operations when only one batch is used (#19)
@@ -19,7 +20,6 @@
 ### Improvements
 
 - Support geopandas 12 with shapely 2.0 + pygeos (#191, #193)
-- Use pyogrio for GeoDataFrame io to improve performance for some operations (#64)
 - Support improvements in gdal 3.6.2 (#195)
 - Improve performance of sql-based operations for very large input files (#201)
 - Small improvements to formatting, linting,... (#202)
