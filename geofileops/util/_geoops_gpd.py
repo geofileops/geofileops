@@ -860,25 +860,6 @@ def dissolve(
         # 'notonborder' features are already OK.
         tempdir = _io_util.create_tempdir(f"geofileops/{operation}")
         try:
-            # TODO: remove VERY DIRTY HACK to get fid
-            if agg_columns is not None:
-                # Make a copy/copy input file to geopackage, as we will
-                # add an fid/rowd column
-                pass_input_path = tempdir / f"{input_path.stem}.gpkg"
-                if gfo.GeofileType(input_path) == gfo.GeofileType.GPKG:
-                    gfo.copy(input_path, pass_input_path)
-                else:
-                    gfo.convert(input_path, pass_input_path)
-                # TODO: remove VERY DIRTY HACK to get fid
-                gfo.add_column(
-                    pass_input_path,
-                    "__TMP_GEOFILEOPS_FID",
-                    gfo.DataType.INTEGER,
-                    "rowid",
-                )
-            else:
-                pass_input_path = input_path
-
             if output_layer is None:
                 output_layer = gfo.get_default_layer(output_path)
             output_tmp_path = tempdir / f"{output_path.stem}.gpkg"
@@ -888,7 +869,7 @@ def dissolve(
             logger.info(f"Start dissolve on file {input_path}")
             while True:
                 # Get info of the current file that needs to be dissolved
-                pass_input_layerinfo = gfo.get_layerinfo(pass_input_path, input_layer)
+                pass_input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
                 nb_rows_total = pass_input_layerinfo.featurecount
 
                 # Calculate the best number of parallel processes and batches for
@@ -953,7 +934,7 @@ def dissolve(
                 # Now go!
                 logger.info(f"Start dissolve pass {pass_id} to {len(tiles_gdf)} tiles")
                 _ = _dissolve_polygons_pass(
-                    input_path=pass_input_path,
+                    input_path=input_path,
                     output_notonborder_path=output_tmp_path,
                     output_onborder_path=output_tmp_onborder_path,
                     explodecollections=explodecollections,
@@ -968,7 +949,7 @@ def dissolve(
                 # Prepare the next pass
                 # The input path is the onborder file
                 prev_nb_batches = len(tiles_gdf)
-                pass_input_path = output_tmp_onborder_path
+                input_path = output_tmp_onborder_path
                 pass_id += 1
 
                 # If we are ready...
@@ -1346,7 +1327,9 @@ def _dissolve_polygons(
             info = gfo.get_layerinfo(input_path, input_layer)
             if groupby_columns is not None:
                 columns_to_read.update(groupby_columns)
+            fid_as_index = False
             if agg_columns is not None:
+                fid_as_index = True
                 if "__DISSOLVE_TOJSON" in info.columns:
                     # If we are not in the first pass, the columns to be read
                     # are already in the json column
@@ -1364,21 +1347,18 @@ def _dissolve_polygons(
                     if agg_columns_needed is not None:
                         columns_to_read.update(agg_columns_needed)
 
-                    # TODO: remove VERY DIRTY HACK to get fid for geopackages
-                    columns_to_read.add("__TMP_GEOFILEOPS_FID")
-
             input_gdf = gfo.read_file(
-                path=input_path, layer=input_layer, bbox=bbox, columns=columns_to_read
+                path=input_path,
+                layer=input_layer,
+                bbox=bbox,
+                columns=columns_to_read,
+                fid_as_index=fid_as_index,
             )
 
-            # TODO: remove VERY DIRTY HACK to get fid for geopackages
-            if "__TMP_GEOFILEOPS_FID" in input_gdf.columns:
-                input_gdf = input_gdf.rename(
-                    columns={"__TMP_GEOFILEOPS_FID": "fid_orig"}
-                )
+            if agg_columns is not None:
+                input_gdf["fid_orig"] = input_gdf.index
                 if agg_columns_needed is not None:
                     agg_columns_needed.append("fid_orig")
-                assert isinstance(input_gdf, gpd.GeoDataFrame)
 
             break
         except Exception as ex:

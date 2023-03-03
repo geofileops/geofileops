@@ -854,6 +854,7 @@ def read_file(
     bbox=None,
     rows=None,
     ignore_geometry: bool = False,
+    fid_as_index: bool = False,
 ) -> gpd.GeoDataFrame:
     """
     Reads a file to a geopandas GeoDataframe.
@@ -878,6 +879,9 @@ def read_file(
         ignore_geometry (bool, optional): True not to read/return the geometry.
             Is retained for backwards compatibility, but it is recommended to
             use read_file_nogeom for improved type checking. Defaults to False.
+        fid_as_index (bool, optional): If True, will use the FIDs of the features that
+            were read as the index of the GeoDataFrame. May start at 0 or 1 depending on
+            the driver. Defaults to False.
 
     Raises:
         ValueError: an invalid parameter value was passed.
@@ -892,6 +896,7 @@ def read_file(
         bbox=bbox,
         rows=rows,
         ignore_geometry=ignore_geometry,
+        fid_as_index=fid_as_index,
     )
 
     # No assert to keep backwards compatibility
@@ -904,6 +909,7 @@ def read_file_nogeom(
     columns: Optional[Iterable[str]] = None,
     bbox=None,
     rows=None,
+    fid_as_index: bool = False,
 ) -> pd.DataFrame:
     """
     Reads a file to a pandas Dataframe.
@@ -927,6 +933,9 @@ def read_file_nogeom(
             Defaults to None, then all rows are read.
         ignore_geometry (bool, optional): True not to read/return the geomatry.
             Defaults to False.
+        fid_as_index (bool, optional): If True, will use the FIDs of the features that
+            were read as the index of the GeoDataFrame. May start at 0 or 1 depending on
+            the driver. Defaults to False.
 
     Raises:
         ValueError: an invalid parameter value was passed.
@@ -941,6 +950,7 @@ def read_file_nogeom(
         bbox=bbox,
         rows=rows,
         ignore_geometry=True,
+        fid_as_index=fid_as_index,
     )
     assert isinstance(result_gdf, pd.DataFrame)
     return result_gdf
@@ -953,31 +963,10 @@ def _read_file_base(
     bbox=None,
     rows=None,
     ignore_geometry: bool = False,
+    fid_as_index: bool = False,
 ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
     """
     Reads a file to a pandas Dataframe.
-
-    The file format is detected based on the filepath extension.
-
-    Args:
-        path (file path): path to the file to read from
-        layer (str, optional): The layer to read. Defaults to None,
-            then reads the only layer in the file or throws error.
-        columns (Iterable[str], optional): The (non-geometry) columns to read will
-            be returned in the order specified. If None, all columns are read.
-            Defaults to None.
-        bbox ([type], optional): Read only geometries intersecting this bbox.
-            Defaults to None, then all rows are read.
-        rows ([type], optional): Read only the rows specified.
-            Defaults to None, then all rows are read.
-        ignore_geometry (bool, optional): True not to read/return the geomatry.
-            Defaults to False.
-
-    Raises:
-        ValueError: an invalid parameter value was passed.
-
-    Returns:
-        Union[pd.DataFrame, gpd.GeoDataFrame]: the data read.
     """
     # Read with the engine specified
     engine = _get_engine()
@@ -989,6 +978,7 @@ def _read_file_base(
             bbox=bbox,
             rows=rows,
             ignore_geometry=ignore_geometry,
+            fid_as_index=fid_as_index,
         )
     elif engine == "fiona":
         return _read_file_base_fiona(
@@ -998,6 +988,7 @@ def _read_file_base(
             bbox=bbox,
             rows=rows,
             ignore_geometry=ignore_geometry,
+            fid_as_index=fid_as_index,
         )
     else:
         raise ValueError(f"Unsupported engine: {engine}")
@@ -1010,6 +1001,7 @@ def _read_file_base_fiona(
     bbox=None,
     rows=None,
     ignore_geometry: bool = False,
+    fid_as_index: bool = False,
 ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
     """
     Reads a file to a pandas Dataframe using fiona.
@@ -1023,6 +1015,24 @@ def _read_file_base_fiona(
     # If no layer name specified, check if there is only one layer in the file.
     if layer is None:
         layer = get_only_layer(path)
+
+    # VERY DIRTY hack to get the fid
+    if fid_as_index:
+        # Make a copy/copy input file to geopackage, as we will add an fid/rowd column
+        tmp_fid_path = Path(tempfile.mkdtemp()) / f"{path.stem}.gpkg"
+        try:
+            if GeofileType(path) == GeofileType.GPKG:
+                copy(path, tmp_fid_path)
+                add_column(tmp_fid_path, "__TMP_GEOFILEOPS_FID", "INTEGER", "fid")
+            else:
+                convert(path, tmp_fid_path)
+                # fid in shapefile is 0 based, so fid-1
+                add_column(tmp_fid_path, "__TMP_GEOFILEOPS_FID", "INTEGER", "fid-1")
+
+            path = tmp_fid_path
+        finally:
+            if tmp_fid_path.parent.exists():
+                shutil.rmtree(tmp_fid_path, ignore_errors=True)
 
     # Depending on the extension... different implementations
     if geofiletype == GeofileType.ESRIShapefile:
@@ -1043,6 +1053,10 @@ def _read_file_base_fiona(
         )
     else:
         raise ValueError(f"Not implemented for geofiletype {geofiletype}")
+
+    # Set the index to the backed-up fid
+    if fid_as_index:
+        result_gdf = result_gdf.set_index("__TMP_GEOFILEOPS_FID")
 
     # If columns to read are specified... filter non-geometry columns
     # case-insensitive
@@ -1084,6 +1098,7 @@ def _read_file_base_pyogrio(
     bbox=None,
     rows=None,
     ignore_geometry: bool = False,
+    fid_as_index: bool = False,
 ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
     """
     Reads a file to a pandas Dataframe using pyogrio.
@@ -1092,7 +1107,6 @@ def _read_file_base_pyogrio(
     path = Path(path)
     if path.exists() is False:
         raise ValueError(f"File doesnt't exist: {path}")
-    geofiletype = GeofileType(path)
 
     # Convert slice object to pyogrio parameters
     if rows is not None:
@@ -1116,21 +1130,16 @@ def _read_file_base_pyogrio(
             column for column in layerinfo.columns if column.upper() in columns_upper
         ]
 
-    # Depending on the extension... different implementations
-    if geofiletype.is_spatialite_based or geofiletype in [
-        GeofileType.ESRIShapefile,
-        GeofileType.GeoJSON,
-    ]:
-        result_gdf = pyogrio.read_dataframe(
-            path,
-            columns=columns_originalcasing,
-            bbox=bbox,
-            skip_features=skip_features,
-            max_features=max_features,
-            read_geometry=not ignore_geometry,
-        )
-    else:
-        raise ValueError(f"Not implemented for geofiletype {geofiletype}")
+    # Read!
+    result_gdf = pyogrio.read_dataframe(
+        path,
+        columns=columns_originalcasing,
+        bbox=bbox,
+        skip_features=skip_features,
+        max_features=max_features,
+        read_geometry=not ignore_geometry,
+        fid_as_index=fid_as_index,
+    )
 
     # Reorder columns so they are the same as columns parameter
     if columns_originalcasing is not None and len(columns_originalcasing) > 0:
