@@ -4,6 +4,7 @@
 
 ### Improvements
 
+- Use pyogrio for GeoDataFrame io to improve performance for some operations (#64)
 - Add support to to_file to write empty dataframe + add parameter 
   force_output_geometrytype (#205)
 - Optimize performance of operations when only one batch is used (#19)

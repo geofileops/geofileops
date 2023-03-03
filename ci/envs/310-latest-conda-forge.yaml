@@ -13,6 +13,7 @@ dependencies:
   - pandas
   - psutil
   - pygeos
+  - pyogrio
   - pyproj
   - shapely
   - topojson
