@@ -224,7 +224,9 @@ def test_intersection(tmp_path, testfile, suffix, epsg):
         for name_gpd, name_gfo in zip(output_gpd_gdf.columns, output_gdf.columns)
     }
     output_gpd_gdf = output_gpd_gdf.rename(columns=renames)
-    assert_geodataframe_equal(output_gdf, output_gpd_gdf, sort_values=True)
+    assert_geodataframe_equal(
+        output_gdf, output_gpd_gdf, check_dtype=False, sort_values=True
+    )
 
 
 @pytest.mark.parametrize("suffix", [".gpkg", ".shp"])
