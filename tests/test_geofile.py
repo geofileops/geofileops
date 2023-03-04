@@ -470,7 +470,7 @@ def test_update_column(tmp_path):
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-def test_read_file(suffix):
+def test_read_file(suffix, engine_setter):
     # Prepare test data
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
@@ -530,7 +530,7 @@ def test_read_file_fid_as_index(suffix, engine_setter):
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-def test_read_file_sql(suffix):
+def test_read_file_sql(suffix, engine_setter):
     # Prepare test data
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 

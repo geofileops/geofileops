@@ -16,7 +16,7 @@ import subprocess
 import tempfile
 from threading import Lock
 import time
-from typing import List, Optional, Tuple, Union
+from typing import List, Literal, Optional, Tuple, Union
 
 import geopandas as gpd
 from osgeo import gdal
@@ -65,7 +65,7 @@ class VectorTranslateInfo:
         spatial_filter: Optional[Tuple[float, float, float, float]] = None,
         clip_geometry: Optional[Union[Tuple[float, float, float, float], str]] = None,
         sql_stmt: Optional[str] = None,
-        sql_dialect: Optional[str] = None,
+        sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
         transaction_size: int = 65536,
         append: bool = False,
         update: bool = False,
@@ -108,7 +108,7 @@ def vector_translate_by_info(info: VectorTranslateInfo):
         spatial_filter=info.spatial_filter,
         clip_geometry=info.clip_geometry,
         sql_stmt=info.sql_stmt,
-        sql_dialect=info.sql_dialect,
+        sql_dialect=info.sql_dialect,  # type: ignore
         transaction_size=info.transaction_size,
         append=info.append,
         update=info.update,
@@ -131,7 +131,7 @@ def vector_translate(
     spatial_filter: Optional[Tuple[float, float, float, float]] = None,
     clip_geometry: Optional[Union[Tuple[float, float, float, float], str]] = None,
     sql_stmt: Optional[str] = None,
-    sql_dialect: Optional[str] = None,
+    sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     transaction_size: int = 65536,
     append: bool = False,
     update: bool = False,
@@ -575,7 +575,9 @@ def vector_info(
 
 
 def _execute_sql(
-    path: Path, sqlite_stmt: str, sql_dialect: Optional[str] = None
+    path: Path,
+    sqlite_stmt: str,
+    sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
 ) -> gpd.GeoDataFrame:
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir) / "ogr_util_execute_sql_tmp_file.gpkg"

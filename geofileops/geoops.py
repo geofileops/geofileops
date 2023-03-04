@@ -7,7 +7,7 @@ import logging
 import logging.config
 import os
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Any, Callable, List, Literal, Optional, Tuple, Union
 import warnings
 
 from geofileops.util import _geoops_gpd
@@ -611,7 +611,7 @@ def export_by_bounds(
             all columns are returned.
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
-       force (bool, optional): overwrite existing output file(s).
+        force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
     return _geoops_ogr.export_by_bounds(
@@ -629,9 +629,11 @@ def export_by_bounds(
 def isvalid(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]", None] = None,
-    only_invalid: bool = False,
+    only_invalid: bool = True,
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
+    columns: Optional[List[str]] = None,
+    explodecollections: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -651,6 +653,10 @@ def isvalid(
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the
             file only contains one layer.
+        columns (List[str], optional): list of columns to return. If None,
+            all columns are returned.
+        explodecollections (bool, optional): True to output only simple geometries.
+            Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -680,6 +686,8 @@ def isvalid(
         output_path=output_path,
         input_layer=input_layer,
         output_layer=output_layer,
+        columns=columns,
+        explodecollections=explodecollections,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -811,7 +819,7 @@ def select(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
     sql_stmt: str,
-    sql_dialect: Optional[str] = "SQLITE",
+    sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = "SQLITE",
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
@@ -1489,6 +1497,7 @@ def join_by_location(
         input2_columns=input2_columns,
         input2_columns_prefix=input2_columns_prefix,
         output_layer=output_layer,
+        explodecollections=False,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -1556,6 +1565,7 @@ def join_nearest(
         input2_columns=input2_columns,
         input2_columns_prefix=input2_columns_prefix,
         output_layer=output_layer,
+        explodecollections=False,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
