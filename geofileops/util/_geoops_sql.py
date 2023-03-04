@@ -2254,6 +2254,8 @@ def format_column_strings(
 ) -> FormattedColumnStrings:
     # First prepare the actual column list to use
     if columns_specified is not None:
+        # Add special column "fid" to available columns so it can be specified
+        columns_available = list(columns_available) + ["fid"]
         # Case-insensitive check if input1_columns contains columns not in layer...
         columns_available_upper = [column.upper() for column in columns_available]
         missing_columns = [

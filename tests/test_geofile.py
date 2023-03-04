@@ -327,9 +327,11 @@ def test_get_layerinfo(testfile, suffix, layer):
     if src.suffix == ".shp":
         assert layerinfo.geometrycolumn == "geometry"
         assert layerinfo.name == src.stem
+        assert layerinfo.fid_column == ""
     elif src.suffix == ".gpkg":
         assert layerinfo.geometrycolumn == "geom"
         assert layerinfo.name == "parcels"
+        assert layerinfo.fid_column == "fid"
     assert layerinfo.geometrytypename == gfo.GeometryType.MULTIPOLYGON.name
     assert layerinfo.geometrytype == gfo.GeometryType.MULTIPOLYGON
     assert len(layerinfo.columns) == 11

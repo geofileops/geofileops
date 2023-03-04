@@ -166,6 +166,7 @@ class LayerInfo:
         geometrytype (GeometryType): the geometry type of the geometrycolumn.
         columns (dict): the columns (other than the geometry column) that
             are available on the layer with their properties as a dict.
+        fid_column (str): column name of the FID column.
         crs (pyproj.CRS): the spatial reference of the layer.
         errors (List[str]): list of errors in the layer, eg. invalid column
             names,...
@@ -180,6 +181,7 @@ class LayerInfo:
         geometrytypename: str,
         geometrytype: GeometryType,
         columns: Dict[str, ColumnInfo],
+        fid_column: str,
         crs: Optional[pyproj.CRS],
         errors: List[str],
     ):
@@ -190,6 +192,7 @@ class LayerInfo:
         self.geometrytypename = geometrytypename
         self.geometrytype = geometrytype
         self.columns = columns
+        self.fid_column = fid_column
         self.crs = crs
         self.errors = errors
 
@@ -332,6 +335,7 @@ def get_layerinfo(
                 geometrytypename=geometrytypename,
                 geometrytype=geometrytype,
                 columns=columns,
+                fid_column=datasource_layer.GetFIDColumn(),
                 crs=crs,
                 errors=errors,
             )

@@ -105,6 +105,38 @@ def test_buffer(tmp_path, suffix, epsg, fileops_module, testfile):
     )
 
 
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize("testfile", ["polygon-parcel"])
+@pytest.mark.parametrize(
+    "fileops_module", ["geofileops.geoops", "geofileops.util._geoops_gpd"]
+)
+def test_buffer_columns_fid(tmp_path, suffix, fileops_module, testfile):
+    """Buffer basics are available both in the gpd and sql implementations."""
+    # Prepare test data
+    input_path = test_helper.get_testfile(testfile, suffix=suffix)
+
+    # Now run test
+    output_path = tmp_path / f"{input_path.stem}-{fileops_module}{suffix}"
+    set_geoops_module(fileops_module)
+    input_layerinfo = fileops.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+
+    # Test positive buffer
+    geoops.buffer(
+        input_path=input_path,
+        output_path=output_path,
+        distance=1,
+        nb_parallel=2,
+        batchsize=batchsize,
+        columns=["LblHfdTlt", "fid"],
+    )
+
+    # Now check if the output file is correctly created
+    assert output_path.exists()
+    output_gdf = fileops.read_file(output_path)
+    assert output_gdf["geometry"][0] is not None
+
+
 def test_buffer_force(tmp_path):
     input_path = test_helper.get_testfile("polygon-parcel")
     input_layerinfo = fileops.get_layerinfo(input_path)
