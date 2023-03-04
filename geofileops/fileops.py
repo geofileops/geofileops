@@ -13,7 +13,7 @@ import pprint
 import shutil
 import tempfile
 import time
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Literal, Optional, Tuple, Union
 import warnings
 
 import fiona
@@ -1006,6 +1006,9 @@ def _read_file_base_fiona(
     """
     Reads a file to a pandas Dataframe using fiona.
     """
+    if ignore_geometry and columns == []:
+        return pd.DataFrame()
+
     # Init
     path = Path(path)
     if path.exists() is False:
@@ -1156,7 +1159,7 @@ def _read_file_base_pyogrio(
 def read_file_sql(
     path: Union[str, "os.PathLike[Any]"],
     sql_stmt: str,
-    sql_dialect: str = "SQLITE",
+    sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = "SQLITE",
     layer: Optional[str] = None,
     ignore_geometry: bool = False,
 ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:

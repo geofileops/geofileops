@@ -1,7 +1,7 @@
 from datetime import datetime
 import logging
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import List, Literal, Optional, Tuple, Union
 
 from shapely import wkt
 
@@ -115,7 +115,7 @@ def _run_ogr(
     spatial_filter: Optional[Tuple[float, float, float, float]] = None,
     clip_geometry: Optional[Union[Tuple[float, float, float, float], str]] = None,
     sql_stmt: Optional[str] = None,
-    sql_dialect: Optional[str] = None,
+    sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     transaction_size: int = 65536,
     append: bool = False,
     update: bool = False,
