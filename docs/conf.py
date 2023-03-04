@@ -85,7 +85,7 @@ html_theme_options = {
     "icon_links": [
         {
             "name": "GitHub",
-            "url": "https://github.com/geofilops/geofilops",
+            "url": "https://github.com/geofileops/geofileops",
             "icon": "fab fa-github-square fa-xl",
         }
     ]
