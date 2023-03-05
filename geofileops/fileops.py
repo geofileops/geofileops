@@ -972,30 +972,44 @@ def _read_file_base(
     """
     Reads a file to a pandas Dataframe.
     """
+    # Check if the fid column needs to be read as column via the columns parameter
+    fid_as_column = False
+    if columns is not None:
+        if "fid" in [column.lower() for column in columns]:
+            fid_as_column = True
+
     # Read with the engine specified
     engine = _get_engine()
     if engine == "pyogrio":
-        return _read_file_base_pyogrio(
+        gdf = _read_file_base_pyogrio(
             path=path,
             layer=layer,
             columns=columns,
             bbox=bbox,
             rows=rows,
             ignore_geometry=ignore_geometry,
-            fid_as_index=fid_as_index,
+            fid_as_index=fid_as_index or fid_as_column,
         )
     elif engine == "fiona":
-        return _read_file_base_fiona(
+        gdf = _read_file_base_fiona(
             path=path,
             layer=layer,
             columns=columns,
             bbox=bbox,
             rows=rows,
             ignore_geometry=ignore_geometry,
-            fid_as_index=fid_as_index,
+            fid_as_index=fid_as_index or fid_as_column,
         )
     else:
         raise ValueError(f"Unsupported engine: {engine}")
+
+    # Copy the index to a column if needed...
+    if fid_as_column:
+        gdf["fid"] = gdf.index
+        if not fid_as_index:
+            gdf = gdf.reset_index(drop=True)
+
+    return gdf
 
 
 def _read_file_base_fiona(
@@ -1113,7 +1127,7 @@ def _read_file_base_pyogrio(
     # Init
     path = Path(path)
     if path.exists() is False:
-        raise ValueError(f"File doesnt't exist: {path}")
+        raise ValueError(f"File doesn't exist: {path}")
 
     # Convert slice object to pyogrio parameters
     if rows is not None:

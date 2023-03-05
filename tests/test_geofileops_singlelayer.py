@@ -126,15 +126,31 @@ def test_buffer_columns_fid(tmp_path, suffix, fileops_module, testfile):
         input_path=input_path,
         output_path=output_path,
         distance=1,
+        columns=["LblHfdTlt", "fid"],
+        explodecollections=True,
         nb_parallel=2,
         batchsize=batchsize,
-        columns=["LblHfdTlt", "fid"],
     )
+
+    # Read input file and xtract some info
+    input_gdf = fileops.read_file(input_path, fid_as_index=True)
+    if fileops.GeofileType(input_path).is_fid_zerobased:
+        assert input_gdf.index[0] == 0
+    else:
+        assert input_gdf.index[0] == 1
+    input_multi_gdf = input_gdf[
+        input_gdf.geometry.buffer(0).geom_type == "MultiPolygon"
+    ]
+    assert len(input_multi_gdf) == 2
+    multi_fid = input_multi_gdf.index[0]
 
     # Now check if the output file is correctly created
     assert output_path.exists()
+    output_layerinfo = fileops.get_layerinfo(output_path)
     output_gdf = fileops.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
+    assert list(output_layerinfo.columns) == ["LBLHFDTLT", "fid_1"]
+    assert len(output_gdf[output_gdf.fid_1 == multi_fid]) == 2
 
 
 def test_buffer_force(tmp_path):

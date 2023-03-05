@@ -4,7 +4,6 @@ Module containing the implementation of Geofile operations using a sql statement
 """
 
 from concurrent import futures
-from dataclasses import dataclass
 from datetime import datetime
 import logging
 import logging.config
@@ -22,6 +21,7 @@ from geofileops import fileops
 from geofileops.fileops import _append_to_nolock
 from . import _io_util
 from . import _ogr_util
+from . import _ogr_sql_util
 from . import _sqlite_util
 from . import _general_util
 
@@ -466,8 +466,11 @@ def _single_layer_vector_operation(
                 )
 
         # Format column string for use in select
-        formatted_column_strings = format_column_strings(
-            columns_specified=columns, columns_available=input_layerinfo.columns
+        ogr_and_fid_no_column = True if input_layerinfo.fid_column == "" else False
+        column_formatter = _ogr_sql_util.ColumnFormatter(
+            columns_asked=columns,
+            columns_in_layer=input_layerinfo.columns,
+            ogr_and_fid_no_column=ogr_and_fid_no_column,
         )
 
         # Prepare output filename
@@ -495,7 +498,7 @@ def _single_layer_vector_operation(
                 # Now we have everything to format sql statement
                 sql_stmt = sql_template.format(
                     geometrycolumn=input_layerinfo.geometrycolumn,
-                    columns_to_select_str=formatted_column_strings.columns,
+                    columns_to_select_str=column_formatter.prefixed_aliased(),
                     input_layer=processing_params.batches[batch_id]["layer"],
                     batch_filter=processing_params.batches[batch_id]["batch_filter"],
                 )
@@ -1825,21 +1828,24 @@ def _two_layer_vector_operation(
         input1_tmp_layerinfo = gfo.get_layerinfo(
             processing_params.input1_path, processing_params.input1_layer
         )
-        input1_strs = format_column_strings(
-            columns_specified=input1_columns,
-            columns_available=input1_tmp_layerinfo.columns,
+        use_ogr_and_fid_is_column = use_ogr
+        input1_col_strs = _ogr_sql_util.ColumnFormatter(
+            columns_asked=input1_columns,
+            columns_in_layer=input1_tmp_layerinfo.columns,
             table_alias="layer1",
             columnname_prefix=input1_columns_prefix,
+            ogr_and_fid_no_column=use_ogr_and_fid_is_column,
         )
         assert processing_params.input2_path is not None
         input2_tmp_layerinfo = gfo.get_layerinfo(
             processing_params.input2_path, processing_params.input2_layer
         )
-        input2_strs = format_column_strings(
-            columns_specified=input2_columns,
-            columns_available=input2_tmp_layerinfo.columns,
+        input2_col_strs = _ogr_sql_util.ColumnFormatter(
+            columns_asked=input2_columns,
+            columns_in_layer=input2_tmp_layerinfo.columns,
             table_alias="layer2",
             columnname_prefix=input2_columns_prefix,
+            ogr_and_fid_no_column=use_ogr_and_fid_is_column,
         )
 
         # Check input crs'es
@@ -1879,16 +1885,16 @@ def _two_layer_vector_operation(
                 sql_stmt = sql_template.format(
                     input1_databasename="{input1_databasename}",
                     input2_databasename="{input2_databasename}",
-                    layer1_columns_from_subselect_str=input1_strs.columns_subselect,
-                    layer1_columns_prefix_alias_str=input1_strs.columns_prefix_alias,
-                    layer1_columns_prefix_str=input1_strs.columns_prefix,
+                    layer1_columns_from_subselect_str=input1_col_strs.from_subselect(),
+                    layer1_columns_prefix_alias_str=input1_col_strs.prefixed_aliased(),
+                    layer1_columns_prefix_str=input1_col_strs.prefixed(),
                     input1_layer=processing_params.batches[batch_id]["layer"],
                     input1_tmp_layer=processing_params.batches[batch_id]["layer"],
                     input1_geometrycolumn=input1_tmp_layerinfo.geometrycolumn,
-                    layer2_columns_from_subselect_str=input2_strs.columns_subselect,
-                    layer2_columns_prefix_alias_str=input2_strs.columns_prefix_alias,
-                    layer2_columns_prefix_str=input2_strs.columns_prefix,
-                    layer2_columns_prefix_alias_null_str=input2_strs.columns_prefix_alias_null,  # noqa: E501
+                    layer2_columns_from_subselect_str=input2_col_strs.from_subselect(),
+                    layer2_columns_prefix_alias_str=input2_col_strs.prefixed_aliased(),
+                    layer2_columns_prefix_str=input2_col_strs.prefixed(),
+                    layer2_columns_prefix_alias_null_str=input2_col_strs.null_aliased(),
                     input2_layer=processing_params.input2_layer,
                     input2_tmp_layer=processing_params.input2_layer,
                     input2_geometrycolumn=input2_tmp_layerinfo.geometrycolumn,
@@ -2260,84 +2266,6 @@ def _prepare_processing_params(
 
     returnvalue.batches = batches
     return returnvalue
-
-
-@dataclass
-class FormattedColumnStrings:
-    columns: str
-    columns_prefix: str
-    columns_prefix_alias: str
-    columns_prefix_alias_null: str
-    columns_subselect: str
-
-
-def format_column_strings(
-    columns_specified: Optional[List[str]],
-    columns_available: Iterable[str],
-    table_alias: str = "",
-    columnname_prefix: str = "",
-) -> FormattedColumnStrings:
-    # First prepare the actual column list to use
-    if columns_specified is not None:
-        # Add special column "fid" to available columns so it can be specified
-        columns_available = list(columns_available) + ["fid"]
-        # Case-insensitive check if input1_columns contains columns not in layer...
-        columns_available_upper = [column.upper() for column in columns_available]
-        missing_columns = [
-            col
-            for col in columns_specified
-            if (col.upper() not in columns_available_upper)
-        ]
-        if len(missing_columns) > 0:
-            raise Exception(
-                "Error, columns_specified contains columns not in "
-                f"columns_available: {missing_columns}. Available: {columns_available}"
-            )
-
-        # Create column list to keep in the casing of the original columns
-        columns_specified_upper = [column.upper() for column in columns_specified]
-        columns = [
-            col for col in columns_available if (col.upper() in columns_specified_upper)
-        ]
-    else:
-        columns = list(columns_available)
-
-    # Now format the column strings
-    columns_quoted_str = ""
-    columns_prefix_alias_null_str = ""
-    columns_prefix_str = ""
-    columns_prefix_alias_str = ""
-    columns_from_subselect_str = ""
-    if len(columns) > 0:
-        if table_alias is not None and table_alias != "":
-            table_alias_d = f"{table_alias}."
-        else:
-            table_alias_d = ""
-        columns_quoted = [f'"{column}"' for column in columns]
-        columns_quoted_str = "," + ", ".join(columns_quoted)
-        columns_prefix_alias_null = [
-            f'NULL "{columnname_prefix}{column}"' for column in columns
-        ]
-        columns_prefix_alias_null_str = "," + ", ".join(columns_prefix_alias_null)
-        columns_prefix = [f'{table_alias_d}"{column}"' for column in columns]
-        columns_prefix_str = "," + ", ".join(columns_prefix)
-        columns_table_aliased_column_aliased = [
-            f'{table_alias_d}"{column}" "{columnname_prefix}{column}"'
-            for column in columns
-        ]
-        columns_prefix_alias_str = "," + ", ".join(columns_table_aliased_column_aliased)
-        columns_from_subselect = [
-            f'sub."{columnname_prefix}{column}"' for column in columns
-        ]
-        columns_from_subselect_str = "," + ", ".join(columns_from_subselect)
-
-    return FormattedColumnStrings(
-        columns=columns_quoted_str,
-        columns_prefix=columns_prefix_str,
-        columns_prefix_alias=columns_prefix_alias_str,
-        columns_prefix_alias_null=columns_prefix_alias_null_str,
-        columns_subselect=columns_from_subselect_str,
-    )
 
 
 def dissolve_singlethread(

@@ -524,11 +524,11 @@ def test_read_file_fid_as_index(suffix, engine_setter):
     assert isinstance(read_gdf, pd.DataFrame)
     assert len(read_gdf.columns) == 12
     assert len(read_gdf) == 5
-    if suffix == ".gpkg":
+    if gfo.GeofileType(src).is_fid_zerobased:
+        assert read_gdf.index[0] == 5
+    else:
         # Geopackage fid starts at 1
         assert read_gdf.index[0] == 6
-    else:
-        assert read_gdf.index[0] == 5
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)

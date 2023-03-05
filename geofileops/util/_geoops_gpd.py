@@ -608,6 +608,7 @@ def _apply_geooperation(
         )
         return message
 
+    # Run operations
     if operation is GeoOperation.BUFFER:
         data_gdf.geometry = data_gdf.geometry.buffer(
             distance=operation_params["distance"],
@@ -639,6 +640,17 @@ def _apply_geooperation(
     data_gdf = data_gdf[~data_gdf.geometry.is_empty]
     data_gdf = data_gdf[~data_gdf.geometry.isna()]
 
+    # If there is an fid column in the dataset, rename it, because the fid column is a
+    # "special case" in gdal that should not be written.
+    columns_lower_lookup = {column.lower(): column for column in data_gdf.columns}
+    if "fid" in columns_lower_lookup:
+        fid_column = columns_lower_lookup["fid"]
+        for fid_number in range(1, 100):
+            new_name = f"{fid_column}_{fid_number}"
+            if new_name not in columns_lower_lookup:
+                data_gdf = data_gdf.rename(
+                    columns={fid_column: new_name}, copy=False  # type: ignore
+                )
     if explodecollections:
         data_gdf = data_gdf.explode(ignore_index=True)  # type: ignore
 

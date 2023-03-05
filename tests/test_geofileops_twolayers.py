@@ -241,7 +241,7 @@ def test_intersection_columns_fid(tmp_path, testfile, suffix):
         tmp_path / f"{input1_path.stem}_intersection_{input2_path.stem}{suffix}"
     )
     input1_columns = ["lblhfdtlt", "fid"]
-    input2_columns = ["naam", "fid"]
+    input2_columns = ["naam", "FiD"]
     gfo.intersection(
         input1_path=input1_path,
         input2_path=input2_path,
@@ -262,6 +262,8 @@ def test_intersection_columns_fid(tmp_path, testfile, suffix):
     # Check the contents of the result file
     output_gdf = gfo.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
+    assert "l1_fid" in output_gdf.columns
+    assert "l2_fid" in output_gdf.columns
     assert sorted(output_gdf["l2_fid"].unique().tolist()) == [1, 2, 3, 4, 5]
 
 
