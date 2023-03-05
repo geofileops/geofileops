@@ -166,7 +166,8 @@ class LayerInfo:
         geometrytype (GeometryType): the geometry type of the geometrycolumn.
         columns (dict): the columns (other than the geometry column) that
             are available on the layer with their properties as a dict.
-        fid_column (str): column name of the FID column.
+        fid_column (str): column name of the FID column. Is "" for file types that don't
+            explicitly store an FID, like shapefile.
         crs (pyproj.CRS): the spatial reference of the layer.
         errors (List[str]): list of errors in the layer, eg. invalid column
             names,...
