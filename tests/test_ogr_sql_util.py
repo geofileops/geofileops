@@ -87,7 +87,7 @@ def test_ColumnFormatter(
         columns_asked=columns_specified,
         columns_in_layer=columns_available,
         table_alias=table_alias,
-        columnname_prefix=columnname_prefix,
+        column_alias_prefix=columnname_prefix,
         ogr_and_fid_no_column=ogr_and_fid_no_column,
     )
     assert column_frmt.quoted() == exp_quoted

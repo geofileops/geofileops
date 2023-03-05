@@ -22,8 +22,8 @@ class ColumnFormatter:
         columns_asked: Optional[List[str]],
         columns_in_layer: Iterable[str],
         ogr_and_fid_no_column: bool,
-        table_alias: Optional[str] = None,
-        columnname_prefix: str = "",
+        table_alias: str = "",
+        column_alias_prefix: str = "",
     ):
         # First prepare the actual column list to use
         if columns_asked is not None:
@@ -51,12 +51,10 @@ class ColumnFormatter:
 
         self._columns = columns
         self._columns_in_layer = columns_in_layer
-        self._columnname_prefix = columnname_prefix
+        self._columnname_prefix = column_alias_prefix
         self._table_alias = table_alias
         self.ogr_and_fid_no_column = ogr_and_fid_no_column
-        self._table_prefix = ""
-        if table_alias is not None and table_alias != "":
-            self._table_prefix = f"{table_alias}."
+        self._table_prefix = f"{table_alias}." if table_alias != "" else ""
 
     def _columns_prefixed(self) -> List[str]:
         columns_prefixed = [

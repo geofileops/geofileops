@@ -1833,7 +1833,7 @@ def _two_layer_vector_operation(
             columns_asked=input1_columns,
             columns_in_layer=input1_tmp_layerinfo.columns,
             table_alias="layer1",
-            columnname_prefix=input1_columns_prefix,
+            column_alias_prefix=input1_columns_prefix,
             ogr_and_fid_no_column=use_ogr_and_fid_is_column,
         )
         assert processing_params.input2_path is not None
@@ -1844,7 +1844,7 @@ def _two_layer_vector_operation(
             columns_asked=input2_columns,
             columns_in_layer=input2_tmp_layerinfo.columns,
             table_alias="layer2",
-            columnname_prefix=input2_columns_prefix,
+            column_alias_prefix=input2_columns_prefix,
             ogr_and_fid_no_column=use_ogr_and_fid_is_column,
         )
 
