@@ -794,15 +794,14 @@ def erase(
 
 
 def export_by_location(
-    input_to_select_from_path: Path,
+    input_path: Path,
     input_to_compare_with_path: Path,
     output_path: Path,
     min_area_intersect: Optional[float] = None,
     area_inters_column_name: Optional[str] = "area_inters",
-    input1_layer: Optional[str] = None,
-    input1_columns: Optional[List[str]] = None,
-    input2_layer: Optional[str] = None,
-    input2_columns: Optional[List[str]] = None,
+    input_layer: Optional[str] = None,
+    input_columns: Optional[List[str]] = None,
+    input_to_compare_with_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -881,18 +880,18 @@ def export_by_location(
         """
 
     # Go!
-    input_layer_info = gfo.get_layerinfo(input_to_select_from_path, input1_layer)
+    input_layer_info = gfo.get_layerinfo(input_path, input_layer)
     return _two_layer_vector_operation(
-        input1_path=input_to_select_from_path,
+        input1_path=input_path,
         input2_path=input_to_compare_with_path,
         output_path=output_path,
         sql_template=sql_template,
         operation_name="export_by_location",
-        input1_layer=input1_layer,
-        input1_columns=input1_columns,
+        input1_layer=input_layer,
+        input1_columns=input_columns,
         input1_columns_prefix="",
-        input2_layer=input2_layer,
-        input2_columns=input2_columns,
+        input2_layer=input_to_compare_with_layer,
+        input2_columns=[],
         input2_columns_prefix="",
         output_layer=output_layer,
         explodecollections=False,

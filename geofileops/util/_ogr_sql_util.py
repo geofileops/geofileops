@@ -25,6 +25,31 @@ class ColumnFormatter:
         table_alias: str = "",
         column_alias_prefix: str = "",
     ):
+        """
+        Format strings with column names for use in sql statements.
+
+        Args:
+            columns_asked (Optional[List[str]]): the column names to read from the
+                file. If None, all available columns in the layer should be read.
+                In addition to standard columns, it is also possible to specify "fid",
+                a unique index available in all input files.
+                Note that the "fid" will be aliased even if column_alias_prefix is "",
+                eg. to "fid_1".
+            columns_in_layer (Iterable[str]): the column names of the columns available
+                in the layer that is being read from.
+            ogr_and_fid_no_column (bool): True should be passed if the formatter will be
+                used to format sql queries that will be executed using gdal/ogr on a
+                file format that doesn't explicitly store the fid in a column, eg.
+                shapefile. False if the sql query is meant to be run directly using
+                sqlite or if the file format saves the fid in a column, eg. GPKG.
+            table_alias (str, optional): table alias to be used.
+                Defaults to "": no table alias.
+            column_alias_prefix (str, optional): prefix to use for column aliases.
+                Defaults to "": no prefix.
+
+        Raises:
+            ValueError: if columns are asked that are not available in the layer.
+        """
         # First prepare the actual column list to use
         if columns_asked is not None:
             # Add special column "fid" to available columns so it can be specified
