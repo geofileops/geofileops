@@ -875,8 +875,10 @@ def read_file(
         layer (str, optional): The layer to read. Defaults to None,
             then reads the only layer in the file or throws error.
         columns (Iterable[str], optional): The (non-geometry) columns to read will
-            be returned in the order specified. If None, all columns are read.
-            Defaults to None.
+            be returned in the order specified. If None, all standard columns are read.
+            In addition to standard columns, it is also possible
+            to specify "fid", a unique index available in all input files. Note that the
+            "fid" will be aliased eg. to "fid_1". Defaults to None.
         bbox ([type], optional): Read only geometries intersecting this bbox.
             Defaults to None, then all rows are read.
         rows ([type], optional): Read only the rows specified.
@@ -930,8 +932,10 @@ def read_file_nogeom(
         layer (str, optional): The layer to read. Defaults to None,
             then reads the only layer in the file or throws error.
         columns (Iterable[str], optional): The (non-geometry) columns to read will
-            be returned in the order specified. If None, all columns are read.
-            Defaults to None.
+            be returned in the order specified. If None, all standard columns are read.
+            In addition to standard columns, it is also possible
+            to specify "fid", a unique index available in all input files. Note that the
+            "fid" will be aliased eg. to "fid_1". Defaults to None.
         bbox ([type], optional): Read only geometries intersecting this bbox.
             Defaults to None, then all rows are read.
         rows ([type], optional): Read only the rows specified.

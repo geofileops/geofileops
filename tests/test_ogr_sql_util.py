@@ -34,6 +34,18 @@ from geofileops.util import _ogr_sql_util
             ',sub."test1", sub."test2"',
         ),
         (
+            ["fid", "fid_1", "test2"],
+            ["fid_1", "fid_2", "test2"],
+            "",
+            "",
+            True,
+            ',rowid, "fid_1", "test2"',
+            ',rowid, "fid_1", "test2"',
+            ',rowid "fid_2", "fid_1" "fid_1", "test2" "test2"',
+            ',NULL "fid_2", NULL "fid_1", NULL "test2"',
+            ',sub."fid_2", sub."fid_1", sub."test2"',
+        ),
+        (
             ["fid", "test1", "test2"],
             ["test2", "test3", "test1"],
             "",
