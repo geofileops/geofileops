@@ -264,7 +264,10 @@ def test_intersection_columns_fid(tmp_path, testfile, suffix):
     assert output_gdf["geometry"][0] is not None
     assert "l1_fid" in output_gdf.columns
     assert "l2_fid" in output_gdf.columns
-    assert sorted(output_gdf["l2_fid"].unique().tolist()) == [1, 2, 3, 4, 5]
+    if gfo.GeofileType(input2_path).is_fid_zerobased:
+        assert sorted(output_gdf["l2_fid"].unique().tolist()) == [0, 1, 2, 3, 4]
+    else:
+        assert sorted(output_gdf["l2_fid"].unique().tolist()) == [1, 2, 3, 4, 5]
 
 
 def test_prepare_spatial_relations_filter():
