@@ -524,7 +524,9 @@ def dissolve(
                 - "columns": aggregate to seperate columns. The value should
                   be a list of dicts with the following keys:
 
-                    - "column": column name (case insensitive) in the input file.
+                    - "column": column name (case insensitive) in the input file. In
+                      addition to standard columns, it is also possible to specify
+                      "fid", a unique index available in all input files.
                     - "agg": aggregation to use:
 
                         - count: the number of items
@@ -535,7 +537,8 @@ def dissolve(
                         - median
                         - concat
 
-                    - "as": column name in the output file.
+                    - "as": column name in the output file. Note: using "fid" as alias
+                      is not recommended: it can cause errors or odd behaviour.
                     - "distinct" (optional): True to distinct the values before
                       aggregation.
 
