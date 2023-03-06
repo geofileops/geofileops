@@ -2297,6 +2297,7 @@ def dissolve_singlethread(
 
     # Use get_layerinfo to check if the layer definition is OK
     layerinfo = gfo.get_layerinfo(input_path, input_layer)
+    fid_column = layerinfo.fid_column if layerinfo.fid_column != "" else "rowid"
 
     # Prepare the strings regarding groupby_columns to use in the select statement.
     if groupby_columns is not None:
@@ -2315,7 +2316,9 @@ def dissolve_singlethread(
     agg_columns_str = ""
     if agg_columns is not None:
         # Prepare some lists for later use
-        columns_upper_dict = {col.upper(): col for col in layerinfo.columns}
+        columns_upper_dict = {col.upper(): col for col in list(layerinfo.columns)}
+        # Add the special fid column as well
+        columns_upper_dict["FID"] = fid_column
         groupby_columns_upper_dict = {}
         if groupby_columns is not None:
             groupby_columns_upper_dict = {col.upper(): col for col in groupby_columns}
