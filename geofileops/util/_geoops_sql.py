@@ -4,7 +4,6 @@ Module containing the implementation of Geofile operations using a sql statement
 """
 
 from concurrent import futures
-from dataclasses import dataclass
 from datetime import datetime
 import logging
 import logging.config
@@ -22,6 +21,7 @@ from geofileops import fileops
 from geofileops.fileops import _append_to_nolock
 from . import _io_util
 from . import _ogr_util
+from . import _ogr_sql_util
 from . import _sqlite_util
 from . import _general_util
 
@@ -521,8 +521,10 @@ def _single_layer_vector_operation(
                 )
 
         # Format column string for use in select
-        formatted_column_strings = format_column_strings(
-            columns_specified=columns, columns_available=input_layerinfo.columns
+        column_formatter = _ogr_sql_util.ColumnFormatter(
+            columns_asked=columns,
+            columns_in_layer=input_layerinfo.columns,
+            fid_column=input_layerinfo.fid_column,
         )
 
         # Prepare output filename
@@ -550,10 +552,7 @@ def _single_layer_vector_operation(
                 # Now we have everything to format sql statement
                 sql_stmt = sql_template.format(
                     geometrycolumn=input_layerinfo.geometrycolumn,
-                    columns_to_select_str=formatted_column_strings.columns,
-                    columns_to_select_nocomma=formatted_column_strings.columns.lstrip(
-                        ","
-                    ),  # noqa: E501
+                    columns_to_select_str=column_formatter.prefixed_aliased(),
                     input_layer=processing_params.batches[batch_id]["layer"],
                     batch_filter=processing_params.batches[batch_id]["batch_filter"],
                 )
@@ -849,15 +848,14 @@ def erase(
 
 
 def export_by_location(
-    input_to_select_from_path: Path,
+    input_path: Path,
     input_to_compare_with_path: Path,
     output_path: Path,
     min_area_intersect: Optional[float] = None,
     area_inters_column_name: Optional[str] = "area_inters",
-    input1_layer: Optional[str] = None,
-    input1_columns: Optional[List[str]] = None,
-    input2_layer: Optional[str] = None,
-    input2_columns: Optional[List[str]] = None,
+    input_layer: Optional[str] = None,
+    input_columns: Optional[List[str]] = None,
+    input_to_compare_with_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -936,18 +934,18 @@ def export_by_location(
         """
 
     # Go!
-    input_layer_info = gfo.get_layerinfo(input_to_select_from_path, input1_layer)
+    input_layer_info = gfo.get_layerinfo(input_path, input_layer)
     return _two_layer_vector_operation(
-        input1_path=input_to_select_from_path,
+        input1_path=input_path,
         input2_path=input_to_compare_with_path,
         output_path=output_path,
         sql_template=sql_template,
         operation_name="export_by_location",
-        input1_layer=input1_layer,
-        input1_columns=input1_columns,
+        input1_layer=input_layer,
+        input1_columns=input_columns,
         input1_columns_prefix="",
-        input2_layer=input2_layer,
-        input2_columns=input2_columns,
+        input2_layer=input_to_compare_with_layer,
+        input2_columns=[],
         input2_columns_prefix="",
         output_layer=output_layer,
         explodecollections=False,
@@ -1363,6 +1361,7 @@ def join_nearest(
             src_layer=input1_layer,
             dst=input1_tmp_path,
             dst_layer=input1_tmp_layer,
+            preserve_fid=True,
         )
 
         # Add input2 layer to sqlite gfo...
@@ -1373,6 +1372,7 @@ def join_nearest(
             src_layer=input2_layer,
             dst=input2_tmp_path,
             dst_layer=input2_tmp_layer,
+            preserve_fid=True,
         )
 
     # Remark: the 2 input layers need to be in one file!
@@ -1883,21 +1883,23 @@ def _two_layer_vector_operation(
         input1_tmp_layerinfo = gfo.get_layerinfo(
             processing_params.input1_path, processing_params.input1_layer
         )
-        input1_strs = format_column_strings(
-            columns_specified=input1_columns,
-            columns_available=input1_tmp_layerinfo.columns,
+        input1_col_strs = _ogr_sql_util.ColumnFormatter(
+            columns_asked=input1_columns,
+            columns_in_layer=input1_tmp_layerinfo.columns,
+            fid_column=input1_tmp_layerinfo.fid_column,
             table_alias="layer1",
-            columnname_prefix=input1_columns_prefix,
+            column_alias_prefix=input1_columns_prefix,
         )
         assert processing_params.input2_path is not None
         input2_tmp_layerinfo = gfo.get_layerinfo(
             processing_params.input2_path, processing_params.input2_layer
         )
-        input2_strs = format_column_strings(
-            columns_specified=input2_columns,
-            columns_available=input2_tmp_layerinfo.columns,
+        input2_col_strs = _ogr_sql_util.ColumnFormatter(
+            columns_asked=input2_columns,
+            columns_in_layer=input2_tmp_layerinfo.columns,
+            fid_column=input2_tmp_layerinfo.fid_column,
             table_alias="layer2",
-            columnname_prefix=input2_columns_prefix,
+            column_alias_prefix=input2_columns_prefix,
         )
 
         # Check input crs'es
@@ -1937,16 +1939,16 @@ def _two_layer_vector_operation(
                 sql_stmt = sql_template.format(
                     input1_databasename="{input1_databasename}",
                     input2_databasename="{input2_databasename}",
-                    layer1_columns_from_subselect_str=input1_strs.columns_subselect,
-                    layer1_columns_prefix_alias_str=input1_strs.columns_prefix_alias,
-                    layer1_columns_prefix_str=input1_strs.columns_prefix,
+                    layer1_columns_from_subselect_str=input1_col_strs.from_subselect(),
+                    layer1_columns_prefix_alias_str=input1_col_strs.prefixed_aliased(),
+                    layer1_columns_prefix_str=input1_col_strs.prefixed(),
                     input1_layer=processing_params.batches[batch_id]["layer"],
                     input1_tmp_layer=processing_params.batches[batch_id]["layer"],
                     input1_geometrycolumn=input1_tmp_layerinfo.geometrycolumn,
-                    layer2_columns_from_subselect_str=input2_strs.columns_subselect,
-                    layer2_columns_prefix_alias_str=input2_strs.columns_prefix_alias,
-                    layer2_columns_prefix_str=input2_strs.columns_prefix,
-                    layer2_columns_prefix_alias_null_str=input2_strs.columns_prefix_alias_null,  # noqa: E501
+                    layer2_columns_from_subselect_str=input2_col_strs.from_subselect(),
+                    layer2_columns_prefix_alias_str=input2_col_strs.prefixed_aliased(),
+                    layer2_columns_prefix_str=input2_col_strs.prefixed(),
+                    layer2_columns_prefix_alias_null_str=input2_col_strs.null_aliased(),
                     input2_layer=processing_params.input2_layer,
                     input2_tmp_layer=processing_params.input2_layer,
                     input2_geometrycolumn=input2_tmp_layerinfo.geometrycolumn,
@@ -2184,6 +2186,7 @@ def _prepare_processing_params(
                 src_layer=input1_layer,
                 dst=returnvalue.input1_path,
                 dst_layer=returnvalue.input1_layer,
+                preserve_fid=True,
             )
 
         if input2_path is not None and input2_geofiletype is not None:
@@ -2200,6 +2203,7 @@ def _prepare_processing_params(
                     src_layer=input2_layer,
                     dst=returnvalue.input2_path,
                     dst_layer=returnvalue.input2_layer,
+                    preserve_fid=True,
                 )
 
     # Fill out the database names to use in the sql statements
@@ -2314,82 +2318,6 @@ def _prepare_processing_params(
     return returnvalue
 
 
-@dataclass
-class FormattedColumnStrings:
-    columns: str
-    columns_prefix: str
-    columns_prefix_alias: str
-    columns_prefix_alias_null: str
-    columns_subselect: str
-
-
-def format_column_strings(
-    columns_specified: Optional[List[str]],
-    columns_available: Iterable[str],
-    table_alias: str = "",
-    columnname_prefix: str = "",
-) -> FormattedColumnStrings:
-    # First prepare the actual column list to use
-    if columns_specified is not None:
-        # Case-insensitive check if input1_columns contains columns not in layer...
-        columns_available_upper = [column.upper() for column in columns_available]
-        missing_columns = [
-            col
-            for col in columns_specified
-            if (col.upper() not in columns_available_upper)
-        ]
-        if len(missing_columns) > 0:
-            raise Exception(
-                "Error, columns_specified contains columns not in "
-                f"columns_available: {missing_columns}. Available: {columns_available}"
-            )
-
-        # Create column list to keep in the casing of the original columns
-        columns_specified_upper = [column.upper() for column in columns_specified]
-        columns = [
-            col for col in columns_available if (col.upper() in columns_specified_upper)
-        ]
-    else:
-        columns = list(columns_available)
-
-    # Now format the column strings
-    columns_quoted_str = ""
-    columns_prefix_alias_null_str = ""
-    columns_prefix_str = ""
-    columns_prefix_alias_str = ""
-    columns_from_subselect_str = ""
-    if len(columns) > 0:
-        if table_alias is not None and table_alias != "":
-            table_alias_d = f"{table_alias}."
-        else:
-            table_alias_d = ""
-        columns_quoted = [f'"{column}"' for column in columns]
-        columns_quoted_str = "," + ", ".join(columns_quoted)
-        columns_prefix_alias_null = [
-            f'NULL "{columnname_prefix}{column}"' for column in columns
-        ]
-        columns_prefix_alias_null_str = "," + ", ".join(columns_prefix_alias_null)
-        columns_prefix = [f'{table_alias_d}"{column}"' for column in columns]
-        columns_prefix_str = "," + ", ".join(columns_prefix)
-        columns_table_aliased_column_aliased = [
-            f'{table_alias_d}"{column}" "{columnname_prefix}{column}"'
-            for column in columns
-        ]
-        columns_prefix_alias_str = "," + ", ".join(columns_table_aliased_column_aliased)
-        columns_from_subselect = [
-            f'sub."{columnname_prefix}{column}"' for column in columns
-        ]
-        columns_from_subselect_str = "," + ", ".join(columns_from_subselect)
-
-    return FormattedColumnStrings(
-        columns=columns_quoted_str,
-        columns_prefix=columns_prefix_str,
-        columns_prefix_alias=columns_prefix_alias_str,
-        columns_prefix_alias_null=columns_prefix_alias_null_str,
-        columns_subselect=columns_from_subselect_str,
-    )
-
-
 def dissolve_singlethread(
     input_path: Path,
     output_path: Path,
@@ -2420,6 +2348,7 @@ def dissolve_singlethread(
 
     # Use get_layerinfo to check if the layer definition is OK
     layerinfo = gfo.get_layerinfo(input_path, input_layer)
+    fid_column = layerinfo.fid_column if layerinfo.fid_column != "" else "rowid"
 
     # Prepare the strings regarding groupby_columns to use in the select statement.
     if groupby_columns is not None:
@@ -2438,7 +2367,9 @@ def dissolve_singlethread(
     agg_columns_str = ""
     if agg_columns is not None:
         # Prepare some lists for later use
-        columns_upper_dict = {col.upper(): col for col in layerinfo.columns}
+        columns_upper_dict = {col.upper(): col for col in list(layerinfo.columns)}
+        # Add the special fid column as well
+        columns_upper_dict["FID"] = fid_column
         groupby_columns_upper_dict = {}
         if groupby_columns is not None:
             groupby_columns_upper_dict = {col.upper(): col for col in groupby_columns}

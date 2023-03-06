@@ -128,6 +128,54 @@ def test_buffer(tmp_path, suffix, epsg, fileops_module, testfile, empty_input):
         )
 
 
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize("testfile", ["polygon-parcel"])
+@pytest.mark.parametrize(
+    "fileops_module", ["geofileops.geoops", "geofileops.util._geoops_gpd"]
+)
+def test_buffer_columns_fid(tmp_path, suffix, fileops_module, testfile):
+    """Buffer basics are available both in the gpd and sql implementations."""
+    # Prepare test data
+    input_path = test_helper.get_testfile(testfile, suffix=suffix)
+
+    # Now run test
+    output_path = tmp_path / f"{input_path.stem}-{fileops_module}{suffix}"
+    set_geoops_module(fileops_module)
+    input_layerinfo = fileops.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+
+    # Test positive buffer
+    geoops.buffer(
+        input_path=input_path,
+        output_path=output_path,
+        distance=1,
+        columns=["LblHfdTlt", "fid"],
+        explodecollections=True,
+        nb_parallel=2,
+        batchsize=batchsize,
+    )
+
+    # Read input file and extract some info
+    input_gdf = fileops.read_file(input_path, fid_as_index=True)
+    if fileops.GeofileType(input_path).is_fid_zerobased:
+        assert input_gdf.index[0] == 0
+    else:
+        assert input_gdf.index[0] == 1
+    input_multi_gdf = input_gdf[
+        input_gdf.geometry.buffer(0).geom_type == "MultiPolygon"
+    ]
+    assert len(input_multi_gdf) == 2
+    multi_fid = input_multi_gdf.index[0]
+
+    # Now check if the output file is correctly created
+    assert output_path.exists()
+    output_layerinfo = fileops.get_layerinfo(output_path)
+    output_gdf = fileops.read_file(output_path)
+    assert output_gdf["geometry"][0] is not None
+    assert list(output_layerinfo.columns) == ["LBLHFDTLT", "fid_1"]
+    assert len(output_gdf[output_gdf.fid_1 == multi_fid]) == 2
+
+
 def test_buffer_force(tmp_path):
     input_path = test_helper.get_testfile("polygon-parcel")
     input_layerinfo = fileops.get_layerinfo(input_path)

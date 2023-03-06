@@ -189,6 +189,7 @@ def test_dissolve_linestrings(tmp_path, suffix, epsg):
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
     # Dissolve, no groupby, explodecollections=True
+    # ---------------------------------------------
     output_path = (
         output_basepath.parent / f"{output_basepath.stem}_expl{output_basepath.suffix}"
     )
@@ -218,6 +219,7 @@ def test_dissolve_linestrings(tmp_path, suffix, epsg):
     # TODO: add more in depth check of result
 
     # Dissolve, no groupby, explodecollections=False
+    # ----------------------------------------------
     output_path = (
         output_basepath.parent
         / f"{output_basepath.stem}_noexpl{output_basepath.suffix}"
@@ -246,15 +248,29 @@ def test_dissolve_linestrings(tmp_path, suffix, epsg):
     assert output_gdf["geometry"][0] is not None
     # TODO: add more in depth check of result
 
-    # Dissolve, no groupby, explodecollections=False
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize("epsg", DEFAULT_EPSGS)
+def test_dissolve_linestrings_groupby(tmp_path, suffix, epsg):
+    # Prepare test data
+    input_path = test_helper.get_testfile(
+        "linestring-watercourse", suffix=suffix, epsg=epsg
+    )
+    output_basepath = tmp_path / f"{input_path.stem}-output{suffix}"
+    input_layerinfo = gfo.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+
+    # Dissolve, groupby, explodecollections=False
+    # -------------------------------------------
     output_path = (
         output_basepath.parent
-        / f"{output_basepath.stem}_noexpl{output_basepath.suffix}"
+        / f"{output_basepath.stem}_groupby_noexpl{output_basepath.suffix}"
     )
-    # explodecollections=False only supported if
+    groupby_columns = ["NISCODE"]
     gfo.dissolve(
         input_path=input_path,
         output_path=output_path,
+        groupby_columns=groupby_columns,
         explodecollections=False,
         batchsize=batchsize,
     )
@@ -264,7 +280,7 @@ def test_dissolve_linestrings(tmp_path, suffix, epsg):
     input_layerinfo = gfo.get_layerinfo(input_path)
 
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert output_layerinfo.featurecount == 1
+    assert output_layerinfo.featurecount == 26
     assert output_layerinfo.geometrytype is input_layerinfo.geometrytype
     assert len(output_layerinfo.columns) >= 0
 
@@ -275,6 +291,151 @@ def test_dissolve_linestrings(tmp_path, suffix, epsg):
     assert len(output_gdf) == output_layerinfo.featurecount
     assert output_gdf["geometry"][0] is not None
     # TODO: add more in depth check of result
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize("epsg", DEFAULT_EPSGS)
+def test_dissolve_linestrings_aggcolumns_columns(tmp_path, suffix, epsg):
+    # Prepare test data
+    input_path = test_helper.get_testfile(
+        "linestring-watercourse", suffix=suffix, epsg=epsg
+    )
+    output_basepath = tmp_path / f"{input_path.stem}-output{suffix}"
+    input_layerinfo = gfo.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+
+    # Dissolve, groupby, explodecollections=False
+    # -------------------------------------------
+    output_path = (
+        output_basepath.parent
+        / f"{output_basepath.stem}_groupby_noexpl{output_basepath.suffix}"
+    )
+    groupby_columns = ["NISCODE"]
+    agg_columns = {
+        "columns": [
+            {"column": "fid", "agg": "concat", "as": "fid_concat"},
+            {"column": "NAAM", "agg": "max", "as": "naam_max"},
+        ]
+    }
+    gfo.dissolve(
+        input_path=input_path,
+        output_path=output_path,
+        groupby_columns=groupby_columns,
+        agg_columns=agg_columns,
+        explodecollections=False,
+        batchsize=batchsize,
+    )
+
+    # Check if the result file is correctly created
+    assert output_path.exists()
+    input_layerinfo = gfo.get_layerinfo(input_path)
+
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.featurecount == 26
+    assert output_layerinfo.geometrytype is input_layerinfo.geometrytype
+    assert len(output_layerinfo.columns) == (
+        len(groupby_columns) + len(agg_columns["columns"])
+    )
+
+    # Now check the contents of the result file
+    input_gdf = gfo.read_file(input_path)
+    output_gdf = gfo.read_file(output_path)
+    assert input_gdf.crs == output_gdf.crs
+    assert len(output_gdf) == output_layerinfo.featurecount
+    assert output_gdf["geometry"][0] is not None
+
+    # Some more default checks for NISCODE 12009
+    niscode_idx = output_gdf[output_gdf["NISCODE"] == "12009"].index.item()
+    if gfo.GeofileType(input_path).is_fid_zerobased:
+        assert output_gdf["fid_concat"][niscode_idx] == "38,42,44,54"
+    else:
+        assert output_gdf["fid_concat"][niscode_idx] == "39,43,45,55"
+    assert output_gdf["naam_max"][niscode_idx] == "Vosbergbeek"
+    # TODO: add more in depth check of result
+
+
+@pytest.mark.parametrize(
+    "suffix, epsg, groupby_columns, explode, expected_featurecount",
+    [
+        (".gpkg", 31370, ["GEWASGROEP"], True, 25),
+        (".gpkg", 31370, ["GEWASGROEP"], False, 6),
+        (".gpkg", 31370, ["gewasGROEP"], False, 6),
+        (".gpkg", 31370, [], True, 23),
+        (".gpkg", 31370, None, False, 1),
+        (".gpkg", 4326, ["GEWASGROEP"], True, 25),
+        (".shp", 31370, ["GEWASGROEP"], True, 25),
+        (".shp", 31370, [], True, 23),
+    ],
+)
+def test_dissolve_polygons(
+    tmp_path, suffix, epsg, groupby_columns, explode, expected_featurecount
+):
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
+    input_layerinfo = gfo.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+
+    # Test dissolve polygons with different options for groupby and explodecollections
+    # --------------------------------------------------------------------------------
+    groupby = True if (groupby_columns is None or len(groupby_columns) == 0) else False
+    output_path = (
+        tmp_path / f"{input_path.stem}_groupby-{groupby}_explode-{explode}{suffix}"
+    )
+    gfo.dissolve(
+        input_path=input_path,
+        output_path=output_path,
+        groupby_columns=groupby_columns,
+        explodecollections=explode,
+        nb_parallel=2,
+        batchsize=batchsize,
+    )
+
+    # Now check if the tmp file is correctly created
+    assert output_path.exists()
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.featurecount == expected_featurecount
+    if groupby is True:
+        # No groupby -> normally no columns.
+        # Shapefile needs at least one column, if no columns: fid
+        if suffix == ".shp":
+            assert len(output_layerinfo.columns) == 1
+        else:
+            assert len(output_layerinfo.columns) == 0
+    else:
+        assert len(output_layerinfo.columns) == len(groupby_columns)
+    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+
+    # Now check the contents of the result file
+    input_gdf = gfo.read_file(input_path)
+    output_gdf = gfo.read_file(output_path)
+    assert input_gdf.crs == output_gdf.crs
+    assert len(output_gdf) == output_layerinfo.featurecount
+    assert output_gdf["geometry"][0] is not None
+
+    # Compare result with geopandas
+    columns = ["geometry"]
+    if groupby_columns is None or len(groupby_columns) == 0:
+        output_gpd_gdf = input_gdf[columns].dissolve()
+    else:
+        groupby_columns_upper = [column.upper() for column in groupby_columns]
+        columns += groupby_columns_upper
+        output_gpd_gdf = (
+            input_gdf[columns].dissolve(by=groupby_columns_upper).reset_index()
+        )
+    if explode:
+        output_gpd_gdf = output_gpd_gdf.explode(ignore_index=True)
+    output_gpd_path = tmp_path / f"{input_path.stem}_gpd-output{suffix}"
+    gfo.to_file(output_gpd_gdf, output_gpd_path)
+
+    # Small differences with the geopandas result are expected, because gfo
+    # adds points in the tiling process. So only basic checks possible.
+    # assert_geodataframe_equal(
+    #        output_gdf, output_gpd_gdf, promote_to_multi=True, sort_values=True,
+    #        normalize=True, check_less_precise=True, output_dir=tmp_path)
+    if suffix != ".shp":
+        # Shapefile needs at least one column, if no columns: fid
+        assert list(output_gdf.columns) == list(output_gpd_gdf.columns)
+    assert len(output_gdf) == len(output_gpd_gdf)
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
@@ -458,39 +619,42 @@ def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
     #     - column names are shortened so it also works for shapefile!
     #     - the columns for agg_columns are choosen so they do not contain
     #       unique values, to be a better test case!
+    agg_columns = {
+        "columns": [
+            {"column": "lblhfdtlt", "agg": "max", "as": "lbl_max"},
+            {"column": "GEWASGROEP", "agg": "count", "as": "gwsgrp_cnt"},
+            {"column": "lblhfdtlt", "agg": "count", "as": "lbl_count"},
+            {
+                "column": "lblhfdtlt",
+                "agg": "count",
+                "distinct": True,
+                "as": "lbl_cnt_d",
+            },
+            {"column": "lblhfdtlt", "agg": "concat", "as": "lbl_conc"},
+            {
+                "column": "lblhfdtlt",
+                "agg": "concat",
+                "sep": ";",
+                "as": "lbl_conc_s",
+            },
+            {
+                "column": "lblhfdtlt",
+                "agg": "concat",
+                "distinct": True,
+                "as": "lbl_conc_d",
+            },
+            {"column": "hfdtlt", "agg": "mean", "as": "tlt_mea"},
+            {"column": "hfdtlt", "agg": "min", "as": "tlt_min"},
+            {"column": "hfdtlt", "agg": "sum", "as": "tlt_sum"},
+            {"column": "fid", "agg": "concat", "as": "fid_concat"},
+        ]
+    }
+    groupby_columns = ["GEWASGROEP"]
     gfo.dissolve(
         input_path=input_path,
         output_path=output_path,
-        groupby_columns=["GEWASGROEP"],
-        agg_columns={
-            "columns": [
-                {"column": "lblhfdtlt", "agg": "max", "as": "lbl_max"},
-                {"column": "GEWASGROEP", "agg": "count", "as": "gwsgrp_cnt"},
-                {"column": "lblhfdtlt", "agg": "count", "as": "lbl_count"},
-                {
-                    "column": "lblhfdtlt",
-                    "agg": "count",
-                    "distinct": True,
-                    "as": "lbl_cnt_d",
-                },
-                {"column": "lblhfdtlt", "agg": "concat", "as": "lbl_conc"},
-                {
-                    "column": "lblhfdtlt",
-                    "agg": "concat",
-                    "sep": ";",
-                    "as": "lbl_conc_s",
-                },
-                {
-                    "column": "lblhfdtlt",
-                    "agg": "concat",
-                    "distinct": True,
-                    "as": "lbl_conc_d",
-                },
-                {"column": "hfdtlt", "agg": "mean", "as": "tlt_mea"},
-                {"column": "hfdtlt", "agg": "min", "as": "tlt_min"},
-                {"column": "hfdtlt", "agg": "sum", "as": "tlt_sum"},
-            ]
-        },
+        groupby_columns=groupby_columns,
+        agg_columns=agg_columns,
         explodecollections=False,
         nb_parallel=2,
         batchsize=batchsize,
@@ -500,7 +664,9 @@ def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
     assert output_path.exists()
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == 6
-    assert len(output_layerinfo.columns) == 1 + 10
+    assert len(output_layerinfo.columns) == (
+        len(groupby_columns) + len(agg_columns["columns"])
+    )
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
 
     # Now check the contents of the result file
@@ -533,6 +699,10 @@ def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
         "f{output_gdf['lbl_conc_d'][groenten_idx]}"
     )
     assert output_gdf["lbl_cnt_d"][groenten_idx] == 4
+    if gfo.GeofileType(input_path).is_fid_zerobased:
+        assert output_gdf["fid_concat"][groenten_idx] == "41,42,43,44,45"
+    else:
+        assert output_gdf["fid_concat"][groenten_idx] == "42,43,44,45,46"
 
 
 def test_dissolve_polygons_aggcolumns_json(tmp_path, suffix=".gpkg"):

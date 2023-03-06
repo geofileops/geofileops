@@ -107,6 +107,7 @@ def get_testfile(
             dst_crs=epsg,
             reproject=True,
             append=True,
+            preserve_fid=True,
         )
         # If all rows need to be deleted
         if empty:
