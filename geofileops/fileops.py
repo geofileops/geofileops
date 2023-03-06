@@ -166,6 +166,8 @@ class LayerInfo:
         geometrytype (GeometryType): the geometry type of the geometrycolumn.
         columns (dict): the columns (other than the geometry column) that
             are available on the layer with their properties as a dict.
+        fid_column (str): column name of the FID column. Is "" for file types that don't
+            explicitly store an FID, like shapefile.
         crs (pyproj.CRS): the spatial reference of the layer.
         errors (List[str]): list of errors in the layer, eg. invalid column
             names,...
@@ -180,6 +182,7 @@ class LayerInfo:
         geometrytypename: str,
         geometrytype: GeometryType,
         columns: Dict[str, ColumnInfo],
+        fid_column: str,
         crs: Optional[pyproj.CRS],
         errors: List[str],
     ):
@@ -190,6 +193,7 @@ class LayerInfo:
         self.geometrytypename = geometrytypename
         self.geometrytype = geometrytype
         self.columns = columns
+        self.fid_column = fid_column
         self.crs = crs
         self.errors = errors
 
@@ -332,6 +336,7 @@ def get_layerinfo(
                 geometrytypename=geometrytypename,
                 geometrytype=geometrytype,
                 columns=columns,
+                fid_column=datasource_layer.GetFIDColumn(),
                 crs=crs,
                 errors=errors,
             )
@@ -870,8 +875,10 @@ def read_file(
         layer (str, optional): The layer to read. Defaults to None,
             then reads the only layer in the file or throws error.
         columns (Iterable[str], optional): The (non-geometry) columns to read will
-            be returned in the order specified. If None, all columns are read.
-            Defaults to None.
+            be returned in the order specified. If None, all standard columns are read.
+            In addition to standard columns, it is also possible
+            to specify "fid", a unique index available in all input files. Note that the
+            "fid" will be aliased eg. to "fid_1". Defaults to None.
         bbox ([type], optional): Read only geometries intersecting this bbox.
             Defaults to None, then all rows are read.
         rows ([type], optional): Read only the rows specified.
@@ -925,8 +932,10 @@ def read_file_nogeom(
         layer (str, optional): The layer to read. Defaults to None,
             then reads the only layer in the file or throws error.
         columns (Iterable[str], optional): The (non-geometry) columns to read will
-            be returned in the order specified. If None, all columns are read.
-            Defaults to None.
+            be returned in the order specified. If None, all standard columns are read.
+            In addition to standard columns, it is also possible
+            to specify "fid", a unique index available in all input files. Note that the
+            "fid" will be aliased eg. to "fid_1". Defaults to None.
         bbox ([type], optional): Read only geometries intersecting this bbox.
             Defaults to None, then all rows are read.
         rows ([type], optional): Read only the rows specified.
@@ -968,30 +977,44 @@ def _read_file_base(
     """
     Reads a file to a pandas Dataframe.
     """
+    # Check if the fid column needs to be read as column via the columns parameter
+    fid_as_column = False
+    if columns is not None:
+        if "fid" in [column.lower() for column in columns]:
+            fid_as_column = True
+
     # Read with the engine specified
     engine = _get_engine()
     if engine == "pyogrio":
-        return _read_file_base_pyogrio(
+        gdf = _read_file_base_pyogrio(
             path=path,
             layer=layer,
             columns=columns,
             bbox=bbox,
             rows=rows,
             ignore_geometry=ignore_geometry,
-            fid_as_index=fid_as_index,
+            fid_as_index=fid_as_index or fid_as_column,
         )
     elif engine == "fiona":
-        return _read_file_base_fiona(
+        gdf = _read_file_base_fiona(
             path=path,
             layer=layer,
             columns=columns,
             bbox=bbox,
             rows=rows,
             ignore_geometry=ignore_geometry,
-            fid_as_index=fid_as_index,
+            fid_as_index=fid_as_index or fid_as_column,
         )
     else:
         raise ValueError(f"Unsupported engine: {engine}")
+
+    # Copy the index to a column if needed...
+    if fid_as_column:
+        gdf["fid"] = gdf.index
+        if not fid_as_index:
+            gdf = gdf.reset_index(drop=True)
+
+    return gdf
 
 
 def _read_file_base_fiona(
@@ -1109,7 +1132,7 @@ def _read_file_base_pyogrio(
     # Init
     path = Path(path)
     if path.exists() is False:
-        raise ValueError(f"File doesnt't exist: {path}")
+        raise ValueError(f"File doesn't exist: {path}")
 
     # Convert slice object to pyogrio parameters
     if rows is not None:
@@ -1766,6 +1789,7 @@ def append_to(
     create_spatial_index: Optional[bool] = True,
     append_timeout_s: int = 600,
     transaction_size: int = 50000,
+    preserve_fid: Optional[bool] = None,
     options: dict = {},
 ):
     """
@@ -1816,6 +1840,11 @@ def append_to(
             being written to by another process already. Defaults to 600.
         transaction_size (int, optional): Transaction size.
             Defaults to 50000.
+        preserve_fid (bool, optional): True to make an extra effort to preserve fid's of
+            the source layer to the destination layer. False not to do any effort. None
+            to use the default behaviour of gdal, that already preserves in some cases.
+            Some file formats don't explicitly store the fid (e.g. shapefile), so they
+            will never be able to preserve fids. Defaults to None.
         options (dict, optional): options to pass to gdal.
 
     Raises:
@@ -1859,6 +1888,7 @@ def append_to(
                     force_output_geometrytype=force_output_geometrytype,
                     create_spatial_index=create_spatial_index,
                     transaction_size=transaction_size,
+                    preserve_fid=preserve_fid,
                     options=options,
                 )
             finally:
@@ -1888,6 +1918,7 @@ def _append_to_nolock(
     create_spatial_index: Optional[bool] = True,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
     transaction_size: int = 50000,
+    preserve_fid: Optional[bool] = None,
     options: dict = {},
 ):
     # Check/clean input params
@@ -1937,6 +1968,7 @@ def _append_to_nolock(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         options=options,
+        preserve_fid=preserve_fid,
     )
     _ogr_util.vector_translate_by_info(info=translate_info)
 
@@ -1952,6 +1984,7 @@ def convert(
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
     create_spatial_index: Optional[bool] = True,
+    preserve_fid: Optional[bool] = None,
     options: dict = {},
     append: bool = False,
     force: bool = False,
@@ -2001,6 +2034,11 @@ def convert(
             that file type is respected. If the LAYER_CREATION.SPATIAL_INDEX
             parameter is specified in options, create_spatial_index is ignored.
             Defaults to True.
+        preserve_fid (bool, optional): True to make an extra effort to preserve fid's of
+            the source layer to the destination layer. False not to do any effort. None
+            to use the default behaviour of gdal, that already preserves in some cases.
+            Some file formats don't explicitly store the fid (e.g. shapefile), so they
+            will never be able to preserve fids. Defaults to None.
         options (dict, optional): options to pass to gdal.
         append (bool, optional): True to append to the output file if it exists.
             Defaults to False.
@@ -2035,6 +2073,7 @@ def convert(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         create_spatial_index=create_spatial_index,
+        preserve_fid=preserve_fid,
         options=options,
     )
 
