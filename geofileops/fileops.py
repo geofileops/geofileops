@@ -1843,7 +1843,8 @@ def append_to(
         preserve_fid (bool, optional): True to make an extra effort to preserve fid's of
             the source layer to the destination layer. False not to do any effort. None
             to use the default behaviour of gdal, that already preserves in some cases.
-            Defaults to None.
+            Some file formats don't explicitly store the fid (e.g. shapefile), so they
+            will never be able to preserve fids. Defaults to None.
         options (dict, optional): options to pass to gdal.
 
     Raises:
@@ -2036,7 +2037,8 @@ def convert(
         preserve_fid (bool, optional): True to make an extra effort to preserve fid's of
             the source layer to the destination layer. False not to do any effort. None
             to use the default behaviour of gdal, that already preserves in some cases.
-            Defaults to None.
+            Some file formats don't explicitly store the fid (e.g. shapefile), so they
+            will never be able to preserve fids. Defaults to None.
         options (dict, optional): options to pass to gdal.
         append (bool, optional): True to append to the output file if it exists.
             Defaults to False.

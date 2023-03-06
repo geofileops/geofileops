@@ -199,6 +199,41 @@ def test_convert_force_output_geometrytype(tmp_path, testfile, force_geometrytyp
     assert gfo.get_layerinfo(dst).geometrytype == force_geometrytype
 
 
+@pytest.mark.parametrize(
+    "src_suffix, dst_suffix, preserve_fid, exp_preserved_fids",
+    [
+        (".shp", ".gpkg", True, True),
+        (".shp", ".gpkg", False, False),
+        (".gpkg", ".shp", True, False),
+        (".shp", ".sqlite", True, True),
+        (".shp", ".sqlite", False, False),
+    ],
+)
+def test_convert_preserve_fid(
+    tmp_path,
+    src_suffix: str,
+    dst_suffix: str,
+    preserve_fid: bool,
+    exp_preserved_fids: bool,
+):
+    src = test_helper.get_testfile("polygon-parcel", suffix=src_suffix)
+
+    # Convert with preserve_fid=None (default)
+    # ----------------------------------------
+    dst = tmp_path / f"{src.stem}-output_preserve_fid-{preserve_fid}{dst_suffix}"
+    gfo.convert(src, dst, preserve_fid=preserve_fid)
+
+    # Now compare source and dst file
+    src_gdf = gfo.read_file(src, fid_as_index=True)
+    dst_gdf = gfo.read_file(dst, fid_as_index=True)
+    assert len(src_gdf) == len(dst_gdf)
+    assert len(src_gdf.columns) == len(dst_gdf.columns)
+    if exp_preserved_fids:
+        assert src_gdf.index.tolist() == dst_gdf.index.tolist()
+    else:
+        assert src_gdf.index.tolist() != dst_gdf.index.tolist()
+
+
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 def test_convert_reproject(tmp_path, suffix):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)

@@ -2137,6 +2137,7 @@ def _prepare_processing_params(
                 src_layer=input1_layer,
                 dst=returnvalue.input1_path,
                 dst_layer=returnvalue.input1_layer,
+                preserve_fid=True,
             )
 
         if input2_path is not None and input2_geofiletype is not None:
@@ -2153,6 +2154,7 @@ def _prepare_processing_params(
                     src_layer=input2_layer,
                     dst=returnvalue.input2_path,
                     dst_layer=returnvalue.input2_layer,
+                    preserve_fid=True,
                 )
 
     # Fill out the database names to use in the sql statements
