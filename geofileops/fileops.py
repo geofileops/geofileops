@@ -59,6 +59,9 @@ warnings.filterwarnings(
     category=UserWarning,
     message="^Layer .* does not have any features to read$",
 )
+# Set logging level for pyogrio to warning
+pyogrio_logger = logging.getLogger("pyogrio")
+pyogrio_logger.setLevel(logging.WARNING)
 
 # Hardcoded 31370 prj string to replace faulty ones
 PRJ_EPSG_31370 = (
