@@ -21,7 +21,7 @@ class ColumnFormatter:
         self,
         columns_asked: Optional[List[str]],
         columns_in_layer: Iterable[str],
-        ogr_and_fid_no_column: bool,
+        fid_column: str,
         table_alias: str = "",
         column_alias_prefix: str = "",
     ):
@@ -37,11 +37,8 @@ class ColumnFormatter:
                 eg. to "fid_1".
             columns_in_layer (Iterable[str]): the column names of the columns available
                 in the layer that is being read from.
-            ogr_and_fid_no_column (bool): True should be passed if the formatter will be
-                used to format sql queries that will be executed using gdal/ogr on a
-                file format that doesn't explicitly store the fid in a column, eg.
-                shapefile. False if the sql query is meant to be run directly using
-                sqlite or if the file format saves the fid in a column, eg. GPKG.
+            fid_column (str): fid column name as reported by the gdal GetFIDColumn()
+                function. For file types that don't store the fid this is "".
             table_alias (str, optional): table alias to be used.
                 Defaults to "": no table alias.
             column_alias_prefix (str, optional): prefix to use for column aliases.
@@ -50,7 +47,14 @@ class ColumnFormatter:
         Raises:
             ValueError: if columns are asked that are not available in the layer.
         """
-        # First prepare the actual column list to use
+        self._columns_asked = columns_asked
+        self._columns_in_layer = columns_in_layer
+        self._fid_column = fid_column
+        self._table_prefix = f"{table_alias}." if table_alias != "" else ""
+        self._table_alias = table_alias
+        self._columnname_prefix = column_alias_prefix
+
+        # Now prepare the actual column list to use
         if columns_asked is not None:
             # Add special column "fid" to available columns so it can be specified
             columns_in_layer = list(columns_in_layer) + ["fid"]
@@ -75,11 +79,6 @@ class ColumnFormatter:
             columns = list(columns_in_layer)
 
         self._columns = columns
-        self._columns_in_layer = columns_in_layer
-        self._columnname_prefix = column_alias_prefix
-        self._table_alias = table_alias
-        self.ogr_and_fid_no_column = ogr_and_fid_no_column
-        self._table_prefix = f"{table_alias}." if table_alias != "" else ""
 
     def _columns_prefixed(self) -> List[str]:
         columns_prefixed = [
@@ -90,26 +89,34 @@ class ColumnFormatter:
 
     def _fix_fid_columns(self, columns: List[str]) -> List[str]:
         """
-        The "fid" column needs some special treatment:
-            - If ogr is used on a file format that doesn't actually save the fid
-              (eg. shapefile), "rowid" should be used (because sql_dialect = SQLITE).
-            - If ogr is not used or it is used with a file format that saves fid as a
-              column (eg. in GPKG), ogr will treat the column as "fid" (with the alias
-              specified) anyway.
-              To stop ogr from doing this, the fid column needs to be CASTed so ogr
-              doesn't recognize it anymore.
-              Remark: the ogr2ogr -unsetFID switch didn't help.
+        The "fid" special column needs some extra treatment:
+            - if the fid_column name as reported by gdal is "", this means that the file
+              format doesn't actually save the fid (eg. shapefile) but uses a row number
+              in the file. When using sql in sql_dialect "SQLITE", "rowid" is the
+              equivalent.
+            - if the fid_column name as reported by gdal is "fid", ogr will treat the
+              selected column as "fid" in the destination file as well, even if an alias
+              is specified. To stop ogr from doing this, putting a CAST(... AS INT)
+              around it prevents ogr from recognizing it.
+              Remark: the ogr2ogr -unsetFid switch didn't help.
+            - if the fid_column name as reported by gdal is some other string, "fid"
+              just needs to be replaced by the fid_column value.
         """
         columns = list(columns)
         fid_column_indexes = [
             idx for idx, col in enumerate(self._columns) if col.upper() == "FID"
         ]
-        if self.ogr_and_fid_no_column:
-            for fid_column_index in fid_column_indexes:
-                columns[fid_column_index] = "rowid"
-        else:
+        if self._fid_column.lower() == "fid":
+            # Put CAST() around "fid"
             for fid_column_index in fid_column_indexes:
                 columns[fid_column_index] = f"CAST({columns[fid_column_index]} AS INT)"
+        else:
+            # Replace "fid" by the fid_column or rowid
+            replace_fid_column = self._fid_column if self._fid_column != "" else "rowid"
+            for fid_column_index in fid_column_indexes:
+                columns[fid_column_index] = columns[fid_column_index].replace(
+                    self._columns[fid_column_index], replace_fid_column
+                )
 
         return columns
 

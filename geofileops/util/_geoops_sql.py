@@ -466,11 +466,10 @@ def _single_layer_vector_operation(
                 )
 
         # Format column string for use in select
-        ogr_and_fid_no_column = True if input_layerinfo.fid_column == "" else False
         column_formatter = _ogr_sql_util.ColumnFormatter(
             columns_asked=columns,
             columns_in_layer=input_layerinfo.columns,
-            ogr_and_fid_no_column=ogr_and_fid_no_column,
+            fid_column=input_layerinfo.fid_column,
         )
 
         # Prepare output filename
@@ -1307,6 +1306,7 @@ def join_nearest(
             src_layer=input1_layer,
             dst=input1_tmp_path,
             dst_layer=input1_tmp_layer,
+            preserve_fid=True,
         )
 
         # Add input2 layer to sqlite gfo...
@@ -1317,6 +1317,7 @@ def join_nearest(
             src_layer=input2_layer,
             dst=input2_tmp_path,
             dst_layer=input2_tmp_layer,
+            preserve_fid=True,
         )
 
     # Remark: the 2 input layers need to be in one file!
@@ -1827,13 +1828,12 @@ def _two_layer_vector_operation(
         input1_tmp_layerinfo = gfo.get_layerinfo(
             processing_params.input1_path, processing_params.input1_layer
         )
-        use_ogr_and_fid_is_column = use_ogr
         input1_col_strs = _ogr_sql_util.ColumnFormatter(
             columns_asked=input1_columns,
             columns_in_layer=input1_tmp_layerinfo.columns,
+            fid_column=input1_tmp_layerinfo.fid_column,
             table_alias="layer1",
             column_alias_prefix=input1_columns_prefix,
-            ogr_and_fid_no_column=use_ogr_and_fid_is_column,
         )
         assert processing_params.input2_path is not None
         input2_tmp_layerinfo = gfo.get_layerinfo(
@@ -1842,9 +1842,9 @@ def _two_layer_vector_operation(
         input2_col_strs = _ogr_sql_util.ColumnFormatter(
             columns_asked=input2_columns,
             columns_in_layer=input2_tmp_layerinfo.columns,
+            fid_column=input2_tmp_layerinfo.fid_column,
             table_alias="layer2",
             column_alias_prefix=input2_columns_prefix,
-            ogr_and_fid_no_column=use_ogr_and_fid_is_column,
         )
 
         # Check input crs'es

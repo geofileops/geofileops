@@ -248,7 +248,7 @@ def vector_translate(
         args.extend(["-gt", str(transaction_size)])
     if preserve_fid is not None:
         if preserve_fid:
-            args.append("-preserveFid")
+            args.append("-preserve_fid")
         else:
             args.append("-unsetFid")
 

@@ -395,8 +395,10 @@ def test_join_nearest(tmp_path, suffix, epsg):
     # Now run test
     output_path = tmp_path / f"{input1_path.stem}-output{suffix}"
     nb_nearest = 2
+    input1_columns = ["OIDN", "UIDN", "HFDTLT", "fid"]
     gfo.join_nearest(
         input1_path=input1_path,
+        input1_columns=input1_columns,
         input2_path=input2_path,
         output_path=output_path,
         nb_nearest=nb_nearest,
@@ -410,7 +412,7 @@ def test_join_nearest(tmp_path, suffix, epsg):
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == nb_nearest * input1_layerinfo.featurecount
     assert len(output_layerinfo.columns) == (
-        len(input1_layerinfo.columns) + len(input2_layerinfo.columns) + 2
+        len(input1_columns) + len(input2_layerinfo.columns) + 2
     )
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
 
@@ -418,6 +420,10 @@ def test_join_nearest(tmp_path, suffix, epsg):
     # TODO: this test should be more elaborate...
     output_gdf = gfo.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
+    if gfo.GeofileType(input1_path).is_fid_zerobased:
+        assert output_gdf.l1_fid.min() == 0
+    else:
+        assert output_gdf.l1_fid.min() == 1
 
 
 @pytest.mark.parametrize(

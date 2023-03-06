@@ -1789,6 +1789,7 @@ def append_to(
     create_spatial_index: Optional[bool] = True,
     append_timeout_s: int = 600,
     transaction_size: int = 50000,
+    preserve_fid: Optional[bool] = None,
     options: dict = {},
 ):
     """
@@ -1839,6 +1840,10 @@ def append_to(
             being written to by another process already. Defaults to 600.
         transaction_size (int, optional): Transaction size.
             Defaults to 50000.
+        preserve_fid (bool, optional): True to make an extra effort to preserve fid's of
+            the source layer to the destination layer. False not to do any effort. None
+            to use the default behaviour of gdal, that already preserves in some cases.
+            Defaults to None.
         options (dict, optional): options to pass to gdal.
 
     Raises:
@@ -1882,6 +1887,7 @@ def append_to(
                     force_output_geometrytype=force_output_geometrytype,
                     create_spatial_index=create_spatial_index,
                     transaction_size=transaction_size,
+                    preserve_fid=preserve_fid,
                     options=options,
                 )
             finally:
@@ -1911,6 +1917,7 @@ def _append_to_nolock(
     create_spatial_index: Optional[bool] = True,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
     transaction_size: int = 50000,
+    preserve_fid: Optional[bool] = None,
     options: dict = {},
 ):
     # Check/clean input params
@@ -1960,6 +1967,7 @@ def _append_to_nolock(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         options=options,
+        preserve_fid=preserve_fid,
     )
     _ogr_util.vector_translate_by_info(info=translate_info)
 
@@ -1975,6 +1983,7 @@ def convert(
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
     create_spatial_index: Optional[bool] = True,
+    preserve_fid: Optional[bool] = None,
     options: dict = {},
     append: bool = False,
     force: bool = False,
@@ -2024,6 +2033,10 @@ def convert(
             that file type is respected. If the LAYER_CREATION.SPATIAL_INDEX
             parameter is specified in options, create_spatial_index is ignored.
             Defaults to True.
+        preserve_fid (bool, optional): True to make an extra effort to preserve fid's of
+            the source layer to the destination layer. False not to do any effort. None
+            to use the default behaviour of gdal, that already preserves in some cases.
+            Defaults to None.
         options (dict, optional): options to pass to gdal.
         append (bool, optional): True to append to the output file if it exists.
             Defaults to False.
@@ -2058,6 +2071,7 @@ def convert(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         create_spatial_index=create_spatial_index,
+        preserve_fid=preserve_fid,
         options=options,
     )
 
