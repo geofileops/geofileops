@@ -676,6 +676,7 @@ def _apply_geooperation(
         index=False,
         force_output_geometrytype=force_output_geometrytype,
         force_multitype=True,
+        create_spatial_index=False,
     )
 
     message = f"Took {datetime.now()-start_time} for {len(data_gdf)} rows ({rows})!"
