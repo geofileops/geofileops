@@ -105,18 +105,18 @@ def create_table_as_sql(
 ):
     """
     Execute sql statement and save the result in the output file.
-
     Args:
-        input1_path (Path): _description_
-        input1_layer (str): _description_
-        input2_path (Path): _description_
-        output_path (Path): _description_
-        sql_stmt (str): _description_
-        output_layer (str): _description_
-        output_geometrytype (Optional[GeometryType]): _description_
-        append (bool, optional): _description_. Defaults to False.
-        update (bool, optional): _description_. Defaults to False.
-        create_spatial_index (bool, optional): _description_. Defaults to True.
+        input1_path (Path): the path to the 1st input file.
+        input1_layer (str): the layer/table to select from in het 1st input file
+        input2_path (Path): the path to the 2nd input file.
+        output_path (Path): the path where the output file needs to be created/appended.
+        sql_stmt (str): SELECT statement to run on the input files.
+        output_layer (str): layer/table name to use.
+        output_geometrytype (Optional[GeometryType]): geometry type of the output.
+        append (bool, optional): True to append to an existing file. Defaults to False.
+        update (bool, optional): True to append to an existing layer. Defaults to False.
+        create_spatial_index (bool, optional): True to create a spatial index on the
+            output layer. Defaults to True.
         empty_output_ok (bool, optional): If the sql_stmt doesn't return any rows and
             True, create an empty output file. If False, throw EmptyResultError.
             Defaults to True.
@@ -124,28 +124,23 @@ def create_table_as_sql(
             columns in the form of {"columnname": "datatype"}. If the data type of
             (some) columns is not specified, it it automatically determined as good as
             possible. Defaults to None.
-        profile (SqliteProfile, optional): _description_.
+        profile (SqliteProfile, optional): the set of PRAGMA's to use when creating the
+            table. SqliteProfile.DEFAULT will use default setting. SqliteProfile.SPEED
+            uses settings optimized for speed, but will be less save regarding
+            transaction safety,...
             Defaults to SqliteProfile.DEFAULT.
-
     Raises:
-        Exception: _description_
-        Exception: _description_
-        Exception: _description_
-        EmptyResultError: _description_
-        Exception: _description_
-
-    Returns:
-        _type_: _description_
+        ValueError: invalid (combinations of) parameters passed.
+        EmptyResultError: the sql_stmt didn't return any rows.
     """
-
     # Check input parameters
     if append is True or update is True:
-        raise Exception("Not implemented")
+        raise ValueError("append=True nor update=True are implemented.")
     output_suffix_lower = input1_path.suffix.lower()
     if output_suffix_lower != input1_path.suffix.lower():
-        raise Exception("Output and input1 paths don't have the same extension!")
+        raise ValueError("Output and input1 paths don't have the same extension!")
     if input2_path is not None and output_suffix_lower != input2_path.suffix.lower():
-        raise Exception("Output and input2 paths don't have the same extension!")
+        raise ValueError("Output and input2 paths don't have the same extension!")
 
     # Use crs epsg from input1_layer, if it has one
     input1_layerinfo = gfo.get_layerinfo(input1_path, input1_layer)
