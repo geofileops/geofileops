@@ -101,14 +101,37 @@ def create_table_as_sql(
     create_spatial_index: bool = True,
     profile: SqliteProfile = SqliteProfile.DEFAULT,
 ):
+    """
+    Execute sql statement and save the result in the output file.
+    Args:
+        input1_path (Path): the path to the 1st input file.
+        input1_layer (str): the layer/table to select from in het 1st input file
+        input2_path (Path): the path to the 2nd input file.
+        output_path (Path): the path where the output file needs to be created/appended.
+        sql_stmt (str): SELECT statement to run on the input files.
+        output_layer (str): layer/table name to use.
+        output_geometrytype (Optional[GeometryType]): geometry type of the output.
+        append (bool, optional): True to append to an existing file. Defaults to False.
+        update (bool, optional): True to append to an existing layer. Defaults to False.
+        create_spatial_index (bool, optional): True to create a spatial index on the
+            output layer. Defaults to True.
+        profile (SqliteProfile, optional): the set of PRAGMA's to use when creating the
+            table. SqliteProfile.DEFAULT will use default setting. SqliteProfile.SPEED
+            uses settings optimized for speed, but will be less save regarding
+            transaction safety,...
+            Defaults to SqliteProfile.DEFAULT.
+    Raises:
+        ValueError: invalid (combinations of) parameters passed.
+        EmptyResultError: the sql_stmt didn't return any rows.
+    """
     # Check input parameters
     if append is True or update is True:
-        raise Exception("Not implemented")
+        raise ValueError("append=True nor update=True are implemented.")
     output_suffix_lower = input1_path.suffix.lower()
     if output_suffix_lower != input1_path.suffix.lower():
-        raise Exception("Output and input1 paths don't have the same extension!")
+        raise ValueError("Output and input1 paths don't have the same extension!")
     if input2_path is not None and output_suffix_lower != input2_path.suffix.lower():
-        raise Exception("Output and input2 paths don't have the same extension!")
+        raise ValueError("Output and input2 paths don't have the same extension!")
 
     # Use crs epsg from input1_layer, if it has one
     input1_layerinfo = gfo.get_layerinfo(input1_path, input1_layer)
