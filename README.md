@@ -8,8 +8,14 @@
 Library to make spatial operations on large geo files fast(er) and easy.
 
 Remarks: 
-* Most typical operations are available: buffer, simplify, dissolve, union, erase/difference, intersection,...
-* Any python function can be applied to a geofile in parallel using apply.
+* Most typical operations are available: 
+  [buffer](https://geofileops.readthedocs.io/en/stable/api/geofileops.apply.html#geofileops.buffer),
+  [simplify](https://geofileops.readthedocs.io/en/stable/api/geofileops.apply.html#geofileops.simolify),
+  [dissolve](https://geofileops.readthedocs.io/en/stable/api/geofileops.apply.html#geofileops.dissolve),
+  [union](https://geofileops.readthedocs.io/en/stable/api/geofileops.apply.html#geofileops.union),
+  [erase](https://geofileops.readthedocs.io/en/stable/api/geofileops.apply.html#geofileops.erase)/difference, 
+  [intersection](https://geofileops.readthedocs.io/en/stable/api/geofileops.apply.html#geofileops.intersection),...
+* Any python function can be applied to a geofile in parallel using [apply](https://geofileops.readthedocs.io/en/stable/api/geofileops.apply.html#geofileops.apply)
 * The speed (improvement) depends on the operation, the number of available cores and the size of the input files.
   * For CPU bound operations (eg. union,... between large input files) the processing time will depend on the number of available CPU cores. For (very) large files the typical processing time can be divided by the number of available cores.
   * For dissolve on (very) large files, the speed improvement can be more than the processing time divided by the available cores.
