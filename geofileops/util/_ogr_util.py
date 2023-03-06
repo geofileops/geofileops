@@ -6,19 +6,13 @@ Module containing utilities regarding the usage of ogr functionalities.
 # -------------------------------------
 # Import/init needed modules
 # -------------------------------------
-from io import StringIO
 import logging
 import os
 from pathlib import Path
-import pprint
-import re
-import subprocess
 import tempfile
 from threading import Lock
-import time
 from typing import List, Literal, Optional, Tuple, Union
 
-import geopandas as gpd
 from osgeo import gdal
 
 import geofileops as gfo
@@ -472,131 +466,3 @@ class set_config_options(object):
         for name, value in self.config_options.items():
             gdal.SetConfigOption(name, None)
         # gdal.SetConfigOptions(self.config_options_backup)
-
-
-def _getfileinfo(path: Path, readonly: bool = True) -> dict:
-    # Get info
-    info_str = vector_info(path=path, readonly=readonly)
-
-    # Prepare result
-    result_dict = {}
-    result_dict["info_str"] = info_str
-    result_dict["layers"] = []
-    info_strio = StringIO(str(info_str))
-    for line in info_strio.readlines():
-        line = line.strip()
-        if re.match(r"\A\d: ", line):
-            # It is a layer, now extract only the layer name
-            logger.debug(f"This is a layer: {line}")
-            layername_with_geomtype = re.sub(r"\A\d: ", "", line)
-            layername = re.sub(r" [(][a-zA-Z ]+[)]\Z", "", layername_with_geomtype)
-            result_dict["layers"].append(layername)
-
-    return result_dict
-
-
-def vector_info(
-    path: Path,
-    task_description=None,
-    layer: Optional[str] = None,
-    readonly: bool = False,
-    report_summary: bool = False,
-    sql_stmt: Optional[str] = None,
-    sql_dialect: Optional[str] = None,
-    skip_health_check: bool = False,
-):
-    """ "Run a command"""
-
-    # Init
-    if not path.exists():
-        raise Exception(f"File does not exist: {path}")
-    if os.name == "nt":
-        ogrinfo_exe = "ogrinfo.exe"
-    else:
-        ogrinfo_exe = "ogrinfo"
-
-    # Add all parameters to args list
-    args = [str(ogrinfo_exe)]
-    # args.extend(['--config', 'OGR_SQLITE_PRAGMA', 'journal_mode=WAL'])
-    if readonly is True:
-        args.append("-ro")
-    if report_summary is True:
-        args.append("-so")
-    if sql_stmt is not None:
-        args.extend(["-sql", sql_stmt])
-    if sql_dialect is not None:
-        args.extend(["-dialect", sql_dialect])
-
-    # File and optionally the layer
-    args.append(str(path))
-    if layer is not None:
-        # ogrinfo doesn't like + need quoted layer names, so remove single and
-        # double quotes
-        layer_stripped = layer.strip("'\"")
-        args.append(layer_stripped)
-
-    # Run ogrinfo
-    # Geopackage/sqlite files are very sensitive for being locked, so retry till
-    # file is not locked anymore...
-    sleep_time = 1
-    returncode = None
-    for retry_count in range(10):
-        process = subprocess.Popen(
-            args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            bufsize=-1,
-            encoding="utf-8",
-        )
-
-        output, err = process.communicate()
-        returncode = process.returncode
-
-        # If an error occured
-        if returncode > 0:
-            if str(err).startswith("ERROR 1: database is locked"):
-                logger.warn(f"'ERROR 1: database is locked', retry nb: {retry_count}")
-                time.sleep(sleep_time)
-                sleep_time += 1
-                continue
-            else:
-                raise Exception(
-                    f"Error executing {pprint.pformat(args)}\n"
-                    f"\t-> Return code: {returncode}\n"
-                    f"\t-> Error: {err}\n\t->Output: {output}"
-                )
-        elif err is not None and err != "":
-            # ogrinfo apparently sometimes give a wrong returncode, so if data
-            # in stderr, treat as error as well
-            raise Exception(
-                f"Error executing {pprint.pformat(args)}\n"
-                f"\t->Return code: {returncode}\n"
-                f"\t->Error: {err}\n\t->Output: {output}"
-            )
-
-        logger.debug(f"Ready executing {pprint.pformat(args)}")
-        return output
-
-    # If we get here, the retries didn't suffice to get it executed properly
-    raise Exception(
-        f"Error executing {pprint.pformat(args)}\n\t-> Return code: {returncode}"
-    )
-
-
-def _execute_sql(
-    path: Path,
-    sqlite_stmt: str,
-    sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
-) -> gpd.GeoDataFrame:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp_path = Path(tmpdir) / "ogr_util_execute_sql_tmp_file.gpkg"
-        vector_translate(
-            input_path=path,
-            output_path=tmp_path,
-            sql_stmt=sqlite_stmt,
-            sql_dialect=sql_dialect,
-        )
-
-        # Return result
-        install_info_gdf = gfo.read_file(tmp_path)
-        return install_info_gdf
