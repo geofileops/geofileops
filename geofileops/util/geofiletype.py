@@ -22,6 +22,7 @@ class GeofileTypeInfo:
     geofiletype: str
     ogrdriver: str
     suffixes: Optional[List[str]]
+    is_fid_zerobased: bool
     is_spatialite_based: bool
     suffixes_extrafiles: Optional[List[str]]
 
@@ -50,6 +51,7 @@ def init_geofiletypes():
                 geofiletype=row["geofiletype"],
                 ogrdriver=row["ogrdriver"],
                 suffixes=suffixes,
+                is_fid_zerobased=ast.literal_eval(row["is_fid_zerobased"]),
                 is_spatialite_based=ast.literal_eval(row["is_spatialite_based"]),
                 suffixes_extrafiles=suffixes_extrafiles,
             )
@@ -113,6 +115,10 @@ class GeofileType(enum.Enum):
             return cls(value.value)
         # Default behaviour (= lookup based on int value)
         return super()._missing_(value)
+
+    @property
+    def is_fid_zerobased(self) -> bool:
+        return geofiletypes[self.name].is_fid_zerobased
 
     @property
     def is_spatialite_based(self) -> bool:

@@ -74,6 +74,7 @@ class VectorTranslateInfo:
         options: dict = {},
         columns: Optional[List[str]] = None,
         warp: Optional[dict] = None,
+        preserve_fid: Optional[bool] = None,
     ):
         self.input_path = input_path
         self.output_path = output_path
@@ -94,6 +95,7 @@ class VectorTranslateInfo:
         self.options = options
         self.columns = columns
         self.warp = warp
+        self.preserve_fid = preserve_fid
 
 
 def vector_translate_by_info(info: VectorTranslateInfo):
@@ -117,6 +119,7 @@ def vector_translate_by_info(info: VectorTranslateInfo):
         options=info.options,
         columns=info.columns,
         warp=info.warp,
+        preserve_fid=info.preserve_fid,
     )
 
 
@@ -140,6 +143,7 @@ def vector_translate(
     options: dict = {},
     columns: Optional[List[str]] = None,
     warp: Optional[dict] = None,
+    preserve_fid: Optional[bool] = None,
 ) -> bool:
     # API Doc of VectorTranslateOptions:
     #   https://gdal.org/api/python/osgeo.gdal.html#osgeo.gdal.VectorTranslateOptions
@@ -242,6 +246,11 @@ def vector_translate(
     output_geometrytypes.append("PROMOTE_TO_MULTI")
     if transaction_size is not None:
         args.extend(["-gt", str(transaction_size)])
+    if preserve_fid is not None:
+        if preserve_fid:
+            args.append("-preserve_fid")
+        else:
+            args.append("-unsetFid")
 
     # Output layer creation options are only applicable if a new layer will be
     # created

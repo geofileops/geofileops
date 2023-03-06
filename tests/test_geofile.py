@@ -199,6 +199,41 @@ def test_convert_force_output_geometrytype(tmp_path, testfile, force_geometrytyp
     assert gfo.get_layerinfo(dst).geometrytype == force_geometrytype
 
 
+@pytest.mark.parametrize(
+    "src_suffix, dst_suffix, preserve_fid, exp_preserved_fids",
+    [
+        (".shp", ".gpkg", True, True),
+        (".shp", ".gpkg", False, False),
+        (".gpkg", ".shp", True, False),
+        (".shp", ".sqlite", True, True),
+        (".shp", ".sqlite", False, False),
+    ],
+)
+def test_convert_preserve_fid(
+    tmp_path,
+    src_suffix: str,
+    dst_suffix: str,
+    preserve_fid: bool,
+    exp_preserved_fids: bool,
+):
+    src = test_helper.get_testfile("polygon-parcel", suffix=src_suffix)
+
+    # Convert with preserve_fid=None (default)
+    # ----------------------------------------
+    dst = tmp_path / f"{src.stem}-output_preserve_fid-{preserve_fid}{dst_suffix}"
+    gfo.convert(src, dst, preserve_fid=preserve_fid)
+
+    # Now compare source and dst file
+    src_gdf = gfo.read_file(src, fid_as_index=True)
+    dst_gdf = gfo.read_file(dst, fid_as_index=True)
+    assert len(src_gdf) == len(dst_gdf)
+    assert len(src_gdf.columns) == len(dst_gdf.columns)
+    if exp_preserved_fids:
+        assert src_gdf.index.tolist() == dst_gdf.index.tolist()
+    else:
+        assert src_gdf.index.tolist() != dst_gdf.index.tolist()
+
+
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 def test_convert_reproject(tmp_path, suffix):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
@@ -327,9 +362,11 @@ def test_get_layerinfo(testfile, suffix, layer):
     if src.suffix == ".shp":
         assert layerinfo.geometrycolumn == "geometry"
         assert layerinfo.name == src.stem
+        assert layerinfo.fid_column == ""
     elif src.suffix == ".gpkg":
         assert layerinfo.geometrycolumn == "geom"
         assert layerinfo.name == "parcels"
+        assert layerinfo.fid_column == "fid"
     assert layerinfo.geometrytypename == gfo.GeometryType.MULTIPOLYGON.name
     assert layerinfo.geometrytype == gfo.GeometryType.MULTIPOLYGON
     assert len(layerinfo.columns) == 11
@@ -522,11 +559,11 @@ def test_read_file_fid_as_index(suffix, engine_setter):
     assert isinstance(read_gdf, pd.DataFrame)
     assert len(read_gdf.columns) == 12
     assert len(read_gdf) == 5
-    if suffix == ".gpkg":
+    if gfo.GeofileType(src).is_fid_zerobased:
+        assert read_gdf.index[0] == 5
+    else:
         # Geopackage fid starts at 1
         assert read_gdf.index[0] == 6
-    else:
-        assert read_gdf.index[0] == 5
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)

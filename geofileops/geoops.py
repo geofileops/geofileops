@@ -69,8 +69,10 @@ def apply(
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input
             file only contains one layer.
-        columns (List[str], optional): list of columns to return. If None,
-            all columns are returned.
+        columns (List[str], optional): list of columns to retain. If None, all standard
+            columns are retained. In addition to standard columns, it is also possible
+            to specify "fid", a unique index available in all input files. Note that the
+            "fid" will be aliased eg. to "fid_1". Defaults to None.
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -153,8 +155,10 @@ def buffer(
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input
             file only contains one layer.
-        columns (List[str], optional): list of columns to return. If None,
-            all columns are returned.
+        columns (List[str], optional): list of columns to retain. If None, all standard
+            columns are retained. In addition to standard columns, it is also possible
+            to specify "fid", a unique index available in all input files. Note that the
+            "fid" will be aliased eg. to "fid_1". Defaults to None.
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -311,8 +315,10 @@ def clip_by_geometry(
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the
             file only contains one layer.
-        columns (List[str], optional): list of columns to return. If None,
-            all columns are returned.
+        columns (List[str], optional): list of columns to retain. If None, all standard
+            columns are retained. In addition to standard columns, it is also possible
+            to specify "fid", a unique index available in all input files. Note that the
+            "fid" will be aliased eg. to "fid_1". Defaults to None.
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
        force (bool, optional): overwrite existing output file(s).
@@ -353,8 +359,10 @@ def convexhull(
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input
             file only contains one layer.
-        columns (List[str], optional): If not None, only output the columns
-            specified. Defaults to None.
+        columns (List[str], optional): list of columns to retain. If None, all standard
+            columns are retained. In addition to standard columns, it is also possible
+            to specify "fid", a unique index available in all input files. Note that the
+            "fid" will be aliased eg. to "fid_1". Defaults to None.
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -399,8 +407,10 @@ def delete_duplicate_geometries(
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input
             file only contains one layer.
-        columns (List[str], optional): If not None, only output the columns
-            specified. Defaults to None.
+        columns (List[str], optional): list of columns to retain. If None, all standard
+            columns are retained. In addition to standard columns, it is also possible
+            to specify "fid", a unique index available in all input files. Note that the
+            "fid" will be aliased eg. to "fid_1". Defaults to None.
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
         force (bool, optional): overwrite existing output file(s).
@@ -514,7 +524,9 @@ def dissolve(
                 - "columns": aggregate to seperate columns. The value should
                   be a list of dicts with the following keys:
 
-                    - "column": column name (case insensitive) in the input file.
+                    - "column": column name (case insensitive) in the input file. In
+                      addition to standard columns, it is also possible to specify
+                      "fid", a unique index available in all input files.
                     - "agg": aggregation to use:
 
                         - count: the number of items
@@ -525,7 +537,8 @@ def dissolve(
                         - median
                         - concat
 
-                    - "as": column name in the output file.
+                    - "as": column name in the output file. Note: using "fid" as alias
+                      is not recommended: it can cause errors or odd behaviour.
                     - "distinct" (optional): True to distinct the values before
                       aggregation.
 
@@ -607,8 +620,10 @@ def export_by_bounds(
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the
             file only contains one layer.
-        columns (List[str], optional): list of columns to return. If None,
-            all columns are returned.
+        columns (List[str], optional): list of columns to retain. If None, all standard
+            columns are retained. In addition to standard columns, it is also possible
+            to specify "fid", a unique index available in all input files. Note that the
+            "fid" will be aliased eg. to "fid_1". Defaults to None.
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
         force (bool, optional): overwrite existing output file(s).
@@ -653,8 +668,10 @@ def isvalid(
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the
             file only contains one layer.
-        columns (List[str], optional): list of columns to return. If None,
-            all columns are returned.
+        columns (List[str], optional): list of columns to retain. If None, all standard
+            columns are retained. In addition to standard columns, it is also possible
+            to specify "fid", a unique index available in all input files. Note that the
+            "fid" will be aliased eg. to "fid_1". Defaults to None.
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -722,8 +739,10 @@ def makevalid(
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the
             file only contains one layer.
-        columns (List[str], optional): If not None, only output the columns
-            specified. Defaults to None.
+        columns (List[str], optional): list of columns to retain. If None, all standard
+            columns are retained. In addition to standard columns, it is also possible
+            to specify "fid", a unique index available in all input files. Note that the
+            "fid" will be aliased eg. to "fid_1". Defaults to None.
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
         force_output_geometrytype (GeometryType, optional): The output geometry type to
@@ -792,8 +811,10 @@ def warp(
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the
             file only contains one layer.
-        columns (List[str], optional): If not None, only output the columns
-            specified. Defaults to None.
+        columns (List[str], optional): list of columns to retain. If None, all standard
+            columns are retained. In addition to standard columns, it is also possible
+            to specify "fid", a unique index available in all input files. Note that the
+            "fid" will be aliased eg. to "fid_1". Defaults to None.
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
         force (bool, optional): overwrite existing output file(s).
@@ -894,9 +915,11 @@ def select(
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input
             file only contains one layer.
-        columns (List[str], optional): If not None AND the column placeholders
-            are used in the sql statement, only output the columns specified.
-            Defaults to None.
+        columns (List[str], optional): list of columns to retain, if
+            {columns_to_select_str} is used. If None, all standard
+            columns are retained. In addition to standard columns, it is also possible
+            to specify "fid", a unique index available in all input files. Note that the
+            "fid" will be aliased eg. to "fid_1". Defaults to None.
         explodecollections (bool, optional): True to convert all multi-geometries to
             singular ones after the dissolve. Defaults to False.
         force_output_geometrytype (GeometryType, optional): The output geometry type to
@@ -972,8 +995,10 @@ def simplify(
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input
             file only contains one layer.
-        columns (List[str], optional): If not None, only output the columns
-            specified. Defaults to None.
+        columns (List[str], optional): list of columns to retain. If None, all standard
+            columns are retained. In addition to standard columns, it is also possible
+            to specify "fid", a unique index available in all input files. Note that the
+            "fid" will be aliased eg. to "fid_1". Defaults to None.
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -1062,10 +1087,12 @@ def clip(
         input_path (PathLike): The file to clip.
         clip_path (PathLike): The file with the geometries to clip with.
         output_path (PathLike): the file to write the result to
-        input1_layer (str, optional): input layer name. Optional if the
+        input_layer (str, optional): input layer name. Optional if the
             file only contains one layer.
-        input1_columns (List[str], optional): columns to select. If no columns
-            specified, all columns are selected.
+        input_columns (List[str], optional): list of columns to retain. If None, all
+            standard columns are retained. In addition to standard columns, it is also
+            possible to specify "fid", a unique index available in all input files. Note
+            that the "fid" will be aliased eg. to "fid_1". Defaults to None.
         clip_layer (str, optional): clip layer name. Optional if the
             file only contains one layer.
         output_layer (str, optional): output layer name. Optional if the
@@ -1133,8 +1160,10 @@ def erase(
         output_path (PathLike): the file to write the result to
         input_layer (str, optional): input layer name. Optional if the
             file only contains one layer.
-        input_columns (List[str], optional): columns to select. If no columns
-            specified, all columns are selected.
+        input_columns (List[str], optional): list of columns to retain. If None, all
+            standard columns are retained. In addition to standard columns, it is also
+            possible to specify "fid", a unique index available in all input files. Note
+            that the "fid" will be aliased eg. to "fid_1". Defaults to None.
         erase_layer (str, optional): erase layer name. Optional if the
             file only contains one layer.
         output_layer (str, optional): output layer name. Optional if the
@@ -1176,7 +1205,6 @@ def export_by_location(
     input1_layer: Optional[str] = None,
     input1_columns: Optional[List[str]] = None,
     input2_layer: Optional[str] = None,
-    input2_columns: Optional[List[str]] = None,
     output_layer: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -1199,12 +1227,13 @@ def export_by_location(
             area. Defaults to 'area_inters'. In None, no area column is added.
         input1_layer (str, optional): input layer name. Optional if the
             file only contains one layer.
-        input1_columns (List[str], optional): columns to select. If no columns
-            specified, all columns are selected.
+        input1_columns (List[str], optional): list of columns to retain. If None, all
+            standard columns are retained. In addition to standard columns, it is also
+            possible to specify "fid", a unique index available in all input files. Note
+            that the "fid" will be aliased eg. to "fid_1". Defaults to None.
         input2_layer (str, optional): input layer name. Optional if the
             file only contains one layer.
-        input2_columns (List[str], optional): columns to select. If no columns
-            specified, all columns are selected.
+        input2_columns (List[str], optional): NA.
         output_layer (str, optional): output layer name. Optional if the
             file only contains one layer.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -1221,15 +1250,14 @@ def export_by_location(
         f"interacting with {input_to_compare_with_path} to {output_path}"
     )
     return _geoops_sql.export_by_location(
-        input_to_select_from_path=Path(input_to_select_from_path),
+        input_path=Path(input_to_select_from_path),
         input_to_compare_with_path=Path(input_to_compare_with_path),
         output_path=Path(output_path),
         min_area_intersect=min_area_intersect,
         area_inters_column_name=area_inters_column_name,
-        input1_layer=input1_layer,
-        input1_columns=input1_columns,
-        input2_layer=input2_layer,
-        input2_columns=input2_columns,
+        input_layer=input1_layer,
+        input_columns=input1_columns,
+        input_to_compare_with_layer=input2_layer,
         output_layer=output_layer,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -1261,8 +1289,10 @@ def export_by_distance(
         max_distance (float): maximum distance
         input1_layer (str, optional): input layer name. Optional if the
             file only contains one layer.
-        input1_columns (List[str], optional): columns to select. If no columns
-            specified, all columns are selected.
+        input1_columns (List[str], optional): list of columns to retain. If None, all
+            standard columns are retained. In addition to standard columns, it is also
+            possible to specify "fid", a unique index available in all input files. Note
+            that the "fid" will be aliased eg. to "fid_1". Defaults to None.
         input2_layer (str, optional): input layer name. Optional if the
             file only contains one layer.
         output_layer (str, optional): output layer name. Optional if the
@@ -1363,15 +1393,23 @@ def intersection(
         input2_path (PathLike): the 2nd input file
         output_path (PathLike): the file to write the result to
         input1_layer (str, optional): input layer name. Optional if the
-            file only contains one layer.
-        input1_columns (List[str], optional): columns to select. If no columns
-            specified, all columns are selected.
+            file only contains one layer. Defaults to None.
+        input1_columns (List[str], optional): list of columns to retain. If None, all
+            standard columns are retained. In addition to standard columns, it is also
+            possible to specify "fid", a unique index available in all input files. Note
+            that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
+            "fid_1". Defaults to None.
+        input1_columns_prefix (str, optional): prefix to use in the column aliases.
+            Defaults to "l1_".
         input2_layer (str, optional): input layer name. Optional if the
-            file only contains one layer.
-        input2_columns (List[str], optional): columns to select. If no columns
-            specified, all columns are selected.
-        output_layer (str, optional): output layer name. Optional if the
-            file only contains one layer.
+            file only contains one layer. Defaults to None.
+        input2_columns (List[str], optional): columns to select. If None is specified,
+            all columns are selected. As explained for input1_columns, it is also
+            possible to specify "fid". Defaults to None.
+        input2_columns_prefix (str, optional): prefix to use in the column aliases.
+            Defaults to "l2_".
+        output_layer (str, optional): output layer name. If None, the output_path stem
+            is used. Defaults to None.
         explodecollections (bool, optional): True to convert all multi-geometries to
             singular ones after the dissolve. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -1460,15 +1498,23 @@ def join_by_location(
         area_inters_column_name (str, optional): column name of the intersect
             area. If None no area column is added. Defaults to None.
         input1_layer (str, optional): input layer name. Optional if the
-            file only contains one layer.
-        input1_columns (List[str], optional): columns to select. If no columns
-            specified, all columns are selected.
+            file only contains one layer. Defaults to None.
+        input1_columns (List[str], optional): list of columns to retain. If None, all
+            standard columns are retained. In addition to standard columns, it is also
+            possible to specify "fid", a unique index available in all input files. Note
+            that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
+            "fid_1". Defaults to None.
+        input1_columns_prefix (str, optional): prefix to use in the column aliases.
+            Defaults to "l1_".
         input2_layer (str, optional): input layer name. Optional if the
-            file only contains one layer.
-        input2_columns (List[str], optional): columns to select. If no columns
-            specified, all columns are selected.
-        output_layer (str, optional): output layer name. Optional if the
-            file only contains one layer.
+            file only contains one layer. Defaults to None.
+        input2_columns (List[str], optional): columns to select. If None is specified,
+            all columns are selected. As explained for input1_columns, it is also
+            possible to specify "fid". Defaults to None.
+        input2_columns_prefix (str, optional): prefix to use in the column aliases.
+            Defaults to "l2_".
+        output_layer (str, optional): output layer name. If None, the output_path stem
+            is used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -1531,15 +1577,23 @@ def join_nearest(
         nb_nearest (int): the number of nearest features from input 2 to join
             to input1.
         input1_layer (str, optional): input layer name. Optional if the
-            file only contains one layer.
-        input1_columns (List[str], optional): columns to select. If no columns
-            specified, all columns are selected.
+            file only contains one layer. Defaults to None.
+        input1_columns (List[str], optional): list of columns to retain. If None, all
+            standard columns are retained. In addition to standard columns, it is also
+            possible to specify "fid", a unique index available in all input files. Note
+            that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
+            "fid_1". Defaults to None.
+        input1_columns_prefix (str, optional): prefix to use in the column aliases.
+            Defaults to "l1_".
         input2_layer (str, optional): input layer name. Optional if the
-            file only contains one layer.
-        input2_columns (List[str], optional): columns to select. If no columns
-            specified, all columns are selected.
-        output_layer (str, optional): output layer name. Optional if the
-            file only contains one layer.
+            file only contains one layer. Defaults to None.
+        input2_columns (List[str], optional): columns to select. If None is specified,
+            all columns are selected. As explained for input1_columns, it is also
+            possible to specify "fid". Defaults to None.
+        input2_columns_prefix (str, optional): prefix to use in the column aliases.
+            Defaults to "l2_".
+        output_layer (str, optional): output layer name. If None, the output_path stem
+            is used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -1669,15 +1723,25 @@ def select_two_layers(
         input2_path (PathLike): the 2nd input file
         output_path (PathLike): the file to write the result to
         input1_layer (str, optional): input layer name. Optional if the
-            file only contains one layer.
-        input1_columns (List[str], optional): columns to select. If no columns
-            specified, all columns are selected.
+            file only contains one layer. Defaults to None.
+        input1_columns (List[str], optional): list of columns to retain if one of the
+            {layer1_columns_...} placeholders is used in sql_stmt. If None, all
+            standard columns are retained. In addition to standard columns, it is also
+            possible to specify "fid", a unique index available in all input files. Note
+            that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
+            "fid_1". Defaults to None.
+        input1_columns_prefix (str, optional): prefix to use in the column aliases.
+            Defaults to "l1_".
         input2_layer (str, optional): input layer name. Optional if the
-            file only contains one layer.
-        input2_columns (List[str], optional): columns to select. If no columns
-            specified, all columns are selected.
-        output_layer (str, optional): output layer name. Optional if the
-            file only contains one layer.
+            file only contains one layer. Defaults to None.
+        input2_columns (List[str], optional): list of columns to retain if one of the
+            {layer2_columns_...} placeholders is used in sql_stmt. If None is specified,
+            all columns are selected. As explained for input1_columns, it is also
+            possible to specify "fid". Defaults to None.
+        input2_columns_prefix (str, optional): prefix to use in the column aliases.
+            Defaults to "l2_".
+        output_layer (str, optional): output layer name. If None, the output_path stem
+            is used. Defaults to None.
         explodecollections (bool, optional): True to convert all multi-geometries to
             singular ones after the dissolve. Defaults to False.
         force_output_geometrytype (GeometryType, optional): The output geometry
@@ -1780,15 +1844,23 @@ def symmetric_difference(
         input2_path (PathLike): the 2nd input file
         output_path (PathLike): the file to write the result to
         input1_layer (str, optional): input layer name. Optional if the
-            file only contains one layer.
-        input1_columns (List[str], optional): columns to select. If no columns
-            specified, all columns are selected.
+            file only contains one layer. Defaults to None.
+        input1_columns (List[str], optional): list of columns to retain. If None, all
+            standard columns are retained. In addition to standard columns, it is also
+            possible to specify "fid", a unique index available in all input files. Note
+            that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
+            "fid_1". Defaults to None.
+        input1_columns_prefix (str, optional): prefix to use in the column aliases.
+            Defaults to "l1_".
         input2_layer (str, optional): input layer name. Optional if the
-            file only contains one layer.
-        input2_columns (List[str], optional): columns to select. If no columns
-            specified, all columns are selected.
-        output_layer (str, optional): output layer name. Optional if the
-            file only contains one layer.
+            file only contains one layer. Defaults to None.
+        input2_columns (List[str], optional): columns to select. If None is specified,
+            all columns are selected. As explained for input1_columns, it is also
+            possible to specify "fid". Defaults to None.
+        input2_columns_prefix (str, optional): prefix to use in the column aliases.
+            Defaults to "l2_".
+        output_layer (str, optional): output layer name. If None, the output_path stem
+            is used. Defaults to None.
         explodecollections (bool, optional): True to convert all multi-geometries to
             singular ones after the dissolve. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -1854,15 +1926,23 @@ def split(
         input2_path (PathLike): the 2nd input file
         output_path (PathLike): the file to write the result to
         input1_layer (str, optional): input layer name. Optional if the
-            file only contains one layer.
-        input1_columns (List[str], optional): columns to select. If no columns
-            specified, all columns are selected.
+            file only contains one layer. Defaults to None.
+        input1_columns (List[str], optional): list of columns to retain. If None, all
+            standard columns are retained. In addition to standard columns, it is also
+            possible to specify "fid", a unique index available in all input files. Note
+            that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
+            "fid_1". Defaults to None.
+        input1_columns_prefix (str, optional): prefix to use in the column aliases.
+            Defaults to "l1_".
         input2_layer (str, optional): input layer name. Optional if the
-            file only contains one layer.
-        input2_columns (List[str], optional): columns to select. If no columns
-            specified, all columns are selected.
-        output_layer (str, optional): output layer name. Optional if the
-            file only contains one layer.
+            file only contains one layer. Defaults to None.
+        input2_columns (List[str], optional): columns to select. If None is specified,
+            all columns are selected. As explained for input1_columns, it is also
+            possible to specify "fid". Defaults to None.
+        input2_columns_prefix (str, optional): prefix to use in the column aliases.
+            Defaults to "l2_".
+        output_layer (str, optional): output layer name. If None, the output_path stem
+            is used. Defaults to None.
         explodecollections (bool, optional): True to convert all multi-geometries to
             singular ones after the dissolve. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -1920,15 +2000,23 @@ def union(
         input2_path (PathLike): the 2nd input file
         output_path (PathLike): the file to write the result to
         input1_layer (str, optional): input layer name. Optional if the
-            file only contains one layer.
-        input1_columns (List[str], optional): columns to select. If no columns
-            specified, all columns are selected.
+            file only contains one layer. Defaults to None.
+        input1_columns (List[str], optional): list of columns to retain. If None, all
+            standard columns are retained. In addition to standard columns, it is also
+            possible to specify "fid", a unique index available in all input files. Note
+            that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
+            "fid_1". Defaults to None.
+        input1_columns_prefix (str, optional): prefix to use in the column aliases.
+            Defaults to "l1_".
         input2_layer (str, optional): input layer name. Optional if the
-            file only contains one layer.
-        input2_columns (List[str], optional): columns to select. If no columns
-            specified, all columns are selected.
-        output_layer (str, optional): output layer name. Optional if the
-            file only contains one layer.
+            file only contains one layer. Defaults to None.
+        input2_columns (List[str], optional): columns to select. If None is specified,
+            all columns are selected. As explained for input1_columns, it is also
+            possible to specify "fid". Defaults to None.
+        input2_columns_prefix (str, optional): prefix to use in the column aliases.
+            Defaults to "l2_".
+        output_layer (str, optional): output layer name. If None, the output_path stem
+            is used. Defaults to None.
         explodecollections (bool, optional): True to convert all multi-geometries to
             singular ones after the dissolve. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use.
