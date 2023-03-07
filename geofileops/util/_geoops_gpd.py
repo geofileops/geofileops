@@ -714,10 +714,15 @@ def dissolve(
             )
 
     # Check columns in groupby_columns + make case insensitive
-    if groupby_columns is not None:
-        groupby_columns = _general_util.align_casing_list(
-            list(groupby_columns), list(input_layerinfo.columns) + ["fid"]
+    def align_column_casing(
+        columns_asked: Iterable, columns_in_layer: Iterable
+    ) -> List[str]:
+        return _general_util.align_casing_list(
+            list(columns_asked), list(columns_in_layer) + ["fid"]
         )
+
+    if groupby_columns is not None:
+        groupby_columns = align_column_casing(groupby_columns, input_layerinfo.columns)
 
     # Check agg_columns param
     if agg_columns is not None:
@@ -745,8 +750,8 @@ def dissolve(
                 ]
             else:
                 # Align casing of column names to data
-                agg_columns["json"] = _general_util.align_casing_list(
-                    agg_columns["json"], list(input_layerinfo.columns) + ["fid"]
+                agg_columns["json"] = align_column_casing(
+                    agg_columns["json"], input_layerinfo.columns
                 )
 
         elif "columns" in agg_columns:
@@ -771,8 +776,8 @@ def dissolve(
 
                 # Check if column exists + set casing same as in data
                 if "column" in agg_column:
-                    agg_column["column"] = _general_util.align_casing(
-                        agg_column["column"], list(input_layerinfo.columns) + ["fid"]
+                    agg_column["column"] = align_column_casing(
+                        agg_columns["column"], input_layerinfo.columns
                     )
                 else:
                     raise ValueError(message)
