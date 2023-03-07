@@ -11,7 +11,7 @@
 - Optimize performance of operations when only one batch is used (#19)
 - Optimize number batches for single layer sql operations (#214)
 - Add fid_as_index parameter to read_file (#215)
-- Small improvements/code cleanup (#216)
+- Small improvements/code cleanup (#216, #223)
 
 ### Deprecations and compatibility notes
 
@@ -50,7 +50,8 @@
 
 ### Deprecations and compatibility notes
 
-- In to_file, the default behaviour is now also for .shp to create a spatial index, consistent with convert,... (#183)
+- In to_file, the default behaviour is now also for .shp to create a spatial index,
+  consistent with convert,... (#183)
 
 ## 0.6.2 (2022-11-14)
 
@@ -63,14 +64,16 @@
 ### Improvements
 
 - Add (private) function `is_valid_reason` for GeoSeries (#164)
-- Small improvements in logging, formatting, avoid deprecation warnings,... (#163, #166, #171)
+- Small improvements in logging, formatting, avoid deprecation warnings,...
+  (#163, #166, #171)
 - Add CI tests for python 3.10 and 3.11. On python 3.11 the simplification library is 
   not available (#170) 
 
 ### Bugs fixed
 
 - Fix groupby columns in dissolve not being treated case insensitive (#162)
-- Fix to_file doesn't throw an error nor saves data when appending a dataframe with different columns than file (#159)
+- Fix to_file doesn't throw an error nor saves data when appending a dataframe with
+  different columns than file (#159)
 - Fix ValueError: max_workers must be <= 61 in dissolve (#160)
 - Fix sql_dialect parameter is ignored in select operation (#115)
 
@@ -81,7 +84,8 @@
 - Add single layer function `gfo.export_by_bounds` (#149)
 - Add single layer function `gfo.clip_by_geometry` (#150)
 - Add single layer function `gfo.warp` to warp geometries based on GCP's (#151)
-- Add (private) function to calculate view angles from a point towards a GeoDataFrame (#140)
+- Add (private) function to calculate view angles from a point towards a GeoDataFrame
+  (#140)
 - Add (private) function to calculate topologic simplify (#146)
 - Small changes to support geopandas 0.11+, newer pandas versions,... (#143, #147, #153)
 
@@ -118,8 +122,10 @@ The main improvements in this version are the geo operations `gfo.clip` and
       the json output is not correct.
     - when combining tiled output with `explodecollections=False`, the output 
       is still ~exploded.
-- For e.g. `gfo.intersection` some attribute data is NULL if output format is .shp (#102)
-- `gfo.dissolve` gives error if a linestring input layer contains special characters (#108)
+- For e.g. `gfo.intersection` some attribute data is NULL if output format is .shp
+  (#102)
+- `gfo.dissolve` gives error if a linestring input layer contains special characters
+  (#108)
 
 ### Deprecations and compatibility notes
 
@@ -136,7 +142,8 @@ The main improvements in this version are the geo operations `gfo.clip` and
 
 ## 0.4.0 (2022-03-31)
 
-The main new features in this version are the simplified API, a new geo operation "apply" and dissolve supporting aggregations on columns now.
+The main new features in this version are the simplified API, a new geo operation
+"apply" and dissolve supporting aggregations on columns now.
 
 ### Improvements
 
@@ -144,8 +151,10 @@ The main new features in this version are the simplified API, a new geo operatio
 - Add support for different aggregations on columns in dissolve operation. Info on how to use it can be found [here](https://geofileops.readthedocs.io/en/latest/api/geofileops.dissolve.html#geofileops.dissolve) (#3)
 - Simplify API by removing the seperation in geofile versus geofileops (#52)
 - Improve type annotations and documentation
-- Increase test coverage, including tests on latlon files which weren't available yet (#32)
-- Improve performance of buffer, simplify and complexhull by using the spatialite/sql implementation (#53)
+- Increase test coverage, including tests on latlon files which weren't available yet
+  (#32)
+- Improve performance of buffer, simplify and complexhull by using the spatialite/sql
+  implementation (#53)
 - Improve benchmarks, eg. add graphs,... (#55)
 - Improve performance of _harmonize_to_multitype + improve test (#56)
 
@@ -155,9 +164,15 @@ The main new features in this version are the simplified API, a new geo operatio
 
 ### Deprecations and compatibility notes
 
-- Breaking change: in `gfo.dissolve`, the parameters `aggfunc` and `columns` are replaced by `agg_columns`. More info on the usage can be found [here](https://geofileops.readthedocs.io/en/latest/api/geofileops.dissolve.html#geofileops.dissolve).
-- Due to flattening the API, using `from geofileops import geofile` and `from geofileops import geofileops` is deprecated, and you should use eg. `import geofileops as gfo`. A "FutureWarning" is shown now, in a future version this possibility will probably be removed.
-- The following functions are deprecated. A "FutureWarning" is shown now, in a future version this function they will be removed: 
+- Breaking change: in `gfo.dissolve`, the parameters `aggfunc` and `columns` are
+  replaced by `agg_columns`. More info on the usage can be found
+  [here](https://geofileops.readthedocs.io/en/latest/api/geofileops.dissolve.html#geofileops.dissolve).
+- Due to flattening the API, using `from geofileops import geofile` and
+  `from geofileops import geofileops` is deprecated, and you should use eg.
+  `import geofileops as gfo`. A "FutureWarning" is shown now, in a future version this
+  possibility will probably be removed.
+- The following functions are deprecated. A "FutureWarning" is shown now, in a future
+  version this function they will be removed: 
     - `gfo.get_driver(path)` can be replaced by `GeofileType(Path(path)).ogrdriver`.
     - `get_driver_for_ext(file_ext: str)` can be replaced by `GeofileType(file_ext).ogrdriver`.
     - `gfo.to_multi_type(geometrytypename: str)` can be replaced by `GeometryType(geometrytypename).to_multitype`.  
@@ -165,20 +180,23 @@ The main new features in this version are the simplified API, a new geo operatio
 
 ## 0.3.1 (2022-02-02)
 
-Several improvements and fixes. Especially if you process large files (> 5 GB) some of them will be very useful.
+Several improvements and fixes. Especially if you process large files (> 5 GB) some of
+them will be very useful.
 
 ### Improvements
 
-- #37 add options to choose the buffer style to use.
+- Add options to choose the buffer style to use (#37).
 - Add option in makevalid to specify precision to use.
 - Add support for dissolve with groupby_columns=None + explodecollections=True
-- #38 add batchsize parameter to all geo operations to be able to limit memory usage if needed.
+- add batchsize parameter to all geo operations to be able to limit memory usage if
+  needed (#38).
 - Decrease memory usage for most operations.
 - Run processing in low CPU priority so the computer stays responding.
 
 ### Bugs fixed
 
-- Fix error when processing very large files for buffer, convexhull, dissolve and simplify (IO timeouts).
+- Fix error when processing very large files for buffer, convexhull, dissolve and
+  simplify (IO timeouts).
 - Fix error in simplify when points on geometries should be kept.
 - Don't give an error when result is empty for sql based operations.
 - Explodecollections=True doesn't work on operations on 2 layers.
@@ -240,7 +258,8 @@ Additionally, this is the first version that gets a conda package.
 ### Improvements
 
 - Support for all geometry types for Lang simplification
-- Some code restructuring + code cleanup in util (backwards compatible for now, but isn't public interface anyway)
+- Some code restructuring + code cleanup in util (backwards compatible for now, but
+  isn't public interface anyway)
 - Improve test coverage
 
 ### Bugs fixed
