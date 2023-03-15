@@ -52,10 +52,9 @@ def buffer(
     # Init + prepare sql template for this operation
     # ----------------------------------------------
     if distance < 0:
-        # For a double sided buffer, a negative buffer is only relevant
-        # for polygon types, so only keep polygon results
-        # Negative buffer creates invalid stuff, so use collectionextract
-        # to keep only polygons
+        # For a double sided buffer, a negative buffer is only relevant for polygon
+        # types, so only keep polygon results. Negative buffer creates invalid stuff,
+        # so use collectionextract to keep only polygons.
         sql_template = f"""
             SELECT ST_CollectionExtract(
                        ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}), 3
@@ -117,9 +116,9 @@ def convexhull(
     sql_template = """
         SELECT ST_ConvexHull({geometrycolumn}) AS geom
                 {columns_to_select_str}
-            FROM "{input_layer}" layer
-            WHERE 1=1
-            {batch_filter}
+          FROM "{input_layer}" layer
+         WHERE 1=1
+           {batch_filter}
     """
 
     # Go!

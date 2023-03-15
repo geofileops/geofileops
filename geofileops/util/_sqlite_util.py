@@ -264,8 +264,8 @@ def create_table_as_sql(
                             output_geometrytype = GeometryType["GEOMETRY"]
                     column_types[columnname] = output_geometrytype.name
                 else:
-                    # If PRAGMA TABLE_INFO doesn't specify the datatype,
-                    # determine based on data
+                    # If PRAGMA TABLE_INFO doesn't specify the datatype, determine based
+                    # on data.
                     if columntype is None or columntype == "":
                         sql = f"SELECT typeof({columnname}) FROM tmp;"
                         result = conn.execute(sql).fetchall()
@@ -275,8 +275,8 @@ def create_table_as_sql(
                             # If unknown, take the most general types
                             column_types[columnname] = "NUMERIC"
                     elif columntype == "NUM":
-                        # PRAGMA TABLE_INFO sometimes returns8 'NUM', but
-                        # apparently this cannot be used in "CREATE TABLE"
+                        # PRAGMA TABLE_INFO sometimes returns 'NUM', but apparently this
+                        # cannot be used in "CREATE TABLE".
                         if tmpdata is not None and isinstance(
                             tmpdata[column_index], datetime.date
                         ):
