@@ -172,7 +172,7 @@ def test_buffer_columns_fid(tmp_path, suffix, fileops_module, testfile):
     output_layerinfo = fileops.get_layerinfo(output_path)
     output_gdf = fileops.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
-    assert list(output_layerinfo.columns) == ["LBLHFDTLT", "fid_1"]
+    assert list(output_layerinfo.columns) == ["LblHfdTlt", "fid_1"]
     assert len(output_gdf[output_gdf.fid_1 == multi_fid]) == 2
 
 
@@ -354,7 +354,7 @@ def test_convexhull(tmp_path, fileops_module, suffix, empty_input):
     assert output_path.exists()
     layerinfo_output = fileops.get_layerinfo(output_path)
     assert "OIDN" in layerinfo_output.columns
-    assert "UIDN" in layerinfo_output.columns
+    assert "uidn" in layerinfo_output.columns
     assert len(layerinfo_output.columns) == len(columns)
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
