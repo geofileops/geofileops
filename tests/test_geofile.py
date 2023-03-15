@@ -529,7 +529,7 @@ def test_read_file(suffix, engine_setter):
     assert len(read_gdf) == 46
     columns.append("geometry")
     for index, column in enumerate(read_gdf.columns):
-        assert str(column).casefold() == columns[index].casefold()
+        assert str(column) == columns[index]
 
     # Test no geom
     read_gdf = gfo.read_file_nogeom(src)

@@ -1147,6 +1147,7 @@ def _read_file_base_fiona(
     # Reorder columns + change casing so they are the same as columns parameter
     if columns_prepared is not None and len(columns_prepared) > 0:
         result_gdf = result_gdf[list(columns_prepared) + ["geometry"]]
+        result_gdf = result_gdf.rename(columns=columns_prepared)  # type: ignore
 
     # Starting from fiona 1.9, string columns with all None values are read as being
     # float columns. Convert them to object type.
@@ -1240,6 +1241,7 @@ def _read_file_base_pyogrio(
     # Reorder columns + change casing so they are the same as columns parameter
     if columns_prepared is not None and len(columns_prepared) > 0:
         result_gdf = result_gdf[list(columns_prepared) + ["geometry"]]
+        result_gdf = result_gdf.rename(columns=columns_prepared)  # type: ignore
 
     # assert to evade pyLance warning
     assert isinstance(result_gdf, pd.DataFrame) or isinstance(
