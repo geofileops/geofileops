@@ -345,6 +345,24 @@ def test_get_default_layer(suffix):
     assert layer == src.stem
 
 
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_get_layer_geometrytypes(suffix):
+    # Prepare test data + test
+    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    geometrytypes = gfo.get_layer_geometrytypes(src)
+    assert geometrytypes == ["POLYGON", "MULTIPOLYGON"]
+
+
+def test_get_layer_geometrytypes_geometry(tmp_path):
+    # Prepare test data + test
+    src = test_helper.get_testfile("polygon-parcel", suffix=".gpkg")
+    test_path = tmp_path / f"{src.stem}_geometry{src.suffix}"
+    gfo.convert(src, test_path, force_output_geometrytype="GEOMETRY")
+    assert gfo.get_layerinfo(test_path).geometrytypename == "GEOMETRY"
+    geometrytypes = gfo.get_layer_geometrytypes(src)
+    assert geometrytypes == ["POLYGON", "MULTIPOLYGON"]
+
+
 @pytest.mark.parametrize(
     "testfile, suffix, layer",
     [

@@ -204,6 +204,37 @@ class LayerInfo:
         return f"{self.__class__}({self.__dict__})"
 
 
+def get_layer_geometrytypes(
+    path: Union[str, "os.PathLike[Any]"], layer: Optional[str] = None
+) -> List[str]:
+    """
+    Get the geometry types in the layer by examining each geometry in the layer.
+
+    The general geometry type of the layer can be determined using
+    :meth:`~get_layerinfo`.
+
+    Args:
+        path (PathLike): path to the file to get info about
+        layer (str): the layer you want info about. Doesn't need to be
+            specified if there is only one layer in the geofile.
+
+    Returns:
+        List[str]: the geometry types in the layer.
+    """
+    layerinfo = get_layerinfo(path, layer)
+    sql_stmt = f"""
+        SELECT DISTINCT
+               CASE
+                 WHEN CastToSingle({layerinfo.geometrycolumn}) IS NOT NULL THEN
+                     ST_GeometryType(CastToSingle({layerinfo.geometrycolumn}))
+                 ELSE ST_GeometryType({layerinfo.geometrycolumn})
+               END AS geom_type
+          FROM "{layerinfo.name}"
+    """
+    result_df = read_file_sql(path, sql_stmt=sql_stmt, sql_dialect="SQLITE")
+    return result_df["geom_type"].to_list()  # type: ignore
+
+
 def get_layerinfo(
     path: Union[str, "os.PathLike[Any]"], layer: Optional[str] = None
 ) -> LayerInfo:
