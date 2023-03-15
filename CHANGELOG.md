@@ -8,6 +8,7 @@
 - Add possibility to backup the fid in output files when applying operations (#114)
 - Add support to to_file to write empty dataframe + add parameter 
   force_output_geometrytype (#205)
+- Add support to read_file to execute sql statements (#222)
 - Optimize performance of operations when only one batch is used (#19)
 - Optimize number batches for single layer sql operations (#214)
 - Add fid_as_index parameter to read_file (#215)
@@ -18,6 +19,8 @@
 - When a geo operation results in an empty result, gfo now always writes an empty output
   file instead of no output. This is also the behaviour of other high level libraries
   like in the toolbox of QGIS or ArcGIS. (#188)
+- Function read_file_sql is deprecated in favour of read_file. Mind: in read_file the
+  sql_dialect default is None instead of "SQLITE". (#222)
 - The (private) util function `view_angles` is moved to 
   [pygeoops](https://github.com/pygeoops/pygeoops) (#209)
 

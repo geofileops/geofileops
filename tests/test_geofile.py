@@ -573,7 +573,82 @@ def test_read_file_sql(suffix, engine_setter):
 
     # Test
     src_layerinfo = gfo.get_layerinfo(src)
+    sql_stmt = f'SELECT * FROM "{src_layerinfo.name}"'
+    if engine_setter == "fiona":
+        with pytest.raises(ValueError, match="sql_stmt is not supported with fiona"):
+            _ = gfo.read_file(src, sql_stmt=sql_stmt)
+        return
+
+    read_gdf = gfo.read_file(src, sql_stmt=sql_stmt)
+    assert isinstance(read_gdf, gpd.GeoDataFrame)
+    assert len(read_gdf) == 46
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_read_file_sql_deprecated(suffix, engine_setter):
+    if engine_setter == "fiona":
+        pytest.skip("sql_stmt param not supported for fiona engine")
+
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+
+    # Test
+    src_layerinfo = gfo.get_layerinfo(src)
     read_gdf = gfo.read_file_sql(src, sql_stmt=f'SELECT * FROM "{src_layerinfo.name}"')
+    assert isinstance(read_gdf, gpd.GeoDataFrame)
+    assert len(read_gdf) == 46
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_read_file_sql_no_geom(suffix, engine_setter):
+    if engine_setter == "fiona":
+        pytest.skip("sql_stmt param not supported for fiona engine")
+
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+
+    # Test
+    src_layerinfo = gfo.get_layerinfo(src)
+    sql_stmt = f'SELECT count(*) AS aantal FROM "{src_layerinfo.name}"'
+    read_df = gfo.read_file(src, sql_stmt=sql_stmt)
+    assert isinstance(read_df, pd.DataFrame)
+    assert len(read_df) == 1
+    assert read_df["aantal"].item() == 46
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_read_file_sql_placeholders(suffix, engine_setter):
+    if engine_setter == "fiona":
+        pytest.skip("sql_stmt param not supported for fiona engine")
+
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+
+    # Test
+    sql_stmt = """
+        SELECT {geometrycolumn}
+              {columns_to_select_str}
+          FROM "{input_layer}" layer
+    """
+    columns = ["OIDN", "UIDN"]
+    read_sql_gdf = gfo.read_file(
+        src, sql_stmt=sql_stmt, sql_dialect="SQLITE", columns=columns
+    )
+    read_gdf = gfo.read_file(src, columns=columns)
+    assert_geodataframe_equal(read_gdf, read_sql_gdf)
+
+
+def test_read_file_two_layers(engine_setter):
+    src = test_helper.get_testfile("polygon-twolayers")
+    layers = gfo.listlayers(src)
+    assert "parcels" in layers
+    assert "zones" in layers
+
+    read_gdf = gfo.read_file(src, layer="zones")
+    assert isinstance(read_gdf, gpd.GeoDataFrame)
+    assert len(read_gdf) == 5
+
+    read_gdf = gfo.read_file(src, layer="parcels")
     assert isinstance(read_gdf, gpd.GeoDataFrame)
     assert len(read_gdf) == 46
 
