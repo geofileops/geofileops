@@ -337,11 +337,29 @@ def vector_translate(
                         logger.info(line)
                 errorlog_file.truncate(0)  # size '0' when using r+
 
-        # Check in several ways if an error occured
+        # If the resulting datasource is None, something went wrong
         if result_ds is None:
             raise GFOError(f"result_ds is None ({cpl_error})")
+
+        # If the output file is an empty shapefile and it was the result of a SQLITE sql
+        # statement, delete the "geom" column if it is present
+        if (
+            sql_stmt is not None
+            and sql_dialect == "SQLITE"
+            and output_path.suffix.lower() == ".shp"
+        ):
+            assert isinstance(result_ds, gdal.Dataset)
+            result_layer = result_ds.GetLayerByIndex(0)
+            if result_layer.GetFeatureCount() == 0:
+                layer_defn = result_layer.GetLayerDefn()
+                for field_idx in range(layer_defn.GetFieldCount()):
+                    field_name = layer_defn.GetFieldDefn(field_idx).GetName()
+                    if field_name.lower() == "geom":
+                        result_layer.DeleteField(field_idx)
+                        break
+
+        # Sometimes an invalid output file is written, so close and try to reopen it.
         result_ds = None
-        # Sometimes an invalid output file is written, so try to open it.
         if output_path.exists():
             try:
                 result_ds = gdal.OpenEx(str(output_path))

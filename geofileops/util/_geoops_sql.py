@@ -49,11 +49,12 @@ def buffer(
     batchsize: int = -1,
     force: bool = False,
 ):
+    # Init + prepare sql template for this operation
+    # ----------------------------------------------
     if distance < 0:
-        # For a double sided buffer, aA negative buffer is only relevant
-        # for polygon types, so only keep polygon results
-        # Negative buffer creates invalid stuff, so use collectionextract
-        # to keep only polygons
+        # For a double sided buffer, a negative buffer is only relevant for polygon
+        # types, so only keep polygon results. Negative buffer creates invalid stuff,
+        # so use collectionextract to keep only polygons.
         sql_template = f"""
             SELECT ST_CollectionExtract(
                        ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}), 3
@@ -73,8 +74,13 @@ def buffer(
         """
 
     # Buffer operation always results in polygons...
-    force_output_geometrytype = GeometryType.MULTIPOLYGON
+    if explodecollections:
+        force_output_geometrytype = GeometryType.POLYGON
+    else:
+        force_output_geometrytype = GeometryType.MULTIPOLYGON
 
+    # Go!
+    # ---
     return _single_layer_vector_operation(
         input_path=input_path,
         output_path=output_path,
@@ -104,17 +110,20 @@ def convexhull(
     batchsize: int = -1,
     force: bool = False,
 ):
-    # Prepare sql template for this operation
+    # Init + prepare sql template for this operation
+    # ----------------------------------------------
+    input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
     sql_template = """
         SELECT ST_ConvexHull({geometrycolumn}) AS geom
-              {columns_to_select_str}
+                {columns_to_select_str}
           FROM "{input_layer}" layer
          WHERE 1=1
            {batch_filter}
     """
 
+    # Go!
+    # ---
     # Output geometry type same as input geometry type
-    input_layer_info = gfo.get_layerinfo(input_path, input_layer)
     return _single_layer_vector_operation(
         input_path=input_path,
         output_path=output_path,
@@ -124,7 +133,7 @@ def convexhull(
         output_layer=output_layer,
         columns=columns,
         explodecollections=explodecollections,
-        force_output_geometrytype=input_layer_info.geometrytype,
+        force_output_geometrytype=input_layerinfo.geometrytype,
         sql_dialect="SQLITE",
         filter_null_geoms=True,
         nb_parallel=nb_parallel,
@@ -254,11 +263,14 @@ def makevalid(
     batchsize: int = -1,
     force: bool = False,
 ):
-    # Specify output_geomatrytype, because otherwise makevalid results in
+    # Init + prepare sql template for this operation
+    # ----------------------------------------------
+    input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
+
+    # Specify output_geometrytype, because otherwise makevalid results in
     # column type 'GEOMETRY'/'UNKNOWN(ANY)'
-    layerinfo = gfo.get_layerinfo(input_path, input_layer)
     if force_output_geometrytype is None:
-        force_output_geometrytype = layerinfo.geometrytype
+        force_output_geometrytype = input_layerinfo.geometrytype
 
     # First compose the operation to be done on the geometries
     # If the number of decimals of coordinates should be limited
@@ -278,10 +290,10 @@ def makevalid(
     # Now we can prepare the entire statement
     sql_template = f"""
         SELECT {operation} AS geom
-              {{columns_to_select_str}}
-          FROM "{{input_layer}}" layer
-         WHERE 1=1
-           {{batch_filter}}
+                {{columns_to_select_str}}
+            FROM "{{input_layer}}" layer
+            WHERE 1=1
+            {{batch_filter}}
     """
 
     _single_layer_vector_operation(
@@ -369,13 +381,14 @@ def simplify(
     batchsize: int = -1,
     force: bool = False,
 ):
-    # Prepare sql template for this operation
+    # Init + prepare sql template for this operation
+    # ----------------------------------------------
     sql_template = f"""
         SELECT ST_SimplifyPreserveTopology({{geometrycolumn}}, {tolerance}) AS geom
-              {{columns_to_select_str}}
-          FROM "{{input_layer}}" layer
-         WHERE 1=1
-           {{batch_filter}}
+                {{columns_to_select_str}}
+            FROM "{{input_layer}}" layer
+            WHERE 1=1
+            {{batch_filter}}
     """
 
     # Output geometry type same as input geometry type
@@ -2057,12 +2070,6 @@ def _prepare_processing_params(
     returnvalue = ProcessingParams(nb_parallel=nb_parallel)
     input1_layerinfo = gfo.get_layerinfo(input1_path, input1_layer)
 
-    if input1_layerinfo.featurecount == 0:
-        logger.info(
-            f"input1 layer contains 0 rows, file: {input1_path}, layer: {input1_layer}"
-        )
-        return None
-
     # Determine the optimal number of parallel processes + batches
     if returnvalue.nb_parallel == -1:
         # If no batch size specified, put at least 100 rows in a batch
@@ -2381,28 +2388,31 @@ def dissolve_singlethread(
                 )
 
     # Now prepare the sql statement
-    # Remark: calculating the area in the enclosing selects halves the
-    # processing time
+    # Remark: calculating the area in the enclosing selects halves the processing time
 
     # The operation to run on the geometry
     operation = f"ST_union(layer.{layerinfo.geometrycolumn})"
-    force_output_geometrytype = None
 
-    # If the input is a linestring, also apply st_linemerge().
-    # If not, the individual lines are just concatenated together8 and common
-    # points are not removed, resulting in the original seperate lines again
-    # if explodecollections is True.
+    # If the input is a linestring, also apply st_linemerge(), otherwise the individual
+    # lines are just concatenated together and common points are not removed, resulting
+    # in the original seperate lines again if explodecollections is True.
+    force_output_geometrytype = None
     if layerinfo.geometrytype.to_primitivetype == PrimitiveType.LINESTRING:
         operation = f"ST_LineMerge({operation})"
         if explodecollections is True:
             force_output_geometrytype = GeometryType.LINESTRING
 
+    # If there are no input features, the output geometry type needs to be specified
+    # so gdal can create an empty output file with the right geometry type.
+    if force_output_geometrytype is None and layerinfo.featurecount == 0:
+        force_output_geometrytype = layerinfo.geometrytype
+
     sql_stmt = f"""
         SELECT {operation} AS geom
-              {groupby_columns_for_select_str}
-              {agg_columns_str}
-          FROM "{input_layer}" layer
-         GROUP BY {groupby_columns_for_groupby_str}
+            {groupby_columns_for_select_str}
+            {agg_columns_str}
+        FROM "{input_layer}" layer
+        GROUP BY {groupby_columns_for_groupby_str}
     """
 
     _ogr_util.vector_translate(

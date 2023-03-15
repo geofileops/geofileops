@@ -99,6 +99,8 @@ def create_table_as_sql(
     append: bool = False,
     update: bool = False,
     create_spatial_index: bool = True,
+    empty_output_ok: bool = True,
+    column_datatypes: Optional[dict] = None,
     profile: SqliteProfile = SqliteProfile.DEFAULT,
 ):
     """
@@ -115,6 +117,13 @@ def create_table_as_sql(
         update (bool, optional): True to append to an existing layer. Defaults to False.
         create_spatial_index (bool, optional): True to create a spatial index on the
             output layer. Defaults to True.
+        empty_output_ok (bool, optional): If the sql_stmt doesn't return any rows and
+            True, create an empty output file. If False, throw EmptyResultError.
+            Defaults to True.
+        column_datatypes (dict, optional): Can be used to specify the data types of
+            columns in the form of {"columnname": "datatype"}. If the data type of
+            (some) columns is not specified, it it automatically determined as good as
+            possible. Defaults to None.
         profile (SqliteProfile, optional): the set of PRAGMA's to use when creating the
             table. SqliteProfile.DEFAULT will use default setting. SqliteProfile.SPEED
             uses settings optimized for speed, but will be less save regarding
@@ -222,10 +231,12 @@ def create_table_as_sql(
             cur = conn.execute(sql)
             tmpcolumns = cur.fetchall()
 
-            # Fetch one row to try to get more detailed data types
-            sql = sql_stmt
+            # Fetch one row to try to get more detailed data types if needed
+            sql = "SELECT * FROM tmp"
             tmpdata = conn.execute(sql).fetchone()
-            if tmpdata is None or len(tmpdata) == 0:
+            if tmpdata is not None and len(tmpdata) == 0:
+                tmpdata = None
+            if not empty_output_ok and tmpdata is None:
                 # If no row was returned, stop
                 raise EmptyResultError(f"Query didn't return any rows: {sql_stmt}")
 
@@ -235,40 +246,49 @@ def create_table_as_sql(
                 columnname = column[1]
                 columntype = column[2]
 
-                if columnname == "geom":
+                if column_datatypes is not None and columnname in column_datatypes:
+                    column_types[columnname] = column_datatypes[columnname]
+                elif columnname == "geom":
                     # PRAGMA TABLE_INFO gives None as column type for a
                     # geometry column. So if output_geometrytype not specified,
                     # Use ST_GeometryType to get the type
                     # based on the data + apply to_multitype to be sure
                     if output_geometrytype is None:
                         sql = f"SELECT ST_GeometryType({columnname}) FROM tmp;"
-                        column_geometrytypename = conn.execute(sql).fetchall()[0][0]
-                        output_geometrytype = GeometryType[
-                            column_geometrytypename
-                        ].to_multitype
+                        result = conn.execute(sql).fetchall()
+                        if len(result) > 0:
+                            output_geometrytype = GeometryType[
+                                result[0][0]
+                            ].to_multitype
+                        else:
+                            output_geometrytype = GeometryType["GEOMETRY"]
                     column_types[columnname] = output_geometrytype.name
                 else:
-                    # If PRAGMA TABLE_INFO doesn't specify the datatype,
-                    # determine based on data
+                    # If PRAGMA TABLE_INFO doesn't specify the datatype, determine based
+                    # on data.
                     if columntype is None or columntype == "":
                         sql = f"SELECT typeof({columnname}) FROM tmp;"
-                        result = conn.execute(sql).fetchall()[0][0]
-                        if result is not None:
-                            column_types[columnname] = result
+                        result = conn.execute(sql).fetchall()
+                        if len(result) > 0 and result[0][0] is not None:
+                            column_types[columnname] = result[0][0]
                         else:
                             # If unknown, take the most general types
                             column_types[columnname] = "NUMERIC"
                     elif columntype == "NUM":
-                        # PRAGMA TABLE_INFO sometimes returns 'NUM', but
-                        # apparently this cannot be used in "CREATE TABLE"
-                        if isinstance(tmpdata[column_index], datetime.date):
+                        # PRAGMA TABLE_INFO sometimes returns 'NUM', but apparently this
+                        # cannot be used in "CREATE TABLE".
+                        if tmpdata is not None and isinstance(
+                            tmpdata[column_index], datetime.date
+                        ):
                             column_types[columnname] = "DATE"
-                        elif isinstance(tmpdata[column_index], datetime.datetime):
+                        elif tmpdata is not None and isinstance(
+                            tmpdata[column_index], datetime.datetime
+                        ):
                             column_types[columnname] = "DATETIME"
                         else:
                             sql = f'SELECT datetime("{columnname}") FROM tmp;'
-                            result = conn.execute(sql).fetchall()[0][0]
-                            if result is not None:
+                            result = conn.execute(sql).fetchall()
+                            if len(result) > 0 and result[0][0] is not None:
                                 column_types[columnname] = "DATETIME"
                             else:
                                 column_types[columnname] = "NUMERIC"
@@ -368,7 +388,7 @@ def create_table_as_sql(
         if output_path.exists():
             output_path.unlink()
     except Exception as ex:
-        raise Exception(f"Error executing {sql}") from ex
+        raise Exception(f"Error {ex} executing {sql}") from ex
     finally:
         if conn is not None:
             conn.close()
