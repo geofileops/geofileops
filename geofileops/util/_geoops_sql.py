@@ -51,17 +51,7 @@ def buffer(
 ):
     # Init + prepare sql template for this operation
     # ----------------------------------------------
-    input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
-    # TODO: writeemptyfile: remove code for empty input once gdal 3.6.3 is released
-    if input_layerinfo.featurecount == 0:
-        sql_template = """
-            SELECT {geometrycolumn} AS geom
-                  {columns_to_select_str}
-              FROM "{input_layer}" layer
-             WHERE 1=1
-               {batch_filter}
-        """
-    elif distance < 0:
+    if distance < 0:
         # For a double sided buffer, a negative buffer is only relevant
         # for polygon types, so only keep polygon results
         # Negative buffer creates invalid stuff, so use collectionextract
@@ -124,23 +114,13 @@ def convexhull(
     # Init + prepare sql template for this operation
     # ----------------------------------------------
     input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
-    # TODO: writeemptyfile: remove code for empty input once gdal 3.6.3 is released
-    if input_layerinfo.featurecount == 0:
-        sql_template = """
-            SELECT {geometrycolumn} as geom
-                  {columns_to_select_str}
-              FROM "{input_layer}" layer
-             WHERE 1=1
-               {batch_filter}
-        """
-    else:
-        sql_template = """
-            SELECT ST_ConvexHull({geometrycolumn}) AS geom
-                  {columns_to_select_str}
-              FROM "{input_layer}" layer
-             WHERE 1=1
-               {batch_filter}
-        """
+    sql_template = """
+        SELECT ST_ConvexHull({geometrycolumn}) AS geom
+                {columns_to_select_str}
+            FROM "{input_layer}" layer
+            WHERE 1=1
+            {batch_filter}
+    """
 
     # Go!
     # ---
@@ -293,39 +273,29 @@ def makevalid(
     if force_output_geometrytype is None:
         force_output_geometrytype = input_layerinfo.geometrytype
 
-    # TODO: writeemptyfile: remove code for empty input once gdal 3.6.3 is released
-    if input_layerinfo.featurecount == 0:
-        sql_template = """
-            SELECT {geometrycolumn} AS geom
-                  {columns_to_select_str}
-              FROM "{input_layer}" layer
-             WHERE 1=1
-               {batch_filter}
-        """
+    # First compose the operation to be done on the geometries
+    # If the number of decimals of coordinates should be limited
+    if precision is not None:
+        operation = f"SnapToGrid({{geometrycolumn}}, {precision})"
     else:
-        # First compose the operation to be done on the geometries
-        # If the number of decimals of coordinates should be limited
-        if precision is not None:
-            operation = f"SnapToGrid({{geometrycolumn}}, {precision})"
-        else:
-            operation = "{geometrycolumn}"
+        operation = "{geometrycolumn}"
 
-        # Prepare sql template for this operation
-        operation = f"ST_MakeValid({operation})"
+    # Prepare sql template for this operation
+    operation = f"ST_MakeValid({operation})"
 
-        # If we want a specific geometrytype as result, extract it
-        if force_output_geometrytype is not GeometryType.GEOMETRYCOLLECTION:
-            primitivetypeid = force_output_geometrytype.to_primitivetype.value
-            operation = f"ST_CollectionExtract({operation}, {primitivetypeid})"
+    # If we want a specific geometrytype as result, extract it
+    if force_output_geometrytype is not GeometryType.GEOMETRYCOLLECTION:
+        primitivetypeid = force_output_geometrytype.to_primitivetype.value
+        operation = f"ST_CollectionExtract({operation}, {primitivetypeid})"
 
-        # Now we can prepare the entire statement
-        sql_template = f"""
-            SELECT {operation} AS geom
-                  {{columns_to_select_str}}
-              FROM "{{input_layer}}" layer
-             WHERE 1=1
-               {{batch_filter}}
-        """
+    # Now we can prepare the entire statement
+    sql_template = f"""
+        SELECT {operation} AS geom
+                {{columns_to_select_str}}
+            FROM "{{input_layer}}" layer
+            WHERE 1=1
+            {{batch_filter}}
+    """
 
     _single_layer_vector_operation(
         input_path=input_path,
@@ -414,24 +384,13 @@ def simplify(
 ):
     # Init + prepare sql template for this operation
     # ----------------------------------------------
-    input_info = gfo.get_layerinfo(input_path, input_layer)
-    # TODO: writeemptyfile: remove code for empty input once gdal 3.6.3 is released
-    if input_info.featurecount == 0:
-        sql_template = """
-            SELECT {geometrycolumn} AS geom
-                  {columns_to_select_str}
-              FROM "{input_layer}" layer
-             WHERE 1=1
-               {batch_filter}
-        """
-    else:
-        sql_template = f"""
-            SELECT ST_SimplifyPreserveTopology({{geometrycolumn}}, {tolerance}) AS geom
-                  {{columns_to_select_str}}
-              FROM "{{input_layer}}" layer
-             WHERE 1=1
-               {{batch_filter}}
-        """
+    sql_template = f"""
+        SELECT ST_SimplifyPreserveTopology({{geometrycolumn}}, {tolerance}) AS geom
+                {{columns_to_select_str}}
+            FROM "{{input_layer}}" layer
+            WHERE 1=1
+            {{batch_filter}}
+    """
 
     # Output geometry type same as input geometry type
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
@@ -2430,40 +2389,32 @@ def dissolve_singlethread(
                 )
 
     # Now prepare the sql statement
-    # Remark: calculating the area in the enclosing selects halves the
-    # processing time
+    # Remark: calculating the area in the enclosing selects halves the processing time
 
     # The operation to run on the geometry
     operation = f"ST_union(layer.{layerinfo.geometrycolumn})"
-    force_output_geometrytype = None
 
-    # If the input is a linestring, also apply st_linemerge().
-    # If not, the individual lines are just concatenated together8 and common
-    # points are not removed, resulting in the original seperate lines again
-    # if explodecollections is True.
+    # If the input is a linestring, also apply st_linemerge(), otherwise the individual
+    # lines are just concatenated together and common points are not removed, resulting
+    # in the original seperate lines again if explodecollections is True.
+    force_output_geometrytype = None
     if layerinfo.geometrytype.to_primitivetype == PrimitiveType.LINESTRING:
         operation = f"ST_LineMerge({operation})"
         if explodecollections is True:
             force_output_geometrytype = GeometryType.LINESTRING
 
-    # TODO: writeemptyfile: remove code for empty input once gdal 3.6.3 is released
-    if layerinfo.featurecount == 0:
-        sql_stmt = f"""
-            SELECT {layerinfo.geometrycolumn} AS geom
-                {groupby_columns_for_select_str}
-                {agg_columns_str}
-            FROM "{input_layer}" layer
-            GROUP BY {groupby_columns_for_groupby_str}
-        """
+    # If there are no input features, the output geometry type needs to be specified
+    # so gdal can create an empty output file with the right geometry type.
+    if force_output_geometrytype is None and layerinfo.featurecount == 0:
         force_output_geometrytype = layerinfo.geometrytype
-    else:
-        sql_stmt = f"""
-            SELECT {operation} AS geom
-                {groupby_columns_for_select_str}
-                {agg_columns_str}
-            FROM "{input_layer}" layer
-            GROUP BY {groupby_columns_for_groupby_str}
-        """
+
+    sql_stmt = f"""
+        SELECT {operation} AS geom
+            {groupby_columns_for_select_str}
+            {agg_columns_str}
+        FROM "{input_layer}" layer
+        GROUP BY {groupby_columns_for_groupby_str}
+    """
 
     _ogr_util.vector_translate(
         input_path=input_path,
