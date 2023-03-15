@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 
 import geopandas as gpd
+import pandas as pd
 import pytest
 
 # Add path so the local geofileops packages are found
@@ -228,6 +229,42 @@ def test_intersection(tmp_path, testfile, suffix, epsg):
     )
 
 
+@pytest.mark.parametrize("suffix", [".gpkg", ".shp"])
+def test_intersection_resultempty(tmp_path, suffix):
+    # Prepare test data
+    # -----------------
+    input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    input2_path = test_helper.get_testfile(
+        "polygon-zone", suffix=suffix, dst_dir=tmp_path, empty=True
+    )
+    input1_layerinfo = gfo.get_layerinfo(input1_path)
+    batchsize = math.ceil(input1_layerinfo.featurecount / 2)
+    input2_layerinfo = gfo.get_layerinfo(input2_path)
+    assert input2_layerinfo.featurecount == 0
+
+    # Now run test
+    # ------------
+    output_path = (
+        tmp_path / f"{input1_path.stem}_intersection_{input2_path.stem}{suffix}"
+    )
+    gfo.intersection(
+        input1_path=input1_path,
+        input2_path=input2_path,
+        output_path=output_path,
+        nb_parallel=2,
+        batchsize=batchsize,
+    )
+
+    # Check if the output file is correctly created
+    assert output_path.exists()
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.featurecount == 0
+    assert len(output_layerinfo.columns) == (
+        len(input1_layerinfo.columns) + len(input2_layerinfo.columns)
+    )
+    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+
+
 @pytest.mark.parametrize("testfile", ["polygon-parcel"])
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 def test_intersection_columns_fid(tmp_path, testfile, suffix):
@@ -364,11 +401,6 @@ def test_join_by_location(
         force=True,
     )
 
-    # If no result expected, the output files shouldn't exist
-    if expected_featurecount == 0:
-        assert output_path.exists() is False
-        return
-
     # Check if the output file is correctly created
     assert output_path.exists() is True
     input2_layerinfo = gfo.get_layerinfo(input2_path)
@@ -382,7 +414,9 @@ def test_join_by_location(
     # Check the contents of the result file
     # TODO: this test should be more elaborate...
     output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
+    assert len(output_gdf) == expected_featurecount
+    if expected_featurecount > 0:
+        assert output_gdf["geometry"][0] is not None
 
 
 @pytest.mark.parametrize(
@@ -535,19 +569,19 @@ def test_split(tmp_path, suffix, epsg):
 
     # Check the contents of the result file
     # TODO: this test should be more elaborate...
-    output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
+    output_gfo_gdf = gfo.read_file(output_path)
+    assert output_gfo_gdf["geometry"][0] is not None
     input1_gdf = gfo.read_file(input1_path)
     input2_gdf = gfo.read_file(input2_path)
     output_gpd_gdf = input1_gdf.overlay(input2_gdf, how="identity", keep_geom_type=True)
     renames = {
         name_gpd: name_gfo
-        for name_gpd, name_gfo in zip(output_gpd_gdf.columns, output_gdf.columns)
+        for name_gpd, name_gfo in zip(output_gpd_gdf.columns, output_gfo_gdf.columns)
     }
     output_gpd_gdf = output_gpd_gdf.rename(columns=renames)
     # OIDN is float vs int? -> check_column_type=False
     assert_geodataframe_equal(
-        output_gdf,
+        output_gfo_gdf,
         output_gpd_gdf,
         promote_to_multi=True,
         sort_values=True,
@@ -577,8 +611,8 @@ def test_symmetric_difference(tmp_path, suffix, epsg):
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
-    output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
+    output_gfo_gdf = gfo.read_file(output_path)
+    assert output_gfo_gdf["geometry"][0] is not None
     input1_gdf = gfo.read_file(input1_path)
     input2_gdf = gfo.read_file(input2_path)
     output_gpd_gdf = input1_gdf.overlay(
@@ -586,11 +620,11 @@ def test_symmetric_difference(tmp_path, suffix, epsg):
     )
     renames = {
         name_gpd: name_gfo
-        for name_gpd, name_gfo in zip(output_gpd_gdf.columns, output_gdf.columns)
+        for name_gpd, name_gfo in zip(output_gpd_gdf.columns, output_gfo_gdf.columns)
     }
     output_gpd_gdf = output_gpd_gdf.rename(columns=renames)
     assert_geodataframe_equal(
-        output_gdf,
+        output_gfo_gdf,
         output_gpd_gdf,
         promote_to_multi=True,
         sort_values=True,
@@ -639,18 +673,19 @@ def test_union(tmp_path, suffix, epsg):
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
 
     # Check the contents of the result file
-    output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
+    output_gfo_gdf = gfo.read_file(output_path)
+    assert output_gfo_gdf["geometry"][0] is not None
     input1_gdf = gfo.read_file(input1_path)
     input2_gdf = gfo.read_file(input2_path)
     output_gpd_gdf = input1_gdf.overlay(input2_gdf, how="union", keep_geom_type=True)
     renames = {
         name_gpd: name_gfo
-        for name_gpd, name_gfo in zip(output_gpd_gdf.columns, output_gdf.columns)
+        for name_gpd, name_gfo in zip(output_gpd_gdf.columns, output_gfo_gdf.columns)
     }
     output_gpd_gdf = output_gpd_gdf.rename(columns=renames)
+    output_gpd_gdf["l1_DATUM"] = pd.to_datetime(output_gpd_gdf["l1_DATUM"])
     assert_geodataframe_equal(
-        output_gdf,
+        output_gfo_gdf,
         output_gpd_gdf,
         promote_to_multi=True,
         sort_values=True,

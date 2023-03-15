@@ -15,6 +15,9 @@
 
 ### Deprecations and compatibility notes
 
+- When a geo operation results in an empty result, gfo now always writes an empty output
+  file instead of no output. This is also the behaviour of other high level libraries
+  like in the toolbox of QGIS or ArcGIS. (#188)
 - The (private) util function `view_angles` is moved to 
   [pygeoops](https://github.com/pygeoops/pygeoops) (#209)
 
