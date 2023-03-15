@@ -364,9 +364,7 @@ def test_convexhull(tmp_path, fileops_module, suffix, empty_input):
         # Read result for some more detailed checks
         output_gdf = fileops.read_file(output_path)
         assert output_gdf["geometry"][0] is not None
-        expected_gdf = fileops.read_file(input_path)
-        columns_to_keep = [column.upper() for column in columns] + ["geometry"]
-        expected_gdf = expected_gdf[columns_to_keep]
+        expected_gdf = fileops.read_file(input_path, columns=columns)
         expected_gdf.geometry = expected_gdf.geometry.convex_hull
         assert_geodataframe_equal(output_gdf, expected_gdf, sort_values=True)
 
