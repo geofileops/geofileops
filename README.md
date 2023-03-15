@@ -19,7 +19,6 @@ Remarks:
 * The speed (improvement) depends on the operation, the number of available cores and the size of the input files.
   * For CPU bound operations (eg. union,... between large input files) the processing time will depend on the number of available CPU cores. For (very) large files the typical processing time can be divided by the number of available cores.
   * For dissolve on (very) large files, the speed improvement can be more than the processing time divided by the available cores.
-  * For small files and/or computationally easy operations (eg. buffer) geofileops might be slower than other libraries.
 * Tested on geopackage and shapefile input/output files. However, geopackage is highly recommended as it will offer better performance in geofileops... and also for the reasons listed here: www.switchfromshapefile.org.
 
 Documentation on how to use geofileops can be found [here](https://geofileops.readthedocs.io).
