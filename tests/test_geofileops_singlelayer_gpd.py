@@ -18,7 +18,6 @@ import geofileops as gfo
 from geofileops import GeometryType
 from geofileops.util import _geoops_gpd, grid_util
 from geofileops.util import geometry_util
-from geofileops.util import _io_util
 from tests import test_helper
 from tests.test_helper import DEFAULT_EPSGS, DEFAULT_SUFFIXES
 
@@ -29,7 +28,8 @@ def test_get_parallelization_params():
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-def test_apply(tmp_path, suffix):
+@pytest.mark.parametrize("only_geom_input", [True, False])
+def test_apply(tmp_path, suffix, only_geom_input):
     # Prepare test data
     test_gdf = gpd.GeoDataFrame(
         geometry=[  # type: ignore
@@ -45,57 +45,26 @@ def test_apply(tmp_path, suffix):
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
-    # Test apply with only_geom_input=True
-    gfo.apply(
-        input_path=input_path,
-        output_path=output_path,
-        func=lambda geom: geometry_util.remove_inner_rings(
-            geometry=geom, min_area_to_keep=2, crs=input_layerinfo.crs
-        ),
-        only_geom_input=True,
-        batchsize=batchsize,
-    )
-
-    # Now check if the output file is correctly created
-    assert output_path.exists()
-    output_layerinfo = gfo.get_layerinfo(output_path)
-    # The row with the None geometry will be removed
-    assert input_layerinfo.featurecount == (output_layerinfo.featurecount + 1)
-    assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
-
-    # Read result for some more detailed checks
-    output_gdf = gfo.read_file(output_path)
-
-    # In the 1st polygon the island should be removed
-    output_geometry = output_gdf["geometry"][0]
-    assert output_geometry is not None
-    if isinstance(output_geometry, sh_geom.MultiPolygon):
-        assert len(output_geometry.geoms) == 1
-        output_geometry = output_geometry.geoms[0]
-    assert isinstance(output_geometry, sh_geom.Polygon)
-    assert len(output_geometry.interiors) == 0
-
-    # In the 2nd polygon the island is too large, so should still be there
-    output_geometry = output_gdf["geometry"][1]
-    assert output_geometry is not None
-    if isinstance(output_geometry, sh_geom.MultiPolygon):
-        assert len(output_geometry.geoms) == 1
-        output_geometry = output_geometry.geoms[0]
-    assert isinstance(output_geometry, sh_geom.Polygon)
-    assert len(output_geometry.interiors) == 1
-
-    # Test apply with only_geom_input=False
-    output_path = _io_util.with_stem(output_path, f"{output_path.stem}_2")
-    gfo.apply(
-        input_path=input_path,
-        output_path=output_path,
-        func=lambda row: geometry_util.remove_inner_rings(
-            row.geometry, min_area_to_keep=2, crs=input_layerinfo.crs
-        ),
-        only_geom_input=False,
-        batchsize=batchsize,
-    )
+    if only_geom_input:
+        gfo.apply(
+            input_path=input_path,
+            output_path=output_path,
+            func=lambda geom: geometry_util.remove_inner_rings(
+                geometry=geom, min_area_to_keep=2, crs=input_layerinfo.crs
+            ),
+            only_geom_input=True,
+            batchsize=batchsize,
+        )
+    else:
+        gfo.apply(
+            input_path=input_path,
+            output_path=output_path,
+            func=lambda row: geometry_util.remove_inner_rings(
+                row.geometry, min_area_to_keep=2, crs=input_layerinfo.crs
+            ),
+            only_geom_input=False,
+            batchsize=batchsize,
+        )
 
     # Now check if the output file is correctly created
     assert output_path.exists()
