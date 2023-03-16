@@ -11,6 +11,7 @@ import math
 import multiprocessing
 from pathlib import Path
 import shutil
+import string
 from typing import Iterable, List, Literal, Optional
 
 import pandas as pd
@@ -469,13 +470,15 @@ def _single_layer_vector_operation(
         if processing_params is None or processing_params.batches is None:
             return
 
-        # If there are multiple batches, there needs to be a {batch_filter}
-        # placeholder in the sql template!
+        # If multiple batches, there should be a batch_filter placeholder sql_template
         if len(processing_params.batches) > 1:
-            if "{batch_filter}" not in sql_template:
+            placeholders = [
+                name for _, name, _, _ in string.Formatter().parse(sql_template) if name
+            ]
+            if "batch_filter" not in placeholders:
                 raise ValueError(
-                    "Error: nb_batches > 1 but no {batch_filter} "
-                    f"placeholder in sql_template\n{sql_template}"
+                    "Number batches > 1 requires a batch_filter placeholder in "
+                    f"sql_template {sql_template}"
                 )
 
         # Format column string for use in select
@@ -1834,6 +1837,17 @@ def _two_layer_vector_operation(
         )
         if processing_params is None or processing_params.batches is None:
             return
+
+        # If multiple batches, there should be a batch_filter placeholder sql_template
+        if len(processing_params.batches) > 1:
+            placeholders = [
+                name for _, name, _, _ in string.Formatter().parse(sql_template) if name
+            ]
+            if "batch_filter" not in placeholders:
+                raise ValueError(
+                    "Number batches > 1 requires a batch_filter placeholder in "
+                    f"sql_template {sql_template}"
+                )
 
         # Prepare column names,... to format the select
         # Format column strings for use in select
