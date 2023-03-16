@@ -2323,8 +2323,12 @@ def dissolve_singlethread(
     # Use get_layerinfo to check if the layer definition is OK
     layerinfo = gfo.get_layerinfo(input_path, input_layer)
     fid_column = layerinfo.fid_column if layerinfo.fid_column != "" else "rowid"
+    # Prepare some lists for later use
     columns_available = list(layerinfo.columns) + ["fid"]
-    columns_upper = [column.upper() for column in columns_available]
+    columns_available_upper = [column.upper() for column in columns_available]
+    groupby_columns_upper_dict = {}
+    if groupby_columns is not None:
+        groupby_columns_upper_dict = {col.upper(): col for col in groupby_columns}
 
     # Prepare the strings regarding groupby_columns to use in the select statement.
     if groupby_columns is not None:
@@ -2335,13 +2339,12 @@ def dissolve_singlethread(
 
         # Check if all groupby columns exist
         for column in groupby_columns:
-            if column.upper() not in columns_upper:
+            if column.upper() not in columns_available_upper:
                 raise ValueError(f"column in groupby_columns not in input: {column}")
 
         # Because the query uses a subselect, the groupby columns need to be prefixed.
         columns_prefixed = [f'layer."{column}"' for column in groupby_columns]
         groupby_columns_for_groupby_str = ", ".join(columns_prefixed)
-
         columns_prefixed_aliased = [
             f'layer."{column}" "{column}"' for column in groupby_columns
         ]
@@ -2363,14 +2366,6 @@ def dissolve_singlethread(
         # It should be a dict with one key
         if isinstance(agg_columns, dict) is False or len(agg_columns) != 1:
             raise ValueError(message)
-
-        # Prepare some lists for later use
-        columns_upper_dict = {col.upper(): col for col in list(layerinfo.columns)}
-        # Add the special fid column as well
-        columns_upper_dict["FID"] = fid_column
-        groupby_columns_upper_dict = {}
-        if groupby_columns is not None:
-            groupby_columns_upper_dict = {col.upper(): col for col in groupby_columns}
 
         # Start preparation of agg_columns_str
         if "json" in agg_columns:
@@ -2423,11 +2418,14 @@ def dissolve_singlethread(
                 if "distinct" in agg_column and agg_column["distinct"] is True:
                     distinct_str = "DISTINCT "
 
-                # Prepare column name string
+                # Prepare column name string.
                 column = agg_column["column"]
-                if column.upper() not in columns_upper:
+                if column.upper() not in columns_available_upper:
                     raise ValueError(f"{column} not available in: {columns_available}")
-                column_str = f'layer."{column}"'
+                if column.upper() == "FID":
+                    column_str = f'layer."{fid_column}"'
+                else:
+                    column_str = f'layer."{column}"'
 
                 # Now put everything togethers
                 agg_columns_str += (
