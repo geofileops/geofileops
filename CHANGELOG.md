@@ -7,14 +7,17 @@
 - Use [pyogrio](https://github.com/geopandas/pyogrio) for GeoDataFrame io to improve
   performance for operations involving GeoDataFrames (#64, #217)
 - Add possibility to backup the fid in output files when applying operations (#114)
-- Add support to `to_file` to write empty dataframe + add parameter 
+- Add support to `to_file` to write empty dataframe + add basic support for
   `force_output_geometrytype` (#205)
 - Add support to `read_file` to execute sql statements (#222)
-- Add function `gfo.get_layer_geometrytypes` to get a list of all geometry types that
+- Add function `get_layer_geometrytypes` to get a list of all geometry types that
   are actually in a layer (#230)
+- Add `fid_as_index` parameter to `read_file` (#215)
+- Add `force_output_geometrytype` parameter to `apply` (#233)
+- Add `fid_as_index` parameter to `read_file` (#215)
+- Add `force_output_geometrytype` parameter to `apply` (#233)
 - Optimize performance of operations when only one batch is used (#19)
 - Optimize number batches for single layer sql operations (#214)
-- Add `fid_as_index` parameter to `read_file` (#215)
 - Small improvements/code cleanup (#216, #223)
 
 ### Deprecations and compatibility notes

@@ -207,6 +207,7 @@ def apply(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
+    force_output_geometrytype: Union[GeometryType, str, None] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -227,6 +228,7 @@ def apply(
         output_layer=output_layer,
         columns=columns,
         explodecollections=explodecollections,
+        force_output_geometrytype=force_output_geometrytype,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -359,7 +361,7 @@ def _apply_geooperation_to_layer(
     columns: Optional[List[str]] = None,
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
-    force_output_geometrytype: Optional[str] = None,
+    force_output_geometrytype: Union[GeometryType, str, None] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -411,7 +413,8 @@ def _apply_geooperation_to_layer(
             specified. Defaults to None.
         explodecollections (bool, optional): True to convert all multi-geometries to
             singular ones during the geooperation. Defaults to False.
-        force_output_geometrytype
+        force_output_geometrytype (GeometryType, optional): The output geometry type to
+            force. If None, a best-effort guess is made. Defaults to None.
         nb_parallel (int, optional): [description]. Defaults to -1.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
@@ -433,6 +436,8 @@ def _apply_geooperation_to_layer(
         input_layer = gfo.get_only_layer(input_path)
     if output_layer is None:
         output_layer = gfo.get_default_layer(output_path)
+    if isinstance(force_output_geometrytype, GeometryType):
+        force_output_geometrytype = force_output_geometrytype.name
 
     # Prepare tmp files
     tempdir = _io_util.create_tempdir(f"geofileops/{operation.value}")
@@ -513,6 +518,9 @@ def _apply_geooperation_to_layer(
                     rows = slice(row_offset, nb_rows_total)
 
                 # Remark: this temp file doesn't need spatial index
+                # Remark: because force_output_geometrytype for GeoDataFrame
+                # operations is (a lot) more limited than gdal-based, the gdal version
+                # is used later on when the results are merged to the result file.
                 future = calculate_pool.submit(
                     _apply_geooperation,
                     input_path=input_path,
@@ -524,7 +532,6 @@ def _apply_geooperation_to_layer(
                     output_layer=output_layer,
                     rows=rows,
                     explodecollections=explodecollections,
-                    force_output_geometrytype=force_output_geometrytype,
                     force=force,
                 )
                 future_to_batch_id[future] = batch_id
@@ -550,7 +557,10 @@ def _apply_geooperation_to_layer(
                         tmp_partial_output_path.exists()
                         and tmp_partial_output_path.stat().st_size > 0
                     ):
-                        if nb_batches == 1:
+                        # Remark: because force_output_geometrytype for GeoDataFrame
+                        # operations is (a lot) more limited than gdal-based, use the
+                        # gdal version via _append_to_nolock.
+                        if nb_batches == 1 and force_output_geometrytype is None:
                             gfo.move(tmp_partial_output_path, tmp_output_path)
                         else:
                             fileops._append_to_nolock(
@@ -558,6 +568,7 @@ def _apply_geooperation_to_layer(
                                 dst=tmp_output_path,
                                 explodecollections=explodecollections,
                                 create_spatial_index=False,
+                                force_output_geometrytype=force_output_geometrytype,
                             )
                             gfo.remove(tmp_partial_output_path)
 
@@ -596,7 +607,6 @@ def _apply_geooperation(
     columns: Optional[List[str]] = None,
     rows=None,
     explodecollections: bool = False,
-    force_output_geometrytype: Optional[str] = None,
     force: bool = False,
 ) -> str:
     # Init
@@ -661,9 +671,10 @@ def _apply_geooperation(
 
     # If the result is empty, and no output geometrytype specified, use input
     # geometrytype
-    if len(data_gdf) == 0 and force_output_geometrytype is None:
+    force_output_geometrytype = None
+    if len(data_gdf) == 0:
         input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
-        force_output_geometrytype = input_layerinfo.geometrytypename
+        force_output_geometrytype = input_layerinfo.geometrytype.to_multitype.name
 
     # assert to evade pyLance warning
     assert isinstance(data_gdf, gpd.GeoDataFrame)
