@@ -2209,8 +2209,8 @@ def _prepare_processing_params(
             UNION ALL
             SELECT MAX(rowid) minmax_rowid FROM "{layer1_info.name}"
         """
-        batch_info_df = gfo.read_file_sql(
-            path=returnvalue.input1_path, sql_stmt=sql_stmt, ignore_geometry=True
+        batch_info_df = gfo.read_file(
+            path=returnvalue.input1_path, sql_stmt=sql_stmt, sql_dialect="SQLITE"
         )
         min_rowid = pd.to_numeric(batch_info_df["minmax_rowid"][0]).item()
         max_rowid = pd.to_numeric(batch_info_df["minmax_rowid"][1]).item()
@@ -2255,7 +2255,7 @@ def _prepare_processing_params(
                     )
                  GROUP BY batch_id;
             """
-            batch_info_df = gfo.read_file_sql(
+            batch_info_df = gfo.read_file(
                 path=returnvalue.input1_path, sql_stmt=sql_stmt
             )
 
