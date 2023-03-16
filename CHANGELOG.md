@@ -18,6 +18,8 @@
 - Add `force_output_geometrytype` parameter to `apply` (#233)
 - Optimize performance of operations when only one batch is used (#19)
 - Optimize number batches for single layer sql operations (#214)
+- Add check for select operations that if nb_parallel > 1, {batch_filter} is mandatory
+  in sql_stmt (#208)
 - Small improvements/code cleanup (#216, #223)
 
 ### Deprecations and compatibility notes

@@ -539,6 +539,45 @@ def test_select_two_layers(tmp_path, suffix, epsg):
     assert output_gdf["geometry"][0] is not None
 
 
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize(
+    "nb_parallel, has_batch_filter, exp_raise",
+    [(1, False, False), (2, True, False), (2, False, True)],
+)
+def test_select_two_layers_batch_filter(
+    tmp_path, suffix, nb_parallel, has_batch_filter, exp_raise
+):
+    """
+    Test if batch_filter checks are OK.
+    """
+    input1_path = test_helper.get_testfile("polygon-parcel", tmp_path, suffix)
+    input2_path = input1_path
+    output_path = tmp_path / f"{input1_path.stem}-output{suffix}"
+    sql_stmt = """
+        SELECT layer1.{input1_geometrycolumn}
+              {layer1_columns_prefix_alias_str}
+              {layer2_columns_prefix_alias_str}
+          FROM "{input1_layer}" layer1
+          CROSS JOIN "{input2_layer}" layer2
+         WHERE 1=1
+    """
+    if has_batch_filter:
+        sql_stmt += "{batch_filter}"
+
+    if exp_raise:
+        with pytest.raises(
+            ValueError,
+            match="Number batches > 1 requires a batch_filter placeholder in ",
+        ):
+            gfo.select_two_layers(
+                input1_path, input2_path, output_path, sql_stmt, nb_parallel=nb_parallel
+            )
+    else:
+        gfo.select_two_layers(
+            input1_path, input2_path, output_path, sql_stmt, nb_parallel=nb_parallel
+        )
+
+
 @pytest.mark.parametrize(
     "suffix, epsg", [(".gpkg", 31370), (".gpkg", 4326), (".shp", 31370)]
 )
