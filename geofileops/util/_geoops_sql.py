@@ -2425,7 +2425,7 @@ def dissolve_singlethread(
 
                 # Prepare column name string
                 column = agg_column["column"]
-                if column not in columns_upper:
+                if column.upper() not in columns_upper:
                     raise ValueError(f"{column} not available in: {columns_available}")
                 column_str = f'layer."{column}"'
 
