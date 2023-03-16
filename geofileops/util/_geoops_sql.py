@@ -12,7 +12,7 @@ import multiprocessing
 from pathlib import Path
 import shutil
 import string
-from typing import Iterable, List, Literal, Optional
+from typing import Iterable, List, Literal, Optional, Union
 
 import pandas as pd
 
@@ -2293,7 +2293,7 @@ def _prepare_processing_params(
 def dissolve_singlethread(
     input_path: Path,
     output_path: Path,
-    groupby_columns: Optional[Iterable[str]] = None,
+    groupby_columns: Union[str, Iterable[str], None] = None,
     agg_columns: Optional[dict] = None,
     explodecollections: bool = False,
     input_layer: Optional[str] = None,
@@ -2324,6 +2324,11 @@ def dissolve_singlethread(
 
     # Prepare the strings regarding groupby_columns to use in the select statement.
     if groupby_columns is not None:
+        # Standardize parameter to simplify the rest of the code
+        if isinstance(groupby_columns, str):
+            # If a string is passed, convert to list
+            groupby_columns = [groupby_columns]
+
         # Because the query uses a subselect, the groupby columns need to be prefixed.
         columns_prefixed = [f'layer."{column}"' for column in groupby_columns]
         groupby_columns_for_groupby_str = ", ".join(columns_prefixed)

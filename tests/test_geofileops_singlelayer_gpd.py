@@ -439,6 +439,7 @@ def test_dissolve_emptyfile(tmp_path, suffix):
     assert list(output_layerinfo.columns) == groupby_columns
 
 
+@pytest.mark.parametrize("sql_singlethread", [True, False])
 @pytest.mark.parametrize(
     "invalid_params, exp_match",
     [
@@ -464,13 +465,13 @@ def test_dissolve_emptyfile(tmp_path, suffix):
         ),
     ],
 )
-def test_dissolve_invalid_params(tmp_path, invalid_params, exp_match):
+def test_dissolve_invalid_params(tmp_path, sql_singlethread, invalid_params, exp_match):
     """
     Test dissolve with some invalid input params.
     """
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel")
-    groupby_columns = "GEWASGROEP"
+    groupby_columns = ["GEWASGROEP"]
     nb_squarish_tiles = 1
     agg_columns = None
     for invalid_param in invalid_params:
@@ -486,14 +487,25 @@ def test_dissolve_invalid_params(tmp_path, invalid_params, exp_match):
     # Run test
     output_path = tmp_path / "output.gpkg"
     with pytest.raises(ValueError, match=exp_match):
-        gfo.dissolve(
-            input_path=input_path,
-            output_path=output_path,
-            groupby_columns=groupby_columns,
-            explodecollections=True,
-            nb_squarish_tiles=nb_squarish_tiles,
-            agg_columns=agg_columns,
-        )
+        if sql_singlethread:
+            from geofileops.util import _geoops_sql
+
+            _geoops_sql.dissolve_singlethread(
+                input_path=input_path,
+                output_path=output_path,
+                groupby_columns=groupby_columns,
+                explodecollections=True,
+                agg_columns=agg_columns,
+            )
+        else:
+            gfo.dissolve(
+                input_path=input_path,
+                output_path=output_path,
+                groupby_columns=groupby_columns,
+                explodecollections=True,
+                nb_squarish_tiles=nb_squarish_tiles,
+                agg_columns=agg_columns,
+            )
 
 
 def test_dissolve_polygons_groupby_None(tmp_path):
