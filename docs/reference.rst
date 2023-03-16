@@ -69,6 +69,7 @@ General layer operations
    execute_sql
    get_crs
    get_default_layer
+   get_layer_geometrytypes
    get_layerinfo
    get_only_layer
    has_spatial_index

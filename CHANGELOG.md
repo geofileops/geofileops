@@ -9,6 +9,7 @@
 - Add support to to_file to write empty dataframe + add parameter 
   force_output_geometrytype (#205)
 - Add support to read_file to execute sql statements (#222)
+- Add function to get the list of geometry types that are actually in a layer (#)
 - Optimize performance of operations when only one batch is used (#19)
 - Optimize number batches for single layer sql operations (#214)
 - Add fid_as_index parameter to read_file (#215)

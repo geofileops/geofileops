@@ -223,17 +223,16 @@ def get_layer_geometrytypes(
     Returns:
         List[str]: the geometry types in the layer.
     """
-    layerinfo = get_layerinfo(path, layer)
-    sql_stmt = f"""
+    sql_stmt = """
         SELECT DISTINCT
                CASE
-                 WHEN CastToSingle({layerinfo.geometrycolumn}) IS NOT NULL THEN
-                     ST_GeometryType(CastToSingle({layerinfo.geometrycolumn}))
-                 ELSE ST_GeometryType({layerinfo.geometrycolumn})
+                 WHEN CastToSingle({geometrycolumn}) IS NOT NULL THEN
+                     ST_GeometryType(CastToSingle({geometrycolumn}))
+                 ELSE ST_GeometryType({geometrycolumn})
                END AS geom_type
-          FROM "{layerinfo.name}"
+          FROM "{input_layer}" layer
     """
-    result_df = read_file_sql(path, sql_stmt=sql_stmt, sql_dialect="SQLITE")
+    result_df = read_file(path, sql_stmt=sql_stmt, sql_dialect="SQLITE")
     return result_df["geom_type"].to_list()  # type: ignore
 
 
