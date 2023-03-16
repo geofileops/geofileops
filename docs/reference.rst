@@ -69,12 +69,11 @@ General layer operations
    execute_sql
    get_crs
    get_default_layer
+   get_layer_geometrytypes
    get_layerinfo
    get_only_layer
    has_spatial_index
    read_file
-   read_file_nogeom
-   read_file_sql
    remove_spatial_index
    rename_column
    rename_layer
