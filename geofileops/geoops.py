@@ -77,7 +77,8 @@ def apply(
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
         force_output_geometrytype (GeometryType, optional): The output geometry type to
-            force. If None, a best-effort guess is made. Defaults to None.
+            force. If None, a best-effort guess is made and will always result in a
+            multi-type. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
