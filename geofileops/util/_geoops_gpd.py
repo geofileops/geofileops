@@ -207,6 +207,7 @@ def apply(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
+    force_output_geometrytype: Union[GeometryType, str, None] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -227,6 +228,7 @@ def apply(
         output_layer=output_layer,
         columns=columns,
         explodecollections=explodecollections,
+        force_output_geometrytype=force_output_geometrytype,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -550,7 +552,7 @@ def _apply_geooperation_to_layer(
                         tmp_partial_output_path.exists()
                         and tmp_partial_output_path.stat().st_size > 0
                     ):
-                        if nb_batches == 1:
+                        if nb_batches == 1 and force_output_geometrytype is None:
                             gfo.move(tmp_partial_output_path, tmp_output_path)
                         else:
                             fileops._append_to_nolock(
@@ -558,6 +560,7 @@ def _apply_geooperation_to_layer(
                                 dst=tmp_output_path,
                                 explodecollections=explodecollections,
                                 create_spatial_index=False,
+                                force_output_geometrytype=force_output_geometrytype,
                             )
                             gfo.remove(tmp_partial_output_path)
 

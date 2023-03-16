@@ -40,6 +40,7 @@ def apply(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
+    force_output_geometrytype: Union[GeometryType, str, None] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -75,6 +76,8 @@ def apply(
             "fid" will be aliased eg. to "fid_1". Defaults to None.
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
+        force_output_geometrytype (GeometryType, optional): The output geometry type to
+            force. If None, a best-effort guess is made. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -94,6 +97,7 @@ def apply(
         output_layer=output_layer,
         columns=columns,
         explodecollections=explodecollections,
+        force_output_geometrytype=force_output_geometrytype,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
