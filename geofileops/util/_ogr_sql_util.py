@@ -162,7 +162,7 @@ class ColumnFormatter:
             return ""
 
         columns_prefixed_aliased = [
-            f'{column_prefixed} AS "{column_alias}"'
+            f'{column_prefixed} "{column_alias}"'
             for column_prefixed, column_alias in zip(
                 self._columns_prefixed(), self._aliases()
             )
