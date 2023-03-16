@@ -29,7 +29,7 @@ def test_get_parallelization_params():
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 @pytest.mark.parametrize("only_geom_input", [True, False])
-@pytest.mark.parametrize("force_output_geometrytype", [None, "POLYGON"])
+@pytest.mark.parametrize("force_output_geometrytype", [None, GeometryType.POLYGON])
 def test_apply(tmp_path, suffix, only_geom_input, force_output_geometrytype):
     # Prepare test data
     test_gdf = gpd.GeoDataFrame(
