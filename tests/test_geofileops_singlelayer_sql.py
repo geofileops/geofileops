@@ -276,7 +276,7 @@ def test_select_various_options(tmp_path, suffix):
     layerinfo_select = gfo.get_layerinfo(output_path)
     assert layerinfo_input.featurecount == layerinfo_select.featurecount
     assert "OIDN" in layerinfo_select.columns
-    assert "UIDN" in layerinfo_select.columns
+    assert "uidn" in layerinfo_select.columns
     assert len(layerinfo_select.columns) == len(columns)
 
     output_gdf = gfo.read_file(output_path)

@@ -20,19 +20,18 @@ from geofileops.util import _ogr_sql_util
     "exp_quoted, exp_prefixed, exp_prefixed_aliased, "
     "exp_null_aliased, exp_from_subselect",
     [
-        ("No columns asked", [], ["test1"], "", "", "fid", "", "", "", "", ""),
         (
             "2 columns asked out of 3 in layer",
-            ["test1", "test2"],
+            ["test1", "TesT2"],
             ["test1", "test3", "test2"],
             "",
             "",
             "fid",
             ',"test1", "test2"',
             ',"test1", "test2"',
-            ',"test1" "test1", "test2" "test2"',
-            ',NULL "test1", NULL "test2"',
-            ',sub."test1", sub."test2"',
+            ',"test1" "test1", "test2" "TesT2"',
+            ',NULL "test1", NULL "TesT2"',
+            ',sub."test1", sub."TesT2"',
         ),
         (
             "fid asked as well as fid_1",
@@ -86,6 +85,7 @@ from geofileops.util import _ogr_sql_util
             ',NULL "l1_fid", NULL "l1_test1"',
             ',sub."l1_fid", sub."l1_test1"',
         ),
+        ("No columns asked", [], ["test1"], "", "", "fid", "", "", "", "", ""),
     ],
 )
 def test_ColumnFormatter(

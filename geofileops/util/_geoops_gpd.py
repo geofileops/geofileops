@@ -711,25 +711,30 @@ def dissolve(
 
     # Check input parameters
     if groupby_columns is not None and len(list(groupby_columns)) == 0:
-        raise Exception("groupby_columns=[] is not supported. Use None.")
+        raise ValueError("groupby_columns=[] is not supported. Use None.")
     if not input_path.exists():
-        raise Exception(f"input_path does not exist: {input_path}")
+        raise ValueError(f"input_path does not exist: {input_path}")
     input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
     if input_layerinfo.geometrytype.to_primitivetype in [
         PrimitiveType.POINT,
         PrimitiveType.LINESTRING,
     ]:
         if tiles_path is not None or nb_squarish_tiles > 1:
-            raise Exception(
-                "Dissolve to tiles (tiles_path, nb_squarish_tiles) is not supported "
-                f"for {input_layerinfo.geometrytype}"
+            raise ValueError(
+                f"Dissolve to tiles is not supported for {input_layerinfo.geometrytype}"
+                ", so tiles_path should be None and nb_squarish_tiles should be 1)"
             )
 
-    # Check columns in groupby_columns + make case insensitive
+    # Check columns in groupby_columns
     if groupby_columns is not None:
-        groupby_columns = _general_util.align_casing_list(
-            list(groupby_columns), list(input_layerinfo.columns) + ["fid"]
-        )
+        columns_in_layer_upper = [
+            column.upper() for column in list(input_layerinfo.columns) + ["fid"]
+        ]
+        for column in groupby_columns:
+            if column.upper() not in columns_in_layer_upper:
+                raise ValueError(
+                    f"column in groupby_columns not available in layer: {column}"
+                )
 
     # Check agg_columns param
     if agg_columns is not None:

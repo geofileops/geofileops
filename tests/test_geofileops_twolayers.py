@@ -277,6 +277,7 @@ def test_intersection_columns_fid(tmp_path, testfile, suffix):
     output_path = (
         tmp_path / f"{input1_path.stem}_intersection_{input2_path.stem}{suffix}"
     )
+    # Also check if fid casing is preserved in output
     input1_columns = ["lblhfdtlt", "fid"]
     input2_columns = ["naam", "FiD"]
     gfo.intersection(
@@ -300,11 +301,11 @@ def test_intersection_columns_fid(tmp_path, testfile, suffix):
     output_gdf = gfo.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
     assert "l1_fid" in output_gdf.columns
-    assert "l2_fid" in output_gdf.columns
+    assert "l2_FiD" in output_gdf.columns
     if gfo.GeofileType(input2_path).is_fid_zerobased:
-        assert sorted(output_gdf["l2_fid"].unique().tolist()) == [0, 1, 2, 3, 4]
+        assert sorted(output_gdf["l2_FiD"].unique().tolist()) == [0, 1, 2, 3, 4]
     else:
-        assert sorted(output_gdf["l2_fid"].unique().tolist()) == [1, 2, 3, 4, 5]
+        assert sorted(output_gdf["l2_FiD"].unique().tolist()) == [1, 2, 3, 4, 5]
 
 
 def test_prepare_spatial_relations_filter():

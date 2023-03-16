@@ -547,7 +547,7 @@ def test_read_file(suffix, engine_setter):
     assert len(read_gdf) == 46
     columns.append("geometry")
     for index, column in enumerate(read_gdf.columns):
-        assert str(column).casefold() == columns[index].casefold()
+        assert str(column) == columns[index]
 
     # Test no geom
     read_gdf = gfo.read_file_nogeom(src)
@@ -635,7 +635,12 @@ def test_read_file_sql_no_geom(suffix, engine_setter):
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-def test_read_file_sql_placeholders(suffix, engine_setter):
+@pytest.mark.parametrize("columns", [["OIDN", "UIDN"], ["OidN", "UidN"]])
+def test_read_file_sql_placeholders(suffix, engine_setter, columns):
+    """
+    Test if placeholders are properly filled out + if casing used in columns parameter
+    is retained when using placeholders.
+    """
     if engine_setter == "fiona":
         pytest.skip("sql_stmt param not supported for fiona engine")
 
@@ -648,7 +653,6 @@ def test_read_file_sql_placeholders(suffix, engine_setter):
               {columns_to_select_str}
           FROM "{input_layer}" layer
     """
-    columns = ["OIDN", "UIDN"]
     read_sql_gdf = gfo.read_file(
         src, sql_stmt=sql_stmt, sql_dialect="SQLITE", columns=columns
     )

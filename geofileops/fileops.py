@@ -452,11 +452,9 @@ def execute_sql(
     sql_dialect: Optional[str] = None,
 ):
     """
-    Execute a sql statement (DML or DDL) on the file. Is equivalent to running
-    ogrinfo on a file with the -sql parameter.
-    More info here: https://gdal.org/programs/ogrinfo.html
+    Execute a sql statement (DML or DDL) on the file.
 
-    To run SELECT statements on a file, use :meth:`~read_file`.
+    To run SELECT sql statements on a file, use :meth:`~read_file`.
 
     Args:
         path (PathLike): The path to the file.
@@ -916,6 +914,13 @@ def read_file(
         otherwise all columns of the layer.
       * {input_layer}: the layer name of the input layer.
 
+    Example sql statement with placeholders:
+    ::
+
+        SELECT {geometrycolumn}
+              {columns_to_select_str}
+          FROM "{input_layer}" layer
+
     Args:
         path (file path): path to the file to read from
         layer (str, optional): The layer to read. Defaults to None,
@@ -993,9 +998,9 @@ def read_file_nogeom(
     Example sql statement with placeholders:
     ::
 
-        SELECT {{geometrycolumn}}
-              {{columns_to_select_str}}
-          FROM "{{input_layer}}" layer
+        SELECT {geometrycolumn}
+              {columns_to_select_str}
+          FROM "{input_layer}" layer
 
     Args:
         path (file path): path to the file to read from
@@ -1178,6 +1183,7 @@ def _read_file_base_fiona(
     # Reorder columns + change casing so they are the same as columns parameter
     if columns_prepared is not None and len(columns_prepared) > 0:
         result_gdf = result_gdf[list(columns_prepared) + ["geometry"]]
+        result_gdf = result_gdf.rename(columns=columns_prepared)  # type: ignore
 
     # Starting from fiona 1.9, string columns with all None values are read as being
     # float columns. Convert them to object type.
@@ -1271,6 +1277,7 @@ def _read_file_base_pyogrio(
     # Reorder columns + change casing so they are the same as columns parameter
     if columns_prepared is not None and len(columns_prepared) > 0:
         result_gdf = result_gdf[list(columns_prepared) + ["geometry"]]
+        result_gdf = result_gdf.rename(columns=columns_prepared)  # type: ignore
 
     # assert to evade pyLance warning
     assert isinstance(result_gdf, pd.DataFrame) or isinstance(
