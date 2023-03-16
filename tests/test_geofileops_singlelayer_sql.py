@@ -167,6 +167,36 @@ def test_select(tmp_path, input_suffix, output_suffix):
     assert output_gdf["geometry"][0] is not None
 
 
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_select_column_casing(tmp_path, suffix):
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel", tmp_path, suffix)
+
+    # Check if columns parameter works (case insensitive)
+    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
+    columns = ["OIDN", "uidn", "HFDTLT", "lblhfdtlt", "GEWASGROEP", "lengte", "OPPERVL"]
+    layerinfo_input = gfo.get_layerinfo(input_path)
+    sql_stmt = '''SELECT {geometrycolumn}
+                        {columns_to_select_str}
+                    FROM "{input_layer}"'''
+    gfo.select(
+        input_path=input_path,
+        output_path=output_path,
+        columns=columns,
+        sql_stmt=sql_stmt,
+    )
+
+    # Now check if the tmp file is correctly created
+    layerinfo_select = gfo.get_layerinfo(output_path)
+    assert layerinfo_input.featurecount == layerinfo_select.featurecount
+    assert "OIDN" in layerinfo_select.columns
+    assert "uidn" in layerinfo_select.columns
+    assert len(layerinfo_select.columns) == len(columns)
+
+    output_gdf = gfo.read_file(output_path)
+    assert output_gdf["geometry"][0] is not None
+
+
 @pytest.mark.parametrize("input_suffix", DEFAULT_SUFFIXES)
 @pytest.mark.parametrize("output_suffix", DEFAULT_SUFFIXES)
 def test_select_emptyinput(tmp_path, input_suffix, output_suffix):
@@ -254,30 +284,32 @@ def test_select_emptyresult(tmp_path, input_suffix, output_suffix):
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-def test_select_various_options(tmp_path, suffix):
-    # Prepare test data
+@pytest.mark.parametrize(
+    "nb_parallel, has_batch_filter, exp_raise",
+    [(1, False, False), (2, True, False), (2, False, True)],
+)
+def test_select_batch_filter(
+    tmp_path, suffix, nb_parallel, has_batch_filter, exp_raise
+):
+    """
+    Test if batch_filter checks are OK.
+    """
     input_path = test_helper.get_testfile("polygon-parcel", tmp_path, suffix)
-
-    # Check if columns parameter works (case insensitive)
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
-    columns = ["OIDN", "uidn", "HFDTLT", "lblhfdtlt", "GEWASGROEP", "lengte", "OPPERVL"]
-    layerinfo_input = gfo.get_layerinfo(input_path)
-    sql_stmt = '''SELECT {geometrycolumn}
-                        {columns_to_select_str}
-                    FROM "{input_layer}"'''
-    gfo.select(
-        input_path=input_path,
-        output_path=output_path,
-        columns=columns,
-        sql_stmt=sql_stmt,
-    )
+    sql_stmt = """
+        SELECT {geometrycolumn}
+              {columns_to_select_str}
+          FROM "{input_layer}" layer
+         WHERE 1=1
+    """
+    if has_batch_filter:
+        sql_stmt += "{batch_filter}"
 
-    # Now check if the tmp file is correctly created
-    layerinfo_select = gfo.get_layerinfo(output_path)
-    assert layerinfo_input.featurecount == layerinfo_select.featurecount
-    assert "OIDN" in layerinfo_select.columns
-    assert "uidn" in layerinfo_select.columns
-    assert len(layerinfo_select.columns) == len(columns)
-
-    output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
+    if exp_raise:
+        with pytest.raises(
+            ValueError,
+            match="Number batches > 1 requires a batch_filter placeholder in ",
+        ):
+            gfo.select(input_path, output_path, sql_stmt, nb_parallel=nb_parallel)
+    else:
+        gfo.select(input_path, output_path, sql_stmt, nb_parallel=nb_parallel)
