@@ -1747,7 +1747,7 @@ def _dissolve(
     if by is not None:
         if isinstance(by, str):
             if by in aggregated.columns and df[by].dtype != aggregated[by].dtype:
-                aggregated[by] = aggregated[by].astype(df[by].dtype)
+                aggregated[by] = aggregated[by].astype(df[by].dtype)  # type: ignore
         elif isinstance(by, Iterable):
             for col in by:
                 if col in aggregated.columns and df[col].dtype != aggregated[col].dtype:
