@@ -901,10 +901,6 @@ def read_file(
 
     The file format is detected based on the filepath extension.
 
-    The underlying library used to read the file can be choosen using the
-    "GFO_IO_ENGINE" environment variable. Possible values are "fiona" and "pyogrio".
-    Default engine is "pyogrio".
-
     If an sql_stmt is specified, the sqlite query can contain following placeholders
     that will be automatically replaced for you:
 
@@ -919,6 +915,12 @@ def read_file(
         SELECT {geometrycolumn}
               {columns_to_select_str}
           FROM "{input_layer}" layer
+
+    The underlying library used to read the file can be choosen using the
+    "GFO_IO_ENGINE" environment variable. Possible values are "fiona" and "pyogrio".
+    This option is created as a temporary fallback to "fiona" for cases where "pyogrio"
+    gives issues, so please report issues if they are encountered. In the future support
+    for the "fiona" engine most likely will be removed. Default engine is "pyogrio".
 
     Args:
         path (file path): path to the file to read from
@@ -978,59 +980,9 @@ def read_file_nogeom(
     fid_as_index: bool = False,
 ) -> pd.DataFrame:
     """
-    Reads a file to a pandas Dataframe.
-
-    The file format is detected based on the filepath extension.
-
-    The underlying library used to read the file can be choosen using the
-    "GFO_IO_ENGINE" environment variable. Possible values are "fiona" and "pyogrio".
-    Default engine is "pyogrio".
-
-    If an sql_stmt is specified, the sqlite query can contain following placeholders
-    that will be automatically replaced for you:
-
-      * {geometrycolumn}: the column where the primary geometry is stored.
-      * {columns_to_select_str}: if 'columns' is not None, those columns,
-        otherwise all columns of the layer.
-      * {input_layer}: the layer name of the input layer.
-
-    Example sql statement with placeholders:
-    ::
-
-        SELECT {geometrycolumn}
-              {columns_to_select_str}
-          FROM "{input_layer}" layer
-
-    Args:
-        path (file path): path to the file to read from
-        layer (str, optional): The layer to read. Defaults to None,
-            then reads the only layer in the file or throws error.
-        columns (Iterable[str], optional): The (non-geometry) columns to read will
-            be returned in the order specified. If None, all standard columns are read.
-            In addition to standard columns, it is also possible
-            to specify "fid", a unique index available in all input files. Note that the
-            "fid" will be aliased eg. to "fid_1". Defaults to None.
-        bbox ([type], optional): Read only geometries intersecting this bbox.
-            Defaults to None, then all rows are read.
-        rows ([type], optional): Read only the rows specified.
-            Defaults to None, then all rows are read.
-        sql_stmt (str): sql statement to use
-        sql_dialect (str, optional): Sql dialect used. If None, for data sources with
-            explicit SQL support the statement is processed by the default SQL engine
-            (e.g. PostGIS, Geopackage, Spatialite,...). For data sources
-            without SQL support, the "OGRSQL" dialect is the default. Defaults to None.
-        ignore_geometry (bool, optional): True not to read/return the geomatry.
-            Defaults to False.
-        fid_as_index (bool, optional): If True, will use the FIDs of the features that
-            were read as the index of the GeoDataFrame. May start at 0 or 1 depending on
-            the driver. Defaults to False.
-
-    Raises:
-        ValueError: an invalid parameter value was passed.
-
-    Returns:
-        pd.DataFrame: the data read.
+    DEPRECATED: please use read_file with option ignore_geometry=True.
     """
+    warnings.warn("read_file_nogeom is deprecated: use read_file!", FutureWarning)
     result_gdf = _read_file_base(
         path=path,
         layer=layer,
@@ -1196,7 +1148,7 @@ def _read_file_base_fiona(
                 if col in properties and properties[col].startswith("str"):
                     result_gdf[col] = (
                         result_gdf[col]  # type: ignore
-                        .astype(object)
+                        .astype(object)  # type: ignore
                         .replace(np.nan, None)
                     )
 
