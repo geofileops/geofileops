@@ -4,14 +4,17 @@
 
 ### Improvements
 
-- Use pyogrio for GeoDataFrame io to improve performance for some operations (#64, #217)
+- Use [pyogrio](https://github.com/geopandas/pyogrio) for GeoDataFrame io to improve
+  performance for operations involving GeoDataFrames (#64, #217)
 - Add possibility to backup the fid in output files when applying operations (#114)
-- Add support to to_file to write empty dataframe + add parameter 
-  force_output_geometrytype (#205)
-- Add support to read_file to execute sql statements (#222)
+- Add support to `to_file` to write empty dataframe + add parameter 
+  `force_output_geometrytype` (#205)
+- Add support to `read_file` to execute sql statements (#222)
+- Add function `gfo.get_layer_geometrytypes` to get a list of all geometry types that
+  are actually in a layer (#230)
 - Optimize performance of operations when only one batch is used (#19)
 - Optimize number batches for single layer sql operations (#214)
-- Add fid_as_index parameter to read_file (#215)
+- Add `fid_as_index` parameter to `read_file` (#215)
 - Small improvements/code cleanup (#216, #223)
 
 ### Deprecations and compatibility notes
@@ -19,9 +22,9 @@
 - When a geo operation results in an empty result, gfo now always writes an empty output
   file instead of no output. This is also the behaviour of other high level libraries
   like in the toolbox of QGIS or ArcGIS. (#188)
-- Function read_file_sql is deprecated in favour of read_file. Mind: in read_file the
-  sql_dialect default is None instead of "SQLITE". (#222)
-- In read_file the columns in the output now reflect the casing used in the parameter
+- Function `read_file_sql` is deprecated in favour of
+  `read_file`. Mind: in read_file the sql_dialect default is None, not "SQLITE". (#222)
+- In `read_file` the columns in the output now reflect the casing used in the parameter
   rather than the casing in the source file (#229)
 - The (private) util function `view_angles` is moved to 
   [pygeoops](https://github.com/pygeoops/pygeoops) (#209)
