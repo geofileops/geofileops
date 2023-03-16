@@ -46,7 +46,7 @@ def test_clip_by_geometry(tmp_path, suffix):
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-def test_export_by_geometry(tmp_path, suffix):
+def test_export_by_bounds(tmp_path, suffix):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 

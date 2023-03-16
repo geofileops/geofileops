@@ -1580,10 +1580,10 @@ def symmetric_difference(
             erase_layer=input2_layer,
             output_layer=output_layer,
             explodecollections=explodecollections,
-            output_with_spatial_index=False,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
+            output_with_spatial_index=False,
         )
 
         if input2_columns is None or len(input2_columns) > 0:
@@ -1610,10 +1610,10 @@ def symmetric_difference(
             erase_layer=input1_layer,
             output_layer=output_layer,
             explodecollections=explodecollections,
-            output_with_spatial_index=False,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
+            output_with_spatial_index=False,
         )
 
         # Now append
@@ -1624,13 +1624,20 @@ def symmetric_difference(
             dst_layer=output_layer,
         )
 
-        # Create spatial index
-        gfo.create_spatial_index(path=erase1_output_path, layer=output_layer)
+        # Convert or add spatial index
+        tmp_output_path = erase1_output_path
+        if erase1_output_path.suffix != output_path.suffix:
+            # Output file should be in diffent format, so convert
+            tmp_output_path = tempdir / output_path.name
+            gfo.convert(src=erase1_output_path, dst=tmp_output_path)
+        else:
+            # Create spatial index
+            gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
 
         # Now we are ready to move the result to the final spot...
         if output_path.exists():
             gfo.remove(output_path)
-        gfo.move(erase1_output_path, output_path)
+        gfo.move(tmp_output_path, output_path)
 
     finally:
         shutil.rmtree(tempdir)
@@ -1679,10 +1686,10 @@ def union(
             input2_columns_prefix=input2_columns_prefix,
             output_layer=output_layer,
             explodecollections=explodecollections,
-            output_with_spatial_index=False,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
+            output_with_spatial_index=False,
         )
 
         # Now erase input1 from input2 to another temporary output gfo...
@@ -1697,10 +1704,10 @@ def union(
             erase_layer=input1_layer,
             output_layer=output_layer,
             explodecollections=explodecollections,
-            output_with_spatial_index=False,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
+            output_with_spatial_index=False,
         )
 
         # Now append
@@ -1711,13 +1718,20 @@ def union(
             dst_layer=output_layer,
         )
 
-        # Create spatial index
-        gfo.create_spatial_index(path=split_output_path, layer=output_layer)
+        # Convert or add spatial index
+        tmp_output_path = split_output_path
+        if split_output_path.suffix != output_path.suffix:
+            # Output file should be in different format, so convert
+            tmp_output_path = tempdir / output_path.name
+            gfo.convert(src=split_output_path, dst=tmp_output_path)
+        else:
+            # Create spatial index
+            gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
 
         # Now we are ready to move the result to the final spot...
         if output_path.exists():
             gfo.remove(output_path)
-        gfo.move(split_output_path, output_path)
+        gfo.move(tmp_output_path, output_path)
 
     finally:
         shutil.rmtree(tempdir)
@@ -2000,7 +2014,10 @@ def _two_layer_vector_operation(
                         # create_table_as_sql isn't 100% OK: impossible to create a
                         # valid spatial index on it.
                         create_spatial_index = False
-                        if len(processing_params.batches) == 1:
+                        if (
+                            output_with_spatial_index
+                            and len(processing_params.batches) == 1
+                        ):
                             create_spatial_index = True
                         fileops._append_to_nolock(
                             src=tmp_partial_output_path,
@@ -2444,6 +2461,7 @@ def dissolve_singlethread(
         sql_dialect="SQLITE",
         force_output_geometrytype=force_output_geometrytype,
         explodecollections=explodecollections,
+        options={"LAYER_CREATION.SPATIAL_INDEX": True},
     )
 
     logger.info(f"Processing ready, took {datetime.now()-start_time}!")

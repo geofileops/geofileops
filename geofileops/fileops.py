@@ -503,9 +503,9 @@ def create_spatial_index(
 
     # If index already exists, remove index or return
     if has_spatial_index(path, layer):
-        if force_rebuild is True:
+        if force_rebuild:
             remove_spatial_index(path, layer)
-        elif exist_ok is True:
+        elif exist_ok:
             return
         else:
             raise Exception(
