@@ -353,6 +353,16 @@ def test_get_layer_geometrytypes(suffix):
     assert geometrytypes == ["POLYGON", "MULTIPOLYGON"]
 
 
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_get_layer_geometrytypes_empty(tmp_path, suffix):
+    # Prepare test data + test
+    src = test_helper.get_testfile(
+        "polygon-parcel", suffix=suffix, dst_dir=tmp_path, empty=True
+    )
+    geometrytypes = gfo.get_layer_geometrytypes(src)
+    assert geometrytypes == []
+
+
 def test_get_layer_geometrytypes_geometry(tmp_path):
     # Prepare test data + test
     src = test_helper.get_testfile("polygon-parcel", suffix=".gpkg")
