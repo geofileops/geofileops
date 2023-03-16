@@ -47,7 +47,6 @@ class ColumnFormatter:
         Raises:
             ValueError: if columns are asked that are not available in the layer.
         """
-        self._columns_asked = columns_asked
         self._columns_in_layer = columns_in_layer
         self._fid_column = fid_column
         self._table_prefix = f"{table_alias}." if table_alias != "" else ""
@@ -77,8 +76,10 @@ class ColumnFormatter:
             columns = [columns_in_layer_upper[col.upper()] for col in columns_asked]
         else:
             columns = list(columns_in_layer)
+            columns_asked = columns
 
         self._columns = columns
+        self._columns_asked = columns_asked
 
     def _columns_prefixed(self) -> List[str]:
         columns_prefixed = [
@@ -124,7 +125,10 @@ class ColumnFormatter:
         if self._aliases_cache is not None:
             return self._aliases_cache
 
-        aliases = [f"{self._columnname_prefix}{column}" for column in self._columns]
+        # Use columns_asked to keep asked casing
+        aliases = [
+            f"{self._columnname_prefix}{column}" for column in self._columns_asked
+        ]
 
         # If no prefix, create a unique alias for fid column(s)
         if self._columnname_prefix == "":

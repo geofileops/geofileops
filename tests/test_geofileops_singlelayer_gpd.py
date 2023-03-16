@@ -279,11 +279,13 @@ def test_dissolve_linestrings_aggcolumns_columns(tmp_path, suffix, epsg):
         output_basepath.parent
         / f"{output_basepath.stem}_groupby_noexpl{output_basepath.suffix}"
     )
-    groupby_columns = ["NISCODE"]
+    # Also play a bit with casing to check case insnsitivity towards input file, but
+    # retaining the casing used in the groupby_columns parameter in output.
+    groupby_columns = ["NIScode"]
     agg_columns = {
         "columns": [
             {"column": "fid", "agg": "concat", "as": "fid_concat"},
-            {"column": "NAAM", "agg": "max", "as": "naam_max"},
+            {"column": "NaaM", "agg": "max", "as": "naam_MAX"},
         ]
     }
     gfo.dissolve(
@@ -314,12 +316,12 @@ def test_dissolve_linestrings_aggcolumns_columns(tmp_path, suffix, epsg):
     assert output_gdf["geometry"][0] is not None
 
     # Some more default checks for NISCODE 12009
-    niscode_idx = output_gdf[output_gdf["NISCODE"] == "12009"].index.item()
+    niscode_idx = output_gdf[output_gdf["NIScode"] == "12009"].index.item()
     if gfo.GeofileType(input_path).is_fid_zerobased:
         assert output_gdf["fid_concat"][niscode_idx] == "38,42,44,54"
     else:
         assert output_gdf["fid_concat"][niscode_idx] == "39,43,45,55"
-    assert output_gdf["naam_max"][niscode_idx] == "Vosbergbeek"
+    assert output_gdf["naam_MAX"][niscode_idx] == "Vosbergbeek"
     # TODO: add more in depth check of result
 
 
@@ -386,11 +388,11 @@ def test_dissolve_polygons(
     if groupby_columns is None or len(groupby_columns) == 0:
         output_gpd_gdf = input_gdf[columns].dissolve()
     else:
-        groupby_columns_upper = [column.upper() for column in groupby_columns]
-        columns += groupby_columns_upper
+        groupby_columns_upper = {column.upper(): column for column in groupby_columns}
+        columns += list(groupby_columns_upper)
         output_gpd_gdf = (
-            input_gdf[columns].dissolve(by=groupby_columns_upper).reset_index()
-        )
+            input_gdf[columns].dissolve(by=list(groupby_columns_upper)).reset_index()
+        ).rename(columns=groupby_columns_upper)
     if explode:
         output_gpd_gdf = output_gpd_gdf.explode(ignore_index=True)
     output_gpd_path = tmp_path / f"{input_path.stem}_gpd-output{suffix}"
@@ -429,6 +431,63 @@ def test_dissolve_emptyfile(tmp_path, suffix):
     assert output_layerinfo.featurecount == 0
     assert output_layerinfo.geometrytype == input_layerinfo.geometrytype
     assert list(output_layerinfo.columns) == groupby_columns
+
+
+@pytest.mark.parametrize(
+    "invalid_params, exp_match",
+    [
+        ({"groupby_columns": "NON_EXISTING_COLUMN"}, "column in groupby_columns not"),
+        ({"input_path": Path("nonexisting.abc")}, "input_path does not exist: "),
+        (
+            {
+                "input_path": test_helper.get_testfile("linestring-watercourse"),
+                "nb_squarish_tiles": 2,
+            },
+            "Dissolve to tiles is not supported for GeometryType.MULTILINESTRING, ",
+        ),
+        ({"agg_columns": {"a": 1, "b": 2}}, "agg_columns malformed"),
+        ({"agg_columns": {"columns": 1}}, "agg_columns malformed"),
+        ({"agg_columns": {"columns": {"column": "abc"}}}, "agg_columns malformed"),
+        (
+            {"agg_columns": {"columns": [{"column": "abc", "agg": "NOK"}]}},
+            "Error in align_casing: string 'abc' is not available",
+        ),
+        (
+            {"agg_columns": {"columns": [{"column": "UIDN", "agg": "NOK"}]}},
+            "Error: aggregation NOK is not supported",
+        ),
+    ],
+)
+def test_dissolve_invalid_params(tmp_path, invalid_params, exp_match):
+    """
+    Test dissolve with some invalid input params.
+    """
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel")
+    groupby_columns = "GEWASGROEP"
+    nb_squarish_tiles = 1
+    agg_columns = None
+    for invalid_param in invalid_params:
+        if invalid_param == "input_path":
+            input_path = invalid_params[invalid_param]
+        elif invalid_param == "groupby_columns":
+            groupby_columns = invalid_params[invalid_param]
+        elif invalid_param == "nb_squarish_tiles":
+            nb_squarish_tiles = invalid_params[invalid_param]
+        elif invalid_param == "agg_columns":
+            agg_columns = invalid_params[invalid_param]
+
+    # Run test
+    output_path = tmp_path / "output.gpkg"
+    with pytest.raises(ValueError, match=exp_match):
+        gfo.dissolve(
+            input_path=input_path,
+            output_path=output_path,
+            groupby_columns=groupby_columns,
+            explodecollections=True,
+            nb_squarish_tiles=nb_squarish_tiles,
+            agg_columns=agg_columns,
+        )
 
 
 def test_dissolve_polygons_groupby_None(tmp_path):

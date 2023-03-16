@@ -2311,10 +2311,13 @@ def dissolve_singlethread(
     # Prepare the strings regarding groupby_columns to use in the select statement.
     if groupby_columns is not None:
         # Because the query uses a subselect, the groupby columns need to be prefixed.
-        columns_with_prefix = [f'layer."{column}"' for column in groupby_columns]
-        groupby_columns_str = ", ".join(columns_with_prefix)
-        groupby_columns_for_groupby_str = groupby_columns_str
-        groupby_columns_for_select_str = ", " + groupby_columns_str
+        columns_prefixed = [f'layer."{column}"' for column in groupby_columns]
+        groupby_columns_for_groupby_str = ", ".join(columns_prefixed)
+
+        columns_prefixed_aliased = [
+            f'layer."{column}" AS "{column}"' for column in groupby_columns
+        ]
+        groupby_columns_for_select_str = f", {', '.join(columns_prefixed_aliased)}"
     else:
         # Even if no groupby is provided, we still need to use a groupby clause,
         # otherwise ST_union doesn't seem to work.
