@@ -29,7 +29,8 @@ def test_get_parallelization_params():
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 @pytest.mark.parametrize("only_geom_input", [True, False])
-def test_apply(tmp_path, suffix, only_geom_input):
+@pytest.mark.parametrize("force_output_geometrytype", [None, "POLYGON"])
+def test_apply(tmp_path, suffix, only_geom_input, force_output_geometrytype):
     # Prepare test data
     test_gdf = gpd.GeoDataFrame(
         geometry=[  # type: ignore
@@ -53,6 +54,7 @@ def test_apply(tmp_path, suffix, only_geom_input):
                 geometry=geom, min_area_to_keep=2, crs=input_layerinfo.crs
             ),
             only_geom_input=True,
+            force_output_geometrytype=force_output_geometrytype,
             batchsize=batchsize,
         )
     else:
@@ -63,6 +65,7 @@ def test_apply(tmp_path, suffix, only_geom_input):
                 row.geometry, min_area_to_keep=2, crs=input_layerinfo.crs
             ),
             only_geom_input=False,
+            force_output_geometrytype=force_output_geometrytype,
             batchsize=batchsize,
         )
 
@@ -71,7 +74,10 @@ def test_apply(tmp_path, suffix, only_geom_input):
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert input_layerinfo.featurecount == (output_layerinfo.featurecount + 1)
     assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+    if force_output_geometrytype is None or suffix == ".shp":
+        assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+    else:
+        assert output_layerinfo.geometrytype == GeometryType.POLYGON
 
     # Read result for some more detailed checks
     output_gdf = gfo.read_file(output_path)
