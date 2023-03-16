@@ -31,7 +31,7 @@
   rather than the casing in the source file (#229)
 - Functions `read_file_sql` and `read_file_nogeom` are deprecated in favour of
   `read_file`. Mind: in read_file the sql_dialect default is None, not "SQLITE".
-  (#222, #232)
+  (#222, #232, #236)
 - The (private) util function `view_angles` is moved to 
   [pygeoops](https://github.com/pygeoops/pygeoops) (#209)
 
