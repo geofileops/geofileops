@@ -12,7 +12,7 @@ import multiprocessing
 from pathlib import Path
 import shutil
 import string
-from typing import Iterable, List, Literal, Optional
+from typing import Iterable, List, Literal, Optional, Union
 
 import pandas as pd
 
@@ -801,10 +801,10 @@ def erase(
         output_layer=output_layer,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
-        output_with_spatial_index=output_with_spatial_index,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        output_with_spatial_index=output_with_spatial_index,
     )
 
 
@@ -1580,10 +1580,10 @@ def symmetric_difference(
             erase_layer=input2_layer,
             output_layer=output_layer,
             explodecollections=explodecollections,
-            output_with_spatial_index=False,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
+            output_with_spatial_index=False,
         )
 
         if input2_columns is None or len(input2_columns) > 0:
@@ -1610,10 +1610,10 @@ def symmetric_difference(
             erase_layer=input1_layer,
             output_layer=output_layer,
             explodecollections=explodecollections,
-            output_with_spatial_index=False,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
+            output_with_spatial_index=False,
         )
 
         # Now append
@@ -1624,13 +1624,20 @@ def symmetric_difference(
             dst_layer=output_layer,
         )
 
-        # Create spatial index
-        gfo.create_spatial_index(path=erase1_output_path, layer=output_layer)
+        # Convert or add spatial index
+        tmp_output_path = erase1_output_path
+        if erase1_output_path.suffix != output_path.suffix:
+            # Output file should be in diffent format, so convert
+            tmp_output_path = tempdir / output_path.name
+            gfo.convert(src=erase1_output_path, dst=tmp_output_path)
+        else:
+            # Create spatial index
+            gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
 
         # Now we are ready to move the result to the final spot...
         if output_path.exists():
             gfo.remove(output_path)
-        gfo.move(erase1_output_path, output_path)
+        gfo.move(tmp_output_path, output_path)
 
     finally:
         shutil.rmtree(tempdir)
@@ -1679,10 +1686,10 @@ def union(
             input2_columns_prefix=input2_columns_prefix,
             output_layer=output_layer,
             explodecollections=explodecollections,
-            output_with_spatial_index=False,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
+            output_with_spatial_index=False,
         )
 
         # Now erase input1 from input2 to another temporary output gfo...
@@ -1697,10 +1704,10 @@ def union(
             erase_layer=input1_layer,
             output_layer=output_layer,
             explodecollections=explodecollections,
-            output_with_spatial_index=False,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
+            output_with_spatial_index=False,
         )
 
         # Now append
@@ -1711,13 +1718,20 @@ def union(
             dst_layer=output_layer,
         )
 
-        # Create spatial index
-        gfo.create_spatial_index(path=split_output_path, layer=output_layer)
+        # Convert or add spatial index
+        tmp_output_path = split_output_path
+        if split_output_path.suffix != output_path.suffix:
+            # Output file should be in different format, so convert
+            tmp_output_path = tempdir / output_path.name
+            gfo.convert(src=split_output_path, dst=tmp_output_path)
+        else:
+            # Create spatial index
+            gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
 
         # Now we are ready to move the result to the final spot...
         if output_path.exists():
             gfo.remove(output_path)
-        gfo.move(split_output_path, output_path)
+        gfo.move(tmp_output_path, output_path)
 
     finally:
         shutil.rmtree(tempdir)
@@ -1773,6 +1787,8 @@ def _two_layer_vector_operation(
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): [description]. Defaults to False.
+        output_with_spatial_index (bool, optional): True to create output file with
+            spatial index. Defaults to True.
 
     Raises:
         Exception: [description]
@@ -1992,21 +2008,24 @@ def _two_layer_vector_operation(
                         tmp_partial_output_path.exists()
                         and tmp_partial_output_path.stat().st_size > 0
                     ):
-                        # If only one batch and output format same as tmp, rename file
+                        # If only one batch, immediately create index.
+                        # Remark: copying the file using ogr is still necessary, even
+                        # if only 1 batch, because apparently gpkg created with
+                        # create_table_as_sql isn't 100% OK: impossible to create a
+                        # valid spatial index on it.
+                        create_spatial_index = False
                         if (
-                            len(processing_params.batches) == 1
-                            and tmp_partial_output_path.suffix.lower()
-                            == tmp_output_path.suffix.lower()
+                            output_with_spatial_index
+                            and len(processing_params.batches) == 1
                         ):
-                            gfo.move(tmp_partial_output_path, tmp_output_path)
-                        else:
-                            fileops._append_to_nolock(
-                                src=tmp_partial_output_path,
-                                dst=tmp_output_path,
-                                explodecollections=explodecollections,
-                                force_output_geometrytype=force_output_geometrytype,
-                                create_spatial_index=False,
-                            )
+                            create_spatial_index = True
+                        fileops._append_to_nolock(
+                            src=tmp_partial_output_path,
+                            dst=tmp_output_path,
+                            explodecollections=explodecollections,
+                            force_output_geometrytype=force_output_geometrytype,
+                            create_spatial_index=create_spatial_index,
+                        )
                     else:
                         logger.debug(f"Result file {tmp_partial_output_path} was empty")
 
@@ -2030,8 +2049,10 @@ def _two_layer_vector_operation(
         # Round up and clean up
         # Now create spatial index and move to output location
         if tmp_output_path.exists():
-            if output_with_spatial_index is True:
-                gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
+            if output_with_spatial_index:
+                gfo.create_spatial_index(
+                    path=tmp_output_path, layer=output_layer, exist_ok=True
+                )
             if tmp_output_path != output_path:
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 gfo.move(tmp_output_path, output_path)
@@ -2040,8 +2061,8 @@ def _two_layer_vector_operation(
 
         logger.info(f"{operation_name} ready, took {datetime.now()-start_time}!")
     except Exception:
-        gfo.remove(output_path)
-        gfo.remove(tmp_output_path)
+        gfo.remove(output_path, missing_ok=True)
+        gfo.remove(tmp_output_path, missing_ok=True)
         raise
     finally:
         shutil.rmtree(tempdir)
@@ -2293,7 +2314,7 @@ def _prepare_processing_params(
 def dissolve_singlethread(
     input_path: Path,
     output_path: Path,
-    groupby_columns: Optional[Iterable[str]] = None,
+    groupby_columns: Union[str, Iterable[str], None] = None,
     agg_columns: Optional[dict] = None,
     explodecollections: bool = False,
     input_layer: Optional[str] = None,
@@ -2305,6 +2326,8 @@ def dissolve_singlethread(
     """
     # Init
     start_time = datetime.now()
+    if not input_path.exists():
+        raise ValueError(f"input_path does not exist: {input_path}")
     if output_path.exists():
         if force is False:
             logger.info(f"Stop dissolve: Output exists already {output_path}")
@@ -2321,15 +2344,30 @@ def dissolve_singlethread(
     # Use get_layerinfo to check if the layer definition is OK
     layerinfo = gfo.get_layerinfo(input_path, input_layer)
     fid_column = layerinfo.fid_column if layerinfo.fid_column != "" else "rowid"
+    # Prepare some lists for later use
+    columns_available = list(layerinfo.columns) + ["fid"]
+    columns_available_upper = [column.upper() for column in columns_available]
+    groupby_columns_upper_dict = {}
+    if groupby_columns is not None:
+        groupby_columns_upper_dict = {col.upper(): col for col in groupby_columns}
 
     # Prepare the strings regarding groupby_columns to use in the select statement.
     if groupby_columns is not None:
+        # Standardize parameter to simplify the rest of the code
+        if isinstance(groupby_columns, str):
+            # If a string is passed, convert to list
+            groupby_columns = [groupby_columns]
+
+        # Check if all groupby columns exist
+        for column in groupby_columns:
+            if column.upper() not in columns_available_upper:
+                raise ValueError(f"column in groupby_columns not in input: {column}")
+
         # Because the query uses a subselect, the groupby columns need to be prefixed.
         columns_prefixed = [f'layer."{column}"' for column in groupby_columns]
         groupby_columns_for_groupby_str = ", ".join(columns_prefixed)
-
         columns_prefixed_aliased = [
-            f'layer."{column}" AS "{column}"' for column in groupby_columns
+            f'layer."{column}" "{column}"' for column in groupby_columns
         ]
         groupby_columns_for_select_str = f", {', '.join(columns_prefixed_aliased)}"
     else:
@@ -2341,13 +2379,14 @@ def dissolve_singlethread(
     # Prepare the strings regarding agg_columns to use in the select statement.
     agg_columns_str = ""
     if agg_columns is not None:
-        # Prepare some lists for later use
-        columns_upper_dict = {col.upper(): col for col in list(layerinfo.columns)}
-        # Add the special fid column as well
-        columns_upper_dict["FID"] = fid_column
-        groupby_columns_upper_dict = {}
-        if groupby_columns is not None:
-            groupby_columns_upper_dict = {col.upper(): col for col in groupby_columns}
+        message = (
+            'agg_columns malformed. Options are: {"json": [<list_columns>]} '
+            'or {"columns": [{"column": "...", "agg": "...", "as": "..."}, ...]}'
+        )
+
+        # It should be a dict with one key
+        if isinstance(agg_columns, dict) is False or len(agg_columns) != 1:
+            raise ValueError(message)
 
         # Start preparation of agg_columns_str
         if "json" in agg_columns:
@@ -2363,7 +2402,15 @@ def dissolve_singlethread(
                     agg_columns_str += f"'{column}', layer.{column}"
             agg_columns_str = f", json_object({agg_columns_str}) as json"
         elif "columns" in agg_columns:
+            # The columns value should be a list
+            if isinstance(agg_columns["columns"], list) is False:
+                raise ValueError(message)
+
             for agg_column in agg_columns["columns"]:
+                # It should be a dict
+                if isinstance(agg_column, dict) is False:
+                    raise ValueError(message)
+
                 # Init
                 distinct_str = ""
                 extra_param_str = ""
@@ -2393,10 +2440,13 @@ def dissolve_singlethread(
                     distinct_str = "DISTINCT "
 
                 # Prepare column name string.
-                # Make sure the columns name casing is same as input file
-                column_str = (
-                    f'layer."{columns_upper_dict[agg_column["column"].upper()]}"'
-                )
+                column = agg_column["column"]
+                if column.upper() not in columns_available_upper:
+                    raise ValueError(f"{column} not available in: {columns_available}")
+                if column.upper() == "FID":
+                    column_str = f'layer."{fid_column}"'
+                else:
+                    column_str = f'layer."{column}"'
 
                 # Now put everything togethers
                 agg_columns_str += (
@@ -2440,6 +2490,7 @@ def dissolve_singlethread(
         sql_dialect="SQLITE",
         force_output_geometrytype=force_output_geometrytype,
         explodecollections=explodecollections,
+        options={"LAYER_CREATION.SPATIAL_INDEX": True},
     )
 
     logger.info(f"Processing ready, took {datetime.now()-start_time}!")

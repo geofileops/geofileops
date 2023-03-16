@@ -106,6 +106,7 @@ def test_buffer(tmp_path, suffix, epsg, fileops_module, testfile, empty_input):
 
     # Now check if the output file is correctly created
     assert output_path.exists()
+    assert fileops.has_spatial_index(output_path)
     output_layerinfo = fileops.get_layerinfo(output_path)
     assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
 
@@ -169,6 +170,7 @@ def test_buffer_columns_fid(tmp_path, suffix, fileops_module, testfile):
 
     # Now check if the output file is correctly created
     assert output_path.exists()
+    assert fileops.has_spatial_index(output_path)
     output_layerinfo = fileops.get_layerinfo(output_path)
     output_gdf = fileops.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
@@ -195,6 +197,7 @@ def test_buffer_force(tmp_path):
 
     # Test buffer to existing output path
     assert output_path.exists()
+    assert fileops.has_spatial_index(output_path)
     mtime_orig = output_path.stat().st_mtime
     geoops.buffer(
         input_path=input_path,
@@ -245,6 +248,7 @@ def test_buffer_negative(tmp_path, suffix, fileops_module, testfile):
 
     # Now check if the output file is correctly created
     assert output_path.exists()
+    assert fileops.has_spatial_index(output_path)
     output_layerinfo = fileops.get_layerinfo(output_path)
     assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
 
@@ -302,6 +306,7 @@ def test_buffer_negative_explode(tmp_path, fileops_module):
 
     # Now check if the output file is correctly created
     assert output_path.exists()
+    assert fileops.has_spatial_index(output_path)
     layerinfo_output = fileops.get_layerinfo(output_path)
     assert len(layerinfo_output.columns) == len(input_layerinfo.columns)
 
@@ -352,6 +357,7 @@ def test_convexhull(tmp_path, fileops_module, suffix, empty_input):
 
     # Now check if the output file is correctly created
     assert output_path.exists()
+    assert fileops.has_spatial_index(output_path)
     layerinfo_output = fileops.get_layerinfo(output_path)
     assert "OIDN" in layerinfo_output.columns
     assert "uidn" in layerinfo_output.columns
@@ -406,6 +412,7 @@ def test_simplify(tmp_path, suffix, epsg, fileops_module, testfile, empty_input)
 
     # Now check if the tmp file is correctly created
     assert output_path.exists()
+    assert fileops.has_spatial_index(output_path)
     output_layerinfo = fileops.get_layerinfo(output_path)
     assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
 

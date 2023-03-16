@@ -71,6 +71,7 @@ def test_apply(tmp_path, suffix, only_geom_input, force_output_geometrytype):
 
     # Now check if the output file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert input_layerinfo.featurecount == (output_layerinfo.featurecount + 1)
     assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
@@ -177,6 +178,7 @@ def test_dissolve_linestrings(tmp_path, suffix, epsg):
 
     # Check if the result file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == 83
     assert output_layerinfo.geometrytype in [
@@ -369,6 +371,7 @@ def test_dissolve_polygons(
 
     # Now check if the tmp file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == expected_featurecount
     if groupby is True:
@@ -439,6 +442,7 @@ def test_dissolve_emptyfile(tmp_path, suffix):
     assert list(output_layerinfo.columns) == groupby_columns
 
 
+@pytest.mark.parametrize("sql_singlethread", [True, False])
 @pytest.mark.parametrize(
     "invalid_params, exp_match",
     [
@@ -455,8 +459,8 @@ def test_dissolve_emptyfile(tmp_path, suffix):
         ({"agg_columns": {"columns": 1}}, "agg_columns malformed"),
         ({"agg_columns": {"columns": {"column": "abc"}}}, "agg_columns malformed"),
         (
-            {"agg_columns": {"columns": [{"column": "abc", "agg": "NOK"}]}},
-            "Error in align_casing: string 'abc' is not available",
+            {"agg_columns": {"columns": [{"column": "abc", "agg": "count"}]}},
+            "abc not available in: ",
         ),
         (
             {"agg_columns": {"columns": [{"column": "UIDN", "agg": "NOK"}]}},
@@ -464,13 +468,13 @@ def test_dissolve_emptyfile(tmp_path, suffix):
         ),
     ],
 )
-def test_dissolve_invalid_params(tmp_path, invalid_params, exp_match):
+def test_dissolve_invalid_params(tmp_path, sql_singlethread, invalid_params, exp_match):
     """
     Test dissolve with some invalid input params.
     """
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel")
-    groupby_columns = "GEWASGROEP"
+    groupby_columns = ["GEWASGROEP"]
     nb_squarish_tiles = 1
     agg_columns = None
     for invalid_param in invalid_params:
@@ -486,14 +490,27 @@ def test_dissolve_invalid_params(tmp_path, invalid_params, exp_match):
     # Run test
     output_path = tmp_path / "output.gpkg"
     with pytest.raises(ValueError, match=exp_match):
-        gfo.dissolve(
-            input_path=input_path,
-            output_path=output_path,
-            groupby_columns=groupby_columns,
-            explodecollections=True,
-            nb_squarish_tiles=nb_squarish_tiles,
-            agg_columns=agg_columns,
-        )
+        if sql_singlethread:
+            if nb_squarish_tiles > 1:
+                pytest.skip("nb_squarish_tiles not relevant for dissolve_singlethread")
+            from geofileops.util import _geoops_sql
+
+            _geoops_sql.dissolve_singlethread(
+                input_path=input_path,
+                output_path=output_path,
+                groupby_columns=groupby_columns,
+                explodecollections=True,
+                agg_columns=agg_columns,
+            )
+        else:
+            gfo.dissolve(
+                input_path=input_path,
+                output_path=output_path,
+                groupby_columns=groupby_columns,
+                explodecollections=True,
+                nb_squarish_tiles=nb_squarish_tiles,
+                agg_columns=agg_columns,
+            )
 
 
 def test_dissolve_polygons_groupby_None(tmp_path):
@@ -848,6 +865,7 @@ def test_simplify_vw(tmp_path, suffix, epsg, testfile):
 
     # Check if the file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert input_layerinfo.featurecount == output_layerinfo.featurecount
     assert len(input_layerinfo.columns) == len(output_layerinfo.columns)
@@ -895,6 +913,7 @@ def test_simplify_lang(tmp_path, suffix, epsg, testfile):
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert input_layerinfo.featurecount == output_layerinfo.featurecount
     assert len(input_layerinfo.columns) == len(output_layerinfo.columns)

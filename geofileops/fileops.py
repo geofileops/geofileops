@@ -502,10 +502,10 @@ def create_spatial_index(
         layer = get_only_layer(path)
 
     # If index already exists, remove index or return
-    if has_spatial_index(path, layer) is True:
-        if force_rebuild is True:
+    if has_spatial_index(path, layer):
+        if force_rebuild:
             remove_spatial_index(path, layer)
-        elif exist_ok is True:
+        elif exist_ok:
             return
         else:
             raise Exception(
@@ -518,12 +518,26 @@ def create_spatial_index(
         geofiletype = GeofileType(path)
         if geofiletype.is_spatialite_based:
             # The config options need to be set before opening the file!
-            geometrycolumn = get_layerinfo(path, layer).geometrycolumn
+            layerinfo = get_layerinfo(path, layer)
             with _ogr_util.set_config_options({"OGR_SQLITE_CACHE": cache_size_mb}):
                 datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
+                geometrycolumn = layerinfo.geometrycolumn
                 sql = f"SELECT CreateSpatialIndex('{layer}', '{geometrycolumn}')"
                 result = datasource.ExecuteSQL(sql, dialect="SQLITE")
                 datasource.ReleaseResultSet(result)
+
+                # Verify if the index was created
+                sql = f"SELECT HasSpatialIndex('{layerinfo.name}', '{geometrycolumn}')"
+                result = datasource.ExecuteSQL(sql, dialect="SQLITE")
+                has_spatial_idx = result.GetNextFeature().GetField(0) == 1
+                datasource.ReleaseResultSet(result)
+
+                # Apparently failed, if gpkg, try again with other function
+                if not has_spatial_idx and geofiletype == GeofileType.GPKG:
+                    sql = f"SELECT gpkgAddSpatialIndex('{layer}', '{geometrycolumn}')"
+                    result = datasource.ExecuteSQL(sql, dialect="SQLITE")
+                    datasource.ReleaseResultSet(result)
+
         else:
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             result = datasource.ExecuteSQL(f'CREATE SPATIAL INDEX ON "{layer}"')
@@ -533,6 +547,9 @@ def create_spatial_index(
     finally:
         if datasource is not None:
             del datasource
+
+    if not has_spatial_index(path, layer):
+        raise RuntimeError(f"create_spatial_index failed on {path}, layer: {layer}")
 
 
 def has_spatial_index(
