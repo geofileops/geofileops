@@ -266,7 +266,9 @@ def test_dissolve_linestrings_groupby(tmp_path, suffix, epsg):
 @pytest.mark.parametrize("epsg", DEFAULT_EPSGS)
 def test_dissolve_linestrings_aggcolumns_columns(tmp_path, suffix, epsg):
     # Prepare test data
-    input_path = test_helper.get_testfile("c", suffix=suffix, epsg=epsg)
+    input_path = test_helper.get_testfile(
+        "linestring-watercourse", suffix=suffix, epsg=epsg
+    )
     output_basepath = tmp_path / f"{input_path.stem}-output{suffix}"
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
