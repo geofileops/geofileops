@@ -456,8 +456,8 @@ def test_dissolve_emptyfile(tmp_path, suffix):
         ({"agg_columns": {"columns": 1}}, "agg_columns malformed"),
         ({"agg_columns": {"columns": {"column": "abc"}}}, "agg_columns malformed"),
         (
-            {"agg_columns": {"columns": [{"column": "abc", "agg": "NOK"}]}},
-            "Error in align_casing: string 'abc' is not available",
+            {"agg_columns": {"columns": [{"column": "abc", "agg": "count"}]}},
+            "abc not available in: ",
         ),
         (
             {"agg_columns": {"columns": [{"column": "UIDN", "agg": "NOK"}]}},
@@ -488,6 +488,8 @@ def test_dissolve_invalid_params(tmp_path, sql_singlethread, invalid_params, exp
     output_path = tmp_path / "output.gpkg"
     with pytest.raises(ValueError, match=exp_match):
         if sql_singlethread:
+            if nb_squarish_tiles > 1:
+                pytest.skip("nb_squarish_tiles not relevant for dissolve_singlethread")
             from geofileops.util import _geoops_sql
 
             _geoops_sql.dissolve_singlethread(
