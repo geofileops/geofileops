@@ -38,6 +38,7 @@ def test_clip(tmp_path, testfile, suffix):
 
     # Compare result with geopandas
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     output_gdf = gfo.read_file(output_path)
     input_gdf = gfo.read_file(input_path)
     clip_gdf = gfo.read_file(clip_path)
@@ -65,6 +66,7 @@ def test_erase(tmp_path, testfile, suffix):
 
     # Compare result with geopandas
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     output_gdf = gfo.read_file(output_path)
     input_gdf = gfo.read_file(input_path)
     erase_gdf = gfo.read_file(erase_path)
@@ -98,6 +100,7 @@ def test_erase_explodecollections(tmp_path):
 
     # Compare result with geopandas
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     output_gdf = gfo.read_file(output_path)
     input_gdf = gfo.read_file(input_path)
     erase_gdf = gfo.read_file(erase_path)
@@ -135,6 +138,7 @@ def test_export_by_location(tmp_path, suffix):
 
     # Check if the output file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == 26
     assert len(output_layerinfo.columns) == len(input_layerinfo.columns) + 1
@@ -166,6 +170,7 @@ def test_export_by_distance(tmp_path, testfile, suffix):
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(input_to_select_from_path)
     assert input_layerinfo.featurecount == output_layerinfo.featurecount
     assert len(input_layerinfo.columns) == len(output_layerinfo.columns)
@@ -179,28 +184,38 @@ def test_export_by_distance(tmp_path, testfile, suffix):
 
 @pytest.mark.parametrize("testfile", ["polygon-parcel"])
 @pytest.mark.parametrize(
-    "suffix, epsg", [(".gpkg", 31370), (".gpkg", 4326), (".shp", 31370)]
+    "suffix, epsg, nb_parallel",
+    [
+        (".gpkg", 31370, 1),
+        (".gpkg", 31370, 2),
+        (".gpkg", 4326, 2),
+        (".shp", 31370, 1),
+        (".shp", 31370, 2),
+    ],
 )
-def test_intersection(tmp_path, testfile, suffix, epsg):
+def test_intersection(tmp_path, testfile, suffix, epsg, nb_parallel):
     input1_path = test_helper.get_testfile(testfile, suffix=suffix, epsg=epsg)
     input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
-    input1_layerinfo = gfo.get_layerinfo(input1_path)
-    batchsize = math.ceil(input1_layerinfo.featurecount / 2)
 
     # Now run test
     output_path = (
         tmp_path / f"{input1_path.stem}_intersection_{input2_path.stem}{suffix}"
     )
+    batchsize = -1
+    input1_layerinfo = gfo.get_layerinfo(input1_path)
+    if nb_parallel > 1:
+        batchsize = math.ceil(input1_layerinfo.featurecount / 2)
     gfo.intersection(
         input1_path=input1_path,
         input2_path=input2_path,
         output_path=output_path,
-        nb_parallel=2,
+        nb_parallel=nb_parallel,
         batchsize=batchsize,
     )
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == 29
@@ -257,6 +272,7 @@ def test_intersection_resultempty(tmp_path, suffix):
 
     # Check if the output file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == 0
     assert len(output_layerinfo.columns) == (
@@ -292,6 +308,7 @@ def test_intersection_columns_fid(tmp_path, testfile, suffix):
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == 29
     assert len(output_layerinfo.columns) == len(input1_columns) + len(input2_columns)
@@ -403,7 +420,8 @@ def test_join_by_location(
     )
 
     # Check if the output file is correctly created
-    assert output_path.exists() is True
+    assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == expected_featurecount
@@ -446,6 +464,7 @@ def test_join_nearest(tmp_path, suffix, epsg):
 
     # Check if the output file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == nb_nearest * input1_layerinfo.featurecount
@@ -525,6 +544,7 @@ def test_select_two_layers(tmp_path, suffix, epsg):
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
@@ -599,6 +619,7 @@ def test_split(tmp_path, suffix, epsg):
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == 66
@@ -651,6 +672,7 @@ def test_symmetric_difference(tmp_path, suffix, epsg):
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     output_gfo_gdf = gfo.read_file(output_path)
     assert output_gfo_gdf["geometry"][0] is not None
     input1_gdf = gfo.read_file(input1_path)
@@ -704,6 +726,7 @@ def test_union(tmp_path, suffix, epsg):
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == 71
@@ -760,6 +783,7 @@ def test_union_circles(tmp_path, suffix, epsg):
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == 5

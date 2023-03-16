@@ -801,10 +801,10 @@ def erase(
         output_layer=output_layer,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
-        output_with_spatial_index=output_with_spatial_index,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        output_with_spatial_index=output_with_spatial_index,
     )
 
 
@@ -1773,6 +1773,8 @@ def _two_layer_vector_operation(
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): [description]. Defaults to False.
+        output_with_spatial_index (bool, optional): True to create output file with
+            spatial index. Defaults to True.
 
     Raises:
         Exception: [description]
@@ -1992,21 +1994,21 @@ def _two_layer_vector_operation(
                         tmp_partial_output_path.exists()
                         and tmp_partial_output_path.stat().st_size > 0
                     ):
-                        # If only one batch and output format same as tmp, rename file
-                        if (
-                            len(processing_params.batches) == 1
-                            and tmp_partial_output_path.suffix.lower()
-                            == tmp_output_path.suffix.lower()
-                        ):
-                            gfo.move(tmp_partial_output_path, tmp_output_path)
-                        else:
-                            fileops._append_to_nolock(
-                                src=tmp_partial_output_path,
-                                dst=tmp_output_path,
-                                explodecollections=explodecollections,
-                                force_output_geometrytype=force_output_geometrytype,
-                                create_spatial_index=False,
-                            )
+                        # If only one batch, immediately create index.
+                        # Remark: copying the file using ogr is still necessary, even
+                        # if only 1 batch, because apparently gpkg created with
+                        # create_table_as_sql isn't 100% OK: impossible to create a
+                        # valid spatial index on it.
+                        create_spatial_index = False
+                        if len(processing_params.batches) == 1:
+                            create_spatial_index = True
+                        fileops._append_to_nolock(
+                            src=tmp_partial_output_path,
+                            dst=tmp_output_path,
+                            explodecollections=explodecollections,
+                            force_output_geometrytype=force_output_geometrytype,
+                            create_spatial_index=create_spatial_index,
+                        )
                     else:
                         logger.debug(f"Result file {tmp_partial_output_path} was empty")
 
@@ -2030,8 +2032,10 @@ def _two_layer_vector_operation(
         # Round up and clean up
         # Now create spatial index and move to output location
         if tmp_output_path.exists():
-            if output_with_spatial_index is True:
-                gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
+            if output_with_spatial_index:
+                gfo.create_spatial_index(
+                    path=tmp_output_path, layer=output_layer, exist_ok=True
+                )
             if tmp_output_path != output_path:
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 gfo.move(tmp_output_path, output_path)
@@ -2040,8 +2044,8 @@ def _two_layer_vector_operation(
 
         logger.info(f"{operation_name} ready, took {datetime.now()-start_time}!")
     except Exception:
-        gfo.remove(output_path)
-        gfo.remove(tmp_output_path)
+        gfo.remove(output_path, missing_ok=True)
+        gfo.remove(tmp_output_path, missing_ok=True)
         raise
     finally:
         shutil.rmtree(tempdir)

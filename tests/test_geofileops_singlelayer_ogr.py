@@ -33,6 +33,7 @@ def test_clip_by_geometry(tmp_path, suffix):
 
     # Now check if the output file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     layerinfo_orig = gfo.get_layerinfo(input_path)
     layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 22
@@ -56,6 +57,7 @@ def test_export_by_geometry(tmp_path, suffix):
 
     # Now check if the output file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     layerinfo_orig = gfo.get_layerinfo(input_path)
     layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 25
@@ -92,6 +94,7 @@ def test_warp(tmp_path):
 
     # Now check if the output file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     layerinfo_orig = gfo.get_layerinfo(input_path)
     layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == layerinfo_orig.featurecount
