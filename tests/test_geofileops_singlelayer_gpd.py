@@ -71,6 +71,7 @@ def test_apply(tmp_path, suffix, only_geom_input, force_output_geometrytype):
 
     # Now check if the output file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert input_layerinfo.featurecount == (output_layerinfo.featurecount + 1)
     assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
@@ -177,6 +178,7 @@ def test_dissolve_linestrings(tmp_path, suffix, epsg):
 
     # Check if the result file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == 83
     assert output_layerinfo.geometrytype in [
@@ -369,6 +371,7 @@ def test_dissolve_polygons(
 
     # Now check if the tmp file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == expected_featurecount
     if groupby is True:
@@ -848,6 +851,7 @@ def test_simplify_vw(tmp_path, suffix, epsg, testfile):
 
     # Check if the file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert input_layerinfo.featurecount == output_layerinfo.featurecount
     assert len(input_layerinfo.columns) == len(output_layerinfo.columns)
@@ -895,6 +899,7 @@ def test_simplify_lang(tmp_path, suffix, epsg, testfile):
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert input_layerinfo.featurecount == output_layerinfo.featurecount
     assert len(input_layerinfo.columns) == len(output_layerinfo.columns)
