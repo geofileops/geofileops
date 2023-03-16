@@ -941,8 +941,7 @@ def read_file(
             (e.g. PostGIS, Geopackage, Spatialite,...). For data sources
             without SQL support, the "OGRSQL" dialect is the default. Defaults to None.
         ignore_geometry (bool, optional): True not to read/return the geometry.
-            Is retained for backwards compatibility, but it is recommended to
-            use read_file_nogeom for improved type checking. Defaults to False.
+            Defaults to False.
         fid_as_index (bool, optional): If True, will use the FIDs of the features that
             were read as the index of the GeoDataFrame. May start at 0 or 1 depending on
             the driver. Defaults to False.
@@ -982,7 +981,10 @@ def read_file_nogeom(
     """
     DEPRECATED: please use read_file with option ignore_geometry=True.
     """
-    warnings.warn("read_file_nogeom is deprecated: use read_file!", FutureWarning)
+    warnings.warn(
+        "read_file_nogeom is deprecated: use read_file with ignore_geometry=True",
+        FutureWarning,
+    )
     result_gdf = _read_file_base(
         path=path,
         layer=layer,
@@ -1300,7 +1302,7 @@ def read_file_sql(
         Union[pd.DataFrame, gpd.GeoDataFrame]: The data read.
     """
     warnings.warn(
-        'read_file_sql is deprecated: use read_file! Mind: sql_dialect is not "SQLITE"'
+        'read_file_sql is deprecated: use read_file! Mind: sql_dialect is not "SQLITE" '
         "by default there!",
         FutureWarning,
     )

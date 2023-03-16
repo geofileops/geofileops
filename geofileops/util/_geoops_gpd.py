@@ -472,8 +472,8 @@ def _apply_geooperation_to_layer(
         """
         sql_stmt = f'''SELECT MIN(rowid) as min_rowid, MAX(rowid) as max_rowid
                          FROM "{input_layer}"'''
-        result = geogfo.read_file_sql(
-            path=temp_path, sql_stmt=sql_stmt, layer=input_layer
+        result = gfo.read_file(
+            path=temp_path, layer=input_layer, sql_stmt=sql_stmt, sql_dialect="SQLITE"
         )
         if len(result) == 1:
             min_rowid = result['min_rowid'].values[0]
