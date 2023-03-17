@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## 0.7.0 (???)
+## 0.7.0 (2023-03-17)
 
 ### Improvements
 
@@ -26,7 +26,8 @@
 
 - When a geo operation results in an empty result, gfo now always writes an empty output
   file instead of no output. This is also the behaviour of other high level libraries
-  like in the toolbox of QGIS or ArcGIS. (#188)
+  like in the toolbox of QGIS or ArcGIS. This behaviour needs gdal version >= 3.6.3 to
+  be applied consistently. (#188)
 - In `read_file` the columns in the output now reflect the casing used in the parameter
   rather than the casing in the source file (#229)
 - Functions `read_file_sql` and `read_file_nogeom` are deprecated in favour of
