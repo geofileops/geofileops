@@ -2171,6 +2171,9 @@ def _prepare_processing_params(
             input2_geofiletype is None or input1_geofiletype == input2_geofiletype
         ):
             returnvalue.input1_path = input1_path
+            if input1_geofiletype == GeofileType.GPKG:
+                # HasSpatialindex doesn't work for spatialite file
+                gfo.create_spatial_index(input1_path, input1_layer, exist_ok=True)
         else:
             # If not ok, copy the input layer to gpkg
             returnvalue.input1_path = tempdir / f"{input1_path.stem}.gpkg"
@@ -2188,6 +2191,9 @@ def _prepare_processing_params(
                 and input2_geofiletype.is_spatialite_based
             ):
                 returnvalue.input2_path = input2_path
+                if input2_geofiletype == GeofileType.GPKG:
+                    # HasSpatialindex doesn't work for spatialite file
+                    gfo.create_spatial_index(input2_path, input2_layer, exist_ok=True)
             else:
                 # If not spatialite compatible, copy the input layer to gpkg
                 returnvalue.input2_path = tempdir / f"{input2_path.stem}.gpkg"

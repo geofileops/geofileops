@@ -20,7 +20,7 @@
 - Optimize number batches for single layer sql operations (#214)
 - Add check for select operations that if nb_parallel > 1, {batch_filter} is mandatory
   in sql_stmt (#208)
-- Small improvements/code cleanup (#216, #223)
+- Small improvements/code cleanup (#216, #223, #240,...)
 
 ### Deprecations and compatibility notes
 
