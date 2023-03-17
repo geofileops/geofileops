@@ -1469,19 +1469,22 @@ def join_by_location(
     """
     Joins all features in input1 with all features in input2.
 
-    The output will contain the geometry of input1.
+    The output will contain the geometries of input1. The spatial_relations_query and
+    min_area_intersect parameters will determine which geometries of input1 will be
+    matched with input2.
 
-    The spatial_relations_query and min_area_intersect parameters will
-    determine which geometries of input1 will be matched with input2.
-    The spatial_relations_query can be specified either with named spatial
-    predicates or masks as defined by the
-    [DE-9IM]](https://en.wikipedia.org/wiki/DE-9IM) model:
+    The spatial_relations_query is a filter string where you can use the following
+    "named spatial predicates": equals, touches, within, overlaps, crosses, intersects,
+    contains, covers, coveredby.
+
+    If you want even more control, you can also use "spatial masks" as defined by the
+    [DE-9IM](https://en.wikipedia.org/wiki/DE-9IM) model.
+
+    Examples for valid spatial_relations_query values:
 
         - "overlaps is True and contains is False"
         - "(T*T***T** is True or 1*T***T** is True) and T*****FF* is False"
 
-    The supported named spatial predicates are: equals, touches, within,
-    overlaps, crosses, intersects, contains, covers, coveredby.
 
     Alternative names:
         - GeoPandas: sjoin
