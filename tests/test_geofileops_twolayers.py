@@ -244,6 +244,27 @@ def test_intersection(tmp_path, testfile, suffix, epsg, nb_parallel):
     )
 
 
+def test_intersection_input_no_index(tmp_path):
+    """
+    Test if intersection works if the input gpkg files don't have a spatial index.
+    """
+    input1_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    input2_path = test_helper.get_testfile("polygon-zone", dst_dir=tmp_path)
+    gfo.remove_spatial_index(input1_path)
+    gfo.remove_spatial_index(input2_path)
+
+    # Now run test
+    output_path = tmp_path / f"{input1_path.stem}_intersection_{input2_path.stem}.gpkg"
+    gfo.intersection(
+        input1_path=input1_path,
+        input2_path=input2_path,
+        output_path=output_path,
+    )
+
+    # Check if the tmp file is correctly created
+    assert output_path.exists()
+
+
 @pytest.mark.parametrize("suffix", [".gpkg", ".shp"])
 def test_intersection_resultempty(tmp_path, suffix):
     # Prepare test data
