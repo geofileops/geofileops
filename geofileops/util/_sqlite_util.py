@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Module containing utilities regarding the usage of ogr functionalities.
+Module containing utilities regarding sqlite/spatialite files.
 """
 
 import datetime
@@ -8,9 +8,8 @@ import enum
 import logging
 from pathlib import Path
 import sqlite3
-from typing import Any, List, Optional
+from typing import Optional
 
-import pandas as pd
 
 import geofileops as gfo
 from geofileops import GeometryType
@@ -423,35 +422,6 @@ def execute_sql(path: Path, sql_stmt: str, use_spatialite: bool = True):
         conn.close()
 
 
-def execute_select_sql(
-    path: Path, sql_stmt: str, use_spatialite: bool = True
-) -> List[Any]:
-    # Connect to database file
-    conn = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
-    sql = None
-
-    try:
-        if use_spatialite is True:
-            load_spatialite(conn)
-        if path.suffix.lower() == ".gpkg":
-            sql = "SELECT EnableGpkgMode();"
-            conn.execute(sql)
-
-        # Set nb KB of cache
-        sql = "PRAGMA cache_size=-50000;"
-        conn.execute(sql)
-        # Use memory mapped IO = much faster (max 30GB)
-        conn.execute("PRAGMA mmap_size=30000000000;")
-
-        sql = sql_stmt
-        return conn.execute(sql).fetchall()
-
-    except Exception as ex:
-        raise Exception(f"Error executing {sql}") from ex
-    finally:
-        conn.close()
-
-
 def test_data_integrity(path: Path, use_spatialite: bool = True):
     # Get list of layers in database
     layers = gfo.listlayers(path=path)
@@ -484,35 +454,6 @@ def test_data_integrity(path: Path, use_spatialite: bool = True):
                 if not result:
                     # All data was fetched from layer
                     break
-
-    except Exception as ex:
-        raise Exception(f"Error executing {sql}") from ex
-    finally:
-        conn.close()
-
-
-def execute_select_sql_df(
-    path: Path, sql_stmt: str, use_spatialite: bool = True
-) -> pd.DataFrame:
-    # Connect to database file
-    conn = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
-    sql = None
-
-    try:
-        if use_spatialite is True:
-            load_spatialite(conn)
-        if path.suffix.lower() == ".gpkg":
-            sql = "SELECT EnableGpkgMode();"
-            conn.execute(sql)
-
-        # Set nb KB of cache
-        sql = "PRAGMA cache_size=-50000;"
-        conn.execute(sql)
-        # Use memory mapped IO = much faster (max 30GB)
-        conn.execute("PRAGMA mmap_size=30000000000;")
-
-        sql = sql_stmt
-        return pd.read_sql(sql, conn)
 
     except Exception as ex:
         raise Exception(f"Error executing {sql}") from ex
