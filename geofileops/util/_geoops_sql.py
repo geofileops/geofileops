@@ -20,11 +20,12 @@ import geofileops as gfo
 from geofileops import GeofileType, GeometryType, PrimitiveType
 from geofileops import fileops
 from geofileops.fileops import _append_to_nolock
-from . import _io_util
-from . import _ogr_util
-from . import _ogr_sql_util
-from . import _sqlite_util
 from . import _general_util
+from . import _io_util
+from . import _ogr_sql_util
+from . import _ogr_util
+from . import _processing_util
+from . import _sqlite_util
 
 ################################################################################
 # Some init
@@ -494,10 +495,10 @@ def _single_layer_vector_operation(
 
         # Processing in threads is 2x faster for small datasets (on Windows)
         calculate_in_threads = True if input_layerinfo.featurecount <= 100 else False
-        with _general_util.PooledExecutorFactory(
+        with _processing_util.PooledExecutorFactory(
             threadpool=calculate_in_threads,
             max_workers=processing_params.nb_parallel,
-            initializer=_general_util.initialize_worker(),
+            initializer=_processing_util.initialize_worker(),
         ) as calculate_pool:
             batches = {}
             future_to_batch_id = {}
@@ -1905,10 +1906,10 @@ def _two_layer_vector_operation(
         logger.info(
             f"Start {operation_name} ({processing_params.nb_parallel} parallel workers)"
         )
-        with _general_util.PooledExecutorFactory(
+        with _processing_util.PooledExecutorFactory(
             threadpool=calculate_in_threads,
             max_workers=processing_params.nb_parallel,
-            initializer=_general_util.initialize_worker(),
+            initializer=_processing_util.initialize_worker(),
         ) as calculate_pool:
             # Start looping
             batches = {}

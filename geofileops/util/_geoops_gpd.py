@@ -39,11 +39,12 @@ import geofileops as gfo
 from geofileops import fileops
 from geofileops.util import _general_util
 from geofileops.util import _geoops_sql
+from geofileops.util import _io_util
+from geofileops.util import _processing_util
 from geofileops.util.geometry_util import GeometryType, PrimitiveType, SimplifyAlgorithm
 from geofileops.util.geometry_util import BufferEndCapStyle, BufferJoinStyle
 from geofileops.util import geoseries_util
 from geofileops.util import grid_util
-from geofileops.util import _io_util
 
 ################################################################################
 # Some init
@@ -487,10 +488,10 @@ def _apply_geooperation_to_layer(
 
         # Processing in threads is 2x faster for small datasets (on Windows)
         calculate_in_threads = True if input_layerinfo.featurecount <= 100 else False
-        with _general_util.PooledExecutorFactory(
+        with _processing_util.PooledExecutorFactory(
             threadpool=calculate_in_threads,
             max_workers=nb_parallel,
-            initializer=_general_util.initialize_worker(),
+            initializer=_processing_util.initialize_worker(),
         ) as calculate_pool:
             # Prepare output filename
             tmp_output_path = tempdir / output_path.name
@@ -1193,10 +1194,10 @@ def _dissolve_polygons_pass(
 
     # Processing in threads is 2x faster for small datasets (on Windows)
     calculate_in_threads = True if input_layerinfo.featurecount <= 100 else False
-    with _general_util.PooledExecutorFactory(
+    with _processing_util.PooledExecutorFactory(
         threadpool=calculate_in_threads,
         max_workers=nb_parallel,
-        initializer=_general_util.initialize_worker(),
+        initializer=_processing_util.initialize_worker(),
     ) as calculate_pool:
         # Prepare output filename
         tempdir = output_onborder_path.parent
