@@ -113,7 +113,7 @@ def setprocessnice(nice_value: int):
         ) from ex
 
 
-def process_nice_to_priorityclass(nice_value: int) -> int:
+def process_nice_to_priorityclass(nice_value: int) -> int:  # pragma: no cover
     if nice_value == -20:
         return psutil.REALTIME_PRIORITY_CLASS
     elif nice_value <= -15:
@@ -128,7 +128,7 @@ def process_nice_to_priorityclass(nice_value: int) -> int:
         return psutil.IDLE_PRIORITY_CLASS
 
 
-def process_priorityclass_to_nice(priority_class: int) -> int:
+def process_priorityclass_to_nice(priority_class: int) -> int:  # pragma: no cover
     if priority_class == psutil.REALTIME_PRIORITY_CLASS:
         return -20
     elif priority_class == psutil.HIGH_PRIORITY_CLASS:
