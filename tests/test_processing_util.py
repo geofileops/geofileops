@@ -5,8 +5,6 @@ Tests for functionalities in _processing_util.
 
 import os
 
-import psutil
-import pytest
 
 from geofileops.util import _processing_util
 
@@ -46,40 +44,3 @@ def test_processnice():
 
     # Reset niceness to original value before test
     _processing_util.setprocessnice(nice_orig)
-
-
-@pytest.mark.skipif(os.name != "nt", reason="run only on windows")
-@pytest.mark.parametrize(
-    "nice_value, expected_priorityclass",
-    [
-        (-20, psutil.REALTIME_PRIORITY_CLASS),
-        (-15, psutil.HIGH_PRIORITY_CLASS),
-        (-10, psutil.ABOVE_NORMAL_PRIORITY_CLASS),
-        (0, psutil.NORMAL_PRIORITY_CLASS),
-        (10, psutil.BELOW_NORMAL_PRIORITY_CLASS),
-        (15, psutil.IDLE_PRIORITY_CLASS),
-    ],
-)
-def test_process_nice_to_priorityclass(nice_value, expected_priorityclass):
-    assert (
-        _processing_util.process_nice_to_priorityclass(nice_value)
-        == expected_priorityclass
-    )
-
-
-@pytest.mark.skipif(os.name != "nt", reason="run only on windows")
-@pytest.mark.parametrize(
-    "priorityclass, expected_nice",
-    [
-        (psutil.REALTIME_PRIORITY_CLASS, -20),
-        (psutil.HIGH_PRIORITY_CLASS, -15),
-        (psutil.ABOVE_NORMAL_PRIORITY_CLASS, -10),
-        (psutil.NORMAL_PRIORITY_CLASS, 0),
-        (psutil.BELOW_NORMAL_PRIORITY_CLASS, 10),
-        (psutil.IDLE_PRIORITY_CLASS, 19),
-    ],
-)
-def test_process_priorityclass_to_nice(priorityclass, expected_nice):
-    assert (
-        _processing_util.process_priorityclass_to_nice(priorityclass) == expected_nice
-    )
