@@ -23,7 +23,7 @@ def test_create_file_atomic(tmp_path):
     file_created = _io_util.create_file_atomic(path)
     assert file_created
     file_created = _io_util.create_file_atomic(path)
-    assert file_created
+    assert not file_created
 
 
 def test_get_tempfile_locked():
