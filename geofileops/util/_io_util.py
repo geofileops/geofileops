@@ -5,10 +5,8 @@ Module containing some utilities regarding io.
 
 import os
 from pathlib import Path
-import shutil
-import subprocess
 import tempfile
-from typing import Any, Optional, Tuple, Union
+from typing import Optional, Tuple
 
 
 def create_tempdir(base_dirname: str, parent_dir: Optional[Path] = None) -> Path:
@@ -108,60 +106,6 @@ def get_tempfile_locked(
         f"Wasn't able to create a temporary file with base_filename: {base_filename}, "
         f"dir: {dir}"
     )
-
-
-def copyfile(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]):
-    """
-    Copy the source file to the destination specified.
-
-    Standard shutil.copyfile is very slow on windows for large files.
-
-    Args:
-        src (PathLike): the source file to copy.
-        dst (PathLike): the destination file or directory to copy to.
-
-    Raises:
-        Exception: when anything went wrong.
-    """
-    if os.name == "nt":
-        # On windows, this is a lot faster than all shutil alternatives
-        # command = f'copy "{src}" "{dst}"'
-        command = f'xcopy /j "{src}" "{dst}*"'
-        output = ""
-        try:
-            output = subprocess.check_output(command, shell=True)
-        except Exception as ex:
-            raise Exception(f"Error executing {command}, with output {output}") from ex
-
-    else:
-        # If the destination is a dir, make it a full file path
-        shutil.copy2(src=src, dst=dst)
-
-
-'''
-def is_locked(filepath):
-    """
-    Checks if a file is locked by another process.
-    """
-    if os.name == 'nt':
-        import msvcrt
-        try:
-            fd = os.open(filepath, os.O_APPEND | os.O_EXCL | os.O_RDWR)
-        except OSError:
-            return True
-
-        try:
-            filesize = os.path.getsize(filepath)
-            msvcrt.locking(fd, msvcrt.LK_NBLCK, filesize)
-            msvcrt.locking(fd, msvcrt.LK_UNLCK, filesize)
-            os.close(fd)
-            return False
-        except (OSError, IOError):
-            os.close(fd)
-            return True
-    else:
-        raise Exception(f"Not implemented on os: {os.name}")
-'''
 
 
 def create_file_atomic(filename) -> bool:
