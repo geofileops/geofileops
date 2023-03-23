@@ -48,6 +48,7 @@ def test_processnice():
     _processing_util.setprocessnice(nice_orig)
 
 
+@pytest.mark.skipif(os.name != "nt", reason="run only on windows")
 @pytest.mark.parametrize(
     "nice_value, expected_priorityclass",
     [
@@ -66,6 +67,7 @@ def test_process_nice_to_priorityclass(nice_value, expected_priorityclass):
     )
 
 
+@pytest.mark.skipif(os.name != "nt", reason="run only on windows")
 @pytest.mark.parametrize(
     "priorityclass, expected_nice",
     [
