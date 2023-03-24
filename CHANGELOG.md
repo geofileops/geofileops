@@ -7,6 +7,11 @@
 - Add checks that `output_path` must not be equal to the/an `input_path` for geo
   operations (#246)
 
+### Bugs fixed
+
+- Fix "json" aggregate column handling in dissolve on line and point input files gives
+  wrong results (#)
+
 ## 0.7.0 (2023-03-17)
 
 ### Improvements

@@ -333,6 +333,63 @@ def test_dissolve_linestrings_aggcolumns_columns(tmp_path, suffix, epsg):
     # TODO: add more in depth check of result
 
 
+def test_dissolve_linestrings_aggcolumns_json(tmp_path):
+    # Prepare test data
+    input_path = test_helper.get_testfile("linestring-watercourse")
+    output_basepath = tmp_path / f"{input_path.stem}-output.gpkg"
+    input_layerinfo = gfo.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+
+    # Dissolve, groupby, explodecollections=False
+    # -------------------------------------------
+    output_path = (
+        output_basepath.parent
+        / f"{output_basepath.stem}_groupby_noexpl{output_basepath.suffix}"
+    )
+    # Also play a bit with casing to check case insnsitivity towards input file, but
+    # retaining the casing used in the groupby_columns parameter in output.
+    groupby_columns = ["NIScode"]
+    agg_columns = {"json": ["fid", "NaaM"]}
+    gfo.dissolve(
+        input_path=input_path,
+        output_path=output_path,
+        groupby_columns=groupby_columns,
+        agg_columns=agg_columns,
+        explodecollections=False,
+        batchsize=batchsize,
+    )
+
+    # Check if the result file is correctly created
+    assert output_path.exists()
+    input_layerinfo = gfo.get_layerinfo(input_path)
+
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.featurecount == 26
+    assert output_layerinfo.geometrytype is input_layerinfo.geometrytype
+    assert len(output_layerinfo.columns) == len(groupby_columns) + 1
+
+    # Now check the contents of the result file
+    input_gdf = gfo.read_file(input_path)
+    output_gdf = gfo.read_file(output_path)
+    assert input_gdf.crs == output_gdf.crs
+    assert len(output_gdf) == output_layerinfo.featurecount
+    assert output_gdf["geometry"][0] is not None
+
+    # Some more default checks for NISCODE 12009
+    niscode_idx = output_gdf[output_gdf["NIScode"] == "12009"].index.item()
+    json_value = json.loads(str(output_gdf["json"][niscode_idx]))
+    fid_str = ",".join([str(value["fid"]) for value in json_value])
+    if gfo.GeofileType(input_path).is_fid_zerobased:
+        assert fid_str == "38,42,44,54"
+    else:
+        assert fid_str == "39,43,45,55"
+    naam_str = ",".join([value["NAAM"] for value in json_value])
+    assert (
+        naam_str
+        == "Duffelse en Rumstse Scheibeek,Vosbergbeek,Maltaveldenloop,Grote Nete"
+    )
+
+
 @pytest.mark.parametrize(
     "suffix, epsg, groupby_columns, explode, expected_featurecount",
     [
