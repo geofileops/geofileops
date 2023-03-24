@@ -220,6 +220,42 @@ def test_buffer_force(tmp_path):
     assert output_path.stat().st_mtime != mtime_orig
 
 
+@pytest.mark.parametrize(
+    "expected_error, input_path, output_path",
+    [
+        (
+            "buffer: output_path must not equal input_path",
+            test_helper.get_testfile("polygon-parcel"),
+            test_helper.get_testfile("polygon-parcel"),
+        ),
+        (
+            "buffer: input_path doesn't exist:",
+            "not_existing_path",
+            "output.gpkg",
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "fileops_module", ["geofileops.geoops", "geofileops.util._geoops_gpd"]
+)
+def test_buffer_invalid_params(
+    tmp_path, input_path, output_path, expected_error, fileops_module
+):
+    """
+    Invalid params for single layer operations.
+    """
+    # Internal functions are directly called, so need to be Path objects
+    if isinstance(output_path, str):
+        output_path = tmp_path / output_path
+    if isinstance(input_path, str):
+        input_path = tmp_path / input_path
+
+    # Now run test
+    set_geoops_module(fileops_module)
+    with pytest.raises(ValueError, match=expected_error):
+        geoops.buffer(input_path=input_path, output_path=output_path, distance=1)
+
+
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 @pytest.mark.parametrize("testfile", DEFAULT_TESTFILES)
 @pytest.mark.parametrize(

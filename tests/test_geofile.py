@@ -409,7 +409,7 @@ def test_get_layerinfo(testfile, suffix, layer):
         layerinfo = gfo.get_layerinfo(src, "not_existing_layer")
 
     # Path specified that doesn't exist
-    with pytest.raises(ValueError, match="File does not exist"):
+    with pytest.raises(ValueError, match="input_path doesn't exist"):
         not_existing_path = _io_util.with_stem(src, "not_existing_layer")
         layerinfo = gfo.get_layerinfo(not_existing_path)
 
