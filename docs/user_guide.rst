@@ -51,8 +51,10 @@ Most spatial operations in geofileops have the same optional parameters:
       layer. For a file with multiple layers, use the "layer" parameter. 
     * output_layer: if not specified, the output layer name will be 
       output_path.stem.
-    * columns: if not specified, all columns will be retained in the output 
-      file. If you don't need all columns, specify the ones you want to keep.
+    * columns: if not specified, all standard attribute columns will be retained in the
+      output file. If you don't need all columns, specify the ones you want to keep. 
+      You can retain a copy of the special "fid" column in the output file by specifing
+      "fid" in addition to the standard attribute columns you want to retain.
     * explodecollections: the output features will be "exploded", so multipart
       features will be converted to single parts.
     * nb_parallel: specify the number of CPU's to be used. By default all 
@@ -88,6 +90,10 @@ This is a code example for the intersection operation:
     import geofileops as gfo
 
     gfo.intersection(input1_path='...', input2_path='...', output_path='...')
+
+
+The two-layer operations will have about the same optional parameters as the single
+layer operations, but where applicable they are duplicated for input1 and input2.
 
 
 General file/layer operations
