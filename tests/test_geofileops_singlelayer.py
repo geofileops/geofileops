@@ -178,15 +178,20 @@ def test_buffer_columns_fid(tmp_path, suffix, fileops_module, testfile):
     assert len(output_gdf[output_gdf.fid_1 == multi_fid]) == 2
 
 
-def test_buffer_force(tmp_path):
+@pytest.mark.parametrize(
+    "fileops_module", ["geofileops.geoops", "geofileops.util._geoops_gpd"]
+)
+def test_buffer_force(tmp_path, fileops_module):
     input_path = test_helper.get_testfile("polygon-parcel")
     input_layerinfo = fileops.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
     distance = 1
+    set_geoops_module(fileops_module)
 
     # Run buffer
     output_path = tmp_path / f"{input_path.stem}-output{input_path.suffix}"
     assert output_path.exists() is False
+
     geoops.buffer(
         input_path=input_path,
         output_path=output_path,

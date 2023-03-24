@@ -657,7 +657,7 @@ def _apply_geooperation(
         else:
             data_gdf.geometry = data_gdf.apply(func, axis=1)
     else:
-        raise Exception(f"Operation not supported: {operation}")
+        raise ValueError(f"operation not supported: {operation}")
 
     # Remove rows where geom is empty
     data_gdf = data_gdf[~data_gdf.geometry.is_empty]
