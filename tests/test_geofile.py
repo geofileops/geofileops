@@ -95,6 +95,19 @@ def test_add_column(tmp_path):
     for type in gdal_types:
         assert f"column_{type}" in info.columns
 
+    # Adding an already existing column doesn't give an error
+    existing_column = list(info.columns)[0]
+    gfo.add_column(test_path, name=existing_column, type="TEXT")
+
+    # Force update on an existing column
+    assert gdf["HFDTLT"][0] == "1"
+    expression = "5"
+    gfo.add_column(
+        test_path, name="HFDTLT", type="TEXT", expression=expression, force_update=True
+    )
+    gdf = gfo.read_file(test_path)
+    assert gdf["HFDTLT"][0] == "5"
+
 
 def test_append_different_layer(tmp_path):
     # Init
@@ -719,6 +732,12 @@ def test_rename_column(tmp_path, suffix):
         with pytest.raises(ValueError, match="rename_column is not possible for"):
             gfo.rename_column(test_path, "OPPERVL", "area")
     else:
+        gfo.rename_column(test_path, "OPPERVL", "area")
+        result_layerinfo = gfo.get_layerinfo(test_path)
+        assert "OPPERVL" not in result_layerinfo.columns
+        assert "area" in result_layerinfo.columns
+
+        # Rename non-existing column to existing columns doesn't give an error
         gfo.rename_column(test_path, "OPPERVL", "area")
         result_layerinfo = gfo.get_layerinfo(test_path)
         assert "OPPERVL" not in result_layerinfo.columns
