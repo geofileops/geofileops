@@ -256,7 +256,7 @@ def get_layerinfo(
     # Init
     path = Path(path)
     if not path.exists():
-        raise ValueError(f"File does not exist: {path}")
+        raise ValueError(f"input file does not exist: {path}")
 
     if layer is None:
         layer = get_only_layer(path)

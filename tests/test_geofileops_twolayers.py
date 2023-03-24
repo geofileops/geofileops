@@ -265,6 +265,71 @@ def test_intersection_input_no_index(tmp_path):
     assert output_path.exists()
 
 
+@pytest.mark.parametrize(
+    "expected_error, input1_path, input2_path, output_path",
+    [
+        (
+            "intersection: output_path == one of input paths",
+            test_helper.get_testfile("polygon-parcel"),
+            test_helper.get_testfile("polygon-zone"),
+            test_helper.get_testfile("polygon-parcel"),
+        ),
+        (
+            "intersection: output_path == one of input paths",
+            test_helper.get_testfile("polygon-parcel"),
+            test_helper.get_testfile("polygon-zone"),
+            test_helper.get_testfile("polygon-zone"),
+        ),
+        (
+            "input file does not exist: ",
+            "not_existing_path",
+            test_helper.get_testfile("polygon-zone"),
+            "output.gpkg",
+        ),
+        (
+            "input file does not exist: ",
+            test_helper.get_testfile("polygon-zone"),
+            "not_existing_path",
+            "output.gpkg",
+        ),
+    ],
+)
+def test_intersection_invalid_params(
+    tmp_path, input1_path, input2_path, output_path, expected_error
+):
+    """
+    Test if intersection works if the input gpkg files don't have a spatial index.
+    """
+    # Now run test
+    if isinstance(output_path, str):
+        output_path = tmp_path / output_path
+    with pytest.raises(ValueError, match=expected_error):
+        gfo.intersection(
+            input1_path=input1_path,
+            input2_path=input2_path,
+            output_path=output_path,
+        )
+
+
+def test_intersection_output_path_exists(tmp_path):
+    # Prepare test data
+    input1_path = test_helper.get_testfile("polygon-parcel")
+    input2_path = test_helper.get_testfile("polygon-parcel")
+
+    # Now run test
+    output_path = test_helper.get_testfile("polygon-zone")
+    assert output_path.exists()
+    gfo.intersection(
+        input1_path=input1_path,
+        input2_path=input2_path,
+        output_path=output_path,
+        force=False,
+    )
+
+    # The output file should still be there
+    assert output_path.exists()
+
+
 @pytest.mark.parametrize("suffix", [".gpkg", ".shp"])
 def test_intersection_resultempty(tmp_path, suffix):
     # Prepare test data
