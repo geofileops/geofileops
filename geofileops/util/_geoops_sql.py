@@ -2398,15 +2398,15 @@ def dissolve_singlethread(
         # Start preparation of agg_columns_str
         if "json" in agg_columns:
             # If the columns specified are None, take all columns that are not in
-            # groupby_columns
-            json_columns = []
+            # groupby_columns + fid as fid_orig
+            json_columns = [f"'fid_orig', layer.\"{fid_column}\""]
             if agg_columns["json"] is None:
                 for column in layerinfo.columns:
                     if column.upper() not in groupby_columns_upper_dict:
-                        json_columns.append(f"'{column}', layer.{column}")
+                        json_columns.append(f"'{column}', layer.\"{column}\"")
             else:
                 for column in agg_columns["json"]:
-                    json_columns.append(f"'{column}', layer.{column}")
+                    json_columns.append(f"'{column}', layer.\"{column}\"")
             agg_columns_str = (
                 f", json_group_array(json_object({', '.join(json_columns)})) as json"
             )
