@@ -265,6 +265,71 @@ def test_intersection_input_no_index(tmp_path):
     assert output_path.exists()
 
 
+@pytest.mark.parametrize(
+    "expected_error, input1_path, input2_path, output_path",
+    [
+        (
+            "intersection: output_path must not equal one of input paths",
+            test_helper.get_testfile("polygon-parcel"),
+            test_helper.get_testfile("polygon-zone"),
+            test_helper.get_testfile("polygon-parcel"),
+        ),
+        (
+            "intersection: output_path must not equal one of input paths",
+            test_helper.get_testfile("polygon-parcel"),
+            test_helper.get_testfile("polygon-zone"),
+            test_helper.get_testfile("polygon-zone"),
+        ),
+        (
+            "input_path doesn't exist: ",
+            "not_existing_path",
+            test_helper.get_testfile("polygon-zone"),
+            "output.gpkg",
+        ),
+        (
+            "input_path doesn't exist: ",
+            test_helper.get_testfile("polygon-zone"),
+            "not_existing_path",
+            "output.gpkg",
+        ),
+    ],
+)
+def test_intersection_invalid_params(
+    tmp_path, input1_path, input2_path, output_path, expected_error
+):
+    """
+    Test if intersection works if the input gpkg files don't have a spatial index.
+    """
+    # Now run test
+    if isinstance(output_path, str):
+        output_path = tmp_path / output_path
+    with pytest.raises(ValueError, match=expected_error):
+        gfo.intersection(
+            input1_path=input1_path,
+            input2_path=input2_path,
+            output_path=output_path,
+        )
+
+
+def test_intersection_output_path_exists(tmp_path):
+    # Prepare test data
+    input1_path = test_helper.get_testfile("polygon-parcel")
+    input2_path = test_helper.get_testfile("polygon-parcel")
+
+    # Now run test
+    output_path = test_helper.get_testfile("polygon-zone")
+    assert output_path.exists()
+    gfo.intersection(
+        input1_path=input1_path,
+        input2_path=input2_path,
+        output_path=output_path,
+        force=False,
+    )
+
+    # The output file should still be there
+    assert output_path.exists()
+
+
 @pytest.mark.parametrize("suffix", [".gpkg", ".shp"])
 def test_intersection_resultempty(tmp_path, suffix):
     # Prepare test data
@@ -578,6 +643,63 @@ def test_select_two_layers(tmp_path, suffix, epsg):
     # Check the contents of the result file
     output_gdf = gfo.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
+
+
+@pytest.mark.parametrize(
+    "expected_error, input1_path, input2_path, output_path",
+    [
+        (
+            "select_two_layers: output_path must not equal one of input paths",
+            test_helper.get_testfile("polygon-parcel"),
+            test_helper.get_testfile("polygon-zone"),
+            test_helper.get_testfile("polygon-parcel"),
+        ),
+        (
+            "select_two_layers: output_path must not equal one of input paths",
+            test_helper.get_testfile("polygon-parcel"),
+            test_helper.get_testfile("polygon-zone"),
+            test_helper.get_testfile("polygon-zone"),
+        ),
+        (
+            "select_two_layers: input1_path doesn't exist: not_existing_path",
+            "not_existing_path",
+            test_helper.get_testfile("polygon-zone"),
+            "output.gpkg",
+        ),
+        (
+            "select_two_layers: input2_path doesn't exist: not_existing_path",
+            test_helper.get_testfile("polygon-zone"),
+            "not_existing_path",
+            "output.gpkg",
+        ),
+    ],
+)
+def test_select_two_layers_invalid_params(
+    tmp_path, input1_path, input2_path, output_path, expected_error
+):
+    """
+    select_two_layers doesn't get info on input layers up-front, so this is the best
+    function to test the lower level checks in _two_layer_vector_operation.
+    """
+    # Prepare query to execute. Doesn't really matter what as an error is normally raise
+    # raise before it gets executed.
+    sql_stmt = """
+        SELECT layer1.{input1_geometrycolumn}
+              {layer1_columns_prefix_alias_str}
+              {layer2_columns_prefix_alias_str}
+          FROM {input1_databasename}."{input1_layer}" layer1
+          LEFT OUTER JOIN {input2_databasename}."{input2_layer}" layer2
+            ON layer1.join_id = layer2.join_id
+         WHERE 1=1
+           AND ST_Area(layer1.{input1_geometrycolumn}) > 5
+    """
+    with pytest.raises(ValueError, match=expected_error):
+        gfo.select_two_layers(
+            input1_path=input1_path,
+            input2_path=input2_path,
+            output_path=output_path,
+            sql_stmt=sql_stmt,
+        )
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)

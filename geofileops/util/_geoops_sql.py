@@ -435,9 +435,9 @@ def _single_layer_vector_operation(
 
     # Check input parameters...
     if not input_path.exists():
-        raise Exception(
-            f"Error {operation_name}: input_path doesn't exist: {input_path}"
-        )
+        raise ValueError(f"{operation_name}: input_path doesn't exist: {input_path}")
+    if input_path == output_path:
+        raise ValueError(f"{operation_name}: output_path must not equal input_path")
 
     # Check/get layer names
     if input_layer is None:
@@ -1793,20 +1793,20 @@ def _two_layer_vector_operation(
             spatial index. Defaults to True.
 
     Raises:
-        Exception: [description]
+        ValueError: [description]
     """
     # Init
     if not input1_path.exists():
-        raise Exception(
-            f"Error {operation_name}: input1_path doesn't exist: {input1_path}"
-        )
+        raise ValueError(f"{operation_name}: input1_path doesn't exist: {input1_path}")
     if not input2_path.exists():
-        raise Exception(
-            f"Error {operation_name}: input2_path doesn't exist: {input2_path}"
+        raise ValueError(f"{operation_name}: input2_path doesn't exist: {input2_path}")
+    if input1_path == output_path or input2_path == output_path:
+        raise ValueError(
+            f"{operation_name}: output_path must not equal one of input paths"
         )
     if use_ogr is True and input1_path != input2_path:
-        raise Exception(
-            f"Error {operation_name}: if use_ogr True, input1_path == input2_path!"
+        raise ValueError(
+            f"{operation_name}: if use_ogr True, input1_path == input2_path!"
         )
     if output_path.exists():
         if force is False:
@@ -2334,8 +2334,12 @@ def dissolve_singlethread(
     """
     # Init
     start_time = datetime.now()
+
+    # Check input params
     if not input_path.exists():
-        raise ValueError(f"input_path does not exist: {input_path}")
+        raise ValueError(f"input_path doesn't exist: {input_path}")
+    if input_path == output_path:
+        raise ValueError("output_path must not equal input_path")
     if output_path.exists():
         if force is False:
             logger.info(f"Stop dissolve: Output exists already {output_path}")

@@ -447,7 +447,14 @@ def test_dissolve_emptyfile(tmp_path, suffix):
     "invalid_params, exp_match",
     [
         ({"groupby_columns": "NON_EXISTING_COLUMN"}, "column in groupby_columns not"),
-        ({"input_path": Path("nonexisting.abc")}, "input_path does not exist: "),
+        ({"input_path": Path("nonexisting.abc")}, "input_path doesn't exist: "),
+        (
+            {
+                "input_path": test_helper.get_testfile("polygon-parcel"),
+                "output_path": test_helper.get_testfile("polygon-parcel"),
+            },
+            "output_path must not equal input_path",
+        ),
         (
             {
                 "input_path": test_helper.get_testfile("linestring-watercourse"),
@@ -472,11 +479,12 @@ def test_dissolve_invalid_params(tmp_path, sql_singlethread, invalid_params, exp
     """
     Test dissolve with some invalid input params.
     """
-    # Prepare test data
+    # Prepare test data / params
     input_path = test_helper.get_testfile("polygon-parcel")
     groupby_columns = ["GEWASGROEP"]
     nb_squarish_tiles = 1
     agg_columns = None
+    output_path = tmp_path / "output.gpkg"
     for invalid_param in invalid_params:
         if invalid_param == "input_path":
             input_path = invalid_params[invalid_param]
@@ -486,9 +494,12 @@ def test_dissolve_invalid_params(tmp_path, sql_singlethread, invalid_params, exp
             nb_squarish_tiles = invalid_params[invalid_param]
         elif invalid_param == "agg_columns":
             agg_columns = invalid_params[invalid_param]
+        elif invalid_param == "output_path":
+            output_path = invalid_params[invalid_param]
+        else:
+            ValueError(f"unsupported invalid_param: {invalid_param}")
 
     # Run test
-    output_path = tmp_path / "output.gpkg"
     with pytest.raises(ValueError, match=exp_match):
         if sql_singlethread:
             if nb_squarish_tiles > 1:

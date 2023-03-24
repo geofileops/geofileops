@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## development (???)
+
+## Improvements
+
+- Add checks that `output_path` must not be equal to the/an `input_path` for geo
+  operations (#246)
+
 ## 0.7.0 (2023-03-17)
 
 ### Improvements

@@ -425,11 +425,18 @@ def _apply_geooperation_to_layer(
     """
     # Init
     start_time_global = datetime.now()
+
+    # Check input parameters...
+    operation_name = operation.name.lower()
+    if not input_path.exists():
+        raise ValueError(f"{operation_name}: input_path doesn't exist: {input_path}")
+    if input_path == output_path:
+        raise ValueError(f"{operation_name}: output_path must not equal input_path")
     if input_layer is None:
         input_layer = gfo.get_only_layer(input_path)
     if output_path.exists():
         if force is False:
-            logger.info(f"Stop {operation}: output exists already {output_path}")
+            logger.info(f"Stop {operation_name}: output exists already {output_path}")
             return
         else:
             gfo.remove(output_path)
@@ -725,7 +732,10 @@ def dissolve(
     if groupby_columns is not None and len(list(groupby_columns)) == 0:
         raise ValueError("groupby_columns=[] is not supported. Use None.")
     if not input_path.exists():
-        raise ValueError(f"input_path does not exist: {input_path}")
+        raise ValueError(f"input_path doesn't exist: {input_path}")
+    if input_path == output_path:
+        raise ValueError("output_path must not equal input_path")
+
     input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
     if input_layerinfo.geometrytype.to_primitivetype in [
         PrimitiveType.POINT,
