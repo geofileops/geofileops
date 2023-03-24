@@ -11,9 +11,10 @@ alternative.
 
 The easy way
 ------------
-If you don't have conda installed yet, here is a link to the `miniforge installer`_.
+If you don't have conda installed yet, you can install it using the
+`miniforge installer`_.
 
-Typically, the next step will be to create a new conda environment::
+After installation, you can start the conda prompt and create a new conda environment::
 
     conda create -n geo
     conda activate geo
