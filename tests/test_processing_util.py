@@ -5,7 +5,6 @@ Tests for functionalities in _processing_util.
 
 import os
 
-
 from geofileops.util import _processing_util
 
 
