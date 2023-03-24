@@ -38,7 +38,9 @@ def validate_agg_columns(agg_columns: dict):
         raise ValueError(f"{message}: {base_message}")
 
     if "json" in agg_columns:
-        # The value should be a list
+        # The value should be a list or None
+        if agg_columns["json"] is None:
+            return
         if not isinstance(agg_columns["json"], list):
             message = 'agg_columns["json"] does not contain a list of strings'
             raise ValueError(f"{message}: {agg_columns['json']}: {base_message}")

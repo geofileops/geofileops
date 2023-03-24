@@ -15,6 +15,7 @@ from geofileops.helpers import _parameter_helper
         None,
         {"columns": [{"column": "UIDN", "agg": "count", "as": "123"}]},
         {"json": ["UIDN", "OIDN"]},
+        {"json": None},
     ],
 )
 def test_validate_agg_columns(agg_columns_value):
