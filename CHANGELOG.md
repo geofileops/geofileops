@@ -10,7 +10,7 @@
 ### Bugs fixed
 
 - Fix "json" aggregate column handling in dissolve on line and point input files gives
-  wrong results (#)
+  wrong results (#257)
 
 ## 0.7.0 (2023-03-17)
 
