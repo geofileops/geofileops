@@ -337,6 +337,9 @@ def test_drop_column(tmp_path, suffix):
     assert len(original_info.columns) == len(new_info.columns) + 1
     assert "GEWASGROEP" not in new_info.columns
 
+    # dropping column that doesn't exist doesn't give an error
+    gfo.drop_column(test_path, "NOT_EXISTING_COLUMN")
+
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 def test_get_crs(suffix):
