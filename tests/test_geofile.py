@@ -199,6 +199,14 @@ def test_convert_force_output_geometrytype(tmp_path, testfile, force_geometrytyp
     assert gfo.get_layerinfo(dst).geometrytype == force_geometrytype
 
 
+def test_convert_invalid_params(tmp_path):
+    # Convert
+    src = tmp_path / "nonexisting_file.gpkg"
+    dst = tmp_path / "output.gpkg"
+    with pytest.raises(ValueError, match="src file doesn't exist: "):
+        gfo.convert(src, dst)
+
+
 @pytest.mark.parametrize(
     "src_suffix, dst_suffix, preserve_fid, exp_preserved_fids",
     [
@@ -568,6 +576,13 @@ def test_read_file(suffix, engine_setter):
     read_gdf = gfo.read_file_nogeom(src, columns=[])
     assert isinstance(read_gdf, pd.DataFrame)
     assert len(read_gdf) == 0
+
+
+def test_read_file_invalid_params(tmp_path, engine_setter):
+    src = tmp_path / "nonexisting_file.gpkg"
+
+    with pytest.raises(ValueError, match="file doesn't exist:"):
+        _ = gfo.read_file(src)
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)

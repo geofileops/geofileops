@@ -1097,7 +1097,7 @@ def _read_file_base_fiona(
     # Init
     path = Path(path)
     if path.exists() is False:
-        raise ValueError(f"File doesnt't exist: {path}")
+        raise ValueError(f"file doesn't exist: {path}")
 
     # If no layer name specified, check if there is only one layer in the file.
     if layer is None:
@@ -1195,7 +1195,7 @@ def _read_file_base_pyogrio(
     # Init
     path = Path(path)
     if path.exists() is False:
-        raise ValueError(f"File doesn't exist: {path}")
+        raise ValueError(f"file doesn't exist: {path}")
 
     # Convert slice object to pyogrio parameters
     if rows is not None:
