@@ -31,14 +31,24 @@ def validate_agg_columns(agg_columns: dict):
     # It should be a dict with one key
     if (
         agg_columns is None
-        or isinstance(agg_columns, dict) is False
+        or not isinstance(agg_columns, dict)
         or len(agg_columns) != 1
     ):
         message = "agg_columns must be a dict with exactly one top-level key"
         raise ValueError(f"{message}: {base_message}")
 
     if "json" in agg_columns:
-        return
+        # The value should be a list
+        if not isinstance(agg_columns["json"], list):
+            message = 'agg_columns["json"] does not contain a list of strings'
+            raise ValueError(f"{message}: {agg_columns['json']}: {base_message}")
+
+        # Loop through all elements
+        for agg_column in agg_columns["json"]:
+            # It should be a str
+            if not isinstance(agg_column, str):
+                message = 'agg_columns["json"] list contains a non-string element'
+                raise ValueError(f"{message}: {agg_column}: {base_message}")
     elif "columns" in agg_columns:
         supported_aggfuncs = [
             "count",
@@ -50,14 +60,14 @@ def validate_agg_columns(agg_columns: dict):
             "concat",
         ]
         # The value should be a list
-        if isinstance(agg_columns["columns"], list) is False:
+        if not isinstance(agg_columns["columns"], list):
             message = 'agg_columns["columns"] does not contain a list of dicts'
             raise ValueError(f"{message}: {agg_columns['columns']}: {base_message}")
 
-        # Loop through all rows
+        # Loop through all elements
         for agg_column in agg_columns["columns"]:
             # It should be a dict
-            if isinstance(agg_column, dict) is False:
+            if not isinstance(agg_column, dict):
                 message = 'agg_columns["columns"] list contains a non-dict element'
                 raise ValueError(f"{message}: {agg_column}: {base_message}")
 
@@ -76,7 +86,7 @@ def validate_agg_columns(agg_columns: dict):
                     'agg_columns["columns"] contains unsupported aggregation '
                     f'{agg_column["agg"]}, use one of {supported_aggfuncs}'
                 )
-            if isinstance(agg_column["as"], str) is False:
+            if not isinstance(agg_column["as"], str):
                 raise ValueError(
                     f'agg_columns["columns"], "as" value should be string: {agg_column}'
                 )

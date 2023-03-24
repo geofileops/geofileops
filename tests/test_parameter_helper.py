@@ -10,9 +10,22 @@ from geofileops.helpers import _parameter_helper
 
 
 @pytest.mark.parametrize(
+    "agg_columns_value",
+    [
+        None,
+        {"columns": [{"column": "UIDN", "agg": "count", "as": "123"}]},
+        {"json": ["UIDN", "OIDN"]},
+    ],
+)
+def test_validate_agg_columns(agg_columns_value):
+    _parameter_helper.validate_agg_columns(agg_columns=agg_columns_value)
+
+
+@pytest.mark.parametrize(
     "expected_error, agg_columns_value",
     [
         ("agg_columns must be a dict with exactly one top-level key", {"a": 1, "b": 2}),
+        ("agg_columns has invalid top-level key", {"a": 1}),
         ('agg_columns["columns"] does not contain a list of dicts', {"columns": 1}),
         (
             'agg_columns["columns"] does not contain a list of dicts',
@@ -41,6 +54,18 @@ from geofileops.helpers import _parameter_helper
         (
             'agg_columns["columns"], "as" value should be string',
             {"columns": [{"column": "UIDN", "agg": "count", "as": 123}]},
+        ),
+        (
+            'agg_columns["json"] does not contain a list of strings',
+            {"json": {"column": "UIDN", "agg": "count", "as": 123}},
+        ),
+        (
+            'agg_columns["json"] list contains a non-string element',
+            {"json": [{"column": "UIDN", "agg": "count", "as": 123}]},
+        ),
+        (
+            'agg_columns["json"] list contains a non-string element',
+            {"json": ["UIDN", 123]},
         ),
     ],
 )
