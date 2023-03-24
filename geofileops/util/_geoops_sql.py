@@ -225,31 +225,32 @@ def isvalid(
         force=force,
     )
 
-    # If there is no output file, there weren't invalid geoms
-    if not output_path.exists():
-        # If output is a geopackage, check if all data can be read
-        try:
-            input_geofiletype = GeofileType(input_path)
-            if input_geofiletype.is_spatialite_based:
-                _sqlite_util.test_data_integrity(path=input_path)
-                logger.debug("test_data_integrity was succesfull")
-        except Exception:
-            logger.exception(
-                "No invalid geometries found, but some attributes could not be read"
-            )
-            return False
+    # Check the number of invalid files
+    nb_invalid_geoms = 0
+    if output_path.exists():
+        nb_invalid_geoms = gfo.get_layerinfo(output_path).featurecount
+        if nb_invalid_geoms == 0:
+            # Empty result, so everything was valid: remove output file
+            gfo.remove(output_path)
 
-        return True
+    # If output is sqlite based, check if all data can be read
+    try:
+        input_geofiletype = GeofileType(input_path)
+        if input_geofiletype.is_spatialite_based:
+            _sqlite_util.test_data_integrity(path=input_path)
+            logger.debug("test_data_integrity was succesfull")
+    except Exception:
+        logger.exception(
+            f"nb_invalid_geoms: {nb_invalid_geoms} + some attributes could not be read!"
+        )
+        return False
 
-    # Output file exists, so check result
-    layerinfo = gfo.get_layerinfo(output_path)
-    if layerinfo.featurecount == 0:
-        # Empty result, so everything was valid: remove output file + return True
-        gfo.remove(output_path)
-        return True
+    if nb_invalid_geoms > 0:
+        logger.info(f"Found {nb_invalid_geoms} invalid geoms in {output_path}")
+        return False
 
-    logger.info(f"Found {layerinfo.featurecount} invalid geoms in {output_path}")
-    return False
+    # Nothing invalid found
+    return True
 
 
 def makevalid(
