@@ -24,6 +24,7 @@ from . import _general_util
 from . import _io_util
 from . import _ogr_sql_util
 from . import _ogr_util
+from ..helpers import _parameter_helper
 from . import _processing_util
 from . import _sqlite_util
 
@@ -435,9 +436,9 @@ def _single_layer_vector_operation(
 
     # Check input parameters...
     if not input_path.exists():
-        raise Exception(
-            f"Error {operation_name}: input_path doesn't exist: {input_path}"
-        )
+        raise ValueError(f"{operation_name}: input_path doesn't exist: {input_path}")
+    if input_path == output_path:
+        raise ValueError(f"{operation_name}: output_path must not equal input_path")
 
     # Check/get layer names
     if input_layer is None:
@@ -1793,20 +1794,20 @@ def _two_layer_vector_operation(
             spatial index. Defaults to True.
 
     Raises:
-        Exception: [description]
+        ValueError: [description]
     """
     # Init
     if not input1_path.exists():
-        raise Exception(
-            f"Error {operation_name}: input1_path doesn't exist: {input1_path}"
-        )
+        raise ValueError(f"{operation_name}: input1_path doesn't exist: {input1_path}")
     if not input2_path.exists():
-        raise Exception(
-            f"Error {operation_name}: input2_path doesn't exist: {input2_path}"
+        raise ValueError(f"{operation_name}: input2_path doesn't exist: {input2_path}")
+    if input1_path == output_path or input2_path == output_path:
+        raise ValueError(
+            f"{operation_name}: output_path must not equal one of input paths"
         )
     if use_ogr is True and input1_path != input2_path:
-        raise Exception(
-            f"Error {operation_name}: if use_ogr True, input1_path == input2_path!"
+        raise ValueError(
+            f"{operation_name}: if use_ogr True, input1_path == input2_path!"
         )
     if output_path.exists():
         if force is False:
@@ -2334,8 +2335,12 @@ def dissolve_singlethread(
     """
     # Init
     start_time = datetime.now()
+
+    # Check input params
     if not input_path.exists():
-        raise ValueError(f"input_path does not exist: {input_path}")
+        raise ValueError(f"input_path doesn't exist: {input_path}")
+    if input_path == output_path:
+        raise ValueError("output_path must not equal input_path")
     if output_path.exists():
         if force is False:
             logger.info(f"Stop dissolve: Output exists already {output_path}")
@@ -2387,18 +2392,11 @@ def dissolve_singlethread(
     # Prepare the strings regarding agg_columns to use in the select statement.
     agg_columns_str = ""
     if agg_columns is not None:
-        message = (
-            'agg_columns malformed. Options are: {"json": [<list_columns>]} '
-            'or {"columns": [{"column": "...", "agg": "...", "as": "..."}, ...]}'
-        )
-
-        # It should be a dict with one key
-        if isinstance(agg_columns, dict) is False or len(agg_columns) != 1:
-            raise ValueError(message)
+        # Validate the dict structure, so we can assume everything is OK further on
+        _parameter_helper.validate_agg_columns(agg_columns)
 
         # Start preparation of agg_columns_str
         if "json" in agg_columns:
-            agg_columns_str = ""
             # If the columns specified are None, take all columns that are not in
             # groupby_columns
             if agg_columns["json"] is None:
@@ -2410,20 +2408,12 @@ def dissolve_singlethread(
                     agg_columns_str += f"'{column}', layer.{column}"
             agg_columns_str = f", json_object({agg_columns_str}) as json"
         elif "columns" in agg_columns:
-            # The columns value should be a list
-            if isinstance(agg_columns["columns"], list) is False:
-                raise ValueError(message)
-
             for agg_column in agg_columns["columns"]:
-                # It should be a dict
-                if isinstance(agg_column, dict) is False:
-                    raise ValueError(message)
-
                 # Init
                 distinct_str = ""
                 extra_param_str = ""
 
-                # Prepare aggregation keyword.
+                # Prepare aggregation keyword
                 if agg_column["agg"].lower() in [
                     "count",
                     "sum",
@@ -2439,15 +2429,13 @@ def dissolve_singlethread(
                     if "sep" in agg_column:
                         extra_param_str = f", '{agg_column['sep']}'"
                 else:
-                    raise ValueError(
-                        f"Error: aggregation {agg_column['agg']} is not supported!"
-                    )
+                    raise ValueError(f"aggregation {agg_column['agg']} not supported!")
 
                 # If distinct is specified, add the distinct keyword
                 if "distinct" in agg_column and agg_column["distinct"] is True:
                     distinct_str = "DISTINCT "
 
-                # Prepare column name string.
+                # Prepare column name string
                 column = agg_column["column"]
                 if column.upper() not in columns_available_upper:
                     raise ValueError(f"{column} not available in: {columns_available}")
@@ -2456,7 +2444,7 @@ def dissolve_singlethread(
                 else:
                     column_str = f'layer."{column}"'
 
-                # Now put everything togethers
+                # Now put everything together
                 agg_columns_str += (
                     f", {aggregation_str}({distinct_str}{column_str}{extra_param_str}) "
                     f'AS "{agg_column["as"]}"'

@@ -444,39 +444,47 @@ def test_dissolve_emptyfile(tmp_path, suffix):
 
 @pytest.mark.parametrize("sql_singlethread", [True, False])
 @pytest.mark.parametrize(
-    "invalid_params, exp_match",
+    "exp_match, invalid_params",
     [
-        ({"groupby_columns": "NON_EXISTING_COLUMN"}, "column in groupby_columns not"),
-        ({"input_path": Path("nonexisting.abc")}, "input_path does not exist: "),
+        ("column in groupby_columns not", {"groupby_columns": "NON_EXISTING_COLUMN"}),
+        ("input_path doesn't exist: ", {"input_path": Path("nonexisting.abc")}),
         (
+            "output_path must not equal input_path",
+            {
+                "input_path": test_helper.get_testfile("polygon-parcel"),
+                "output_path": test_helper.get_testfile("polygon-parcel"),
+            },
+        ),
+        (
+            "Dissolve to tiles is not supported for GeometryType.MULTILINESTRING, ",
             {
                 "input_path": test_helper.get_testfile("linestring-watercourse"),
                 "nb_squarish_tiles": 2,
             },
-            "Dissolve to tiles is not supported for GeometryType.MULTILINESTRING, ",
         ),
-        ({"agg_columns": {"a": 1, "b": 2}}, "agg_columns malformed"),
-        ({"agg_columns": {"columns": 1}}, "agg_columns malformed"),
-        ({"agg_columns": {"columns": {"column": "abc"}}}, "agg_columns malformed"),
         (
-            {"agg_columns": {"columns": [{"column": "abc", "agg": "count"}]}},
             "abc not available in: ",
-        ),
-        (
-            {"agg_columns": {"columns": [{"column": "UIDN", "agg": "NOK"}]}},
-            "Error: aggregation NOK is not supported",
+            {
+                "agg_columns": {
+                    "columns": [{"column": "abc", "agg": "count", "as": "cba"}]
+                }
+            },
         ),
     ],
 )
 def test_dissolve_invalid_params(tmp_path, sql_singlethread, invalid_params, exp_match):
     """
     Test dissolve with some invalid input params.
+
+    Remark: the structure of agg_columns parameter is tested in
+      test_parameter_helper.test_validate_agg_columns_invalid.
     """
-    # Prepare test data
+    # Prepare test data / params
     input_path = test_helper.get_testfile("polygon-parcel")
     groupby_columns = ["GEWASGROEP"]
     nb_squarish_tiles = 1
     agg_columns = None
+    output_path = tmp_path / "output.gpkg"
     for invalid_param in invalid_params:
         if invalid_param == "input_path":
             input_path = invalid_params[invalid_param]
@@ -486,9 +494,12 @@ def test_dissolve_invalid_params(tmp_path, sql_singlethread, invalid_params, exp
             nb_squarish_tiles = invalid_params[invalid_param]
         elif invalid_param == "agg_columns":
             agg_columns = invalid_params[invalid_param]
+        elif invalid_param == "output_path":
+            output_path = invalid_params[invalid_param]
+        else:
+            ValueError(f"unsupported invalid_param: {invalid_param}")
 
     # Run test
-    output_path = tmp_path / "output.gpkg"
     with pytest.raises(ValueError, match=exp_match):
         if sql_singlethread:
             if nb_squarish_tiles > 1:
