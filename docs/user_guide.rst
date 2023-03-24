@@ -3,8 +3,24 @@
 User guide
 ==========
 
-The main objective of geofileops is to provide a simple to use but powerful 
-API to do fast spatial operations on GIS files. 
+The main objective of geofileops is to provide a simple to use but powerful API to do
+fast spatial operations on large vector GIS files.
+
+To get the most out of geofileops, these are some things to note:
+
+  * Geofileops is tested on geopackage and shapefile input/output files. However,
+    geopackage is highly recommended because it will offer better performance in
+    geofileops as well as for the reasons listed here: www.switchfromshapefile.org.
+  * For spatial operations it is typically not supported to directly append a layer in
+    an existing Geopackage file. If wanted, it is possible to append it in a seperate
+    step using :meth:`~append_to`.
+  * A typical use case for geofileops is to script complex GIS analysis involving many
+    spatial operations on multiple large input files. To support this use case, if an
+    output file already exists, all spatial operations will by default just return
+    without error or further processing. This way it is easy to incrementally develop/
+    run the script and only new/missing output files (or output files you remove) will
+    be (re)processed.
+
 
 Spatial operations on one layer
 -------------------------------
@@ -27,13 +43,9 @@ This is how eg. a buffer operation can be applied on a file/layer:
 
     import geofileops as gfo
     
-    gfo.buffer(
-            input_path='...',
-            output_path='...',
-            distance=2)
+    gfo.buffer(input_path='...', output_path='...', distance=2)
 
-Most spatial operations in geofileops have the same following optional 
-parameters:
+Most spatial operations in geofileops have the same optional parameters:
 
     * input_layer: if the file contains 1 layer, you don't need to specify a 
       layer. For a file with multiple layers, use the "layer" parameter. 
@@ -47,7 +59,7 @@ parameters:
       CPU's are used.
     * batchsize: use this parameter to eg. reduce memory usage. 
     * force: by default, if the output_path already exists, geofileops will  
-      just log that this is the fact and continue without throwing a error. 
+      just log that this is the fact and return without throwing a error. 
       To overwrite the existing output_path, specify force=True.
     
 Spatial operations between two files/layers
@@ -75,10 +87,8 @@ This is a code example for the intersection operation:
 
     import geofileops as gfo
 
-    gfo.intersection(
-            input1_path='...',
-            input2_path='...',
-            output_path='...')
+    gfo.intersection(input1_path='...', input2_path='...', output_path='...')
+
 
 General file/layer operations
 -----------------------------
