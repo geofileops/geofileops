@@ -2397,16 +2397,31 @@ def dissolve_singlethread(
 
         # Start preparation of agg_columns_str
         if "json" in agg_columns:
-            # If the columns specified are None, take all columns that are not in
-            # groupby_columns
+            # Determine the columns to be put in json
+            columns = []
             if agg_columns["json"] is None:
+                # If columns specified is None: all columns not in groupby_columns
                 for column in layerinfo.columns:
                     if column.upper() not in groupby_columns_upper_dict:
-                        agg_columns_str += f"'{column}', layer.{column}"
+                        columns.append(column)
             else:
                 for column in agg_columns["json"]:
-                    agg_columns_str += f"'{column}', layer.{column}"
-            agg_columns_str = f", json_object({agg_columns_str}) as json"
+                    columns.append(column)
+            json_columns = [f"'{column}', layer.\"{column}\"" for column in columns]
+
+            # The fid should be added as well, but make name unique
+            fid_orig_column = "fid_orig"
+            for idx in range(0, 99999):
+                if idx != 0:
+                    fid_orig_column = f"fid_orig{idx}"
+                if fid_orig_column not in columns:
+                    break
+            json_columns.append(f"'{fid_orig_column}', layer.\"{fid_column}\"")
+
+            # Now we are ready to prepare final str
+            agg_columns_str = (
+                f", json_group_array(json_object({', '.join(json_columns)})) as json"
+            )
         elif "columns" in agg_columns:
             for agg_column in agg_columns["columns"]:
                 # Init

@@ -343,6 +343,71 @@ def test_dissolve_linestrings_aggcolumns_columns(tmp_path, suffix, epsg):
     # TODO: add more in depth check of result
 
 
+@pytest.mark.parametrize("agg_columns", [{"json": ["fid", "NaaM"]}, {"json": None}])
+def test_dissolve_linestrings_aggcolumns_json(tmp_path, agg_columns):
+    # Prepare test data
+    input_path = test_helper.get_testfile("linestring-watercourse")
+    output_basepath = tmp_path / f"{input_path.stem}-output.gpkg"
+    input_layerinfo = gfo.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+
+    # Dissolve, groupby, explodecollections=False
+    # -------------------------------------------
+    output_path = (
+        output_basepath.parent
+        / f"{output_basepath.stem}_groupby_noexpl{output_basepath.suffix}"
+    )
+    # Also play a bit with casing to check case insnsitivity towards input file, but
+    # retaining the casing used in the groupby_columns parameter in output.
+    groupby_columns = ["NIScode"]
+    gfo.dissolve(
+        input_path=input_path,
+        output_path=output_path,
+        groupby_columns=groupby_columns,
+        agg_columns=agg_columns,
+        explodecollections=False,
+        batchsize=batchsize,
+    )
+
+    # Check if the result file is correctly created
+    assert output_path.exists()
+    input_layerinfo = gfo.get_layerinfo(input_path)
+
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.featurecount == 26
+    assert output_layerinfo.geometrytype is input_layerinfo.geometrytype
+    assert len(output_layerinfo.columns) == len(groupby_columns) + 1
+
+    # Now check the contents of the result file
+    input_gdf = gfo.read_file(input_path)
+    output_gdf = gfo.read_file(output_path)
+    assert input_gdf.crs == output_gdf.crs
+    assert len(output_gdf) == output_layerinfo.featurecount
+    assert output_gdf["geometry"][0] is not None
+
+    # Some more default checks for NISCODE 12009
+    niscode_idx = output_gdf[output_gdf["NIScode"] == "12009"].index.item()
+    json_value = json.loads(str(output_gdf["json"][niscode_idx]))
+
+    # Check NAAM
+    naam_str = ",".join([value["NAAM"] for value in json_value])
+    exp = "Duffelse en Rumstse Scheibeek,Vosbergbeek,Maltaveldenloop,Grote Nete"
+    assert naam_str == exp
+    fid_str = ",".join([str(value["fid_orig"]) for value in json_value])
+    if gfo.GeofileType(input_path).is_fid_zerobased:
+        assert fid_str == "38,42,44,54"
+    else:
+        assert fid_str == "39,43,45,55"
+
+    # Some specific tests depending on whether all columns asked or not
+    if agg_columns["json"] is None:
+        # fid_orig is added to json
+        assert len(json_value[0]) == len(input_layerinfo.columns) + 1
+    else:
+        # fid_orig is added to json
+        assert len(json_value[0]) == len(agg_columns["json"]) + 1
+
+
 @pytest.mark.parametrize(
     "suffix, epsg, groupby_columns, explode, expected_featurecount",
     [
@@ -777,14 +842,17 @@ def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
         assert output_gdf["fid_concat"][groenten_idx] == "42,43,44,45,46"
 
 
-def test_dissolve_polygons_aggcolumns_json(tmp_path, suffix=".gpkg"):
+@pytest.mark.parametrize(
+    "agg_columns", [{"json": ["lengte", "oppervl", "lblhfdtlt"]}, {"json": None}]
+)
+def test_dissolve_polygons_aggcolumns_json(tmp_path, agg_columns):
     # In shapefiles, the length of str columns is very limited, so the json
     # test would fail.
     # Prepare test data
-    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    input_path = test_helper.get_testfile("polygon-parcel")
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
-    output_basepath = tmp_path / f"{input_path.stem}-output{suffix}"
+    output_basepath = tmp_path / f"{input_path.stem}-output.gpkg"
 
     # Test dissolve polygons with groupby + agg_columns to json
     output_path = (
@@ -795,7 +863,7 @@ def test_dissolve_polygons_aggcolumns_json(tmp_path, suffix=".gpkg"):
         input_path=input_path,
         output_path=output_path,
         groupby_columns=["GEWASGROEP"],
-        agg_columns={"json": ["lengte", "oppervl", "lblhfdtlt"]},
+        agg_columns=agg_columns,
         explodecollections=False,
         nb_parallel=2,
         batchsize=batchsize,
@@ -816,37 +884,13 @@ def test_dissolve_polygons_aggcolumns_json(tmp_path, suffix=".gpkg"):
     assert output_gdf["geometry"][0] is not None
     grasland_json = json.loads(str(output_gdf["json"][0]))
     assert len(grasland_json) == 30
-
-    # Test dissolve polygons with groupby + all columns to json
-    output_path = (
-        output_basepath.parent
-        / f"{output_basepath.stem}_group_aggjson_all{output_basepath.suffix}"
-    )
-    gfo.dissolve(
-        input_path=input_path,
-        output_path=output_path,
-        groupby_columns=["GEWASGROEP"],
-        agg_columns={"json": None},
-        explodecollections=False,
-        nb_parallel=2,
-        batchsize=batchsize,
-    )
-
-    # Now check if the tmp file is correctly created
-    assert output_path.exists()
-    output_layerinfo = gfo.get_layerinfo(output_path)
-    assert output_layerinfo.featurecount == 6
-    assert len(output_layerinfo.columns) == 2
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
-
-    # Now check the contents of the result file
-    input_gdf = gfo.read_file(input_path)
-    output_gdf = gfo.read_file(output_path)
-    assert input_gdf.crs == output_gdf.crs
-    assert len(output_gdf) == output_layerinfo.featurecount
-    assert output_gdf["geometry"][0] is not None
-    grasland_json = json.loads(str(output_gdf["json"][0]))
-    assert len(grasland_json) == 30
+    grasland_json_firstrow = json.loads(str(grasland_json[0]))
+    if agg_columns["json"] is None:
+        # fid_orig column is added in json, but index column disappeared ???
+        assert len(grasland_json_firstrow) == len(input_layerinfo.columns)
+    else:
+        # fid_orig column is added in json
+        assert len(grasland_json_firstrow) == len(agg_columns["json"]) + 1
 
 
 @pytest.mark.parametrize(
