@@ -95,6 +95,19 @@ def test_add_column(tmp_path):
     for type in gdal_types:
         assert f"column_{type}" in info.columns
 
+    # Adding an already existing column doesn't give an error
+    existing_column = list(info.columns)[0]
+    gfo.add_column(test_path, name=existing_column, type="TEXT")
+
+    # Force update on an existing column
+    assert gdf["HFDTLT"][0] == "1"
+    expression = "5"
+    gfo.add_column(
+        test_path, name="HFDTLT", type="TEXT", expression=expression, force_update=True
+    )
+    gdf = gfo.read_file(test_path)
+    assert gdf["HFDTLT"][0] == "5"
+
 
 def test_append_different_layer(tmp_path):
     # Init
@@ -197,6 +210,14 @@ def test_convert_force_output_geometrytype(tmp_path, testfile, force_geometrytyp
     dst = tmp_path / f"{src.stem}_to_{force_geometrytype}.gpkg"
     gfo.convert(src, dst, force_output_geometrytype=force_geometrytype)
     assert gfo.get_layerinfo(dst).geometrytype == force_geometrytype
+
+
+def test_convert_invalid_params(tmp_path):
+    # Convert
+    src = tmp_path / "nonexisting_file.gpkg"
+    dst = tmp_path / "output.gpkg"
+    with pytest.raises(ValueError, match="src file doesn't exist: "):
+        gfo.convert(src, dst)
 
 
 @pytest.mark.parametrize(
@@ -328,6 +349,9 @@ def test_drop_column(tmp_path, suffix):
     new_info = gfo.get_layerinfo(test_path)
     assert len(original_info.columns) == len(new_info.columns) + 1
     assert "GEWASGROEP" not in new_info.columns
+
+    # dropping column that doesn't exist doesn't give an error
+    gfo.drop_column(test_path, "NOT_EXISTING_COLUMN")
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
@@ -570,6 +594,13 @@ def test_read_file(suffix, engine_setter):
     assert len(read_gdf) == 0
 
 
+def test_read_file_invalid_params(tmp_path, engine_setter):
+    src = tmp_path / "nonexisting_file.gpkg"
+
+    with pytest.raises(ValueError, match="file doesn't exist:"):
+        _ = gfo.read_file(src)
+
+
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 def test_read_file_fid_as_index(suffix, engine_setter):
     # Prepare test data
@@ -701,6 +732,12 @@ def test_rename_column(tmp_path, suffix):
         with pytest.raises(ValueError, match="rename_column is not possible for"):
             gfo.rename_column(test_path, "OPPERVL", "area")
     else:
+        gfo.rename_column(test_path, "OPPERVL", "area")
+        result_layerinfo = gfo.get_layerinfo(test_path)
+        assert "OPPERVL" not in result_layerinfo.columns
+        assert "area" in result_layerinfo.columns
+
+        # Rename non-existing column to existing columns doesn't give an error
         gfo.rename_column(test_path, "OPPERVL", "area")
         result_layerinfo = gfo.get_layerinfo(test_path)
         assert "OPPERVL" not in result_layerinfo.columns

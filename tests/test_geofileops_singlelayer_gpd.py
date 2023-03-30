@@ -98,6 +98,16 @@ def test_apply(tmp_path, suffix, only_geom_input, force_output_geometrytype):
             assert len(output_geometry.interiors) == 1
 
 
+def test_apply_geooperation_invalid_operation(tmp_path):
+    with pytest.raises(ValueError, match="operation not supported: INVALID"):
+        _geoops_gpd._apply_geooperation(
+            input_path=test_helper.get_testfile("polygon-parcel"),
+            output_path=tmp_path / "output.gpkg",
+            operation="INVALID",  # type: ignore
+            operation_params={},
+        )
+
+
 @pytest.mark.parametrize(
     "suffix, epsg", [(".gpkg", 31370), (".gpkg", 4326), (".shp", 31370)]
 )
