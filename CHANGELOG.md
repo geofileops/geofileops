@@ -6,6 +6,7 @@
 
 - Add checks that `output_path` must not be equal to the/an `input_path` for geo
   operations (#246)
+- Speed up makevalid + isvalid (#258)
 
 ### Bugs fixed
 
