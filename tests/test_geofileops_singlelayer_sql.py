@@ -71,7 +71,9 @@ def test_isvalid(tmp_path, suffix, epsg):
     assert output_gdf["isvalid"][0] == 0
 
     # Do operation, without specifying output path
-    gfo.isvalid(input_path=input_path, batchsize=batchsize)
+    gfo.isvalid(
+        input_path=input_path, batchsize=batchsize, validate_attribute_data=True
+    )
 
     # Now check if the tmp file is correctly created
     output_auto_path = (
@@ -116,6 +118,7 @@ def test_makevalid(tmp_path, suffix, input_empty):
         output_path=output_path,
         nb_parallel=2,
         force_output_geometrytype=gfo.GeometryType.MULTIPOLYGON,
+        validate_attribute_data=True,
     )
 
     # Now check if the output file is correctly created
