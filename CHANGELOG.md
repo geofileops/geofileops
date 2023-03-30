@@ -11,6 +11,7 @@
 
 - Fix "json" aggregate column handling in dissolve on line and point input files gives
   wrong results (#257)
+- Fix gfo.makevalid is not fast if force=False and the output file already exists (#258)
 
 ## 0.7.0 (2023-03-17)
 
