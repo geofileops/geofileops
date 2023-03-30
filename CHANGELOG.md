@@ -6,12 +6,12 @@
 
 - Add checks that `output_path` must not be equal to the/an `input_path` for geo
   operations (#246)
+- Speed up makevalid + isvalid (#258)
 
 ### Bugs fixed
 
 - Fix "json" aggregate column handling in dissolve on line and point input files gives
   wrong results (#257)
-- Fix gfo.makevalid is not fast if force=False and the output file already exists (#258)
 
 ## 0.7.0 (2023-03-17)
 
