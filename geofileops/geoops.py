@@ -680,7 +680,7 @@ def isvalid(
             "fid" will be aliased eg. to "fid_1". Defaults to None.
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
-        validate_attribute_data (bool, optional): True to validate if all attribut data
+        validate_attribute_data (bool, optional): True to validate if all attribute data
             can be read. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
@@ -760,8 +760,8 @@ def makevalid(
         precision (float, optional): the precision to keep in the coordinates.
             Eg. 0.001 to keep 3 decimals. None doesn't change the precision.
             Defaults to None.
-        validate_attribute_data (bool, optional): True to validate if all attribut data
-            can be read. Raises an exception if an error is found, as this typ of error
+        validate_attribute_data (bool, optional): True to validate if all attribute data
+            can be read. Raises an exception if an error is found, as this type of error
             cannot be fixed using makevalid. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
