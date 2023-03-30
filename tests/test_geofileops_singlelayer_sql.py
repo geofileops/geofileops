@@ -141,6 +141,9 @@ def test_makevalid(tmp_path, suffix, input_empty):
     isvalid = gfo.isvalid(input_path=output_path, output_path=output_new_isvalid_path)
     assert isvalid is True, "Output file shouldn't contain invalid features"
 
+    # Run makevalid with existing output file and force=False (=default)
+    gfo.makevalid(input_path=input_path, output_path=output_path)
+
 
 @pytest.mark.parametrize("input_suffix", DEFAULT_SUFFIXES)
 @pytest.mark.parametrize("output_suffix", DEFAULT_SUFFIXES)
