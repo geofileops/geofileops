@@ -5,7 +5,7 @@ os.environ["USE_PYGEOS"] = "1"
 
 from geofileops.fileops import *  # noqa: F403, F401
 from geofileops.geoops import *  # noqa: F403, F401
-from geofileops.helpers.layer_styles import *  # noqa: F403, F401
+from geofileops.helpers.layerstyles import *  # noqa: F403, F401
 
 
 def _get_version():
