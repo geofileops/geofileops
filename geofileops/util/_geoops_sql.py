@@ -194,6 +194,7 @@ def isvalid(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
+    validate_attribute_data: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -235,16 +236,18 @@ def isvalid(
             gfo.remove(output_path)
 
     # If output is sqlite based, check if all data can be read
-    try:
-        input_geofiletype = GeofileType(input_path)
-        if input_geofiletype.is_spatialite_based:
-            _sqlite_util.test_data_integrity(path=input_path)
-            logger.debug("test_data_integrity was succesfull")
-    except Exception:
-        logger.exception(
-            f"nb_invalid_geoms: {nb_invalid_geoms} + some attributes could not be read!"
-        )
-        return False
+    if validate_attribute_data:
+        try:
+            input_geofiletype = GeofileType(input_path)
+            if input_geofiletype.is_spatialite_based:
+                _sqlite_util.test_data_integrity(path=input_path)
+                logger.debug("test_data_integrity was succesfull")
+        except Exception:
+            logger.exception(
+                f"nb_invalid_geoms: {nb_invalid_geoms} + some attributes could not be "
+                "read!"
+            )
+            return False
 
     if nb_invalid_geoms > 0:
         logger.info(f"Found {nb_invalid_geoms} invalid geoms in {output_path}")
@@ -263,10 +266,17 @@ def makevalid(
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
     precision: Optional[float] = None,
+    validate_attribute_data: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
 ):
+    # If output file exists already, either clean up or return...
+    operation_name = "makevalid"
+    if not force and output_path.exists():
+        logger.info(f"Stop {operation_name}: output exists already {output_path}")
+        return
+
     # Init + prepare sql template for this operation
     # ----------------------------------------------
     input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
@@ -304,7 +314,7 @@ def makevalid(
         input_path=input_path,
         output_path=output_path,
         sql_template=sql_template,
-        operation_name="makevalid",
+        operation_name=operation_name,
         input_layer=input_layer,
         output_layer=output_layer,
         columns=columns,
@@ -318,9 +328,10 @@ def makevalid(
     )
 
     # If output is a geopackage, check if all data can be read
-    output_geofiletype = GeofileType(input_path)
-    if output_geofiletype.is_spatialite_based:
-        _sqlite_util.test_data_integrity(path=input_path)
+    if validate_attribute_data:
+        output_geofiletype = GeofileType(input_path)
+        if output_geofiletype.is_spatialite_based:
+            _sqlite_util.test_data_integrity(path=input_path)
 
 
 def select(

@@ -654,6 +654,7 @@ def isvalid(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
+    validate_attribute_data: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -679,6 +680,8 @@ def isvalid(
             "fid" will be aliased eg. to "fid_1". Defaults to None.
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
+        validate_attribute_data (bool, optional): True to validate if all attribute data
+            can be read. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -710,6 +713,7 @@ def isvalid(
         output_layer=output_layer,
         columns=columns,
         explodecollections=explodecollections,
+        validate_attribute_data=validate_attribute_data,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -725,6 +729,7 @@ def makevalid(
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
     precision: Optional[float] = None,
+    validate_attribute_data: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -752,9 +757,12 @@ def makevalid(
             Defaults to False.
         force_output_geometrytype (GeometryType, optional): The output geometry type to
             force. Defaults to None, and then the geometry type of the input is used
-        precision (floas, optional): the precision to keep in the coordinates.
+        precision (float, optional): the precision to keep in the coordinates.
             Eg. 0.001 to keep 3 decimals. None doesn't change the precision.
             Defaults to None.
+        validate_attribute_data (bool, optional): True to validate if all attribute data
+            can be read. Raises an exception if an error is found, as this type of error
+            cannot be fixed using makevalid. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -775,6 +783,7 @@ def makevalid(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         precision=precision,
+        validate_attribute_data=validate_attribute_data,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
