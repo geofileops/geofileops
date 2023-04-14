@@ -751,9 +751,11 @@ def test_rename_layer(tmp_path, suffix):
     )
 
     if suffix == ".gpkg":
+        gfo.add_layerstyle(test_path, layer="parcels", name="stylename", qml="")
         gfo.rename_layer(test_path, layer="parcels", new_layer="parcels_renamed")
         layernames_renamed = gfo.listlayers(path=test_path)
         assert layernames_renamed[0] == "parcels_renamed"
+        assert len(gfo.get_layerstyles(test_path, layer="parcels_renamed")) == 1
     elif suffix == ".shp":
         # Now test rename layer
         with pytest.raises(ValueError, match="rename_layer is not possible"):
