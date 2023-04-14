@@ -58,6 +58,9 @@ def add_layerstyle(
     """
     Add the layer style to the geofile.
 
+    Remark: at the time of writing, QGIS only uses the qml field to interprete the
+    style, so this field is mandatory and sld is not.
+
     The style is saved according to the QGIS Geopackage styling extension:
     https://github.com/pka/qgpkg/blob/master/qgis_geopackage_extension.md
 
