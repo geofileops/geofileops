@@ -6,24 +6,24 @@ Tests for functionalities in helpers.layer_styles.
 import pytest
 
 import geofileops as gfo
-from geofileops.helpers import layer_styles
+from geofileops.helpers import layerstyles
 from tests import test_helper
 
 
 def test_has_layerstyles_table(tmp_path):
     test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
 
-    assert not layer_styles._has_layerstyles_table(test_path)
-    layer_styles._init_layerstyles(test_path)
-    assert layer_styles._has_layerstyles_table(test_path)
+    assert not layerstyles._has_layerstyles_table(test_path)
+    layerstyles._init_layerstyles(test_path)
+    assert layerstyles._has_layerstyles_table(test_path)
 
 
 def test_add_get_remove_layer_styles(tmp_path):
     test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
 
-    assert not layer_styles._has_layerstyles_table(test_path)
-    layer_styles._init_layerstyles(test_path)
-    assert layer_styles._has_layerstyles_table(test_path)
+    assert not layerstyles._has_layerstyles_table(test_path)
+    layerstyles._init_layerstyles(test_path)
+    assert layerstyles._has_layerstyles_table(test_path)
 
     # Add layer style to "parcel" layer
     with open(test_helper._data_dir / "polygonstyle.sld") as file:
