@@ -1,13 +1,13 @@
 # CHANGELOG
 
-## development (???)
+## 0.8.0 (???)
 
 ## Improvements
 
+- Add support to read/add/remove embedded layer styles in gpkg (#263)
+- Speed up makevalid + isvalid (#258)
 - Add checks that `output_path` must not be equal to the/an `input_path` for geo
   operations (#246)
-- Speed up makevalid + isvalid (#258)
-- Add support to read/add/remove embedded layer styles in gpkg (#263)
 
 ### Bugs fixed
 

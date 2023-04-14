@@ -803,8 +803,7 @@ def warp(
     force: bool = False,
 ):
     """
-    Makes all geometries in the input file valid and writes the result to the
-    output path.
+    Warp all input features to the output file according to the gcps specified.
 
     Alternative names:
         - rubbersheet, rubbersheeting
