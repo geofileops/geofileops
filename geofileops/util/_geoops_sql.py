@@ -48,33 +48,35 @@ def buffer(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
+    gridsize: float = 0.0,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
 ):
     # Init + prepare sql template for this operation
     # ----------------------------------------------
+    operation = f"ST_Buffer({{geometrycolumn}}, {distance}, {quadrantsegments})"
+
+    # For a double sided buffer, a negative buffer is only relevant for polygon types,
+    # so only keep polygon results.
+    # Negative buffer creates invalid stuff, so use collectionextract to keep only
+    # polygons.
     if distance < 0:
-        # For a double sided buffer, a negative buffer is only relevant for polygon
-        # types, so only keep polygon results. Negative buffer creates invalid stuff,
-        # so use collectionextract to keep only polygons.
-        sql_template = f"""
-            SELECT ST_CollectionExtract(
-                       ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}), 3
-                   ) AS geom
-                  {{columns_to_select_str}}
-              FROM "{{input_layer}}" layer
-             WHERE 1=1
-               {{batch_filter}}
-        """
-    else:
-        sql_template = f"""
-            SELECT ST_Buffer({{geometrycolumn}}, {distance}, {quadrantsegments}) AS geom
-                  {{columns_to_select_str}}
-              FROM "{{input_layer}}" layer
-             WHERE 1=1
-               {{batch_filter}}
-        """
+        operation = f"ST_CollectionExtract({operation}, 3)"
+
+    # If a gridsize is specified, apply snaptogrid as well. ST_Makevalid is needed as
+    # well as snaptogrid can result in invalid geometries
+    if gridsize != 0.0:
+        operation = f"ST_MakeValid(SnapToGrid({operation}, {gridsize}))"
+
+    # Create the final template
+    sql_template = f"""
+        SELECT {operation} AS geom
+              {{columns_to_select_str}}
+            FROM "{{input_layer}}" layer
+            WHERE 1=1
+            {{batch_filter}}
+    """
 
     # Buffer operation always results in polygons...
     if explodecollections:
@@ -1005,6 +1007,7 @@ def intersection(
     input2_columns_prefix: str = "l2_",
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
+    gridsize: float = 0.0,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -1076,6 +1079,7 @@ def intersection(
         input2_columns_prefix=input2_columns_prefix,
         output_layer=output_layer,
         explodecollections=explodecollections,
+        gridsize=gridsize,
         force_output_geometrytype=force_output_geometrytype,
         nb_parallel=nb_parallel,
         batchsize=batchsize,

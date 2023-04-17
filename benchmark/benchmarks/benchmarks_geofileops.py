@@ -81,6 +81,30 @@ def buffer_spatialite(tmp_dir: Path) -> RunResult:
     return result
 
 
+def buffer_gridsize_spatialite(tmp_dir: Path) -> RunResult:
+    # Init
+    input_path = testdata.TestFile.AGRIPRC_2018.get_file(tmp_dir)
+
+    # Go!
+    start_time = datetime.now()
+    output_path = tmp_dir / f"{input_path.stem}_buf_grid01_spatialite.gpkg"
+    _geoops_sql.buffer(input_path, output_path, distance=1, gridsize=0.1, force=True)
+    result = RunResult(
+        package=_get_package(),
+        package_version=_get_version(),
+        operation="buffer_gridsize_spatialite",
+        secs_taken=(datetime.now() - start_time).total_seconds(),
+        operation_descr=(
+            "buffer with gridsize 0.1 on agri parcel layer BEFL (~500.000 polygons)"
+        ),
+        run_details={"nb_cpu": multiprocessing.cpu_count()},
+    )
+
+    # Cleanup and return
+    output_path.unlink()
+    return result
+
+
 def buffer_gpd(tmp_dir: Path) -> RunResult:
     # Init
     input_path = testdata.TestFile.AGRIPRC_2018.get_file(tmp_dir)
@@ -209,6 +233,38 @@ def intersection(tmp_dir: Path) -> RunResult:
         secs_taken=(datetime.now() - start_time).total_seconds(),
         operation_descr=(
             "intersection between 2 agri parcel layers BEFL (2*~500.000 polygons)"
+        ),
+        run_details={"nb_cpu": multiprocessing.cpu_count()},
+    )
+
+    # Cleanup and return
+    output_path.unlink()
+    return result
+
+
+def _intersection_gridsize(tmp_dir: Path) -> RunResult:
+    # Init
+    input1_path = testdata.TestFile.AGRIPRC_2018.get_file(tmp_dir)
+    input2_path = testdata.TestFile.AGRIPRC_2019.get_file(tmp_dir)
+
+    # Go!
+    start_time = datetime.now()
+    output_path = tmp_dir / f"{input1_path.stem}_inters_grid01_{input2_path.stem}.gpkg"
+    gfo.intersection(
+        input1_path=input1_path,
+        input2_path=input2_path,
+        output_path=output_path,
+        gridsize=0.1,
+        force=True,
+    )
+    result = RunResult(
+        package=_get_package(),
+        package_version=_get_version(),
+        operation="intersection_gridsize",
+        secs_taken=(datetime.now() - start_time).total_seconds(),
+        operation_descr=(
+            "intersection with gridsize 0.1 between 2 agri parcel layers BEFL "
+            "(2*~500.000 polygons)"
         ),
         run_details={"nb_cpu": multiprocessing.cpu_count()},
     )
