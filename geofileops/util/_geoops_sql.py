@@ -485,7 +485,8 @@ def _single_layer_vector_operation(
             return
 
         # If multiple batches, there should be a batch_filter placeholder sql_template
-        if len(processing_params.batches) > 1:
+        nb_batches = len(processing_params.batches)
+        if nb_batches > 1:
             placeholders = [
                 name for _, name, _, _ in string.Formatter().parse(sql_template) if name
             ]
@@ -543,8 +544,13 @@ def _single_layer_vector_operation(
 
                 batches[batch_id]["sql_stmt"] = sql_stmt
 
-                # Remark: this temp file doesn't need spatial index, and even if only
-                # one batch creating the index immediately isn't faster.
+                # If there is only one batch, it is faster to create the spatial index
+                # immediately. Otherwise no index needed, because partial files still
+                # need to be merged to one file later on.
+                create_spatial_index = False
+                if nb_batches == 1:
+                    create_spatial_index = True
+
                 translate_info = _ogr_util.VectorTranslateInfo(
                     input_path=processing_params.batches[batch_id]["path"],
                     output_path=tmp_partial_output_path,
@@ -553,7 +559,7 @@ def _single_layer_vector_operation(
                     sql_dialect=sql_dialect,
                     explodecollections=explodecollections,
                     force_output_geometrytype=force_output_geometrytype,
-                    options={"LAYER_CREATION.SPATIAL_INDEX": False},
+                    options={"LAYER_CREATION.SPATIAL_INDEX": create_spatial_index},
                 )
                 future = calculate_pool.submit(
                     _ogr_util.vector_translate_by_info, info=translate_info
@@ -576,29 +582,31 @@ def _single_layer_vector_operation(
                 # Remark: give higher priority, because this is the slowest factor
                 batch_id = future_to_batch_id[future]
                 tmp_partial_output_path = batches[batch_id]["tmp_partial_output_path"]
+                nb_done += 1
 
-                if tmp_partial_output_path.exists():
-                    # If there is only one batch, just rename
-                    if len(processing_params.batches) == 1:
-                        gfo.move(tmp_partial_output_path, tmp_output_path)
-                    else:
-                        fileops._append_to_nolock(
-                            src=tmp_partial_output_path,
-                            dst=tmp_output_path,
-                            explodecollections=explodecollections,
-                            force_output_geometrytype=force_output_geometrytype,
-                            create_spatial_index=False,
-                        )
-                        gfo.remove(tmp_partial_output_path)
+                # Normally all partial files should exist, but to be sure.
+                if not tmp_partial_output_path.exists():
+                    logger.warning(f"Result file {tmp_partial_output_path} not found")
+                    continue
+
+                # If there is only one batch, just rename because it is already OK
+                if nb_batches == 1:
+                    gfo.move(tmp_partial_output_path, tmp_output_path)
                 else:
-                    logger.debug(f"Result file {tmp_partial_output_path} was empty")
+                    fileops._append_to_nolock(
+                        src=tmp_partial_output_path,
+                        dst=tmp_output_path,
+                        explodecollections=explodecollections,
+                        force_output_geometrytype=force_output_geometrytype,
+                        create_spatial_index=False,
+                    )
+                    gfo.remove(tmp_partial_output_path)
 
                 # Log the progress and prediction speed
-                nb_done += 1
                 _general_util.report_progress(
                     start_time,
                     nb_done,
-                    len(batches),
+                    nb_batches,
                     operation_name,
                     nb_parallel=nb_parallel,
                 )
@@ -606,7 +614,9 @@ def _single_layer_vector_operation(
         # Round up and clean up
         # Now create spatial index and move to output location
         if tmp_output_path.exists():
-            gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
+            gfo.create_spatial_index(
+                path=tmp_output_path, layer=output_layer, exist_ok=True
+            )
             output_path.parent.mkdir(parents=True, exist_ok=True)
             gfo.move(tmp_output_path, output_path)
         else:
@@ -1869,7 +1879,8 @@ def _two_layer_vector_operation(
             return
 
         # If multiple batches, there should be a batch_filter placeholder sql_template
-        if len(processing_params.batches) > 1:
+        nb_batches = len(processing_params.batches)
+        if nb_batches > 1:
             placeholders = [
                 name for _, name, _, _ in string.Formatter().parse(sql_template) if name
             ]
@@ -2002,7 +2013,7 @@ def _two_layer_vector_operation(
             _general_util.report_progress(
                 start_time,
                 nb_done,
-                len(processing_params.batches),
+                nb_batches,
                 operation_name,
                 processing_params.nb_parallel,
             )
@@ -2012,52 +2023,52 @@ def _two_layer_vector_operation(
                     result = future.result()
                     if result is not None:
                         logger.debug(result)
-
-                    # If the calculate gave results, copy/append to output
-                    batch_id = future_to_batch_id[future]
-                    tmp_partial_output_path = batches[batch_id][
-                        "tmp_partial_output_path"
-                    ]
-                    if (
-                        tmp_partial_output_path.exists()
-                        and tmp_partial_output_path.stat().st_size > 0
-                    ):
-                        # If only one batch, immediately create index.
-                        # Remark: copying the file using ogr is still necessary, even
-                        # if only 1 batch, because apparently gpkg created with
-                        # create_table_as_sql isn't 100% OK: impossible to create a
-                        # valid spatial index on it.
-                        create_spatial_index = False
-                        if (
-                            output_with_spatial_index
-                            and len(processing_params.batches) == 1
-                        ):
-                            create_spatial_index = True
-
-                        fileops._append_to_nolock(
-                            src=tmp_partial_output_path,
-                            dst=tmp_output_path,
-                            explodecollections=explodecollections,
-                            force_output_geometrytype=force_output_geometrytype,
-                            create_spatial_index=create_spatial_index,
-                            preserve_fid=False,
-                        )
-                    else:
-                        logger.debug(f"Result file {tmp_partial_output_path} was empty")
-
-                    # Cleanup tmp partial file
-                    gfo.remove(tmp_partial_output_path, missing_ok=True)
-
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
                     raise Exception(f"Error executing {batches[batch_id]}") from ex
 
-                # Log the progress and prediction speed
+                # If the calculate gave results, copy/append to output
+                batch_id = future_to_batch_id[future]
+                tmp_partial_output_path = batches[batch_id]["tmp_partial_output_path"]
                 nb_done += 1
+
+                # Normally all partial files should exist, but to be sure...
+                if not tmp_partial_output_path.exists():
+                    logger.warning(f"Result file {tmp_partial_output_path} not found")
+                    continue
+
+                # If there is only one tmp_partial file and it is already ok as
+                # output file, just rename/move it.
+                if (
+                    nb_batches == 1
+                    and not explodecollections
+                    and force_output_geometrytype is None
+                    and tmp_partial_output_path.suffix.lower()
+                    == tmp_output_path.suffix.lower()
+                ):
+                    gfo.move(tmp_partial_output_path, tmp_output_path)
+                else:
+                    # If there is only one batch, it is faster to create the spatial
+                    # index immediately
+                    create_spatial_index = False
+                    if nb_batches == 1 and output_with_spatial_index:
+                        create_spatial_index = True
+
+                    fileops._append_to_nolock(
+                        src=tmp_partial_output_path,
+                        dst=tmp_output_path,
+                        explodecollections=explodecollections,
+                        force_output_geometrytype=force_output_geometrytype,
+                        create_spatial_index=create_spatial_index,
+                        preserve_fid=False,
+                    )
+                    gfo.remove(tmp_partial_output_path)
+
+                # Log the progress and prediction speed
                 _general_util.report_progress(
                     start_time=start_time,
                     nb_done=nb_done,
-                    nb_todo=len(processing_params.batches),
+                    nb_todo=nb_batches,
                     operation=operation_name,
                     nb_parallel=processing_params.nb_parallel,
                 )
