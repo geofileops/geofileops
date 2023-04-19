@@ -4,21 +4,15 @@ Tests for functionalities in ogr_util.
 """
 
 from pathlib import Path
-import sys
 
 import pytest
 
-# Add path so the local geofileops packages are found
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import geofileops as gfo
 from geofileops.util import _sqlite_util
 from tests import test_helper
 
 
-@pytest.mark.parametrize(
-    "create_spatial_index",
-    [(True), (False)],
-)
+@pytest.mark.parametrize("create_spatial_index", [(True), (False)])
 def test_create_table_as_sql(tmp_path, create_spatial_index):
     output_path = tmp_path / "output.gpkg"
     input1_path = test_helper.get_testfile(testfile="polygon-parcel", dst_dir=tmp_path)
