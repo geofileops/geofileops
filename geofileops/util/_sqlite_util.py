@@ -224,10 +224,14 @@ def create_table_as_sql(
             # Determine columns/datatypes to create the table
             # Create temp table to get the column names + general data types
             # + fetch one row to use it to determine geometrytype.
-            sql = (
-                f"CREATE TEMPORARY TABLE tmp AS \n"
-                f"    SELECT * FROM (\n{sql_stmt}\n)\nLIMIT 1;"
-            )
+            sql = f"""
+                CREATE TEMPORARY TABLE tmp AS
+                  SELECT *
+                    FROM (
+                      {sql_stmt}
+                    )
+                  LIMIT 1;
+            """
             conn.execute(sql)
             sql = "PRAGMA TABLE_INFO(tmp)"
             cur = conn.execute(sql)
@@ -326,10 +330,12 @@ def create_table_as_sql(
                 f'"{columnname}" {column_types[columnname]}\n'
                 for columnname in column_types
             ]
-            sql = (
-                f'CREATE TABLE {output_databasename}."{output_layer}" '
-                f'({", ".join(columns_for_create)})'
-            )
+            sql = f"""
+                CREATE TABLE {output_databasename}."{output_layer}" (
+                    fid INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    {", ".join(columns_for_create)}
+                )
+            """
             conn.execute(sql)
 
             # Add metadata

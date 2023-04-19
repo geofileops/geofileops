@@ -2023,11 +2023,12 @@ def _two_layer_vector_operation(
                         logger.debug(f"Result file {tmp_partial_output_path} not found")
                         continue
 
-                    # If there is only one tmp_partial file and it is already +- ok as
+                    # If there is only one tmp_partial file and it is already ok as
                     # output file, just rename/move it.
                     if (
                         len(processing_params.batches) == 1
                         and not explodecollections
+                        and force_output_geometrytype is None
                         and tmp_partial_output_path.suffix.lower()
                         == tmp_output_path.suffix.lower()
                     ):
@@ -2039,6 +2040,7 @@ def _two_layer_vector_operation(
                             explodecollections=explodecollections,
                             force_output_geometrytype=force_output_geometrytype,
                             create_spatial_index=False,
+                            preserve_fid=False,
                         )
 
                     # Cleanup tmp partial file
