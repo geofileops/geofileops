@@ -582,25 +582,27 @@ def _single_layer_vector_operation(
                 # Remark: give higher priority, because this is the slowest factor
                 batch_id = future_to_batch_id[future]
                 tmp_partial_output_path = batches[batch_id]["tmp_partial_output_path"]
+                nb_done += 1
 
-                if tmp_partial_output_path.exists():
-                    # If there is only one batch, just rename because it is already OK
-                    if nb_batches == 1:
-                        gfo.move(tmp_partial_output_path, tmp_output_path)
-                    else:
-                        fileops._append_to_nolock(
-                            src=tmp_partial_output_path,
-                            dst=tmp_output_path,
-                            explodecollections=explodecollections,
-                            force_output_geometrytype=force_output_geometrytype,
-                            create_spatial_index=False,
-                        )
-                        gfo.remove(tmp_partial_output_path)
+                # Normally all partial files should exist, but to be sure.
+                if not tmp_partial_output_path.exists():
+                    logger.warning(f"Result file {tmp_partial_output_path} not found")
+                    continue
+
+                # If there is only one batch, just rename because it is already OK
+                if nb_batches == 1:
+                    gfo.move(tmp_partial_output_path, tmp_output_path)
                 else:
-                    logger.debug(f"Result file {tmp_partial_output_path} was empty")
+                    fileops._append_to_nolock(
+                        src=tmp_partial_output_path,
+                        dst=tmp_output_path,
+                        explodecollections=explodecollections,
+                        force_output_geometrytype=force_output_geometrytype,
+                        create_spatial_index=False,
+                    )
+                    gfo.remove(tmp_partial_output_path)
 
                 # Log the progress and prediction speed
-                nb_done += 1
                 _general_util.report_progress(
                     start_time,
                     nb_done,
@@ -2021,52 +2023,48 @@ def _two_layer_vector_operation(
                     result = future.result()
                     if result is not None:
                         logger.debug(result)
-
-                    # If the calculate gave results, copy/append to output
-                    batch_id = future_to_batch_id[future]
-                    tmp_partial_output_path = batches[batch_id][
-                        "tmp_partial_output_path"
-                    ]
-
-                    if not tmp_partial_output_path.exists():
-                        logger.debug(f"Result file {tmp_partial_output_path} not found")
-                        continue
-
-                    # If there is only one tmp_partial file and it is already ok as
-                    # output file, just rename/move it.
-                    if (
-                        nb_batches == 1
-                        and not explodecollections
-                        and force_output_geometrytype is None
-                        and tmp_partial_output_path.suffix.lower()
-                        == tmp_output_path.suffix.lower()
-                    ):
-                        gfo.move(tmp_partial_output_path, tmp_output_path)
-                    else:
-                        # If there is only one batch, it is faster to create the spatial
-                        # index immediately
-                        create_spatial_index = False
-                        if nb_batches == 1 and output_with_spatial_index:
-                            create_spatial_index = True
-
-                        fileops._append_to_nolock(
-                            src=tmp_partial_output_path,
-                            dst=tmp_output_path,
-                            explodecollections=explodecollections,
-                            force_output_geometrytype=force_output_geometrytype,
-                            create_spatial_index=create_spatial_index,
-                            preserve_fid=False,
-                        )
-
-                    # Cleanup tmp partial file
-                    gfo.remove(tmp_partial_output_path, missing_ok=True)
-
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
                     raise Exception(f"Error executing {batches[batch_id]}") from ex
 
-                # Log the progress and prediction speed
+                # If the calculate gave results, copy/append to output
+                batch_id = future_to_batch_id[future]
+                tmp_partial_output_path = batches[batch_id]["tmp_partial_output_path"]
                 nb_done += 1
+
+                # Normally all partial files should exist, but to be sure...
+                if not tmp_partial_output_path.exists():
+                    logger.warning(f"Result file {tmp_partial_output_path} not found")
+                    continue
+
+                # If there is only one tmp_partial file and it is already ok as
+                # output file, just rename/move it.
+                if (
+                    nb_batches == 1
+                    and not explodecollections
+                    and force_output_geometrytype is None
+                    and tmp_partial_output_path.suffix.lower()
+                    == tmp_output_path.suffix.lower()
+                ):
+                    gfo.move(tmp_partial_output_path, tmp_output_path)
+                else:
+                    # If there is only one batch, it is faster to create the spatial
+                    # index immediately
+                    create_spatial_index = False
+                    if nb_batches == 1 and output_with_spatial_index:
+                        create_spatial_index = True
+
+                    fileops._append_to_nolock(
+                        src=tmp_partial_output_path,
+                        dst=tmp_output_path,
+                        explodecollections=explodecollections,
+                        force_output_geometrytype=force_output_geometrytype,
+                        create_spatial_index=create_spatial_index,
+                        preserve_fid=False,
+                    )
+                    gfo.remove(tmp_partial_output_path)
+
+                # Log the progress and prediction speed
                 _general_util.report_progress(
                     start_time=start_time,
                     nb_done=nb_done,
