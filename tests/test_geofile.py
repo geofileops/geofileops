@@ -672,7 +672,7 @@ def test_read_file_sql_no_geom(suffix, engine_setter):
     read_df = gfo.read_file(src, sql_stmt=sql_stmt)
     assert isinstance(read_df, pd.DataFrame)
     assert len(read_df) == 1
-    assert read_df["aantal"].item() == 46
+    assert read_df.aantal.item() == 46
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)

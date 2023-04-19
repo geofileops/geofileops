@@ -4,16 +4,16 @@ Tests for functionalities in ogr_util.
 """
 
 from pathlib import Path
-import sys
 
-# Add path so the local geofileops packages are found
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import pytest
+
+import geofileops as gfo
 from geofileops.util import _sqlite_util
-from geofileops import GeometryType
 from tests import test_helper
 
 
-def test_exec_spatialite_sql(tmp_path):
+@pytest.mark.parametrize("create_spatial_index", [(True), (False)])
+def test_create_table_as_sql(tmp_path, create_spatial_index):
     output_path = tmp_path / "output.gpkg"
     input1_path = test_helper.get_testfile(testfile="polygon-parcel", dst_dir=tmp_path)
     input2_path = test_helper.get_testfile(testfile="polygon-zone", dst_dir=tmp_path)
@@ -46,7 +46,53 @@ def test_exec_spatialite_sql(tmp_path):
         input2_path=input2_path,
         output_path=output_path,
         output_layer=output_path.stem,
-        output_geometrytype=GeometryType.MULTIPOLYGON,
+        output_geometrytype=gfo.GeometryType.MULTIPOLYGON,
         sql_stmt=sql_stmt,
         profile=_sqlite_util.SqliteProfile.SPEED,
+        create_spatial_index=create_spatial_index,
     )
+
+    assert output_path.exists()
+    assert gfo.has_spatial_index(output_path) is create_spatial_index
+    output_info = gfo.get_layerinfo(output_path)
+    assert output_info.featurecount == 6
+
+
+@pytest.mark.parametrize(
+    "kwargs, expected_error",
+    [
+        ({"append": True}, "append=True nor update=True are implemented."),
+        ({"update": True}, "append=True nor update=True are implemented."),
+        (
+            {"input1_path": Path("input1.sqlite")},
+            "output_path and both input paths must have the same suffix!",
+        ),
+        (
+            {"input2_path": Path("input2.sqlite")},
+            "output_path and both input paths must have the same suffix!",
+        ),
+        (
+            {"output_path": Path("output.sqlite")},
+            "output_path and both input paths must have the same suffix!",
+        ),
+    ],
+)
+def test_create_table_as_sql_invalidparams(kwargs, expected_error):
+    # Set default values for kwargs that are not specified:
+    if "input1_path" not in kwargs:
+        kwargs["input1_path"] = Path("input1.gpkg")
+    if "input1_layer" not in kwargs:
+        kwargs["input1_layer"] = "input1_layer"
+    if "input2_path" not in kwargs:
+        kwargs["input2_path"] = Path("input2.gpkg")
+    if "output_path" not in kwargs:
+        kwargs["output_path"] = Path("output.gpkg")
+    if "output_layer" not in kwargs:
+        kwargs["output_layer"] = "output_layer"
+    if "sql_stmt" not in kwargs:
+        kwargs["sql_stmt"] = "SELECTje"
+    if "output_geometrytype" not in kwargs:
+        kwargs["output_geometrytype"] = None
+
+    with pytest.raises(ValueError, match=expected_error):
+        _sqlite_util.create_table_as_sql(**kwargs)
