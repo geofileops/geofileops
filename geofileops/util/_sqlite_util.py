@@ -135,11 +135,11 @@ def create_table_as_sql(
     # Check input parameters
     if append is True or update is True:
         raise ValueError("append=True nor update=True are implemented.")
-    output_suffix_lower = input1_path.suffix.lower()
+    output_suffix_lower = output_path.suffix.lower()
     if output_suffix_lower != input1_path.suffix.lower():
-        raise ValueError("Output and input1 paths don't have the same extension!")
+        raise ValueError("output_path and both input paths must have the same suffix!")
     if input2_path is not None and output_suffix_lower != input2_path.suffix.lower():
-        raise ValueError("Output and input2 paths don't have the same extension!")
+        raise ValueError("output_path and both input paths must have the same suffix!")
 
     # Use crs epsg from input1_layer, if it has one
     input1_layerinfo = gfo.get_layerinfo(input1_path, input1_layer)
@@ -384,10 +384,25 @@ def create_table_as_sql(
                 sql = f"SELECT UpdateLayerStatistics('{output_layer}', 'geom');"
                 conn.execute(sql)
                 if output_suffix_lower == ".gpkg":
+                    # Create the necessary empty index, triggers,...
                     sql = f"SELECT gpkgAddSpatialIndex('{output_layer}', 'geom');"
+                    conn.execute(sql)
+                    # Now fill the index
+                    sql = f"""
+                        INSERT INTO "rtree_{output_layer}_geom"
+                          SELECT fid
+                                ,ST_MinX(geom)
+                                ,ST_MaxX(geom)
+                                ,ST_MinY(geom)
+                                ,ST_MaxY(geom)
+                            FROM "{output_layer}"
+                           WHERE geom IS NOT NULL
+                             AND NOT ST_IsEmpty(geom)
+                    """
+                    conn.execute(sql)
                 elif output_suffix_lower == ".sqlite":
                     sql = f"SELECT CreateSpatialIndex('{output_layer}', 'geom');"
-                conn.execute(sql)
+                    conn.execute(sql)
 
     except EmptyResultError:
         logger.info(f"Query didn't return any rows: {sql_stmt}")
