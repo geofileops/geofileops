@@ -1090,7 +1090,6 @@ def intersection(
         input2_columns_prefix=input2_columns_prefix,
         output_layer=output_layer,
         explodecollections=explodecollections,
-        gridsize=gridsize,
         force_output_geometrytype=force_output_geometrytype,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
