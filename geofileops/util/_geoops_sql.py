@@ -2033,12 +2033,14 @@ def _two_layer_vector_operation(
                             and len(processing_params.batches) == 1
                         ):
                             create_spatial_index = True
+
                         fileops._append_to_nolock(
                             src=tmp_partial_output_path,
                             dst=tmp_output_path,
                             explodecollections=explodecollections,
                             force_output_geometrytype=force_output_geometrytype,
                             create_spatial_index=create_spatial_index,
+                            preserve_fid=False,
                         )
                     else:
                         logger.debug(f"Result file {tmp_partial_output_path} was empty")
