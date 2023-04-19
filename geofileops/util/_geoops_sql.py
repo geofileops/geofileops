@@ -68,6 +68,7 @@ def buffer(
     # well as snaptogrid can result in invalid geometries
     if gridsize != 0.0:
         operation = f"ST_MakeValid(SnapToGrid({operation}, {gridsize}))"
+        operation = f"ST_CollectionExtract({operation}, 3)"
 
     # Create the final template
     sql_template = f"""
@@ -75,7 +76,7 @@ def buffer(
               {{columns_to_select_str}}
             FROM "{{input_layer}}" layer
             WHERE 1=1
-            {{batch_filter}}
+              {{batch_filter}}
     """
 
     # Buffer operation always results in polygons...
