@@ -2018,30 +2018,28 @@ def _two_layer_vector_operation(
                     tmp_partial_output_path = batches[batch_id][
                         "tmp_partial_output_path"
                     ]
+
+                    if not tmp_partial_output_path.exists():
+                        logger.debug(f"Result file {tmp_partial_output_path} not found")
+                        continue
+
+                    # If there is only one tmp_partial file and it is already +- ok as
+                    # output file, just rename/move it.
                     if (
-                        tmp_partial_output_path.exists()
-                        and tmp_partial_output_path.stat().st_size > 0
+                        len(processing_params.batches) == 1
+                        and not explodecollections
+                        and tmp_partial_output_path.suffix.lower()
+                        == tmp_output_path.suffix.lower()
                     ):
-                        # If only one batch, immediately create index.
-                        # Remark: copying the file using ogr is still necessary, even
-                        # if only 1 batch, because apparently gpkg created with
-                        # create_table_as_sql isn't 100% OK: impossible to create a
-                        # valid spatial index on it.
-                        create_spatial_index = False
-                        if (
-                            output_with_spatial_index
-                            and len(processing_params.batches) == 1
-                        ):
-                            create_spatial_index = True
+                        gfo.move(tmp_partial_output_path, tmp_output_path)
+                    else:
                         fileops._append_to_nolock(
                             src=tmp_partial_output_path,
                             dst=tmp_output_path,
                             explodecollections=explodecollections,
                             force_output_geometrytype=force_output_geometrytype,
-                            create_spatial_index=create_spatial_index,
+                            create_spatial_index=False,
                         )
-                    else:
-                        logger.debug(f"Result file {tmp_partial_output_path} was empty")
 
                     # Cleanup tmp partial file
                     gfo.remove(tmp_partial_output_path, missing_ok=True)

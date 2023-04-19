@@ -174,8 +174,11 @@ def create_table_as_sql(
                 conn.execute(sql)
 
             # Set nb KB of cache
-            conn.execute("PRAGMA cache_size=-128000;")
-            conn.execute("PRAGMA temp_store=MEMORY;")
+            sql = "PRAGMA cache_size=-128000;"
+            conn.execute(sql)
+            # Set temp storage to MEMORY
+            sql = "PRAGMA temp_store=2;"
+            conn.execute(sql)
 
             # If attach to input1
             input1_databasename = "input1"
@@ -375,10 +378,25 @@ def create_table_as_sql(
                 sql = f"SELECT UpdateLayerStatistics('{output_layer}', 'geom');"
                 conn.execute(sql)
                 if output_suffix_lower == ".gpkg":
+                    # Create the necessary empty index, triggers,...
                     sql = f"SELECT gpkgAddSpatialIndex('{output_layer}', 'geom');"
+                    conn.execute(sql)
+                    # Now fill the index
+                    sql = f"""
+                        INSERT INTO "rtree_{output_layer}_geom"
+                          SELECT fid
+                                ,ST_MinX(geom)
+                                ,ST_MaxX(geom)
+                                ,ST_MinY(geom)
+                                ,ST_MaxY(geom)
+                            FROM "{output_layer}"
+                           WHERE geom IS NOT NULL
+                             AND NOT ST_IsEmpty(geom)
+                    """
+                    conn.execute(sql)
                 elif output_suffix_lower == ".sqlite":
                     sql = f"SELECT CreateSpatialIndex('{output_layer}', 'geom');"
-                conn.execute(sql)
+                    conn.execute(sql)
 
     except EmptyResultError:
         logger.info(f"Query didn't return any rows: {sql_stmt}")
@@ -391,6 +409,43 @@ def create_table_as_sql(
     finally:
         if conn is not None:
             conn.close()
+
+
+def execute_sql(path: Path, sql_stmt: str, use_spatialite: bool = True):
+    # Connect to database file
+    conn = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
+    sql = None
+    conn.isolation_level = None
+    try:
+        with conn:
+            if use_spatialite is True:
+                load_spatialite(conn)
+            if path.suffix.lower() == ".gpkg":
+                sql = "SELECT EnableGpkgMode();"
+                conn.execute(sql)
+
+            # Set nb KB of cache
+            sql = "PRAGMA cache_size=-128000;"
+            conn.execute(sql)
+            # Set temp storage to MEMORY
+            sql = "PRAGMA temp_store=2;"
+            conn.execute(sql)
+
+            cur = conn.cursor()
+            cur.execute("begin")
+            try:
+                # Now actually run the sql
+                sql = sql_stmt
+                cur.execute(sql)
+                cur.execute("commit")
+            except conn.Error:
+                print("failed!")
+                cur.execute("rollback")
+
+    except Exception as ex:
+        raise Exception(f"Error executing {sql}") from ex
+    finally:
+        conn.close()
 
 
 def test_data_integrity(path: Path, use_spatialite: bool = True):
