@@ -1521,7 +1521,7 @@ def _to_file_fiona(
                 gdf_to_write = gdf.reset_index(drop=True)
             else:
                 gdf_to_write = gdf
-            gdf_to_write.to_file(str(path), **kwargs)
+            gdf_to_write.to_file(str(path), **kwargs)  # type: ignore
         elif geofiletype == GeofileType.GPKG:
             # Try to harmonize the geometrytype to one (multi)type, as GPKG
             # doesn't like > 1 type in a layer
@@ -1532,7 +1532,7 @@ def _to_file_fiona(
                 )
             else:
                 gdf_to_write = gdf
-            gdf_to_write.to_file(str(path), layer=layer, **kwargs)
+            gdf_to_write.to_file(str(path), layer=layer, **kwargs)  # type: ignore
         elif geofiletype == GeofileType.SQLite:
             gdf.to_file(str(path), layer=layer, **kwargs)
         elif geofiletype == GeofileType.GeoJSON:

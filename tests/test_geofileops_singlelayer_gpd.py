@@ -470,12 +470,14 @@ def test_dissolve_polygons(
     # Compare result with geopandas
     columns = ["geometry"]
     if groupby_columns is None or len(groupby_columns) == 0:
-        output_gpd_gdf = input_gdf[columns].dissolve()
+        output_gpd_gdf = input_gdf[columns].dissolve()  # type: ignore
     else:
         groupby_columns_upper = {column.upper(): column for column in groupby_columns}
         columns += list(groupby_columns_upper)
         output_gpd_gdf = (
-            input_gdf[columns].dissolve(by=list(groupby_columns_upper)).reset_index()
+            input_gdf[columns]
+            .dissolve(by=list(groupby_columns_upper))  # type: ignore
+            .reset_index()
         ).rename(columns=groupby_columns_upper)
     if explode:
         output_gpd_gdf = output_gpd_gdf.explode(ignore_index=True)
