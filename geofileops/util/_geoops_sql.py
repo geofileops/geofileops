@@ -2040,6 +2040,7 @@ def _two_layer_vector_operation(
                             explodecollections=explodecollections,
                             force_output_geometrytype=force_output_geometrytype,
                             create_spatial_index=create_spatial_index,
+                            preserve_fid=False,
                         )
                     else:
                         logger.debug(f"Result file {tmp_partial_output_path} was empty")
