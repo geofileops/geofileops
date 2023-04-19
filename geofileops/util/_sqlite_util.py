@@ -135,11 +135,11 @@ def create_table_as_sql(
     # Check input parameters
     if append is True or update is True:
         raise ValueError("append=True nor update=True are implemented.")
-    output_suffix_lower = input1_path.suffix.lower()
+    output_suffix_lower = output_path.suffix.lower()
     if output_suffix_lower != input1_path.suffix.lower():
-        raise ValueError("Output and input1 paths don't have the same extension!")
+        raise ValueError("output_path and both input paths must have the same suffix!")
     if input2_path is not None and output_suffix_lower != input2_path.suffix.lower():
-        raise ValueError("Output and input2 paths don't have the same extension!")
+        raise ValueError("output_path and both input paths must have the same suffix!")
 
     # Use crs epsg from input1_layer, if it has one
     input1_layerinfo = gfo.get_layerinfo(input1_path, input1_layer)
