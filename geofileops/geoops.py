@@ -40,6 +40,7 @@ def apply(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
+    force_output_geometrytype: Union[GeometryType, str, None] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -75,6 +76,9 @@ def apply(
             "fid" will be aliased eg. to "fid_1". Defaults to None.
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
+        force_output_geometrytype (GeometryType, optional): The output geometry type to
+            force. If None, a best-effort guess is made and will always result in a
+            multi-type. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -94,6 +98,7 @@ def apply(
         output_layer=output_layer,
         columns=columns,
         explodecollections=explodecollections,
+        force_output_geometrytype=force_output_geometrytype,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -649,6 +654,7 @@ def isvalid(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
+    validate_attribute_data: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -674,6 +680,8 @@ def isvalid(
             "fid" will be aliased eg. to "fid_1". Defaults to None.
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
+        validate_attribute_data (bool, optional): True to validate if all attribute data
+            can be read. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -705,6 +713,7 @@ def isvalid(
         output_layer=output_layer,
         columns=columns,
         explodecollections=explodecollections,
+        validate_attribute_data=validate_attribute_data,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -720,6 +729,7 @@ def makevalid(
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
     precision: Optional[float] = None,
+    validate_attribute_data: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -747,9 +757,12 @@ def makevalid(
             Defaults to False.
         force_output_geometrytype (GeometryType, optional): The output geometry type to
             force. Defaults to None, and then the geometry type of the input is used
-        precision (floas, optional): the precision to keep in the coordinates.
+        precision (float, optional): the precision to keep in the coordinates.
             Eg. 0.001 to keep 3 decimals. None doesn't change the precision.
             Defaults to None.
+        validate_attribute_data (bool, optional): True to validate if all attribute data
+            can be read. Raises an exception if an error is found, as this type of error
+            cannot be fixed using makevalid. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -770,6 +783,7 @@ def makevalid(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         precision=precision,
+        validate_attribute_data=validate_attribute_data,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -789,8 +803,7 @@ def warp(
     force: bool = False,
 ):
     """
-    Makes all geometries in the input file valid and writes the result to the
-    output path.
+    Warp all input features to the output file according to the gcps specified.
 
     Alternative names:
         - rubbersheet, rubbersheeting
@@ -1464,19 +1477,22 @@ def join_by_location(
     """
     Joins all features in input1 with all features in input2.
 
-    The output will contain the geometry of input1.
+    The output will contain the geometries of input1. The spatial_relations_query and
+    min_area_intersect parameters will determine which geometries of input1 will be
+    matched with input2.
 
-    The spatial_relations_query and min_area_intersect parameters will
-    determine which geometries of input1 will be matched with input2.
-    The spatial_relations_query can be specified either with named spatial
-    predicates or masks as defined by the
-    [DE-9IM]](https://en.wikipedia.org/wiki/DE-9IM) model:
+    The spatial_relations_query is a filter string where you can use the following
+    "named spatial predicates": equals, touches, within, overlaps, crosses, intersects,
+    contains, covers, coveredby.
+
+    If you want even more control, you can also use "spatial masks" as defined by the
+    [DE-9IM](https://en.wikipedia.org/wiki/DE-9IM) model.
+
+    Examples for valid spatial_relations_query values:
 
         - "overlaps is True and contains is False"
         - "(T*T***T** is True or 1*T***T** is True) and T*****FF* is False"
 
-    The supported named spatial predicates are: equals, touches, within,
-    overlaps, crosses, intersects, contains, covers, coveredby.
 
     Alternative names:
         - GeoPandas: sjoin

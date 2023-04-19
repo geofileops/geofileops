@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import pprint
 import shutil
+import string
 import tempfile
 import time
 from typing import Any, Dict, Iterable, List, Literal, Optional, Tuple, Union
@@ -30,6 +31,7 @@ from geofileops.util.geometry_util import GeometryType, PrimitiveType  # noqa: F
 from geofileops.util import geoseries_util
 from geofileops.util import _io_util
 from geofileops.util import _ogr_util
+from geofileops.util import _ogr_sql_util
 from geofileops.util.geofiletype import GeofileType
 
 #####################################################################
@@ -42,6 +44,7 @@ logger = logging.getLogger(__name__)
 
 # Enable exceptions for GDAL
 gdal.UseExceptions()
+gdal.ogr.UseExceptions()
 
 # Disable this warning in fiona
 warnings.filterwarnings(
@@ -204,6 +207,36 @@ class LayerInfo:
         return f"{self.__class__}({self.__dict__})"
 
 
+def get_layer_geometrytypes(
+    path: Union[str, "os.PathLike[Any]"], layer: Optional[str] = None
+) -> List[str]:
+    """
+    Get the geometry types in the layer by examining each geometry in the layer.
+
+    The general geometry type of the layer can be determined using
+    :meth:`~get_layerinfo`.
+
+    Args:
+        path (PathLike): path to the file to get info about
+        layer (str): the layer you want info about. Doesn't need to be
+            specified if there is only one layer in the geofile.
+
+    Returns:
+        List[str]: the geometry types in the layer.
+    """
+    sql_stmt = """
+        SELECT DISTINCT
+               CASE
+                 WHEN CastToSingle({geometrycolumn}) IS NOT NULL THEN
+                     ST_GeometryType(CastToSingle({geometrycolumn}))
+                 ELSE ST_GeometryType({geometrycolumn})
+               END AS geom_type
+          FROM "{input_layer}" layer
+    """
+    result_df = read_file(path, sql_stmt=sql_stmt, sql_dialect="SQLITE")
+    return result_df["geom_type"].to_list()  # type: ignore
+
+
 def get_layerinfo(
     path: Union[str, "os.PathLike[Any]"], layer: Optional[str] = None
 ) -> LayerInfo:
@@ -224,7 +257,7 @@ def get_layerinfo(
     # Init
     path = Path(path)
     if not path.exists():
-        raise ValueError(f"File does not exist: {path}")
+        raise ValueError(f"input_path doesn't exist: {path}")
 
     if layer is None:
         layer = get_only_layer(path)
@@ -419,11 +452,9 @@ def execute_sql(
     sql_dialect: Optional[str] = None,
 ):
     """
-    Execute a sql statement (DML or DDL) on the file. Is equivalent to running
-    ogrinfo on a file with the -sql parameter.
-    More info here: https://gdal.org/programs/ogrinfo.html
+    Execute a sql statement (DML or DDL) on the file.
 
-    To run SELECT statements on a file, use read_file_sql().
+    To run SELECT sql statements on a file, use :meth:`~read_file`.
 
     Args:
         path (PathLike): The path to the file.
@@ -472,10 +503,10 @@ def create_spatial_index(
         layer = get_only_layer(path)
 
     # If index already exists, remove index or return
-    if has_spatial_index(path, layer) is True:
-        if force_rebuild is True:
+    if has_spatial_index(path, layer):
+        if force_rebuild:
             remove_spatial_index(path, layer)
-        elif exist_ok is True:
+        elif exist_ok:
             return
         else:
             raise Exception(
@@ -488,9 +519,10 @@ def create_spatial_index(
         geofiletype = GeofileType(path)
         if geofiletype.is_spatialite_based:
             # The config options need to be set before opening the file!
-            geometrycolumn = get_layerinfo(path, layer).geometrycolumn
+            layerinfo = get_layerinfo(path, layer)
             with _ogr_util.set_config_options({"OGR_SQLITE_CACHE": cache_size_mb}):
                 datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
+                geometrycolumn = layerinfo.geometrycolumn
                 sql = f"SELECT CreateSpatialIndex('{layer}', '{geometrycolumn}')"
                 result = datasource.ExecuteSQL(sql, dialect="SQLITE")
                 datasource.ReleaseResultSet(result)
@@ -503,6 +535,9 @@ def create_spatial_index(
     finally:
         if datasource is not None:
             del datasource
+
+    if not has_spatial_index(path, layer):
+        raise RuntimeError(f"create_spatial_index failed on {path}, layer: {layer}")
 
 
 def has_spatial_index(
@@ -861,6 +896,8 @@ def read_file(
     columns: Optional[Iterable[str]] = None,
     bbox=None,
     rows=None,
+    sql_stmt: Optional[str] = None,
+    sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     ignore_geometry: bool = False,
     fid_as_index: bool = False,
 ) -> gpd.GeoDataFrame:
@@ -869,9 +906,26 @@ def read_file(
 
     The file format is detected based on the filepath extension.
 
+    If an sql_stmt is specified, the sqlite query can contain following placeholders
+    that will be automatically replaced for you:
+
+      * {geometrycolumn}: the column where the primary geometry is stored.
+      * {columns_to_select_str}: if 'columns' is not None, those columns,
+        otherwise all columns of the layer.
+      * {input_layer}: the layer name of the input layer.
+
+    Example sql statement with placeholders:
+    ::
+
+        SELECT {geometrycolumn}
+              {columns_to_select_str}
+          FROM "{input_layer}" layer
+
     The underlying library used to read the file can be choosen using the
     "GFO_IO_ENGINE" environment variable. Possible values are "fiona" and "pyogrio".
-    Default engine is "pyogrio".
+    This option is created as a temporary fallback to "fiona" for cases where "pyogrio"
+    gives issues, so please report issues if they are encountered. In the future support
+    for the "fiona" engine most likely will be removed. Default engine is "pyogrio".
 
     Args:
         path (file path): path to the file to read from
@@ -886,9 +940,13 @@ def read_file(
             Defaults to None, then all rows are read.
         rows ([type], optional): Read only the rows specified.
             Defaults to None, then all rows are read.
+        sql_stmt (str): sql statement to use. Only supported with "pyogrio" engine.
+        sql_dialect (str, optional): Sql dialect used. If None, for data sources with
+            explicit SQL support the statement is processed by the default SQL engine
+            (e.g. PostGIS, Geopackage, Spatialite,...). For data sources
+            without SQL support, the "OGRSQL" dialect is the default. Defaults to None.
         ignore_geometry (bool, optional): True not to read/return the geometry.
-            Is retained for backwards compatibility, but it is recommended to
-            use read_file_nogeom for improved type checking. Defaults to False.
+            Defaults to False.
         fid_as_index (bool, optional): If True, will use the FIDs of the features that
             were read as the index of the GeoDataFrame. May start at 0 or 1 depending on
             the driver. Defaults to False.
@@ -905,6 +963,8 @@ def read_file(
         columns=columns,
         bbox=bbox,
         rows=rows,
+        sql_stmt=sql_stmt,
+        sql_dialect=sql_dialect,
         ignore_geometry=ignore_geometry,
         fid_as_index=fid_as_index,
     )
@@ -919,48 +979,25 @@ def read_file_nogeom(
     columns: Optional[Iterable[str]] = None,
     bbox=None,
     rows=None,
+    sql_stmt: Optional[str] = None,
+    sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     fid_as_index: bool = False,
 ) -> pd.DataFrame:
     """
-    Reads a file to a pandas Dataframe.
-
-    The file format is detected based on the filepath extension.
-
-    The underlying library used to read the file can be choosen using the
-    "GFO_IO_ENGINE" environment variable. Possible values are "fiona" and "pyogrio".
-    Default engine is "pyogrio".
-
-    Args:
-        path (file path): path to the file to read from
-        layer (str, optional): The layer to read. Defaults to None,
-            then reads the only layer in the file or throws error.
-        columns (Iterable[str], optional): The (non-geometry) columns to read will
-            be returned in the order specified. If None, all standard columns are read.
-            In addition to standard columns, it is also possible
-            to specify "fid", a unique index available in all input files. Note that the
-            "fid" will be aliased eg. to "fid_1". Defaults to None.
-        bbox ([type], optional): Read only geometries intersecting this bbox.
-            Defaults to None, then all rows are read.
-        rows ([type], optional): Read only the rows specified.
-            Defaults to None, then all rows are read.
-        ignore_geometry (bool, optional): True not to read/return the geomatry.
-            Defaults to False.
-        fid_as_index (bool, optional): If True, will use the FIDs of the features that
-            were read as the index of the GeoDataFrame. May start at 0 or 1 depending on
-            the driver. Defaults to False.
-
-    Raises:
-        ValueError: an invalid parameter value was passed.
-
-    Returns:
-        pd.DataFrame: the data read.
+    DEPRECATED: please use read_file with option ignore_geometry=True.
     """
+    warnings.warn(
+        "read_file_nogeom is deprecated: use read_file with ignore_geometry=True",
+        FutureWarning,
+    )
     result_gdf = _read_file_base(
         path=path,
         layer=layer,
         columns=columns,
         bbox=bbox,
         rows=rows,
+        sql_stmt=sql_stmt,
+        sql_dialect=sql_dialect,
         ignore_geometry=True,
         fid_as_index=fid_as_index,
     )
@@ -974,6 +1011,8 @@ def _read_file_base(
     columns: Optional[Iterable[str]] = None,
     bbox=None,
     rows=None,
+    sql_stmt: Optional[str] = None,
+    sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     ignore_geometry: bool = False,
     fid_as_index: bool = False,
 ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
@@ -995,6 +1034,8 @@ def _read_file_base(
             columns=columns,
             bbox=bbox,
             rows=rows,
+            sql_stmt=sql_stmt,
+            sql_dialect=sql_dialect,
             ignore_geometry=ignore_geometry,
             fid_as_index=fid_as_index or fid_as_column,
         )
@@ -1005,6 +1046,8 @@ def _read_file_base(
             columns=columns,
             bbox=bbox,
             rows=rows,
+            sql_stmt=sql_stmt,
+            sql_dialect=sql_dialect,
             ignore_geometry=ignore_geometry,
             fid_as_index=fid_as_index or fid_as_column,
         )
@@ -1026,6 +1069,8 @@ def _read_file_base_fiona(
     columns: Optional[Iterable[str]] = None,
     bbox=None,
     rows=None,
+    sql_stmt: Optional[str] = None,
+    sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     ignore_geometry: bool = False,
     fid_as_index: bool = False,
 ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
@@ -1034,12 +1079,13 @@ def _read_file_base_fiona(
     """
     if ignore_geometry and columns == []:
         return pd.DataFrame()
+    if sql_stmt is not None:
+        raise ValueError("sql_stmt is not supported with fiona engine")
 
     # Init
     path = Path(path)
     if path.exists() is False:
-        raise ValueError(f"File doesnt't exist: {path}")
-    geofiletype = GeofileType(path)
+        raise ValueError(f"file doesn't exist: {path}")
 
     # If no layer name specified, check if there is only one layer in the file.
     if layer is None:
@@ -1063,39 +1109,39 @@ def _read_file_base_fiona(
             if tmp_fid_path.parent.exists():
                 shutil.rmtree(tmp_fid_path, ignore_errors=True)
 
-    # Depending on the extension... different implementations
-    if geofiletype == GeofileType.ESRIShapefile:
-        result_gdf = gpd.read_file(
-            str(path), bbox=bbox, rows=rows, ignore_geometry=ignore_geometry
-        )
-    elif geofiletype == GeofileType.GeoJSON:
-        result_gdf = gpd.read_file(
-            str(path), bbox=bbox, rows=rows, ignore_geometry=ignore_geometry
-        )
-    elif geofiletype.is_spatialite_based:
-        result_gdf = gpd.read_file(
-            str(path),
-            layer=layer,
-            bbox=bbox,
-            rows=rows,
-            ignore_geometry=ignore_geometry,
-        )
-    else:
-        raise ValueError(f"Not implemented for geofiletype {geofiletype}")
+    # Checking if field/column names should be read is case sensitive in fiona, so
+    # make sure the column names specified have the same casing.
+    columns_prepared = None
+    if columns is not None:
+        layerinfo = get_layerinfo(path, layer=layer)
+        columns_upper_lookup = {column.upper(): column for column in columns}
+        columns_prepared = {
+            column: columns_upper_lookup[column.upper()]
+            for column in layerinfo.columns
+            if column.upper() in columns_upper_lookup
+        }
+
+    # Read...
+    columns_list = None if columns_prepared is None else list(columns_prepared)
+    result_gdf = gpd.read_file(
+        str(path),
+        layer=layer,
+        bbox=bbox,
+        rows=rows,
+        include_fields=columns_list,
+        sql=sql_stmt,
+        sql_dialect=sql_dialect,
+        ignore_geometry=ignore_geometry,
+    )
 
     # Set the index to the backed-up fid
     if fid_as_index:
         result_gdf = result_gdf.set_index("__TMP_GEOFILEOPS_FID")
 
-    # If columns to read are specified... filter non-geometry columns
-    # case-insensitive
-    if columns is not None:
-        columns_upper = [column.upper() for column in columns]
-        columns_upper.append("GEOMETRY")
-        columns_to_keep = [
-            col for col in result_gdf.columns if (str(col).upper() in columns_upper)
-        ]
-        result_gdf = result_gdf[columns_to_keep]
+    # Reorder columns + change casing so they are the same as columns parameter
+    if columns_prepared is not None and len(columns_prepared) > 0:
+        result_gdf = result_gdf[list(columns_prepared) + ["geometry"]]
+        result_gdf = result_gdf.rename(columns=columns_prepared)  # type: ignore
 
     # Starting from fiona 1.9, string columns with all None values are read as being
     # float columns. Convert them to object type.
@@ -1109,7 +1155,7 @@ def _read_file_base_fiona(
                 if col in properties and properties[col].startswith("str"):
                     result_gdf[col] = (
                         result_gdf[col]  # type: ignore
-                        .astype(object)
+                        .astype(object)  # type: ignore
                         .replace(np.nan, None)
                     )
 
@@ -1126,6 +1172,8 @@ def _read_file_base_pyogrio(
     columns: Optional[Iterable[str]] = None,
     bbox=None,
     rows=None,
+    sql_stmt: Optional[str] = None,
+    sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     ignore_geometry: bool = False,
     fid_as_index: bool = False,
 ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
@@ -1135,7 +1183,7 @@ def _read_file_base_pyogrio(
     # Init
     path = Path(path)
     if path.exists() is False:
-        raise ValueError(f"File doesn't exist: {path}")
+        raise ValueError(f"file doesn't exist: {path}")
 
     # Convert slice object to pyogrio parameters
     if rows is not None:
@@ -1145,41 +1193,95 @@ def _read_file_base_pyogrio(
         skip_features = 0
         max_features = None
 
-    # If no layer name specified, check if there is only one layer in the file.
-    if layer is None:
-        layer = get_only_layer(path)
+    # If no sql_stmt specified
+    columns_prepared = None
+    if sql_stmt is None:
+        # If no layer specified, there should be only one layer in the file.
+        if layer is None:
+            layer = get_only_layer(path)
 
-    # Checking if column names should be read is case sensitive in pyogrio, so
-    # make sure the column names specified have the same casing.
-    columns_originalcasing = None
-    if columns is not None:
-        layerinfo = get_layerinfo(path, layer=layer)
-        columns_upper = [column.upper() for column in columns]
-        columns_originalcasing = [
-            column for column in layerinfo.columns if column.upper() in columns_upper
-        ]
+        # Checking if column names should be read is case sensitive in pyogrio, so
+        # make sure the column names specified have the same casing.
+        if columns is not None:
+            layerinfo = get_layerinfo(path, layer=layer)
+            columns_upper_lookup = {column.upper(): column for column in columns}
+            columns_prepared = {
+                column: columns_upper_lookup[column.upper()]
+                for column in layerinfo.columns
+                if column.upper() in columns_upper_lookup
+            }
+    else:
+        # Fill out placeholders, keep columns_prepared None because column filtering
+        # should happen in sql_stmt.
+        sql_stmt = _fill_out_sql_placeholders(
+            path=path, layer=layer, sql_stmt=sql_stmt, columns=columns
+        )
 
     # Read!
+    columns_list = None if columns_prepared is None else list(columns_prepared)
     result_gdf = pyogrio.read_dataframe(
         path,
-        columns=columns_originalcasing,
+        layer=layer,
+        columns=columns_list,
         bbox=bbox,
         skip_features=skip_features,
         max_features=max_features,
+        sql=sql_stmt,
+        sql_dialect=sql_dialect,
         read_geometry=not ignore_geometry,
         fid_as_index=fid_as_index,
     )
 
-    # Reorder columns so they are the same as columns parameter
-    if columns_originalcasing is not None and len(columns_originalcasing) > 0:
-        columns_originalcasing.append("geometry")
-        result_gdf = result_gdf[columns_originalcasing]
+    # Reorder columns + change casing so they are the same as columns parameter
+    if columns_prepared is not None and len(columns_prepared) > 0:
+        result_gdf = result_gdf[list(columns_prepared) + ["geometry"]]
+        result_gdf = result_gdf.rename(columns=columns_prepared)  # type: ignore
 
     # assert to evade pyLance warning
     assert isinstance(result_gdf, pd.DataFrame) or isinstance(
         result_gdf, gpd.GeoDataFrame
     )
     return result_gdf
+
+
+def _fill_out_sql_placeholders(
+    path: Path, layer: Optional[str], sql_stmt: str, columns: Optional[Iterable[str]]
+) -> str:
+    # Fill out placeholders in the sql_stmt if needed:
+    placeholders = [
+        name for _, name, _, _ in string.Formatter().parse(sql_stmt) if name
+    ]
+    layer_tmp = layer
+    layerinfo = None
+    format_kwargs = {}
+    for placeholder in placeholders:
+        if layer_tmp is None:
+            layer_tmp = get_only_layer(path)
+        if placeholder == "input_layer":
+            format_kwargs[placeholder] = layer_tmp
+        elif placeholder == "geometrycolumn":
+            if layerinfo is None:
+                layerinfo = get_layerinfo(path, layer_tmp)
+            format_kwargs[placeholder] = layerinfo.geometrycolumn
+        elif placeholder == "columns_to_select_str":
+            if layerinfo is None:
+                layerinfo = get_layerinfo(path, layer_tmp)
+            columns_asked = None if columns is None else list(columns)
+            formatter = _ogr_sql_util.ColumnFormatter(
+                columns_asked=columns_asked,
+                columns_in_layer=layerinfo.columns,
+                fid_column=layerinfo.fid_column,
+            )
+            format_kwargs[placeholder] = formatter.prefixed_aliased()
+
+        else:
+            raise ValueError(
+                f"unknown placeholder {placeholder} in sql_stmt: {sql_stmt}"
+            )
+
+    if len(format_kwargs) > 0:
+        sql_stmt = sql_stmt.format(**format_kwargs)
+    return sql_stmt
 
 
 def read_file_sql(
@@ -1190,8 +1292,7 @@ def read_file_sql(
     ignore_geometry: bool = False,
 ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
     """
-    Reads a file to a GeoPandas GeoDataFrame, using an sql statement to filter
-    the data.
+    DEPRECATED: Reads a file using an sql statement.
 
     Args:
         path (file path): path to the file to read from
@@ -1205,31 +1306,20 @@ def read_file_sql(
     Returns:
         Union[pd.DataFrame, gpd.GeoDataFrame]: The data read.
     """
+    warnings.warn(
+        'read_file_sql is deprecated: use read_file! Mind: sql_dialect is not "SQLITE" '
+        "by default there!",
+        FutureWarning,
+    )
 
-    # Check and init some parameters/variables
-    path = Path(path)
-    layer_list = None
-    if layer is not None:
-        layer_list = [layer]
-
-    # Now we're ready to go!
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Execute sql against file and write to temp file
-        tmp_path = Path(tmpdir) / "read_file_sql_tmp_file.gpkg"
-        _ogr_util.vector_translate(
-            input_path=path,
-            output_path=tmp_path,
-            sql_stmt=sql_stmt,
-            sql_dialect=sql_dialect,
-            input_layers=layer_list,
-            options={"LAYER_CREATION.SPATIAL_INDEX": False},
-        )
-
-        # Read and return result
-        if tmp_path.exists():
-            return _read_file_base(tmp_path, ignore_geometry=ignore_geometry)
-        else:
-            return pd.DataFrame()
+    # Run
+    return _read_file_base(
+        path,
+        sql_stmt=sql_stmt,
+        sql_dialect=sql_dialect,
+        layer=layer,
+        ignore_geometry=ignore_geometry,
+    )
 
 
 def to_file(
@@ -1431,7 +1521,7 @@ def _to_file_fiona(
                 gdf_to_write = gdf.reset_index(drop=True)
             else:
                 gdf_to_write = gdf
-            gdf_to_write.to_file(str(path), **kwargs)
+            gdf_to_write.to_file(str(path), **kwargs)  # type: ignore
         elif geofiletype == GeofileType.GPKG:
             # Try to harmonize the geometrytype to one (multi)type, as GPKG
             # doesn't like > 1 type in a layer
@@ -1442,7 +1532,7 @@ def _to_file_fiona(
                 )
             else:
                 gdf_to_write = gdf
-            gdf_to_write.to_file(str(path), layer=layer, **kwargs)
+            gdf_to_write.to_file(str(path), layer=layer, **kwargs)  # type: ignore
         elif geofiletype == GeofileType.SQLite:
             gdf.to_file(str(path), layer=layer, **kwargs)
         elif geofiletype == GeofileType.GeoJSON:

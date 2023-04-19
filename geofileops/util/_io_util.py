@@ -5,21 +5,27 @@ Module containing some utilities regarding io.
 
 import os
 from pathlib import Path
-import shutil
-import subprocess
 import tempfile
-from typing import Any, Optional, Tuple, Union
+from typing import Optional, Tuple
 
 
-def create_tempdir(base_dirname: str) -> Path:
+def create_tempdir(base_dirname: str, parent_dir: Optional[Path] = None) -> Path:
     """
     Creates a new tempdir in the default temp location.
 
     Remark: the temp dir won't be cleaned up automatically!
 
+    Examples:
+
+        - base_dirname="foo" -> /tmp/foo_000001
+        - base_dirname="foo/bar" -> /tmp/foo/bar_000001
+
     Args:
-        base_dirname (str): The name the tempdir will start with. A number will
-            be attended to this to make the directory name unique.
+        base_dirname (str): The name the tempdir will start with. The name will be
+            suffixed with a number to make the directory name unique. If a "/" is part
+            of the base_dirname a subdirectory will be created: e.g. "foo/bar".
+        parent_dir (Path, optional): The dir to create the tempdir in. If None, the
+            system temp dir is used. Defaults to None.
 
     Raises:
         Exception: if it wasn't possible to create the temp dir because there
@@ -29,19 +35,20 @@ def create_tempdir(base_dirname: str) -> Path:
         Path: the path to the temp dir created.
     """
 
-    defaulttempdir = Path(tempfile.gettempdir())
+    if parent_dir is None:
+        parent_dir = Path(tempfile.gettempdir())
 
     for i in range(1, 999999):
         try:
-            tempdir = defaulttempdir / f"{base_dirname}_{i:06d}"
+            tempdir = parent_dir / f"{base_dirname}_{i:06d}"
             tempdir.mkdir(parents=True)
-            return Path(tempdir)
+            return tempdir
         except FileExistsError:
             continue
 
     raise Exception(
         f"Wasn't able to create a temporary dir with basedir: "
-        f"{defaulttempdir / base_dirname}"
+        f"{parent_dir / base_dirname}"
     )
 
 
@@ -99,60 +106,6 @@ def get_tempfile_locked(
         f"Wasn't able to create a temporary file with base_filename: {base_filename}, "
         f"dir: {dir}"
     )
-
-
-def copyfile(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]):
-    """
-    Copy the source file to the destination specified.
-
-    Standard shutil.copyfile is very slow on windows for large files.
-
-    Args:
-        src (PathLike): the source file to copy.
-        dst (PathLike): the destination file or directory to copy to.
-
-    Raises:
-        Exception: when anything went wrong.
-    """
-    if os.name == "nt":
-        # On windows, this is a lot faster than all shutil alternatives
-        # command = f'copy "{src}" "{dst}"'
-        command = f'xcopy /j "{src}" "{dst}*"'
-        output = ""
-        try:
-            output = subprocess.check_output(command, shell=True)
-        except Exception as ex:
-            raise Exception(f"Error executing {command}, with output {output}") from ex
-
-    else:
-        # If the destination is a dir, make it a full file path
-        shutil.copy2(src=src, dst=dst)
-
-
-'''
-def is_locked(filepath):
-    """
-    Checks if a file is locked by another process.
-    """
-    if os.name == 'nt':
-        import msvcrt
-        try:
-            fd = os.open(filepath, os.O_APPEND | os.O_EXCL | os.O_RDWR)
-        except OSError:
-            return True
-
-        try:
-            filesize = os.path.getsize(filepath)
-            msvcrt.locking(fd, msvcrt.LK_NBLCK, filesize)
-            msvcrt.locking(fd, msvcrt.LK_UNLCK, filesize)
-            os.close(fd)
-            return False
-        except (OSError, IOError):
-            os.close(fd)
-            return True
-    else:
-        raise Exception(f"Not implemented on os: {os.name}")
-'''
 
 
 def create_file_atomic(filename) -> bool:

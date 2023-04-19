@@ -1,20 +1,53 @@
 # CHANGELOG
 
-## 0.7.0 (???)
+## 0.8.0 (???)
+
+## Improvements
+
+- Add support to read/add/remove embedded layer styles in gpkg (#263)
+- Improve performance of makevalid and isvalid (#258)
+- Improve performance of spatial operations when only one batch is used (#271)
+- Add checks that `output_path` must not be equal to the/an `input_path` for geo
+  operations (#246)
+
+### Bugs fixed
+
+- Fix "json" aggregate column handling in dissolve on line and point input files gives
+  wrong results (#257)
+
+## 0.7.0 (2023-03-17)
 
 ### Improvements
 
-- Use pyogrio for GeoDataFrame io to improve performance for some operations (#64, #217)
+- Use [pyogrio](https://github.com/geopandas/pyogrio) for GeoDataFrame io to improve
+  performance for operations involving GeoDataFrames (#64, #217)
 - Add possibility to backup the fid in output files when applying operations (#114)
-- Add support to to_file to write empty dataframe + add parameter 
-  force_output_geometrytype (#205)
+- Add support to `to_file` to write empty dataframe + add basic support for
+  `force_output_geometrytype` (#205)
+- Add support to `read_file` to execute sql statements (#222)
+- Add function `get_layer_geometrytypes` to get a list of all geometry types that
+  are actually in a layer (#230)
+- Add `fid_as_index` parameter to `read_file` (#215)
+- Add `force_output_geometrytype` parameter to `apply` (#233)
+- Add `fid_as_index` parameter to `read_file` (#215)
+- Add `force_output_geometrytype` parameter to `apply` (#233)
 - Optimize performance of operations when only one batch is used (#19)
 - Optimize number batches for single layer sql operations (#214)
-- Add fid_as_index parameter to read_file (#215)
-- Small improvements/code cleanup (#216, #223)
+- Add check for select operations that if nb_parallel > 1, {batch_filter} is mandatory
+  in sql_stmt (#208)
+- Small improvements/code cleanup (#216, #223, #240,...)
 
 ### Deprecations and compatibility notes
 
+- When a geo operation results in an empty result, gfo now always writes an empty output
+  file instead of no output. This is also the behaviour of other high level libraries
+  like in the toolbox of QGIS or ArcGIS. This behaviour needs gdal version >= 3.6.3 to
+  be applied consistently. (#188)
+- In `read_file` the columns in the output now reflect the casing used in the parameter
+  rather than the casing in the source file (#229)
+- Functions `read_file_sql` and `read_file_nogeom` are deprecated in favour of
+  `read_file`. Mind: in read_file the sql_dialect default is None, not "SQLITE".
+  (#222, #232, #236)
 - The (private) util function `view_angles` is moved to 
   [pygeoops](https://github.com/pygeoops/pygeoops) (#209)
 

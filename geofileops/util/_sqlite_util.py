@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Module containing utilities regarding the usage of ogr functionalities.
+Module containing utilities regarding sqlite/spatialite files.
 """
 
 import datetime
@@ -8,9 +8,8 @@ import enum
 import logging
 from pathlib import Path
 import sqlite3
-from typing import Any, List, Optional
+from typing import Optional
 
-import pandas as pd
 
 import geofileops as gfo
 from geofileops import GeometryType
@@ -99,6 +98,8 @@ def create_table_as_sql(
     append: bool = False,
     update: bool = False,
     create_spatial_index: bool = True,
+    empty_output_ok: bool = True,
+    column_datatypes: Optional[dict] = None,
     profile: SqliteProfile = SqliteProfile.DEFAULT,
 ):
     """
@@ -115,6 +116,13 @@ def create_table_as_sql(
         update (bool, optional): True to append to an existing layer. Defaults to False.
         create_spatial_index (bool, optional): True to create a spatial index on the
             output layer. Defaults to True.
+        empty_output_ok (bool, optional): If the sql_stmt doesn't return any rows and
+            True, create an empty output file. If False, throw EmptyResultError.
+            Defaults to True.
+        column_datatypes (dict, optional): Can be used to specify the data types of
+            columns in the form of {"columnname": "datatype"}. If the data type of
+            (some) columns is not specified, it it automatically determined as good as
+            possible. Defaults to None.
         profile (SqliteProfile, optional): the set of PRAGMA's to use when creating the
             table. SqliteProfile.DEFAULT will use default setting. SqliteProfile.SPEED
             uses settings optimized for speed, but will be less save regarding
@@ -127,11 +135,11 @@ def create_table_as_sql(
     # Check input parameters
     if append is True or update is True:
         raise ValueError("append=True nor update=True are implemented.")
-    output_suffix_lower = input1_path.suffix.lower()
+    output_suffix_lower = output_path.suffix.lower()
     if output_suffix_lower != input1_path.suffix.lower():
-        raise ValueError("Output and input1 paths don't have the same extension!")
+        raise ValueError("output_path and both input paths must have the same suffix!")
     if input2_path is not None and output_suffix_lower != input2_path.suffix.lower():
-        raise ValueError("Output and input2 paths don't have the same extension!")
+        raise ValueError("output_path and both input paths must have the same suffix!")
 
     # Use crs epsg from input1_layer, if it has one
     input1_layerinfo = gfo.get_layerinfo(input1_path, input1_layer)
@@ -166,8 +174,11 @@ def create_table_as_sql(
                 conn.execute(sql)
 
             # Set nb KB of cache
-            conn.execute("PRAGMA cache_size=-128000;")
-            conn.execute("PRAGMA temp_store=MEMORY;")
+            sql = "PRAGMA cache_size=-128000;"
+            conn.execute(sql)
+            # Set temp storage to MEMORY
+            sql = "PRAGMA temp_store=2;"
+            conn.execute(sql)
 
             # If attach to input1
             input1_databasename = "input1"
@@ -213,19 +224,25 @@ def create_table_as_sql(
             # Determine columns/datatypes to create the table
             # Create temp table to get the column names + general data types
             # + fetch one row to use it to determine geometrytype.
-            sql = (
-                f"CREATE TEMPORARY TABLE tmp AS \n"
-                f"    SELECT * FROM (\n{sql_stmt}\n)\nLIMIT 1;"
-            )
+            sql = f"""
+                CREATE TEMPORARY TABLE tmp AS
+                  SELECT *
+                    FROM (
+                      {sql_stmt}
+                    )
+                  LIMIT 1;
+            """
             conn.execute(sql)
             sql = "PRAGMA TABLE_INFO(tmp)"
             cur = conn.execute(sql)
             tmpcolumns = cur.fetchall()
 
-            # Fetch one row to try to get more detailed data types
-            sql = sql_stmt
+            # Fetch one row to try to get more detailed data types if needed
+            sql = "SELECT * FROM tmp"
             tmpdata = conn.execute(sql).fetchone()
-            if tmpdata is None or len(tmpdata) == 0:
+            if tmpdata is not None and len(tmpdata) == 0:
+                tmpdata = None
+            if not empty_output_ok and tmpdata is None:
                 # If no row was returned, stop
                 raise EmptyResultError(f"Query didn't return any rows: {sql_stmt}")
 
@@ -235,40 +252,49 @@ def create_table_as_sql(
                 columnname = column[1]
                 columntype = column[2]
 
-                if columnname == "geom":
+                if column_datatypes is not None and columnname in column_datatypes:
+                    column_types[columnname] = column_datatypes[columnname]
+                elif columnname == "geom":
                     # PRAGMA TABLE_INFO gives None as column type for a
                     # geometry column. So if output_geometrytype not specified,
                     # Use ST_GeometryType to get the type
                     # based on the data + apply to_multitype to be sure
                     if output_geometrytype is None:
                         sql = f"SELECT ST_GeometryType({columnname}) FROM tmp;"
-                        column_geometrytypename = conn.execute(sql).fetchall()[0][0]
-                        output_geometrytype = GeometryType[
-                            column_geometrytypename
-                        ].to_multitype
+                        result = conn.execute(sql).fetchall()
+                        if len(result) > 0:
+                            output_geometrytype = GeometryType[
+                                result[0][0]
+                            ].to_multitype
+                        else:
+                            output_geometrytype = GeometryType["GEOMETRY"]
                     column_types[columnname] = output_geometrytype.name
                 else:
-                    # If PRAGMA TABLE_INFO doesn't specify the datatype,
-                    # determine based on data
+                    # If PRAGMA TABLE_INFO doesn't specify the datatype, determine based
+                    # on data.
                     if columntype is None or columntype == "":
                         sql = f"SELECT typeof({columnname}) FROM tmp;"
-                        result = conn.execute(sql).fetchall()[0][0]
-                        if result is not None:
-                            column_types[columnname] = result
+                        result = conn.execute(sql).fetchall()
+                        if len(result) > 0 and result[0][0] is not None:
+                            column_types[columnname] = result[0][0]
                         else:
                             # If unknown, take the most general types
                             column_types[columnname] = "NUMERIC"
                     elif columntype == "NUM":
-                        # PRAGMA TABLE_INFO sometimes returns 'NUM', but
-                        # apparently this cannot be used in "CREATE TABLE"
-                        if isinstance(tmpdata[column_index], datetime.date):
+                        # PRAGMA TABLE_INFO sometimes returns 'NUM', but apparently this
+                        # cannot be used in "CREATE TABLE".
+                        if tmpdata is not None and isinstance(
+                            tmpdata[column_index], datetime.date
+                        ):
                             column_types[columnname] = "DATE"
-                        elif isinstance(tmpdata[column_index], datetime.datetime):
+                        elif tmpdata is not None and isinstance(
+                            tmpdata[column_index], datetime.datetime
+                        ):
                             column_types[columnname] = "DATETIME"
                         else:
                             sql = f'SELECT datetime("{columnname}") FROM tmp;'
-                            result = conn.execute(sql).fetchall()[0][0]
-                            if result is not None:
+                            result = conn.execute(sql).fetchall()
+                            if len(result) > 0 and result[0][0] is not None:
                                 column_types[columnname] = "DATETIME"
                             else:
                                 column_types[columnname] = "NUMERIC"
@@ -304,10 +330,12 @@ def create_table_as_sql(
                 f'"{columnname}" {column_types[columnname]}\n'
                 for columnname in column_types
             ]
-            sql = (
-                f'CREATE TABLE {output_databasename}."{output_layer}" '
-                f'({", ".join(columns_for_create)})'
-            )
+            sql = f"""
+                CREATE TABLE {output_databasename}."{output_layer}" (
+                    fid INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    {", ".join(columns_for_create)}
+                )
+            """
             conn.execute(sql)
 
             # Add metadata
@@ -356,10 +384,25 @@ def create_table_as_sql(
                 sql = f"SELECT UpdateLayerStatistics('{output_layer}', 'geom');"
                 conn.execute(sql)
                 if output_suffix_lower == ".gpkg":
+                    # Create the necessary empty index, triggers,...
                     sql = f"SELECT gpkgAddSpatialIndex('{output_layer}', 'geom');"
+                    conn.execute(sql)
+                    # Now fill the index
+                    sql = f"""
+                        INSERT INTO "rtree_{output_layer}_geom"
+                          SELECT fid
+                                ,ST_MinX(geom)
+                                ,ST_MaxX(geom)
+                                ,ST_MinY(geom)
+                                ,ST_MaxY(geom)
+                            FROM "{output_layer}"
+                           WHERE geom IS NOT NULL
+                             AND NOT ST_IsEmpty(geom)
+                    """
+                    conn.execute(sql)
                 elif output_suffix_lower == ".sqlite":
                     sql = f"SELECT CreateSpatialIndex('{output_layer}', 'geom');"
-                conn.execute(sql)
+                    conn.execute(sql)
 
     except EmptyResultError:
         logger.info(f"Query didn't return any rows: {sql_stmt}")
@@ -368,68 +411,10 @@ def create_table_as_sql(
         if output_path.exists():
             output_path.unlink()
     except Exception as ex:
-        raise Exception(f"Error executing {sql}") from ex
+        raise Exception(f"Error {ex} executing {sql}") from ex
     finally:
         if conn is not None:
             conn.close()
-
-
-def execute_sql(path: Path, sql_stmt: str, use_spatialite: bool = True):
-    # Connect to database file
-    conn = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
-    sql = None
-
-    try:
-        with conn:
-            if use_spatialite is True:
-                load_spatialite(conn)
-            if path.suffix.lower() == ".gpkg":
-                sql = "SELECT EnableGpkgMode();"
-                conn.execute(sql)
-
-            # Set nb KB of cache
-            sql = "PRAGMA cache_size=-50000;"
-            conn.execute(sql)
-            sql = "PRAGMA temp_store=MEMORY;"
-            conn.execute(sql)
-
-            # Now actually run the sql
-            sql = sql_stmt
-            conn.execute(sql)
-
-    except Exception as ex:
-        raise Exception(f"Error executing {sql}") from ex
-    finally:
-        conn.close()
-
-
-def execute_select_sql(
-    path: Path, sql_stmt: str, use_spatialite: bool = True
-) -> List[Any]:
-    # Connect to database file
-    conn = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
-    sql = None
-
-    try:
-        if use_spatialite is True:
-            load_spatialite(conn)
-        if path.suffix.lower() == ".gpkg":
-            sql = "SELECT EnableGpkgMode();"
-            conn.execute(sql)
-
-        # Set nb KB of cache
-        sql = "PRAGMA cache_size=-50000;"
-        conn.execute(sql)
-        # Use memory mapped IO = much faster (max 30GB)
-        conn.execute("PRAGMA mmap_size=30000000000;")
-
-        sql = sql_stmt
-        return conn.execute(sql).fetchall()
-
-    except Exception as ex:
-        raise Exception(f"Error executing {sql}") from ex
-    finally:
-        conn.close()
 
 
 def test_data_integrity(path: Path, use_spatialite: bool = True):
@@ -464,35 +449,6 @@ def test_data_integrity(path: Path, use_spatialite: bool = True):
                 if not result:
                     # All data was fetched from layer
                     break
-
-    except Exception as ex:
-        raise Exception(f"Error executing {sql}") from ex
-    finally:
-        conn.close()
-
-
-def execute_select_sql_df(
-    path: Path, sql_stmt: str, use_spatialite: bool = True
-) -> pd.DataFrame:
-    # Connect to database file
-    conn = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
-    sql = None
-
-    try:
-        if use_spatialite is True:
-            load_spatialite(conn)
-        if path.suffix.lower() == ".gpkg":
-            sql = "SELECT EnableGpkgMode();"
-            conn.execute(sql)
-
-        # Set nb KB of cache
-        sql = "PRAGMA cache_size=-50000;"
-        conn.execute(sql)
-        # Use memory mapped IO = much faster (max 30GB)
-        conn.execute("PRAGMA mmap_size=30000000000;")
-
-        sql = sql_stmt
-        return pd.read_sql(sql, conn)
 
     except Exception as ex:
         raise Exception(f"Error executing {sql}") from ex

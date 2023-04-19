@@ -95,6 +95,19 @@ def test_add_column(tmp_path):
     for type in gdal_types:
         assert f"column_{type}" in info.columns
 
+    # Adding an already existing column doesn't give an error
+    existing_column = list(info.columns)[0]
+    gfo.add_column(test_path, name=existing_column, type="TEXT")
+
+    # Force update on an existing column
+    assert gdf["HFDTLT"][0] == "1"
+    expression = "5"
+    gfo.add_column(
+        test_path, name="HFDTLT", type="TEXT", expression=expression, force_update=True
+    )
+    gdf = gfo.read_file(test_path)
+    assert gdf["HFDTLT"][0] == "5"
+
 
 def test_append_different_layer(tmp_path):
     # Init
@@ -197,6 +210,14 @@ def test_convert_force_output_geometrytype(tmp_path, testfile, force_geometrytyp
     dst = tmp_path / f"{src.stem}_to_{force_geometrytype}.gpkg"
     gfo.convert(src, dst, force_output_geometrytype=force_geometrytype)
     assert gfo.get_layerinfo(dst).geometrytype == force_geometrytype
+
+
+def test_convert_invalid_params(tmp_path):
+    # Convert
+    src = tmp_path / "nonexisting_file.gpkg"
+    dst = tmp_path / "output.gpkg"
+    with pytest.raises(ValueError, match="src file doesn't exist: "):
+        gfo.convert(src, dst)
 
 
 @pytest.mark.parametrize(
@@ -329,6 +350,9 @@ def test_drop_column(tmp_path, suffix):
     assert len(original_info.columns) == len(new_info.columns) + 1
     assert "GEWASGROEP" not in new_info.columns
 
+    # dropping column that doesn't exist doesn't give an error
+    gfo.drop_column(test_path, "NOT_EXISTING_COLUMN")
+
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 def test_get_crs(suffix):
@@ -343,6 +367,34 @@ def test_get_default_layer(suffix):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     layer = gfo.get_default_layer(src)
     assert layer == src.stem
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_get_layer_geometrytypes(suffix):
+    # Prepare test data + test
+    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    geometrytypes = gfo.get_layer_geometrytypes(src)
+    assert geometrytypes == ["POLYGON", "MULTIPOLYGON"]
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_get_layer_geometrytypes_empty(tmp_path, suffix):
+    # Prepare test data + test
+    src = test_helper.get_testfile(
+        "polygon-parcel", suffix=suffix, dst_dir=tmp_path, empty=True
+    )
+    geometrytypes = gfo.get_layer_geometrytypes(src)
+    assert geometrytypes == []
+
+
+def test_get_layer_geometrytypes_geometry(tmp_path):
+    # Prepare test data + test
+    src = test_helper.get_testfile("polygon-parcel", suffix=".gpkg")
+    test_path = tmp_path / f"{src.stem}_geometry{src.suffix}"
+    gfo.convert(src, test_path, force_output_geometrytype="GEOMETRY")
+    assert gfo.get_layerinfo(test_path).geometrytypename == "GEOMETRY"
+    geometrytypes = gfo.get_layer_geometrytypes(src)
+    assert geometrytypes == ["POLYGON", "MULTIPOLYGON"]
 
 
 @pytest.mark.parametrize(
@@ -381,7 +433,7 @@ def test_get_layerinfo(testfile, suffix, layer):
         layerinfo = gfo.get_layerinfo(src, "not_existing_layer")
 
     # Path specified that doesn't exist
-    with pytest.raises(ValueError, match="File does not exist"):
+    with pytest.raises(ValueError, match="input_path doesn't exist"):
         not_existing_path = _io_util.with_stem(src, "not_existing_layer")
         layerinfo = gfo.get_layerinfo(not_existing_path)
 
@@ -529,7 +581,7 @@ def test_read_file(suffix, engine_setter):
     assert len(read_gdf) == 46
     columns.append("geometry")
     for index, column in enumerate(read_gdf.columns):
-        assert str(column).casefold() == columns[index].casefold()
+        assert str(column) == columns[index]
 
     # Test no geom
     read_gdf = gfo.read_file_nogeom(src)
@@ -540,6 +592,13 @@ def test_read_file(suffix, engine_setter):
     read_gdf = gfo.read_file_nogeom(src, columns=[])
     assert isinstance(read_gdf, pd.DataFrame)
     assert len(read_gdf) == 0
+
+
+def test_read_file_invalid_params(tmp_path, engine_setter):
+    src = tmp_path / "nonexisting_file.gpkg"
+
+    with pytest.raises(ValueError, match="file doesn't exist:"):
+        _ = gfo.read_file(src)
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
@@ -573,7 +632,86 @@ def test_read_file_sql(suffix, engine_setter):
 
     # Test
     src_layerinfo = gfo.get_layerinfo(src)
+    sql_stmt = f'SELECT * FROM "{src_layerinfo.name}"'
+    if engine_setter == "fiona":
+        with pytest.raises(ValueError, match="sql_stmt is not supported with fiona"):
+            _ = gfo.read_file(src, sql_stmt=sql_stmt)
+        return
+
+    read_gdf = gfo.read_file(src, sql_stmt=sql_stmt)
+    assert isinstance(read_gdf, gpd.GeoDataFrame)
+    assert len(read_gdf) == 46
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_read_file_sql_deprecated(suffix, engine_setter):
+    if engine_setter == "fiona":
+        pytest.skip("sql_stmt param not supported for fiona engine")
+
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+
+    # Test
+    src_layerinfo = gfo.get_layerinfo(src)
     read_gdf = gfo.read_file_sql(src, sql_stmt=f'SELECT * FROM "{src_layerinfo.name}"')
+    assert isinstance(read_gdf, gpd.GeoDataFrame)
+    assert len(read_gdf) == 46
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_read_file_sql_no_geom(suffix, engine_setter):
+    if engine_setter == "fiona":
+        pytest.skip("sql_stmt param not supported for fiona engine")
+
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+
+    # Test
+    src_layerinfo = gfo.get_layerinfo(src)
+    sql_stmt = f'SELECT count(*) AS aantal FROM "{src_layerinfo.name}"'
+    read_df = gfo.read_file(src, sql_stmt=sql_stmt)
+    assert isinstance(read_df, pd.DataFrame)
+    assert len(read_df) == 1
+    assert read_df.aantal.item() == 46
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize("columns", [["OIDN", "UIDN"], ["OidN", "UidN"]])
+def test_read_file_sql_placeholders(suffix, engine_setter, columns):
+    """
+    Test if placeholders are properly filled out + if casing used in columns parameter
+    is retained when using placeholders.
+    """
+    if engine_setter == "fiona":
+        pytest.skip("sql_stmt param not supported for fiona engine")
+
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+
+    # Test
+    sql_stmt = """
+        SELECT {geometrycolumn}
+              {columns_to_select_str}
+          FROM "{input_layer}" layer
+    """
+    read_sql_gdf = gfo.read_file(
+        src, sql_stmt=sql_stmt, sql_dialect="SQLITE", columns=columns
+    )
+    read_gdf = gfo.read_file(src, columns=columns)
+    assert_geodataframe_equal(read_gdf, read_sql_gdf)
+
+
+def test_read_file_two_layers(engine_setter):
+    src = test_helper.get_testfile("polygon-twolayers")
+    layers = gfo.listlayers(src)
+    assert "parcels" in layers
+    assert "zones" in layers
+
+    read_gdf = gfo.read_file(src, layer="zones")
+    assert isinstance(read_gdf, gpd.GeoDataFrame)
+    assert len(read_gdf) == 5
+
+    read_gdf = gfo.read_file(src, layer="parcels")
     assert isinstance(read_gdf, gpd.GeoDataFrame)
     assert len(read_gdf) == 46
 
@@ -599,6 +737,12 @@ def test_rename_column(tmp_path, suffix):
         assert "OPPERVL" not in result_layerinfo.columns
         assert "area" in result_layerinfo.columns
 
+        # Rename non-existing column to existing columns doesn't give an error
+        gfo.rename_column(test_path, "OPPERVL", "area")
+        result_layerinfo = gfo.get_layerinfo(test_path)
+        assert "OPPERVL" not in result_layerinfo.columns
+        assert "area" in result_layerinfo.columns
+
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 def test_rename_layer(tmp_path, suffix):
@@ -607,9 +751,11 @@ def test_rename_layer(tmp_path, suffix):
     )
 
     if suffix == ".gpkg":
+        gfo.add_layerstyle(test_path, layer="parcels", name="stylename", qml="")
         gfo.rename_layer(test_path, layer="parcels", new_layer="parcels_renamed")
         layernames_renamed = gfo.listlayers(path=test_path)
         assert layernames_renamed[0] == "parcels_renamed"
+        assert len(gfo.get_layerstyles(test_path, layer="parcels_renamed")) == 1
     elif suffix == ".shp":
         # Now test rename layer
         with pytest.raises(ValueError, match="rename_layer is not possible"):

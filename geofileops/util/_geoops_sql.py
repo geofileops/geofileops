@@ -11,7 +11,8 @@ import math
 import multiprocessing
 from pathlib import Path
 import shutil
-from typing import Iterable, List, Literal, Optional
+import string
+from typing import Iterable, List, Literal, Optional, Union
 
 import pandas as pd
 
@@ -19,11 +20,13 @@ import geofileops as gfo
 from geofileops import GeofileType, GeometryType, PrimitiveType
 from geofileops import fileops
 from geofileops.fileops import _append_to_nolock
-from . import _io_util
-from . import _ogr_util
-from . import _ogr_sql_util
-from . import _sqlite_util
 from . import _general_util
+from . import _io_util
+from . import _ogr_sql_util
+from . import _ogr_util
+from ..helpers import _parameter_helper
+from . import _processing_util
+from . import _sqlite_util
 
 ################################################################################
 # Some init
@@ -49,11 +52,12 @@ def buffer(
     batchsize: int = -1,
     force: bool = False,
 ):
+    # Init + prepare sql template for this operation
+    # ----------------------------------------------
     if distance < 0:
-        # For a double sided buffer, aA negative buffer is only relevant
-        # for polygon types, so only keep polygon results
-        # Negative buffer creates invalid stuff, so use collectionextract
-        # to keep only polygons
+        # For a double sided buffer, a negative buffer is only relevant for polygon
+        # types, so only keep polygon results. Negative buffer creates invalid stuff,
+        # so use collectionextract to keep only polygons.
         sql_template = f"""
             SELECT ST_CollectionExtract(
                        ST_buffer({{geometrycolumn}}, {distance}, {quadrantsegments}), 3
@@ -73,8 +77,13 @@ def buffer(
         """
 
     # Buffer operation always results in polygons...
-    force_output_geometrytype = GeometryType.MULTIPOLYGON
+    if explodecollections:
+        force_output_geometrytype = GeometryType.POLYGON
+    else:
+        force_output_geometrytype = GeometryType.MULTIPOLYGON
 
+    # Go!
+    # ---
     return _single_layer_vector_operation(
         input_path=input_path,
         output_path=output_path,
@@ -104,17 +113,20 @@ def convexhull(
     batchsize: int = -1,
     force: bool = False,
 ):
-    # Prepare sql template for this operation
+    # Init + prepare sql template for this operation
+    # ----------------------------------------------
+    input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
     sql_template = """
         SELECT ST_ConvexHull({geometrycolumn}) AS geom
-              {columns_to_select_str}
+                {columns_to_select_str}
           FROM "{input_layer}" layer
          WHERE 1=1
            {batch_filter}
     """
 
+    # Go!
+    # ---
     # Output geometry type same as input geometry type
-    input_layer_info = gfo.get_layerinfo(input_path, input_layer)
     return _single_layer_vector_operation(
         input_path=input_path,
         output_path=output_path,
@@ -124,7 +136,7 @@ def convexhull(
         output_layer=output_layer,
         columns=columns,
         explodecollections=explodecollections,
-        force_output_geometrytype=input_layer_info.geometrytype,
+        force_output_geometrytype=input_layerinfo.geometrytype,
         sql_dialect="SQLITE",
         filter_null_geoms=True,
         nb_parallel=nb_parallel,
@@ -182,6 +194,7 @@ def isvalid(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
+    validate_attribute_data: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -214,9 +227,16 @@ def isvalid(
         force=force,
     )
 
-    # If there is no output file, there weren't invalid geoms
-    if not output_path.exists():
-        # If output is a geopackage, check if all data can be read
+    # Check the number of invalid files
+    nb_invalid_geoms = 0
+    if output_path.exists():
+        nb_invalid_geoms = gfo.get_layerinfo(output_path).featurecount
+        if nb_invalid_geoms == 0:
+            # Empty result, so everything was valid: remove output file
+            gfo.remove(output_path)
+
+    # If output is sqlite based, check if all data can be read
+    if validate_attribute_data:
         try:
             input_geofiletype = GeofileType(input_path)
             if input_geofiletype.is_spatialite_based:
@@ -224,21 +244,17 @@ def isvalid(
                 logger.debug("test_data_integrity was succesfull")
         except Exception:
             logger.exception(
-                "No invalid geometries found, but some attributes could not be read"
+                f"nb_invalid_geoms: {nb_invalid_geoms} + some attributes could not be "
+                "read!"
             )
             return False
 
-        return True
+    if nb_invalid_geoms > 0:
+        logger.info(f"Found {nb_invalid_geoms} invalid geoms in {output_path}")
+        return False
 
-    # Output file exists, so check result
-    layerinfo = gfo.get_layerinfo(output_path)
-    if layerinfo.featurecount == 0:
-        # Empty result, so everything was valid: remove output file + return True
-        gfo.remove(output_path)
-        return True
-
-    logger.info(f"Found {layerinfo.featurecount} invalid geoms in {output_path}")
-    return False
+    # Nothing invalid found
+    return True
 
 
 def makevalid(
@@ -250,15 +266,25 @@ def makevalid(
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
     precision: Optional[float] = None,
+    validate_attribute_data: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
 ):
-    # Specify output_geomatrytype, because otherwise makevalid results in
+    # If output file exists already, either clean up or return...
+    operation_name = "makevalid"
+    if not force and output_path.exists():
+        logger.info(f"Stop {operation_name}: output exists already {output_path}")
+        return
+
+    # Init + prepare sql template for this operation
+    # ----------------------------------------------
+    input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
+
+    # Specify output_geometrytype, because otherwise makevalid results in
     # column type 'GEOMETRY'/'UNKNOWN(ANY)'
-    layerinfo = gfo.get_layerinfo(input_path, input_layer)
     if force_output_geometrytype is None:
-        force_output_geometrytype = layerinfo.geometrytype
+        force_output_geometrytype = input_layerinfo.geometrytype
 
     # First compose the operation to be done on the geometries
     # If the number of decimals of coordinates should be limited
@@ -278,17 +304,17 @@ def makevalid(
     # Now we can prepare the entire statement
     sql_template = f"""
         SELECT {operation} AS geom
-              {{columns_to_select_str}}
-          FROM "{{input_layer}}" layer
-         WHERE 1=1
-           {{batch_filter}}
+                {{columns_to_select_str}}
+            FROM "{{input_layer}}" layer
+            WHERE 1=1
+            {{batch_filter}}
     """
 
     _single_layer_vector_operation(
         input_path=input_path,
         output_path=output_path,
         sql_template=sql_template,
-        operation_name="makevalid",
+        operation_name=operation_name,
         input_layer=input_layer,
         output_layer=output_layer,
         columns=columns,
@@ -302,9 +328,10 @@ def makevalid(
     )
 
     # If output is a geopackage, check if all data can be read
-    output_geofiletype = GeofileType(input_path)
-    if output_geofiletype.is_spatialite_based:
-        _sqlite_util.test_data_integrity(path=input_path)
+    if validate_attribute_data:
+        output_geofiletype = GeofileType(input_path)
+        if output_geofiletype.is_spatialite_based:
+            _sqlite_util.test_data_integrity(path=input_path)
 
 
 def select(
@@ -369,13 +396,14 @@ def simplify(
     batchsize: int = -1,
     force: bool = False,
 ):
-    # Prepare sql template for this operation
+    # Init + prepare sql template for this operation
+    # ----------------------------------------------
     sql_template = f"""
         SELECT ST_SimplifyPreserveTopology({{geometrycolumn}}, {tolerance}) AS geom
-              {{columns_to_select_str}}
-          FROM "{{input_layer}}" layer
-         WHERE 1=1
-           {{batch_filter}}
+                {{columns_to_select_str}}
+            FROM "{{input_layer}}" layer
+            WHERE 1=1
+            {{batch_filter}}
     """
 
     # Output geometry type same as input geometry type
@@ -419,9 +447,9 @@ def _single_layer_vector_operation(
 
     # Check input parameters...
     if not input_path.exists():
-        raise Exception(
-            f"Error {operation_name}: input_path doesn't exist: {input_path}"
-        )
+        raise ValueError(f"{operation_name}: input_path doesn't exist: {input_path}")
+    if input_path == output_path:
+        raise ValueError(f"{operation_name}: output_path must not equal input_path")
 
     # Check/get layer names
     if input_layer is None:
@@ -456,13 +484,16 @@ def _single_layer_vector_operation(
         if processing_params is None or processing_params.batches is None:
             return
 
-        # If there are multiple batches, there needs to be a {batch_filter}
-        # placeholder in the sql template!
-        if len(processing_params.batches) > 1:
-            if "{batch_filter}" not in sql_template:
+        # If multiple batches, there should be a batch_filter placeholder sql_template
+        nb_batches = len(processing_params.batches)
+        if nb_batches > 1:
+            placeholders = [
+                name for _, name, _, _ in string.Formatter().parse(sql_template) if name
+            ]
+            if "batch_filter" not in placeholders:
                 raise ValueError(
-                    "Error: nb_batches > 1 but no {batch_filter} "
-                    f"placeholder in sql_template\n{sql_template}"
+                    "Number batches > 1 requires a batch_filter placeholder in "
+                    f"sql_template {sql_template}"
                 )
 
         # Format column string for use in select
@@ -478,10 +509,10 @@ def _single_layer_vector_operation(
 
         # Processing in threads is 2x faster for small datasets (on Windows)
         calculate_in_threads = True if input_layerinfo.featurecount <= 100 else False
-        with _general_util.PooledExecutorFactory(
+        with _processing_util.PooledExecutorFactory(
             threadpool=calculate_in_threads,
             max_workers=processing_params.nb_parallel,
-            initializer=_general_util.initialize_worker(),
+            initializer=_processing_util.initialize_worker(),
         ) as calculate_pool:
             batches = {}
             future_to_batch_id = {}
@@ -513,8 +544,13 @@ def _single_layer_vector_operation(
 
                 batches[batch_id]["sql_stmt"] = sql_stmt
 
-                # Remark: this temp file doesn't need spatial index, and even if only
-                # one batch creating the index immediately isn't faster.
+                # If there is only one batch, it is faster to create the spatial index
+                # immediately. Otherwise no index needed, because partial files still
+                # need to be merged to one file later on.
+                create_spatial_index = False
+                if nb_batches == 1:
+                    create_spatial_index = True
+
                 translate_info = _ogr_util.VectorTranslateInfo(
                     input_path=processing_params.batches[batch_id]["path"],
                     output_path=tmp_partial_output_path,
@@ -523,7 +559,7 @@ def _single_layer_vector_operation(
                     sql_dialect=sql_dialect,
                     explodecollections=explodecollections,
                     force_output_geometrytype=force_output_geometrytype,
-                    options={"LAYER_CREATION.SPATIAL_INDEX": False},
+                    options={"LAYER_CREATION.SPATIAL_INDEX": create_spatial_index},
                 )
                 future = calculate_pool.submit(
                     _ogr_util.vector_translate_by_info, info=translate_info
@@ -546,29 +582,31 @@ def _single_layer_vector_operation(
                 # Remark: give higher priority, because this is the slowest factor
                 batch_id = future_to_batch_id[future]
                 tmp_partial_output_path = batches[batch_id]["tmp_partial_output_path"]
+                nb_done += 1
 
-                if tmp_partial_output_path.exists():
-                    # If there is only one batch, just rename
-                    if len(processing_params.batches) == 1:
-                        gfo.move(tmp_partial_output_path, tmp_output_path)
-                    else:
-                        fileops._append_to_nolock(
-                            src=tmp_partial_output_path,
-                            dst=tmp_output_path,
-                            explodecollections=explodecollections,
-                            force_output_geometrytype=force_output_geometrytype,
-                            create_spatial_index=False,
-                        )
-                        gfo.remove(tmp_partial_output_path)
+                # Normally all partial files should exist, but to be sure.
+                if not tmp_partial_output_path.exists():
+                    logger.warning(f"Result file {tmp_partial_output_path} not found")
+                    continue
+
+                # If there is only one batch, just rename because it is already OK
+                if nb_batches == 1:
+                    gfo.move(tmp_partial_output_path, tmp_output_path)
                 else:
-                    logger.debug(f"Result file {tmp_partial_output_path} was empty")
+                    fileops._append_to_nolock(
+                        src=tmp_partial_output_path,
+                        dst=tmp_output_path,
+                        explodecollections=explodecollections,
+                        force_output_geometrytype=force_output_geometrytype,
+                        create_spatial_index=False,
+                    )
+                    gfo.remove(tmp_partial_output_path)
 
                 # Log the progress and prediction speed
-                nb_done += 1
                 _general_util.report_progress(
                     start_time,
                     nb_done,
-                    len(batches),
+                    nb_batches,
                     operation_name,
                     nb_parallel=nb_parallel,
                 )
@@ -576,7 +614,9 @@ def _single_layer_vector_operation(
         # Round up and clean up
         # Now create spatial index and move to output location
         if tmp_output_path.exists():
-            gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
+            gfo.create_spatial_index(
+                path=tmp_output_path, layer=output_layer, exist_ok=True
+            )
             output_path.parent.mkdir(parents=True, exist_ok=True)
             gfo.move(tmp_output_path, output_path)
         else:
@@ -785,10 +825,10 @@ def erase(
         output_layer=output_layer,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
-        output_with_spatial_index=output_with_spatial_index,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        output_with_spatial_index=output_with_spatial_index,
     )
 
 
@@ -1564,10 +1604,10 @@ def symmetric_difference(
             erase_layer=input2_layer,
             output_layer=output_layer,
             explodecollections=explodecollections,
-            output_with_spatial_index=False,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
+            output_with_spatial_index=False,
         )
 
         if input2_columns is None or len(input2_columns) > 0:
@@ -1594,10 +1634,10 @@ def symmetric_difference(
             erase_layer=input1_layer,
             output_layer=output_layer,
             explodecollections=explodecollections,
-            output_with_spatial_index=False,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
+            output_with_spatial_index=False,
         )
 
         # Now append
@@ -1608,13 +1648,20 @@ def symmetric_difference(
             dst_layer=output_layer,
         )
 
-        # Create spatial index
-        gfo.create_spatial_index(path=erase1_output_path, layer=output_layer)
+        # Convert or add spatial index
+        tmp_output_path = erase1_output_path
+        if erase1_output_path.suffix != output_path.suffix:
+            # Output file should be in diffent format, so convert
+            tmp_output_path = tempdir / output_path.name
+            gfo.convert(src=erase1_output_path, dst=tmp_output_path)
+        else:
+            # Create spatial index
+            gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
 
         # Now we are ready to move the result to the final spot...
         if output_path.exists():
             gfo.remove(output_path)
-        gfo.move(erase1_output_path, output_path)
+        gfo.move(tmp_output_path, output_path)
 
     finally:
         shutil.rmtree(tempdir)
@@ -1663,10 +1710,10 @@ def union(
             input2_columns_prefix=input2_columns_prefix,
             output_layer=output_layer,
             explodecollections=explodecollections,
-            output_with_spatial_index=False,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
+            output_with_spatial_index=False,
         )
 
         # Now erase input1 from input2 to another temporary output gfo...
@@ -1681,10 +1728,10 @@ def union(
             erase_layer=input1_layer,
             output_layer=output_layer,
             explodecollections=explodecollections,
-            output_with_spatial_index=False,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
+            output_with_spatial_index=False,
         )
 
         # Now append
@@ -1695,13 +1742,20 @@ def union(
             dst_layer=output_layer,
         )
 
-        # Create spatial index
-        gfo.create_spatial_index(path=split_output_path, layer=output_layer)
+        # Convert or add spatial index
+        tmp_output_path = split_output_path
+        if split_output_path.suffix != output_path.suffix:
+            # Output file should be in different format, so convert
+            tmp_output_path = tempdir / output_path.name
+            gfo.convert(src=split_output_path, dst=tmp_output_path)
+        else:
+            # Create spatial index
+            gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
 
         # Now we are ready to move the result to the final spot...
         if output_path.exists():
             gfo.remove(output_path)
-        gfo.move(split_output_path, output_path)
+        gfo.move(tmp_output_path, output_path)
 
     finally:
         shutil.rmtree(tempdir)
@@ -1757,22 +1811,24 @@ def _two_layer_vector_operation(
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): [description]. Defaults to False.
+        output_with_spatial_index (bool, optional): True to create output file with
+            spatial index. Defaults to True.
 
     Raises:
-        Exception: [description]
+        ValueError: [description]
     """
     # Init
     if not input1_path.exists():
-        raise Exception(
-            f"Error {operation_name}: input1_path doesn't exist: {input1_path}"
-        )
+        raise ValueError(f"{operation_name}: input1_path doesn't exist: {input1_path}")
     if not input2_path.exists():
-        raise Exception(
-            f"Error {operation_name}: input2_path doesn't exist: {input2_path}"
+        raise ValueError(f"{operation_name}: input2_path doesn't exist: {input2_path}")
+    if input1_path == output_path or input2_path == output_path:
+        raise ValueError(
+            f"{operation_name}: output_path must not equal one of input paths"
         )
     if use_ogr is True and input1_path != input2_path:
-        raise Exception(
-            f"Error {operation_name}: if use_ogr True, input1_path == input2_path!"
+        raise ValueError(
+            f"{operation_name}: if use_ogr True, input1_path == input2_path!"
         )
     if output_path.exists():
         if force is False:
@@ -1822,6 +1878,18 @@ def _two_layer_vector_operation(
         if processing_params is None or processing_params.batches is None:
             return
 
+        # If multiple batches, there should be a batch_filter placeholder sql_template
+        nb_batches = len(processing_params.batches)
+        if nb_batches > 1:
+            placeholders = [
+                name for _, name, _, _ in string.Formatter().parse(sql_template) if name
+            ]
+            if "batch_filter" not in placeholders:
+                raise ValueError(
+                    "Number batches > 1 requires a batch_filter placeholder in "
+                    f"sql_template {sql_template}"
+                )
+
         # Prepare column names,... to format the select
         # Format column strings for use in select
         assert processing_params.input1_path is not None
@@ -1862,10 +1930,10 @@ def _two_layer_vector_operation(
         logger.info(
             f"Start {operation_name} ({processing_params.nb_parallel} parallel workers)"
         )
-        with _general_util.PooledExecutorFactory(
+        with _processing_util.PooledExecutorFactory(
             threadpool=calculate_in_threads,
             max_workers=processing_params.nb_parallel,
-            initializer=_general_util.initialize_worker(),
+            initializer=_processing_util.initialize_worker(),
         ) as calculate_pool:
             # Start looping
             batches = {}
@@ -1945,7 +2013,7 @@ def _two_layer_vector_operation(
             _general_util.report_progress(
                 start_time,
                 nb_done,
-                len(processing_params.batches),
+                nb_batches,
                 operation_name,
                 processing_params.nb_parallel,
             )
@@ -1955,47 +2023,52 @@ def _two_layer_vector_operation(
                     result = future.result()
                     if result is not None:
                         logger.debug(result)
-
-                    # If the calculate gave results, copy/append to output
-                    batch_id = future_to_batch_id[future]
-                    tmp_partial_output_path = batches[batch_id][
-                        "tmp_partial_output_path"
-                    ]
-                    if (
-                        tmp_partial_output_path.exists()
-                        and tmp_partial_output_path.stat().st_size > 0
-                    ):
-                        # If only one batch and output format same as tmp, rename file
-                        if (
-                            len(processing_params.batches) == 1
-                            and tmp_partial_output_path.suffix.lower()
-                            == tmp_output_path.suffix.lower()
-                        ):
-                            gfo.move(tmp_partial_output_path, tmp_output_path)
-                        else:
-                            fileops._append_to_nolock(
-                                src=tmp_partial_output_path,
-                                dst=tmp_output_path,
-                                explodecollections=explodecollections,
-                                force_output_geometrytype=force_output_geometrytype,
-                                create_spatial_index=False,
-                            )
-                    else:
-                        logger.debug(f"Result file {tmp_partial_output_path} was empty")
-
-                    # Cleanup tmp partial file
-                    gfo.remove(tmp_partial_output_path, missing_ok=True)
-
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
                     raise Exception(f"Error executing {batches[batch_id]}") from ex
 
-                # Log the progress and prediction speed
+                # If the calculate gave results, copy/append to output
+                batch_id = future_to_batch_id[future]
+                tmp_partial_output_path = batches[batch_id]["tmp_partial_output_path"]
                 nb_done += 1
+
+                # Normally all partial files should exist, but to be sure...
+                if not tmp_partial_output_path.exists():
+                    logger.warning(f"Result file {tmp_partial_output_path} not found")
+                    continue
+
+                # If there is only one tmp_partial file and it is already ok as
+                # output file, just rename/move it.
+                if (
+                    nb_batches == 1
+                    and not explodecollections
+                    and force_output_geometrytype is None
+                    and tmp_partial_output_path.suffix.lower()
+                    == tmp_output_path.suffix.lower()
+                ):
+                    gfo.move(tmp_partial_output_path, tmp_output_path)
+                else:
+                    # If there is only one batch, it is faster to create the spatial
+                    # index immediately
+                    create_spatial_index = False
+                    if nb_batches == 1 and output_with_spatial_index:
+                        create_spatial_index = True
+
+                    fileops._append_to_nolock(
+                        src=tmp_partial_output_path,
+                        dst=tmp_output_path,
+                        explodecollections=explodecollections,
+                        force_output_geometrytype=force_output_geometrytype,
+                        create_spatial_index=create_spatial_index,
+                        preserve_fid=False,
+                    )
+                    gfo.remove(tmp_partial_output_path)
+
+                # Log the progress and prediction speed
                 _general_util.report_progress(
                     start_time=start_time,
                     nb_done=nb_done,
-                    nb_todo=len(processing_params.batches),
+                    nb_todo=nb_batches,
                     operation=operation_name,
                     nb_parallel=processing_params.nb_parallel,
                 )
@@ -2003,8 +2076,10 @@ def _two_layer_vector_operation(
         # Round up and clean up
         # Now create spatial index and move to output location
         if tmp_output_path.exists():
-            if output_with_spatial_index is True:
-                gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
+            if output_with_spatial_index:
+                gfo.create_spatial_index(
+                    path=tmp_output_path, layer=output_layer, exist_ok=True
+                )
             if tmp_output_path != output_path:
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 gfo.move(tmp_output_path, output_path)
@@ -2013,8 +2088,8 @@ def _two_layer_vector_operation(
 
         logger.info(f"{operation_name} ready, took {datetime.now()-start_time}!")
     except Exception:
-        gfo.remove(output_path)
-        gfo.remove(tmp_output_path)
+        gfo.remove(output_path, missing_ok=True)
+        gfo.remove(tmp_output_path, missing_ok=True)
         raise
     finally:
         shutil.rmtree(tempdir)
@@ -2056,12 +2131,6 @@ def _prepare_processing_params(
     # Init
     returnvalue = ProcessingParams(nb_parallel=nb_parallel)
     input1_layerinfo = gfo.get_layerinfo(input1_path, input1_layer)
-
-    if input1_layerinfo.featurecount == 0:
-        logger.info(
-            f"input1 layer contains 0 rows, file: {input1_path}, layer: {input1_layer}"
-        )
-        return None
 
     # Determine the optimal number of parallel processes + batches
     if returnvalue.nb_parallel == -1:
@@ -2129,6 +2198,9 @@ def _prepare_processing_params(
             input2_geofiletype is None or input1_geofiletype == input2_geofiletype
         ):
             returnvalue.input1_path = input1_path
+            if input1_geofiletype == GeofileType.GPKG:
+                # HasSpatialindex doesn't work for spatialite file
+                gfo.create_spatial_index(input1_path, input1_layer, exist_ok=True)
         else:
             # If not ok, copy the input layer to gpkg
             returnvalue.input1_path = tempdir / f"{input1_path.stem}.gpkg"
@@ -2146,6 +2218,9 @@ def _prepare_processing_params(
                 and input2_geofiletype.is_spatialite_based
             ):
                 returnvalue.input2_path = input2_path
+                if input2_geofiletype == GeofileType.GPKG:
+                    # HasSpatialindex doesn't work for spatialite file
+                    gfo.create_spatial_index(input2_path, input2_layer, exist_ok=True)
             else:
                 # If not spatialite compatible, copy the input layer to gpkg
                 returnvalue.input2_path = tempdir / f"{input2_path.stem}.gpkg"
@@ -2188,8 +2263,8 @@ def _prepare_processing_params(
             UNION ALL
             SELECT MAX(rowid) minmax_rowid FROM "{layer1_info.name}"
         """
-        batch_info_df = gfo.read_file_sql(
-            path=returnvalue.input1_path, sql_stmt=sql_stmt, ignore_geometry=True
+        batch_info_df = gfo.read_file(
+            path=returnvalue.input1_path, sql_stmt=sql_stmt, sql_dialect="SQLITE"
         )
         min_rowid = pd.to_numeric(batch_info_df["minmax_rowid"][0]).item()
         max_rowid = pd.to_numeric(batch_info_df["minmax_rowid"][1]).item()
@@ -2234,7 +2309,7 @@ def _prepare_processing_params(
                     )
                  GROUP BY batch_id;
             """
-            batch_info_df = gfo.read_file_sql(
+            batch_info_df = gfo.read_file(
                 path=returnvalue.input1_path, sql_stmt=sql_stmt
             )
 
@@ -2272,7 +2347,7 @@ def _prepare_processing_params(
 def dissolve_singlethread(
     input_path: Path,
     output_path: Path,
-    groupby_columns: Optional[Iterable[str]] = None,
+    groupby_columns: Union[str, Iterable[str], None] = None,
     agg_columns: Optional[dict] = None,
     explodecollections: bool = False,
     input_layer: Optional[str] = None,
@@ -2284,6 +2359,12 @@ def dissolve_singlethread(
     """
     # Init
     start_time = datetime.now()
+
+    # Check input params
+    if not input_path.exists():
+        raise ValueError(f"input_path doesn't exist: {input_path}")
+    if input_path == output_path:
+        raise ValueError("output_path must not equal input_path")
     if output_path.exists():
         if force is False:
             logger.info(f"Stop dissolve: Output exists already {output_path}")
@@ -2300,14 +2381,32 @@ def dissolve_singlethread(
     # Use get_layerinfo to check if the layer definition is OK
     layerinfo = gfo.get_layerinfo(input_path, input_layer)
     fid_column = layerinfo.fid_column if layerinfo.fid_column != "" else "rowid"
+    # Prepare some lists for later use
+    columns_available = list(layerinfo.columns) + ["fid"]
+    columns_available_upper = [column.upper() for column in columns_available]
+    groupby_columns_upper_dict = {}
+    if groupby_columns is not None:
+        groupby_columns_upper_dict = {col.upper(): col for col in groupby_columns}
 
     # Prepare the strings regarding groupby_columns to use in the select statement.
     if groupby_columns is not None:
+        # Standardize parameter to simplify the rest of the code
+        if isinstance(groupby_columns, str):
+            # If a string is passed, convert to list
+            groupby_columns = [groupby_columns]
+
+        # Check if all groupby columns exist
+        for column in groupby_columns:
+            if column.upper() not in columns_available_upper:
+                raise ValueError(f"column in groupby_columns not in input: {column}")
+
         # Because the query uses a subselect, the groupby columns need to be prefixed.
-        columns_with_prefix = [f'layer."{column}"' for column in groupby_columns]
-        groupby_columns_str = ", ".join(columns_with_prefix)
-        groupby_columns_for_groupby_str = groupby_columns_str
-        groupby_columns_for_select_str = ", " + groupby_columns_str
+        columns_prefixed = [f'layer."{column}"' for column in groupby_columns]
+        groupby_columns_for_groupby_str = ", ".join(columns_prefixed)
+        columns_prefixed_aliased = [
+            f'layer."{column}" "{column}"' for column in groupby_columns
+        ]
+        groupby_columns_for_select_str = f", {', '.join(columns_prefixed_aliased)}"
     else:
         # Even if no groupby is provided, we still need to use a groupby clause,
         # otherwise ST_union doesn't seem to work.
@@ -2317,34 +2416,43 @@ def dissolve_singlethread(
     # Prepare the strings regarding agg_columns to use in the select statement.
     agg_columns_str = ""
     if agg_columns is not None:
-        # Prepare some lists for later use
-        columns_upper_dict = {col.upper(): col for col in list(layerinfo.columns)}
-        # Add the special fid column as well
-        columns_upper_dict["FID"] = fid_column
-        groupby_columns_upper_dict = {}
-        if groupby_columns is not None:
-            groupby_columns_upper_dict = {col.upper(): col for col in groupby_columns}
+        # Validate the dict structure, so we can assume everything is OK further on
+        _parameter_helper.validate_agg_columns(agg_columns)
 
         # Start preparation of agg_columns_str
         if "json" in agg_columns:
-            agg_columns_str = ""
-            # If the columns specified are None, take all columns that are not in
-            # groupby_columns
+            # Determine the columns to be put in json
+            columns = []
             if agg_columns["json"] is None:
+                # If columns specified is None: all columns not in groupby_columns
                 for column in layerinfo.columns:
                     if column.upper() not in groupby_columns_upper_dict:
-                        agg_columns_str += f"'{column}', layer.{column}"
+                        columns.append(column)
             else:
                 for column in agg_columns["json"]:
-                    agg_columns_str += f"'{column}', layer.{column}"
-            agg_columns_str = f", json_object({agg_columns_str}) as json"
+                    columns.append(column)
+            json_columns = [f"'{column}', layer.\"{column}\"" for column in columns]
+
+            # The fid should be added as well, but make name unique
+            fid_orig_column = "fid_orig"
+            for idx in range(0, 99999):
+                if idx != 0:
+                    fid_orig_column = f"fid_orig{idx}"
+                if fid_orig_column not in columns:
+                    break
+            json_columns.append(f"'{fid_orig_column}', layer.\"{fid_column}\"")
+
+            # Now we are ready to prepare final str
+            agg_columns_str = (
+                f", json_group_array(json_object({', '.join(json_columns)})) as json"
+            )
         elif "columns" in agg_columns:
             for agg_column in agg_columns["columns"]:
                 # Init
                 distinct_str = ""
                 extra_param_str = ""
 
-                # Prepare aggregation keyword.
+                # Prepare aggregation keyword
                 if agg_column["agg"].lower() in [
                     "count",
                     "sum",
@@ -2360,49 +2468,53 @@ def dissolve_singlethread(
                     if "sep" in agg_column:
                         extra_param_str = f", '{agg_column['sep']}'"
                 else:
-                    raise ValueError(
-                        f"Error: aggregation {agg_column['agg']} is not supported!"
-                    )
+                    raise ValueError(f"aggregation {agg_column['agg']} not supported!")
 
                 # If distinct is specified, add the distinct keyword
                 if "distinct" in agg_column and agg_column["distinct"] is True:
                     distinct_str = "DISTINCT "
 
-                # Prepare column name string.
-                # Make sure the columns name casing is same as input file
-                column_str = (
-                    f'layer."{columns_upper_dict[agg_column["column"].upper()]}"'
-                )
+                # Prepare column name string
+                column = agg_column["column"]
+                if column.upper() not in columns_available_upper:
+                    raise ValueError(f"{column} not available in: {columns_available}")
+                if column.upper() == "FID":
+                    column_str = f'layer."{fid_column}"'
+                else:
+                    column_str = f'layer."{column}"'
 
-                # Now put everything togethers
+                # Now put everything together
                 agg_columns_str += (
                     f", {aggregation_str}({distinct_str}{column_str}{extra_param_str}) "
                     f'AS "{agg_column["as"]}"'
                 )
 
     # Now prepare the sql statement
-    # Remark: calculating the area in the enclosing selects halves the
-    # processing time
+    # Remark: calculating the area in the enclosing selects halves the processing time
 
     # The operation to run on the geometry
     operation = f"ST_union(layer.{layerinfo.geometrycolumn})"
-    force_output_geometrytype = None
 
-    # If the input is a linestring, also apply st_linemerge().
-    # If not, the individual lines are just concatenated together8 and common
-    # points are not removed, resulting in the original seperate lines again
-    # if explodecollections is True.
+    # If the input is a linestring, also apply st_linemerge(), otherwise the individual
+    # lines are just concatenated together and common points are not removed, resulting
+    # in the original seperate lines again if explodecollections is True.
+    force_output_geometrytype = None
     if layerinfo.geometrytype.to_primitivetype == PrimitiveType.LINESTRING:
         operation = f"ST_LineMerge({operation})"
         if explodecollections is True:
             force_output_geometrytype = GeometryType.LINESTRING
 
+    # If there are no input features, the output geometry type needs to be specified
+    # so gdal can create an empty output file with the right geometry type.
+    if force_output_geometrytype is None and layerinfo.featurecount == 0:
+        force_output_geometrytype = layerinfo.geometrytype
+
     sql_stmt = f"""
         SELECT {operation} AS geom
-              {groupby_columns_for_select_str}
-              {agg_columns_str}
-          FROM "{input_layer}" layer
-         GROUP BY {groupby_columns_for_groupby_str}
+            {groupby_columns_for_select_str}
+            {agg_columns_str}
+        FROM "{input_layer}" layer
+        GROUP BY {groupby_columns_for_groupby_str}
     """
 
     _ogr_util.vector_translate(
@@ -2413,6 +2525,7 @@ def dissolve_singlethread(
         sql_dialect="SQLITE",
         force_output_geometrytype=force_output_geometrytype,
         explodecollections=explodecollections,
+        options={"LAYER_CREATION.SPATIAL_INDEX": True},
     )
 
     logger.info(f"Processing ready, took {datetime.now()-start_time}!")

@@ -16,9 +16,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  Linting:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+      - uses: pre-commit/action@v3.0.0
 
   Test:
+    needs: Linting
     name: ${{ matrix.os }}, ${{ matrix.env }}
+    timeout-minutes: 30
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -47,13 +56,10 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Setup Conda
-        uses: conda-incubator/setup-miniconda@v2
+      - name: Install Conda environment with Micromamba
+        uses: mamba-org/provision-with-micromamba@main
         with:
           environment-file: ${{ matrix.env }}
-          miniforge-version: latest
-          miniforge-variant: Mambaforge
-          use-mamba: true
 
       - name: Test
         run: |
