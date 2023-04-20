@@ -26,7 +26,6 @@ import pandas as pd
 import pyogrio
 import pyproj
 
-from geofileops.util import geometry_util
 from geofileops.util.geometry_util import GeometryType, PrimitiveType  # noqa: F401
 from geofileops.util import geoseries_util
 from geofileops.util import _io_util
@@ -2250,90 +2249,3 @@ def _launder_column_names(columns: Iterable) -> List[Tuple[str, str]]:
                     break
 
     return laundered
-
-
-def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
-    """
-    Get the driver to use for the file extension of this filepath.
-
-    DEPRECATED, use GeometryType(Path).ogrdriver.
-
-    Args:
-        path (PathLike): The file path.
-
-    Returns:
-        str: The OGR driver name.
-    """
-    warnings.warn(
-        "get_driver is deprecated, use GeometryType(Path).ogrdriver", FutureWarning
-    )
-    return GeofileType(Path(path)).ogrdriver
-
-
-def get_driver_for_ext(file_ext: str) -> str:
-    """
-    Get the driver to use for this file extension.
-
-    DEPRECATED, use GeometryType(file_ext).ogrdriver.
-
-    Args:
-        file_ext (str): The extentension.
-
-    Raises:
-        ValueError: If input geometrytype is not known.
-
-    Returns:
-        str: The OGR driver name.
-    """
-    warnings.warn(
-        "get_driver_for_ext is deprecated, use GeometryType(Path).ogrdriver",
-        FutureWarning,
-    )
-    return GeofileType(file_ext).ogrdriver
-
-
-def to_multi_type(geometrytypename: str) -> str:
-    """
-    Map the input geometry type to the corresponding 'MULTI' geometry type...
-
-    DEPRECATED, use to_multigeometrytype
-
-    Args:
-        geometrytypename (str): Input geometry type
-
-    Raises:
-        ValueError: If input geometrytype is not known.
-
-    Returns:
-        str: Corresponding 'MULTI' geometry type
-    """
-    warnings.warn(
-        "to_generaltypeid is deprecated, use GeometryType.to_multigeometrytype",
-        FutureWarning,
-    )
-    return geometry_util.GeometryType(geometrytypename).to_multitype.name
-
-
-def to_generaltypeid(geometrytypename: str) -> int:
-    """
-    Map the input geometry type name to the corresponding geometry type id:
-        * 1 = POINT-type
-        * 2 = LINESTRING-type
-        * 3 = POLYGON-type
-
-    DEPRECATED, use to_primitivetypeid()
-
-    Args:
-        geometrytypename (str): Input geometry type
-
-    Raises:
-        ValueError: If input geometrytype is not known.
-
-    Returns:
-        int: Corresponding geometry type id
-    """
-    warnings.warn(
-        "to_generaltypeid is deprecated, use GeometryType.to_primitivetypeid",
-        FutureWarning,
-    )
-    return geometry_util.GeometryType(geometrytypename).to_primitivetype.value
