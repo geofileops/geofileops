@@ -145,9 +145,9 @@ def test_makevalid(tmp_path, suffix, input_empty):
 
 
 @pytest.mark.parametrize(
-    "descr, geometry",
+    "descr, geometry, expected_geometry",
     [
-        ("sliver", Polygon([(0, 0), (10, 0), (10, 0.5), (0, 0)])),
+        ("sliver", Polygon([(0, 0), (10, 0), (10, 0.5), (0, 0)]), Polygon()),
         (
             "poly + sliver",
             MultiPolygon(
@@ -156,10 +156,11 @@ def test_makevalid(tmp_path, suffix, input_empty):
                     Polygon([(0, 0), (10, 0), (10, 0.5), (0, 0)]),
                 ]
             ),
+            Polygon([(0, 5), (5, 5), (5, 10), (0, 10), (0, 5)]),
         ),
     ],
 )
-def test_makevalid_gridsize(tmp_path, descr: str, geometry):
+def test_makevalid_gridsize(tmp_path, descr: str, geometry, expected_geometry):
     # Prepare test data
     # -----------------
     input_gdf = gpd.GeoDataFrame(
@@ -182,9 +183,7 @@ def test_makevalid_gridsize(tmp_path, descr: str, geometry):
 
     # Compare with expected result
     expected_gdf = gpd.GeoDataFrame(
-        {"descr": [descr]},
-        geometry=[shapely.set_precision(geometry, grid_size=gridsize)],
-        crs=31370,
+        {"descr": [descr]}, geometry=[expected_geometry], crs=31370
     )  # type: ignore
     expected_gdf = expected_gdf[~expected_gdf.geometry.is_empty]
     if len(expected_gdf) == 0:

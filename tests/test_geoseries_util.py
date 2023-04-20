@@ -8,15 +8,13 @@ import sys
 
 import geopandas as gpd
 import pytest
-import shapely
 import shapely.geometry as sh_geom
-
-SHAPELY_GE_20 = str(shapely.__version__).split(".")[0] >= "2"
 
 # Add path so the local geofileops packages are found
 # Add path so the local geofileops packages are found
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import geofileops as gfo
+import geofileops._compat as compat
 from geofileops.util import geoseries_util
 from geofileops.util.geometry_util import GeometryType, PrimitiveType, SimplifyAlgorithm
 from tests import test_helper
@@ -70,7 +68,7 @@ def test_get_geometrytypes():
     )
     # In shapely 2, empty geometries get the correct type, in shapely 1 they were always
     # of type geometrycollection
-    if SHAPELY_GE_20:
+    if compat.SHAPELY_GE_20:
         assert len(test_geometrytypes) == 3
         assert GeometryType.POINT in test_geometrytypes
         assert GeometryType.LINESTRING in test_geometrytypes
