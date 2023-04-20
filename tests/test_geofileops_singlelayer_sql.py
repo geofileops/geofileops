@@ -4,18 +4,17 @@ Tests for operations that are executed using a sql statement on one layer.
 """
 
 import math
-from pathlib import Path
-import sys
 
 import geopandas as gpd
 import pytest
+import shapely
+import shapely.geometry as sh_geom
 
-# Add path so the local geofileops packages are found
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import geofileops as gfo
 from geofileops import GeometryType
 from tests import test_helper
 from tests.test_helper import DEFAULT_EPSGS, DEFAULT_SUFFIXES
+from tests.test_helper import assert_geodataframe_equal
 
 
 def test_delete_duplicate_geometries(tmp_path):
@@ -143,6 +142,48 @@ def test_makevalid(tmp_path, suffix, input_empty):
 
     # Run makevalid with existing output file and force=False (=default)
     gfo.makevalid(input_path=input_path, output_path=output_path)
+
+
+def test_makevalid_gridsize(tmp_path):
+    # Prepare test data
+    # -----------------
+    poly1 = sh_geom.Polygon([(0, 0), (0, 10), (10, 10), (5, 0), (0, 0)])
+    poly2 = sh_geom.Polygon([(5, 0), (8, 7), (10, 7), (10, 0), (5, 0)])
+
+    # Calculate intersection without gridsize -> small sliver
+    sliver = poly1.intersection(poly2)
+    assert isinstance(sliver, sh_geom.Polygon)
+    test_gdf = gpd.GeoDataFrame(
+        {"descr": ["poly1", "poly2", "intersection"]},
+        geometry=[poly1, poly2, sliver],
+        crs=31370,
+    )  # type: ignore
+    test_path = tmp_path / "test.gpkg"
+    gfo.to_file(test_gdf, test_path)
+    test_gdf = gfo.read_file(test_path)
+    assert len(test_gdf) == 3
+    grid_size = 1
+
+    # Now we are ready to test
+    # -----------------
+    test_makevalid_path = tmp_path / "test_makevalid.gpkg"
+    gfo.makevalid(
+        input_path=test_path,
+        output_path=test_makevalid_path,
+        precision=grid_size,
+        force=True,
+    )
+
+    # Makevalid with precision removed the sliver
+    test_makevalid_gdf = gfo.read_file(test_makevalid_path)
+    assert len(test_makevalid_gdf) == 2
+
+    expected_gdf = gpd.GeoDataFrame(
+        {"descr": ["poly1", "poly2", "intersection"]},
+        geometry=shapely.set_precision([poly1, poly2, sliver], grid_size=grid_size),
+        crs=31370,
+    )  # type: ignore
+    assert_geodataframe_equal(test_gdf, expected_gdf)
 
 
 @pytest.mark.parametrize("input_suffix", DEFAULT_SUFFIXES)
