@@ -7,7 +7,6 @@ import math
 
 import geopandas as gpd
 import pytest
-import shapely
 from shapely.geometry import MultiPolygon, Polygon
 
 import geofileops as gfo
