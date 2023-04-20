@@ -622,7 +622,7 @@ def _single_layer_vector_operation(
 
     finally:
         # Clean tmp dir
-        shutil.rmtree(tempdir)
+        shutil.rmtree(tempdir, ignore_errors=True)
         logger.info(f"Processing ready, took {datetime.now()-start_time}!")
 
 
@@ -2090,7 +2090,7 @@ def _two_layer_vector_operation(
         gfo.remove(tmp_output_path, missing_ok=True)
         raise
     finally:
-        shutil.rmtree(tempdir)
+        shutil.rmtree(tempdir, ignore_errors=True)
 
 
 class ProcessingParams:
