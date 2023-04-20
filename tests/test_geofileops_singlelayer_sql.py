@@ -11,6 +11,7 @@ from shapely.geometry import MultiPolygon, Polygon
 
 import geofileops as gfo
 from geofileops import GeometryType
+from geofileops.util import _geoops_sql
 from tests import test_helper
 from tests.test_helper import DEFAULT_EPSGS, DEFAULT_SUFFIXES
 from tests.test_helper import assert_geodataframe_equal
@@ -42,6 +43,30 @@ def test_delete_duplicate_geometries(tmp_path):
     # Check result, 2 duplicates should be removed
     result_info = gfo.get_layerinfo(output_path)
     assert result_info.featurecount == input_info.featurecount - 2
+
+
+def test_dissolve_singlethread_output_exists(tmp_path):
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel")
+    output_path = tmp_path / f"{input_path.stem}-output{input_path.suffix}"
+    output_path.touch()
+
+    # Run test without force
+    _geoops_sql.dissolve_singlethread(
+        input_path=input_path,
+        output_path=output_path,
+    )
+    assert output_path.exists()
+    assert output_path.stat().st_size == 0
+
+    # Run test with force
+    _geoops_sql.dissolve_singlethread(
+        input_path=input_path,
+        output_path=output_path,
+        force=True,
+    )
+    assert output_path.exists()
+    assert output_path.stat().st_size != 0
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
@@ -359,6 +384,18 @@ def test_select_invalid_sql(tmp_path, suffix):
 
     with pytest.raises(Exception, match="Error <"):
         gfo.select(input_path=input_path, output_path=output_path, sql_stmt=sql_stmt)
+
+
+def test_select_output_exists(tmp_path):
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel")
+    output_path = tmp_path / f"{input_path.stem}-output{input_path.suffix}"
+    output_path.touch()
+    sql_stmt = 'SELECT {geometrycolumn}, oidn, uidn FROM "{input_layer}"'
+
+    # Now run test
+    gfo.select(input_path=input_path, output_path=output_path, sql_stmt=sql_stmt)
+    assert output_path.stat().st_size == 0
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)

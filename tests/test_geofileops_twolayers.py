@@ -464,17 +464,17 @@ def test_prepare_spatial_relations_filter():
 
 @pytest.mark.parametrize(
     "suffix, epsg, spatial_relations_query, discard_nonmatching, "
-    "min_area_intersect, expected_featurecount",
+    "min_area_intersect, area_inters_column_name, expected_featurecount",
     [
-        (".gpkg", 31370, "intersects is False", False, None, 46),
-        (".gpkg", 31370, "intersects is False", True, None, 0),
-        (".gpkg", 31370, "intersects is True", False, 1000, 48),
-        (".gpkg", 31370, "intersects is True", False, None, 49),
-        (".gpkg", 31370, "intersects is True", True, 1000, 25),
-        (".gpkg", 31370, "intersects is True", True, None, 29),
-        (".gpkg", 31370, "T******** is True or *T******* is True", True, None, 29),
-        (".gpkg", 4326, "intersects is True", False, None, 49),
-        (".shp", 31370, "intersects is True", False, None, 49),
+        (".gpkg", 31370, "intersects is False", False, None, None, 46),
+        (".gpkg", 31370, "intersects is False", True, None, None, 0),
+        (".gpkg", 31370, "intersects is True", False, 1000, "area_test", 48),
+        (".gpkg", 31370, "intersects is True", False, None, None, 49),
+        (".gpkg", 31370, "intersects is True", True, 1000, None, 25),
+        (".gpkg", 31370, "intersects is True", True, None, None, 29),
+        (".gpkg", 4326, "T******** is True or *T******* is True", True, None, None, 29),
+        (".gpkg", 4326, "intersects is True", False, None, None, 49),
+        (".shp", 31370, "intersects is True", False, None, None, 49),
     ],
 )
 def test_join_by_location(
@@ -484,16 +484,16 @@ def test_join_by_location(
     epsg: int,
     discard_nonmatching: bool,
     min_area_intersect: float,
+    area_inters_column_name: str,
     expected_featurecount: int,
 ):
     input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
     input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input1_layerinfo.featurecount / 2)
-    output_path = (
-        tmp_path
-        / f"{input1_path.stem}_{discard_nonmatching}_{min_area_intersect}{suffix}"
-    )
+    name = f"{input1_path.stem}_{discard_nonmatching}_{min_area_intersect}{suffix}"
+    output_path = tmp_path / name
+
     gfo.join_by_location(
         input1_path=input1_path,
         input2_path=input2_path,
@@ -501,6 +501,7 @@ def test_join_by_location(
         spatial_relations_query=spatial_relations_query,
         discard_nonmatching=discard_nonmatching,
         min_area_intersect=min_area_intersect,
+        area_inters_column_name=area_inters_column_name,
         batchsize=batchsize,
         force=True,
     )
@@ -511,9 +512,12 @@ def test_join_by_location(
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == expected_featurecount
-    assert len(output_layerinfo.columns) == (
-        len(input1_layerinfo.columns) + len(input2_layerinfo.columns) + 1
-    )
+
+    exp_nb_columns = len(input1_layerinfo.columns) + len(input2_layerinfo.columns) + 1
+    if area_inters_column_name is not None:
+        assert area_inters_column_name in output_layerinfo.columns
+        exp_nb_columns += 1
+    assert len(output_layerinfo.columns) == exp_nb_columns
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
 
     # Check the contents of the result file
