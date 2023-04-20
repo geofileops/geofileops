@@ -672,7 +672,7 @@ def test_read_file_sql_no_geom(suffix, engine_setter):
     read_df = gfo.read_file(src, sql_stmt=sql_stmt)
     assert isinstance(read_df, pd.DataFrame)
     assert len(read_df) == 1
-    assert read_df["aantal"].item() == 46
+    assert read_df.aantal.item() == 46
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
@@ -751,9 +751,11 @@ def test_rename_layer(tmp_path, suffix):
     )
 
     if suffix == ".gpkg":
+        gfo.add_layerstyle(test_path, layer="parcels", name="stylename", qml="")
         gfo.rename_layer(test_path, layer="parcels", new_layer="parcels_renamed")
         layernames_renamed = gfo.listlayers(path=test_path)
         assert layernames_renamed[0] == "parcels_renamed"
+        assert len(gfo.get_layerstyles(test_path, layer="parcels_renamed")) == 1
     elif suffix == ".shp":
         # Now test rename layer
         with pytest.raises(ValueError, match="rename_layer is not possible"):

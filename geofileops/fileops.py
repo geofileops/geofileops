@@ -44,6 +44,7 @@ logger = logging.getLogger(__name__)
 
 # Enable exceptions for GDAL
 gdal.UseExceptions()
+gdal.ogr.UseExceptions()
 
 # Disable this warning in fiona
 warnings.filterwarnings(
@@ -525,19 +526,6 @@ def create_spatial_index(
                 sql = f"SELECT CreateSpatialIndex('{layer}', '{geometrycolumn}')"
                 result = datasource.ExecuteSQL(sql, dialect="SQLITE")
                 datasource.ReleaseResultSet(result)
-
-                # Verify if the index was created
-                sql = f"SELECT HasSpatialIndex('{layerinfo.name}', '{geometrycolumn}')"
-                result = datasource.ExecuteSQL(sql, dialect="SQLITE")
-                has_spatial_idx = result.GetNextFeature().GetField(0) == 1
-                datasource.ReleaseResultSet(result)
-
-                # Apparently failed, if gpkg, try again with other function
-                if not has_spatial_idx and geofiletype == GeofileType.GPKG:
-                    sql = f"SELECT gpkgAddSpatialIndex('{layer}', '{geometrycolumn}')"
-                    result = datasource.ExecuteSQL(sql, dialect="SQLITE")
-                    datasource.ReleaseResultSet(result)
-
         else:
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             result = datasource.ExecuteSQL(f'CREATE SPATIAL INDEX ON "{layer}"')
@@ -1533,7 +1521,7 @@ def _to_file_fiona(
                 gdf_to_write = gdf.reset_index(drop=True)
             else:
                 gdf_to_write = gdf
-            gdf_to_write.to_file(str(path), **kwargs)
+            gdf_to_write.to_file(str(path), **kwargs)  # type: ignore
         elif geofiletype == GeofileType.GPKG:
             # Try to harmonize the geometrytype to one (multi)type, as GPKG
             # doesn't like > 1 type in a layer
@@ -1544,7 +1532,7 @@ def _to_file_fiona(
                 )
             else:
                 gdf_to_write = gdf
-            gdf_to_write.to_file(str(path), layer=layer, **kwargs)
+            gdf_to_write.to_file(str(path), layer=layer, **kwargs)  # type: ignore
         elif geofiletype == GeofileType.SQLite:
             gdf.to_file(str(path), layer=layer, **kwargs)
         elif geofiletype == GeofileType.GeoJSON:

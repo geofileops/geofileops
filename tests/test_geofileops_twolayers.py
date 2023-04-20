@@ -406,9 +406,9 @@ def test_intersection_columns_fid(tmp_path, testfile, suffix):
     assert "l1_fid" in output_gdf.columns
     assert "l2_FiD" in output_gdf.columns
     if gfo.GeofileType(input2_path).is_fid_zerobased:
-        assert sorted(output_gdf["l2_FiD"].unique().tolist()) == [0, 1, 2, 3, 4]
+        assert sorted(output_gdf.l2_FiD.unique().tolist()) == [0, 1, 2, 3, 4]
     else:
-        assert sorted(output_gdf["l2_FiD"].unique().tolist()) == [1, 2, 3, 4, 5]
+        assert sorted(output_gdf.l2_FiD.unique().tolist()) == [1, 2, 3, 4, 5]
 
 
 def test_prepare_spatial_relations_filter():
@@ -694,6 +694,33 @@ def test_select_two_layers_invalid_params(
            AND ST_Area(layer1.{input1_geometrycolumn}) > 5
     """
     with pytest.raises(ValueError, match=expected_error):
+        gfo.select_two_layers(
+            input1_path=input1_path,
+            input2_path=input2_path,
+            output_path=output_path,
+            sql_stmt=sql_stmt,
+        )
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_select_two_layers_invalid_sql(tmp_path, suffix):
+    # Prepare test data
+    input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
+
+    # Now run test
+    output_path = tmp_path / f"output{suffix}"
+    sql_stmt = """
+        SELECT layer1.{input1_geometrycolumn}
+              {layer1_columns_prefix_alias_str}
+              {layer2_columns_prefix_alias_str}
+              layer1.invalid_column
+          FROM {input1_databasename}."{input1_layer}" layer1
+          CROSS JOIN {input2_databasename}."{input2_layer}" layer2
+         WHERE 1=1
+           AND ST_Area(layer1.{input1_geometrycolumn}) > 5
+    """
+    with pytest.raises(Exception, match='Error <Error near "layer1": syntax error'):
         gfo.select_two_layers(
             input1_path=input1_path,
             input2_path=input2_path,
