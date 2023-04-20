@@ -784,7 +784,8 @@ def makevalid(
         gridsize = precision
         warnings.warn(
             "the precision parameter is deprecated and will be removed in a future "
-            "version: please use gridsize", FutureWarning
+            "version: please use gridsize",
+            FutureWarning,
         )
 
     _geoops_sql.makevalid(
