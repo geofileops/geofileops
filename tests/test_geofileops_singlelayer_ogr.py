@@ -83,13 +83,25 @@ def test_warp(tmp_path):
         (input_bounds[2], input_bounds[1], warped_max, warped_min, None),
     ]
 
-    # Do operation
+    # Test first with existing output path and force=False
     output_path = tmp_path / f"{input_path.stem}-output.gpkg"
+    output_path.touch()
     gfo.warp(
         input_path=input_path,
         output_path=output_path,
         gcps=gcps,
         algorithm="tps",
+    )
+    assert output_path.exists()
+    assert output_path.stat().st_size == 0
+
+    # Test force=True
+    gfo.warp(
+        input_path=input_path,
+        output_path=output_path,
+        gcps=gcps,
+        algorithm="tps",
+        force=True,
     )
 
     # Now check if the output file is correctly created
