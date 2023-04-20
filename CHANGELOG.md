@@ -19,6 +19,9 @@
 
 - `makevalid` parameter `precision` is renamed to `gridsize` as this is the typical
   terminology in other libraries (#273)
+- removed the long-deprecated functions `get_driver`, `get_driver_for_ext`,
+  `to_multi_type` and `to_generaltypeid`  (#)
+- removed the long-deprecated `vector_util` namespace (#)
 
 ## 0.7.0 (2023-03-17)
 
