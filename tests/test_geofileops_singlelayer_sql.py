@@ -167,7 +167,7 @@ def test_makevalid_gridsize(tmp_path, descr: str, geometry):
     )  # type: ignore
     input_path = tmp_path / "test.gpkg"
     gfo.to_file(input_gdf, input_path)
-    grid_size = 1
+    gridsize = 1
 
     # Now we are ready to test
     # ------------------------
@@ -175,7 +175,7 @@ def test_makevalid_gridsize(tmp_path, descr: str, geometry):
     gfo.makevalid(
         input_path=input_path,
         output_path=result_path,
-        precision=grid_size,
+        gridsize=gridsize,
         force=True,
     )
     result_gdf = gfo.read_file(result_path)
@@ -183,7 +183,7 @@ def test_makevalid_gridsize(tmp_path, descr: str, geometry):
     # Compare with expected result
     expected_gdf = gpd.GeoDataFrame(
         {"descr": [descr]},
-        geometry=[shapely.set_precision(geometry, grid_size=grid_size)],
+        geometry=[shapely.set_precision(geometry, grid_size=gridsize)],
         crs=31370,
     )  # type: ignore
     expected_gdf = expected_gdf[~expected_gdf.geometry.is_empty]
@@ -191,6 +191,19 @@ def test_makevalid_gridsize(tmp_path, descr: str, geometry):
         assert len(result_gdf) == 0
     else:
         assert_geodataframe_equal(result_gdf, expected_gdf)
+
+
+def test_makevalid_invalidparams():
+    expected_error = (
+        "the precision parameter is deprecated and cannot be combined with gridsize"
+    )
+    with pytest.raises(ValueError, match=expected_error):
+        gfo.makevalid(
+            input_path="abc",
+            output_path="def",
+            gridsize=1,
+            precision=1,
+        )
 
 
 @pytest.mark.parametrize("input_suffix", DEFAULT_SUFFIXES)

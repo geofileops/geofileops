@@ -728,6 +728,7 @@ def makevalid(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
+    gridsize: Optional[float] = None,
     precision: Optional[float] = None,
     validate_attribute_data: bool = False,
     nb_parallel: int = -1,
@@ -758,8 +759,8 @@ def makevalid(
         force_output_geometrytype (GeometryType, optional): The output geometry type to
             force the output to. If None, the geometry type of the input is used.
             Defaults to None.
-        precision (float, optional): the precision to keep in the coordinates.
-            Eg. 0.001 to keep 3 decimals. None doesn't change the precision.
+        gridsize (float, optional): the size of the grid the coordinates will be rounded
+            to. Eg. 0.001 to keep 3 decimals. None doesn't change the precision.
             Defaults to None.
         validate_attribute_data (bool, optional): True to validate if all attribute data
             can be read. Raises an exception if an error is found, as this type of error
@@ -775,6 +776,17 @@ def makevalid(
     """
 
     logger.info(f"Start makevalid on {input_path}")
+    if precision is not None and gridsize is not None:
+        raise ValueError(
+            "the precision parameter is deprecated and cannot be combined with gridsize"
+        )
+    if precision is not None:
+        gridsize = precision
+        warnings.warn(
+            "the precision parameter is deprecated and will be removed in a future "
+            "version: please use gridsize", FutureWarning
+        )
+
     _geoops_sql.makevalid(
         input_path=Path(input_path),
         output_path=Path(output_path),
@@ -783,7 +795,7 @@ def makevalid(
         columns=columns,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
-        precision=precision,
+        gridsize=gridsize,
         validate_attribute_data=validate_attribute_data,
         nb_parallel=nb_parallel,
         batchsize=batchsize,

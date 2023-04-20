@@ -265,7 +265,7 @@ def makevalid(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
-    precision: Optional[float] = None,
+    gridsize: Optional[float] = None,
     validate_attribute_data: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -282,8 +282,8 @@ def makevalid(
     operation = "{geometrycolumn}"
 
     # If the precision needs to be reduced, snap to grid
-    if precision is not None:
-        operation = f"ST_SnapToGrid({operation}, {precision})"
+    if gridsize is not None:
+        operation = f"ST_SnapToGrid({operation}, {gridsize})"
 
     # Prepare sql template for this operation
     operation = f"ST_MakeValid({operation})"
