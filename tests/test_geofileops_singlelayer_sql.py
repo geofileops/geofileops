@@ -357,7 +357,7 @@ def test_select_invalid_sql(tmp_path, suffix):
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
     sql_stmt = 'SELECT {geometrycolumn}, not_existing_column FROM "{input_layer}"'
 
-    with pytest.raises(Exception, match="Error executing "):
+    with pytest.raises(Exception, match="Error <"):
         gfo.select(input_path=input_path, output_path=output_path, sql_stmt=sql_stmt)
 
 
