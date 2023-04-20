@@ -361,6 +361,18 @@ def test_select_invalid_sql(tmp_path, suffix):
         gfo.select(input_path=input_path, output_path=output_path, sql_stmt=sql_stmt)
 
 
+def test_select_output_exists(tmp_path):
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel")
+    output_path = tmp_path / f"{input_path.stem}-output{input_path.suffix}"
+    output_path.touch()
+    sql_stmt = 'SELECT {geometrycolumn}, oidn, uidn FROM "{input_layer}"'
+
+    # Now run test
+    gfo.select(input_path=input_path, output_path=output_path, sql_stmt=sql_stmt)
+    assert output_path.stat().st_size == 0
+
+
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 @pytest.mark.parametrize(
     "nb_parallel, has_batch_filter, exp_raise",
