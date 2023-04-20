@@ -26,7 +26,6 @@ import pandas as pd
 import pyogrio
 import pyproj
 
-from geofileops.util import geometry_util
 from geofileops.util.geometry_util import GeometryType, PrimitiveType  # noqa: F401
 from geofileops.util import geoseries_util
 from geofileops.util import _io_util
