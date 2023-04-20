@@ -4,19 +4,16 @@ Tests for operations that are executed using a sql statement on one layer.
 """
 
 import math
-from pathlib import Path
-import sys
 
 import geopandas as gpd
 import pytest
-from shapely import geometry as sh_geom
+from shapely.geometry import MultiPolygon, Polygon
 
-# Add path so the local geofileops packages are found
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import geofileops as gfo
 from geofileops import GeometryType
 from tests import test_helper
 from tests.test_helper import DEFAULT_EPSGS, DEFAULT_SUFFIXES
+from tests.test_helper import assert_geodataframe_equal
 
 
 def test_delete_duplicate_geometries(tmp_path):
@@ -146,38 +143,65 @@ def test_makevalid(tmp_path, suffix, input_empty):
     gfo.makevalid(input_path=input_path, output_path=output_path)
 
 
-def test_makevalid_gridsize(tmp_path):
+@pytest.mark.parametrize(
+    "descr, geometry, expected_geometry",
+    [
+        ("sliver", Polygon([(0, 0), (10, 0), (10, 0.5), (0, 0)]), Polygon()),
+        (
+            "poly + sliver",
+            MultiPolygon(
+                [
+                    Polygon([(0, 5), (5, 5), (5, 10), (0, 10), (0, 5)]),
+                    Polygon([(0, 0), (10, 0), (10, 0.5), (0, 0)]),
+                ]
+            ),
+            Polygon([(0, 5), (5, 5), (5, 10), (0, 10), (0, 5)]),
+        ),
+    ],
+)
+def test_makevalid_gridsize(tmp_path, descr: str, geometry, expected_geometry):
     # Prepare test data
     # -----------------
-    poly1 = sh_geom.Polygon([(0, 0), (0, 10), (10, 10), (5, 0), (0, 0)])
-    poly2 = sh_geom.Polygon([(5, 0), (8, 7), (10, 7), (10, 0), (5, 0)])
-
-    # Calculate intersection without gridsize -> small sliver
-    sliver = poly1.intersection(poly2)
-    assert isinstance(sliver, sh_geom.Polygon)
-    test_gdf = gpd.GeoDataFrame(
-        {"descr": ["poly1", "poly2", "intersection"]},
-        geometry=[poly1, poly2, sliver],
-        crs=31370,
+    input_gdf = gpd.GeoDataFrame(
+        {"descr": [descr]}, geometry=[geometry], crs=31370
     )  # type: ignore
-    test_path = tmp_path / "test.gpkg"
-    gfo.to_file(test_gdf, test_path)
-    test_gdf = gfo.read_file(test_path)
-    assert len(test_gdf) == 3
+    input_path = tmp_path / "test.gpkg"
+    gfo.to_file(input_gdf, input_path)
+    gridsize = 1
 
     # Now we are ready to test
-    # -----------------
-    test_makevalid_path = tmp_path / "test_makevalid.gpkg"
+    # ------------------------
+    result_path = tmp_path / "test_makevalid.gpkg"
     gfo.makevalid(
-        input_path=test_path,
-        output_path=test_makevalid_path,
-        precision=1,
+        input_path=input_path,
+        output_path=result_path,
+        gridsize=gridsize,
         force=True,
     )
+    result_gdf = gfo.read_file(result_path)
 
-    # Makevalid with precision removed the sliver
-    test_makevalid_gdf = gfo.read_file(test_makevalid_path)
-    assert len(test_makevalid_gdf) == 2
+    # Compare with expected result
+    expected_gdf = gpd.GeoDataFrame(
+        {"descr": [descr]}, geometry=[expected_geometry], crs=31370
+    )  # type: ignore
+    expected_gdf = expected_gdf[~expected_gdf.geometry.is_empty]
+    if len(expected_gdf) == 0:
+        assert len(result_gdf) == 0
+    else:
+        assert_geodataframe_equal(result_gdf, expected_gdf)
+
+
+def test_makevalid_invalidparams():
+    expected_error = (
+        "the precision parameter is deprecated and cannot be combined with gridsize"
+    )
+    with pytest.raises(ValueError, match=expected_error):
+        gfo.makevalid(
+            input_path="abc",
+            output_path="def",
+            gridsize=1,
+            precision=1,
+        )
 
 
 @pytest.mark.parametrize("input_suffix", DEFAULT_SUFFIXES)
@@ -322,6 +346,19 @@ def test_select_emptyresult(tmp_path, input_suffix, output_suffix):
     assert "UIDN" in layerinfo_output.columns
     assert len(layerinfo_output.columns) == 2
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_select_invalid_sql(tmp_path, suffix):
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+
+    # Now run test
+    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
+    sql_stmt = 'SELECT {geometrycolumn}, not_existing_column FROM "{input_layer}"'
+
+    with pytest.raises(Exception, match="Error <"):
+        gfo.select(input_path=input_path, output_path=output_path, sql_stmt=sql_stmt)
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)

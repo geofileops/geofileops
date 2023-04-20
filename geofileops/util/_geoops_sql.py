@@ -268,7 +268,7 @@ def makevalid(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
-    precision: Optional[float] = None,
+    gridsize: Optional[float] = None,
     validate_attribute_data: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -282,24 +282,22 @@ def makevalid(
 
     # Init + prepare sql template for this operation
     # ----------------------------------------------
-    input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
+    operation = "{geometrycolumn}"
 
-    # Specify output_geometrytype, because otherwise makevalid results in
-    # column type 'GEOMETRY'/'UNKNOWN(ANY)'
-    if force_output_geometrytype is None:
-        force_output_geometrytype = input_layerinfo.geometrytype
-
-    # First compose the operation to be done on the geometries
-    # If the number of decimals of coordinates should be limited
-    if precision is not None:
-        operation = f"SnapToGrid({{geometrycolumn}}, {precision})"
-    else:
-        operation = "{geometrycolumn}"
+    # If the precision needs to be reduced, snap to grid
+    if gridsize is not None:
+        operation = f"ST_SnapToGrid({operation}, {gridsize})"
 
     # Prepare sql template for this operation
     operation = f"ST_MakeValid({operation})"
 
-    # If we want a specific geometrytype as result, extract it
+    # Determine output_geometrytype if it wasn't specified. Otherwise makevalid results
+    # in column type 'GEOMETRY'/'UNKNOWN(ANY)'
+    input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
+    if force_output_geometrytype is None:
+        force_output_geometrytype = input_layerinfo.geometrytype
+
+    # If we want a specific geometrytype, only extract the relevant type
     if force_output_geometrytype is not GeometryType.GEOMETRYCOLLECTION:
         primitivetypeid = force_output_geometrytype.to_primitivetype.value
         operation = f"ST_CollectionExtract({operation}, {primitivetypeid})"
@@ -308,9 +306,9 @@ def makevalid(
     sql_template = f"""
         SELECT {operation} AS geom
                 {{columns_to_select_str}}
-            FROM "{{input_layer}}" layer
-            WHERE 1=1
-            {{batch_filter}}
+          FROM "{{input_layer}}" layer
+         WHERE 1=1
+           {{batch_filter}}
     """
 
     _single_layer_vector_operation(
@@ -330,7 +328,7 @@ def makevalid(
         force=force,
     )
 
-    # If output is a geopackage, check if all data can be read
+    # If asked and output is spatialite based, check if all data can be read
     if validate_attribute_data:
         output_geofiletype = GeofileType(input_path)
         if output_geofiletype.is_spatialite_based:
@@ -578,8 +576,10 @@ def _single_layer_vector_operation(
                     _ = future.result()
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
-                    logger.exception(f"Error executing {batches[batch_id]}")
-                    raise Exception(f"Error executing {batches[batch_id]}") from ex
+                    error = str(ex).partition("\n")[0]
+                    message = f"Error <{error}> executing {batches[batch_id]}"
+                    logger.exception(message)
+                    raise Exception(message) from ex
 
                 # Start copy of the result to a common file
                 # Remark: give higher priority, because this is the slowest factor
@@ -627,7 +627,7 @@ def _single_layer_vector_operation(
 
     finally:
         # Clean tmp dir
-        shutil.rmtree(tempdir)
+        shutil.rmtree(tempdir, ignore_errors=True)
         logger.info(f"Processing ready, took {datetime.now()-start_time}!")
 
 
@@ -2029,7 +2029,10 @@ def _two_layer_vector_operation(
                         logger.debug(result)
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
-                    raise Exception(f"Error executing {batches[batch_id]}") from ex
+                    error = str(ex).partition("\n")[0]
+                    message = f"Error <{error}> executing {batches[batch_id]}"
+                    logger.exception(message)
+                    raise Exception(message) from ex
 
                 # If the calculate gave results, copy/append to output
                 batch_id = future_to_batch_id[future]
@@ -2096,7 +2099,7 @@ def _two_layer_vector_operation(
         gfo.remove(tmp_output_path, missing_ok=True)
         raise
     finally:
-        shutil.rmtree(tempdir)
+        shutil.rmtree(tempdir, ignore_errors=True)
 
 
 class ProcessingParams:
