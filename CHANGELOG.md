@@ -15,6 +15,11 @@
 - Fix "json" aggregate column handling in dissolve on line and point input files gives
   wrong results (#257)
 
+### Deprecations and compatibility notes
+
+- `makevalid` parameter `precision` is renamed to `gridsize` as this is the typical
+  terminology in other libraries (#273)
+
 ## 0.7.0 (2023-03-17)
 
 ### Improvements
