@@ -9,6 +9,7 @@
 - Improve performance of spatial operations when only one batch is used (#271)
 - Add checks that `output_path` must not be equal to the/an `input_path` for geo
   operations (#246)
+- Many small improvements to logging, documentation,...
 
 ### Bugs fixed
 
@@ -20,9 +21,9 @@
 - `makevalid` parameter `precision` is renamed to `gridsize` as this is the typical
   terminology in other libraries (#273)
 - removed the long-deprecated functions `get_driver`, `get_driver_for_ext`,
-  `to_multi_type` and `to_generaltypeid`  (#)
+  `to_multi_type` and `to_generaltypeid`  (#276)
 - removed the long-deprecated `vector_util`, `geofileops.geofile` and
-  `geofileops.geofileops` namespaces (#)
+  `geofileops.geofileops` namespaces (#276)
 
 ## 0.7.0 (2023-03-17)
 
