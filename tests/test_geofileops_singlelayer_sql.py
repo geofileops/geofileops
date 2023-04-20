@@ -349,6 +349,19 @@ def test_select_emptyresult(tmp_path, input_suffix, output_suffix):
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_select_invalid_sql(tmp_path, suffix):
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+
+    # Now run test
+    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
+    sql_stmt = 'SELECT {geometrycolumn}, not_existing_column FROM "{input_layer}"'
+
+    with pytest.raises(Exception, match="Error executing "):
+        gfo.select(input_path=input_path, output_path=output_path, sql_stmt=sql_stmt)
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 @pytest.mark.parametrize(
     "nb_parallel, has_batch_filter, exp_raise",
     [(1, False, False), (2, True, False), (2, False, True)],

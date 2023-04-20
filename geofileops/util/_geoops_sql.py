@@ -573,8 +573,10 @@ def _single_layer_vector_operation(
                     _ = future.result()
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
-                    logger.exception(f"Error executing {batches[batch_id]}")
-                    raise Exception(f"Error executing {batches[batch_id]}") from ex
+                    error = str(ex).partition("\n")[0]
+                    message = f"Error <{error}> executing {batches[batch_id]}"
+                    logger.exception(message)
+                    raise Exception(message) from ex
 
                 # Start copy of the result to a common file
                 # Remark: give higher priority, because this is the slowest factor
@@ -2023,7 +2025,10 @@ def _two_layer_vector_operation(
                         logger.debug(result)
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
-                    raise Exception(f"Error executing {batches[batch_id]}") from ex
+                    error = str(ex).partition("\n")[0]
+                    message = f"Error <{error}> executing {batches[batch_id]}"
+                    logger.exception(message)
+                    raise Exception(message) from ex
 
                 # If the calculate gave results, copy/append to output
                 batch_id = future_to_batch_id[future]
