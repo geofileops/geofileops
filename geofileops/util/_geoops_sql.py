@@ -569,11 +569,7 @@ def _single_layer_vector_operation(
             # the same file at the time.
             nb_done = 0
             _general_util.report_progress(
-                start_time,
-                nb_done,
-                nb_batches,
-                operation_name,
-                nb_parallel=nb_parallel,
+                start_time, nb_done, nb_batches, operation_name, nb_parallel=nb_parallel
             )
             for future in futures.as_completed(future_to_batch_id):
                 try:
