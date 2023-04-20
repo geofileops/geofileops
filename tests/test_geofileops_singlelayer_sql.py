@@ -4,18 +4,16 @@ Tests for operations that are executed using a sql statement on one layer.
 """
 
 import math
-from pathlib import Path
-import sys
 
 import geopandas as gpd
 import pytest
+from shapely.geometry import MultiPolygon, Polygon
 
-# Add path so the local geofileops packages are found
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import geofileops as gfo
 from geofileops import GeometryType
 from tests import test_helper
 from tests.test_helper import DEFAULT_EPSGS, DEFAULT_SUFFIXES
+from tests.test_helper import assert_geodataframe_equal
 
 
 def test_delete_duplicate_geometries(tmp_path):
@@ -143,6 +141,67 @@ def test_makevalid(tmp_path, suffix, input_empty):
 
     # Run makevalid with existing output file and force=False (=default)
     gfo.makevalid(input_path=input_path, output_path=output_path)
+
+
+@pytest.mark.parametrize(
+    "descr, geometry, expected_geometry",
+    [
+        ("sliver", Polygon([(0, 0), (10, 0), (10, 0.5), (0, 0)]), Polygon()),
+        (
+            "poly + sliver",
+            MultiPolygon(
+                [
+                    Polygon([(0, 5), (5, 5), (5, 10), (0, 10), (0, 5)]),
+                    Polygon([(0, 0), (10, 0), (10, 0.5), (0, 0)]),
+                ]
+            ),
+            Polygon([(0, 5), (5, 5), (5, 10), (0, 10), (0, 5)]),
+        ),
+    ],
+)
+def test_makevalid_gridsize(tmp_path, descr: str, geometry, expected_geometry):
+    # Prepare test data
+    # -----------------
+    input_gdf = gpd.GeoDataFrame(
+        {"descr": [descr]}, geometry=[geometry], crs=31370
+    )  # type: ignore
+    input_path = tmp_path / "test.gpkg"
+    gfo.to_file(input_gdf, input_path)
+    gridsize = 1
+
+    # Now we are ready to test
+    # ------------------------
+    result_path = tmp_path / "test_makevalid.gpkg"
+    gfo.makevalid(
+        input_path=input_path,
+        output_path=result_path,
+        gridsize=gridsize,
+        force=True,
+    )
+    result_gdf = gfo.read_file(result_path)
+
+    # Compare with expected result
+    expected_gdf = gpd.GeoDataFrame(
+        {"descr": [descr]}, geometry=[expected_geometry], crs=31370
+    )  # type: ignore
+    expected_gdf = expected_gdf[~expected_gdf.geometry.is_empty]
+    if len(expected_gdf) == 0:
+        assert len(result_gdf) == 0
+    else:
+        assert_geodataframe_equal(result_gdf, expected_gdf)
+
+
+def test_makevalid_invalidparams():
+    expected_error = (
+        "the precision parameter is deprecated and cannot be combined with gridsize"
+    )
+    with pytest.raises(ValueError, match=expected_error):
+        gfo.makevalid(
+            input_path="abc",
+            output_path="def",
+            gridsize=1,
+            precision=1,
+        )
 
 
 @pytest.mark.parametrize("input_suffix", DEFAULT_SUFFIXES)

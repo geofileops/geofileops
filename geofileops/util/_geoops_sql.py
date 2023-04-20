@@ -265,7 +265,7 @@ def makevalid(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
-    precision: Optional[float] = None,
+    gridsize: Optional[float] = None,
     validate_attribute_data: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -279,24 +279,22 @@ def makevalid(
 
     # Init + prepare sql template for this operation
     # ----------------------------------------------
-    input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
+    operation = "{geometrycolumn}"
 
-    # Specify output_geometrytype, because otherwise makevalid results in
-    # column type 'GEOMETRY'/'UNKNOWN(ANY)'
-    if force_output_geometrytype is None:
-        force_output_geometrytype = input_layerinfo.geometrytype
-
-    # First compose the operation to be done on the geometries
-    # If the number of decimals of coordinates should be limited
-    if precision is not None:
-        operation = f"SnapToGrid({{geometrycolumn}}, {precision})"
-    else:
-        operation = "{geometrycolumn}"
+    # If the precision needs to be reduced, snap to grid
+    if gridsize is not None:
+        operation = f"ST_SnapToGrid({operation}, {gridsize})"
 
     # Prepare sql template for this operation
     operation = f"ST_MakeValid({operation})"
 
-    # If we want a specific geometrytype as result, extract it
+    # Determine output_geometrytype if it wasn't specified. Otherwise makevalid results
+    # in column type 'GEOMETRY'/'UNKNOWN(ANY)'
+    input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
+    if force_output_geometrytype is None:
+        force_output_geometrytype = input_layerinfo.geometrytype
+
+    # If we want a specific geometrytype, only extract the relevant type
     if force_output_geometrytype is not GeometryType.GEOMETRYCOLLECTION:
         primitivetypeid = force_output_geometrytype.to_primitivetype.value
         operation = f"ST_CollectionExtract({operation}, {primitivetypeid})"
@@ -305,9 +303,9 @@ def makevalid(
     sql_template = f"""
         SELECT {operation} AS geom
                 {{columns_to_select_str}}
-            FROM "{{input_layer}}" layer
-            WHERE 1=1
-            {{batch_filter}}
+          FROM "{{input_layer}}" layer
+         WHERE 1=1
+           {{batch_filter}}
     """
 
     _single_layer_vector_operation(
@@ -327,7 +325,7 @@ def makevalid(
         force=force,
     )
 
-    # If output is a geopackage, check if all data can be read
+    # If asked and output is spatialite based, check if all data can be read
     if validate_attribute_data:
         output_geofiletype = GeofileType(input_path)
         if output_geofiletype.is_spatialite_based:
