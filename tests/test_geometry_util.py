@@ -3,7 +3,6 @@
 Tests for functionalities in vector_util, regarding geometry operations.
 """
 
-from pathlib import Path
 import sys
 
 import geopandas as gpd
@@ -11,11 +10,9 @@ import numpy as np
 import pytest
 import shapely.geometry as sh_geom
 
-# Add path so the local geofileops packages are found
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import geofileops as gfo
-from geofileops import geometry_util
 from geofileops import GeometryType, PrimitiveType
+from geofileops.util import geometry_util
 from geofileops.util import grid_util
 from tests import test_helper
 
