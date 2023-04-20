@@ -756,7 +756,8 @@ def makevalid(
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
         force_output_geometrytype (GeometryType, optional): The output geometry type to
-            force. Defaults to None, and then the geometry type of the input is used
+            force the output to. If None, the geometry type of the input is used.
+            Defaults to None.
         precision (float, optional): the precision to keep in the coordinates.
             Eg. 0.001 to keep 3 decimals. None doesn't change the precision.
             Defaults to None.

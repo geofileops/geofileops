@@ -8,7 +8,7 @@ import math
 import geopandas as gpd
 import pytest
 import shapely
-import shapely.geometry as sh_geom
+from shapely.geometry import MultiPolygon, Polygon
 
 import geofileops as gfo
 from geofileops import GeometryType
@@ -144,46 +144,53 @@ def test_makevalid(tmp_path, suffix, input_empty):
     gfo.makevalid(input_path=input_path, output_path=output_path)
 
 
-def test_makevalid_gridsize(tmp_path):
+@pytest.mark.parametrize(
+    "descr, geometry",
+    [
+        ("sliver", Polygon([(0, 0), (10, 0), (10, 0.5), (0, 0)])),
+        (
+            "poly + sliver",
+            MultiPolygon(
+                [
+                    Polygon([(0, 5), (5, 5), (5, 10), (0, 10), (0, 5)]),
+                    Polygon([(0, 0), (10, 0), (10, 0.5), (0, 0)]),
+                ]
+            ),
+        ),
+    ],
+)
+def test_makevalid_gridsize(tmp_path, descr: str, geometry):
     # Prepare test data
     # -----------------
-    poly1 = sh_geom.Polygon([(0, 0), (0, 10), (10, 10), (5, 0), (0, 0)])
-    poly2 = sh_geom.Polygon([(5, 0), (8, 7), (10, 7), (10, 0), (5, 0)])
-
-    # Calculate intersection without gridsize -> small sliver
-    sliver = poly1.intersection(poly2)
-    assert isinstance(sliver, sh_geom.Polygon)
-    test_gdf = gpd.GeoDataFrame(
-        {"descr": ["poly1", "poly2", "intersection"]},
-        geometry=[poly1, poly2, sliver],
-        crs=31370,
+    input_gdf = gpd.GeoDataFrame(
+        {"descr": [descr]}, geometry=[geometry], crs=31370
     )  # type: ignore
-    test_path = tmp_path / "test.gpkg"
-    gfo.to_file(test_gdf, test_path)
-    test_gdf = gfo.read_file(test_path)
-    assert len(test_gdf) == 3
+    input_path = tmp_path / "test.gpkg"
+    gfo.to_file(input_gdf, input_path)
     grid_size = 1
 
     # Now we are ready to test
-    # -----------------
-    test_makevalid_path = tmp_path / "test_makevalid.gpkg"
+    # ------------------------
+    result_path = tmp_path / "test_makevalid.gpkg"
     gfo.makevalid(
-        input_path=test_path,
-        output_path=test_makevalid_path,
+        input_path=input_path,
+        output_path=result_path,
         precision=grid_size,
         force=True,
     )
+    result_gdf = gfo.read_file(result_path)
 
-    # Makevalid with precision removed the sliver
-    test_makevalid_gdf = gfo.read_file(test_makevalid_path)
-    assert len(test_makevalid_gdf) == 2
-
+    # Compare with expected result
     expected_gdf = gpd.GeoDataFrame(
-        {"descr": ["poly1", "poly2", "intersection"]},
-        geometry=shapely.set_precision([poly1, poly2, sliver], grid_size=grid_size),
+        {"descr": [descr]},
+        geometry=[shapely.set_precision(geometry, grid_size=grid_size)],
         crs=31370,
     )  # type: ignore
-    assert_geodataframe_equal(test_gdf, expected_gdf)
+    expected_gdf = expected_gdf[~expected_gdf.geometry.is_empty]
+    if len(expected_gdf) == 0:
+        assert len(result_gdf) == 0
+    else:
+        assert_geodataframe_equal(result_gdf, expected_gdf)
 
 
 @pytest.mark.parametrize("input_suffix", DEFAULT_SUFFIXES)
