@@ -417,6 +417,36 @@ def create_table_as_sql(
             conn.close()
 
 
+def execute_sql(path: Path, sql_stmt: str, use_spatialite: bool = True):
+    # Connect to database file
+    conn = sqlite3.connect(path)
+    sql = None
+
+    try:
+        if use_spatialite is True:
+            load_spatialite(conn)
+            if path.suffix.lower() == ".gpkg":
+                sql = "SELECT EnableGpkgMode();"
+                conn.execute(sql)
+
+        """
+        # Set nb KB of cache
+        sql = "PRAGMA cache_size=-50000;"
+        conn.execute(sql)
+        sql = "PRAGMA temp_store=MEMORY;"
+        conn.execute(sql)
+        conn.execute("PRAGMA journal_mode = WAL")
+        """
+
+        sql = sql_stmt
+        conn.execute(sql)
+
+    except Exception as ex:
+        raise Exception(f"Error executing {sql}") from ex
+    finally:
+        conn.close()
+
+
 def test_data_integrity(path: Path, use_spatialite: bool = True):
     # Get list of layers in database
     layers = gfo.listlayers(path=path)
