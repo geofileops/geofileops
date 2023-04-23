@@ -501,9 +501,8 @@ def _single_layer_vector_operation(
             fid_column=input_layerinfo.fid_column,
         )
 
-        # Prepare output filename
+        # Prepare temp output filename
         tmp_output_path = tempdir / output_path.name
-        nb_done = 0
 
         # Processing in threads is 2x faster for small datasets (on Windows)
         calculate_in_threads = True if input_layerinfo.featurecount <= 100 else False
@@ -568,6 +567,10 @@ def _single_layer_vector_operation(
             # that is ready already.
             # Calculating can be done in parallel, but only one process can write to
             # the same file at the time.
+            nb_done = 0
+            _general_util.report_progress(
+                start_time, nb_done, nb_batches, operation_name, nb_parallel=nb_parallel
+            )
             for future in futures.as_completed(future_to_batch_id):
                 try:
                     _ = future.result()
