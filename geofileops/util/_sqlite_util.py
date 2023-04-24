@@ -8,7 +8,7 @@ import enum
 import logging
 from pathlib import Path
 import sqlite3
-from typing import Optional
+from typing import List, Optional, Union
 
 
 import geofileops as gfo
@@ -403,6 +403,7 @@ def create_table_as_sql(
                 elif output_suffix_lower == ".sqlite":
                     sql = f"SELECT CreateSpatialIndex('{output_layer}', 'geom');"
                     conn.execute(sql)
+            conn.commit()
 
     except EmptyResultError:
         logger.info(f"Query didn't return any rows: {sql_stmt}")
@@ -417,7 +418,9 @@ def create_table_as_sql(
             conn.close()
 
 
-def execute_sql(path: Path, sql_stmt: str, use_spatialite: bool = True):
+def execute_sql(
+    path: Path, sql_stmt: Union[str, List[str]], use_spatialite: bool = True
+):
     # Connect to database file
     conn = sqlite3.connect(path)
     sql = None
@@ -437,11 +440,16 @@ def execute_sql(path: Path, sql_stmt: str, use_spatialite: bool = True):
         conn.execute(sql)
         conn.execute("PRAGMA journal_mode = WAL")
         """
-
-        sql = sql_stmt
-        conn.execute(sql)
+        if isinstance(sql_stmt, str):
+            sql = sql_stmt
+            conn.execute(sql)
+        else:
+            for sql in sql_stmt:
+                conn.execute(sql)
+        conn.commit()
 
     except Exception as ex:
+        conn.rollback()
         raise Exception(f"Error executing {sql}") from ex
     finally:
         conn.close()
