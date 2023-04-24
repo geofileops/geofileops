@@ -101,8 +101,18 @@ def test_create_table_as_sql_invalidparams(kwargs, expected_error):
 def test_execute_sql(tmp_path):
     test_path = test_helper.get_testfile(testfile="polygon-parcel", dst_dir=tmp_path)
     assert gfo.has_spatial_index(test_path)
+    info_input = gfo.get_layerinfo(test_path)
+    nb_deleted = 0
 
-    sql_stmt = "SELECT RenameTable(NULL, 'parcels', 'parcels_renamed')"
+    # Execute one statement
+    sql_stmt = "DELETE FROM parcels WHERE rowid = (SELECT MIN(rowid) FROM parcels)"
     _sqlite_util.execute_sql(test_path, sql_stmt=sql_stmt)
-    layers = gfo.listlayers(test_path)
-    assert "parcels_renamed" in layers
+    nb_deleted += 1
+    info = gfo.get_layerinfo(test_path)
+    assert info.featurecount == info_input.featurecount - nb_deleted
+
+    # Execute a list of statements
+    _sqlite_util.execute_sql(test_path, sql_stmt=[sql_stmt, sql_stmt])
+    nb_deleted += 2
+    info = gfo.get_layerinfo(test_path)
+    assert info.featurecount == info_input.featurecount - nb_deleted
