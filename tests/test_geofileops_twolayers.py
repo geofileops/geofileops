@@ -734,6 +734,30 @@ def test_select_two_layers_invalid_sql(tmp_path, suffix):
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_select_two_layers_select_star(tmp_path, suffix):
+    # Prepare test data
+    input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
+
+    # Now run test
+    output_path = tmp_path / f"output{suffix}"
+    sql_stmt = """
+        SELECT layer1.*
+          FROM {input1_databasename}."{input1_layer}" layer1
+          CROSS JOIN {input2_databasename}."{input2_layer}" layer2
+         WHERE 1=1
+           AND ST_Area(layer1.{input1_geometrycolumn}) > 5
+    """
+    with pytest.raises(Exception, match="Error <Error duplicate column name"):
+        gfo.select_two_layers(
+            input1_path=input1_path,
+            input2_path=input2_path,
+            output_path=output_path,
+            sql_stmt=sql_stmt,
+        )
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 @pytest.mark.parametrize(
     "nb_parallel, has_batch_filter, exp_raise",
     [(1, False, False), (2, True, False), (2, False, True)],
