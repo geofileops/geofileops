@@ -472,9 +472,15 @@ def test_is_geofile():
     assert gfo.is_geofile("/test/testje.txt") is False
 
 
+def test_listlayers_errors():
+    path = "not_existing_file.gpkg"
+    with pytest.raises(RuntimeError, match=f"listlayers error for {path}"):
+        _ = gfo.listlayers(path)
+
+
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 def test_listlayers_one_layer(suffix):
-    # Test Geopackage with 1 layer
+    # Test with 1 layer
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     layers = gfo.listlayers(src)
     if suffix == ".gpkg":
@@ -484,7 +490,7 @@ def test_listlayers_one_layer(suffix):
 
 
 def test_listlayers_two_layers():
-    # Test geopackage 2 layers
+    # Test geopackage with 2 layers
     src = test_helper.get_testfile("polygon-twolayers")
     layers = gfo.listlayers(src)
     assert "parcels" in layers
@@ -550,12 +556,22 @@ def test_update_column(tmp_path):
     gdf_filtered = gdf[gdf["AREA"] == -1]
     assert len(gdf_filtered) == 20
 
+
+def test_update_column_error(tmp_path):
+    test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    layerinfo = gfo.get_layerinfo(path=test_path, layer="parcels")
+
     # Trying to update column that doesn't exist should raise ValueError
     assert "not_existing column" not in layerinfo.columns
     with pytest.raises(ValueError, match="Column .* doesn't exist in"):
         gfo.update_column(
             test_path, name="not_existing column", expression="ST_area(geom)"
         )
+
+    # Try to update column with invalid expression
+    assert "not_existing column" not in layerinfo.columns
+    with pytest.raises(RuntimeError, match="update_column error for"):
+        gfo.update_column(test_path, name="OPPERVL", expression="invalid_expression")
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
@@ -744,30 +760,34 @@ def test_rename_column(tmp_path, suffix):
         assert "area" in result_layerinfo.columns
 
 
-@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-def test_rename_layer(tmp_path, suffix):
-    test_path = test_helper.get_testfile(
-        "polygon-parcel", dst_dir=tmp_path, suffix=suffix
-    )
+def test_rename_column_unsupported(tmp_path):
+    path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=".shp")
+    with pytest.raises(ValueError, match="rename_column is not possible for"):
+        _ = gfo.rename_column(path, column_name="abc", new_column_name="def")
 
-    if suffix == ".gpkg":
-        gfo.add_layerstyle(test_path, layer="parcels", name="stylename", qml="")
-        gfo.rename_layer(test_path, layer="parcels", new_layer="parcels_renamed")
-        layernames_renamed = gfo.listlayers(path=test_path)
-        assert layernames_renamed[0] == "parcels_renamed"
-        assert len(gfo.get_layerstyles(test_path, layer="parcels_renamed")) == 1
-    elif suffix == ".shp":
-        # Now test rename layer
-        with pytest.raises(ValueError, match="rename_layer is not possible"):
-            gfo.rename_layer(
-                test_path,
-                layer="polygons_parcels",
-                new_layer="polygons_parcels_renamed",
-            )
-            layernames_renamed = gfo.listlayers(path=test_path)
-            assert layernames_renamed[0] == "polygons_parcels_renamed"
-    else:
-        raise Exception(f"test not implemented for suffix {suffix}")
+    path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=".fgb")
+    with pytest.raises(ValueError, match="rename_column is not implemented for"):
+        _ = gfo.rename_column(path, column_name="abc", new_column_name="def")
+
+
+def test_rename_layer(tmp_path):
+    test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    gfo.add_layerstyle(test_path, layer="parcels", name="stylename", qml="")
+
+    gfo.rename_layer(test_path, new_layer="parcels_renamed")
+    layernames_renamed = gfo.listlayers(path=test_path)
+    assert layernames_renamed[0] == "parcels_renamed"
+    assert len(gfo.get_layerstyles(test_path, layer="parcels_renamed")) == 1
+
+
+def test_rename_layer_unsupported(tmp_path):
+    path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=".shp")
+    with pytest.raises(ValueError, match="rename_layer not possible for"):
+        _ = gfo.rename_layer(path, layer="layer", new_layer="new_layer")
+
+    path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=".fgb")
+    with pytest.raises(ValueError, match="rename_layer not implemented for"):
+        _ = gfo.rename_layer(path, layer="layer", new_layer="new_layer")
 
 
 def test_execute_sql(tmp_path):
@@ -779,6 +799,64 @@ def test_execute_sql(tmp_path):
         path=test_path, sql_stmt='CREATE INDEX idx_parcels_oidn ON "parcels"("oidn")'
     )
     gfo.execute_sql(path=test_path, sql_stmt="DROP INDEX idx_parcels_oidn")
+
+
+def test_execute_sql_invalid(tmp_path):
+    # Prepare testfile
+    test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+
+    # Test using execute_sql with invalid sql statement
+    with pytest.raises(RuntimeError, match="execute_sql error"):
+        gfo.execute_sql(path=test_path, sql_stmt="SELECT abc FROM cde")
+
+
+def test_fill_out_sql_placeholders():
+    path = test_helper.get_testfile("polygon-parcel")
+    layer = gfo.get_only_layer(path)
+    columns = ["UIDN", "OIDN"]
+
+    # Test the different existing placeholders
+    sql_stmt = 'SELECT {columns_to_select_str} FROM "parcels"'
+    result = fileops._fill_out_sql_placeholders(
+        path, layer=layer, sql_stmt=sql_stmt, columns=columns
+    )
+    assert result == 'SELECT ,"UIDN" "UIDN", "OIDN" "OIDN" FROM "parcels"'
+
+    sql_stmt = 'SELECT {geometrycolumn} FROM "parcels"'
+    result = fileops._fill_out_sql_placeholders(
+        path, layer=layer, sql_stmt=sql_stmt, columns=columns
+    )
+    assert result == 'SELECT geom FROM "parcels"'
+
+    sql_stmt = 'SELECT geom FROM "{input_layer}"'
+    result = fileops._fill_out_sql_placeholders(
+        path, layer=layer, sql_stmt=sql_stmt, columns=columns
+    )
+    assert result == 'SELECT geom FROM "parcels"'
+
+
+def test_fill_out_sql_placeholders_errors():
+    path = test_helper.get_testfile("polygon-parcel")
+
+    # Test invalid placeholder
+    sql_stmt = 'SELECT {invalid_placeholder} FROM "parcel"'
+    with pytest.raises(ValueError, match="unknown placeholder invalid_placeholder "):
+        fileops._fill_out_sql_placeholders(
+            path, layer="parcel", sql_stmt=sql_stmt, columns=None
+        )
+
+
+def test_spatial_index_unsupported(tmp_path):
+    path = tmp_path / "unsupported_type.unsupported"
+    path.touch()
+    with pytest.raises(ValueError, match="Unknown extension .unsupported"):
+        _ = gfo.create_spatial_index(path, "layer")
+
+    with pytest.raises(ValueError, match="Unknown extension .unsupported"):
+        _ = gfo.has_spatial_index(path, "layer")
+
+    with pytest.raises(ValueError, match="Unknown extension .unsupported"):
+        _ = gfo.remove_spatial_index(path, "layer")
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
