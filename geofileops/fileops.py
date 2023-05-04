@@ -121,9 +121,12 @@ def listlayers(
                 or datasource_layer.GetGeometryColumn() != ""
             ):
                 layers.append(datasource_layer.GetName())
+
+    except Exception as ex:
+        ex.args = (f"listlayers error for {path}:\n  {ex}",)
+        raise
     finally:
-        if datasource is not None:
-            del datasource
+        datasource = None
 
     return layers
 
@@ -378,9 +381,11 @@ def get_layerinfo(
         else:
             errors.append("Layer doesn't have a geometry column!")
 
+    except Exception as ex:
+        ex.args = (f"get_layerinfo error for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
-        if datasource is not None:
-            del datasource
+        datasource = None
 
     # If we didn't return or raise yet here, there must have been errors
     errors_str = pprint.pformat(errors)
@@ -425,9 +430,11 @@ def get_only_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
 
         return datasource_layer.GetName()
 
+    except Exception as ex:
+        ex.args = (f"get_only_layer error for {path}:\n  {ex}",)
+        raise
     finally:
-        if datasource is not None:
-            del datasource
+        datasource = None
 
 
 def get_default_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
@@ -469,9 +476,12 @@ def execute_sql(
         datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
         result = datasource.ExecuteSQL(sql_stmt, dialect=sql_dialect)
         datasource.ReleaseResultSet(result)
+
+    except Exception as ex:
+        ex.args = (f"execute_sql error for {path}\n  {ex}",)
+        raise
     finally:
-        if datasource is not None:
-            del datasource
+        datasource = None
 
 
 def create_spatial_index(
@@ -529,11 +539,12 @@ def create_spatial_index(
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             result = datasource.ExecuteSQL(f'CREATE SPATIAL INDEX ON "{layer}"')
             datasource.ReleaseResultSet(result)
+
     except Exception as ex:
-        raise Exception(f"Error adding spatial index to {path}.{layer}") from ex
+        ex.args = (f"create_spatial_index error for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
-        if datasource is not None:
-            del datasource
+        datasource = None
 
     if not has_spatial_index(path, layer):
         raise RuntimeError(f"create_spatial_index failed on {path}, layer: {layer}")
@@ -578,9 +589,12 @@ def has_spatial_index(
             return index_path.exists()
         else:
             raise ValueError(f"has_spatial_index not supported for {path}")
+
+    except Exception as ex:
+        ex.args = (f"has_spatial_index error for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
-        if datasource is not None:
-            datasource = None
+        datasource = None
 
 
 def remove_spatial_index(
@@ -614,12 +628,15 @@ def remove_spatial_index(
             index_path = path.parent / f"{path.stem}.qix"
             index_path.unlink()
         else:
-            raise Exception(
+            raise RuntimeError(
                 f"remove_spatial_index is not supported for {path.suffix} file"
             )
+
+    except Exception as ex:
+        ex.args = (f"remove_spatial_index error for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
-        if datasource is not None:
-            del datasource
+        datasource = None
 
 
 def rename_layer(
@@ -643,19 +660,21 @@ def rename_layer(
     # Now really rename
     datasource = None
     geofiletype = GeofileType(path)
-    try:
-        if geofiletype.is_spatialite_based:
+    if geofiletype.is_spatialite_based:
+        try:
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             sql_stmt = f'ALTER TABLE "{layer}" RENAME TO "{new_layer}"'
             result = datasource.ExecuteSQL(sql_stmt)
             datasource.ReleaseResultSet(result)
-        elif geofiletype == GeofileType.ESRIShapefile:
-            raise ValueError(f"rename_layer is not possible for {geofiletype} file")
-        else:
-            raise ValueError(f"rename_layer is not implemented for {path.suffix} file")
-    finally:
-        if datasource is not None:
-            del datasource
+        except Exception as ex:
+            ex.args = (f"rename_layer error for {path}.{layer}:\n  {ex}",)
+            raise
+        finally:
+            datasource = None
+    elif geofiletype == GeofileType.ESRIShapefile:
+        raise ValueError(f"rename_layer not possible for {geofiletype} file")
+    else:
+        raise ValueError(f"rename_layer not implemented for {path.suffix} file")
 
 
 def rename_column(
@@ -678,7 +697,7 @@ def rename_column(
     path = Path(path)
     if layer is None:
         layer = get_only_layer(path)
-    info = get_layerinfo(path)
+    info = get_layerinfo(path, layer)
     if column_name not in info.columns and new_column_name in info.columns:
         logger.info(
             f"Column {column_name} seems to be renamed already to {new_column_name}"
@@ -688,8 +707,8 @@ def rename_column(
     # Now really rename
     datasource = None
     geofiletype = GeofileType(path)
-    try:
-        if geofiletype.is_spatialite_based:
+    if geofiletype.is_spatialite_based:
+        try:
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             sql_stmt = (
                 f'ALTER TABLE "{layer}" '
@@ -697,13 +716,16 @@ def rename_column(
             )
             result = datasource.ExecuteSQL(sql_stmt)
             datasource.ReleaseResultSet(result)
-        elif geofiletype == GeofileType.ESRIShapefile:
-            raise ValueError(f"rename_column is not possible for {geofiletype} file")
-        else:
-            raise ValueError(f"rename_column is not implemented for {path.suffix} file")
-    finally:
-        if datasource is not None:
-            del datasource
+        except Exception as ex:
+            ex.args = (f"rename_column error for {path}.{layer}:\n  {ex}",)
+            raise
+        finally:
+            datasource = None
+
+    elif geofiletype == GeofileType.ESRIShapefile:
+        raise ValueError(f"rename_column is not possible for {geofiletype} file")
+    else:
+        raise ValueError(f"rename_column is not implemented for {path.suffix} file")
 
 
 class DataType(enum.Enum):
@@ -802,9 +824,12 @@ def add_column(
             sql_stmt = f'UPDATE "{layer}" SET "{name}" = {expression}'
             result = datasource.ExecuteSQL(sql_stmt, dialect=expression_dialect)
             datasource.ReleaseResultSet(result)
+
+    except Exception as ex:
+        ex.args = (f"add_column error for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
-        if datasource is not None:
-            del datasource
+        datasource = None
 
 
 def drop_column(
@@ -836,9 +861,12 @@ def drop_column(
         sql_stmt = f'ALTER TABLE "{layer}" DROP COLUMN "{column_name}"'
         result = datasource.ExecuteSQL(sql_stmt)
         datasource.ReleaseResultSet(result)
+
+    except Exception as ex:
+        ex.args = (f"drop_column error for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
-        if datasource is not None:
-            del datasource
+        datasource = None
 
 
 def update_column(
@@ -884,9 +912,12 @@ def update_column(
             sqlite_stmt += f"\n WHERE {where}"
         result = datasource.ExecuteSQL(sqlite_stmt, dialect="SQLITE")
         datasource.ReleaseResultSet(result)
+
+    except Exception as ex:
+        ex.args = (f"update_column error for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
-        if datasource is not None:
-            del datasource
+        datasource = None
 
 
 def read_file(
