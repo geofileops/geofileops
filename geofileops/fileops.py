@@ -121,6 +121,10 @@ def listlayers(
                 or datasource_layer.GetGeometryColumn() != ""
             ):
                 layers.append(datasource_layer.GetName())
+
+    except Exception as ex:
+        ex.args = (f"in listlayers for {path}:\n  {ex}",)
+        raise
     finally:
         if datasource is not None:
             del datasource
@@ -378,6 +382,9 @@ def get_layerinfo(
         else:
             errors.append("Layer doesn't have a geometry column!")
 
+    except Exception as ex:
+        ex.args = (f"in get_layerinfo for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
         if datasource is not None:
             del datasource
@@ -425,6 +432,9 @@ def get_only_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
 
         return datasource_layer.GetName()
 
+    except Exception as ex:
+        ex.args = (f"in get_only_layer for {path}:\n  {ex}",)
+        raise
     finally:
         if datasource is not None:
             del datasource
@@ -469,6 +479,10 @@ def execute_sql(
         datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
         result = datasource.ExecuteSQL(sql_stmt, dialect=sql_dialect)
         datasource.ReleaseResultSet(result)
+
+    except Exception as ex:
+        ex.args = (f"in execute_sql on {path}\n  {ex}",)
+        raise
     finally:
         if datasource is not None:
             del datasource
@@ -529,8 +543,10 @@ def create_spatial_index(
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             result = datasource.ExecuteSQL(f'CREATE SPATIAL INDEX ON "{layer}"')
             datasource.ReleaseResultSet(result)
+
     except Exception as ex:
-        raise Exception(f"Error adding spatial index to {path}.{layer}") from ex
+        ex.args = (f"in create_spatial_index for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
         if datasource is not None:
             del datasource
@@ -578,6 +594,10 @@ def has_spatial_index(
             return index_path.exists()
         else:
             raise ValueError(f"has_spatial_index not supported for {path}")
+
+    except Exception as ex:
+        ex.args = (f"in has_spatial_index for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
         if datasource is not None:
             datasource = None
@@ -614,9 +634,13 @@ def remove_spatial_index(
             index_path = path.parent / f"{path.stem}.qix"
             index_path.unlink()
         else:
-            raise Exception(
+            raise RuntimeError(
                 f"remove_spatial_index is not supported for {path.suffix} file"
             )
+
+    except Exception as ex:
+        ex.args = (f"in remove_spatial_index for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
         if datasource is not None:
             del datasource
@@ -653,6 +677,10 @@ def rename_layer(
             raise ValueError(f"rename_layer is not possible for {geofiletype} file")
         else:
             raise ValueError(f"rename_layer is not implemented for {path.suffix} file")
+
+    except Exception as ex:
+        ex.args = (f"in rename_layer for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
         if datasource is not None:
             del datasource
@@ -701,6 +729,10 @@ def rename_column(
             raise ValueError(f"rename_column is not possible for {geofiletype} file")
         else:
             raise ValueError(f"rename_column is not implemented for {path.suffix} file")
+
+    except Exception as ex:
+        ex.args = (f"in rename_column for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
         if datasource is not None:
             del datasource
@@ -802,6 +834,10 @@ def add_column(
             sql_stmt = f'UPDATE "{layer}" SET "{name}" = {expression}'
             result = datasource.ExecuteSQL(sql_stmt, dialect=expression_dialect)
             datasource.ReleaseResultSet(result)
+
+    except Exception as ex:
+        ex.args = (f"in add_column for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
         if datasource is not None:
             del datasource
@@ -836,6 +872,10 @@ def drop_column(
         sql_stmt = f'ALTER TABLE "{layer}" DROP COLUMN "{column_name}"'
         result = datasource.ExecuteSQL(sql_stmt)
         datasource.ReleaseResultSet(result)
+
+    except Exception as ex:
+        ex.args = (f"in drop_column for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
         if datasource is not None:
             del datasource
@@ -884,6 +924,10 @@ def update_column(
             sqlite_stmt += f"\n WHERE {where}"
         result = datasource.ExecuteSQL(sqlite_stmt, dialect="SQLITE")
         datasource.ReleaseResultSet(result)
+
+    except Exception as ex:
+        ex.args = (f"in update_column for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
         if datasource is not None:
             del datasource

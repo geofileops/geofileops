@@ -781,6 +781,15 @@ def test_execute_sql(tmp_path):
     gfo.execute_sql(path=test_path, sql_stmt="DROP INDEX idx_parcels_oidn")
 
 
+def test_execute_sql_invalid(tmp_path):
+    # Prepare testfile
+    test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+
+    # Test using execute_sql with invalid sql statement
+    with pytest.raises(RuntimeError, match="in execute_sql"):
+        gfo.execute_sql(path=test_path, sql_stmt="SELECT abc FROM cde")
+
+
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 def test_spatial_index(tmp_path, suffix):
     test_path = test_helper.get_testfile(
