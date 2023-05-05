@@ -487,7 +487,7 @@ def execute_sql(
 def create_spatial_index(
     path: Union[str, "os.PathLike[Any]"],
     layer: Optional[str] = None,
-    cache_size_mb: int = 128,
+    cache_size_mb: Optional[int] = 128,
     exist_ok: bool = False,
     force_rebuild: bool = False,
 ):
@@ -498,9 +498,9 @@ def create_spatial_index(
         path (PathLike): The file path.
         layer (str, optional): The layer. If not specified, and there is only
             one layer in the file, this layer is used. Otherwise exception.
-        cache_size_mb (int, optional): memory in MB that can be used while
-            creating spatial index for spatialite files (.gpkg or .sqlite).
-            Defaults to 128.
+        cache_size_mb (int, optional): cache memory in MB that can be used while
+            creating spatial index for spatialite files (.gpkg or .sqlite). If None,
+            the default cache_size from sqlite is used. Defaults to 128.
         exist_ok (bool, options): If True and the index exists already, don't
             throw an error.
         force_rebuild (bool, options): True to force rebuild even if index
@@ -1360,7 +1360,7 @@ def to_file(
     force_multitype: bool = False,
     append: bool = False,
     append_timeout_s: int = 600,
-    index: bool = True,
+    index: Optional[bool] = None,
     create_spatial_index: Optional[bool] = True,
 ):
     """
@@ -1393,8 +1393,10 @@ def to_file(
         append_timeout_s (int, optional): The maximum timeout to wait when the
             output file is already being written to by another process.
             Defaults to 600.
-        index (bool, optional): True to write the pandas index to the file as
-            well. Defaults to True.
+        index (bool, optional): If True, write index into one or more columns (for
+            MultiIndex). None writes the index into one or more columns only if the
+            index is named, is a MultiIndex, or has a non-integer data type.
+            If False, no index is written. Defaults to None.
         create_spatial_index (bool, optional): True to force creation of spatial index,
             False to avoid creation. None leads to the default behaviour of gdal.
             Defaults to True.
@@ -1440,6 +1442,7 @@ def to_file(
 
     # Now write with the correct engine
     if engine == "pyogrio":
+        assert isinstance(gdf, gpd.GeoDataFrame)
         return _to_file_pyogrio(
             gdf=gdf,
             path=path,
@@ -1479,7 +1482,7 @@ def _to_file_fiona(
     force_multitype: bool = False,
     append: bool = False,
     append_timeout_s: int = 600,
-    index: bool = True,
+    index: Optional[bool] = None,
     create_spatial_index: Optional[bool] = True,
 ):
     """
@@ -1518,7 +1521,7 @@ def _to_file_fiona(
         gdf: gpd.GeoDataFrame,
         path: Path,
         layer: str,
-        index: bool = True,
+        index: Optional[bool] = None,
         force_output_geometrytype: Optional[str] = None,
         force_multitype: bool = False,
         append: bool = False,
@@ -1535,9 +1538,11 @@ def _to_file_fiona(
             mode = "w"
 
         kwargs = {}
+        kwargs["engine"] = "fiona"
         kwargs["mode"] = mode
         geofiletype = GeofileType(path)
         kwargs["driver"] = geofiletype.ogrdriver
+        kwargs["index"] = index
         if create_spatial_index is not None:
             kwargs["SPATIAL_INDEX"] = create_spatial_index
         if force_output_geometrytype is not None:
@@ -1547,10 +1552,13 @@ def _to_file_fiona(
 
         # Now we can write
         if geofiletype == GeofileType.ESRIShapefile:
+            """
             if index is True:
                 gdf_to_write = gdf.reset_index(drop=True)
             else:
                 gdf_to_write = gdf
+            """
+            gdf_to_write = gdf
             gdf_to_write.to_file(str(path), **kwargs)  # type: ignore
         elif geofiletype == GeofileType.GPKG:
             # Try to harmonize the geometrytype to one (multi)type, as GPKG
@@ -1560,9 +1568,10 @@ def _to_file_fiona(
                 gdf_to_write.geometry = geoseries_util.harmonize_geometrytypes(
                     gdf.geometry, force_multitype=force_multitype
                 )
+                assert isinstance(gdf_to_write, gpd.GeoDataFrame)
             else:
                 gdf_to_write = gdf
-            gdf_to_write.to_file(str(path), layer=layer, **kwargs)  # type: ignore
+            gdf_to_write.to_file(str(path), layer=layer, **kwargs)
         elif geofiletype == GeofileType.SQLite:
             gdf.to_file(str(path), layer=layer, **kwargs)
         elif geofiletype == GeofileType.GeoJSON:
@@ -1667,22 +1676,26 @@ def _to_file_fiona(
 
 
 def _to_file_pyogrio(
-    gdf: Union[pd.DataFrame, gpd.GeoDataFrame],
+    gdf: gpd.GeoDataFrame,
     path: Path,
     layer: str,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
     force_multitype: bool = False,
     append: bool = False,
     append_timeout_s: int = 600,
-    index: bool = True,
+    index: Optional[bool] = None,
     create_spatial_index: Optional[bool] = True,
 ):
     """
     Writes a pandas dataframe to file using pyogrio.
+
+    Remark: this function only supports writing GeoDataFrames at the moment.
     """
     # Prepare args for write_dataframe
     kwargs = {}
+    kwargs["engine"] = "pyogrio"
 
+    # Check upfront if append is going to work to give nice error
     if append is True and path.exists():
         kwargs["append"] = True
         layerinfo = get_layerinfo(path, layer)
@@ -1698,6 +1711,7 @@ def _to_file_pyogrio(
         kwargs["SPATIAL_INDEX"] = create_spatial_index
     geofiletype = GeofileType(path)
     kwargs["driver"] = geofiletype.ogrdriver
+    kwargs["index"] = index
     if create_spatial_index is not None:
         kwargs["SPATIAL_INDEX"] = create_spatial_index
     if force_output_geometrytype is not None:
@@ -1708,17 +1722,10 @@ def _to_file_pyogrio(
         kwargs["promote_to_multi"] = True
 
     # Now we can write
-    gdf_to_write = gdf
-    if geofiletype == GeofileType.ESRIShapefile:
-        if index is True:
-            gdf_to_write = gdf.reset_index(drop=True)
-
     if geofiletype.is_singlelayer:
-        pyogrio.write_dataframe(gdf_to_write, str(path), **kwargs)
+        gdf.to_file(str(path), **kwargs)
     else:
-        pyogrio.write_dataframe(gdf_to_write, str(path), layer=layer, **kwargs)
-
-    return
+        gdf.to_file(str(path), layer=layer, **kwargs)
 
 
 def get_crs(path: Union[str, "os.PathLike[Any]"]) -> pyproj.CRS:
