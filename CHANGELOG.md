@@ -13,6 +13,7 @@
 
 ### Bugs fixed
 
+- Fix parameter `index` in `to_file` being ~ ignored (#285)
 - Fix "json" aggregate column handling in dissolve on line and point input files gives
   wrong results (#257)
 
