@@ -15,7 +15,7 @@ dependencies:
   - pygeos
   - pyogrio
   - pyproj =3.0.1
-  - shapely =1.7.1
+  - shapely <2
   # optional
   - topojson = 1.5
   # testing
