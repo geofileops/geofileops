@@ -6,18 +6,18 @@ dependencies:
   - pip
   # required
   - cloudpickle
-  - fiona =1.8.18
-  - gdal =3.6.3
-  - geopandas =0.11
-  - numpy =1.20
-  - pandas =1.1
+  - fiona
+  - gdal =3.6.3  # released 2023-03-13
+  - geopandas =0.11  # released 2022-06-10
+  - numpy =1.20  # released 2021-02-23
+  - pandas =1.1  # released 2020-06-28
   - psutil
   - pygeos
-  - pyogrio =0.5.1
-  - pyproj =3.0.1
-  - shapely =1.7.1
+  - pyogrio =0.5.1  # released 2023-01-26
+  - pyproj =3.4  # released 2022-09-10
+  - shapely <2
   # optional
-  - topojson = 1.5
+  - topojson = 1.5  # released 2022-09-10
   # testing
   - pytest
   - pytest-cov
