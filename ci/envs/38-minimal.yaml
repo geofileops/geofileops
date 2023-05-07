@@ -9,12 +9,12 @@ dependencies:
   - fiona
   - gdal =3.6.3
   - geopandas =0.11
-  - numpy
-  - pandas <2
+  - numpy =1.20
+  - pandas =1.1
   - psutil
   - pygeos
-  - pyogrio
-  - pyproj
+  - pyogrio =0.5.1
+  - pyproj >2.3
   - shapely <2
   # optional
   - topojson = 1.5
