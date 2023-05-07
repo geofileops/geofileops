@@ -1,0 +1,26 @@
+name: test
+channels:
+  - conda-forge
+dependencies:
+  - python =3.8
+  - pip
+  # required
+  - cloudpickle
+  - fiona =1.8.18
+  - gdal =3.6.3
+  - geopandas =0.11
+  - numpy =1.20
+  - pandas =1.1
+  - psutil
+  - pygeos
+  - pyogrio =0.5.1
+  - pyproj =3.0.1
+  - shapely =1.7.1
+  # optional
+  - topojson = 1.5
+  # testing
+  - pytest
+  - pytest-cov
+  - pip:
+    # optional
+    - simplification
