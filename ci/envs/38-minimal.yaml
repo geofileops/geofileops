@@ -13,7 +13,7 @@ dependencies:
   - pandas <2
   - psutil
   - pygeos
-  - pyogrio =0.5.1
+  - pyogrio
   - pyproj =3.0.1
   - shapely <2
   # optional
