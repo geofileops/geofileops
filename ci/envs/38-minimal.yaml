@@ -14,7 +14,7 @@ dependencies:
   - psutil
   - pygeos
   - pyogrio =0.5.1  # released 2023-01-26
-  - pyproj =3.3.1  # released 2022-04-22
+  - pyproj =3.4  # released 2022-09-10
   - shapely <2
   # optional
   - topojson = 1.5  # released 2022-09-10
