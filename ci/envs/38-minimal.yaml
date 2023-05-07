@@ -6,7 +6,7 @@ dependencies:
   - pip
   # required
   - cloudpickle
-  - fiona =1.8.18
+  - fiona
   - gdal =3.6.3
   - geopandas =0.11
   - numpy =1.20
