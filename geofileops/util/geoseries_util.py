@@ -269,7 +269,7 @@ def simplify_topo_ext(
                 topo.output["arcs"][index] = list(topoline_simpl)
 
     topo_simpl_gdf = topo.to_gdf(crs=geoseries.crs)
-    topo_simpl_gdf.geometry = topo_simpl_gdf.geometry.make_valid()
+    topo_simpl_gdf.geometry = pygeos.make_valid(topo_simpl_gdf.geometry.array.data)
     geometry_types_orig = geoseries.geom_type.unique()
     geometry_types_simpl = topo_simpl_gdf.geometry.geom_type.unique()
     if len(geometry_types_orig) == 1 and len(geometry_types_simpl) > 1:
