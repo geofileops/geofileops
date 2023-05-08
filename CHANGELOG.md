@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 0.7.1 (???)
+
+### Improvements
+
+- Add support for geopandas 0.13 (#289)
+
 ## 0.7.0 (2023-03-17)
 
 ### Improvements
