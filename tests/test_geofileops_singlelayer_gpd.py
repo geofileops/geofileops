@@ -325,12 +325,12 @@ def test_dissolve_linestrings_aggcolumns_columns(tmp_path, suffix, epsg):
 
     # Some more default checks for NISCODE 12009
     niscode_idx = output_gdf[output_gdf["NIScode"] == "12009"].index.item()
+    fid_concat_result = sorted(output_gdf["fid_concat"][niscode_idx].split(","))
     if gfo.GeofileType(input_path).is_fid_zerobased:
-        assert output_gdf["fid_concat"][niscode_idx] == "38,42,44,54"
+        assert fid_concat_result == ["38", "42", "44", "54"]
     else:
-        assert output_gdf["fid_concat"][niscode_idx] == "39,43,45,55"
+        assert fid_concat_result == ["39", "43", "45", "55"]
     assert output_gdf["naam_MAX"][niscode_idx] == "Vosbergbeek"
-    # TODO: add more in depth check of result
 
 
 @pytest.mark.parametrize(
@@ -750,10 +750,11 @@ def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
         "f{output_gdf['lbl_conc_d'][groenten_idx]}"
     )
     assert output_gdf["lbl_cnt_d"][groenten_idx] == 4
+    fid_concat_result = sorted(output_gdf["fid_concat"][groenten_idx].split(","))
     if gfo.GeofileType(input_path).is_fid_zerobased:
-        assert output_gdf["fid_concat"][groenten_idx] == "41,42,43,44,45"
+        assert fid_concat_result == ["41", "42", "43", "44", "45"]
     else:
-        assert output_gdf["fid_concat"][groenten_idx] == "42,43,44,45,46"
+        assert fid_concat_result == ["42", "43", "44", "45", "46"]
 
 
 def test_dissolve_polygons_aggcolumns_json(tmp_path, suffix=".gpkg"):
