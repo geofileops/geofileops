@@ -8,15 +8,15 @@ dependencies:
   - cloudpickle
   - fiona
   - gdal >=3.6.3
-  - geopandas>=0.11,<1
-  - libspatialite>=5.0
+  - geopandas >=0.11
+  - libspatialite >=5.0
   - numpy
   - pandas
   - psutil
-  - pygeos
   - pyogrio
   - pyproj
   - shapely
+  # optional
   - topojson
   # testing
   - pytest
@@ -29,4 +29,5 @@ dependencies:
   - pydata-sphinx-theme
   - pip:
     - sphinx-automodapi==0.13
+    # optional
     - simplification

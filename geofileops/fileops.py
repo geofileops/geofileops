@@ -26,7 +26,6 @@ import pandas as pd
 import pyogrio
 import pyproj
 
-from geofileops.util import geometry_util
 from geofileops.util.geometry_util import GeometryType, PrimitiveType  # noqa: F401
 from geofileops.util import geoseries_util
 from geofileops.util import _io_util
@@ -122,9 +121,12 @@ def listlayers(
                 or datasource_layer.GetGeometryColumn() != ""
             ):
                 layers.append(datasource_layer.GetName())
+
+    except Exception as ex:
+        ex.args = (f"listlayers error for {path}:\n  {ex}",)
+        raise
     finally:
-        if datasource is not None:
-            del datasource
+        datasource = None
 
     return layers
 
@@ -379,9 +381,11 @@ def get_layerinfo(
         else:
             errors.append("Layer doesn't have a geometry column!")
 
+    except Exception as ex:
+        ex.args = (f"get_layerinfo error for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
-        if datasource is not None:
-            del datasource
+        datasource = None
 
     # If we didn't return or raise yet here, there must have been errors
     errors_str = pprint.pformat(errors)
@@ -426,9 +430,11 @@ def get_only_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
 
         return datasource_layer.GetName()
 
+    except Exception as ex:
+        ex.args = (f"get_only_layer error for {path}:\n  {ex}",)
+        raise
     finally:
-        if datasource is not None:
-            del datasource
+        datasource = None
 
 
 def get_default_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
@@ -470,15 +476,18 @@ def execute_sql(
         datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
         result = datasource.ExecuteSQL(sql_stmt, dialect=sql_dialect)
         datasource.ReleaseResultSet(result)
+
+    except Exception as ex:
+        ex.args = (f"execute_sql error for {path}\n  {ex}",)
+        raise
     finally:
-        if datasource is not None:
-            del datasource
+        datasource = None
 
 
 def create_spatial_index(
     path: Union[str, "os.PathLike[Any]"],
     layer: Optional[str] = None,
-    cache_size_mb: int = 128,
+    cache_size_mb: Optional[int] = 128,
     exist_ok: bool = False,
     force_rebuild: bool = False,
 ):
@@ -489,9 +498,9 @@ def create_spatial_index(
         path (PathLike): The file path.
         layer (str, optional): The layer. If not specified, and there is only
             one layer in the file, this layer is used. Otherwise exception.
-        cache_size_mb (int, optional): memory in MB that can be used while
-            creating spatial index for spatialite files (.gpkg or .sqlite).
-            Defaults to 128.
+        cache_size_mb (int, optional): cache memory in MB that can be used while
+            creating spatial index for spatialite files (.gpkg or .sqlite). If None,
+            the default cache_size from sqlite is used. Defaults to 128.
         exist_ok (bool, options): If True and the index exists already, don't
             throw an error.
         force_rebuild (bool, options): True to force rebuild even if index
@@ -530,11 +539,12 @@ def create_spatial_index(
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             result = datasource.ExecuteSQL(f'CREATE SPATIAL INDEX ON "{layer}"')
             datasource.ReleaseResultSet(result)
+
     except Exception as ex:
-        raise Exception(f"Error adding spatial index to {path}.{layer}") from ex
+        ex.args = (f"create_spatial_index error for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
-        if datasource is not None:
-            del datasource
+        datasource = None
 
     if not has_spatial_index(path, layer):
         raise RuntimeError(f"create_spatial_index failed on {path}, layer: {layer}")
@@ -579,9 +589,12 @@ def has_spatial_index(
             return index_path.exists()
         else:
             raise ValueError(f"has_spatial_index not supported for {path}")
+
+    except Exception as ex:
+        ex.args = (f"has_spatial_index error for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
-        if datasource is not None:
-            datasource = None
+        datasource = None
 
 
 def remove_spatial_index(
@@ -615,12 +628,15 @@ def remove_spatial_index(
             index_path = path.parent / f"{path.stem}.qix"
             index_path.unlink()
         else:
-            raise Exception(
+            raise RuntimeError(
                 f"remove_spatial_index is not supported for {path.suffix} file"
             )
+
+    except Exception as ex:
+        ex.args = (f"remove_spatial_index error for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
-        if datasource is not None:
-            del datasource
+        datasource = None
 
 
 def rename_layer(
@@ -644,19 +660,21 @@ def rename_layer(
     # Now really rename
     datasource = None
     geofiletype = GeofileType(path)
-    try:
-        if geofiletype.is_spatialite_based:
+    if geofiletype.is_spatialite_based:
+        try:
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             sql_stmt = f'ALTER TABLE "{layer}" RENAME TO "{new_layer}"'
             result = datasource.ExecuteSQL(sql_stmt)
             datasource.ReleaseResultSet(result)
-        elif geofiletype == GeofileType.ESRIShapefile:
-            raise ValueError(f"rename_layer is not possible for {geofiletype} file")
-        else:
-            raise ValueError(f"rename_layer is not implemented for {path.suffix} file")
-    finally:
-        if datasource is not None:
-            del datasource
+        except Exception as ex:
+            ex.args = (f"rename_layer error for {path}.{layer}:\n  {ex}",)
+            raise
+        finally:
+            datasource = None
+    elif geofiletype == GeofileType.ESRIShapefile:
+        raise ValueError(f"rename_layer not possible for {geofiletype} file")
+    else:
+        raise ValueError(f"rename_layer not implemented for {path.suffix} file")
 
 
 def rename_column(
@@ -679,7 +697,7 @@ def rename_column(
     path = Path(path)
     if layer is None:
         layer = get_only_layer(path)
-    info = get_layerinfo(path)
+    info = get_layerinfo(path, layer)
     if column_name not in info.columns and new_column_name in info.columns:
         logger.info(
             f"Column {column_name} seems to be renamed already to {new_column_name}"
@@ -689,8 +707,8 @@ def rename_column(
     # Now really rename
     datasource = None
     geofiletype = GeofileType(path)
-    try:
-        if geofiletype.is_spatialite_based:
+    if geofiletype.is_spatialite_based:
+        try:
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             sql_stmt = (
                 f'ALTER TABLE "{layer}" '
@@ -698,13 +716,16 @@ def rename_column(
             )
             result = datasource.ExecuteSQL(sql_stmt)
             datasource.ReleaseResultSet(result)
-        elif geofiletype == GeofileType.ESRIShapefile:
-            raise ValueError(f"rename_column is not possible for {geofiletype} file")
-        else:
-            raise ValueError(f"rename_column is not implemented for {path.suffix} file")
-    finally:
-        if datasource is not None:
-            del datasource
+        except Exception as ex:
+            ex.args = (f"rename_column error for {path}.{layer}:\n  {ex}",)
+            raise
+        finally:
+            datasource = None
+
+    elif geofiletype == GeofileType.ESRIShapefile:
+        raise ValueError(f"rename_column is not possible for {geofiletype} file")
+    else:
+        raise ValueError(f"rename_column is not implemented for {path.suffix} file")
 
 
 class DataType(enum.Enum):
@@ -803,9 +824,12 @@ def add_column(
             sql_stmt = f'UPDATE "{layer}" SET "{name}" = {expression}'
             result = datasource.ExecuteSQL(sql_stmt, dialect=expression_dialect)
             datasource.ReleaseResultSet(result)
+
+    except Exception as ex:
+        ex.args = (f"add_column error for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
-        if datasource is not None:
-            del datasource
+        datasource = None
 
 
 def drop_column(
@@ -837,9 +861,12 @@ def drop_column(
         sql_stmt = f'ALTER TABLE "{layer}" DROP COLUMN "{column_name}"'
         result = datasource.ExecuteSQL(sql_stmt)
         datasource.ReleaseResultSet(result)
+
+    except Exception as ex:
+        ex.args = (f"drop_column error for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
-        if datasource is not None:
-            del datasource
+        datasource = None
 
 
 def update_column(
@@ -885,9 +912,12 @@ def update_column(
             sqlite_stmt += f"\n WHERE {where}"
         result = datasource.ExecuteSQL(sqlite_stmt, dialect="SQLITE")
         datasource.ReleaseResultSet(result)
+
+    except Exception as ex:
+        ex.args = (f"update_column error for {path}.{layer}:\n  {ex}",)
+        raise
     finally:
-        if datasource is not None:
-            del datasource
+        datasource = None
 
 
 def read_file(
@@ -1330,7 +1360,7 @@ def to_file(
     force_multitype: bool = False,
     append: bool = False,
     append_timeout_s: int = 600,
-    index: bool = True,
+    index: Optional[bool] = None,
     create_spatial_index: Optional[bool] = True,
 ):
     """
@@ -1363,8 +1393,10 @@ def to_file(
         append_timeout_s (int, optional): The maximum timeout to wait when the
             output file is already being written to by another process.
             Defaults to 600.
-        index (bool, optional): True to write the pandas index to the file as
-            well. Defaults to True.
+        index (bool, optional): If True, write index into one or more columns (for
+            MultiIndex). None writes the index into one or more columns only if the
+            index is named, is a MultiIndex, or has a non-integer data type.
+            If False, no index is written. Defaults to None.
         create_spatial_index (bool, optional): True to force creation of spatial index,
             False to avoid creation. None leads to the default behaviour of gdal.
             Defaults to True.
@@ -1410,6 +1442,7 @@ def to_file(
 
     # Now write with the correct engine
     if engine == "pyogrio":
+        assert isinstance(gdf, gpd.GeoDataFrame)
         return _to_file_pyogrio(
             gdf=gdf,
             path=path,
@@ -1449,7 +1482,7 @@ def _to_file_fiona(
     force_multitype: bool = False,
     append: bool = False,
     append_timeout_s: int = 600,
-    index: bool = True,
+    index: Optional[bool] = None,
     create_spatial_index: Optional[bool] = True,
 ):
     """
@@ -1488,7 +1521,7 @@ def _to_file_fiona(
         gdf: gpd.GeoDataFrame,
         path: Path,
         layer: str,
-        index: bool = True,
+        index: Optional[bool] = None,
         force_output_geometrytype: Optional[str] = None,
         force_multitype: bool = False,
         append: bool = False,
@@ -1505,9 +1538,11 @@ def _to_file_fiona(
             mode = "w"
 
         kwargs = {}
+        kwargs["engine"] = "fiona"
         kwargs["mode"] = mode
         geofiletype = GeofileType(path)
         kwargs["driver"] = geofiletype.ogrdriver
+        kwargs["index"] = index
         if create_spatial_index is not None:
             kwargs["SPATIAL_INDEX"] = create_spatial_index
         if force_output_geometrytype is not None:
@@ -1517,10 +1552,13 @@ def _to_file_fiona(
 
         # Now we can write
         if geofiletype == GeofileType.ESRIShapefile:
+            """
             if index is True:
                 gdf_to_write = gdf.reset_index(drop=True)
             else:
                 gdf_to_write = gdf
+            """
+            gdf_to_write = gdf
             gdf_to_write.to_file(str(path), **kwargs)  # type: ignore
         elif geofiletype == GeofileType.GPKG:
             # Try to harmonize the geometrytype to one (multi)type, as GPKG
@@ -1530,9 +1568,10 @@ def _to_file_fiona(
                 gdf_to_write.geometry = geoseries_util.harmonize_geometrytypes(
                     gdf.geometry, force_multitype=force_multitype
                 )
+                assert isinstance(gdf_to_write, gpd.GeoDataFrame)
             else:
                 gdf_to_write = gdf
-            gdf_to_write.to_file(str(path), layer=layer, **kwargs)  # type: ignore
+            gdf_to_write.to_file(str(path), layer=layer, **kwargs)
         elif geofiletype == GeofileType.SQLite:
             gdf.to_file(str(path), layer=layer, **kwargs)
         elif geofiletype == GeofileType.GeoJSON:
@@ -1637,22 +1676,26 @@ def _to_file_fiona(
 
 
 def _to_file_pyogrio(
-    gdf: Union[pd.DataFrame, gpd.GeoDataFrame],
+    gdf: gpd.GeoDataFrame,
     path: Path,
     layer: str,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
     force_multitype: bool = False,
     append: bool = False,
     append_timeout_s: int = 600,
-    index: bool = True,
+    index: Optional[bool] = None,
     create_spatial_index: Optional[bool] = True,
 ):
     """
     Writes a pandas dataframe to file using pyogrio.
+
+    Remark: this function only supports writing GeoDataFrames at the moment.
     """
     # Prepare args for write_dataframe
     kwargs = {}
+    kwargs["engine"] = "pyogrio"
 
+    # Check upfront if append is going to work to give nice error
     if append is True and path.exists():
         kwargs["append"] = True
         layerinfo = get_layerinfo(path, layer)
@@ -1668,6 +1711,7 @@ def _to_file_pyogrio(
         kwargs["SPATIAL_INDEX"] = create_spatial_index
     geofiletype = GeofileType(path)
     kwargs["driver"] = geofiletype.ogrdriver
+    kwargs["index"] = index
     if create_spatial_index is not None:
         kwargs["SPATIAL_INDEX"] = create_spatial_index
     if force_output_geometrytype is not None:
@@ -1678,17 +1722,10 @@ def _to_file_pyogrio(
         kwargs["promote_to_multi"] = True
 
     # Now we can write
-    gdf_to_write = gdf
-    if geofiletype == GeofileType.ESRIShapefile:
-        if index is True:
-            gdf_to_write = gdf.reset_index(drop=True)
-
     if geofiletype.is_singlelayer:
-        pyogrio.write_dataframe(gdf_to_write, str(path), **kwargs)
+        gdf.to_file(str(path), **kwargs)
     else:
-        pyogrio.write_dataframe(gdf_to_write, str(path), layer=layer, **kwargs)
-
-    return
+        gdf.to_file(str(path), layer=layer, **kwargs)
 
 
 def get_crs(path: Union[str, "os.PathLike[Any]"]) -> pyproj.CRS:
@@ -2250,90 +2287,3 @@ def _launder_column_names(columns: Iterable) -> List[Tuple[str, str]]:
                     break
 
     return laundered
-
-
-def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
-    """
-    Get the driver to use for the file extension of this filepath.
-
-    DEPRECATED, use GeometryType(Path).ogrdriver.
-
-    Args:
-        path (PathLike): The file path.
-
-    Returns:
-        str: The OGR driver name.
-    """
-    warnings.warn(
-        "get_driver is deprecated, use GeometryType(Path).ogrdriver", FutureWarning
-    )
-    return GeofileType(Path(path)).ogrdriver
-
-
-def get_driver_for_ext(file_ext: str) -> str:
-    """
-    Get the driver to use for this file extension.
-
-    DEPRECATED, use GeometryType(file_ext).ogrdriver.
-
-    Args:
-        file_ext (str): The extentension.
-
-    Raises:
-        ValueError: If input geometrytype is not known.
-
-    Returns:
-        str: The OGR driver name.
-    """
-    warnings.warn(
-        "get_driver_for_ext is deprecated, use GeometryType(Path).ogrdriver",
-        FutureWarning,
-    )
-    return GeofileType(file_ext).ogrdriver
-
-
-def to_multi_type(geometrytypename: str) -> str:
-    """
-    Map the input geometry type to the corresponding 'MULTI' geometry type...
-
-    DEPRECATED, use to_multigeometrytype
-
-    Args:
-        geometrytypename (str): Input geometry type
-
-    Raises:
-        ValueError: If input geometrytype is not known.
-
-    Returns:
-        str: Corresponding 'MULTI' geometry type
-    """
-    warnings.warn(
-        "to_generaltypeid is deprecated, use GeometryType.to_multigeometrytype",
-        FutureWarning,
-    )
-    return geometry_util.GeometryType(geometrytypename).to_multitype.name
-
-
-def to_generaltypeid(geometrytypename: str) -> int:
-    """
-    Map the input geometry type name to the corresponding geometry type id:
-        * 1 = POINT-type
-        * 2 = LINESTRING-type
-        * 3 = POLYGON-type
-
-    DEPRECATED, use to_primitivetypeid()
-
-    Args:
-        geometrytypename (str): Input geometry type
-
-    Raises:
-        ValueError: If input geometrytype is not known.
-
-    Returns:
-        int: Corresponding geometry type id
-    """
-    warnings.warn(
-        "to_generaltypeid is deprecated, use GeometryType.to_primitivetypeid",
-        FutureWarning,
-    )
-    return geometry_util.GeometryType(geometrytypename).to_primitivetype.value
