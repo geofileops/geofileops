@@ -64,12 +64,6 @@ def buffer(
     if distance < 0:
         operation = f"ST_CollectionExtract({operation}, 3)"
 
-    # If a gridsize is specified, apply snaptogrid as well. ST_Makevalid is needed as
-    # well as snaptogrid can result in invalid geometries
-    if gridsize != 0.0:
-        operation = f"ST_MakeValid(SnapToGrid({operation}, {gridsize}))"
-        operation = f"ST_CollectionExtract({operation}, 3)"
-
     # Create the final template
     sql_template = f"""
         SELECT {operation} AS geom
@@ -97,6 +91,7 @@ def buffer(
         columns=columns,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
+        gridsize=gridsize,
         sql_dialect="SQLITE",
         filter_null_geoms=True,
         nb_parallel=nb_parallel,
@@ -112,6 +107,7 @@ def convexhull(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
+    gridsize: float = 0.0,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -140,6 +136,7 @@ def convexhull(
         columns=columns,
         explodecollections=explodecollections,
         force_output_geometrytype=input_layerinfo.geometrytype,
+        gridsize=gridsize,
         sql_dialect="SQLITE",
         filter_null_geoms=True,
         nb_parallel=nb_parallel,
@@ -155,6 +152,7 @@ def delete_duplicate_geometries(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
+    gridsize: float = 0.0,
     force: bool = False,
 ):
     # The query as written doesn't give correct results when parallellized,
@@ -182,6 +180,7 @@ def delete_duplicate_geometries(
         columns=columns,
         explodecollections=explodecollections,
         force_output_geometrytype=input_layer_info.geometrytype,
+        gridsize=gridsize,
         sql_dialect="SQLITE",
         filter_null_geoms=True,
         nb_parallel=1,
@@ -223,6 +222,7 @@ def isvalid(
         columns=columns,
         explodecollections=explodecollections,
         force_output_geometrytype=GeometryType.POINT,
+        gridsize=0.0,
         sql_dialect="SQLITE",
         filter_null_geoms=True,
         nb_parallel=nb_parallel,
@@ -268,7 +268,7 @@ def makevalid(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
-    gridsize: Optional[float] = None,
+    gridsize: float = 0.0,
     validate_attribute_data: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -285,7 +285,7 @@ def makevalid(
     operation = "{geometrycolumn}"
 
     # If the precision needs to be reduced, snap to grid
-    if gridsize is not None:
+    if gridsize != 0.0:
         operation = f"ST_SnapToGrid({operation}, {gridsize})"
 
     # Prepare sql template for this operation
@@ -321,6 +321,7 @@ def makevalid(
         columns=columns,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
+        gridsize=gridsize,
         sql_dialect="SQLITE",
         filter_null_geoms=True,
         nb_parallel=nb_parallel,
@@ -377,6 +378,7 @@ def select(
         columns=columns,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
+        gridsize=0.0,
         sql_dialect=sql_dialect,
         filter_null_geoms=False,
         nb_parallel=nb_parallel,
@@ -393,6 +395,7 @@ def simplify(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
+    gridsize: float = 0.0,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -419,6 +422,7 @@ def simplify(
         columns=columns,
         explodecollections=explodecollections,
         force_output_geometrytype=input_layer_info.geometrytype,
+        gridsize=gridsize,
         sql_dialect="SQLITE",
         filter_null_geoms=True,
         nb_parallel=nb_parallel,
@@ -437,6 +441,7 @@ def _single_layer_vector_operation(
     columns: Optional[List[str]],
     explodecollections: bool,
     force_output_geometrytype: Optional[GeometryType],
+    gridsize: float,
     sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]],
     filter_null_geoms: bool,
     nb_parallel: int,
@@ -533,13 +538,37 @@ def _single_layer_vector_operation(
                     batch_filter=processing_params.batches[batch_id]["batch_filter"],
                 )
 
-                # Make sure no NULL geoms are outputted...
-                if filter_null_geoms is True:
+                # Apply tolerance gridsize on result
+                if gridsize != 0.0:
+                    if force_output_geometrytype is None:
+                        raise ValueError(
+                            "if a gridsize is specified, a force_output_geometrytype "
+                            "is needed as well"
+                        )
+
+                    # Apply snaptogrid, but this results in invalid geometries, so also
+                    # ST_Makevalid. It can also result in collapsed (pieces of)
+                    # geometries, so also collectionextract.
+                    geomop = f"ST_MakeValid(SnapToGrid(geom, {gridsize}))"
+                    primitivetypeid = force_output_geometrytype.to_primitivetype.value
+                    geomop = f"ST_CollectionExtract({geomop}, {primitivetypeid})"
+
+                    columns_to_select = column_formatter.from_subselect("sub_gridsize")
                     sql_stmt = f"""
-                        SELECT sub.* FROM
+                        SELECT {geomop} AS geom
+                              {columns_to_select}
+                          FROM ( {sql_stmt}
+                            ) sub_gridsize
+                    """
+
+                # Apply where filter if relevant
+                if filter_null_geoms:
+                    where = "sub_where.geom IS NOT NULL"
+                    sql_stmt = f"""
+                        SELECT sub_where.* FROM
                           ( {sql_stmt}
-                          ) sub
-                         WHERE sub.geom IS NOT NULL
+                          ) sub_where
+                         WHERE {where}
                     """
 
                 batches[batch_id]["sql_stmt"] = sql_stmt
@@ -648,6 +677,7 @@ def clip(
     clip_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
+    gridsize: float = 0.0,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -729,6 +759,7 @@ def clip(
         input2_columns_prefix="",
         output_layer=output_layer,
         explodecollections=explodecollections,
+        gridsize=gridsize,
         force_output_geometrytype=force_output_geometrytype,
         output_with_spatial_index=output_with_spatial_index,
         nb_parallel=nb_parallel,
@@ -746,6 +777,7 @@ def erase(
     erase_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
+    gridsize: float = 0.0,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -831,6 +863,7 @@ def erase(
         output_layer=output_layer,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
+        gridsize=gridsize,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -848,6 +881,7 @@ def export_by_location(
     input_columns: Optional[List[str]] = None,
     input_to_compare_with_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
+    gridsize: float = 0.0,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -941,6 +975,7 @@ def export_by_location(
         output_layer=output_layer,
         explodecollections=False,
         force_output_geometrytype=input_layer_info.geometrytype,
+        gridsize=gridsize,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -956,6 +991,7 @@ def export_by_distance(
     input1_columns: Optional[List[str]] = None,
     input2_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
+    gridsize: float = 0.0,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -1003,6 +1039,7 @@ def export_by_distance(
         output_layer=output_layer,
         explodecollections=False,
         force_output_geometrytype=input_layer_info.geometrytype,
+        gridsize=gridsize,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -1094,6 +1131,7 @@ def intersection(
         output_layer=output_layer,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
+        gridsize=gridsize,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -1116,6 +1154,7 @@ def join_by_location(
     input2_columns_prefix: str = "l2_",
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
+    gridsize: float = 0.0,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -1236,6 +1275,7 @@ def join_by_location(
         output_layer=output_layer,
         explodecollections=explodecollections,
         force_output_geometrytype=input1_layer_info.geometrytype,
+        gridsize=gridsize,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -1319,6 +1359,7 @@ def join_nearest(
     input2_columns_prefix: str = "l2_",
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
+    gridsize: float = 0.0,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -1402,6 +1443,7 @@ def join_nearest(
         output_layer=output_layer,
         force_output_geometrytype=input1_layer_info.geometrytype,
         explodecollections=explodecollections,
+        gridsize=gridsize,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -1443,6 +1485,7 @@ def select_two_layers(
         output_layer=output_layer,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
+        gridsize=0.0,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -1461,6 +1504,7 @@ def split(
     input2_columns_prefix: str = "l2_",
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
+    gridsize: float = 0.0,
     nb_parallel: int = 1,
     batchsize: int = -1,
     force: bool = False,
@@ -1563,6 +1607,7 @@ def split(
         output_layer=output_layer,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
+        gridsize=gridsize,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -1582,6 +1627,7 @@ def symmetric_difference(
     input2_columns_prefix: str = "l2_",
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
+    gridsize: float = 0.0,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -1611,6 +1657,7 @@ def symmetric_difference(
             erase_layer=input2_layer,
             output_layer=output_layer,
             explodecollections=explodecollections,
+            gridsize=gridsize,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
@@ -1641,6 +1688,7 @@ def symmetric_difference(
             erase_layer=input1_layer,
             output_layer=output_layer,
             explodecollections=explodecollections,
+            gridsize=gridsize,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
@@ -1686,6 +1734,7 @@ def union(
     input2_columns_prefix: str = "l2_",
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
+    gridsize: float = 0.0,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -1717,6 +1766,7 @@ def union(
             input2_columns_prefix=input2_columns_prefix,
             output_layer=output_layer,
             explodecollections=explodecollections,
+            gridsize=gridsize,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
@@ -1735,6 +1785,7 @@ def union(
             erase_layer=input1_layer,
             output_layer=output_layer,
             explodecollections=explodecollections,
+            gridsize=gridsize,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
@@ -1785,6 +1836,7 @@ def _two_layer_vector_operation(
     output_layer: Optional[str],
     explodecollections: bool,
     force_output_geometrytype: Optional[GeometryType],
+    gridsize: float,
     nb_parallel: int,
     batchsize: int,
     force: bool,
@@ -1808,16 +1860,19 @@ def _two_layer_vector_operation(
         explodecollections (bool, optional): Explode collecions in output.
             Defaults to False.
         force_output_geometrytype (GeometryType, optional): Defaults to None.
-        use_ogr (bool, optional): If True, ogr is used to do the processing,
-            In this case different input files (input1_path, input2_path) are
-            NOT supported. If False, sqlite3 is used directly.
-            Defaults to False.
+        gridsize (float, optional): the size of the grid the coordinates of the ouput
+            will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
+            the precision. Defaults to 0.0.
         nb_parallel (int, optional): [description]. Defaults to -1.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): [description]. Defaults to False.
+        use_ogr (bool, optional): If True, ogr is used to do the processing,
+            In this case different input files (input1_path, input2_path) are
+            NOT supported. If False, sqlite3 is used directly.
+            Defaults to False.
         output_with_spatial_index (bool, optional): True to create output file with
             spatial index. Defaults to True.
 
@@ -1974,6 +2029,31 @@ def _two_layer_vector_operation(
                     input2_geometrycolumn=input2_tmp_layerinfo.geometrycolumn,
                     batch_filter=processing_params.batches[batch_id]["batch_filter"],
                 )
+
+                # Apply tolerance gridsize on result
+                if gridsize != 0.0:
+                    if force_output_geometrytype is None:
+                        raise ValueError(
+                            "if a gridsize is specified, a force_output_geometrytype "
+                            "is needed as well"
+                        )
+
+                    # Apply snaptogrid, but this results in invalid geometries, so also
+                    # ST_Makevalid. It can also result in collapsed (pieces of)
+                    # geometries, so also collectionextract.
+                    geomop = f"ST_MakeValid(SnapToGrid(sub_gridsize.geom, {gridsize}))"
+                    primitivetypeid = force_output_geometrytype.to_primitivetype.value
+                    geomop = f"ST_CollectionExtract({geomop}, {primitivetypeid})"
+
+                    input1_cols = input1_col_strs.from_subselect("sub_gridsize")
+                    input2_cols = input2_col_strs.from_subselect("sub_gridsize")
+                    sql_stmt = f"""
+                        SELECT {geomop} AS geom
+                              {input1_cols}
+                              {input2_cols}
+                          FROM ( {sql_stmt}
+                            ) sub_gridsize
+                    """
 
                 batches[batch_id]["sqlite_stmt"] = sql_stmt
 
@@ -2276,8 +2356,12 @@ def _prepare_processing_params(
         batch_info_df = gfo.read_file(
             path=returnvalue.input1_path, sql_stmt=sql_stmt, sql_dialect="SQLITE"
         )
-        min_rowid = pd.to_numeric(batch_info_df["minmax_rowid"][0]).item()
-        max_rowid = pd.to_numeric(batch_info_df["minmax_rowid"][1]).item()
+        min_rowid = pd.to_numeric(
+            batch_info_df["minmax_rowid"][0]
+        ).item()  # type: ignore
+        max_rowid = pd.to_numeric(
+            batch_info_df["minmax_rowid"][1]
+        ).item()  # type: ignore
 
         # Determine the exact batches to use
         if ((max_rowid - min_rowid) / nb_rows_input_layer) < 1.1:
@@ -2360,6 +2444,7 @@ def dissolve_singlethread(
     groupby_columns: Union[str, Iterable[str], None] = None,
     agg_columns: Optional[dict] = None,
     explodecollections: bool = False,
+    gridsize: float = 0.0,
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     force: bool = False,
@@ -2518,6 +2603,21 @@ def dissolve_singlethread(
     # so gdal can create an empty output file with the right geometry type.
     if force_output_geometrytype is None and layerinfo.featurecount == 0:
         force_output_geometrytype = layerinfo.geometrytype
+
+    # Apply tolerance gridsize on result
+    if gridsize != 0.0:
+        if force_output_geometrytype is None:
+            raise ValueError(
+                "if a gridsize is specified, a force_output_geometrytype "
+                "is needed as well"
+            )
+
+        # Apply snaptogrid, but this results in invalid geometries, so also
+        # ST_Makevalid. It can also result in collapsed (pieces of)
+        # geometries, so also collectionextract.
+        operation = f"ST_MakeValid(SnapToGrid({operation}, {gridsize}))"
+        primitivetypeid = layerinfo.geometrytype.to_primitivetype.value
+        operation = f"ST_CollectionExtract({operation}, {primitivetypeid})"
 
     sql_stmt = f"""
         SELECT {operation} AS geom

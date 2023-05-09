@@ -6,14 +6,16 @@ Tests for operations that are executed using a sql statement on one layer.
 from importlib import import_module
 import logging
 import math
-from pathlib import Path
-import sys
 from typing import List
 
+import geopandas._compat as gpd_compat
 import pytest
 
-# Add path so the local geofileops packages are found
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+if gpd_compat.USE_PYGEOS:
+    import pygeos as shapely2_or_pygeos
+else:
+    import shapely as shapely2_or_pygeos
+
 from geofileops import geoops
 from geofileops import fileops
 from geofileops import GeometryType
@@ -127,6 +129,64 @@ def test_buffer(tmp_path, suffix, epsg, fileops_module, testfile, empty_input):
             check_less_precise=check_less_precise,
             sort_values=True,
         )
+
+
+@pytest.mark.parametrize(
+    "fileops_module", ["geofileops.geoops", "geofileops.util._geoops_gpd"]
+)
+@pytest.mark.parametrize(
+    "testfile", ["polygon-parcel", "point", "linestring-row-trees"]
+)
+def test_buffer_gridsize(tmp_path, fileops_module, testfile):
+    """
+    Buffer, with gridsize specified.
+
+    The algorithm used for sql based implementation is slightly different, so depending
+    on the gridsize specified the result might match the expected implementation or not.
+    """
+    # Prepare test data
+    input_path = test_helper.get_testfile(testfile)
+
+    # Now run test
+    output_path = tmp_path / f"{input_path.stem}-{fileops_module}.gpkg"
+    set_geoops_module(fileops_module)
+    input_layerinfo = fileops.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+    assert input_layerinfo.crs is not None
+    distance = 1
+    gridsize = 0.001
+
+    # Test positive buffer
+    geoops.buffer(
+        input_path=input_path,
+        output_path=output_path,
+        distance=distance,
+        gridsize=gridsize,
+        nb_parallel=2,
+        batchsize=batchsize,
+    )
+
+    # Now check if the output file is correctly created
+    assert output_path.exists()
+    assert fileops.has_spatial_index(output_path)
+    output_layerinfo = fileops.get_layerinfo(output_path)
+    assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
+
+    output_gdf = fileops.read_file(output_path)
+    assert output_gdf["geometry"][0] is not None
+    expected_gdf = fileops.read_file(input_path)
+    expected_gdf.geometry = expected_gdf.geometry.buffer(
+        distance=distance, resolution=5
+    )
+    expected_gdf.geometry = shapely2_or_pygeos.set_precision(
+        expected_gdf.geometry.array.data, grid_size=gridsize
+    )
+    assert_geodataframe_equal(
+        output_gdf,
+        expected_gdf,
+        promote_to_multi=True,
+        sort_values=True,
+    )
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)

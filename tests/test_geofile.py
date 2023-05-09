@@ -71,8 +71,8 @@ def test_add_column(tmp_path):
     assert "AREA" in layerinfo.columns
 
     gdf = gfo.read_file(test_path)
-    assert round(gdf["AREA"].astype("float")[0], 1) == round(
-        gdf["OPPERVL"].astype("float")[0], 1
+    assert round(gdf["AREA"].astype("float")[0], 1) == round(  # type: ignore
+        gdf["OPPERVL"].astype("float")[0], 1  # type: ignore
     )
 
     # Add perimeter column
@@ -87,8 +87,8 @@ def test_add_column(tmp_path):
     assert "AREA" in layerinfo.columns
 
     gdf = gfo.read_file(test_path)
-    assert round(gdf["AREA"].astype("float")[0], 1) == round(
-        gdf["OPPERVL"].astype("float")[0], 1
+    assert round(gdf["AREA"].astype("float")[0], 1) == round(  # type: ignore
+        gdf["OPPERVL"].astype("float")[0], 1  # type: ignore
     )
 
     # Add a column of different gdal types
@@ -113,13 +113,13 @@ def test_add_column(tmp_path):
     gfo.add_column(test_path, name=existing_column, type="TEXT")
 
     # Force update on an existing column
-    assert gdf["HFDTLT"][0] == "1"
+    assert gdf["HFDTLT"][0] == "1"  # type: ignore
     expression = "5"
     gfo.add_column(
         test_path, name="HFDTLT", type="TEXT", expression=expression, force_update=True
     )
     gdf = gfo.read_file(test_path)
-    assert gdf["HFDTLT"][0] == "5"
+    assert gdf["HFDTLT"][0] == "5"  # type: ignore
 
 
 def test_append_different_layer(tmp_path):
@@ -559,8 +559,8 @@ def test_update_column(tmp_path):
     layerinfo = gfo.get_layerinfo(path=test_path, layer="parcels")
     assert "AREA" in layerinfo.columns
     gdf = gfo.read_file(test_path)
-    assert round(gdf["AREA"].astype("float")[0], 1) == round(
-        gdf["OPPERVL"].astype("float")[0], 1
+    assert round(gdf["AREA"].astype("float")[0], 1) == round(  # type: ignore
+        gdf["OPPERVL"].astype("float")[0], 1  # type: ignore
     )
 
     # Update column for rows where area > 5
@@ -1276,7 +1276,7 @@ def test_to_file_index(tmp_path, points_gdf, suffix, engine_setter):
     p_gdf = points_gdf.copy()
     gdf = gpd.GeoDataFrame(p_gdf["value1"], geometry=p_gdf.geometry)  # type: ignore
     gdf.index = pd.TimedeltaIndex(
-        range(len(gdf)), "days"
+        range(len(gdf)), "days"  # type: ignore
     ) + pd.DatetimeIndex(  # type: ignore
         ["1999-12-27"] * len(gdf)
     )

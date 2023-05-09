@@ -4,15 +4,18 @@ Tests for operations that are executed using a sql statement on two layers.
 """
 
 import math
-from pathlib import Path
-import sys
 
 import geopandas as gpd
+import geopandas._compat as gpd_compat
 import pandas as pd
 import pytest
 
-# Add path so the local geofileops packages are found
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+if gpd_compat.USE_PYGEOS:
+    import pygeos as shapely2_or_pygeos
+else:
+    import shapely as shapely2_or_pygeos
+
+
 import geofileops as gfo
 from geofileops import GeometryType, PrimitiveType
 from geofileops.util import _geoops_sql
@@ -147,7 +150,7 @@ def test_export_by_location(tmp_path, suffix):
     # Check the contents of the result file
     # TODO: this test should be more elaborate...
     output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
+    assert output_gdf.geometry[0] is not None
 
 
 @pytest.mark.parametrize("testfile", ["polygon-parcel"])
@@ -179,21 +182,22 @@ def test_export_by_distance(tmp_path, testfile, suffix):
     # Check the contents of the result file
     # TODO: this test should be more elaborate...
     output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
+    assert output_gdf.geometry[0] is not None
 
 
 @pytest.mark.parametrize("testfile", ["polygon-parcel"])
 @pytest.mark.parametrize(
-    "suffix, epsg, nb_parallel",
+    "suffix, epsg, gridsize, nb_parallel",
     [
-        (".gpkg", 31370, 1),
-        (".gpkg", 31370, 2),
-        (".gpkg", 4326, 2),
-        (".shp", 31370, 1),
-        (".shp", 31370, 2),
+        (".gpkg", 31370, 0.0, 1),
+        (".gpkg", 31370, 0.01, 1),
+        (".gpkg", 31370, 0.0, 2),
+        (".gpkg", 4326, 0.0, 2),
+        (".shp", 31370, 0.0, 1),
+        (".shp", 31370, 0.0, 2),
     ],
 )
-def test_intersection(tmp_path, testfile, suffix, epsg, nb_parallel):
+def test_intersection(tmp_path, testfile, suffix, epsg, gridsize, nb_parallel):
     input1_path = test_helper.get_testfile(testfile, suffix=suffix, epsg=epsg)
     input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
 
@@ -209,6 +213,7 @@ def test_intersection(tmp_path, testfile, suffix, epsg, nb_parallel):
         input1_path=input1_path,
         input2_path=input2_path,
         output_path=output_path,
+        gridsize=gridsize,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
     )
@@ -226,7 +231,7 @@ def test_intersection(tmp_path, testfile, suffix, epsg, nb_parallel):
 
     # Check the contents of the result file
     output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
+    assert output_gdf.geometry[0] is not None
 
     input1_gdf = gfo.read_file(input1_path)
     input2_gdf = gfo.read_file(input2_path)
@@ -239,6 +244,10 @@ def test_intersection(tmp_path, testfile, suffix, epsg, nb_parallel):
         for name_gpd, name_gfo in zip(output_gpd_gdf.columns, output_gdf.columns)
     }
     output_gpd_gdf = output_gpd_gdf.rename(columns=renames)
+    if gridsize != 0.0:
+        output_gpd_gdf.geometry = shapely2_or_pygeos.set_precision(
+            output_gpd_gdf.geometry.array.data, grid_size=gridsize
+        )
     assert_geodataframe_equal(
         output_gdf, output_gpd_gdf, check_dtype=False, sort_values=True
     )
@@ -402,7 +411,7 @@ def test_intersection_columns_fid(tmp_path, testfile, suffix):
 
     # Check the contents of the result file
     output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
+    assert output_gdf.geometry[0] is not None
     assert "l1_fid" in output_gdf.columns
     assert "l2_FiD" in output_gdf.columns
     if gfo.GeofileType(input2_path).is_fid_zerobased:
@@ -525,7 +534,7 @@ def test_join_by_location(
     output_gdf = gfo.read_file(output_path)
     assert len(output_gdf) == expected_featurecount
     if expected_featurecount > 0:
-        assert output_gdf["geometry"][0] is not None
+        assert output_gdf.geometry[0] is not None
 
 
 @pytest.mark.parametrize(
@@ -566,7 +575,7 @@ def test_join_nearest(tmp_path, suffix, epsg):
     # Check the contents of the result file
     # TODO: this test should be more elaborate...
     output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
+    assert output_gdf.geometry[0] is not None
     if gfo.GeofileType(input1_path).is_fid_zerobased:
         assert output_gdf.l1_fid.min() == 0
     else:
@@ -646,7 +655,7 @@ def test_select_two_layers(tmp_path, suffix, epsg):
 
     # Check the contents of the result file
     output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
+    assert output_gdf.geometry[0] is not None
 
 
 @pytest.mark.parametrize(
@@ -805,7 +814,7 @@ def test_split(tmp_path, suffix, epsg):
     # Check the contents of the result file
     # TODO: this test should be more elaborate...
     output_gfo_gdf = gfo.read_file(output_path)
-    assert output_gfo_gdf["geometry"][0] is not None
+    assert output_gfo_gdf.geometry[0] is not None
     input1_gdf = gfo.read_file(input1_path)
     input2_gdf = gfo.read_file(input2_path)
     output_gpd_gdf = input1_gdf.overlay(input2_gdf, how="identity", keep_geom_type=True)
@@ -848,7 +857,7 @@ def test_symmetric_difference(tmp_path, suffix, epsg):
     assert output_path.exists()
     assert gfo.has_spatial_index(output_path)
     output_gfo_gdf = gfo.read_file(output_path)
-    assert output_gfo_gdf["geometry"][0] is not None
+    assert output_gfo_gdf.geometry[0] is not None
     input1_gdf = gfo.read_file(input1_path)
     input2_gdf = gfo.read_file(input2_path)
     output_gpd_gdf = input1_gdf.overlay(
@@ -911,7 +920,7 @@ def test_union(tmp_path, suffix, epsg):
 
     # Check the contents of the result file
     output_gfo_gdf = gfo.read_file(output_path)
-    assert output_gfo_gdf["geometry"][0] is not None
+    assert output_gfo_gdf.geometry[0] is not None
     input1_gdf = gfo.read_file(input1_path)
     input2_gdf = gfo.read_file(input2_path)
     output_gpd_gdf = input1_gdf.overlay(input2_gdf, how="union", keep_geom_type=True)
@@ -968,7 +977,7 @@ def test_union_circles(tmp_path, suffix, epsg):
 
     # Check the contents of the result file
     output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
+    assert output_gdf.geometry[0] is not None
     input1_gdf = gfo.read_file(input1_path)
     input2_gdf = gfo.read_file(input2_path)
     output_gpd_gdf = input1_gdf.overlay(input2_gdf, how="union", keep_geom_type=True)
@@ -1023,7 +1032,7 @@ def test_union_circles(tmp_path, suffix, epsg):
 
     # Check the contents of the result file
     output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
+    assert output_gdf.geometry[0] is not None
     input1_gdf = gfo.read_file(input1_path)
     input2_gdf = gfo.read_file(input2_path)
     output_gpd_gdf = input1_gdf.overlay(input2_gdf, how="union", keep_geom_type=True)

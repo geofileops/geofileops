@@ -6,14 +6,17 @@ Tests for operations using GeoPandas.
 import json
 import math
 from pathlib import Path
-import sys
 
 import geopandas as gpd
+import geopandas._compat as gpd_compat
 import pytest
+
+if gpd_compat.USE_PYGEOS:
+    import pygeos as shapely2_or_pygeos
+else:
+    import shapely as shapely2_or_pygeos
 import shapely.geometry as sh_geom
 
-# Add path so the local geofileops packages are found
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import geofileops as gfo
 from geofileops import GeometryType
 from geofileops.util import _geoops_gpd, grid_util
@@ -83,7 +86,7 @@ def test_apply(tmp_path, suffix, only_geom_input, force_output_geometrytype):
     # Read result for some more detailed checks
     output_gdf = gfo.read_file(output_path)
     for index in range(0, 2):
-        output_geometry = output_gdf["geometry"][index]
+        output_geometry = output_gdf.geometry[index]
         assert output_geometry is not None
         if isinstance(output_geometry, sh_geom.MultiPolygon):
             assert len(output_geometry.geoms) == 1
@@ -133,7 +136,7 @@ def test_buffer_styles(tmp_path, suffix, epsg):
 
     # Read result
     output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
+    assert output_gdf.geometry[0] is not None
     area_default_buffer = sum(output_gdf.area)
 
     # Test polygon buffer with square endcaps
@@ -158,7 +161,7 @@ def test_buffer_styles(tmp_path, suffix, epsg):
 
     # Read result for some more detailed checks
     output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
+    assert output_gdf.geometry[0] is not None
     area_square_buffer = sum(output_gdf.area)
     assert area_square_buffer > area_default_buffer
 
@@ -202,7 +205,7 @@ def test_dissolve_linestrings(tmp_path, suffix, epsg):
     output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == output_layerinfo.featurecount
-    assert output_gdf["geometry"][0] is not None
+    assert output_gdf.geometry[0] is not None
     # TODO: add more in depth check of result
 
     # Dissolve, no groupby, explodecollections=False
@@ -232,7 +235,7 @@ def test_dissolve_linestrings(tmp_path, suffix, epsg):
     output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == output_layerinfo.featurecount
-    assert output_gdf["geometry"][0] is not None
+    assert output_gdf.geometry[0] is not None
     # TODO: add more in depth check of result
 
 
@@ -276,7 +279,7 @@ def test_dissolve_linestrings_groupby(tmp_path, suffix, epsg):
     output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == output_layerinfo.featurecount
-    assert output_gdf["geometry"][0] is not None
+    assert output_gdf.geometry[0] is not None
     # TODO: add more in depth check of result
 
 
@@ -331,7 +334,7 @@ def test_dissolve_linestrings_aggcolumns_columns(tmp_path, suffix, epsg):
     output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == output_layerinfo.featurecount
-    assert output_gdf["geometry"][0] is not None
+    assert output_gdf.geometry[0] is not None
 
     # Some more default checks for NISCODE 12009
     niscode_idx = output_gdf[output_gdf["NIScode"] == "12009"].index.item()
@@ -383,7 +386,7 @@ def test_dissolve_linestrings_aggcolumns_json(tmp_path, agg_columns):
     output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == output_layerinfo.featurecount
-    assert output_gdf["geometry"][0] is not None
+    assert output_gdf.geometry[0] is not None
 
     # Some more default checks for NISCODE 12009
     niscode_idx = output_gdf[output_gdf["NIScode"] == "12009"].index.item()
@@ -414,20 +417,20 @@ def test_dissolve_linestrings_aggcolumns_json(tmp_path, agg_columns):
 
 
 @pytest.mark.parametrize(
-    "suffix, epsg, groupby_columns, explode, expected_featurecount",
+    "suffix, epsg, groupby_columns, explode, gridsize, expected_featurecount",
     [
-        (".gpkg", 31370, ["GEWASGROEP"], True, 25),
-        (".gpkg", 31370, ["GEWASGROEP"], False, 6),
-        (".gpkg", 31370, ["gewasGROEP"], False, 6),
-        (".gpkg", 31370, [], True, 23),
-        (".gpkg", 31370, None, False, 1),
-        (".gpkg", 4326, ["GEWASGROEP"], True, 25),
-        (".shp", 31370, ["GEWASGROEP"], True, 25),
-        (".shp", 31370, [], True, 23),
+        (".gpkg", 31370, ["GEWASGROEP"], True, 0.0, 25),
+        (".gpkg", 31370, ["GEWASGROEP"], False, 0.0, 6),
+        (".gpkg", 31370, ["gewasGROEP"], False, 0.01, 6),
+        (".gpkg", 31370, [], True, 0.0, 23),
+        (".gpkg", 31370, None, False, 0.0, 1),
+        (".gpkg", 4326, ["GEWASGROEP"], True, 0.0, 25),
+        (".shp", 31370, ["GEWASGROEP"], True, 0.0, 25),
+        (".shp", 31370, [], True, 0.0, 23),
     ],
 )
 def test_dissolve_polygons(
-    tmp_path, suffix, epsg, groupby_columns, explode, expected_featurecount
+    tmp_path, suffix, epsg, groupby_columns, explode, gridsize, expected_featurecount
 ):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
@@ -437,14 +440,14 @@ def test_dissolve_polygons(
     # Test dissolve polygons with different options for groupby and explodecollections
     # --------------------------------------------------------------------------------
     groupby = True if (groupby_columns is None or len(groupby_columns) == 0) else False
-    output_path = (
-        tmp_path / f"{input_path.stem}_groupby-{groupby}_explode-{explode}{suffix}"
-    )
+    name = f"{input_path.stem}_groupby-{groupby}_explode-{explode}_gridsize-{gridsize}"
+    output_path = tmp_path / f"{name}{suffix}"
     gfo.dissolve(
         input_path=input_path,
         output_path=output_path,
         groupby_columns=groupby_columns,
         explodecollections=explode,
+        gridsize=gridsize,
         nb_parallel=2,
         batchsize=batchsize,
     )
@@ -470,7 +473,7 @@ def test_dissolve_polygons(
     output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == output_layerinfo.featurecount
-    assert output_gdf["geometry"][0] is not None
+    assert output_gdf.geometry[0] is not None
 
     # Compare result with geopandas
     columns = ["geometry"]
@@ -486,6 +489,10 @@ def test_dissolve_polygons(
         ).rename(columns=groupby_columns_upper)
     if explode:
         output_gpd_gdf = output_gpd_gdf.explode(ignore_index=True)
+    if gridsize != 0.0:
+        output_gpd_gdf.geometry = shapely2_or_pygeos.set_precision(
+            output_gpd_gdf.geometry.array.data, grid_size=gridsize
+        )
     output_gpd_path = tmp_path / f"{input_path.stem}_gpd-output{suffix}"
     gfo.to_file(output_gpd_gdf, output_gpd_path)
 
@@ -594,6 +601,7 @@ def test_dissolve_invalid_params(tmp_path, sql_singlethread, invalid_params, exp
                 groupby_columns=groupby_columns,
                 explodecollections=True,
                 agg_columns=agg_columns,
+                gridsize=0.0,
             )
         else:
             gfo.dissolve(
@@ -684,7 +692,7 @@ def test_dissolve_polygons_specialcases(tmp_path, suffix):
         output_gdf = gfo.read_file(output_path)
         assert input_gdf.crs == output_gdf.crs
         assert len(output_gdf) == output_layerinfo.featurecount
-        assert output_gdf["geometry"][0] is not None
+        assert output_gdf.geometry[0] is not None
 
     # Test dissolve polygons with tiles_path
     # --------------------------------------
@@ -725,7 +733,7 @@ def test_dissolve_polygons_specialcases(tmp_path, suffix):
     output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == output_layerinfo.featurecount
-    assert output_gdf["geometry"][0] is not None
+    assert output_gdf.geometry[0] is not None
 
     # Test dissolve to existing output path without and without force
     # ---------------------------------------------------------------
@@ -818,7 +826,7 @@ def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
     output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == output_layerinfo.featurecount
-    assert output_gdf["geometry"][0] is not None
+    assert output_gdf.geometry[0] is not None
 
     # Check agg_columns results
     grasland_idx = output_gdf[output_gdf["GEWASGROEP"] == "Grasland"].index.to_list()[0]
@@ -889,7 +897,7 @@ def test_dissolve_polygons_aggcolumns_json(tmp_path, agg_columns):
     output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == output_layerinfo.featurecount
-    assert output_gdf["geometry"][0] is not None
+    assert output_gdf.geometry[0] is not None
     grasland_json = json.loads(str(output_gdf["json"][0]))
     assert len(grasland_json) == 30
     grasland_json_firstrow = json.loads(str(grasland_json[0]))
@@ -949,7 +957,7 @@ def test_simplify_vw(tmp_path, suffix, epsg, testfile):
     output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == output_layerinfo.featurecount
-    assert output_gdf["geometry"][0] is not None
+    assert output_gdf.geometry[0] is not None
     # TODO: a more in-depth check would be better
 
 
@@ -997,5 +1005,5 @@ def test_simplify_lang(tmp_path, suffix, epsg, testfile):
     output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == output_layerinfo.featurecount
-    assert output_gdf["geometry"][0] is not None
+    assert output_gdf.geometry[0] is not None
     # TODO: some more in-depth validations would be better

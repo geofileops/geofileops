@@ -115,7 +115,7 @@ def test_warp(tmp_path):
 
     # Now check the contents of the result file
     output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
+    assert output_gdf.geometry[0] is not None
     output_bounds = output_gdf.total_bounds
     assert output_bounds[0] >= warped_min
     assert output_bounds[1] >= warped_min
