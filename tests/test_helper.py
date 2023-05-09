@@ -12,10 +12,10 @@ import geopandas as gpd
 import geopandas._compat as gpd_compat
 import geopandas.testing as gpd_testing
 
-if gpd_compat.USE_SHAPELY_20:
-    import shapely as shapely2_or_pygeos
-else:
+if gpd_compat.USE_PYGEOS:
     import pygeos as shapely2_or_pygeos
+else:
+    import shapely as shapely2_or_pygeos
 import shapely.geometry as sh_geom
 
 # Add path so the local geofileops packages are found

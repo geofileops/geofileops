@@ -11,10 +11,10 @@ import geopandas._compat as gpd_compat
 import numpy as np
 import pandas as pd
 
-if gpd_compat.USE_SHAPELY_20:
-    import shapely as shapely2_or_pygeos
-else:
+if gpd_compat.USE_PYGEOS:
     import pygeos as shapely2_or_pygeos
+else:
+    import shapely as shapely2_or_pygeos
 from shapely import geometry as sh_geom
 
 from . import geometry_util
