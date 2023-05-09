@@ -8,10 +8,7 @@ import geopandas._compat as gpd_compat
 if gpd_compat.USE_PYGEOS:
     os.environ["USE_PYGEOS"] = "1"
 else:
-    if gpd_compat.USE_SHAPELY_20:
-        os.environ["USE_PYGEOS"] = "0"
-    else:
-        raise RuntimeError("geofileops needs either shapely2 or pygeos to be installed")
+    os.environ["USE_PYGEOS"] = "0"
 
 from geofileops.fileops import *  # noqa: F403, F401
 from geofileops.geoops import *  # noqa: F403, F401
