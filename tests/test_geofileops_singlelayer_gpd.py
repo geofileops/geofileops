@@ -214,11 +214,13 @@ def test_dissolve_linestrings(tmp_path, suffix, epsg):
         output_basepath.parent
         / f"{output_basepath.stem}_noexpl{output_basepath.suffix}"
     )
+    gridsize = 0.01
     gfo.dissolve(
         input_path=input_path,
         output_path=output_path,
         explodecollections=False,
         batchsize=batchsize,
+        gridsize=gridsize,
     )
 
     # Check if the result file is correctly created

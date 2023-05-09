@@ -2606,12 +2606,6 @@ def dissolve_singlethread(
 
     # Apply tolerance gridsize on result
     if gridsize != 0.0:
-        if force_output_geometrytype is None:
-            raise ValueError(
-                "if a gridsize is specified, a force_output_geometrytype "
-                "is needed as well"
-            )
-
         # Apply snaptogrid, but this results in invalid geometries, so also
         # ST_Makevalid. It can also result in collapsed (pieces of)
         # geometries, so also collectionextract.
