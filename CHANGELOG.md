@@ -9,7 +9,8 @@
 - Improve performance of spatial operations when only one batch is used (#271)
 - Add checks that `output_path` must not be equal to the/an `input_path` for geo
   operations (#246)
-- Support standard geopandas usage of shapely2 and/or pygeos (#289, #294)
+- Follow geopandas behaviour of using shapely2 and/or pygeos instead of forcing pygeos
+  (#294)
 - Many small improvements to logging, documentation, error messages,...
 
 ### Bugs fixed
