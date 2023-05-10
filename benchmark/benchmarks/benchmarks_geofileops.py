@@ -23,6 +23,7 @@ from geofileops.util import _geoops_gpd
 ################################################################################
 
 logger = logging.getLogger(__name__)
+nb_parallel = min(multiprocessing.cpu_count(), 12)
 
 ################################################################################
 # The real work
@@ -44,14 +45,14 @@ def buffer(tmp_dir: Path) -> RunResult:
     # Go!
     start_time = datetime.now()
     output_path = tmp_dir / f"{input_path.stem}_buf.gpkg"
-    gfo.buffer(input_path, output_path, distance=1, force=True)
+    gfo.buffer(input_path, output_path, distance=1, nb_parallel=nb_parallel, force=True)
     result = RunResult(
         package=_get_package(),
         package_version=_get_version(),
         operation="buffer",
         secs_taken=(datetime.now() - start_time).total_seconds(),
         operation_descr="buffer on agri parcel layer BEFL (~500.000 polygons)",
-        run_details={"nb_cpu": multiprocessing.cpu_count()},
+        run_details={"nb_cpu": nb_parallel},
     )
 
     # Cleanup and return
@@ -66,14 +67,16 @@ def buffer_spatialite(tmp_dir: Path) -> RunResult:
     # Go!
     start_time = datetime.now()
     output_path = tmp_dir / f"{input_path.stem}_buf_spatialite.gpkg"
-    _geoops_sql.buffer(input_path, output_path, distance=1, force=True)
+    _geoops_sql.buffer(
+        input_path, output_path, distance=1, nb_parallel=nb_parallel, force=True
+    )
     result = RunResult(
         package=_get_package(),
         package_version=_get_version(),
         operation="buffer_spatialite",
         secs_taken=(datetime.now() - start_time).total_seconds(),
         operation_descr="buffer on agri parcel layer BEFL (~500.000 polygons)",
-        run_details={"nb_cpu": multiprocessing.cpu_count()},
+        run_details={"nb_cpu": nb_parallel},
     )
 
     # Cleanup and return
@@ -88,7 +91,14 @@ def buffer_gridsize_spatialite(tmp_dir: Path) -> RunResult:
     # Go!
     start_time = datetime.now()
     output_path = tmp_dir / f"{input_path.stem}_buf_grid01_spatialite.gpkg"
-    _geoops_sql.buffer(input_path, output_path, distance=1, gridsize=0.1, force=True)
+    _geoops_sql.buffer(
+        input_path,
+        output_path,
+        distance=1,
+        gridsize=0.1,
+        nb_parallel=nb_parallel,
+        force=True,
+    )
     result = RunResult(
         package=_get_package(),
         package_version=_get_version(),
@@ -112,14 +122,16 @@ def buffer_gpd(tmp_dir: Path) -> RunResult:
     # Go!
     start_time = datetime.now()
     output_path = tmp_dir / f"{input_path.stem}_buf_gpd.gpkg"
-    _geoops_gpd.buffer(input_path, output_path, distance=1, force=True)
+    _geoops_gpd.buffer(
+        input_path, output_path, distance=1, nb_parallel=nb_parallel, force=True
+    )
     result = RunResult(
         package=_get_package(),
         package_version=_get_version(),
         operation="buffer_gpd",
         secs_taken=(datetime.now() - start_time).total_seconds(),
         operation_descr="buffer on agri parcel layer BEFL (~500.000 polygons)",
-        run_details={"nb_cpu": multiprocessing.cpu_count()},
+        run_details={"nb_cpu": nb_parallel},
     )
 
     # Cleanup and return
@@ -138,6 +150,7 @@ def dissolve_nogroupby(tmp_dir: Path) -> RunResult:
         input_path=input_path,
         output_path=output_path,
         explodecollections=True,
+        nb_parallel=nb_parallel,
         force=True,
     )
     result = RunResult(
@@ -146,7 +159,7 @@ def dissolve_nogroupby(tmp_dir: Path) -> RunResult:
         operation="dissolve",
         secs_taken=(datetime.now() - start_time).total_seconds(),
         operation_descr="dissolve on agri parcels BEFL (~500.000 polygons)",
-        run_details={"nb_cpu": multiprocessing.cpu_count()},
+        run_details={"nb_cpu": nb_parallel},
     )
 
     # Cleanup and return
@@ -166,6 +179,7 @@ def dissolve_groupby(tmp_dir: Path) -> RunResult:
         output_path,
         groupby_columns=["GEWASGROEP"],
         explodecollections=True,
+        nb_parallel=nb_parallel,
         force=True,
     )
     result = RunResult(
@@ -176,7 +190,7 @@ def dissolve_groupby(tmp_dir: Path) -> RunResult:
         operation_descr=(
             "dissolve on agri parcels BEFL (~500.000 polygons), groupby=[GEWASGROEP]"
         ),
-        run_details={"nb_cpu": multiprocessing.cpu_count()},
+        run_details={"nb_cpu": nb_parallel},
     )
 
     # Cleanup and return
@@ -196,6 +210,7 @@ def clip(tmp_dir: Path) -> RunResult:
         input_path=input1_path,
         clip_path=input2_path,
         output_path=output_path,
+        nb_parallel=nb_parallel,
         force=True,
     )
     result = RunResult(
@@ -204,7 +219,7 @@ def clip(tmp_dir: Path) -> RunResult:
         operation="clip",
         secs_taken=(datetime.now() - start_time).total_seconds(),
         operation_descr="clip between 2 agri parcel layers BEFL (2*~500.000 polygons)",
-        run_details={"nb_cpu": multiprocessing.cpu_count()},
+        run_details={"nb_cpu": nb_parallel},
     )
 
     # Cleanup and return
@@ -224,6 +239,7 @@ def intersection(tmp_dir: Path) -> RunResult:
         input1_path=input1_path,
         input2_path=input2_path,
         output_path=output_path,
+        nb_parallel=nb_parallel,
         force=True,
     )
     result = RunResult(
@@ -234,7 +250,7 @@ def intersection(tmp_dir: Path) -> RunResult:
         operation_descr=(
             "intersection between 2 agri parcel layers BEFL (2*~500.000 polygons)"
         ),
-        run_details={"nb_cpu": multiprocessing.cpu_count()},
+        run_details={"nb_cpu": nb_parallel},
     )
 
     # Cleanup and return
@@ -255,6 +271,7 @@ def _intersection_gridsize(tmp_dir: Path) -> RunResult:
         input2_path=input2_path,
         output_path=output_path,
         gridsize=0.1,
+        nb_parallel=nb_parallel,
         force=True,
     )
     result = RunResult(
@@ -266,7 +283,7 @@ def _intersection_gridsize(tmp_dir: Path) -> RunResult:
             "intersection with gridsize 0.1 between 2 agri parcel layers BEFL "
             "(2*~500.000 polygons)"
         ),
-        run_details={"nb_cpu": multiprocessing.cpu_count()},
+        run_details={"nb_cpu": nb_parallel},
     )
 
     # Cleanup and return
@@ -303,6 +320,7 @@ def join_by_location_intersects(tmp_dir: Path) -> RunResult:
         input2_path=input2_path,
         output_path=output_path,
         spatial_relations_query="intersects is True",
+        nb_parallel=nb_parallel,
         force=True,
     )
     result = RunResult(
@@ -314,7 +332,7 @@ def join_by_location_intersects(tmp_dir: Path) -> RunResult:
             "join_by_location_intersects between 2 agri parcel layers BEFL "
             "(2*~500.000 polygons)"
         ),
-        run_details={"nb_cpu": multiprocessing.cpu_count()},
+        run_details={"nb_cpu": nb_parallel},
     )
 
     # Cleanup and return
@@ -335,6 +353,7 @@ def union(tmp_dir: Path) -> RunResult:
         input1_path=input1_path,
         input2_path=input2_path,
         output_path=output_path,
+        nb_parallel=nb_parallel,
         force=True,
     )
     result = RunResult(
@@ -343,7 +362,7 @@ def union(tmp_dir: Path) -> RunResult:
         operation="union",
         secs_taken=(datetime.now() - start_time).total_seconds(),
         operation_descr="union between 2 agri parcel layers BEFL (2*~500.000 polygons)",
-        run_details={"nb_cpu": multiprocessing.cpu_count()},
+        run_details={"nb_cpu": nb_parallel},
     )
 
     # Cleanup and return
