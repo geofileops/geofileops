@@ -13,6 +13,7 @@ from pathlib import Path
 import shutil
 import string
 from typing import Iterable, List, Literal, Optional, Union
+import warnings
 
 import pandas as pd
 
@@ -321,7 +322,7 @@ def makevalid(
         columns=columns,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
-        gridsize=gridsize,
+        gridsize=0.0,
         sql_dialect="SQLITE",
         filter_null_geoms=True,
         nb_parallel=nb_parallel,
@@ -346,6 +347,7 @@ def select(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
+    gridsize: float = 0.0,
     nb_parallel: int = 1,
     batchsize: int = -1,
     force: bool = False,
@@ -378,7 +380,7 @@ def select(
         columns=columns,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
-        gridsize=0.0,
+        gridsize=gridsize,
         sql_dialect=sql_dialect,
         filter_null_geoms=False,
         nb_parallel=nb_parallel,
@@ -471,12 +473,12 @@ def _single_layer_vector_operation(
         else:
             gfo.remove(output_path)
 
-    # Get layer info of the input layer
-    input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
-
     # Calculate
     tempdir = _io_util.create_tempdir(f"geofileops/{operation_name.replace(' ', '_')}")
     try:
+        # If gridsize != 0.0 we need an sqlite file to be able to determine the columns
+        # later on.
+        convert_to_spatialite_based = False if gridsize == 0.0 else True
         processing_params = _prepare_processing_params(
             input1_path=input_path,
             input1_layer=input_layer,
@@ -484,11 +486,15 @@ def _single_layer_vector_operation(
             tempdir=tempdir,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
-            convert_to_spatialite_based=False,
+            convert_to_spatialite_based=convert_to_spatialite_based,
         )
         # If None is returned, just stop.
         if processing_params is None or processing_params.batches is None:
             return
+
+        # Get layer info of the input layer to use
+        assert processing_params.input1_path is not None
+        input_layerinfo = gfo.get_layerinfo(processing_params.input1_path, input_layer)
 
         # If multiple batches, there should be a batch_filter placeholder sql_template
         nb_batches = len(processing_params.batches)
@@ -508,6 +514,55 @@ def _single_layer_vector_operation(
             columns_in_layer=input_layerinfo.columns,
             fid_column=input_layerinfo.fid_column,
         )
+
+        # Fill out/add to the sql_template what is already possible
+        # ---------------------------------------------------------
+        sql_template = sql_template.format(
+            geometrycolumn=input_layerinfo.geometrycolumn,
+            columns_to_select_str=column_formatter.prefixed_aliased(),
+            input_layer=processing_params.input1_layer,
+            batch_filter="{batch_filter}",
+        )
+
+        # Add snaptogrid around sql_template if gridsize specified
+        if gridsize != 0.0:
+            # Apply snaptogrid, but this results in invalid geometries, so also
+            # ST_Makevalid. It can also result in collapsed (pieces of)
+            # geometries, so also collectionextract.
+            gridsize_op = f"ST_MakeValid(SnapToGrid(sub_gridsize.geom, {gridsize}))"
+            if force_output_geometrytype is None:
+                warnings.warn(
+                    "a gridsize is specified but no force_output_geometrytype, this "
+                    "can result in inconsistent geometries in the output"
+                )
+            else:
+                primitivetypeid = force_output_geometrytype.to_primitivetype.value
+                gridsize_op = f"ST_CollectionExtract({gridsize_op}, {primitivetypeid})"
+
+            # Get all columns of the sql_template
+            sql_tmp = sql_template.format(batch_filter="")
+            cols = _sqlite_util.get_columns(
+                sql_stmt=sql_tmp,
+                input1_path=processing_params.input1_path,  # type: ignore
+            )
+            cols = [col for col in cols if col.lower() != "geom"]
+            columns_to_select = _ogr_sql_util.columns_quoted(cols)
+            sql_template = f"""
+                SELECT {gridsize_op} AS geom
+                      {columns_to_select}
+                  FROM ( {sql_template}
+                    ) sub_gridsize
+            """
+
+        # Add where filter around sql_template if relevant
+        if filter_null_geoms:
+            where = "sub_where.geom IS NOT NULL"
+            sql_template = f"""
+                SELECT sub_where.* FROM
+                    ( {sql_template}
+                    ) sub_where
+                    WHERE {where}
+            """
 
         # Prepare temp output filename
         tmp_output_path = tempdir / output_path.name
@@ -530,47 +585,10 @@ def _single_layer_vector_operation(
                 )
                 batches[batch_id]["tmp_partial_output_path"] = tmp_partial_output_path
 
-                # Now we have everything to format sql statement
+                # Fill out sql_template
                 sql_stmt = sql_template.format(
-                    geometrycolumn=input_layerinfo.geometrycolumn,
-                    columns_to_select_str=column_formatter.prefixed_aliased(),
-                    input_layer=processing_params.batches[batch_id]["layer"],
-                    batch_filter=processing_params.batches[batch_id]["batch_filter"],
+                    batch_filter=processing_params.batches[batch_id]["batch_filter"]
                 )
-
-                # Apply tolerance gridsize on result
-                if gridsize != 0.0:
-                    if force_output_geometrytype is None:
-                        raise ValueError(
-                            "if a gridsize is specified, a force_output_geometrytype "
-                            "is needed as well"
-                        )
-
-                    # Apply snaptogrid, but this results in invalid geometries, so also
-                    # ST_Makevalid. It can also result in collapsed (pieces of)
-                    # geometries, so also collectionextract.
-                    geomop = f"ST_MakeValid(SnapToGrid(geom, {gridsize}))"
-                    primitivetypeid = force_output_geometrytype.to_primitivetype.value
-                    geomop = f"ST_CollectionExtract({geomop}, {primitivetypeid})"
-
-                    columns_to_select = column_formatter.from_subselect("sub_gridsize")
-                    sql_stmt = f"""
-                        SELECT {geomop} AS geom
-                              {columns_to_select}
-                          FROM ( {sql_stmt}
-                            ) sub_gridsize
-                    """
-
-                # Apply where filter if relevant
-                if filter_null_geoms:
-                    where = "sub_where.geom IS NOT NULL"
-                    sql_stmt = f"""
-                        SELECT sub_where.* FROM
-                          ( {sql_stmt}
-                          ) sub_where
-                         WHERE {where}
-                    """
-
                 batches[batch_id]["sql_stmt"] = sql_stmt
 
                 # If there is only one batch, it is faster to create the spatial index
@@ -1465,6 +1483,7 @@ def select_two_layers(
     output_layer: Optional[str] = None,
     force_output_geometrytype: Optional[GeometryType] = None,
     explodecollections: bool = False,
+    gridsize: float = 0.0,
     nb_parallel: int = 1,
     batchsize: int = -1,
     force: bool = False,
@@ -1485,7 +1504,7 @@ def select_two_layers(
         output_layer=output_layer,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
-        gridsize=0.0,
+        gridsize=gridsize,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -1923,6 +1942,7 @@ def _two_layer_vector_operation(
 
     try:
         # Prepare tmp files/batches
+        # -------------------------
         logger.info(
             f"Prepare input (params) for {operation_name} with tempdir: {tempdir}"
         )
@@ -1953,6 +1973,7 @@ def _two_layer_vector_operation(
                 )
 
         # Prepare column names,... to format the select
+        # ---------------------------------------------
         # Format column strings for use in select
         assert processing_params.input1_path is not None
         input1_tmp_layerinfo = gfo.get_layerinfo(
@@ -1984,7 +2005,65 @@ def _two_layer_vector_operation(
                 f"{input1_tmp_layerinfo.crs} \n\tinput2: {input2_tmp_layerinfo.crs}"
             )
 
+        # Fill out sql_template as much as possible already
+        # -------------------------------------------------
+        # Keep input1_tmp_layer and input2_tmp_layer for backwards compatibility
+        sql_template = sql_template.format(
+            input1_databasename="{input1_databasename}",
+            input2_databasename="{input2_databasename}",
+            layer1_columns_from_subselect_str=input1_col_strs.from_subselect(),
+            layer1_columns_prefix_alias_str=input1_col_strs.prefixed_aliased(),
+            layer1_columns_prefix_str=input1_col_strs.prefixed(),
+            input1_layer=processing_params.input1_layer,
+            input1_tmp_layer=processing_params.input1_layer,
+            input1_geometrycolumn=input1_tmp_layerinfo.geometrycolumn,
+            layer2_columns_from_subselect_str=input2_col_strs.from_subselect(),
+            layer2_columns_prefix_alias_str=input2_col_strs.prefixed_aliased(),
+            layer2_columns_prefix_str=input2_col_strs.prefixed(),
+            layer2_columns_prefix_alias_null_str=input2_col_strs.null_aliased(),
+            input2_layer=processing_params.input2_layer,
+            input2_tmp_layer=processing_params.input2_layer,
+            input2_geometrycolumn=input2_tmp_layerinfo.geometrycolumn,
+            batch_filter="{batch_filter}",
+        )
+
+        # Add snaptogrid around sql_template if gridsize specified
+        if gridsize != 0.0:
+            # Apply snaptogrid, but this results in invalid geometries, so also
+            # ST_Makevalid. It can also result in collapsed (pieces of)
+            # geometries, so also collectionextract.
+            gridsize_op = f"ST_MakeValid(SnapToGrid(sub_gridsize.geom, {gridsize}))"
+            if force_output_geometrytype is None:
+                warnings.warn(
+                    "a gridsize is specified but no force_output_geometrytype, this "
+                    "can result in inconsistent geometries in the output"
+                )
+            else:
+                primitivetypeid = force_output_geometrytype.to_primitivetype.value
+                gridsize_op = f"ST_CollectionExtract({gridsize_op}, {primitivetypeid})"
+
+            # Get all columns of the sql_template
+            sql_tmp = sql_template.format(
+                input1_databasename="{input1_databasename}",
+                input2_databasename="{input2_databasename}",
+                batch_filter="",
+            )
+            cols = _sqlite_util.get_columns(
+                sql_stmt=sql_tmp,
+                input1_path=processing_params.input1_path,
+                input2_path=processing_params.input2_path,
+            )
+            cols = [col for col in cols if col.lower() != "geom"]
+            columns_to_select = _ogr_sql_util.columns_quoted(cols)
+            sql_template = f"""
+                SELECT {gridsize_op} AS geom
+                        {columns_to_select}
+                    FROM ( {sql_template}
+                    ) sub_gridsize
+            """
+
         # Calculate
+        # ---------
         # Processing in threads is 2x faster for small datasets (on Windows)
         calculate_in_threads = (
             True if input1_tmp_layerinfo.featurecount <= 100 else False
@@ -2009,52 +2088,12 @@ def _two_layer_vector_operation(
                 )
                 batches[batch_id]["tmp_partial_output_path"] = tmp_partial_output_path
 
-                # Keep input1_tmp_layer and input2_tmp_layer for backwards
-                # compatibility
+                # Fill out final things in sql_template
                 sql_stmt = sql_template.format(
                     input1_databasename="{input1_databasename}",
                     input2_databasename="{input2_databasename}",
-                    layer1_columns_from_subselect_str=input1_col_strs.from_subselect(),
-                    layer1_columns_prefix_alias_str=input1_col_strs.prefixed_aliased(),
-                    layer1_columns_prefix_str=input1_col_strs.prefixed(),
-                    input1_layer=processing_params.batches[batch_id]["layer"],
-                    input1_tmp_layer=processing_params.batches[batch_id]["layer"],
-                    input1_geometrycolumn=input1_tmp_layerinfo.geometrycolumn,
-                    layer2_columns_from_subselect_str=input2_col_strs.from_subselect(),
-                    layer2_columns_prefix_alias_str=input2_col_strs.prefixed_aliased(),
-                    layer2_columns_prefix_str=input2_col_strs.prefixed(),
-                    layer2_columns_prefix_alias_null_str=input2_col_strs.null_aliased(),
-                    input2_layer=processing_params.input2_layer,
-                    input2_tmp_layer=processing_params.input2_layer,
-                    input2_geometrycolumn=input2_tmp_layerinfo.geometrycolumn,
                     batch_filter=processing_params.batches[batch_id]["batch_filter"],
                 )
-
-                # Apply tolerance gridsize on result
-                if gridsize != 0.0:
-                    if force_output_geometrytype is None:
-                        raise ValueError(
-                            "if a gridsize is specified, a force_output_geometrytype "
-                            "is needed as well"
-                        )
-
-                    # Apply snaptogrid, but this results in invalid geometries, so also
-                    # ST_Makevalid. It can also result in collapsed (pieces of)
-                    # geometries, so also collectionextract.
-                    geomop = f"ST_MakeValid(SnapToGrid(sub_gridsize.geom, {gridsize}))"
-                    primitivetypeid = force_output_geometrytype.to_primitivetype.value
-                    geomop = f"ST_CollectionExtract({geomop}, {primitivetypeid})"
-
-                    input1_cols = input1_col_strs.from_subselect("sub_gridsize")
-                    input2_cols = input2_col_strs.from_subselect("sub_gridsize")
-                    sql_stmt = f"""
-                        SELECT {geomop} AS geom
-                              {input1_cols}
-                              {input2_cols}
-                          FROM ( {sql_stmt}
-                            ) sub_gridsize
-                    """
-
                 batches[batch_id]["sqlite_stmt"] = sql_stmt
 
                 # Remark: this temp file doesn't need spatial index
@@ -2278,9 +2317,7 @@ def _prepare_processing_params(
     else:
         # Check if the input files are of the correct geofiletype
         input1_geofiletype = GeofileType(input1_path)
-        input2_geofiletype = None
-        if input2_path is not None:
-            input2_geofiletype = GeofileType(input2_path)
+        input2_geofiletype = None if input2_path is None else GeofileType(input2_path)
 
         # If input files are of the same format + are spatialite compatible,
         # just use them
@@ -2610,8 +2647,14 @@ def dissolve_singlethread(
         # ST_Makevalid. It can also result in collapsed (pieces of)
         # geometries, so also collectionextract.
         operation = f"ST_MakeValid(SnapToGrid({operation}, {gridsize}))"
-        primitivetypeid = layerinfo.geometrytype.to_primitivetype.value
-        operation = f"ST_CollectionExtract({operation}, {primitivetypeid})"
+        if force_output_geometrytype is None:
+            warnings.warn(
+                "a gridsize is specified but no force_output_geometrytype, this "
+                "can result in inconsistent geometries in the output"
+            )
+        else:
+            primitivetypeid = force_output_geometrytype.to_primitivetype.value
+            operation = f"ST_CollectionExtract({operation}, {primitivetypeid})"
 
     sql_stmt = f"""
         SELECT {operation} AS geom

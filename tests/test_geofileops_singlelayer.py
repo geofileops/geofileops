@@ -45,6 +45,10 @@ def get_combinations_to_test(
     fileops_modules: List[str],
     testfiles: List[str] = ["polygon-parcel", "point", "linestring-row-trees"],
 ) -> list:
+    """
+    Return sensible combinations of parameters to be used in tests for following params:
+        suffix, epsg, fileops_module, testfile, empty_input, gridsize
+    """
     result = []
 
     # On .gpkg test:
@@ -53,7 +57,10 @@ def get_combinations_to_test(
     for epsg in DEFAULT_EPSGS:
         for fileops_module in fileops_modules:
             for testfile in testfiles:
-                result.append((".gpkg", epsg, fileops_module, testfile, False))
+                gridsize = 0.001 if epsg == 31370 else 0.0
+                result.append(
+                    (".gpkg", epsg, fileops_module, testfile, False, gridsize)
+                )
 
     # On other suffixes test:
     #   - all combinations of fileops_modules, testfiles
@@ -63,23 +70,29 @@ def get_combinations_to_test(
     for suffix in other_suffixes:
         for fileops_module in fileops_modules:
             for testfile in testfiles:
-                result.append((".shp", 31370, fileops_module, testfile, False))
+                gridsize = 0.001 if testfile == "polygon-parcel" else 0.0
+                result.append((suffix, 31370, fileops_module, testfile, False, 0.0))
 
     # Test empty_input=True on
     #   - all combinations of fileops_modules and DEFAULT_SUFFIXES
     #   - fixed epsg, testfile and empty_input
     for fileops_module in fileops_modules:
         for suffix in DEFAULT_SUFFIXES:
-            result.append((suffix, 31370, fileops_module, "polygon-parcel", True))
+            gridsize = 0.001 if suffix == ".gpkg" else 0.0
+            result.append(
+                (suffix, 31370, fileops_module, "polygon-parcel", True, gridsize)
+            )
 
     return result
 
 
 @pytest.mark.parametrize(
-    "suffix, epsg, fileops_module, testfile, empty_input",
+    "suffix, epsg, fileops_module, testfile, empty_input, gridsize",
     get_combinations_to_test(["geofileops.geoops", "geofileops.util._geoops_gpd"]),
 )
-def test_buffer(tmp_path, suffix, epsg, fileops_module, testfile, empty_input):
+def test_buffer(
+    tmp_path, suffix, epsg, fileops_module, testfile, empty_input, gridsize
+):
     """Buffer basics are available both in the gpd and sql implementations."""
     # Prepare test data
     input_path = test_helper.get_testfile(
@@ -102,6 +115,7 @@ def test_buffer(tmp_path, suffix, epsg, fileops_module, testfile, empty_input):
         input_path=input_path,
         output_path=output_path,
         distance=distance,
+        gridsize=gridsize,
         nb_parallel=2,
         batchsize=batchsize,
     )
@@ -122,6 +136,10 @@ def test_buffer(tmp_path, suffix, epsg, fileops_module, testfile, empty_input):
         check_less_precise = (
             True if input_layerinfo.crs.is_projected is False else False
         )
+        if gridsize != 0.0:
+            expected_gdf.geometry = shapely2_or_pygeos.set_precision(
+                expected_gdf.geometry.array.data, grid_size=gridsize
+            )
         assert_geodataframe_equal(
             output_gdf,
             expected_gdf,
@@ -129,64 +147,6 @@ def test_buffer(tmp_path, suffix, epsg, fileops_module, testfile, empty_input):
             check_less_precise=check_less_precise,
             sort_values=True,
         )
-
-
-@pytest.mark.parametrize(
-    "fileops_module", ["geofileops.geoops", "geofileops.util._geoops_gpd"]
-)
-@pytest.mark.parametrize(
-    "testfile", ["polygon-parcel", "point", "linestring-row-trees"]
-)
-def test_buffer_gridsize(tmp_path, fileops_module, testfile):
-    """
-    Buffer, with gridsize specified.
-
-    The algorithm used for sql based implementation is slightly different, so depending
-    on the gridsize specified the result might match the expected implementation or not.
-    """
-    # Prepare test data
-    input_path = test_helper.get_testfile(testfile)
-
-    # Now run test
-    output_path = tmp_path / f"{input_path.stem}-{fileops_module}.gpkg"
-    set_geoops_module(fileops_module)
-    input_layerinfo = fileops.get_layerinfo(input_path)
-    batchsize = math.ceil(input_layerinfo.featurecount / 2)
-    assert input_layerinfo.crs is not None
-    distance = 1
-    gridsize = 0.001
-
-    # Test positive buffer
-    geoops.buffer(
-        input_path=input_path,
-        output_path=output_path,
-        distance=distance,
-        gridsize=gridsize,
-        nb_parallel=2,
-        batchsize=batchsize,
-    )
-
-    # Now check if the output file is correctly created
-    assert output_path.exists()
-    assert fileops.has_spatial_index(output_path)
-    output_layerinfo = fileops.get_layerinfo(output_path)
-    assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
-
-    output_gdf = fileops.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
-    expected_gdf = fileops.read_file(input_path)
-    expected_gdf.geometry = expected_gdf.geometry.buffer(
-        distance=distance, resolution=5
-    )
-    expected_gdf.geometry = shapely2_or_pygeos.set_precision(
-        expected_gdf.geometry.array.data, grid_size=gridsize
-    )
-    assert_geodataframe_equal(
-        output_gdf,
-        expected_gdf,
-        promote_to_multi=True,
-        sort_values=True,
-    )
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
@@ -435,8 +395,8 @@ def test_buffer_negative_explode(tmp_path, fileops_module):
     "fileops_module", ["geofileops.geoops", "geofileops.util._geoops_gpd"]
 )
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-@pytest.mark.parametrize("empty_input", [True, False])
-def test_convexhull(tmp_path, fileops_module, suffix, empty_input):
+@pytest.mark.parametrize("empty_input, gridsize", [(True, 0.0), (False, 0.001)])
+def test_convexhull(tmp_path, fileops_module, suffix, empty_input, gridsize):
     logging.basicConfig(level=logging.DEBUG)
     input_path = test_helper.get_testfile(
         "polygon-parcel", suffix=suffix, empty=empty_input
@@ -452,6 +412,7 @@ def test_convexhull(tmp_path, fileops_module, suffix, empty_input):
         input_path=input_path,
         columns=columns,
         output_path=output_path,
+        gridsize=gridsize,
         nb_parallel=2,
         batchsize=batchsize,
     )
@@ -473,17 +434,23 @@ def test_convexhull(tmp_path, fileops_module, suffix, empty_input):
         assert output_gdf["geometry"][0] is not None
         expected_gdf = fileops.read_file(input_path, columns=columns)
         expected_gdf.geometry = expected_gdf.geometry.convex_hull
+        if gridsize != 0.0:
+            expected_gdf.geometry = shapely2_or_pygeos.set_precision(
+                expected_gdf.geometry.array.data, grid_size=gridsize
+            )
         assert_geodataframe_equal(output_gdf, expected_gdf, sort_values=True)
 
 
 @pytest.mark.parametrize(
-    "suffix, epsg, fileops_module, testfile, empty_input",
+    "suffix, epsg, fileops_module, testfile, empty_input, gridsize",
     get_combinations_to_test(
         fileops_modules=["geofileops.geoops", "geofileops.util._geoops_gpd"],
         testfiles=["polygon-parcel", "linestring-row-trees"],
     ),
 )
-def test_simplify(tmp_path, suffix, epsg, fileops_module, testfile, empty_input):
+def test_simplify(
+    tmp_path, suffix, epsg, fileops_module, testfile, empty_input, gridsize
+):
     # Prepare test data
     tmp_dir = tmp_path / f"{fileops_module}_{epsg}"
     tmp_dir.mkdir(parents=True, exist_ok=True)
@@ -507,6 +474,7 @@ def test_simplify(tmp_path, suffix, epsg, fileops_module, testfile, empty_input)
         input_path=input_path,
         output_path=output_path,
         tolerance=tolerance,
+        gridsize=gridsize,
         nb_parallel=2,
         batchsize=batchsize,
     )
@@ -523,4 +491,8 @@ def test_simplify(tmp_path, suffix, epsg, fileops_module, testfile, empty_input)
         expected_gdf.geometry = expected_gdf.geometry.simplify(
             tolerance=tolerance, preserve_topology=True
         )
+        if gridsize != 0.0:
+            expected_gdf.geometry = shapely2_or_pygeos.set_precision(
+                expected_gdf.geometry.array.data, grid_size=gridsize
+            )
         assert_geodataframe_equal(output_gdf, expected_gdf, sort_values=True)

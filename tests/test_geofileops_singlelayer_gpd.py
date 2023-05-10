@@ -31,9 +31,9 @@ def test_get_parallelization_params():
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-@pytest.mark.parametrize("only_geom_input", [True, False])
+@pytest.mark.parametrize("only_geom_input, gridsize", [(True, 0.0), (False, 0.001)])
 @pytest.mark.parametrize("force_output_geometrytype", [None, GeometryType.POLYGON])
-def test_apply(tmp_path, suffix, only_geom_input, force_output_geometrytype):
+def test_apply(tmp_path, suffix, only_geom_input, force_output_geometrytype, gridsize):
     # Prepare test data
     test_gdf = gpd.GeoDataFrame(
         geometry=[  # type: ignore
@@ -58,6 +58,7 @@ def test_apply(tmp_path, suffix, only_geom_input, force_output_geometrytype):
             ),
             only_geom_input=True,
             force_output_geometrytype=force_output_geometrytype,
+            gridsize=gridsize,
             batchsize=batchsize,
         )
     else:
@@ -69,6 +70,7 @@ def test_apply(tmp_path, suffix, only_geom_input, force_output_geometrytype):
             ),
             only_geom_input=False,
             force_output_geometrytype=force_output_geometrytype,
+            gridsize=gridsize,
             batchsize=batchsize,
         )
 
@@ -167,8 +169,10 @@ def test_buffer_styles(tmp_path, suffix, epsg):
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-@pytest.mark.parametrize("epsg", DEFAULT_EPSGS)
-def test_dissolve_linestrings(tmp_path, suffix, epsg):
+@pytest.mark.parametrize(
+    "epsg, gridsize, explodecollections", [(31370, 0.001, True), (4326, 0.0, False)]
+)
+def test_dissolve_linestrings(tmp_path, suffix, epsg, gridsize, explodecollections):
     # Prepare test data
     input_path = test_helper.get_testfile(
         "linestring-watercourse", suffix=suffix, epsg=epsg
@@ -177,15 +181,15 @@ def test_dissolve_linestrings(tmp_path, suffix, epsg):
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
-    # Dissolve, no groupby, explodecollections=True
-    # ---------------------------------------------
+    # Dissolve, no groupby
     output_path = (
         output_basepath.parent / f"{output_basepath.stem}_expl{output_basepath.suffix}"
     )
     gfo.dissolve(
         input_path=input_path,
         output_path=output_path,
-        explodecollections=True,
+        explodecollections=explodecollections,
+        gridsize=gridsize,
         batchsize=batchsize,
     )
 
@@ -193,43 +197,14 @@ def test_dissolve_linestrings(tmp_path, suffix, epsg):
     assert output_path.exists()
     assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert output_layerinfo.featurecount == 83
+    if explodecollections:
+        assert output_layerinfo.featurecount == 83
+    else:
+        assert output_layerinfo.featurecount == 1
     assert output_layerinfo.geometrytype in [
         GeometryType.LINESTRING,
         GeometryType.MULTILINESTRING,
     ]
-    assert len(output_layerinfo.columns) >= 0
-
-    # Now check the contents of the result file
-    input_gdf = gfo.read_file(input_path)
-    output_gdf = gfo.read_file(output_path)
-    assert input_gdf.crs == output_gdf.crs
-    assert len(output_gdf) == output_layerinfo.featurecount
-    assert output_gdf["geometry"][0] is not None
-    # TODO: add more in depth check of result
-
-    # Dissolve, no groupby, explodecollections=False
-    # ----------------------------------------------
-    output_path = (
-        output_basepath.parent
-        / f"{output_basepath.stem}_noexpl{output_basepath.suffix}"
-    )
-    gridsize = 0.01
-    gfo.dissolve(
-        input_path=input_path,
-        output_path=output_path,
-        explodecollections=False,
-        batchsize=batchsize,
-        gridsize=gridsize,
-    )
-
-    # Check if the result file is correctly created
-    assert output_path.exists()
-    input_layerinfo = gfo.get_layerinfo(input_path)
-
-    output_layerinfo = gfo.get_layerinfo(output_path)
-    assert output_layerinfo.featurecount == 1
-    assert output_layerinfo.geometrytype is input_layerinfo.geometrytype
     assert len(output_layerinfo.columns) >= 0
 
     # Now check the contents of the result file
@@ -912,16 +887,65 @@ def test_dissolve_polygons_aggcolumns_json(tmp_path, agg_columns):
 
 
 @pytest.mark.parametrize(
-    "suffix, epsg, testfile",
+    "suffix, epsg, testfile, gridsize",
     [
-        (".gpkg", 31370, "polygon-parcel"),
-        (".gpkg", 31370, "linestring-row-trees"),
-        (".gpkg", 4326, "polygon-parcel"),
-        (".shp", 31370, "polygon-parcel"),
-        (".shp", 4326, "polygon-parcel"),
+        (".gpkg", 31370, "polygon-parcel", 0.001),
+        (".gpkg", 31370, "linestring-row-trees", 0.001),
+        (".gpkg", 4326, "polygon-parcel", 0.0),
+        (".shp", 31370, "polygon-parcel", 0.001),
+        (".shp", 4326, "polygon-parcel", 0.0),
     ],
 )
-def test_simplify_vw(tmp_path, suffix, epsg, testfile):
+def test_simplify_lang(tmp_path, suffix, epsg, testfile, gridsize):
+    input_path = test_helper.get_testfile(testfile, suffix=suffix, epsg=epsg)
+    input_layerinfo = gfo.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+    assert input_layerinfo.crs is not None
+    if input_layerinfo.crs.is_projected:
+        tolerance = 5
+    else:
+        # 1 degree = 111 km or 111000 m
+        tolerance = 5 / 111000
+    # Test lang algorithm
+    output_path = tmp_path / f"{input_path.stem}-output_lang{suffix}"
+    gfo.simplify(
+        input_path=input_path,
+        output_path=output_path,
+        tolerance=tolerance,
+        algorithm=geometry_util.SimplifyAlgorithm.LANG,
+        lookahead=8,
+        gridsize=gridsize,
+        batchsize=batchsize,
+    )
+
+    # Check if the tmp file is correctly created
+    assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert input_layerinfo.featurecount == output_layerinfo.featurecount
+    assert len(input_layerinfo.columns) == len(output_layerinfo.columns)
+    assert output_layerinfo.geometrytype == input_layerinfo.geometrytype
+
+    # Check the contents of the result file
+    input_gdf = gfo.read_file(input_path)
+    output_gdf = gfo.read_file(output_path)
+    assert input_gdf.crs == output_gdf.crs
+    assert len(output_gdf) == output_layerinfo.featurecount
+    assert output_gdf["geometry"][0] is not None
+    # TODO: some more in-depth validations would be better
+
+
+@pytest.mark.parametrize(
+    "suffix, epsg, testfile, gridsize",
+    [
+        (".gpkg", 31370, "polygon-parcel", 0.001),
+        (".gpkg", 31370, "linestring-row-trees", 0.001),
+        (".gpkg", 4326, "polygon-parcel", 0.0),
+        (".shp", 31370, "polygon-parcel", 0.001),
+        (".shp", 4326, "polygon-parcel", 0.0),
+    ],
+)
+def test_simplify_vw(tmp_path, suffix, epsg, testfile, gridsize):
     # Skip test if simplification is not available
     _ = pytest.importorskip("simplification")
 
@@ -943,6 +967,7 @@ def test_simplify_vw(tmp_path, suffix, epsg, testfile):
         output_path=output_path,
         tolerance=tolerance,
         algorithm=geometry_util.SimplifyAlgorithm.VISVALINGAM_WHYATT,
+        gridsize=gridsize,
         batchsize=batchsize,
     )
 
@@ -961,51 +986,3 @@ def test_simplify_vw(tmp_path, suffix, epsg, testfile):
     assert len(output_gdf) == output_layerinfo.featurecount
     assert output_gdf["geometry"][0] is not None
     # TODO: a more in-depth check would be better
-
-
-@pytest.mark.parametrize(
-    "suffix, epsg, testfile",
-    [
-        (".gpkg", 31370, "polygon-parcel"),
-        (".gpkg", 31370, "linestring-row-trees"),
-        (".gpkg", 4326, "polygon-parcel"),
-        (".shp", 31370, "polygon-parcel"),
-        (".shp", 4326, "polygon-parcel"),
-    ],
-)
-def test_simplify_lang(tmp_path, suffix, epsg, testfile):
-    input_path = test_helper.get_testfile(testfile, suffix=suffix, epsg=epsg)
-    input_layerinfo = gfo.get_layerinfo(input_path)
-    batchsize = math.ceil(input_layerinfo.featurecount / 2)
-    assert input_layerinfo.crs is not None
-    if input_layerinfo.crs.is_projected:
-        tolerance = 5
-    else:
-        # 1 degree = 111 km or 111000 m
-        tolerance = 5 / 111000
-    # Test lang algorithm
-    output_path = tmp_path / f"{input_path.stem}-output_lang{suffix}"
-    gfo.simplify(
-        input_path=input_path,
-        output_path=output_path,
-        tolerance=tolerance,
-        algorithm=geometry_util.SimplifyAlgorithm.LANG,
-        lookahead=8,
-        batchsize=batchsize,
-    )
-
-    # Check if the tmp file is correctly created
-    assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
-    output_layerinfo = gfo.get_layerinfo(output_path)
-    assert input_layerinfo.featurecount == output_layerinfo.featurecount
-    assert len(input_layerinfo.columns) == len(output_layerinfo.columns)
-    assert output_layerinfo.geometrytype == input_layerinfo.geometrytype
-
-    # Check the contents of the result file
-    input_gdf = gfo.read_file(input_path)
-    output_gdf = gfo.read_file(output_path)
-    assert input_gdf.crs == output_gdf.crs
-    assert len(output_gdf) == output_layerinfo.featurecount
-    assert output_gdf["geometry"][0] is not None
-    # TODO: some more in-depth validations would be better

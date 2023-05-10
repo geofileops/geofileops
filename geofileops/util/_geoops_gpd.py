@@ -216,6 +216,7 @@ def apply(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
+    gridsize: float = 0.0,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -237,6 +238,7 @@ def apply(
         columns=columns,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
+        gridsize=gridsize,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -302,6 +304,7 @@ def convexhull(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
+    gridsize: float = 0.0,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -319,6 +322,7 @@ def convexhull(
         output_layer=output_layer,
         columns=columns,
         explodecollections=explodecollections,
+        gridsize=gridsize,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -428,7 +432,9 @@ def _apply_geooperation_to_layer(
             singular ones during the geooperation. Defaults to False.
         force_output_geometrytype (GeometryType, optional): The output geometry type to
             force. If None, a best-effort guess is made. Defaults to None.
-        gridsize
+        gridsize (float, optional): the size of the grid the coordinates of the ouput
+            will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
+            the precision. Defaults to 0.0.
         nb_parallel (int, optional): [description]. Defaults to -1.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
@@ -676,6 +682,7 @@ def _apply_geooperation(
 
     # Remove rows where geom is empty
     assert isinstance(data_gdf, gpd.GeoDataFrame)
+    assert data_gdf.geometry is not None
     data_gdf = data_gdf[~data_gdf.geometry.is_empty]
     assert isinstance(data_gdf, gpd.GeoDataFrame)
     data_gdf = data_gdf[~data_gdf.geometry.isna()]

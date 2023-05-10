@@ -41,6 +41,7 @@ def apply(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
+    gridsize: float = 0.0,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -79,6 +80,9 @@ def apply(
         force_output_geometrytype (GeometryType, optional): The output geometry type to
             force. If None, a best-effort guess is made and will always result in a
             multi-type. Defaults to None.
+        gridsize (float, optional): the size of the grid the coordinates of the ouput
+            will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
+            the precision. Defaults to 0.0.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -99,6 +103,7 @@ def apply(
         columns=columns,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
+        gridsize=gridsize,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -893,6 +898,7 @@ def select(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
+    gridsize: float = 0.0,
     nb_parallel: int = 1,
     batchsize: int = -1,
     force: bool = False,
@@ -971,6 +977,9 @@ def select(
             singular ones after the dissolve. Defaults to False.
         force_output_geometrytype (GeometryType, optional): The output geometry type to
             force. Defaults to None, and then the geometry type of the input is used
+        gridsize (float, optional): the size of the grid the coordinates of the ouput
+            will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
+            the precision. Defaults to 0.0.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to 1. If nb_parallel != 1, make sure your query still returns
             correct results if it is executed per batch of rows instead of in one go
@@ -999,6 +1008,7 @@ def select(
         columns=columns,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
+        gridsize=gridsize,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -1730,6 +1740,7 @@ def select_two_layers(
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
+    gridsize: float = 0.0,
     nb_parallel: int = 1,
     batchsize: int = -1,
     force: bool = False,
@@ -1837,6 +1848,9 @@ def select_two_layers(
         force_output_geometrytype (GeometryType, optional): The output geometry
             type to force. Defaults to None, and then the geometry type of the
             input1 layer is used.
+        gridsize (float, optional): the size of the grid the coordinates of the ouput
+            will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
+            the precision. Defaults to 0.0.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -1900,6 +1914,7 @@ def select_two_layers(
         output_layer=output_layer,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
+        gridsize=gridsize,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
