@@ -90,7 +90,7 @@ def test_isvalid(tmp_path, suffix, epsg):
     assert len(input_layerinfo.columns) == len(result_layerinfo.columns) - 2
 
     output_gdf = gfo.read_file(output_path)
-    assert output_gdf.geometry[0] is not None
+    assert output_gdf["geometry"][0] is not None
     assert output_gdf["isvalid"][0] == 0
 
     # Do operation, without specifying output path
@@ -108,7 +108,7 @@ def test_isvalid(tmp_path, suffix, epsg):
     assert len(input_layerinfo.columns) == len(result_auto_layerinfo.columns) - 2
 
     output_auto_gdf = gfo.read_file(output_auto_path)
-    assert output_auto_gdf.geometry[0] is not None
+    assert output_auto_gdf["geometry"][0] is not None
     assert output_auto_gdf["isvalid"][0] == 0
 
 
@@ -254,7 +254,7 @@ def test_select(tmp_path, input_suffix, output_suffix):
 
     # Now check the contents of the result file
     output_gdf = gfo.read_file(output_path)
-    assert output_gdf.geometry[0] is not None
+    assert output_gdf["geometry"][0] is not None
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
@@ -284,7 +284,7 @@ def test_select_column_casing(tmp_path, suffix):
     assert len(layerinfo_select.columns) == len(columns)
 
     output_gdf = gfo.read_file(output_path)
-    assert output_gdf.geometry[0] is not None
+    assert output_gdf["geometry"][0] is not None
 
 
 @pytest.mark.parametrize("input_suffix", DEFAULT_SUFFIXES)
