@@ -10,16 +10,17 @@ To get the most out of geofileops, these are some things to note:
 
   * Geofileops is tested on geopackage and shapefile input/output files. However,
     geopackage is highly recommended because it will offer better performance in
-    geofileops as well as for the reasons listed here: www.switchfromshapefile.org.
-  * For spatial operations it is typically not supported to directly append a layer in
-    an existing Geopackage file. If wanted, it is possible to append it in a seperate
-    step using :meth:`~append_to`.
+    geofileops as well as for the reasons listed here: |www.switchfromshapefile.org|.
   * A typical use case for geofileops is to script complex GIS analysis involving many
     spatial operations on multiple large input files. To support this use case, if an
     output file already exists, all spatial operations will by default just return
     without error or further processing. This way it is easy to incrementally develop/
     run the script and only new/missing output files (or output files you remove) will
     be (re)processed.
+  * Because of the previous point, it is typically not supported for spatial operations
+    to directly append a layer in an existing Geopackage file. If wanted, it is
+    possible to append it in a seperate step using :meth:`~append_to`.
+  
 
 
 Spatial operations on one layer
@@ -125,3 +126,7 @@ shapefiles.
 .. |spatialite functions| raw:: html
 
    <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite functions</a>
+
+.. |www.switchfromshapefile.org| raw:: html
+
+   <a href="www.switchfromshapefile.org" target="_blank">www.switchfromshapefile.org</a>
