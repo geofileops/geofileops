@@ -57,9 +57,13 @@ Most spatial operations in geofileops have the same optional parameters:
       "fid" in addition to the standard attribute columns you want to retain.
     * explodecollections: the output features will be "exploded", so multipart
       features will be converted to single parts.
+    * gridsize: the size of the grid the coordinates of the ouput will be rounded to.
+      Eg. 0.001 to keep 3 decimals. If eg. a polygon is narrower than the gridsize, it
+      will be removed. Value 0.0, the default, doesn't change the precision.
     * nb_parallel: specify the number of CPU's to be used. By default all 
       CPU's are used.
-    * batchsize: use this parameter to eg. reduce memory usage. 
+    * batchsize: indication of the number of rows to be processed per batch. You can
+      use this parameter to reduce memory usage. 
     * force: by default, if the output_path already exists, geofileops will  
       just log that this is the fact and return without throwing a error. 
       To overwrite the existing output_path, specify force=True.
