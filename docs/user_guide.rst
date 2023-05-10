@@ -75,7 +75,7 @@ Spatial operations between two files/layers
 For operations between two layers, obviously 2 input files/layers need to be 
 specified.
 
-The standard spatial operations are supported, eg. :meth:`~intersect`, 
+The standard spatial operations are supported, eg. :meth:`~intersection`, 
 :meth:`~erase`, :meth:`~union`,...
 
 More specific features are:
