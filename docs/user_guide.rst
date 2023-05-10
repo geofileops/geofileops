@@ -129,4 +129,4 @@ shapefiles.
 
 .. |www.switchfromshapefile.org| raw:: html
 
-   <a href="www.switchfromshapefile.org" target="_blank">www.switchfromshapefile.org</a>
+   <a href="http://www.switchfromshapefile.org" target="_blank">www.switchfromshapefile.org</a>
