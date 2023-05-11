@@ -87,6 +87,53 @@ def create_new_spatialdb(path: Path, crs_epsg: Optional[int] = None):
         conn.close()
 
 
+def get_columns(
+    sql_stmt: str,
+    input1_path: Path,
+    input2_path: Optional[Path] = None,
+    use_spatialite: bool = True,
+) -> List[str]:
+    input1_databasename = "main"
+    conn = sqlite3.connect(str(input1_path), uri=True)
+    sql = None
+    try:
+        if use_spatialite is True:
+            load_spatialite(conn)
+            if input1_path.suffix.lower() == ".gpkg":
+                sql = "SELECT EnableGpkgMode();"
+                conn.execute(sql)
+
+        # If input2 isn't the same database input1, attach to it
+        input2_databasename = None
+        if input2_path is not None:
+            if input2_path == input1_path:
+                input2_databasename = input1_databasename
+            else:
+                input2_databasename = "input2"
+                sql = f"ATTACH DATABASE ? AS {input2_databasename}"
+                # dbSpec = (f"file:{input2_path.resolve().as_posix()}?mode=ro",)
+                dbSpec = (str(input2_path),)
+                conn.execute(sql, dbSpec)
+        # Prepare sql statement
+        sql = sql_stmt.format(
+            input1_databasename=input1_databasename,
+            input2_databasename=input2_databasename,
+        )
+
+        # Execute sql to be able to get the column names
+        cur = conn.cursor()
+        cur.execute(sql)
+        columns = [desc[0] for desc in cur.description]
+        conn.rollback()
+    except Exception as ex:
+        conn.rollback()
+        raise Exception(f"Error {ex} executing {sql}") from ex
+    finally:
+        conn.close()
+
+    return columns
+
+
 def create_table_as_sql(
     input1_path: Path,
     input1_layer: str,

@@ -4,15 +4,18 @@ Tests for operations that are executed using a sql statement on two layers.
 """
 
 import math
-from pathlib import Path
-import sys
 
 import geopandas as gpd
+import geopandas._compat as gpd_compat
 import pandas as pd
 import pytest
 
-# Add path so the local geofileops packages are found
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+if gpd_compat.USE_PYGEOS:
+    import pygeos as shapely2_or_pygeos
+else:
+    import shapely as shapely2_or_pygeos
+
+
 import geofileops as gfo
 from geofileops import GeometryType, PrimitiveType
 from geofileops.util import _geoops_sql
@@ -50,7 +53,8 @@ def test_clip(tmp_path, testfile, suffix):
 
 @pytest.mark.parametrize("testfile", DEFAULT_TESTFILES)
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-def test_erase(tmp_path, testfile, suffix):
+@pytest.mark.parametrize("gridsize", [0.0, 0.001])
+def test_erase(tmp_path, testfile, suffix, gridsize):
     input_path = test_helper.get_testfile(testfile, suffix=suffix)
     erase_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
     input_layerinfo = gfo.get_layerinfo(input_path)
@@ -61,6 +65,7 @@ def test_erase(tmp_path, testfile, suffix):
         input_path=input_path,
         erase_path=erase_path,
         output_path=output_path,
+        gridsize=gridsize,
         batchsize=batchsize,
     )
 
@@ -73,6 +78,10 @@ def test_erase(tmp_path, testfile, suffix):
     output_gpd_gdf = gpd.overlay(
         input_gdf, erase_gdf, how="difference", keep_geom_type=True
     )
+    if gridsize != 0.0:
+        output_gpd_gdf.geometry = shapely2_or_pygeos.set_precision(
+            output_gpd_gdf.geometry.array.data, grid_size=gridsize
+        )
     assert_geodataframe_equal(
         output_gdf,
         output_gpd_gdf,
@@ -119,7 +128,8 @@ def test_erase_explodecollections(tmp_path):
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-def test_export_by_location(tmp_path, suffix):
+@pytest.mark.parametrize("gridsize", [0.0, 0.001])
+def test_export_by_location(tmp_path, suffix, gridsize):
     input_to_select_from_path = test_helper.get_testfile(
         "polygon-parcel", suffix=suffix
     )
@@ -133,6 +143,7 @@ def test_export_by_location(tmp_path, suffix):
         input_to_select_from_path=input_to_select_from_path,
         input_to_compare_with_path=input_to_compare_with_path,
         output_path=output_path,
+        gridsize=gridsize,
         batchsize=batchsize,
     )
 
@@ -184,16 +195,17 @@ def test_export_by_distance(tmp_path, testfile, suffix):
 
 @pytest.mark.parametrize("testfile", ["polygon-parcel"])
 @pytest.mark.parametrize(
-    "suffix, epsg, nb_parallel",
+    "suffix, epsg, gridsize, nb_parallel",
     [
-        (".gpkg", 31370, 1),
-        (".gpkg", 31370, 2),
-        (".gpkg", 4326, 2),
-        (".shp", 31370, 1),
-        (".shp", 31370, 2),
+        (".gpkg", 31370, 0.0, 1),
+        (".gpkg", 31370, 0.01, 1),
+        (".gpkg", 31370, 0.0, 2),
+        (".gpkg", 4326, 0.0, 2),
+        (".shp", 31370, 0.0, 1),
+        (".shp", 31370, 0.0, 2),
     ],
 )
-def test_intersection(tmp_path, testfile, suffix, epsg, nb_parallel):
+def test_intersection(tmp_path, testfile, suffix, epsg, gridsize, nb_parallel):
     input1_path = test_helper.get_testfile(testfile, suffix=suffix, epsg=epsg)
     input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
 
@@ -209,6 +221,7 @@ def test_intersection(tmp_path, testfile, suffix, epsg, nb_parallel):
         input1_path=input1_path,
         input2_path=input2_path,
         output_path=output_path,
+        gridsize=gridsize,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
     )
@@ -239,6 +252,10 @@ def test_intersection(tmp_path, testfile, suffix, epsg, nb_parallel):
         for name_gpd, name_gfo in zip(output_gpd_gdf.columns, output_gdf.columns)
     }
     output_gpd_gdf = output_gpd_gdf.rename(columns=renames)
+    if gridsize != 0.0:
+        output_gpd_gdf.geometry = shapely2_or_pygeos.set_precision(
+            output_gpd_gdf.geometry.array.data, grid_size=gridsize
+        )
     assert_geodataframe_equal(
         output_gdf, output_gpd_gdf, check_dtype=False, sort_values=True
     )
@@ -529,9 +546,10 @@ def test_join_by_location(
 
 
 @pytest.mark.parametrize(
-    "suffix, epsg", [(".gpkg", 31370), (".gpkg", 4384), (".shp", 31370)]
+    "suffix, epsg, gridsize",
+    [(".gpkg", 31370, 0.001), (".gpkg", 4326, 0.0), (".shp", 31370, 0.001)],
 )
-def test_join_nearest(tmp_path, suffix, epsg):
+def test_join_nearest(tmp_path, suffix, epsg, gridsize):
     # Prepare test data
     input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
     input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
@@ -548,6 +566,7 @@ def test_join_nearest(tmp_path, suffix, epsg):
         input2_path=input2_path,
         output_path=output_path,
         nb_nearest=nb_nearest,
+        gridsize=gridsize,
         batchsize=batchsize,
         force=True,
     )
@@ -574,9 +593,10 @@ def test_join_nearest(tmp_path, suffix, epsg):
 
 
 @pytest.mark.parametrize(
-    "suffix, epsg", [(".gpkg", 31370), (".gpkg", 4326), (".shp", 31370)]
+    "suffix, epsg, gridsize",
+    [(".gpkg", 31370, 0.001), (".gpkg", 4326, 0.0), (".shp", 31370, 0.001)],
 )
-def test_select_two_layers(tmp_path, suffix, epsg):
+def test_select_two_layers(tmp_path, suffix, epsg, gridsize):
     # Prepare test data
     input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
     input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
@@ -629,6 +649,7 @@ def test_select_two_layers(tmp_path, suffix, epsg):
         input1_path=input1_path,
         input2_path=input2_path,
         output_path=output_path,
+        gridsize=gridsize,
         sql_stmt=sql_stmt,
     )
 
@@ -678,7 +699,7 @@ def test_select_two_layers(tmp_path, suffix, epsg):
         ),
     ],
 )
-def test_select_two_layers_invalid_params(
+def test_select_two_layers_invalid_paths(
     tmp_path, input1_path, input2_path, output_path, expected_error
 ):
     """
@@ -773,9 +794,10 @@ def test_select_two_layers_batch_filter(
 
 
 @pytest.mark.parametrize(
-    "suffix, epsg", [(".gpkg", 31370), (".gpkg", 4326), (".shp", 31370)]
+    "suffix, epsg, gridsize",
+    [(".gpkg", 31370, 0.001), (".gpkg", 4326, 0.0), (".shp", 31370, 0.001)],
 )
-def test_split(tmp_path, suffix, epsg):
+def test_split(tmp_path, suffix, epsg, gridsize):
     # Prepare test data
     input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
     input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
@@ -788,6 +810,7 @@ def test_split(tmp_path, suffix, epsg):
         input1_path=input1_path,
         input2_path=input2_path,
         output_path=output_path,
+        gridsize=gridsize,
         batchsize=batchsize,
     )
 
@@ -814,6 +837,10 @@ def test_split(tmp_path, suffix, epsg):
         for name_gpd, name_gfo in zip(output_gpd_gdf.columns, output_gfo_gdf.columns)
     }
     output_gpd_gdf = output_gpd_gdf.rename(columns=renames)
+    if gridsize != 0.0:
+        output_gpd_gdf.geometry = shapely2_or_pygeos.set_precision(
+            output_gpd_gdf.geometry.array.data, grid_size=gridsize
+        )
     # OIDN is float vs int? -> check_column_type=False
     assert_geodataframe_equal(
         output_gfo_gdf,
@@ -827,9 +854,10 @@ def test_split(tmp_path, suffix, epsg):
 
 
 @pytest.mark.parametrize(
-    "suffix, epsg", [(".gpkg", 31370), (".gpkg", 4326), (".shp", 31370)]
+    "suffix, epsg, gridsize",
+    [(".gpkg", 31370, 0.001), (".gpkg", 4326, 0.0), (".shp", 31370, 0.0)],
 )
-def test_symmetric_difference(tmp_path, suffix, epsg):
+def test_symmetric_difference(tmp_path, suffix, epsg, gridsize):
     input1_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
     input2_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
     input1_layerinfo = gfo.get_layerinfo(input1_path)
@@ -841,6 +869,7 @@ def test_symmetric_difference(tmp_path, suffix, epsg):
         input1_path=input1_path,
         input2_path=input2_path,
         output_path=output_path,
+        gridsize=gridsize,
         batchsize=batchsize,
     )
 
@@ -859,6 +888,10 @@ def test_symmetric_difference(tmp_path, suffix, epsg):
         for name_gpd, name_gfo in zip(output_gpd_gdf.columns, output_gfo_gdf.columns)
     }
     output_gpd_gdf = output_gpd_gdf.rename(columns=renames)
+    if gridsize != 0.0:
+        output_gpd_gdf.geometry = shapely2_or_pygeos.set_precision(
+            output_gpd_gdf.geometry.array.data, grid_size=gridsize
+        )
     assert_geodataframe_equal(
         output_gfo_gdf,
         output_gpd_gdf,
@@ -872,9 +905,10 @@ def test_symmetric_difference(tmp_path, suffix, epsg):
 
 
 @pytest.mark.parametrize(
-    "suffix, epsg", [(".gpkg", 31370), (".gpkg", 4326), (".shp", 31370)]
+    "suffix, epsg, gridsize",
+    [(".gpkg", 31370, 0.001), (".gpkg", 4326, 0.0), (".shp", 31370, 0.0)],
 )
-def test_union(tmp_path, suffix, epsg):
+def test_union(tmp_path, suffix, epsg, gridsize):
     # Prepare test files
     input1_path = test_helper.get_testfile(
         "polygon-parcel", dst_dir=tmp_path, suffix=suffix, epsg=epsg
@@ -888,13 +922,14 @@ def test_union(tmp_path, suffix, epsg):
 
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input1_layerinfo.featurecount / 2)
+    output_path = tmp_path / f"{input1_path.stem}_union_{input2_path.stem}{suffix}"
 
     # Test
-    output_path = tmp_path / f"{input1_path.stem}_union_{input2_path.stem}{suffix}"
     gfo.union(
         input1_path=input1_path,
         input2_path=input2_path,
         output_path=output_path,
+        gridsize=gridsize,
         batchsize=batchsize,
     )
 
@@ -921,6 +956,10 @@ def test_union(tmp_path, suffix, epsg):
     }
     output_gpd_gdf = output_gpd_gdf.rename(columns=renames)
     output_gpd_gdf["l1_DATUM"] = pd.to_datetime(output_gpd_gdf["l1_DATUM"])
+    if gridsize != 0.0:
+        output_gpd_gdf.geometry = shapely2_or_pygeos.set_precision(
+            output_gpd_gdf.geometry.array.data, grid_size=gridsize
+        )
     assert_geodataframe_equal(
         output_gfo_gdf,
         output_gpd_gdf,
