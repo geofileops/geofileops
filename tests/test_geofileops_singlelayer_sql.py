@@ -17,9 +17,9 @@ from shapely.geometry import MultiPolygon, Polygon
 
 import geofileops as gfo
 from geofileops import GeometryType
-from geofileops.util import _geoops_sql
+from geofileops.util import _geoops_sql as geoops_sql
 from tests import test_helper
-from tests.test_helper import DEFAULT_EPSGS, DEFAULT_SUFFIXES
+from tests.test_helper import EPSGS, SUFFIXES
 from tests.test_helper import assert_geodataframe_equal
 
 
@@ -68,7 +68,7 @@ def test_dissolve_singlethread_output_exists(tmp_path):
     output_path.touch()
 
     # Run test without force
-    _geoops_sql.dissolve_singlethread(
+    geoops_sql.dissolve_singlethread(
         input_path=input_path,
         output_path=output_path,
     )
@@ -76,7 +76,7 @@ def test_dissolve_singlethread_output_exists(tmp_path):
     assert output_path.stat().st_size == 0
 
     # Run test with force
-    _geoops_sql.dissolve_singlethread(
+    geoops_sql.dissolve_singlethread(
         input_path=input_path,
         output_path=output_path,
         force=True,
@@ -85,8 +85,8 @@ def test_dissolve_singlethread_output_exists(tmp_path):
     assert output_path.stat().st_size != 0
 
 
-@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-@pytest.mark.parametrize("epsg", DEFAULT_EPSGS)
+@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("epsg", EPSGS)
 def test_isvalid(tmp_path, suffix, epsg):
     # Prepare test data
     input_path = test_helper.get_testfile(
@@ -128,7 +128,7 @@ def test_isvalid(tmp_path, suffix, epsg):
     assert output_auto_gdf["isvalid"][0] == 0
 
 
-@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES)
 @pytest.mark.parametrize("input_empty", [True, False])
 def test_makevalid(tmp_path, suffix, input_empty):
     # Prepare test data
@@ -245,8 +245,8 @@ def test_makevalid_invalidparams():
         )
 
 
-@pytest.mark.parametrize("input_suffix", DEFAULT_SUFFIXES)
-@pytest.mark.parametrize("output_suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize("input_suffix", SUFFIXES)
+@pytest.mark.parametrize("output_suffix", SUFFIXES)
 @pytest.mark.parametrize("gridsize", [0.0, 0.01])
 def test_select(tmp_path, input_suffix, output_suffix, gridsize):
     # Prepare test data
@@ -281,7 +281,7 @@ def test_select(tmp_path, input_suffix, output_suffix, gridsize):
     assert output_gdf["geometry"][0] is not None
 
 
-@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES)
 def test_select_column_casing(tmp_path, suffix):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", tmp_path, suffix)
@@ -311,8 +311,8 @@ def test_select_column_casing(tmp_path, suffix):
     assert output_gdf["geometry"][0] is not None
 
 
-@pytest.mark.parametrize("input_suffix", DEFAULT_SUFFIXES)
-@pytest.mark.parametrize("output_suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize("input_suffix", SUFFIXES)
+@pytest.mark.parametrize("output_suffix", SUFFIXES)
 def test_select_emptyinput(tmp_path, input_suffix, output_suffix):
     # Prepare test data
     input_path = test_helper.get_testfile(
@@ -375,8 +375,8 @@ def test_select_emptyinput_operation(tmp_path, input_suffix, output_suffix):
     assert output_layerinfo.featurecount == 0
 
 
-@pytest.mark.parametrize("input_suffix", DEFAULT_SUFFIXES)
-@pytest.mark.parametrize("output_suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize("input_suffix", SUFFIXES)
+@pytest.mark.parametrize("output_suffix", SUFFIXES)
 def test_select_emptyresult(tmp_path, input_suffix, output_suffix):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=input_suffix)
@@ -397,7 +397,7 @@ def test_select_emptyresult(tmp_path, input_suffix, output_suffix):
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
 
-@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES)
 def test_select_invalid_sql(tmp_path, suffix):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
@@ -422,7 +422,7 @@ def test_select_output_exists(tmp_path):
     assert output_path.stat().st_size == 0
 
 
-@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES)
 @pytest.mark.parametrize(
     "nb_parallel, has_batch_filter, exp_raise",
     [(1, False, False), (2, True, False), (2, False, True)],
@@ -454,7 +454,7 @@ def test_select_batch_filter(
         gfo.select(input_path, output_path, sql_stmt, nb_parallel=nb_parallel)
 
 
-@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES)
 @pytest.mark.parametrize("explodecollections", [True, False])
 def test_select_star(tmp_path, suffix, explodecollections):
     # Prepare test data

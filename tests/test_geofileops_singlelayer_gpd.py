@@ -19,19 +19,20 @@ import shapely.geometry as sh_geom
 
 import geofileops as gfo
 from geofileops import GeometryType
-from geofileops.util import _geoops_gpd, grid_util
 from geofileops.util import geometry_util
+from geofileops.util import _geoops_gpd as geoops_gpd
+from geofileops.util import grid_util
 from tests import test_helper
-from tests.test_helper import DEFAULT_EPSGS, DEFAULT_SUFFIXES
+from tests.test_helper import EPSGS, SUFFIXES
 
 
 def test_get_parallelization_params():
-    parallelization_params = _geoops_gpd.get_parallelization_params(500000)
+    parallelization_params = geoops_gpd.get_parallelization_params(500000)
     assert parallelization_params is not None
 
 
-@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 @pytest.mark.parametrize("only_geom_input, gridsize", [(True, 0.0), (False, 0.001)])
+@pytest.mark.parametrize("suffix", SUFFIXES)
 @pytest.mark.parametrize("force_output_geometrytype", [None, GeometryType.POLYGON])
 def test_apply(tmp_path, suffix, only_geom_input, force_output_geometrytype, gridsize):
     # Prepare test data
@@ -105,7 +106,7 @@ def test_apply(tmp_path, suffix, only_geom_input, force_output_geometrytype, gri
 
 def test_apply_geooperation_invalid_operation(tmp_path):
     with pytest.raises(ValueError, match="operation not supported: INVALID"):
-        _geoops_gpd._apply_geooperation(
+        geoops_gpd._apply_geooperation(
             input_path=test_helper.get_testfile("polygon-parcel"),
             output_path=tmp_path / "output.gpkg",
             operation="INVALID",  # type: ignore
@@ -168,7 +169,7 @@ def test_buffer_styles(tmp_path, suffix, epsg):
     assert area_square_buffer > area_default_buffer
 
 
-@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES)
 @pytest.mark.parametrize(
     "epsg, gridsize, explodecollections", [(31370, 0.001, True), (4326, 0.0, False)]
 )
@@ -216,8 +217,8 @@ def test_dissolve_linestrings(tmp_path, suffix, epsg, gridsize, explodecollectio
     # TODO: add more in depth check of result
 
 
-@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-@pytest.mark.parametrize("epsg", DEFAULT_EPSGS)
+@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("epsg", EPSGS)
 def test_dissolve_linestrings_groupby(tmp_path, suffix, epsg):
     # Prepare test data
     input_path = test_helper.get_testfile(
@@ -260,8 +261,8 @@ def test_dissolve_linestrings_groupby(tmp_path, suffix, epsg):
     # TODO: add more in depth check of result
 
 
-@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-@pytest.mark.parametrize("epsg", DEFAULT_EPSGS)
+@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("epsg", EPSGS)
 def test_dissolve_linestrings_aggcolumns_columns(tmp_path, suffix, epsg):
     # Prepare test data
     input_path = test_helper.get_testfile(
@@ -484,7 +485,7 @@ def test_dissolve_polygons(
     assert len(output_gdf) == len(output_gpd_gdf)
 
 
-@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES)
 def test_dissolve_emptyfile(tmp_path, suffix):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, empty=True)
@@ -625,7 +626,7 @@ def test_dissolve_polygons_groupby_None(tmp_path):
     )
 
 
-@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES)
 def test_dissolve_polygons_specialcases(tmp_path, suffix):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
@@ -731,7 +732,7 @@ def test_dissolve_polygons_specialcases(tmp_path, suffix):
             assert output_path.stat().st_mtime != mtime_orig
 
 
-@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES)
 def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
