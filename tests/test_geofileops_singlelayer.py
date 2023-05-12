@@ -283,7 +283,7 @@ def test_buffer_invalid_params(
 
 @pytest.mark.parametrize("suffix", SUFFIXES)
 @pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
-@pytest.mark.parametrize("suffix", TESTFILES)
+@pytest.mark.parametrize("testfile", TESTFILES)
 def test_buffer_negative(tmp_path, suffix, geoops_module, testfile):
     """Buffer basics are available both in the gpd and sql implementations."""
     input_path = test_helper.get_testfile(testfile, suffix=suffix)
