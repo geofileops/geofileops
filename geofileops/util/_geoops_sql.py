@@ -2523,10 +2523,12 @@ def dissolve_singlethread(
         output_layer = gfo.get_default_layer(output_path)
 
     # Use get_layerinfo to check if the layer definition is OK
-    layerinfo = gfo.get_layerinfo(input_path, input_layer)
-    fid_column = layerinfo.fid_column if layerinfo.fid_column != "" else "rowid"
+    input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
+    fid_column = (
+        input_layerinfo.fid_column if input_layerinfo.fid_column != "" else "rowid"
+    )
     # Prepare some lists for later use
-    columns_available = list(layerinfo.columns) + ["fid"]
+    columns_available = list(input_layerinfo.columns) + ["fid"]
     columns_available_upper = [column.upper() for column in columns_available]
     groupby_columns_upper_dict = {}
     if groupby_columns is not None:
@@ -2569,7 +2571,7 @@ def dissolve_singlethread(
             columns = []
             if agg_columns["json"] is None:
                 # If columns specified is None: all columns not in groupby_columns
-                for column in layerinfo.columns:
+                for column in input_layerinfo.columns:
                     if column.upper() not in groupby_columns_upper_dict:
                         columns.append(column)
             else:
@@ -2637,21 +2639,21 @@ def dissolve_singlethread(
     # Remark: calculating the area in the enclosing selects halves the processing time
 
     # The operation to run on the geometry
-    operation = f"ST_union(layer.{layerinfo.geometrycolumn})"
+    operation = f"ST_union(layer.{input_layerinfo.geometrycolumn})"
 
     # If the input is a linestring, also apply st_linemerge(), otherwise the individual
     # lines are just concatenated together and common points are not removed, resulting
     # in the original seperate lines again if explodecollections is True.
     force_output_geometrytype = None
-    if layerinfo.geometrytype.to_primitivetype == PrimitiveType.LINESTRING:
+    if input_layerinfo.geometrytype.to_primitivetype == PrimitiveType.LINESTRING:
         operation = f"ST_LineMerge({operation})"
         if explodecollections is True:
             force_output_geometrytype = GeometryType.LINESTRING
 
     # If there are no input features, the output geometry type needs to be specified
     # so gdal can create an empty output file with the right geometry type.
-    if force_output_geometrytype is None and layerinfo.featurecount == 0:
-        force_output_geometrytype = layerinfo.geometrytype
+    if force_output_geometrytype is None and input_layerinfo.featurecount == 0:
+        force_output_geometrytype = input_layerinfo.geometrytype
 
     # Apply tolerance gridsize on result
     if gridsize != 0.0:
@@ -2678,6 +2680,8 @@ def dissolve_singlethread(
     """
     # Finally add where if specified
     if where is not None:
+        # The query above aliases already to geom, so always use geom.
+        where = where.format(geometrycolumn="geom")
         sql_stmt = f"""
             SELECT * FROM
                 ({sql_stmt}
