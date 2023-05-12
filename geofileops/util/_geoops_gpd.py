@@ -620,9 +620,9 @@ def _apply_geooperation_to_layer(
             logger.debug(f"Result of {operation} was empty!")
 
     finally:
-        # Clean tmp dir
-        shutil.rmtree(tempdir)
-        logger.info(f"{operation} ready, took {datetime.now()-start_time_global}!")
+        shutil.rmtree(tempdir, ignore_errors=True)
+
+    logger.info(f"{operation} ready, took {datetime.now()-start_time_global}!")
 
 
 def _apply_geooperation(
@@ -1149,9 +1149,7 @@ def dissolve(
                 )
 
         finally:
-            # Clean tmp dir if it exists...
-            if tempdir.exists():
-                shutil.rmtree(tempdir)
+            shutil.rmtree(tempdir, ignore_errors=True)
     else:
         raise NotImplementedError(
             f"Unsupported input geometrytype: {input_layerinfo.geometrytype}"

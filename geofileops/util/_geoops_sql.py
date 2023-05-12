@@ -678,7 +678,8 @@ def _single_layer_vector_operation(
     finally:
         # Clean tmp dir
         shutil.rmtree(tempdir, ignore_errors=True)
-        logger.info(f"Processing ready, took {datetime.now()-start_time}!")
+
+    logger.info(f"Processing ready, took {datetime.now()-start_time}!")
 
 
 ################################################################################
@@ -1738,7 +1739,7 @@ def symmetric_difference(
         gfo.move(tmp_output_path, output_path)
 
     finally:
-        shutil.rmtree(tempdir)
+        shutil.rmtree(tempdir, ignore_errors=True)
 
 
 def union(
@@ -1835,7 +1836,7 @@ def union(
         gfo.move(tmp_output_path, output_path)
 
     finally:
-        shutil.rmtree(tempdir)
+        shutil.rmtree(tempdir, ignore_errors=True)
 
     logger.info(f"union ready, took {datetime.now()-start_time}!")
 
