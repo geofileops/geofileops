@@ -755,30 +755,6 @@ def test_select_two_layers_invalid_sql(tmp_path, suffix):
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-def test_select_two_layers_select_star(tmp_path, suffix):
-    # Prepare test data
-    input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
-    input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
-
-    # Now run test
-    output_path = tmp_path / f"output{suffix}"
-    sql_stmt = """
-        SELECT layer1.*
-          FROM {input1_databasename}."{input1_layer}" layer1
-          CROSS JOIN {input2_databasename}."{input2_layer}" layer2
-         WHERE 1=1
-           AND ST_Area(layer1.{input1_geometrycolumn}) > 5
-    """
-    with pytest.raises(Exception, match="Error <Error duplicate column name"):
-        gfo.select_two_layers(
-            input1_path=input1_path,
-            input2_path=input2_path,
-            output_path=output_path,
-            sql_stmt=sql_stmt,
-        )
-
-
-@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 @pytest.mark.parametrize(
     "nb_parallel, has_batch_filter, exp_raise",
     [(1, False, False), (2, True, False), (2, False, True)],
@@ -815,6 +791,86 @@ def test_select_two_layers_batch_filter(
         gfo.select_two_layers(
             input1_path, input2_path, output_path, sql_stmt, nb_parallel=nb_parallel
         )
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_select_two_layers_select_star_fids_not_unique(tmp_path, suffix):
+    # Prepare test data
+    input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
+
+    # Now run test
+    output_path = tmp_path / f"output{suffix}"
+    sql_stmt = """
+        SELECT layer1.*
+          FROM {input1_databasename}."{input1_layer}" layer1
+          CROSS JOIN {input2_databasename}."{input2_layer}" layer2
+         WHERE 1=1
+           AND ST_Area(layer1.{input1_geometrycolumn}) > 5
+    """
+    with pytest.raises(Exception, match="Error <Error UNIQUE constraint failed"):
+        gfo.select_two_layers(
+            input1_path=input1_path,
+            input2_path=input2_path,
+            output_path=output_path,
+            sql_stmt=sql_stmt,
+        )
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_select_two_layers_select_star_fids_unique(tmp_path, suffix):
+    """
+    Test for a join where the fid of one layer is selected (select *), but where this
+    fid will stay unique because the rows in this layer won't be duplicated.
+    """
+    # Prepare test data
+    input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
+    one_zone_path = tmp_path / f"one_zone{suffix}"
+    input2_gdf = gfo.read_file(input2_path)
+    gfo.to_file(input2_gdf.iloc[[0]], one_zone_path)
+    one_zone_layerinfo = gfo.get_layerinfo(one_zone_path)
+    assert one_zone_layerinfo.featurecount == 1
+
+    # Test with 1 * in the select
+    output_path = tmp_path / f"output_1star{suffix}"
+    sql_stmt = """
+        SELECT layer1.*
+          FROM {input1_databasename}."{input1_layer}" layer1
+          CROSS JOIN {input2_databasename}."{input2_layer}" layer2
+         WHERE 1=1
+    """
+    gfo.select_two_layers(
+        input1_path=input1_path,
+        input2_path=one_zone_path,
+        output_path=output_path,
+        sql_stmt=sql_stmt,
+    )
+    assert output_path.exists()
+    input1_layerinfo = gfo.get_layerinfo(input1_path)
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    # Same number of columns expected as layer1: fid is "reused"
+    assert len(output_layerinfo.columns) == len(input1_layerinfo.columns)
+
+    # Test with 2 *'s in select
+    output_path = tmp_path / f"output_2stars{suffix}"
+    sql_stmt = """
+        SELECT layer1.*, layer2.*
+          FROM {input1_databasename}."{input1_layer}" layer1
+          CROSS JOIN {input2_databasename}."{input2_layer}" layer2
+         WHERE 1=1
+    """
+    gfo.select_two_layers(
+        input1_path=input1_path,
+        input2_path=one_zone_path,
+        output_path=output_path,
+        sql_stmt=sql_stmt,
+    )
+    assert output_path.exists()
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    # 2 extra columns expected: layer2.fid is aliased + the layer2.geom is aliased
+    exp_nb_columns = len(input1_layerinfo.columns) + len(one_zone_layerinfo.columns) + 2
+    assert len(output_layerinfo.columns) == exp_nb_columns
 
 
 @pytest.mark.parametrize(
