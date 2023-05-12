@@ -597,7 +597,9 @@ def _single_layer_vector_operation(
                 create_spatial_index = False
                 if nb_batches == 1:
                     create_spatial_index = True
-
+                preserve_fid = True
+                if explodecollections:
+                    preserve_fid = False
                 translate_info = _ogr_util.VectorTranslateInfo(
                     input_path=processing_params.batches[batch_id]["path"],
                     output_path=tmp_partial_output_path,
@@ -607,6 +609,7 @@ def _single_layer_vector_operation(
                     explodecollections=explodecollections,
                     force_output_geometrytype=force_output_geometrytype,
                     options={"LAYER_CREATION.SPATIAL_INDEX": create_spatial_index},
+                    preserve_fid=preserve_fid,
                 )
                 future = calculate_pool.submit(
                     _ogr_util.vector_translate_by_info, info=translate_info
@@ -678,7 +681,8 @@ def _single_layer_vector_operation(
     finally:
         # Clean tmp dir
         shutil.rmtree(tempdir, ignore_errors=True)
-        logger.info(f"Processing ready, took {datetime.now()-start_time}!")
+
+    logger.info(f"Processing ready, took {datetime.now()-start_time}!")
 
 
 ################################################################################
@@ -1738,7 +1742,7 @@ def symmetric_difference(
         gfo.move(tmp_output_path, output_path)
 
     finally:
-        shutil.rmtree(tempdir)
+        shutil.rmtree(tempdir, ignore_errors=True)
 
 
 def union(
@@ -1835,7 +1839,7 @@ def union(
         gfo.move(tmp_output_path, output_path)
 
     finally:
-        shutil.rmtree(tempdir)
+        shutil.rmtree(tempdir, ignore_errors=True)
 
     logger.info(f"union ready, took {datetime.now()-start_time}!")
 

@@ -376,6 +376,7 @@ def create_table_as_sql(
             columns_for_create = [
                 f'"{columnname}" {column_types[columnname]}\n'
                 for columnname in column_types
+                if columnname.lower() != "fid"
             ]
             sql = f"""
                 CREATE TABLE {output_databasename}."{output_layer}" (
@@ -419,12 +420,23 @@ def create_table_as_sql(
                 conn.execute(sql)
 
             # Insert data using the sql statement specified
-            columns_for_insert = [f'"{column[1]}"' for column in tmpcolumns]
-            sql = (
-                f'INSERT INTO {output_databasename}."{output_layer}" '
-                f'({", ".join(columns_for_insert)})\n{sql_stmt}'
-            )
-            conn.execute(sql)
+            try:
+                columns_for_insert = [f'"{column[1]}"' for column in tmpcolumns]
+                sql = (
+                    f'INSERT INTO {output_databasename}."{output_layer}" '
+                    f'({", ".join(columns_for_insert)})\n{sql_stmt}'
+                )
+                conn.execute(sql)
+            except Exception as ex:
+                ex_message = str(ex).lower()
+                if ex_message.startswith(
+                    "unique constraint failed:"
+                ) and ex_message.endswith(".fid"):
+                    ex.args = (
+                        f"{ex}: avoid this by not selecting or aliasing fid "
+                        '("select * will select fid!)',
+                    )
+                raise
 
             # Create spatial index if needed
             if create_spatial_index is True:
