@@ -6,7 +6,13 @@ Tests for operations that are executed using a sql statement on one layer.
 import math
 
 import geopandas as gpd
+import geopandas._compat as gpd_compat
 import pytest
+
+if gpd_compat.USE_PYGEOS:
+    import pygeos as shapely2_or_pygeos
+else:
+    import shapely as shapely2_or_pygeos
 from shapely.geometry import MultiPolygon, Polygon
 
 import geofileops as gfo
@@ -17,7 +23,8 @@ from tests.test_helper import DEFAULT_EPSGS, DEFAULT_SUFFIXES
 from tests.test_helper import assert_geodataframe_equal
 
 
-def test_delete_duplicate_geometries(tmp_path):
+@pytest.mark.parametrize("gridsize", [0.0, 0.1])
+def test_delete_duplicate_geometries(tmp_path, gridsize):
     # Prepare test data
     test_gdf = gpd.GeoDataFrame(
         geometry=[  # type: ignore
@@ -29,6 +36,7 @@ def test_delete_duplicate_geometries(tmp_path):
         ],
         crs=test_helper.TestData.crs_epsg,  # type: ignore
     )
+    expected_gdf = test_gdf.iloc[[0, 2, 4]].reset_index(drop=True)
     suffix = ".gpkg"
     input_path = tmp_path / f"input_test_data{suffix}"
     gfo.to_file(test_gdf, input_path)
@@ -38,11 +46,19 @@ def test_delete_duplicate_geometries(tmp_path):
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
     print(f"Run test for suffix {suffix}")
     # delete_duplicate_geometries isn't multiprocess, so no batchsize needed
-    gfo.delete_duplicate_geometries(input_path=input_path, output_path=output_path)
+    gfo.delete_duplicate_geometries(
+        input_path=input_path, output_path=output_path, gridsize=gridsize
+    )
 
     # Check result, 2 duplicates should be removed
     result_info = gfo.get_layerinfo(output_path)
     assert result_info.featurecount == input_info.featurecount - 2
+    result_gdf = gfo.read_file(output_path)
+    if gridsize != 0.0:
+        expected_gdf.geometry = shapely2_or_pygeos.set_precision(
+            expected_gdf.geometry.array.data, grid_size=gridsize
+        )
+    assert_geodataframe_equal(result_gdf, expected_gdf)
 
 
 def test_dissolve_singlethread_output_exists(tmp_path):
@@ -231,24 +247,32 @@ def test_makevalid_invalidparams():
 
 @pytest.mark.parametrize("input_suffix", DEFAULT_SUFFIXES)
 @pytest.mark.parametrize("output_suffix", DEFAULT_SUFFIXES)
-def test_select(tmp_path, input_suffix, output_suffix):
+@pytest.mark.parametrize("gridsize", [0.0, 0.01])
+def test_select(tmp_path, input_suffix, output_suffix, gridsize):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=input_suffix)
 
     # Now run test
-    output_path = (
-        tmp_path
-        / f"{input_path.stem}-{input_suffix.replace('.', '')}-output{output_suffix}"
-    )
+    name = f"{input_path.stem}-{input_suffix.replace('.', '')}-output{output_suffix}"
+    output_path = tmp_path / name
     layerinfo_input = gfo.get_layerinfo(input_path)
-    sql_stmt = 'SELECT {geometrycolumn}, oidn, uidn FROM "{input_layer}"'
-    gfo.select(input_path=input_path, output_path=output_path, sql_stmt=sql_stmt)
+    # Column casing seems to behave odd: without gridsize (=subselect) results in upper
+    # casing rgardless of quotes or not, with gridsize (=subselect) casing in select is
+    # retained in output.
+    sql_stmt = 'SELECT {geometrycolumn}, "oidn", "UIDN" FROM "{input_layer}"'
+    gfo.select(
+        input_path=input_path,
+        output_path=output_path,
+        sql_stmt=sql_stmt,
+        gridsize=gridsize,
+    )
 
     # Now check if the tmp file is correctly created
     layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_input.featurecount == layerinfo_output.featurecount
-    assert "OIDN" in layerinfo_output.columns
-    assert "UIDN" in layerinfo_output.columns
+    columns_output_upper = [col.upper() for col in layerinfo_output.columns]
+    assert "OIDN" in columns_output_upper
+    assert "UIDN" in columns_output_upper
     assert len(layerinfo_output.columns) == 2
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 

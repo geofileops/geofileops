@@ -9,8 +9,13 @@ from typing import Optional, Union
 import sys
 
 import geopandas as gpd
+import geopandas._compat as gpd_compat
 import geopandas.testing as gpd_testing
-import pygeos
+
+if gpd_compat.USE_PYGEOS:
+    import pygeos as shapely2_or_pygeos
+else:
+    import shapely as shapely2_or_pygeos
 import shapely.geometry as sh_geom
 
 # Add path so the local geofileops packages are found
@@ -134,11 +139,11 @@ class TestData:
         [linestring.coords, [(100, 100), (110, 110), (120, 120)]]
     )
     polygon_with_island = sh_geom.Polygon(
-        shell=[(0, 0), (0, 10), (1, 10), (10, 10), (10, 0), (0, 0)],
+        shell=[(0.01, 0), (0.01, 10), (1, 10), (10, 10), (10, 0), (0.01, 0)],
         holes=[[(2, 2), (2, 8), (8, 8), (8, 2), (2, 2)]],
     )
     polygon_no_islands = sh_geom.Polygon(
-        shell=[(100, 100), (100, 110), (110, 110), (110, 100), (100, 100)]
+        shell=[(100.01, 100), (100.01, 110), (110, 110), (110, 100), (100.01, 100)]
     )
     polygon_with_island2 = sh_geom.Polygon(
         shell=[(20, 20), (20, 30), (21, 30), (30, 30), (30, 20), (20, 20)],
@@ -241,8 +246,12 @@ def assert_geodataframe_equal(
 
     if sort_values:
         if normalize:
-            left.geometry = gpd.GeoSeries(pygeos.normalize(left.geometry.array.data))
-            right.geometry = gpd.GeoSeries(pygeos.normalize(right.geometry.array.data))
+            left.geometry = gpd.GeoSeries(
+                shapely2_or_pygeos.normalize(left.geometry.array.data)
+            )
+            right.geometry = gpd.GeoSeries(
+                shapely2_or_pygeos.normalize(right.geometry.array.data)
+            )
         if promote_to_multi:
             left.geometry = geoseries_util.harmonize_geometrytypes(
                 left.geometry, force_multitype=True

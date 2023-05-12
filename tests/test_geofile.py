@@ -42,6 +42,19 @@ def engine_setter(request):
         os.environ["GFO_IO_ENGINE"] = engine_backup
 
 
+@pytest.fixture
+def points_gdf():
+    nb_points = 10
+    gdf = gpd.GeoDataFrame(
+        [
+            {"geometry": sh_geom.Point(x, y), "value1": x + y, "value2": x * y}
+            for x, y in zip(range(nb_points), range(nb_points))
+        ],
+        crs="epsg:4326",
+    )  # type: ignore
+    return gdf
+
+
 def test_add_column(tmp_path):
     test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
 
@@ -1108,6 +1121,173 @@ def test_to_file_geomnone(tmp_path, suffix, engine_setter):
     test_read_geometrytypes = geoseries_util.get_geometrytypes(test_read_gdf.geometry)
     assert len(test_gdf) == len(test_read_gdf)
     assert test_read_geometrytypes == test_geometrytypes
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+def test_to_file_index(tmp_path, points_gdf, suffix, engine_setter):
+    """Strongly based on similar test in geopandas."""
+
+    class FileNumber(object):
+        def __init__(self, tmpdir, base, ext):
+            self.tmpdir = str(tmpdir)
+            self.base = base
+            self.ext = ext
+            self.fileno = 0
+
+        def __repr__(self):
+            filename = "{0}{1:02d}.{2}".format(self.base, self.fileno, self.ext)
+            return os.path.join(self.tmpdir, filename)
+
+        def __next__(self):
+            self.fileno += 1
+            return repr(self)
+
+    fngen = FileNumber(tmp_path, "check", suffix)
+
+    def do_checks(df, index_is_used):
+        # check combinations of index=None|True|False on GeoDataFrame
+        other_cols = list(df.columns)
+        other_cols.remove("geometry")
+
+        if suffix == ".shp":
+            # ESRI Shapefile will add FID if no other columns exist
+            driver_col = ["FID"]
+        else:
+            driver_col = []
+
+        if index_is_used:
+            index_cols = list(df.index.names)
+        else:
+            index_cols = [None] * len(df.index.names)
+
+        # replicate pandas' default index names for regular and MultiIndex
+        if index_cols == [None]:
+            index_cols = ["index"]
+        elif len(index_cols) > 1 and not all(index_cols):
+            for level, index_col in enumerate(index_cols):
+                if index_col is None:
+                    index_cols[level] = "level_" + str(level)  # type: ignore
+
+        # check GeoDataFrame with default index=None to autodetect
+        tempfilename = next(fngen)
+        gfo.to_file(df, tempfilename, index=None)
+        df_check = gfo.read_file(tempfilename)
+        if len(other_cols) == 0:
+            expected_cols = driver_col[:]
+        else:
+            expected_cols = []
+        if index_is_used:
+            expected_cols += index_cols
+        expected_cols += other_cols + ["geometry"]
+        assert list(df_check.columns) == expected_cols
+
+        # check GeoDataFrame with index=True
+        tempfilename = next(fngen)
+        gfo.to_file(df, tempfilename, index=True)
+        df_check = gfo.read_file(tempfilename)
+        assert list(df_check.columns) == index_cols + other_cols + ["geometry"]
+
+        # check GeoDataFrame with index=False
+        tempfilename = next(fngen)
+        gfo.to_file(df, tempfilename, index=False)
+        df_check = gfo.read_file(tempfilename)
+        if len(other_cols) == 0:
+            expected_cols = driver_col + ["geometry"]
+        else:
+            expected_cols = other_cols + ["geometry"]
+        assert list(df_check.columns) == expected_cols
+
+        return
+
+    # Checks where index is not used/saved
+    # ------------------------------------
+
+    # index is a default RangeIndex
+    p_gdf = points_gdf.copy()
+    gdf = gpd.GeoDataFrame(p_gdf["value1"], geometry=p_gdf.geometry)  # type: ignore
+    do_checks(gdf, index_is_used=False)
+
+    # index is a RangeIndex, starting from 1
+    gdf.index += 1
+    do_checks(gdf, index_is_used=False)
+
+    # index is a Int64Index regular sequence from 1
+    p_gdf.index = list(range(1, len(gdf) + 1))
+    gdf = gpd.GeoDataFrame(p_gdf["value1"], geometry=p_gdf.geometry)  # type: ignore
+    do_checks(gdf, index_is_used=False)
+
+    # index was a default RangeIndex, but delete one row to make an Int64Index
+    p_gdf = points_gdf.copy()
+    gdf = gpd.GeoDataFrame(p_gdf["value1"], geometry=p_gdf.geometry)  # type: ignore
+    gdf = gdf.drop(5, axis=0)
+    do_checks(gdf, index_is_used=False)
+
+    # no other columns (except geometry)
+    gdf = gpd.GeoDataFrame(geometry=p_gdf.geometry)  # type: ignore
+    do_checks(gdf, index_is_used=False)
+
+    # Checks where index is used/saved
+    # --------------------------------
+
+    # named index
+    p_gdf = points_gdf.copy()
+    gdf = gpd.GeoDataFrame(p_gdf["value1"], geometry=p_gdf.geometry)  # type: ignore
+    gdf.index.name = "foo_index"
+    do_checks(gdf, index_is_used=True)
+
+    # named index, same as pandas' default name after .reset_index(drop=False)
+    gdf.index.name = "index"
+    do_checks(gdf, index_is_used=True)
+
+    # named MultiIndex
+    p_gdf = points_gdf.copy()
+    p_gdf["value3"] = p_gdf["value2"] - p_gdf["value1"]
+    p_gdf.set_index(["value1", "value2"], inplace=True)
+    gdf = gpd.GeoDataFrame(p_gdf, geometry=p_gdf.geometry)  # type: ignore
+    do_checks(gdf, index_is_used=True)
+
+    # partially unnamed MultiIndex
+    gdf.index.names = ["first", None]  # type: ignore
+    do_checks(gdf, index_is_used=True)
+
+    # unnamed MultiIndex
+    gdf.index.names = [None, None]  # type: ignore
+    do_checks(gdf, index_is_used=True)
+
+    # unnamed Float64Index
+    p_gdf = points_gdf.copy()
+    gdf = gpd.GeoDataFrame(p_gdf["value1"], geometry=p_gdf.geometry)  # type: ignore
+    gdf.index = p_gdf.index.astype(float) / 10
+    do_checks(gdf, index_is_used=True)
+
+    # named Float64Index
+    gdf.index.name = "centile"
+    do_checks(gdf, index_is_used=True)
+
+    # index as string
+    p_gdf = points_gdf.copy()
+    gdf = gpd.GeoDataFrame(p_gdf["value1"], geometry=p_gdf.geometry)  # type: ignore
+    gdf.index = pd.TimedeltaIndex(range(len(gdf)), "days")  # type: ignore
+    # TODO: TimedeltaIndex is an invalid field type
+    gdf.index = gdf.index.astype(str)
+    do_checks(gdf, index_is_used=True)
+
+    # unnamed DatetimeIndex
+    p_gdf = points_gdf.copy()
+    gdf = gpd.GeoDataFrame(p_gdf["value1"], geometry=p_gdf.geometry)  # type: ignore
+    gdf.index = pd.TimedeltaIndex(
+        range(len(gdf)), "days"
+    ) + pd.DatetimeIndex(  # type: ignore
+        ["1999-12-27"] * len(gdf)
+    )
+    if suffix == ".shp":
+        # Shapefile driver does not support datetime fields
+        gdf.index = gdf.index.astype(str)
+    do_checks(gdf, index_is_used=True)
+
+    # named DatetimeIndex
+    gdf.index.name = "datetime"
+    do_checks(gdf, index_is_used=True)
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
