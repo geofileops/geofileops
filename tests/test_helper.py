@@ -6,7 +6,6 @@ Helper functions for all tests.
 from pathlib import Path
 import tempfile
 from typing import Optional, Union
-import sys
 
 import geopandas as gpd
 import geopandas._compat as gpd_compat
@@ -18,17 +17,15 @@ else:
     import shapely as shapely2_or_pygeos
 import shapely.geometry as sh_geom
 
-# Add path so the local geofileops packages are found
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import geofileops as gfo
 from geofileops.util import geodataframe_util
 from geofileops.util import geoseries_util
 
 _data_dir = Path(__file__).parent.resolve() / "data"
-DEFAULT_EPSGS = [31370, 4326]
+EPSGS = [31370, 4326]
 GRIDSIZE_DEFAULT = 0.0
-DEFAULT_SUFFIXES = [".gpkg", ".shp"]
-DEFAULT_TESTFILES = ["polygon-parcel", "linestring-row-trees", "point"]
+SUFFIXES = [".gpkg", ".shp"]
+TESTFILES = ["polygon-parcel", "linestring-row-trees", "point"]
 
 
 def prepare_test_file(
