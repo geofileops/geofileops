@@ -452,3 +452,38 @@ def test_select_batch_filter(
             gfo.select(input_path, output_path, sql_stmt, nb_parallel=nb_parallel)
     else:
         gfo.select(input_path, output_path, sql_stmt, nb_parallel=nb_parallel)
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize("explodecollections", [True, False])
+def test_select_star(tmp_path, suffix, explodecollections):
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+
+    # Now run test
+    name = f"{input_path.stem}-output{suffix}"
+    output_path = tmp_path / name
+    input_layerinfo = gfo.get_layerinfo(input_path)
+    sql_stmt = 'SELECT * FROM "{input_layer}"'
+    gfo.select(
+        input_path=input_path,
+        output_path=output_path,
+        sql_stmt=sql_stmt,
+        explodecollections=explodecollections,
+    )
+
+    # Now check if the tmp file is correctly created
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    if explodecollections:
+        assert output_layerinfo.featurecount == input_layerinfo.featurecount + 2
+    else:
+        assert output_layerinfo.featurecount == input_layerinfo.featurecount
+    columns_output_upper = [col.upper() for col in output_layerinfo.columns]
+    assert "OIDN" in columns_output_upper
+    assert "UIDN" in columns_output_upper
+    assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
+    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+
+    # Now check the contents of the result file
+    output_gdf = gfo.read_file(output_path)
+    assert output_gdf["geometry"][0] is not None
