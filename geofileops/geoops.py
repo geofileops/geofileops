@@ -42,6 +42,7 @@ def apply(
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
     gridsize: float = 0.0,
+    where: Optional[str] = "{geometrycolumn} IS NOT NULL",
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -83,6 +84,10 @@ def apply(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
+        where (str, optional): filter to be applied to the result of the operation. It
+            should be in sqlite SQL WHERE syntax and can include
+            |spatialite_reference_link| functions.
+            Defaults to "{geometrycolumn} IS NOT NULL".
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -104,6 +109,7 @@ def apply(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
+        where=where,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -124,6 +130,7 @@ def buffer(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
+    where: str = "{geometrycolumn} IS NOT NULL",
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -175,6 +182,10 @@ def buffer(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
+        where (str, optional): filter to be applied to the result of the operation. It
+            should be in sqlite SQL WHERE syntax and can include
+            |spatialite_reference_link| functions.
+            Defaults to "{geometrycolumn} IS NOT NULL".
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -237,6 +248,8 @@ def buffer(
            - |buffer_mitre_25|
            - |buffer_mitre_10|
 
+    .. |spatialite_reference_link| raw:: html
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite</a>  # noqa: E501.
     .. |buffer_quadrantsegm_5| image:: ../_static/images/buffer_quadrantsegments_5.png
         :alt: Buffer with quadrantsegments=5
     .. |buffer_quadrantsegm_2| image:: ../_static/images/buffer_quadrantsegments_2.png
@@ -283,6 +296,7 @@ def buffer(
             columns=columns,
             explodecollections=explodecollections,
             gridsize=gridsize,
+            where=where,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
@@ -303,6 +317,7 @@ def buffer(
             columns=columns,
             explodecollections=explodecollections,
             gridsize=gridsize,
+            where=where,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
@@ -360,6 +375,7 @@ def convexhull(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
+    where: Optional[str] = "{geometrycolumn} IS NOT NULL",
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -385,6 +401,10 @@ def convexhull(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
+        where (str, optional): filter to be applied to the result of the operation. It
+            should be in sqlite SQL WHERE syntax and can include
+            |spatialite_reference_link| functions.
+            Defaults to "{geometrycolumn} IS NOT NULL".
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -403,6 +423,7 @@ def convexhull(
         columns=columns,
         explodecollections=explodecollections,
         gridsize=gridsize,
+        where=where,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -417,6 +438,7 @@ def delete_duplicate_geometries(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
+    where: Optional[str] = "{geometrycolumn} IS NOT NULL",
     force: bool = False,
 ):
     """
@@ -438,6 +460,10 @@ def delete_duplicate_geometries(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
+        where (str, optional): filter to be applied to the result of the operation. It
+            should be in sqlite SQL WHERE syntax and can include
+            |spatialite_reference_link| functions.
+            Defaults to "{geometrycolumn} IS NOT NULL".
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
@@ -450,6 +476,7 @@ def delete_duplicate_geometries(
         columns=columns,
         explodecollections=explodecollections,
         gridsize=gridsize,
+        where=where,
         force=force,
     )
 
@@ -465,6 +492,7 @@ def dissolve(
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     gridsize: float = 0.0,
+    where: Optional[str] = "{geometrycolumn} IS NOT NULL",
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -592,6 +620,10 @@ def dissolve(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
+        where (str, optional): filter to be applied to the result of the operation. It
+            should be in sqlite SQL WHERE syntax and can include
+            |spatialite_reference_link| functions.
+            Defaults to "{geometrycolumn} IS NOT NULL".
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -626,6 +658,7 @@ def dissolve(
         input_layer=input_layer,
         output_layer=output_layer,
         gridsize=gridsize,
+        where=where,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -757,6 +790,7 @@ def makevalid(
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
     gridsize: float = 0.0,
+    where: Optional[str] = "{geometrycolumn} IS NOT NULL",
     precision: Optional[float] = None,
     validate_attribute_data: bool = False,
     nb_parallel: int = -1,
@@ -790,6 +824,10 @@ def makevalid(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
+        where (str, optional): filter to be applied to the result of the operation. It
+            should be in sqlite SQL WHERE syntax and can include
+            |spatialite_reference_link| functions.
+            Defaults to "{geometrycolumn} IS NOT NULL".
         validate_attribute_data (bool, optional): True to validate if all attribute data
             can be read. Raises an exception if an error is found, as this type of error
             cannot be fixed using makevalid. Defaults to False.
@@ -827,6 +865,7 @@ def makevalid(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
+        where=where,
         validate_attribute_data=validate_attribute_data,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -1031,6 +1070,7 @@ def simplify(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
+    where: Optional[str] = "{geometrycolumn} IS NOT NULL",
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -1067,6 +1107,10 @@ def simplify(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
+        where (str, optional): filter to be applied to the result of the operation. It
+            should be in sqlite SQL WHERE syntax and can include
+            |spatialite_reference_link| functions.
+            Defaults to "{geometrycolumn} IS NOT NULL".
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -1087,6 +1131,7 @@ def simplify(
             columns=columns,
             explodecollections=explodecollections,
             gridsize=gridsize,
+            where=where,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
@@ -1103,6 +1148,7 @@ def simplify(
             columns=columns,
             explodecollections=explodecollections,
             gridsize=gridsize,
+            where=where,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,

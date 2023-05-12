@@ -62,8 +62,8 @@ warnings.filterwarnings(
     message="^Layer .* does not have any features to read$",
 )
 # Set logging level for pyogrio to warning
-pyogrio_logger = logging.getLogger("pyogrio")
-pyogrio_logger.setLevel(logging.WARNING)
+pyogriologger = logging.getLogger("pyogrio")
+pyogriologger.setLevel(logging.WARNING)
 
 # Hardcoded 31370 prj string to replace faulty ones
 PRJ_EPSG_31370 = (
@@ -2043,6 +2043,7 @@ def _append_to_nolock(
     dst_layer: Optional[str] = None,
     src_crs: Union[int, str, None] = None,
     dst_crs: Union[int, str, None] = None,
+    where: Optional[str] = None,
     reproject: bool = False,
     explodecollections: bool = False,
     create_spatial_index: Optional[bool] = True,
@@ -2059,20 +2060,44 @@ def _append_to_nolock(
     ):
         options["LAYER_CREATION.SPATIAL_INDEX"] = create_spatial_index
 
-    # When creating/appending to a shapefile, launder the columns names via
-    # a sql statement, otherwise when appending the laundered columns will
-    # get NULL values instead of the data.
+    # When creating/appending to a shapefile, some extra things need to be done/checked.
     sql_stmt = None
     src_layerinfo = None
     if dst.suffix.lower() == ".shp":
+        # If the destination file doesn't exist yet, and the source file has
+        # geometrytype "Geometry", raise because type is not supported by shp (and will
+        # default to linestring).
         src_layerinfo = get_layerinfo(src, src_layer)
+        if (
+            force_output_geometrytype is None
+            and src_layerinfo.geometrytype
+            in [GeometryType.GEOMETRY, GeometryType.GEOMETRYCOLLECTION]
+            and not dst.exists()
+        ):
+            raise ValueError(
+                f"src file {src} has geometrytype {src_layerinfo.geometrytypename} "
+                "which is not supported in .shp. Maybe use force_output_geometrytype?"
+            )
+
+        # Launder the columns names via a sql statement, otherwise when appending the
+        # laundered columns will get NULL values instead of the data.
         src_columns = src_layerinfo.columns
         columns_laundered = _launder_column_names(src_columns)
         columns_aliased = [
             f'"{column}" AS "{laundered}"' for column, laundered in columns_laundered
         ]
         layer = src_layer if src_layer is not None else get_only_layer(src)
-        sql_stmt = f'SELECT {", ".join(columns_aliased)} FROM "{layer}"'
+        # If there is a where specified, integrate it...
+        where_clause = ""
+        if where is not None:
+            where_clause = f"WHERE {where}"
+            where = None
+        sql_stmt = f"""
+            SELECT {src_layerinfo.geometrycolumn}
+                  ,{", ".join(columns_aliased)}
+              FROM "{layer}"
+             {where_clause}
+        """
 
     # When dst file doesn't exist and src is empty force_output_geometrytype should be
     # specified, otherwise invalid output.
@@ -2090,7 +2115,8 @@ def _append_to_nolock(
         input_srs=src_crs,
         output_srs=dst_crs,
         sql_stmt=sql_stmt,
-        sql_dialect="OGRSQL",
+        sql_dialect="SQLITE",
+        where=where,
         reproject=reproject,
         transaction_size=transaction_size,
         append=True,

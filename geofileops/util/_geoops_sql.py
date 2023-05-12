@@ -50,6 +50,7 @@ def buffer(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
+    where: str = "{geometrycolumn} IS NOT NULL",
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -93,8 +94,8 @@ def buffer(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
+        where=where,
         sql_dialect="SQLITE",
-        filter_null_geoms=True,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -109,6 +110,7 @@ def convexhull(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
+    where: Optional[str] = "{geometrycolumn} IS NOT NULL",
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -138,8 +140,8 @@ def convexhull(
         explodecollections=explodecollections,
         force_output_geometrytype=input_layerinfo.geometrytype,
         gridsize=gridsize,
+        where=where,
         sql_dialect="SQLITE",
-        filter_null_geoms=True,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -154,6 +156,7 @@ def delete_duplicate_geometries(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
+    where: Optional[str] = "{geometrycolumn} IS NOT NULL",
     force: bool = False,
 ):
     # The query as written doesn't give correct results when parallellized,
@@ -182,8 +185,8 @@ def delete_duplicate_geometries(
         explodecollections=explodecollections,
         force_output_geometrytype=input_layer_info.geometrytype,
         gridsize=gridsize,
+        where=where,
         sql_dialect="SQLITE",
-        filter_null_geoms=True,
         nb_parallel=1,
         batchsize=-1,
         force=force,
@@ -224,8 +227,8 @@ def isvalid(
         explodecollections=explodecollections,
         force_output_geometrytype=GeometryType.POINT,
         gridsize=0.0,
+        where=None,
         sql_dialect="SQLITE",
-        filter_null_geoms=True,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -270,6 +273,7 @@ def makevalid(
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
     gridsize: float = 0.0,
+    where: Optional[str] = "{geometrycolumn} IS NOT NULL",
     validate_attribute_data: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -323,8 +327,8 @@ def makevalid(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=0.0,
+        where=where,
         sql_dialect="SQLITE",
-        filter_null_geoms=True,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -381,8 +385,8 @@ def select(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
+        where=None,
         sql_dialect=sql_dialect,
-        filter_null_geoms=False,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -398,6 +402,7 @@ def simplify(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
+    where: Optional[str] = "{geometrycolumn} IS NOT NULL",
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -425,8 +430,8 @@ def simplify(
         explodecollections=explodecollections,
         force_output_geometrytype=input_layer_info.geometrytype,
         gridsize=gridsize,
+        where=where,
         sql_dialect="SQLITE",
-        filter_null_geoms=True,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -444,8 +449,8 @@ def _single_layer_vector_operation(
     explodecollections: bool,
     force_output_geometrytype: Optional[GeometryType],
     gridsize: float,
+    where: Optional[str],
     sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]],
-    filter_null_geoms: bool,
     nb_parallel: int,
     batchsize: int,
     force: bool,
@@ -453,11 +458,13 @@ def _single_layer_vector_operation(
     # Init
     start_time = datetime.now()
 
-    # Check input parameters...
+    # Check/clean input parameters...
     if not input_path.exists():
         raise ValueError(f"{operation_name}: input_path doesn't exist: {input_path}")
     if input_path == output_path:
         raise ValueError(f"{operation_name}: output_path must not equal input_path")
+    if where is not None and where == "":
+        where = None
 
     # Check/get layer names
     if input_layer is None:
@@ -555,13 +562,13 @@ def _single_layer_vector_operation(
             """
 
         # Add where filter around sql_template if relevant
-        if filter_null_geoms:
-            where = "sub_where.geom IS NOT NULL"
+        if where is not None:
+            where = where.format(geometrycolumn="geom")
             sql_template = f"""
                 SELECT sub_where.* FROM
                     ( {sql_template}
                     ) sub_where
-                    WHERE {where}
+                 WHERE {where}
             """
 
         # Prepare temp output filename
@@ -2486,6 +2493,7 @@ def dissolve_singlethread(
     agg_columns: Optional[dict] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
+    where: Optional[str] = "{geometrycolumn} IS NOT NULL",
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     force: bool = False,
@@ -2660,6 +2668,7 @@ def dissolve_singlethread(
             primitivetypeid = force_output_geometrytype.to_primitivetype.value
             operation = f"ST_CollectionExtract({operation}, {primitivetypeid})"
 
+    # Now the sql query can be assembled
     sql_stmt = f"""
         SELECT {operation} AS geom
             {groupby_columns_for_select_str}
@@ -2667,6 +2676,14 @@ def dissolve_singlethread(
         FROM "{input_layer}" layer
         GROUP BY {groupby_columns_for_groupby_str}
     """
+    # Finally add where if specified
+    if where is not None:
+        sql_stmt = f"""
+            SELECT * FROM
+                ({sql_stmt}
+                )
+             WHERE {where}
+        """
 
     _ogr_util.vector_translate(
         input_path=input_path,
