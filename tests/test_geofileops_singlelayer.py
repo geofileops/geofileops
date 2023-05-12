@@ -19,13 +19,19 @@ else:
 from geofileops import geoops
 from geofileops import fileops
 from geofileops import GeometryType
-from geofileops.util import _io_util
-from tests import test_helper as test_helper
-from tests.test_helper import DEFAULT_EPSGS, DEFAULT_SUFFIXES, DEFAULT_TESTFILES
+from geofileops.util import _io_util as io_util
+from tests import test_helper
+from tests.test_helper import (
+    EPSGS,
+    GRIDSIZE_DEFAULT,
+    SUFFIXES,
+    TESTFILES,
+)
 from tests.test_helper import assert_geodataframe_equal
 
 # Init gfo module
 current_fileops_module = "geofileops.fileops"
+GEOOPS_MODULES = ["geofileops.geoops", "geofileops.util._geoops_gpd"]
 
 
 def set_geoops_module(fileops_module: str):
@@ -42,8 +48,10 @@ def set_geoops_module(fileops_module: str):
 
 
 def get_combinations_to_test(
-    fileops_modules: List[str],
-    testfiles: List[str] = ["polygon-parcel", "point", "linestring-row-trees"],
+    fileops_modules: List[str] = GEOOPS_MODULES,
+    testfiles: List[str] = TESTFILES,
+    epsgs: List[int] = EPSGS,
+    suffixes: List[str] = SUFFIXES,
 ) -> list:
     """
     Return sensible combinations of parameters to be used in tests for following params:
@@ -54,10 +62,10 @@ def get_combinations_to_test(
     # On .gpkg test:
     #   - all combinations of fileops_modules, testfiles and epsgs
     #   - fixed empty_input, suffix
-    for epsg in DEFAULT_EPSGS:
+    for epsg in epsgs:
         for fileops_module in fileops_modules:
             for testfile in testfiles:
-                gridsize = 0.001 if epsg == 31370 else 0.0
+                gridsize = 0.001 if epsg == 31370 else GRIDSIZE_DEFAULT
                 result.append(
                     (".gpkg", epsg, fileops_module, testfile, False, gridsize)
                 )
@@ -65,7 +73,7 @@ def get_combinations_to_test(
     # On other suffixes test:
     #   - all combinations of fileops_modules, testfiles
     #   - fixed epsg and empty_input
-    other_suffixes = list(DEFAULT_SUFFIXES)
+    other_suffixes = list(suffixes)
     other_suffixes.remove(".gpkg")
     for suffix in other_suffixes:
         for fileops_module in fileops_modules:
@@ -77,8 +85,8 @@ def get_combinations_to_test(
     #   - all combinations of fileops_modules and DEFAULT_SUFFIXES
     #   - fixed epsg, testfile and empty_input
     for fileops_module in fileops_modules:
-        for suffix in DEFAULT_SUFFIXES:
-            gridsize = 0.001 if suffix == ".gpkg" else 0.0
+        for suffix in suffixes:
+            gridsize = 0.001 if suffix == ".gpkg" else GRIDSIZE_DEFAULT
             result.append(
                 (suffix, 31370, fileops_module, "polygon-parcel", True, gridsize)
             )
@@ -88,7 +96,7 @@ def get_combinations_to_test(
 
 @pytest.mark.parametrize(
     "suffix, epsg, fileops_module, testfile, empty_input, gridsize",
-    get_combinations_to_test(["geofileops.geoops", "geofileops.util._geoops_gpd"]),
+    get_combinations_to_test(),
 )
 def test_buffer(
     tmp_path, suffix, epsg, fileops_module, testfile, empty_input, gridsize
@@ -129,6 +137,8 @@ def test_buffer(
     if not empty_input:
         output_gdf = fileops.read_file(output_path)
         assert output_gdf["geometry"][0] is not None
+
+        # Prepare expected data
         expected_gdf = fileops.read_file(input_path)
         expected_gdf.geometry = expected_gdf.geometry.buffer(
             distance=distance, resolution=5
@@ -149,7 +159,7 @@ def test_buffer(
         )
 
 
-@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES)
 @pytest.mark.parametrize("testfile", ["polygon-parcel"])
 @pytest.mark.parametrize(
     "fileops_module", ["geofileops.geoops", "geofileops.util._geoops_gpd"]
@@ -281,8 +291,6 @@ def test_buffer_invalid_params(
         geoops.buffer(input_path=input_path, output_path=output_path, distance=1)
 
 
-@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-@pytest.mark.parametrize("testfile", DEFAULT_TESTFILES)
 @pytest.mark.parametrize(
     "fileops_module", ["geofileops.geoops", "geofileops.util._geoops_gpd"]
 )
@@ -338,9 +346,7 @@ def test_buffer_negative(tmp_path, suffix, fileops_module, testfile):
         assert_geodataframe_equal(output_gdf, expected_gdf, sort_values=True)
 
 
-@pytest.mark.parametrize(
-    "fileops_module", ["geofileops.geoops", "geofileops.util._geoops_gpd"]
-)
+@pytest.mark.parametrize("fileops_module", GEOOPS_MODULES)
 def test_buffer_negative_explode(tmp_path, fileops_module):
     """Buffer basics are available both in the gpd and sql implementations."""
     input_path = test_helper.get_testfile("polygon-parcel")
@@ -391,10 +397,10 @@ def test_buffer_negative_explode(tmp_path, fileops_module):
     )
 
 
+@pytest.mark.parametrize("suffix", SUFFIXES)
 @pytest.mark.parametrize(
     "fileops_module", ["geofileops.geoops", "geofileops.util._geoops_gpd"]
 )
-@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
 @pytest.mark.parametrize("empty_input, gridsize", [(True, 0.0), (False, 0.001)])
 def test_convexhull(tmp_path, fileops_module, suffix, empty_input, gridsize):
     logging.basicConfig(level=logging.DEBUG)
@@ -469,7 +475,7 @@ def test_simplify(
         tolerance = 5 / 111000
 
     # Test default algorithm (rdp)
-    output_path = _io_util.with_stem(input_path, output_path)
+    output_path = io_util.with_stem(input_path, output_path)
     geoops.simplify(
         input_path=input_path,
         output_path=output_path,
