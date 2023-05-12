@@ -833,6 +833,7 @@ def test_select_two_layers_select_star_fids_unique(tmp_path, suffix):
     assert one_zone_layerinfo.featurecount == 1
 
     # Test with 1 * in the select
+    # ---------------------------
     output_path = tmp_path / f"output_1star{suffix}"
     sql_stmt = """
         SELECT layer1.*
@@ -853,6 +854,7 @@ def test_select_two_layers_select_star_fids_unique(tmp_path, suffix):
     assert len(output_layerinfo.columns) == len(input1_layerinfo.columns)
 
     # Test with 2 *'s in select
+    # -------------------------
     output_path = tmp_path / f"output_2stars{suffix}"
     sql_stmt = """
         SELECT layer1.*, layer2.*
@@ -870,6 +872,27 @@ def test_select_two_layers_select_star_fids_unique(tmp_path, suffix):
     output_layerinfo = gfo.get_layerinfo(output_path)
     # 2 extra columns expected: layer2.fid is aliased + the layer2.geom is aliased
     exp_nb_columns = len(input1_layerinfo.columns) + len(one_zone_layerinfo.columns) + 2
+    assert len(output_layerinfo.columns) == exp_nb_columns
+
+    # Test with 2 fid's in select
+    # -------------------------
+    output_path = tmp_path / f"output_2fids{suffix}"
+    sql_stmt = """
+        SELECT layer1.{input1_geometrycolumn}, layer1.fid, layer2.fid
+          FROM {input1_databasename}."{input1_layer}" layer1
+          CROSS JOIN {input2_databasename}."{input2_layer}" layer2
+         WHERE 1=1
+    """
+    gfo.select_two_layers(
+        input1_path=input1_path,
+        input2_path=one_zone_path,
+        output_path=output_path,
+        sql_stmt=sql_stmt,
+    )
+    assert output_path.exists()
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    # 1 attribute column expected: layer2.fid is aliased
+    exp_nb_columns = 1
     assert len(output_layerinfo.columns) == exp_nb_columns
 
 
