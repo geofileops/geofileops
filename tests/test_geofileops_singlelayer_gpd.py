@@ -31,15 +31,107 @@ def test_get_parallelization_params():
 
 
 @pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
-@pytest.mark.parametrize("only_geom_input, gridsize", [(True, 0.0), (False, 0.001)])
-@pytest.mark.parametrize("force_output_geometrytype", [None, GeometryType.POLYGON])
-def test_apply(tmp_path, suffix, only_geom_input, force_output_geometrytype, gridsize):
+@pytest.mark.parametrize(
+    "only_geom_input, gridsize, where",
+    [
+        (False, 0.0, "ST_Area({geometrycolumn}) > 70"),
+        (True, 0.01, "WHERE_DEFAULT"),
+    ],
+)
+def test_apply(tmp_path, suffix, only_geom_input, gridsize, where):
     # Prepare test data
     test_gdf = gpd.GeoDataFrame(
-        geometry=[  # type: ignore
-            test_helper.TestData.polygon_small_island,
-            test_helper.TestData.polygon_with_island,
-            None,
+        data=[
+            {"uidn": 1, "geometry": test_helper.TestData.polygon_small_island},
+            {"uidn": 2, "geometry": test_helper.TestData.polygon_with_island},
+        ],
+        crs=31370,  # type: ignore
+    )
+    input_path = tmp_path / f"polygons_small_holes_{suffix}"
+    gfo.to_file(test_gdf, input_path)
+    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
+    input_layerinfo = gfo.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+
+    # Run test
+    kwargs = {}
+    if where != "WHERE_DEFAULT":
+        kwargs["where"] = where
+    kwargs["gridsize"] = gridsize
+    kwargs["batchsize"] = batchsize
+    if only_geom_input:
+        gfo.apply(
+            input_path=input_path,
+            output_path=output_path,
+            func=lambda geom: geometry_util.remove_inner_rings(
+                geometry=geom, min_area_to_keep=2, crs=input_layerinfo.crs
+            ),
+            only_geom_input=True,
+            **kwargs,
+        )
+    else:
+        gfo.apply(
+            input_path=input_path,
+            output_path=output_path,
+            func=lambda row: geometry_util.remove_inner_rings(
+                row.geometry, min_area_to_keep=2, crs=input_layerinfo.crs
+            ),
+            only_geom_input=False,
+            **kwargs,
+        )
+
+    # Now check if the output file is correctly created
+    assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
+
+    # Read result for some more detailed checks
+    output_gdf = gfo.read_file(output_path).sort_values("uidn").reset_index(drop=True)
+    output_layerinfo = gfo.get_layerinfo(output_path)
+
+    assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
+    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+
+    # Number of rows depends on where
+    if where == "ST_Area({geometrycolumn}) > 70":
+        assert output_layerinfo.featurecount == input_layerinfo.featurecount - 1
+    elif where == "WHERE_DEFAULT":
+        assert output_layerinfo.featurecount == input_layerinfo.featurecount
+    else:
+        raise ValueError(f"unsupported where in test: {where}")
+
+    for row in output_gdf.itertuples():
+        cur_geometry = row.geometry
+        assert cur_geometry is not None
+
+        # It should be a normal Polygon, but might be wrapped as MultiPolygon
+        if isinstance(cur_geometry, sh_geom.MultiPolygon):
+            assert len(cur_geometry.geoms) == 1
+            cur_geometry = cur_geometry.geoms[0]
+        assert isinstance(cur_geometry, sh_geom.Polygon)
+
+        if row.uidn == 1:
+            # In the 1st polygon the island must be removed
+            assert len(cur_geometry.interiors) == 0
+        elif row.uidn == 2:
+            # In the 2nd polygon the island is larger, so should be there
+            assert len(cur_geometry.interiors) == 1
+
+
+@pytest.mark.parametrize("suffix", DEFAULT_SUFFIXES)
+@pytest.mark.parametrize("only_geom_input", [False, True])
+@pytest.mark.parametrize("force_output_geometrytype", [None, GeometryType.POLYGON])
+def test_apply_None(tmp_path, suffix, only_geom_input, force_output_geometrytype):
+    """
+    Some tests regarding None geometries.
+
+    The test uses None geometries as input, but is similar to apply resulting in None.
+    """
+    # Prepare test data
+    test_gdf = gpd.GeoDataFrame(
+        data=[
+            {"id": 1, "geometry": test_helper.TestData.polygon_small_island},
+            {"id": 2, "geometry": test_helper.TestData.polygon_with_island},
+            {"id": 3, "geometry": None},
         ],
         crs=31370,  # type: ignore
     )
@@ -58,7 +150,6 @@ def test_apply(tmp_path, suffix, only_geom_input, force_output_geometrytype, gri
             ),
             only_geom_input=True,
             force_output_geometrytype=force_output_geometrytype,
-            gridsize=gridsize,
             batchsize=batchsize,
         )
     else:
@@ -70,26 +161,34 @@ def test_apply(tmp_path, suffix, only_geom_input, force_output_geometrytype, gri
             ),
             only_geom_input=False,
             force_output_geometrytype=force_output_geometrytype,
-            gridsize=gridsize,
             batchsize=batchsize,
         )
 
     # Now check if the output file is correctly created
     assert output_path.exists()
     assert gfo.has_spatial_index(output_path)
+
+    # Read result for some more detailed checks
+    output_gdf = gfo.read_file(output_path).sort_values("id").reset_index(drop=True)
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert input_layerinfo.featurecount == (output_layerinfo.featurecount + 1)
+
     assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
-    if force_output_geometrytype is None or suffix == ".shp":
+    if force_output_geometrytype is None:
+        # The first partial file during calculation to be completed has None geometry,
+        # so file is created with GEOMETRY type.
+        pass
+    elif force_output_geometrytype is None or suffix == ".shp":
         assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
     else:
         assert output_layerinfo.geometrytype == GeometryType.POLYGON
 
-    # Read result for some more detailed checks
-    output_gdf = gfo.read_file(output_path)
     for index in range(0, 2):
         output_geometry = output_gdf["geometry"][index]
-        assert output_geometry is not None
+        if index == 2:
+            assert output_geometry is None
+            continue
+        else:
+            assert output_geometry is not None
         if isinstance(output_geometry, sh_geom.MultiPolygon):
             assert len(output_geometry.geoms) == 1
             output_geometry = output_geometry.geoms[0]

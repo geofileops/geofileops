@@ -26,6 +26,7 @@ from geofileops.util import geoseries_util
 
 _data_dir = Path(__file__).parent.resolve() / "data"
 DEFAULT_EPSGS = [31370, 4326]
+GRIDSIZE_DEFAULT = 0.0
 DEFAULT_SUFFIXES = [".gpkg", ".shp"]
 DEFAULT_TESTFILES = ["polygon-parcel", "linestring-row-trees", "point"]
 
