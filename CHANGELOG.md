@@ -12,6 +12,8 @@
   operations (#246)
 - Follow geopandas behaviour of using shapely2 and/or pygeos instead of forcing pygeos
   (#294)
+- Improve handling of "SELECT * ..." style queries in `gfo.select` and 
+  `gfo.select_two_layers` (#283)
 - Many small improvements to logging, documentation, error messages,...
 
 ### Bugs fixed
