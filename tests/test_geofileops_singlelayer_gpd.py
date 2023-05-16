@@ -10,7 +10,6 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 import pytest
-
 import shapely.geometry as sh_geom
 
 import geofileops as gfo
@@ -804,47 +803,6 @@ def test_dissolve_polygons_specialcases(tmp_path, suffix):
         assert len(output_gdf) == output_layerinfo.featurecount
         assert output_gdf["geometry"][0] is not None
 
-    # Test dissolve polygons with tiles_path
-    # --------------------------------------
-    output_path = (
-        output_basepath.parent
-        / f"{output_basepath.stem}_tilespath{output_basepath.suffix}"
-    )
-    tiles_path = output_basepath.parent / "tiles.gpkg"
-    tiles_gdf = grid_util.create_grid2(
-        input_layerinfo.total_bounds, nb_squarish_tiles=4, crs=31370
-    )
-    gfo.to_file(tiles_gdf, tiles_path)
-    gfo.dissolve(
-        input_path=input_path,
-        output_path=output_path,
-        tiles_path=tiles_path,
-        explodecollections=False,
-        nb_parallel=2,
-        batchsize=batchsize,
-        force=True,
-    )
-
-    # Now check if the result file is correctly created
-    assert output_path.exists()
-    output_layerinfo = gfo.get_layerinfo(output_path)
-    assert output_layerinfo.featurecount == 4
-    if output_basepath.suffix == ".shp":
-        # Shapefile always has an FID field
-        # but only if there is no other column???
-        # TODO: think about whether this should also be the case for geopackage???
-        assert len(output_layerinfo.columns) == 1
-    else:
-        assert len(output_layerinfo.columns) == 1
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
-
-    # Now check the contents of the result file
-    input_gdf = gfo.read_file(input_path)
-    output_gdf = gfo.read_file(output_path)
-    assert input_gdf.crs == output_gdf.crs
-    assert len(output_gdf) == output_layerinfo.featurecount
-    assert output_gdf["geometry"][0] is not None
-
     # Test dissolve to existing output path without and without force
     # ---------------------------------------------------------------
     for force in [True, False]:
@@ -862,6 +820,58 @@ def test_dissolve_polygons_specialcases(tmp_path, suffix):
             assert output_path.stat().st_mtime == mtime_orig
         else:
             assert output_path.stat().st_mtime != mtime_orig
+
+
+@pytest.mark.parametrize("suffix", SUFFIXES)
+def test_dissolve_polygons_tyles_empty(tmp_path, suffix):
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    input_layerinfo = gfo.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+    output_path = tmp_path / f"{input_path.stem}-tilesoutput{suffix}"
+    tiles_path = tmp_path / "tiles.gpkg"
+
+    # Make the bounds large enough so there are also empty tiles
+    width = input_layerinfo.total_bounds[2] - input_layerinfo.total_bounds[0]
+    tiles_bounds = (
+        input_layerinfo.total_bounds[0] - 1,
+        input_layerinfo.total_bounds[1] - 1,
+        input_layerinfo.total_bounds[2] + 1 + width,
+        input_layerinfo.total_bounds[3] + 1,
+    )
+    tiles_gdf = grid_util.create_grid2(tiles_bounds, nb_squarish_tiles=8, crs=31370)
+    gfo.to_file(tiles_gdf, tiles_path)
+
+    # Test!
+    gfo.dissolve(
+        input_path=input_path,
+        output_path=output_path,
+        tiles_path=tiles_path,
+        explodecollections=False,
+        nb_parallel=2,
+        batchsize=batchsize,
+        force=True,
+    )
+
+    # Now check if the result file is correctly created
+    assert output_path.exists()
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.featurecount == 4
+    if suffix == ".shp":
+        # Shapefile always has an FID field
+        # but only if there is no other column???
+        # TODO: think about whether this should also be the case for geopackage???
+        assert len(output_layerinfo.columns) == 1
+    else:
+        assert len(output_layerinfo.columns) == 1
+    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+
+    # Now check the contents of the result file
+    input_gdf = gfo.read_file(input_path)
+    output_gdf = gfo.read_file(output_path)
+    assert input_gdf.crs == output_gdf.crs
+    assert len(output_gdf) == output_layerinfo.featurecount
+    assert output_gdf["geometry"][0] is not None
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES)
