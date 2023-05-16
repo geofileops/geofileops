@@ -266,12 +266,13 @@ def test_convert_preserve_fid(
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES)
-def test_convert_reproject(tmp_path, suffix):
+@pytest.mark.parametrize("src_crs", [None, 31370])
+def test_convert_reproject(tmp_path, suffix, src_crs):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
     # Convert with reproject
     dst = tmp_path / f"{src.stem}-output_reproj4326{suffix}"
-    gfo.convert(src, dst, dst_crs=4326, reproject=True)
+    gfo.convert(src, dst, src_crs=src_crs, dst_crs=4326, reproject=True)
 
     # Now compare source and dst file
     src_layerinfo = gfo.get_layerinfo(src)

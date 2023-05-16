@@ -111,4 +111,4 @@ def test_vector_translate_invalid_params(tmp_path, kwargs, expected_error):
     output_path = tmp_path / f"output{input_path.suffix}"
 
     with pytest.raises(Exception, match=expected_error):
-        _ogr_util.vector_translate(input_path, output_path, **kwargs)
+        _ogr_util.vector_translate(str(input_path), output_path, **kwargs)
