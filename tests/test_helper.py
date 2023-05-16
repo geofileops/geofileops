@@ -26,18 +26,16 @@ EPSGS = [31370, 4326]
 GRIDSIZE_DEFAULT = 0.0
 SUFFIXES = [".gpkg", ".shp"]
 TESTFILES = ["polygon-parcel", "linestring-row-trees", "point"]
-WHERE_AREA_GT_400 = "{geometrycolumn} IS NOT NULL AND ST_Area({geometrycolumn}) > 400"
-WHERE_AREA_GT_5000 = "{geometrycolumn} IS NOT NULL AND ST_Area({geometrycolumn}) > 5000"
-WHERE_LENGTH_GT_1000 = (
-    "{geometrycolumn} IS NOT NULL AND ST_Length({geometrycolumn}) > 1000"
-)
-WHERE_USE_DEFAULT = "WHERE_USE_DEFAULT"
+WHERE_AREA_GT_400 = "ST_Area({geometrycolumn}) > 400"
+WHERE_AREA_GT_5000 = "ST_Area({geometrycolumn}) > 5000"
+WHERE_LENGTH_GT_1000 = "ST_Length({geometrycolumn}) > 1000"
 
 
 def prepare_expected_result(
     gdf: gpd.GeoDataFrame,
+    keep_empty_geoms: bool,
     gridsize: float = 0.0,
-    where: Optional[str] = WHERE_USE_DEFAULT,
+    where: Optional[str] = None,
     explodecollections=False,
     columns: Optional[List[str]] = None,
 ) -> gpd.GeoDataFrame:
@@ -55,20 +53,16 @@ def prepare_expected_result(
     # Check what filtering is needed
     filter_area_gt = None
     if where is None:
-        filter_null_geoms = False
-    elif where == WHERE_USE_DEFAULT:
-        filter_null_geoms = True
-    elif where == "{geometrycolumn} IS NOT NULL AND ST_Area({geometrycolumn}) > 400":
-        filter_null_geoms = True
+        pass
+    elif where == "ST_Area({geometrycolumn}) > 400":
         filter_area_gt = 400
-    elif where == "{geometrycolumn} IS NOT NULL AND ST_Area({geometrycolumn}) > 5000":
-        filter_null_geoms = True
+    elif where == "ST_Area({geometrycolumn}) > 5000":
         filter_area_gt = 5000
     else:
         raise ValueError(f"unsupported where parameter in test: {where}")
 
     # Apply filtering
-    if filter_null_geoms:
+    if not keep_empty_geoms:
         expected_gdf = expected_gdf[~expected_gdf.geometry.isna()]
         expected_gdf = expected_gdf[~expected_gdf.geometry.is_empty]
     if filter_area_gt is not None:

@@ -446,7 +446,9 @@ def test_select_first_geom_null(tmp_path, suffix, order_by_null, error_expected)
     """
     expected_gdf = gfo.read_file(input_path)
     expected_gdf.geometry = expected_gdf.geometry.buffer(distance, resolution=5)
-    expected_gdf = test_helper.prepare_expected_result(expected_gdf, where=None)
+    expected_gdf = test_helper.prepare_expected_result(
+        expected_gdf, keep_empty_geoms=True, where=None
+    )
 
     if order_by_null:
         sql_stmt = f"""

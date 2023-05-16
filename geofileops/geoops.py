@@ -42,7 +42,8 @@ def apply(
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
     gridsize: float = 0.0,
-    where: Optional[str] = "{geometrycolumn} IS NOT NULL",
+    keep_empty_geoms: Optional[bool] = None,
+    where: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -84,10 +85,12 @@ def apply(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
+        keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
+            in the output. Defaults to False now, but default becomes True in a future
+            version.
         where (str, optional): filter to apply to the result of the operation (after
             explodecollections). It should be in sqlite SQL WHERE syntax and
-            |spatialite_reference_link| functions can be used.
-            Defaults to "{geometrycolumn} IS NOT NULL".
+            |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -98,6 +101,16 @@ def apply(
             Defaults to False.
     """
     logger.info(f"Start apply on {input_path}")
+    if keep_empty_geoms is None:
+        keep_empty_geoms = False
+        warnings.warn(
+            "keep_empty_geoms defaults to False now for backwards compatibility, but "
+            "this will change to True in a future version. If keep_empty_geoms is "
+            "specified, this warning isn't shown anymore",
+            FutureWarning,
+            stacklevel=2,
+        )
+
     return _geoops_gpd.apply(
         input_path=Path(input_path),
         output_path=Path(output_path),
@@ -109,6 +122,7 @@ def apply(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
+        keep_empty_geoms=keep_empty_geoms,
         where=where,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -130,6 +144,7 @@ def buffer(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
+    keep_empty_geoms: Optional[bool] = None,
     where: str = "{geometrycolumn} IS NOT NULL",
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -182,10 +197,12 @@ def buffer(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
+        keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
+            in the output. Defaults to False now, but default becomes True in a future
+            version.
         where (str, optional): filter to apply to the result of the operation (after
             explodecollections). It should be in sqlite SQL WHERE syntax and
-            |spatialite_reference_link| functions can be used.
-            Defaults to "{geometrycolumn} IS NOT NULL".
+            |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -280,6 +297,16 @@ def buffer(
         f"Start buffer on {input_path} "
         f"(distance: {distance}, quadrantsegments: {quadrantsegments})"
     )
+    if keep_empty_geoms is None:
+        keep_empty_geoms = False
+        warnings.warn(
+            "keep_empty_geoms defaults to False now for backwards compatibility, but "
+            "this will change to True in a future version. If keep_empty_geoms is "
+            "specified, this warning isn't shown anymore",
+            FutureWarning,
+            stacklevel=2,
+        )
+
     if (
         endcap_style == BufferEndCapStyle.ROUND
         and join_style == BufferJoinStyle.ROUND
@@ -296,6 +323,7 @@ def buffer(
             columns=columns,
             explodecollections=explodecollections,
             gridsize=gridsize,
+            keep_empty_geoms=keep_empty_geoms,
             where=where,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
@@ -317,6 +345,7 @@ def buffer(
             columns=columns,
             explodecollections=explodecollections,
             gridsize=gridsize,
+            keep_empty_geoms=keep_empty_geoms,
             where=where,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
@@ -375,7 +404,8 @@ def convexhull(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    where: Optional[str] = "{geometrycolumn} IS NOT NULL",
+    keep_empty_geoms: Optional[bool] = None,
+    where: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -401,10 +431,12 @@ def convexhull(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
+        keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
+            in the output. Defaults to False now, but default becomes True in a future
+            version.
         where (str, optional): filter to apply to the result of the operation (after
             explodecollections). It should be in sqlite SQL WHERE syntax and
-            |spatialite_reference_link| functions can be used.
-            Defaults to "{geometrycolumn} IS NOT NULL".
+            |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -415,6 +447,16 @@ def convexhull(
             Defaults to False.
     """
     logger.info(f"Start convexhull on {input_path}")
+    if keep_empty_geoms is None:
+        keep_empty_geoms = False
+        warnings.warn(
+            "keep_empty_geoms defaults to False now for backwards compatibility, but "
+            "this will change to True in a future version. If keep_empty_geoms is "
+            "specified, this warning isn't shown anymore",
+            FutureWarning,
+            stacklevel=2,
+        )
+
     return _geoops_sql.convexhull(
         input_path=Path(input_path),
         output_path=Path(output_path),
@@ -423,6 +465,7 @@ def convexhull(
         columns=columns,
         explodecollections=explodecollections,
         gridsize=gridsize,
+        keep_empty_geoms=keep_empty_geoms,
         where=where,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -438,7 +481,8 @@ def delete_duplicate_geometries(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    where: Optional[str] = "{geometrycolumn} IS NOT NULL",
+    keep_empty_geoms: Optional[bool] = None,
+    where: Optional[str] = None,
     force: bool = False,
 ):
     """
@@ -460,14 +504,26 @@ def delete_duplicate_geometries(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
+        keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
+            in the output. Defaults to False now, but default becomes True in a future
+            version.
         where (str, optional): filter to apply to the result of the operation (after
             explodecollections). It should be in sqlite SQL WHERE syntax and
-            |spatialite_reference_link| functions can be used.
-            Defaults to "{geometrycolumn} IS NOT NULL".
+            |spatialite_reference_link| functions can be used. Defaults to None.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
     logger.info(f"Start delete_duplicate_geometries on {input_path}")
+    if keep_empty_geoms is None:
+        keep_empty_geoms = False
+        warnings.warn(
+            "keep_empty_geoms defaults to False now for backwards compatibility, but "
+            "this will change to True in a future version. If keep_empty_geoms is "
+            "specified, this warning isn't shown anymore",
+            FutureWarning,
+            stacklevel=2,
+        )
+
     return _geoops_sql.delete_duplicate_geometries(
         input_path=Path(input_path),
         output_path=Path(output_path),
@@ -476,6 +532,7 @@ def delete_duplicate_geometries(
         columns=columns,
         explodecollections=explodecollections,
         gridsize=gridsize,
+        keep_empty_geoms=keep_empty_geoms,
         where=where,
         force=force,
     )
@@ -492,7 +549,7 @@ def dissolve(
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     gridsize: float = 0.0,
-    where: Optional[str] = "{geometrycolumn} IS NOT NULL",
+    where: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -505,6 +562,8 @@ def dissolve(
 
     Data in other columns can be retained in the output by specifying the
     ``agg_columns`` parameter.
+
+    Rows with null or empty geometries are ignored.
 
     This is an example of how data in the columns that isn't grouped on can be
     aggregated to be added to the output file:
@@ -622,8 +681,7 @@ def dissolve(
             the precision. Defaults to 0.0.
         where (str, optional): filter to apply to the result of the operation (after
             explodecollections). It should be in sqlite SQL WHERE syntax and
-            |spatialite_reference_link| functions can be used.
-            Defaults to "{geometrycolumn} IS NOT NULL".
+            |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -790,7 +848,8 @@ def makevalid(
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
     gridsize: float = 0.0,
-    where: Optional[str] = "{geometrycolumn} IS NOT NULL",
+    keep_empty_geoms: bool = True,
+    where: Optional[str] = None,
     precision: Optional[float] = None,
     validate_attribute_data: bool = False,
     nb_parallel: int = -1,
@@ -824,10 +883,11 @@ def makevalid(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
+        keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
+            in the output. Defaults to True.
         where (str, optional): filter to apply to the result of the operation (after
             explodecollections). It should be in sqlite SQL WHERE syntax and
-            |spatialite_reference_link| functions can be used.
-            Defaults to "{geometrycolumn} IS NOT NULL".
+            |spatialite_reference_link| functions can be used. Defaults to None.
         validate_attribute_data (bool, optional): True to validate if all attribute data
             can be read. Raises an exception if an error is found, as this type of error
             cannot be fixed using makevalid. Defaults to False.
@@ -842,6 +902,7 @@ def makevalid(
     """
 
     logger.info(f"Start makevalid on {input_path}")
+
     if gridsize is None:
         gridsize = 0.0
     if precision is not None and gridsize != 0.0:
@@ -865,6 +926,7 @@ def makevalid(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
+        keep_empty_geoms=keep_empty_geoms,
         where=where,
         validate_attribute_data=validate_attribute_data,
         nb_parallel=nb_parallel,
@@ -943,6 +1005,7 @@ def select(
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
     gridsize: float = 0.0,
+    keep_empty_geoms: bool = True,
     nb_parallel: int = 1,
     batchsize: int = -1,
     force: bool = False,
@@ -1018,12 +1081,14 @@ def select(
             to specify "fid", a unique index available in all input files. Note that the
             "fid" will be aliased eg. to "fid_1". Defaults to None.
         explodecollections (bool, optional): True to convert all multi-geometries to
-            singular ones after the dissolve. Defaults to False.
+            singular ones. Defaults to False.
         force_output_geometrytype (GeometryType, optional): The output geometry type to
             force. Defaults to None, and then the geometry type of the input is used
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
+        keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
+            in the output. Defaults to True.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to 1. If nb_parallel != 1, make sure your query still returns
             correct results if it is executed per batch of rows instead of in one go
@@ -1052,6 +1117,7 @@ def select(
         columns=columns,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
+        keep_empty_geoms=keep_empty_geoms,
         gridsize=gridsize,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -1070,7 +1136,8 @@ def simplify(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    where: Optional[str] = "{geometrycolumn} IS NOT NULL",
+    keep_empty_geoms: Optional[bool] = None,
+    where: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -1107,10 +1174,12 @@ def simplify(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
+        keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
+            in the output. Defaults to False now, but default becomes True in a future
+            version.
         where (str, optional): filter to apply to the result of the operation (after
             explodecollections). It should be in sqlite SQL WHERE syntax and
-            |spatialite_reference_link| functions can be used.
-            Defaults to "{geometrycolumn} IS NOT NULL".
+            |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -1121,6 +1190,16 @@ def simplify(
             Defaults to False.
     """
     logger.info(f"Start simplify on {input_path} with tolerance {tolerance}")
+    if keep_empty_geoms is None:
+        keep_empty_geoms = False
+        warnings.warn(
+            "keep_empty_geoms defaults to False now for backwards compatibility, but "
+            "this will change to True in a future version. If keep_empty_geoms is "
+            "specified, this warning isn't shown anymore",
+            FutureWarning,
+            stacklevel=2,
+        )
+
     if algorithm == SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER:
         return _geoops_sql.simplify(
             input_path=Path(input_path),

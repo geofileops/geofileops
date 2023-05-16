@@ -50,6 +50,7 @@ def buffer(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
+    keep_empty_geoms: bool = True,
     where: str = "{geometrycolumn} IS NOT NULL",
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -94,6 +95,7 @@ def buffer(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
+        keep_empty_geoms=keep_empty_geoms,
         where=where,
         sql_dialect="SQLITE",
         nb_parallel=nb_parallel,
@@ -110,7 +112,8 @@ def convexhull(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    where: Optional[str] = "{geometrycolumn} IS NOT NULL",
+    keep_empty_geoms: bool = True,
+    where: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -140,6 +143,7 @@ def convexhull(
         explodecollections=explodecollections,
         force_output_geometrytype=input_layerinfo.geometrytype,
         gridsize=gridsize,
+        keep_empty_geoms=keep_empty_geoms,
         where=where,
         sql_dialect="SQLITE",
         nb_parallel=nb_parallel,
@@ -156,7 +160,8 @@ def delete_duplicate_geometries(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    where: Optional[str] = "{geometrycolumn} IS NOT NULL",
+    keep_empty_geoms: bool = True,
+    where: Optional[str] = None,
     force: bool = False,
 ):
     # The query as written doesn't give correct results when parallellized,
@@ -185,6 +190,7 @@ def delete_duplicate_geometries(
         explodecollections=explodecollections,
         force_output_geometrytype=input_layer_info.geometrytype,
         gridsize=gridsize,
+        keep_empty_geoms=keep_empty_geoms,
         where=where,
         sql_dialect="SQLITE",
         nb_parallel=1,
@@ -227,6 +233,7 @@ def isvalid(
         explodecollections=explodecollections,
         force_output_geometrytype=GeometryType.POINT,
         gridsize=0.0,
+        keep_empty_geoms=False,
         where=None,
         sql_dialect="SQLITE",
         nb_parallel=nb_parallel,
@@ -273,7 +280,8 @@ def makevalid(
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
     gridsize: float = 0.0,
-    where: Optional[str] = "{geometrycolumn} IS NOT NULL",
+    keep_empty_geoms: bool = True,
+    where: Optional[str] = None,
     validate_attribute_data: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -327,6 +335,7 @@ def makevalid(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=0.0,
+        keep_empty_geoms=keep_empty_geoms,
         where=where,
         sql_dialect="SQLITE",
         nb_parallel=nb_parallel,
@@ -352,6 +361,7 @@ def select(
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
     gridsize: float = 0.0,
+    keep_empty_geoms: bool = True,
     nb_parallel: int = 1,
     batchsize: int = -1,
     force: bool = False,
@@ -385,6 +395,7 @@ def select(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
+        keep_empty_geoms=keep_empty_geoms,
         where=None,
         sql_dialect=sql_dialect,
         nb_parallel=nb_parallel,
@@ -402,7 +413,8 @@ def simplify(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    where: Optional[str] = "{geometrycolumn} IS NOT NULL",
+    keep_empty_geoms: bool = True,
+    where: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -430,6 +442,7 @@ def simplify(
         explodecollections=explodecollections,
         force_output_geometrytype=input_layer_info.geometrytype,
         gridsize=gridsize,
+        keep_empty_geoms=keep_empty_geoms,
         where=where,
         sql_dialect="SQLITE",
         nb_parallel=nb_parallel,
@@ -449,6 +462,7 @@ def _single_layer_vector_operation(
     explodecollections: bool,
     force_output_geometrytype: Optional[GeometryType],
     gridsize: float,
+    keep_empty_geoms: bool,
     where: Optional[str],
     sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]],
     nb_parallel: int,
@@ -561,56 +575,45 @@ def _single_layer_vector_operation(
                     ) sub_gridsize
             """
 
+        # If empty/null geometries don't need to be kept, filter them away
+        if not keep_empty_geoms:
+            sql_template = f"""
+                SELECT * FROM
+                    ( {sql_template}
+                    )
+                 WHERE geom IS NOT NULL
+            """
+
         # Prepare/apply where parameter
         if where is not None:
-            where_lower = where.lower()
-            if where_lower in [
-                "{geometrycolumn} is not null",
-                "geometry is not null",
-                "geom is not null",
-            ]:
-                # If where is just a filter on NULL, just add where to sql_stmt.
-                # In the sql_stmt the geometry column should already be aliased to geom.
-                where = where.format(geometrycolumn="geom")
-                sql_template = f"""
-                    SELECT sub_where.* FROM
-                        ( {sql_template}
-                        ) sub_where
-                     WHERE {where}
-                """
-                # Where has been applied already so set to None.
-                where = None
-            elif not explodecollections:
-                # If explodecollections is False, where can be added to sql_stmt but
-                # because of a bug in gdal we need to make sure the geom in the first
-                # row is not NULL, so add ORDER BY as well.
-                #   -> https://github.com/geofileops/geofileops/issues/308
-                # In the sql_stmt the geometry column should already be aliased to geom.
-                where = where.format(geometrycolumn="geom")
-                sql_template = f"""
-                    SELECT sub_where.* FROM
-                        ( {sql_template}
-                        ) sub_where
-                     WHERE {where}
-                     ORDER BY geom IS NULL
-                """
-                # Where has been applied already so set to None.
-                where = None
-            else:
+            if explodecollections:
                 # Possibly the where contains filters based on the geometry, so we need
                 # to wait for filtering till explodecollections has been applied.
-                # The temp file has been created with the geometry column named to geom.
-                where = where.format(geometrycolumn=input_layerinfo.geometrycolumn)
-
-                # Because of a bug in gdal we need to make sure the geom in the first
-                # row is not NULL, so add ORDER BY.
-                #   -> https://github.com/geofileops/geofileops/issues/308
+                # The partial files are created as .gpkg, so we can use column geom.
+                where = where.format(geometrycolumn="geom")
+            else:
+                # If explodecollections is False, where can be added to sql_stmt.
+                # In the sql_stmt the geometry column should already be aliased to geom.
+                where = where.format(geometrycolumn="geom")
                 sql_template = f"""
-                    SELECT sub_order_by_geom_null.* FROM
+                    SELECT * FROM
                         ( {sql_template}
-                        ) sub_order_by_geom_null
-                     ORDER BY geom IS NULL
+                        )
+                     WHERE {where}
                 """
+                # Where has been applied already so set to None.
+                where = None
+
+        # When null geometries are being kept, we need to make sure the geom in the
+        # first row is not NULL because of a bug in gdal, so add ORDER BY as last step.
+        #   -> https://github.com/geofileops/geofileops/issues/308
+        if keep_empty_geoms:
+            sql_template = f"""
+                SELECT * FROM
+                    ( {sql_template}
+                    )
+                 ORDER BY geom IS NULL
+            """
 
         # Prepare temp output filename
         tmp_output_path = tempdir / output_path.name
@@ -629,7 +632,7 @@ def _single_layer_vector_operation(
                 batches[batch_id]["layer"] = output_layer
 
                 tmp_partial_output_path = (
-                    tempdir / f"{output_path.stem}_{batch_id}{output_path.suffix}"
+                    tempdir / f"{output_path.stem}_{batch_id}.gpkg"
                 )
                 batches[batch_id]["tmp_partial_output_path"] = tmp_partial_output_path
 
@@ -693,9 +696,15 @@ def _single_layer_vector_operation(
                     logger.warning(f"Result file {tmp_partial_output_path} not found")
                     continue
 
-                if nb_batches == 1 and (where is None or not explodecollections):
-                    # If there is only one batch and there is no where specified or
-                    # explodecollections is False, just rename because it is already OK.
+                if (
+                    nb_batches == 1
+                    and tmp_partial_output_path.suffix == tmp_output_path.suffix
+                    and where is None
+                ):
+                    # If there is only one batch
+                    #   + partial file is already is correct file format
+                    #   + no more where needs to be applied
+                    # -> just rename partial file, because it is already OK.
                     gfo.move(tmp_partial_output_path, tmp_output_path)
                 else:
                     # Append partial file to full destination file
@@ -2537,7 +2546,8 @@ def dissolve_singlethread(
     agg_columns: Optional[dict] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    where: Optional[str] = "{geometrycolumn} IS NOT NULL",
+    keep_empty_geoms: bool = True,
+    where: Optional[str] = None,
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     force: bool = False,
@@ -2723,62 +2733,56 @@ def dissolve_singlethread(
         GROUP BY {groupby_columns_for_groupby_str}
     """
 
+    # If empty/null geometries don't need to be kept, filter them away
+    if not keep_empty_geoms:
+        sql_stmt = f"""
+            SELECT * FROM
+                ( {sql_stmt}
+                )
+             WHERE geom IS NOT NULL
+        """
+
     # Prepare/apply where parameter
     if where is not None:
-        where_lower = where.lower()
-        if where_lower in [
-            "{geometrycolumn} is not null",
-            "geometry is not null",
-            "geom is not null",
-        ]:
-            # If where is just a filter on NULL, just add where to sql_stmt.
-            # In the sql_stmt the geometry column should already be aliased to geom.
-            where = where.format(geometrycolumn="geom")
-            sql_stmt = f"""
-                SELECT sub_where.* FROM
-                    ( {sql_stmt}
-                    ) sub_where
-                    WHERE {where}
-            """
-            # Where has been applied already so set to None.
-            where = None
-        elif not explodecollections:
-            # If explodecollections is False, where can be added to sql_stmt but
-            # because of a bug in gdal we need to make sure the geom in the first
-            # row is not NULL, so add ORDER BY as well.
-            #   -> https://github.com/geofileops/geofileops/issues/308
-            # In the sql_stmt the geometry column should already be aliased to geom.
-            where = where.format(geometrycolumn="geom")
-            sql_stmt = f"""
-                SELECT sub_where.* FROM
-                    ( {sql_stmt}
-                    ) sub_where
-                    WHERE {where}
-                    ORDER BY geom IS NULL
-            """
-            # Where has been applied already so set to None.
-            where = None
-        else:
+        if explodecollections:
             # Possibly the where contains filters based on the geometry, so we need
             # to wait for filtering till explodecollections has been applied.
-            # The temp file has been created with the geometry column named to geom.
-            where = where.format(geometrycolumn=input_layerinfo.geometrycolumn)
-
-            # Because of a bug in gdal we need to make sure the geom in the first
-            # row is not NULL, so add ORDER BY.
-            #   -> https://github.com/geofileops/geofileops/issues/308
+            pass
+        else:
+            # If explodecollections is False, where can be added to sql_stmt.
+            # In the sql_stmt the geometry column should already be aliased to geom.
+            where = where.format(geometrycolumn="geom")
             sql_stmt = f"""
-                SELECT sub_order_by_geom_null.* FROM
+                SELECT * FROM
                     ( {sql_stmt}
-                    ) sub_order_by_geom_null
-                    ORDER BY geom IS NULL
+                    )
+                 WHERE {where}
             """
+            # Where has been applied already so set to None.
+            where = None
+
+    # When null geometries are being kept, we need to make sure the geom in the
+    # first row is not NULL because of a bug in gdal, so add ORDER BY as last step.
+    #   -> https://github.com/geofileops/geofileops/issues/308
+    if keep_empty_geoms:
+        sql_stmt = f"""
+            SELECT * FROM
+                ( {sql_stmt}
+                )
+             ORDER BY geom IS NULL
+        """
 
     # Now we can really start
     tempdir = _io_util.create_tempdir("geofileops/dissolve_singlethread")
-    tmp_output_path = tempdir / output_path.name
     try:
-        create_spatial_index = True if where is None else False
+        create_spatial_index = True
+        suffix = output_path.suffix
+        if where is not None:
+            # Where needs to be applied still, so no spatial index needed
+            create_spatial_index = False
+            suffix = ".gpkg"
+        tmp_output_path = tempdir / f"output_tmp{suffix}"
+
         _ogr_util.vector_translate(
             input_path=input_path,
             output_path=tmp_output_path,
@@ -2790,9 +2794,11 @@ def dissolve_singlethread(
             options={"LAYER_CREATION.SPATIAL_INDEX": create_spatial_index},
         )
 
-        # We still need to apply the where filter
+        # We still need to apply a where filter
         if where is not None:
-            tmp_output_where_path = tempdir / f"output_where{output_path.suffix}"
+            tmp_output_where_path = tempdir / f"output_tmp2_where{output_path.suffix}"
+            tmp_output_info = gfo.get_layerinfo(tmp_output_path)
+            where = where.format(geometrycolumn=tmp_output_info.geometrycolumn)
             sql_stmt = f"""
                 SELECT * FROM "{output_layer}"
                  WHERE {where}
