@@ -612,9 +612,9 @@ def test_dissolve_polygons(
         # Shapefile needs at least one column, if no columns: fid
         assert list(output_gdf.columns) == list(expected_gdf.columns)
     assert len(output_gdf) == len(expected_gdf)
-    output_area_df = output_gdf.geometry.area.sort_values()
-    expected_area_df = expected_gdf.geometry.area.sort_values()
-    pd.testing.assert_series_equal(output_area_df, expected_area_df, check_index=False)
+    output_area = output_gdf.geometry.area.sort_values().reset_index(drop=True)
+    expected_area = expected_gdf.geometry.area.sort_values().reset_index(drop=True)
+    pd.testing.assert_series_equal(output_area, expected_area)
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES)
