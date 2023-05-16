@@ -3,6 +3,7 @@
 Tests for operations that are executed using a sql statement on one layer.
 """
 
+import itertools
 import math
 
 import geopandas as gpd
@@ -408,6 +409,79 @@ def test_select_invalid_sql(tmp_path, suffix):
 
     with pytest.raises(Exception, match="Error <"):
         gfo.select(input_path=input_path, output_path=output_path, sql_stmt=sql_stmt)
+
+
+@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize(
+    "order_by_null, error_expected", [(True, False), (False, True)]
+)
+def test_select_first_geom_null(tmp_path, suffix, order_by_null, error_expected):
+    """
+    Test to see if a bug in gdal gets solved. Bug: if a function on a geometry returns
+    NULL for the first row, all geometries of all rows become NULL.
+       -> https://github.com/geofileops/geofileops/issues/308
+    """
+    # Prepare test data
+    data = [
+        {
+            "descr": "polygon1",
+            "geometry": Polygon([(0, 0), (0, 5), (5, 5), (5, 0), (0, 0)]),
+        },
+        {
+            "descr": "polygon2",
+            "geometry": Polygon([(0, 0), (0, 15), (15, 15), (15, 0), (0, 0)]),
+        },
+    ]
+    input_gdf = gpd.GeoDataFrame(data=data, crs=31370)  # type: ignore
+    input_path = tmp_path / f"test{suffix}"
+    gfo.to_file(input_gdf, input_path)
+    layer = gfo.get_only_layer(input_path)
+    distance = -5
+    sql_stmt = f"""
+        SELECT ST_CollectionExtract(
+                   ST_Buffer({{geometrycolumn}}, {distance}, 5), 3
+               ) AS geom
+              {{columns_to_select_str}}
+          FROM "{layer}" layer
+    """
+    expected_gdf = gfo.read_file(input_path)
+    expected_gdf.geometry = expected_gdf.geometry.buffer(distance, resolution=5)
+    expected_gdf = test_helper.prepare_expected_result(expected_gdf, where=None)
+
+    if order_by_null:
+        sql_stmt = f"""
+            SELECT * FROM
+                ( {sql_stmt}
+                )
+            ORDER BY geom IS NULL
+        """
+    else:
+        expected_gdf.geometry = gpd.GeoSeries(itertools.repeat(None, len(expected_gdf)))
+
+    # Now we are ready to test
+    result_path = tmp_path / f"test_select_null{suffix}"
+    gfo.select(
+        input_path=input_path,
+        output_path=result_path,
+        sql_stmt=sql_stmt,
+    )
+    result_gdf = gfo.read_file(result_path)
+
+    # Another bug: for shapefile, if the first ? geometry row is null, an extra geom
+    # column is added.
+    if not order_by_null and suffix == ".shp":
+        result_gdf = result_gdf.drop(columns="geom")
+
+    # Compare with expected result
+    check_dtype = False if suffix == ".shp" else True
+    assert_geodataframe_equal(
+        result_gdf,
+        expected_gdf,
+        sort_values=True,
+        check_dtype=check_dtype,
+        check_geom_empty_vs_None=False,
+        check_crs=False,
+    )
 
 
 def test_select_output_exists(tmp_path):

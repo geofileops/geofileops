@@ -8,13 +8,7 @@ import logging
 import math
 from typing import List
 
-import geopandas._compat as gpd_compat
 import pytest
-
-if gpd_compat.USE_PYGEOS:
-    import pygeos as shapely2_or_pygeos
-else:
-    import shapely as shapely2_or_pygeos
 
 from geofileops import geoops
 from geofileops import fileops
@@ -26,13 +20,14 @@ from tests.test_helper import (
     GRIDSIZE_DEFAULT,
     SUFFIXES,
     TESTFILES,
+    WHERE_AREA_GT_400,
+    WHERE_USE_DEFAULT,
 )
 from tests.test_helper import assert_geodataframe_equal
 
 # Init gfo module
 current_geoops_module = "unknown"
 GEOOPS_MODULES = ["geofileops.geoops", "geofileops.util._geoops_gpd"]
-WHERE_GT = "{geometrycolumn} IS NOT NULL AND ST_Area({geometrycolumn}) > 400"
 
 
 def set_geoops_module(geoops_module: str):
@@ -48,7 +43,7 @@ def set_geoops_module(geoops_module: str):
         print(f"gfo module switched to: {current_geoops_module}")
 
 
-def get_combinations_to_test(
+def basic_combinations_to_test(
     geoops_modules: List[str] = GEOOPS_MODULES,
     testfiles: List[str] = TESTFILES,
     epsgs: List[int] = EPSGS,
@@ -56,7 +51,7 @@ def get_combinations_to_test(
 ) -> list:
     """
     Return sensible combinations of parameters to be used in tests for following params:
-        suffix, epsg, geoops_module, testfile, empty_input, gridsize
+        suffix, epsg, geoops_module, testfile, empty_input, gridsize, where
     """
     result = []
 
@@ -68,11 +63,11 @@ def get_combinations_to_test(
             for testfile in testfiles:
                 gridsize = 0.001 if epsg == 31370 else GRIDSIZE_DEFAULT
                 if testfile == "polygon-parcel":
-                    where = WHERE_GT if epsg == 31370 else "WHERE_DEFAULT"
+                    where = WHERE_AREA_GT_400 if epsg == 31370 else WHERE_USE_DEFAULT
                 elif testfile == "point":
                     where = None
                 else:
-                    where = "WHERE_DEFAULT"
+                    where = WHERE_USE_DEFAULT
                 result.append(
                     (".gpkg", epsg, geoops_module, testfile, False, gridsize, where)
                 )
@@ -87,7 +82,7 @@ def get_combinations_to_test(
             for testfile in testfiles:
                 gridsize = 0.001 if testfile == "polygon-parcel" else GRIDSIZE_DEFAULT
                 if testfile == "polygon-parcel":
-                    where = WHERE_GT
+                    where = WHERE_AREA_GT_400
                 else:
                     where = None
                 result.append(
@@ -100,7 +95,7 @@ def get_combinations_to_test(
     for geoops_module in geoops_modules:
         for suffix in suffixes:
             gridsize = 0.001 if suffix == ".gpkg" else GRIDSIZE_DEFAULT
-            where = "WHERE_DEFAULT"
+            where = WHERE_USE_DEFAULT
             result.append(
                 (suffix, 31370, geoops_module, "polygon-parcel", True, gridsize, where)
             )
@@ -110,7 +105,7 @@ def get_combinations_to_test(
 
 @pytest.mark.parametrize(
     "suffix, epsg, geoops_module, testfile, empty_input, gridsize, where",
-    get_combinations_to_test(),
+    basic_combinations_to_test(),
 )
 def test_buffer(
     tmp_path, suffix, epsg, geoops_module, testfile, empty_input, gridsize, where
@@ -132,9 +127,16 @@ def test_buffer(
         # 1 degree = 111 km or 111000 m
         distance /= 111000
 
+    # Prepare expected result
+    expected_gdf = fileops.read_file(input_path)
+    expected_gdf.geometry = expected_gdf.geometry.buffer(distance, resolution=5)
+    expected_gdf = test_helper.prepare_expected_result(
+        expected_gdf, gridsize=gridsize, where=where
+    )
+
     # Test positive buffer
     kwargs = {}
-    if where != "WHERE_DEFAULT":
+    if where != WHERE_USE_DEFAULT:
         kwargs["where"] = where
     geoops.buffer(
         input_path=input_path,
@@ -152,51 +154,20 @@ def test_buffer(
     output_layerinfo = fileops.get_layerinfo(output_path)
     assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
 
-    if not empty_input:
-        output_gdf = fileops.read_file(output_path)
-        assert output_gdf["geometry"][0] is not None
+    if empty_input:
+        return
 
-        # Prepare expected data
-        expected_gdf = fileops.read_file(input_path)
-        expected_gdf.geometry = expected_gdf.geometry.buffer(
-            distance=distance, resolution=5
-        )
-        check_less_precise = (
-            True if input_layerinfo.crs.is_projected is False else False
-        )
-        if gridsize != 0.0:
-            expected_gdf.geometry = shapely2_or_pygeos.set_precision(
-                expected_gdf.geometry.array.data, grid_size=gridsize
-            )
-
-        # Check what filtering is needed
-        filter_area_gt = None
-        if where is None:
-            filter_null_geoms = False
-        elif where == "WHERE_DEFAULT":
-            filter_null_geoms = True
-        elif (
-            where == "{geometrycolumn} IS NOT NULL AND ST_Area({geometrycolumn}) > 400"
-        ):
-            filter_null_geoms = True
-            filter_area_gt = 400
-        else:
-            raise ValueError(f"unsupported where parameter in test: {where}")
-
-        # Apply filtering
-        if filter_null_geoms:
-            expected_gdf = expected_gdf[~expected_gdf.geometry.isna()]
-            expected_gdf = expected_gdf[~expected_gdf.geometry.is_empty]
-        if filter_area_gt is not None:
-            expected_gdf = expected_gdf[expected_gdf.geometry.area > filter_area_gt]
-
-        assert_geodataframe_equal(
-            output_gdf,
-            expected_gdf,
-            promote_to_multi=True,
-            check_less_precise=check_less_precise,
-            sort_values=True,
-        )
+    # More detailed check
+    output_gdf = fileops.read_file(output_path)
+    assert output_gdf["geometry"][0] is not None
+    check_less_precise = True if input_layerinfo.crs.is_projected is False else False
+    assert_geodataframe_equal(
+        output_gdf,
+        expected_gdf,
+        promote_to_multi=True,
+        check_less_precise=check_less_precise,
+        sort_values=True,
+    )
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES)
@@ -327,7 +298,7 @@ def test_buffer_invalid_params(
 
 @pytest.mark.parametrize(
     "suffix, epsg, geoops_module, testfile, empty_input, gridsize, where",
-    get_combinations_to_test(epsgs=[31370]),
+    basic_combinations_to_test(epsgs=[31370]),
 )
 def test_buffer_negative(
     tmp_path, suffix, epsg, geoops_module, testfile, empty_input, gridsize, where
@@ -345,7 +316,7 @@ def test_buffer_negative(
     distance = -10
     output_path = output_path.parent / f"{output_path.stem}_m10m{output_path.suffix}"
     kwargs = {}
-    if where != "WHERE_DEFAULT":
+    if where != WHERE_USE_DEFAULT:
         kwargs["where"] = where
     geoops.buffer(
         input_path=input_path,
@@ -391,34 +362,10 @@ def test_buffer_negative(
 
         # Prepare expected result
         expected_gdf = fileops.read_file(input_path)
-        expected_gdf.geometry = expected_gdf.geometry.buffer(
-            distance=distance, resolution=5
+        expected_gdf.geometry = expected_gdf.geometry.buffer(distance, resolution=5)
+        expected_gdf = test_helper.prepare_expected_result(
+            expected_gdf, gridsize=gridsize, where=where
         )
-        if gridsize != 0.0:
-            expected_gdf.geometry = shapely2_or_pygeos.set_precision(
-                expected_gdf.geometry.array.data, grid_size=gridsize
-            )
-
-        # Check what filtering is needed
-        filter_area_gt = None
-        if where is None:
-            filter_null_geoms = False
-        elif where == "WHERE_DEFAULT":
-            filter_null_geoms = True
-        elif (
-            where == "{geometrycolumn} IS NOT NULL AND ST_Area({geometrycolumn}) > 400"
-        ):
-            filter_null_geoms = True
-            filter_area_gt = 400
-        else:
-            raise ValueError(f"unsupported where parameter in test: {where}")
-
-        if filter_null_geoms:
-            expected_gdf = expected_gdf[~expected_gdf.geometry.isna()]
-            expected_gdf = expected_gdf[~expected_gdf.geometry.is_empty]
-        if filter_area_gt is not None:
-            expected_gdf = expected_gdf[expected_gdf.geometry.area > filter_area_gt]
-
         assert_geodataframe_equal(output_gdf, expected_gdf, sort_values=True)
 
 
@@ -452,24 +399,74 @@ def test_buffer_negative_explode(tmp_path, geoops_module):
     assert fileops.has_spatial_index(output_path)
     layerinfo_output = fileops.get_layerinfo(output_path)
     assert len(layerinfo_output.columns) == len(input_layerinfo.columns)
-
-    # 6 polygons disappear because of the negative buffer, 3 polygons are
-    # split in 2 because of the negative buffer and/or explodecollections=True.
-    assert layerinfo_output.featurecount == input_layerinfo.featurecount - 7 + 3
     assert layerinfo_output.geometrytype == GeometryType.POLYGON
 
-    # Read result for some more detailed checks
     output_gdf = fileops.read_file(output_path)
+
     expected_gdf = fileops.read_file(input_path)
-    expected_gdf.geometry = expected_gdf.geometry.buffer(
-        distance=distance, resolution=5
+    expected_gdf.geometry = expected_gdf.geometry.buffer(distance, resolution=5)
+    expected_gdf = test_helper.prepare_expected_result(
+        expected_gdf, explodecollections=True
     )
-    # Remove rows where geom is empty
-    expected_gdf = expected_gdf[~expected_gdf.geometry.is_empty]
-    expected_gdf = expected_gdf[~expected_gdf.geometry.isna()]
-    expected_gdf = expected_gdf.explode(ignore_index=True)  # type: ignore
     assert_geodataframe_equal(
-        output_gdf, expected_gdf, promote_to_multi=True, sort_values=True
+        output_gdf,
+        expected_gdf,
+        promote_to_multi=True,
+        sort_values=True,
+        check_crs=False,
+    )
+
+
+@pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
+@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("where", [WHERE_USE_DEFAULT, WHERE_AREA_GT_400])
+@pytest.mark.parametrize("explodecollections", [True, False])
+def test_buffer_negative_where_explode(
+    tmp_path, suffix, geoops_module, where, explodecollections
+):
+    """Buffer basics are available both in the gpd and sql implementations."""
+    # Prepare test data/environment
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    set_geoops_module(geoops_module)
+    output_path = tmp_path / f"{input_path.stem}-{geoops_module}{suffix}"
+    input_layerinfo = fileops.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+    distance = -10
+
+    expected_gdf = fileops.read_file(input_path)
+    expected_gdf.geometry = expected_gdf.geometry.buffer(distance, resolution=5)
+    expected_gdf = test_helper.prepare_expected_result(
+        expected_gdf, where=where, explodecollections=explodecollections
+    )
+
+    # Run test
+    kwargs = {}
+    if where != WHERE_USE_DEFAULT:
+        kwargs["where"] = where
+    geoops.buffer(
+        input_path=input_path,
+        output_path=output_path,
+        distance=distance,
+        explodecollections=explodecollections,
+        nb_parallel=2,
+        batchsize=batchsize,
+        **kwargs,
+    )
+
+    # Check result
+    assert output_path.exists()
+    assert fileops.has_spatial_index(output_path)
+    output_layerinfo = fileops.get_layerinfo(output_path)
+    assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
+
+    output_gdf = fileops.read_file(output_path)
+    assert output_gdf["geometry"][0] is not None
+
+    assert_geodataframe_equal(
+        output_gdf,
+        expected_gdf,
+        promote_to_multi=True,
+        sort_values=True,
     )
 
 
@@ -477,20 +474,33 @@ def test_buffer_negative_explode(tmp_path, geoops_module):
 @pytest.mark.parametrize("suffix", SUFFIXES)
 @pytest.mark.parametrize(
     "empty_input, gridsize, where",
-    [(True, 0.0, None), (False, 0.001, WHERE_GT)],
+    [(True, 0.0, None), (False, 0.001, WHERE_AREA_GT_400)],
 )
 def test_convexhull(tmp_path, geoops_module, suffix, empty_input, gridsize, where):
+    # Prepare test data
     logging.basicConfig(level=logging.DEBUG)
     input_path = test_helper.get_testfile(
         "polygon-parcel", suffix=suffix, empty=empty_input
     )
-    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
     set_geoops_module(geoops_module)
     input_layerinfo = fileops.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
     # Also check if columns parameter works (case insensitive)
     columns = ["OIDN", "uidn", "HFDTLT", "lblhfdtlt", "GEWASGROEP", "lengte", "OPPERVL"]
+
+    # Prepare expected result
+    expected_gdf = fileops.read_file(input_path)
+    expected_gdf.geometry = expected_gdf.geometry.convex_hull
+    expected_gdf = test_helper.prepare_expected_result(
+        expected_gdf,
+        gridsize=gridsize,
+        where=where,
+        columns=columns,
+    )
+
+    # Run test
+    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
     geoops.convexhull(
         input_path=input_path,
         columns=columns,
@@ -514,43 +524,15 @@ def test_convexhull(tmp_path, geoops_module, suffix, empty_input, gridsize, wher
     if empty_input:
         return
 
-    # Read result for some more detailed checks
+    # More detailed check
     output_gdf = fileops.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
-
-    # Prepare expected data
-    expected_gdf = fileops.read_file(input_path, columns=columns)
-    expected_gdf.geometry = expected_gdf.geometry.convex_hull
-    if gridsize != 0.0:
-        expected_gdf.geometry = shapely2_or_pygeos.set_precision(
-            expected_gdf.geometry.array.data, grid_size=gridsize
-        )
-
-    # Check what filtering is needed
-    filter_area_gt = None
-    if where is None:
-        filter_null_geoms = False
-    elif where == "WHERE_DEFAULT":
-        filter_null_geoms = True
-    elif where == "{geometrycolumn} IS NOT NULL AND ST_Area({geometrycolumn}) > 400":
-        filter_null_geoms = True
-        filter_area_gt = 400
-    else:
-        raise ValueError(f"unsupported where parameter in test: {where}")
-
-    # Apply filtering
-    if filter_null_geoms:
-        expected_gdf = expected_gdf[~expected_gdf.geometry.isna()]
-        expected_gdf = expected_gdf[~expected_gdf.geometry.is_empty]
-    if filter_area_gt is not None:
-        expected_gdf = expected_gdf[expected_gdf.geometry.area > filter_area_gt]
-
     assert_geodataframe_equal(output_gdf, expected_gdf, sort_values=True)
 
 
 @pytest.mark.parametrize(
     "suffix, epsg, geoops_module, testfile, empty_input, gridsize, where",
-    get_combinations_to_test(testfiles=["polygon-parcel", "linestring-row-trees"]),
+    basic_combinations_to_test(testfiles=["polygon-parcel", "linestring-row-trees"]),
 )
 def test_simplify(
     tmp_path, suffix, epsg, geoops_module, testfile, empty_input, gridsize, where
@@ -572,10 +554,19 @@ def test_simplify(
         # 1 degree = 111 km or 111000 m
         tolerance = 5 / 111000
 
+    # Prepare expected result
+    expected_gdf = fileops.read_file(input_path)
+    expected_gdf.geometry = expected_gdf.geometry.simplify(tolerance)
+    expected_gdf = test_helper.prepare_expected_result(
+        expected_gdf,
+        gridsize=gridsize,
+        where=where,
+    )
+
     # Test default algorithm (rdp)
     output_path = io_util.with_stem(input_path, output_path)
     kwargs = {}
-    if where != "WHERE_DEFAULT":
+    if where != WHERE_USE_DEFAULT:
         kwargs["where"] = where
     geoops.simplify(
         input_path=input_path,
@@ -597,36 +588,6 @@ def test_simplify(
     if empty_input:
         return
 
-    # Read result for some more detailed checks
+    # More detailed checks
     output_gdf = fileops.read_file(output_path)
-
-    # Prepare expected result
-    expected_gdf = fileops.read_file(input_path)
-    expected_gdf.geometry = expected_gdf.geometry.simplify(
-        tolerance=tolerance, preserve_topology=True
-    )
-    if gridsize != 0.0:
-        expected_gdf.geometry = shapely2_or_pygeos.set_precision(
-            expected_gdf.geometry.array.data, grid_size=gridsize
-        )
-
-    # Check what filtering is needed
-    filter_area_gt = None
-    if where is None:
-        filter_null_geoms = False
-    elif where == "WHERE_DEFAULT":
-        filter_null_geoms = True
-    elif where == "{geometrycolumn} IS NOT NULL AND ST_Area({geometrycolumn}) > 400":
-        filter_null_geoms = True
-        filter_area_gt = 400
-    else:
-        raise ValueError(f"unsupported where parameter in test: {where}")
-
-    # Apply filtering
-    if filter_null_geoms:
-        expected_gdf = expected_gdf[~expected_gdf.geometry.isna()]
-        expected_gdf = expected_gdf[~expected_gdf.geometry.is_empty]
-    if filter_area_gt is not None:
-        expected_gdf = expected_gdf[expected_gdf.geometry.area > filter_area_gt]
-
     assert_geodataframe_equal(output_gdf, expected_gdf, sort_values=True)

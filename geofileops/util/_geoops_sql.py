@@ -561,15 +561,56 @@ def _single_layer_vector_operation(
                     ) sub_gridsize
             """
 
-        # Add where filter around sql_template if relevant
+        # Prepare/apply where parameter
         if where is not None:
-            where = where.format(geometrycolumn="geom")
-            sql_template = f"""
-                SELECT sub_where.* FROM
-                    ( {sql_template}
-                    ) sub_where
-                 WHERE {where}
-            """
+            where_lower = where.lower()
+            if where_lower in [
+                "{geometrycolumn} is not null",
+                "geometry is not null",
+                "geom is not null",
+            ]:
+                # If where is just a filter on NULL, just add where to sql_stmt.
+                # In the sql_stmt the geometry column should already be aliased to geom.
+                where = where.format(geometrycolumn="geom")
+                sql_template = f"""
+                    SELECT sub_where.* FROM
+                        ( {sql_template}
+                        ) sub_where
+                     WHERE {where}
+                """
+                # Where has been applied already so set to None.
+                where = None
+            elif not explodecollections:
+                # If explodecollections is False, where can be added to sql_stmt but
+                # because of a bug in gdal we need to make sure the geom in the first
+                # row is not NULL, so add ORDER BY as well.
+                #   -> https://github.com/geofileops/geofileops/issues/308
+                # In the sql_stmt the geometry column should already be aliased to geom.
+                where = where.format(geometrycolumn="geom")
+                sql_template = f"""
+                    SELECT sub_where.* FROM
+                        ( {sql_template}
+                        ) sub_where
+                     WHERE {where}
+                     ORDER BY geom IS NULL
+                """
+                # Where has been applied already so set to None.
+                where = None
+            else:
+                # Possibly the where contains filters based on the geometry, so we need
+                # to wait for filtering till explodecollections has been applied.
+                # The temp file has been created with the geometry column named to geom.
+                where = where.format(geometrycolumn=input_layerinfo.geometrycolumn)
+
+                # Because of a bug in gdal we need to make sure the geom in the first
+                # row is not NULL, so add ORDER BY.
+                #   -> https://github.com/geofileops/geofileops/issues/308
+                sql_template = f"""
+                    SELECT sub_order_by_geom_null.* FROM
+                        ( {sql_template}
+                        ) sub_order_by_geom_null
+                     ORDER BY geom IS NULL
+                """
 
         # Prepare temp output filename
         tmp_output_path = tempdir / output_path.name
@@ -652,15 +693,18 @@ def _single_layer_vector_operation(
                     logger.warning(f"Result file {tmp_partial_output_path} not found")
                     continue
 
-                # If there is only one batch, just rename because it is already OK
-                if nb_batches == 1:
+                if nb_batches == 1 and (where is None or not explodecollections):
+                    # If there is only one batch and there is no where specified or
+                    # explodecollections is False, just rename because it is already OK.
                     gfo.move(tmp_partial_output_path, tmp_output_path)
                 else:
+                    # Append partial file to full destination file
                     fileops._append_to_nolock(
                         src=tmp_partial_output_path,
                         dst=tmp_output_path,
                         explodecollections=explodecollections,
                         force_output_geometrytype=force_output_geometrytype,
+                        where=where,
                         create_spatial_index=False,
                     )
                     gfo.remove(tmp_partial_output_path)
@@ -2678,26 +2722,96 @@ def dissolve_singlethread(
         FROM "{input_layer}" layer
         GROUP BY {groupby_columns_for_groupby_str}
     """
-    # Finally add where if specified
-    if where is not None:
-        # The query above aliases already to geom, so always use geom.
-        where = where.format(geometrycolumn="geom")
-        sql_stmt = f"""
-            SELECT * FROM
-                ({sql_stmt}
-                )
-             WHERE {where}
-        """
 
-    _ogr_util.vector_translate(
-        input_path=input_path,
-        output_path=output_path,
-        output_layer=output_layer,
-        sql_stmt=sql_stmt,
-        sql_dialect="SQLITE",
-        force_output_geometrytype=force_output_geometrytype,
-        explodecollections=explodecollections,
-        options={"LAYER_CREATION.SPATIAL_INDEX": True},
-    )
+    # Prepare/apply where parameter
+    if where is not None:
+        where_lower = where.lower()
+        if where_lower in [
+            "{geometrycolumn} is not null",
+            "geometry is not null",
+            "geom is not null",
+        ]:
+            # If where is just a filter on NULL, just add where to sql_stmt.
+            # In the sql_stmt the geometry column should already be aliased to geom.
+            where = where.format(geometrycolumn="geom")
+            sql_stmt = f"""
+                SELECT sub_where.* FROM
+                    ( {sql_stmt}
+                    ) sub_where
+                    WHERE {where}
+            """
+            # Where has been applied already so set to None.
+            where = None
+        elif not explodecollections:
+            # If explodecollections is False, where can be added to sql_stmt but
+            # because of a bug in gdal we need to make sure the geom in the first
+            # row is not NULL, so add ORDER BY as well.
+            #   -> https://github.com/geofileops/geofileops/issues/308
+            # In the sql_stmt the geometry column should already be aliased to geom.
+            where = where.format(geometrycolumn="geom")
+            sql_stmt = f"""
+                SELECT sub_where.* FROM
+                    ( {sql_stmt}
+                    ) sub_where
+                    WHERE {where}
+                    ORDER BY geom IS NULL
+            """
+            # Where has been applied already so set to None.
+            where = None
+        else:
+            # Possibly the where contains filters based on the geometry, so we need
+            # to wait for filtering till explodecollections has been applied.
+            # The temp file has been created with the geometry column named to geom.
+            where = where.format(geometrycolumn=input_layerinfo.geometrycolumn)
+
+            # Because of a bug in gdal we need to make sure the geom in the first
+            # row is not NULL, so add ORDER BY.
+            #   -> https://github.com/geofileops/geofileops/issues/308
+            sql_stmt = f"""
+                SELECT sub_order_by_geom_null.* FROM
+                    ( {sql_stmt}
+                    ) sub_order_by_geom_null
+                    ORDER BY geom IS NULL
+            """
+
+    # Now we can really start
+    tempdir = _io_util.create_tempdir("geofileops/dissolve_singlethread")
+    tmp_output_path = tempdir / output_path.name
+    try:
+        create_spatial_index = True if where is None else False
+        _ogr_util.vector_translate(
+            input_path=input_path,
+            output_path=tmp_output_path,
+            output_layer=output_layer,
+            sql_stmt=sql_stmt,
+            sql_dialect="SQLITE",
+            force_output_geometrytype=force_output_geometrytype,
+            explodecollections=explodecollections,
+            options={"LAYER_CREATION.SPATIAL_INDEX": create_spatial_index},
+        )
+
+        # We still need to apply the where filter
+        if where is not None:
+            tmp_output_where_path = tempdir / f"output_where{output_path.suffix}"
+            sql_stmt = f"""
+                SELECT * FROM "{output_layer}"
+                 WHERE {where}
+            """
+            _ogr_util.vector_translate(
+                input_path=tmp_output_path,
+                output_path=tmp_output_where_path,
+                output_layer=output_layer,
+                force_output_geometrytype=force_output_geometrytype,
+                sql_stmt=sql_stmt,
+                sql_dialect="SQLITE",
+                options={"LAYER_CREATION.SPATIAL_INDEX": True},
+            )
+            tmp_output_path = tmp_output_where_path
+
+        # Now we are ready to move the result to the final spot...
+        gfo.move(tmp_output_path, output_path)
+
+    finally:
+        shutil.rmtree(tempdir, ignore_errors=True)
 
     logger.info(f"Processing ready, took {datetime.now()-start_time}!")

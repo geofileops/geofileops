@@ -383,7 +383,7 @@ def vector_translate(
         message = f"Error {ex} while creating {output_path}"
         if sql_stmt is not None:
             message = f"{message} using sql_stmt {sql_stmt}"
-        raise GFOError(message)
+        raise GFOError(message) from ex
     finally:
         result_ds = None
 

@@ -46,6 +46,7 @@ from geofileops import fileops
 from geofileops.util import _general_util
 from geofileops.util import _geoops_sql
 from geofileops.util import _io_util
+from geofileops.util import _ogr_util
 from geofileops.helpers import _parameter_helper
 from geofileops.util import _processing_util
 from geofileops.util.geometry_util import GeometryType, PrimitiveType, SimplifyAlgorithm
@@ -825,6 +826,11 @@ def dissolve(
                 ", so tiles_path should be None and nb_squarish_tiles should be 1)"
             )
 
+    if input_layer is None:
+        input_layer = gfo.get_only_layer(input_path)
+    if output_layer is None:
+        output_layer = gfo.get_default_layer(output_path)
+
     # Check columns in groupby_columns
     if groupby_columns is not None:
         columns_in_layer_upper = [
@@ -921,14 +927,26 @@ def dissolve(
                 logger.debug(f"Nb cpus found: {nb_cpu}, nb_parallel: {nb_parallel}")
         else:
             # Else, create a grid based on the number of tiles wanted as result
-            result_tiles_gdf = grid_util.create_grid2(
-                input_layerinfo.total_bounds, nb_squarish_tiles, input_layerinfo.crs
-            )
-            if len(result_tiles_gdf) > 1:
-                gfo.to_file(
-                    result_tiles_gdf,
-                    output_path.parent / f"{output_path.stem}_tiles.gpkg",
+            tiles_bounds = shapely2_or_pygeos.bounds(
+                shapely2_or_pygeos.buffer(
+                    shapely2_or_pygeos.box(*input_layerinfo.total_bounds), 1
                 )
+            )
+            result_tiles_gdf = grid_util.create_grid2(
+                tiles_bounds, nb_squarish_tiles, input_layerinfo.crs
+            )
+
+        # Apply gridsize tolerance on tiles, otherwise the border polygons can't be
+        # unioned properly because gaps appear after rounding coordinates.
+        if gridsize != 0.0:
+            result_tiles_gdf.geometry = shapely2_or_pygeos.set_precision(
+                result_tiles_gdf.geometry.array.data, grid_size=gridsize
+            )
+        if len(result_tiles_gdf) > 1:
+            gfo.to_file(
+                result_tiles_gdf,
+                output_path.parent / f"{output_path.stem}_tiles.gpkg",
+            )
 
         # If a tiled result is asked, add tile_id to group on for the result
         if len(result_tiles_gdf) > 1:
@@ -941,15 +959,16 @@ def dissolve(
         try:
             if output_layer is None:
                 output_layer = gfo.get_default_layer(output_path)
-            output_tmp_path = tempdir / f"{output_path.stem}.gpkg"
+            output_tmp_path = tempdir / "output_tmp.gpkg"
             prev_nb_batches = None
             last_pass = False
             pass_id = 0
             logger.info(f"Start dissolve on file {input_path}")
+            input_pass_layer = input_layer
             while True:
                 # Get info of the current file that needs to be dissolved
-                pass_input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
-                nb_rows_total = pass_input_layerinfo.featurecount
+                input_pass_layerinfo = gfo.get_layerinfo(input_path, input_pass_layer)
+                nb_rows_total = input_pass_layerinfo.featurecount
 
                 # Calculate the best number of parallel processes and batches for
                 # the available resources for the current pass
@@ -981,10 +1000,10 @@ def dissolve(
                     if prev_nb_batches is not None:
                         nb_squarish_tiles_max = max(prev_nb_batches - 1, 1)
                     tiles_gdf = grid_util.create_grid2(
-                        total_bounds=pass_input_layerinfo.total_bounds,
+                        total_bounds=input_pass_layerinfo.total_bounds,
                         nb_squarish_tiles=nb_batches_recommended,
                         nb_squarish_tiles_max=nb_squarish_tiles_max,
-                        crs=pass_input_layerinfo.crs,
+                        crs=input_pass_layerinfo.crs,
                     )
                 else:
                     # If a grid is specified already, add extra columns/rows instead of
@@ -992,9 +1011,14 @@ def dissolve(
                     tiles_gdf = grid_util.split_tiles(
                         result_tiles_gdf, nb_batches_recommended
                     )
-                gfo.to_file(
-                    tiles_gdf, tempdir / f"{output_path.stem}_{pass_id}_tiles.gpkg"
-                )
+
+                # Apply gridsize tolerance on tiles, otherwise the border polygons can't
+                # be unioned properly because gaps appear after rounding coordinates.
+                if gridsize != 0.0:
+                    tiles_gdf.geometry = shapely2_or_pygeos.set_precision(
+                        tiles_gdf.geometry.array.data, grid_size=gridsize
+                    )
+                gfo.to_file(tiles_gdf, tempdir / f"output_{pass_id}_tiles.gpkg")
 
                 # If the number of tiles ends up as 1, it is the last pass anyway...
                 if len(tiles_gdf) == 1:
@@ -1005,7 +1029,7 @@ def dissolve(
                 # gfo. The notonborder rows are final immediately
                 if last_pass is not True:
                     output_tmp_onborder_path = (
-                        tempdir / f"{output_path.stem}_{pass_id}_onborder.gpkg"
+                        tempdir / f"output_{pass_id}_onborder.gpkg"
                     )
                 else:
                     output_tmp_onborder_path = output_tmp_path
@@ -1020,7 +1044,7 @@ def dissolve(
                     groupby_columns=groupby_columns,
                     agg_columns=agg_columns,
                     tiles_gdf=tiles_gdf,
-                    input_layer=input_layer,
+                    input_layer=input_pass_layer,
                     output_layer=output_layer,
                     gridsize=gridsize,
                     filter_null_geoms=False,
@@ -1032,6 +1056,7 @@ def dissolve(
                 prev_nb_batches = len(tiles_gdf)
                 input_path = output_tmp_onborder_path
                 pass_id += 1
+                input_pass_layer = None
 
                 # If we are ready...
                 if last_pass is True:
@@ -1196,23 +1221,106 @@ def dissolve(
                           ORDER BY geo_data.{orderby_column}
                     """
 
-                # Finally add where if specified
+                # Prepare/apply where parameter
                 if where is not None:
+                    where_lower = where.lower()
+                    if where_lower in [
+                        "{geometrycolumn} is not null",
+                        "geometry is not null",
+                        "geom is not null",
+                    ]:
+                        # If where is just a filter on NULL, just add where to sql_stmt.
+                        # In the sql_stmt the geometry column should already be aliased
+                        # to geom.
+                        where = where.format(geometrycolumn="geom")
+                        sql_stmt = f"""
+                            SELECT sub_where.* FROM
+                                ( {sql_stmt}
+                                ) sub_where
+                             WHERE {where}
+                        """
+                        # Where has been applied already so set to None.
+                        where = None
+                    elif not explodecollections:
+                        # If explodecollections is False, where can be added to sql_stmt
+                        # but because of a bug in gdal we need to make sure the geom in
+                        # the first row is not NULL, so add ORDER BY as well.
+                        #   -> https://github.com/geofileops/geofileops/issues/308
+                        # In the sql_stmt the geometry column should already be aliased
+                        # to geom.
+                        where = where.format(geometrycolumn="geom")
+                        sql_stmt = f"""
+                            SELECT sub_where.* FROM
+                                ( {sql_stmt}
+                                ) sub_where
+                             WHERE {where}
+                             ORDER BY geom IS NULL
+                        """
+                        # Where has been applied already so set to None.
+                        where = None
+                    else:
+                        # Possibly the where contains filters based on the geometry, so
+                        # we need to wait for filtering till explodecollections has been
+                        # applied. The temp file has been created with the geometry
+                        # column named to geom.
+                        where = where.format(
+                            geometrycolumn=input_layerinfo.geometrycolumn
+                        )
+
+                        # Because of a bug in gdal we need to make sure the geom in the
+                        # first row is not NULL, so add ORDER BY.
+                        #   -> https://github.com/geofileops/geofileops/issues/308
+                        sql_stmt = f"""
+                            SELECT sub_order_by_geom_null.* FROM
+                                ( {sql_stmt}
+                                ) sub_order_by_geom_null
+                             ORDER BY geom IS NULL
+                        """
+
+                logger.info("Combine output file")
+                if where is None:
+                    name = f"output_tmp2_final{output_path.suffix}"
+                else:
+                    name = f"output_tmp2_final{output_tmp_path.suffix}"
+                output_tmp2_final_path = tempdir / name
+                sql_stmt = sql_stmt.format(
+                    geometrycolumn="geom", input_layer=output_layer
+                )
+                create_spatial_index = True if where is None else False
+                _ogr_util.vector_translate(
+                    input_path=output_tmp_path,
+                    output_path=output_tmp2_final_path,
+                    output_layer=output_layer,
+                    sql_stmt=sql_stmt,
+                    sql_dialect="SQLITE",
+                    force_output_geometrytype=input_layerinfo.geometrytype,
+                    explodecollections=explodecollections,
+                    options={"LAYER_CREATION.SPATIAL_INDEX": create_spatial_index},
+                )
+
+                # We still need to apply the where filter
+                if where is not None:
+                    name = f"output_tmp3_where{output_path.suffix}"
+                    output_tmp3_where_path = tempdir / name
                     sql_stmt = f"""
-                        SELECT * FROM
-                          ({sql_stmt}
-                          )
+                        SELECT * FROM "{output_layer}"
                          WHERE {where}
                     """
+                    tmp_info = gfo.get_layerinfo(output_tmp2_final_path, output_layer)
+                    sql_stmt = sql_stmt.format(geometrycolumn=tmp_info.geometrycolumn)
+                    _ogr_util.vector_translate(
+                        input_path=output_tmp2_final_path,
+                        output_path=output_tmp3_where_path,
+                        output_layer=output_layer,
+                        force_output_geometrytype=input_layerinfo.geometrytype,
+                        sql_stmt=sql_stmt,
+                        sql_dialect="SQLITE",
+                        options={"LAYER_CREATION.SPATIAL_INDEX": True},
+                    )
+                    output_tmp2_final_path = output_tmp3_where_path
 
-                # Go!
-                _geoops_sql.select(
-                    input_path=output_tmp_path,
-                    output_path=output_path,
-                    sql_stmt=sql_stmt,
-                    output_layer=output_layer,
-                    explodecollections=explodecollections,
-                )
+                # Now we are ready to move the result to the final spot...
+                gfo.move(output_tmp2_final_path, output_path)
 
         finally:
             shutil.rmtree(tempdir, ignore_errors=True)

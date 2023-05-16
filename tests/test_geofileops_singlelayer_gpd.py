@@ -8,13 +8,9 @@ import math
 from pathlib import Path
 
 import geopandas as gpd
-import geopandas._compat as gpd_compat
+import pandas as pd
 import pytest
 
-if gpd_compat.USE_PYGEOS:
-    import pygeos as shapely2_or_pygeos
-else:
-    import shapely as shapely2_or_pygeos
 import shapely.geometry as sh_geom
 
 import geofileops as gfo
@@ -23,7 +19,13 @@ from geofileops.util import geometry_util
 from geofileops.util import _geoops_gpd as geoops_gpd
 from geofileops.util import grid_util
 from tests import test_helper
-from tests.test_helper import EPSGS, SUFFIXES
+from tests.test_helper import (
+    EPSGS,
+    SUFFIXES,
+    WHERE_LENGTH_GT_1000,
+    WHERE_AREA_GT_5000,
+    WHERE_USE_DEFAULT,
+)
 
 
 def test_get_parallelization_params():
@@ -36,7 +38,7 @@ def test_get_parallelization_params():
     "only_geom_input, gridsize, where",
     [
         (False, 0.0, "ST_Area({geometrycolumn}) > 70"),
-        (True, 0.01, "WHERE_DEFAULT"),
+        (True, 0.01, WHERE_USE_DEFAULT),
     ],
 )
 def test_apply(tmp_path, suffix, only_geom_input, gridsize, where):
@@ -56,7 +58,7 @@ def test_apply(tmp_path, suffix, only_geom_input, gridsize, where):
 
     # Run test
     kwargs = {}
-    if where != "WHERE_DEFAULT":
+    if where != WHERE_USE_DEFAULT:
         kwargs["where"] = where
     kwargs["gridsize"] = gridsize
     kwargs["batchsize"] = batchsize
@@ -95,7 +97,7 @@ def test_apply(tmp_path, suffix, only_geom_input, gridsize, where):
     # Number of rows depends on where
     if where == "ST_Area({geometrycolumn}) > 70":
         assert output_layerinfo.featurecount == input_layerinfo.featurecount - 1
-    elif where == "WHERE_DEFAULT":
+    elif where == WHERE_USE_DEFAULT:
         assert output_layerinfo.featurecount == input_layerinfo.featurecount
     else:
         raise ValueError(f"unsupported where in test: {where}")
@@ -270,9 +272,16 @@ def test_buffer_styles(tmp_path, suffix, epsg):
 
 @pytest.mark.parametrize("suffix", SUFFIXES)
 @pytest.mark.parametrize(
-    "epsg, gridsize, explodecollections", [(31370, 0.001, True), (4326, 0.0, False)]
+    "epsg, gridsize, explodecollections, where",
+    [
+        (31370, 0.001, True, WHERE_LENGTH_GT_1000),
+        (31370, 0.001, True, WHERE_USE_DEFAULT),
+        (4326, 0.0, False, WHERE_USE_DEFAULT),
+    ],
 )
-def test_dissolve_linestrings(tmp_path, suffix, epsg, gridsize, explodecollections):
+def test_dissolve_linestrings(
+    tmp_path, suffix, epsg, gridsize, explodecollections, where
+):
     # Prepare test data
     input_path = test_helper.get_testfile(
         "linestring-watercourse", suffix=suffix, epsg=epsg
@@ -285,12 +294,16 @@ def test_dissolve_linestrings(tmp_path, suffix, epsg, gridsize, explodecollectio
     output_path = (
         output_basepath.parent / f"{output_basepath.stem}_expl{output_basepath.suffix}"
     )
+    kwargs = {}
+    if where != WHERE_USE_DEFAULT:
+        kwargs["where"] = where
     gfo.dissolve(
         input_path=input_path,
         output_path=output_path,
         explodecollections=explodecollections,
         gridsize=gridsize,
         batchsize=batchsize,
+        **kwargs,
     )
 
     # Check if the result file is correctly created
@@ -298,7 +311,12 @@ def test_dissolve_linestrings(tmp_path, suffix, epsg, gridsize, explodecollectio
     assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     if explodecollections:
-        assert output_layerinfo.featurecount == 83
+        if where == WHERE_USE_DEFAULT:
+            assert output_layerinfo.featurecount == 83
+        elif where == WHERE_LENGTH_GT_1000:
+            assert output_layerinfo.featurecount == 13
+        else:
+            raise ValueError(f"check for where {where} not implemented")
     else:
         assert output_layerinfo.featurecount == 1
     assert output_layerinfo.geometrytype in [
@@ -494,20 +512,28 @@ def test_dissolve_linestrings_aggcolumns_json(tmp_path, agg_columns):
 
 
 @pytest.mark.parametrize(
-    "suffix, epsg, groupby_columns, explode, gridsize, expected_featurecount",
+    "suffix, epsg, groupby_columns, explode, gridsize, where, expected_featurecount",
     [
-        (".gpkg", 31370, ["GEWASGROEP"], True, 0.0, 25),
-        (".gpkg", 31370, ["GEWASGROEP"], False, 0.0, 6),
-        (".gpkg", 31370, ["gewasGROEP"], False, 0.01, 6),
-        (".gpkg", 31370, [], True, 0.0, 23),
-        (".gpkg", 31370, None, False, 0.0, 1),
-        (".gpkg", 4326, ["GEWASGROEP"], True, 0.0, 25),
-        (".shp", 31370, ["GEWASGROEP"], True, 0.0, 25),
-        (".shp", 31370, [], True, 0.0, 23),
+        (".gpkg", 31370, ["GEWASGROEP"], True, 0.0, WHERE_USE_DEFAULT, 25),
+        (".gpkg", 31370, ["GEWASGROEP"], False, 0.0, WHERE_USE_DEFAULT, 6),
+        (".gpkg", 31370, ["gewasGROEP"], False, 0.01, WHERE_AREA_GT_5000, 4),
+        (".gpkg", 31370, ["gewasGROEP"], True, 0.01, WHERE_AREA_GT_5000, 13),
+        (".gpkg", 31370, [], True, 0.0, WHERE_USE_DEFAULT, 23),
+        (".gpkg", 31370, None, False, 0.0, WHERE_USE_DEFAULT, 1),
+        (".gpkg", 4326, ["GEWASGROEP"], True, 0.0, WHERE_USE_DEFAULT, 25),
+        (".shp", 31370, ["GEWASGROEP"], True, 0.0, None, 25),
+        (".shp", 31370, [], True, 0.0, WHERE_USE_DEFAULT, 23),
     ],
 )
 def test_dissolve_polygons(
-    tmp_path, suffix, epsg, groupby_columns, explode, gridsize, expected_featurecount
+    tmp_path,
+    suffix,
+    epsg,
+    groupby_columns,
+    explode,
+    gridsize,
+    where,
+    expected_featurecount,
 ):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
@@ -519,6 +545,9 @@ def test_dissolve_polygons(
     groupby = True if (groupby_columns is None or len(groupby_columns) == 0) else False
     name = f"{input_path.stem}_groupby-{groupby}_explode-{explode}_gridsize-{gridsize}"
     output_path = tmp_path / f"{name}{suffix}"
+    kwargs = {}
+    if where != WHERE_USE_DEFAULT:
+        kwargs["where"] = where
     gfo.dissolve(
         input_path=input_path,
         output_path=output_path,
@@ -527,6 +556,7 @@ def test_dissolve_polygons(
         gridsize=gridsize,
         nb_parallel=2,
         batchsize=batchsize,
+        **kwargs,
     )
 
     # Now check if the tmp file is correctly created
@@ -552,36 +582,39 @@ def test_dissolve_polygons(
     assert len(output_gdf) == output_layerinfo.featurecount
     assert output_gdf["geometry"][0] is not None
 
-    # Compare result with geopandas
+    # Compare result expected values using geopandas
     columns = ["geometry"]
     if groupby_columns is None or len(groupby_columns) == 0:
-        output_gpd_gdf = input_gdf[columns].dissolve()  # type: ignore
+        expected_gdf = input_gdf[columns].dissolve()  # type: ignore
     else:
         groupby_columns_upper = {column.upper(): column for column in groupby_columns}
         columns += list(groupby_columns_upper)
-        output_gpd_gdf = (
+        expected_gdf = (
             input_gdf[columns]
             .dissolve(by=list(groupby_columns_upper))  # type: ignore
             .reset_index()
         ).rename(columns=groupby_columns_upper)
-    if explode:
-        output_gpd_gdf = output_gpd_gdf.explode(ignore_index=True)
-    if gridsize != 0.0:
-        output_gpd_gdf.geometry = shapely2_or_pygeos.set_precision(
-            output_gpd_gdf.geometry.array.data, grid_size=gridsize
-        )
-    output_gpd_path = tmp_path / f"{input_path.stem}_gpd-output{suffix}"
-    gfo.to_file(output_gpd_gdf, output_gpd_path)
+    expected_gdf = test_helper.prepare_expected_result(
+        expected_gdf, explodecollections=explode, gridsize=gridsize, where=where
+    )
+    expected_path = tmp_path / f"{input_path.stem}_gpd-output{suffix}"
+    gfo.to_file(expected_gdf, expected_path)
 
     # Small differences with the geopandas result are expected, because gfo
     # adds points in the tiling process. So only basic checks possible.
+    # output_gdf.geometry = output_gdf.geometry.simplify(0.1)
+    # expected_gdf.geometry = expected_gdf.geometry.simplify(0.1)
     # assert_geodataframe_equal(
-    #        output_gdf, output_gpd_gdf, promote_to_multi=True, sort_values=True,
-    #        normalize=True, check_less_precise=True, output_dir=tmp_path)
+    #     output_gdf, expected_gdf, promote_to_multi=True, sort_values=True,
+    #     normalize=True, check_less_precise=True
+    # )
     if suffix != ".shp":
         # Shapefile needs at least one column, if no columns: fid
-        assert list(output_gdf.columns) == list(output_gpd_gdf.columns)
-    assert len(output_gdf) == len(output_gpd_gdf)
+        assert list(output_gdf.columns) == list(expected_gdf.columns)
+    assert len(output_gdf) == len(expected_gdf)
+    output_area_df = output_gdf.geometry.area.sort_values()
+    expected_area_df = expected_gdf.geometry.area.sort_values()
+    pd.testing.assert_series_equal(output_area_df, expected_area_df, check_index=False)
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES)

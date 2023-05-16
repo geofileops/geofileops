@@ -165,7 +165,7 @@ class LayerInfo:
         name (str): the name of the layer.
         featurecount (int): the number of features (rows) in the layer.
         total_bounds (Tuple[float, float, float, float]): the bounding box of
-            the layer.
+            the layer: (minx, miny, maxx, maxy).
         geometrycolumn (str): name of the column that contains the
             primary geometry.
         geometrytypename (str): the geometry type name of the geometrycolumn.
