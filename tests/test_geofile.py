@@ -294,6 +294,21 @@ def test_convert_reproject(tmp_path, suffix):
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES)
+def test_convert_where(tmp_path, suffix):
+    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+
+    # Convert with where
+    dst = tmp_path / f"{src.stem}-output_where{suffix}"
+    gfo.convert(src, dst, where="ST_Area({geometrycolumn}) > 500")
+
+    # Now compare source and dst file
+    src_layerinfo = gfo.get_layerinfo(src)
+    dst_layerinfo = gfo.get_layerinfo(dst)
+    assert src_layerinfo.featurecount > dst_layerinfo.featurecount
+    assert dst_layerinfo.featurecount == 43
+
+
+@pytest.mark.parametrize("suffix", SUFFIXES)
 def test_copy(tmp_path, suffix):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
