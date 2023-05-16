@@ -447,9 +447,9 @@ def _apply_geooperation_to_layer(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
-        where (str, optional): filter to be applied to the result of the operation. It
-            should be in sqlite SQL WHERE syntax and can include
-            |spatialite_reference_link| functions.
+        where (str, optional): filter to apply to the result of the operation (after
+            explodecollections). It should be in sqlite SQL WHERE syntax and
+            |spatialite_reference_link| functions can be used.
             Defaults to "{geometrycolumn} IS NOT NULL".
         nb_parallel (int, optional): [description]. Defaults to -1.
         batchsize (int, optional): indicative number of rows to process per

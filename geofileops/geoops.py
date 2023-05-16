@@ -84,9 +84,9 @@ def apply(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
-        where (str, optional): filter to be applied to the result of the operation. It
-            should be in sqlite SQL WHERE syntax and can include
-            |spatialite_reference_link| functions.
+        where (str, optional): filter to apply to the result of the operation (after
+            explodecollections). It should be in sqlite SQL WHERE syntax and
+            |spatialite_reference_link| functions can be used.
             Defaults to "{geometrycolumn} IS NOT NULL".
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
@@ -182,9 +182,9 @@ def buffer(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
-        where (str, optional): filter to be applied to the result of the operation. It
-            should be in sqlite SQL WHERE syntax and can include
-            |spatialite_reference_link| functions.
+        where (str, optional): filter to apply to the result of the operation (after
+            explodecollections). It should be in sqlite SQL WHERE syntax and
+            |spatialite_reference_link| functions can be used.
             Defaults to "{geometrycolumn} IS NOT NULL".
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
@@ -401,9 +401,9 @@ def convexhull(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
-        where (str, optional): filter to be applied to the result of the operation. It
-            should be in sqlite SQL WHERE syntax and can include
-            |spatialite_reference_link| functions.
+        where (str, optional): filter to apply to the result of the operation (after
+            explodecollections). It should be in sqlite SQL WHERE syntax and
+            |spatialite_reference_link| functions can be used.
             Defaults to "{geometrycolumn} IS NOT NULL".
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
@@ -460,9 +460,9 @@ def delete_duplicate_geometries(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
-        where (str, optional): filter to be applied to the result of the operation. It
-            should be in sqlite SQL WHERE syntax and can include
-            |spatialite_reference_link| functions.
+        where (str, optional): filter to apply to the result of the operation (after
+            explodecollections). It should be in sqlite SQL WHERE syntax and
+            |spatialite_reference_link| functions can be used.
             Defaults to "{geometrycolumn} IS NOT NULL".
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
@@ -620,9 +620,9 @@ def dissolve(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
-        where (str, optional): filter to be applied to the result of the operation. It
-            should be in sqlite SQL WHERE syntax and can include
-            |spatialite_reference_link| functions.
+        where (str, optional): filter to apply to the result of the operation (after
+            explodecollections). It should be in sqlite SQL WHERE syntax and
+            |spatialite_reference_link| functions can be used.
             Defaults to "{geometrycolumn} IS NOT NULL".
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
@@ -824,9 +824,9 @@ def makevalid(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
-        where (str, optional): filter to be applied to the result of the operation. It
-            should be in sqlite SQL WHERE syntax and can include
-            |spatialite_reference_link| functions.
+        where (str, optional): filter to apply to the result of the operation (after
+            explodecollections). It should be in sqlite SQL WHERE syntax and
+            |spatialite_reference_link| functions can be used.
             Defaults to "{geometrycolumn} IS NOT NULL".
         validate_attribute_data (bool, optional): True to validate if all attribute data
             can be read. Raises an exception if an error is found, as this type of error
@@ -1107,9 +1107,9 @@ def simplify(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
-        where (str, optional): filter to be applied to the result of the operation. It
-            should be in sqlite SQL WHERE syntax and can include
-            |spatialite_reference_link| functions.
+        where (str, optional): filter to apply to the result of the operation (after
+            explodecollections). It should be in sqlite SQL WHERE syntax and
+            |spatialite_reference_link| functions can be used.
             Defaults to "{geometrycolumn} IS NOT NULL".
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
