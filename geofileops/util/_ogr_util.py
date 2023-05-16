@@ -184,7 +184,7 @@ def vector_translate(
     if columns is not None:
         args.extend(["-select", ",".join(columns)])
     if sql_stmt is not None and where is not None:
-        raise ValueError("it is not supported to specify sql_stmt and where")
+        raise ValueError("it is not supported to specify both sql_stmt and where")
 
     # Warp
     if warp is not None:
