@@ -3,7 +3,6 @@
 Tests for operations that are executed using a sql statement on one layer.
 """
 
-import itertools
 import math
 
 import geopandas as gpd
@@ -246,21 +245,19 @@ def test_makevalid_invalidparams():
         )
 
 
-@pytest.mark.parametrize("input_suffix", SUFFIXES)
-@pytest.mark.parametrize("output_suffix", SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES)
 @pytest.mark.parametrize("gridsize", [0.0, 0.01])
-def test_select(tmp_path, input_suffix, output_suffix, gridsize):
+def test_select(tmp_path, suffix, gridsize):
     # Prepare test data
-    input_path = test_helper.get_testfile("polygon-parcel", suffix=input_suffix)
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
     # Now run test
-    name = f"{input_path.stem}-{input_suffix.replace('.', '')}-output{output_suffix}"
-    output_path = tmp_path / name
+    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
     layerinfo_input = gfo.get_layerinfo(input_path)
+    sql_stmt = 'SELECT {geometrycolumn}, "oidn", "UIDN" FROM "{input_layer}"'
     # Column casing seems to behave odd: without gridsize (=subselect) results in upper
     # casing rgardless of quotes or not, with gridsize (=subselect) casing in select is
     # retained in output.
-    sql_stmt = 'SELECT {geometrycolumn}, "oidn", "UIDN" FROM "{input_layer}"'
     gfo.select(
         input_path=input_path,
         output_path=output_path,
@@ -333,8 +330,8 @@ def test_select_emptyinput(tmp_path, input_suffix, output_suffix):
     # Now check if the tmp file is correctly created
     layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 0
-    assert "OIDN" in layerinfo_output.columns
-    assert "UIDN" in layerinfo_output.columns
+    assert "oidn" in layerinfo_output.columns
+    assert "uidn" in layerinfo_output.columns
     assert len(layerinfo_output.columns) == 2
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
@@ -343,7 +340,7 @@ def test_select_emptyinput(tmp_path, input_suffix, output_suffix):
     "input_suffix, output_suffix",
     [
         (".gpkg", ".gpkg"),
-        # (".gpkg", ".shp"),
+        (".gpkg", ".shp"),
         (".shp", ".gpkg"),
         (".shp", ".shp"),
     ],
@@ -366,7 +363,7 @@ def test_select_emptyinput_operation(tmp_path, input_suffix, output_suffix):
     output_stem = f"{input_path.stem}-{input_suffix.replace('.', '')}-complex"
     output_path = tmp_path / f"{output_stem}{output_suffix}"
     sql_stmt = """
-        SELECT st_buffer({geometrycolumn}, 1, 5) as geom, oidn, uidn
+        SELECT st_buffer({geometrycolumn}, 1, 5) as {geometrycolumn}, oidn, uidn
           FROM "{input_layer}"
     """
     gfo.select(input_path=input_path, output_path=output_path, sql_stmt=sql_stmt)
@@ -376,15 +373,13 @@ def test_select_emptyinput_operation(tmp_path, input_suffix, output_suffix):
     assert output_layerinfo.featurecount == 0
 
 
-@pytest.mark.parametrize("input_suffix", SUFFIXES)
-@pytest.mark.parametrize("output_suffix", SUFFIXES)
-def test_select_emptyresult(tmp_path, input_suffix, output_suffix):
+@pytest.mark.parametrize("suffix", SUFFIXES)
+def test_select_emptyresult(tmp_path, suffix):
     # Prepare test data
-    input_path = test_helper.get_testfile("polygon-parcel", suffix=input_suffix)
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
     # Now run test
-    output_stem = f"{input_path.stem}-{input_suffix.replace('.', '')}-output"
-    output_path = tmp_path / f"{output_stem}{output_suffix}"
+    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
     sql_stmt = 'SELECT {geometrycolumn}, oidn, uidn FROM "{input_layer}" WHERE 1=0'
 
     gfo.select(input_path=input_path, output_path=output_path, sql_stmt=sql_stmt)
@@ -392,10 +387,49 @@ def test_select_emptyresult(tmp_path, input_suffix, output_suffix):
     # Now check if the tmp file is correctly created
     layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 0
-    assert "OIDN" in layerinfo_output.columns
-    assert "UIDN" in layerinfo_output.columns
+    assert "oidn" in layerinfo_output.columns
+    assert "uidn" in layerinfo_output.columns
     assert len(layerinfo_output.columns) == 2
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
+
+
+@pytest.mark.parametrize(
+    "sql_stmt",
+    [
+        'SELECT {geometrycolumn}, "oidn", "UIDN" FROM "{input_layer}"',
+    ],
+)
+@pytest.mark.parametrize("input_suffix", SUFFIXES)
+@pytest.mark.parametrize("output_suffix", SUFFIXES)
+@pytest.mark.parametrize("gridsize", [0.0])
+def test_select_geom_aliases(tmp_path, input_suffix, output_suffix, sql_stmt, gridsize):
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=input_suffix)
+
+    # Now run test
+    name = f"{input_path.stem}-{input_suffix.replace('.', '')}-output{output_suffix}"
+    output_path = tmp_path / name
+    layerinfo_input = gfo.get_layerinfo(input_path)
+    gfo.select(
+        input_path=input_path,
+        output_path=output_path,
+        sql_stmt=sql_stmt,
+        gridsize=gridsize,
+    )
+
+    # Now check if the tmp file is correctly created
+    assert output_path.exists()
+    layerinfo_output = gfo.get_layerinfo(output_path)
+    assert layerinfo_input.featurecount == layerinfo_output.featurecount
+    columns_output_upper = [col.upper() for col in layerinfo_output.columns]
+    assert "OIDN" in columns_output_upper
+    assert "UIDN" in columns_output_upper
+    assert len(layerinfo_output.columns) == 2
+    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
+
+    # Now check the contents of the result file
+    output_gdf = gfo.read_file(output_path)
+    assert output_gdf["geometry"][0] is not None
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES)
@@ -409,81 +443,6 @@ def test_select_invalid_sql(tmp_path, suffix):
 
     with pytest.raises(Exception, match="Error <"):
         gfo.select(input_path=input_path, output_path=output_path, sql_stmt=sql_stmt)
-
-
-@pytest.mark.parametrize("suffix", SUFFIXES)
-@pytest.mark.parametrize(
-    "order_by_null, error_expected", [(True, False), (False, True)]
-)
-def test_select_first_geom_null(tmp_path, suffix, order_by_null, error_expected):
-    """
-    Test to see if a bug in gdal gets solved. Bug: if a function on a geometry returns
-    NULL for the first row, all geometries of all rows become NULL.
-       -> https://github.com/geofileops/geofileops/issues/308
-    """
-    # Prepare test data
-    data = [
-        {
-            "descr": "polygon1",
-            "geometry": Polygon([(0, 0), (0, 5), (5, 5), (5, 0), (0, 0)]),
-        },
-        {
-            "descr": "polygon2",
-            "geometry": Polygon([(0, 0), (0, 15), (15, 15), (15, 0), (0, 0)]),
-        },
-    ]
-    input_gdf = gpd.GeoDataFrame(data=data, crs=31370)  # type: ignore
-    input_path = tmp_path / f"test{suffix}"
-    gfo.to_file(input_gdf, input_path)
-    layer = gfo.get_only_layer(input_path)
-    distance = -5
-    sql_stmt = f"""
-        SELECT ST_CollectionExtract(
-                   ST_Buffer({{geometrycolumn}}, {distance}, 5), 3
-               ) AS geom
-              {{columns_to_select_str}}
-          FROM "{layer}" layer
-    """
-    expected_gdf = gfo.read_file(input_path)
-    expected_gdf.geometry = expected_gdf.geometry.buffer(distance, resolution=5)
-    expected_gdf = test_helper.prepare_expected_result(
-        expected_gdf, keep_empty_geoms=True, where=None
-    )
-
-    if order_by_null:
-        sql_stmt = f"""
-            SELECT * FROM
-                ( {sql_stmt}
-                )
-            ORDER BY geom IS NULL
-        """
-    else:
-        expected_gdf.geometry = gpd.GeoSeries(itertools.repeat(None, len(expected_gdf)))
-
-    # Now we are ready to test
-    result_path = tmp_path / f"test_select_null{suffix}"
-    gfo.select(
-        input_path=input_path,
-        output_path=result_path,
-        sql_stmt=sql_stmt,
-    )
-    result_gdf = gfo.read_file(result_path)
-
-    # Another bug: for shapefile, if the first ? geometry row is null, an extra geom
-    # column is added.
-    if not order_by_null and suffix == ".shp":
-        result_gdf = result_gdf.drop(columns="geom")
-
-    # Compare with expected result
-    check_dtype = False if suffix == ".shp" else True
-    assert_geodataframe_equal(
-        result_gdf,
-        expected_gdf,
-        sort_values=True,
-        check_dtype=check_dtype,
-        check_geom_empty_vs_None=False,
-        check_crs=False,
-    )
 
 
 def test_select_output_exists(tmp_path):

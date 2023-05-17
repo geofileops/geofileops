@@ -360,7 +360,7 @@ def vector_translate(
                 layer_defn = result_layer.GetLayerDefn()
                 for field_idx in range(layer_defn.GetFieldCount()):
                     field_name = layer_defn.GetFieldDefn(field_idx).GetName()
-                    if field_name.lower() == "geom":
+                    if field_name.lower() in ["geom", "geometry"]:
                         result_layer.DeleteField(field_idx)
                         break
 

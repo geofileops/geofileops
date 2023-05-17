@@ -1240,26 +1240,21 @@ def dissolve(
                           ORDER BY geo_data.{orderby_column}
                     """
 
-                # Prepare/apply where parameter
-                if where is not None:
-                    if explodecollections:
-                        # Possibly the where contains filters based on the geometry, so
-                        # we need to wait for filtering till explodecollections has been
-                        # applied.
-                        pass
-                    else:
-                        # If explodecollections is False, where can be added to
-                        # sql_stmt. In the sql_stmt the geometry column should already
-                        # be aliased to geom.
-                        where = where.format(geometrycolumn="geom")
-                        sql_stmt = f"""
-                            SELECT * FROM
-                                ( {sql_stmt}
-                                )
-                            WHERE {where}
-                        """
-                        # Where has been applied already so set to None.
-                        where = None
+                # Apply where parameter if needed/possible
+                if where is not None and not not explodecollections:
+                    # explodecollections is not True, so we can add it to sql_stmt.
+                    # If explodecollections would be True, we need to wait to apply the
+                    # where till after explodecollections is applied, so when appending
+                    # the partial results to the output file.
+                    where = where.format(geometrycolumn="geom")
+                    sql_stmt = f"""
+                        SELECT * FROM
+                            ( {sql_stmt}
+                            )
+                        WHERE {where}
+                    """
+                    # Where has been applied already so set to None.
+                    where = None
 
                 logger.info("Postprocess output file")
                 if where is None:

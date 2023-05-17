@@ -387,7 +387,7 @@ def test_buffer_negative(
         GeometryType.MULTILINESTRING,
     ]:
         # A Negative buffer of points or linestrings gives NULL geometries
-        if where is None:
+        if keep_empty_geoms:
             # If no filtering on NULL geoms, all rows are still present
             assert output_layerinfo.featurecount == input_layerinfo.featurecount
             if suffix != ".shp":

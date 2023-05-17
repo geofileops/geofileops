@@ -51,7 +51,7 @@ def buffer(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     keep_empty_geoms: bool = True,
-    where: str = "{geometrycolumn} IS NOT NULL",
+    where: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -69,7 +69,7 @@ def buffer(
 
     # Create the final template
     sql_template = f"""
-        SELECT {operation} AS geom
+        SELECT {operation} AS {{geometrycolumn}}
               {{columns_to_select_str}}
             FROM "{{input_layer}}" layer
             WHERE 1=1
@@ -112,7 +112,7 @@ def convexhull(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    keep_empty_geoms: bool = True,
+    keep_empty_geoms: bool = False,  # Should become True
     where: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -122,7 +122,7 @@ def convexhull(
     # ----------------------------------------------
     input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
     sql_template = """
-        SELECT ST_ConvexHull({geometrycolumn}) AS geom
+        SELECT ST_ConvexHull({geometrycolumn}) AS {geometrycolumn}
                 {columns_to_select_str}
           FROM "{input_layer}" layer
          WHERE 1=1
@@ -167,7 +167,7 @@ def delete_duplicate_geometries(
     # The query as written doesn't give correct results when parallellized,
     # but it isn't useful to do it for this operation.
     sql_template = """
-        SELECT {geometrycolumn} AS geom
+        SELECT {geometrycolumn} AS {geometrycolumn}
               {columns_to_select_str}
           FROM "{input_layer}" layer
          WHERE layer.rowid IN (
@@ -213,7 +213,7 @@ def isvalid(
 ) -> bool:
     # Prepare sql template for this operation
     sql_template = """
-        SELECT ST_IsValidDetail({geometrycolumn}) AS geom
+        SELECT ST_IsValidDetail({geometrycolumn}) AS {geometrycolumn}
               ,ST_IsValid({geometrycolumn}) AS isvalid
               ,ST_IsValidReason({geometrycolumn}) AS isvalidreason
               {columns_to_select_str}
@@ -317,7 +317,7 @@ def makevalid(
 
     # Now we can prepare the entire statement
     sql_template = f"""
-        SELECT {operation} AS geom
+        SELECT {operation} AS {{geometrycolumn}}
                 {{columns_to_select_str}}
           FROM "{{input_layer}}" layer
          WHERE 1=1
@@ -422,8 +422,9 @@ def simplify(
     # Init + prepare sql template for this operation
     # ----------------------------------------------
     sql_template = f"""
-        SELECT ST_SimplifyPreserveTopology({{geometrycolumn}}, {tolerance}) AS geom
-                {{columns_to_select_str}}
+        SELECT ST_SimplifyPreserveTopology({{geometrycolumn}}, {tolerance}
+               ) AS {{geometrycolumn}}
+              {{columns_to_select_str}}
             FROM "{{input_layer}}" layer
             WHERE 1=1
             {{batch_filter}}
@@ -538,19 +539,15 @@ def _single_layer_vector_operation(
 
         # Fill out/add to the sql_template what is already possible
         # ---------------------------------------------------------
-        sql_template = sql_template.format(
-            geometrycolumn=input_layerinfo.geometrycolumn,
-            columns_to_select_str=column_formatter.prefixed_aliased(),
-            input_layer=processing_params.input1_layer,
-            batch_filter="{batch_filter}",
-        )
 
         # Add snaptogrid around sql_template if gridsize specified
         if gridsize != 0.0:
             # Apply snaptogrid, but this results in invalid geometries, so also
             # ST_Makevalid. It can also result in collapsed (pieces of)
             # geometries, so also collectionextract.
-            gridsize_op = f"ST_MakeValid(SnapToGrid(sub_gridsize.geom, {gridsize}))"
+            gridsize_op = (
+                f"ST_MakeValid(SnapToGrid(sub_gridsize.{{geometrycolumn}}, {gridsize}))"
+            )
             if force_output_geometrytype is None:
                 warnings.warn(
                     "a gridsize is specified but no force_output_geometrytype, this "
@@ -561,15 +558,22 @@ def _single_layer_vector_operation(
                 gridsize_op = f"ST_CollectionExtract({gridsize_op}, {primitivetypeid})"
 
             # Get all columns of the sql_template
-            sql_tmp = sql_template.format(batch_filter="")
+            sql_tmp = sql_template.format(
+                geometrycolumn=input_layerinfo.geometrycolumn,
+                columns_to_select_str=column_formatter.prefixed_aliased(),
+                input_layer=processing_params.input1_layer,
+                batch_filter="",
+            )
             cols = _sqlite_util.get_columns(
                 sql_stmt=sql_tmp,
                 input1_path=processing_params.input1_path,  # type: ignore
             )
-            cols = [col for col in cols if col.lower() != "geom"]
+            cols = [
+                col for col in cols if col.lower() != input_layerinfo.geometrycolumn
+            ]
             columns_to_select = _ogr_sql_util.columns_quoted(cols)
             sql_template = f"""
-                SELECT {gridsize_op} AS geom
+                SELECT {gridsize_op} AS {{geometrycolumn}}
                       {columns_to_select}
                   FROM ( {sql_template}
                     ) sub_gridsize
@@ -581,28 +585,23 @@ def _single_layer_vector_operation(
                 SELECT * FROM
                     ( {sql_template}
                     )
-                 WHERE geom IS NOT NULL
+                 WHERE {{geometrycolumn}} IS NOT NULL
             """
 
         # Prepare/apply where parameter
-        if where is not None:
-            if explodecollections:
-                # Possibly the where contains filters based on the geometry, so we need
-                # to wait for filtering till explodecollections has been applied.
-                # The partial files are created as .gpkg, so we can use column geom.
-                where = where.format(geometrycolumn="geom")
-            else:
-                # If explodecollections is False, where can be added to sql_stmt.
-                # In the sql_stmt the geometry column should already be aliased to geom.
-                where = where.format(geometrycolumn="geom")
-                sql_template = f"""
-                    SELECT * FROM
-                        ( {sql_template}
-                        )
-                     WHERE {where}
-                """
-                # Where has been applied already so set to None.
-                where = None
+        if where is not None and not explodecollections:
+            # explodecollections is not True, so we can add where to sql_stmt.
+            # If explodecollections would be True, we need to wait to apply the
+            # where till after explodecollections is applied, so when appending the
+            # partial results to the output file.
+            sql_template = f"""
+                SELECT * FROM
+                    ( {sql_template}
+                    )
+                    WHERE {where}
+            """
+            # Where has been applied already so set to None.
+            where = None
 
         # When null geometries are being kept, we need to make sure the geom in the
         # first row is not NULL because of a bug in gdal, so add ORDER BY as last step.
@@ -612,8 +611,15 @@ def _single_layer_vector_operation(
                 SELECT * FROM
                     ( {sql_template}
                     )
-                 ORDER BY geom IS NULL
+                 ORDER BY {{geometrycolumn}} IS NULL
             """
+
+        sql_template = sql_template.format(
+            geometrycolumn=input_layerinfo.geometrycolumn,
+            columns_to_select_str=column_formatter.prefixed_aliased(),
+            input_layer=processing_params.input1_layer,
+            batch_filter="{batch_filter}",
+        )
 
         # Prepare temp output filename
         tmp_output_path = tempdir / output_path.name
@@ -708,6 +714,9 @@ def _single_layer_vector_operation(
                     gfo.move(tmp_partial_output_path, tmp_output_path)
                 else:
                     # Append partial file to full destination file
+                    if where is not None:
+                        info = gfo.get_layerinfo(tmp_partial_output_path, output_layer)
+                        where = where.format(geometrycolumn=info.geometrycolumn)
                     fileops._append_to_nolock(
                         src=tmp_partial_output_path,
                         dst=tmp_output_path,
@@ -2743,23 +2752,20 @@ def dissolve_singlethread(
         """
 
     # Prepare/apply where parameter
-    if where is not None:
-        if explodecollections:
-            # Possibly the where contains filters based on the geometry, so we need
-            # to wait for filtering till explodecollections has been applied.
-            pass
-        else:
-            # If explodecollections is False, where can be added to sql_stmt.
-            # In the sql_stmt the geometry column should already be aliased to geom.
-            where = where.format(geometrycolumn="geom")
-            sql_stmt = f"""
-                SELECT * FROM
-                    ( {sql_stmt}
-                    )
-                 WHERE {where}
-            """
-            # Where has been applied already so set to None.
-            where = None
+    if where is not None and not explodecollections:
+        # explodecollections is not True, so we can add where to sql_stmt.
+        # If explodecollections would be True, we need to wait to apply the
+        # where till after explodecollections is applied, so when appending
+        # the partial results to the output file.
+        where = where.format(geometrycolumn="geom")
+        sql_stmt = f"""
+            SELECT * FROM
+                ( {sql_stmt}
+                )
+                WHERE {where}
+        """
+        # Where has been applied already so set to None.
+        where = None
 
     # When null geometries are being kept, we need to make sure the geom in the
     # first row is not NULL because of a bug in gdal, so add ORDER BY as last step.
