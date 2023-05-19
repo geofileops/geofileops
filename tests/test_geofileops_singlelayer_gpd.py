@@ -21,6 +21,7 @@ from tests import test_helper
 from tests.test_helper import (
     EPSGS,
     SUFFIXES,
+    TESTFILES,
     WHERE_LENGTH_GT_1000,
     WHERE_LENGTH_GT_200000,
     WHERE_AREA_GT_5000,
@@ -624,18 +625,33 @@ def test_dissolve_polygons(
     pd.testing.assert_series_equal(output_area, expected_area)
 
 
+@pytest.mark.parametrize("explodecollections", [True, False])
+@pytest.mark.parametrize("testfile", TESTFILES)
 @pytest.mark.parametrize("suffix", SUFFIXES)
-def test_dissolve_emptyfile(tmp_path, suffix):
+def test_dissolve_emptyfile(tmp_path, testfile, suffix, explodecollections):
     # Prepare test data
-    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, empty=True)
+    input_path = test_helper.get_testfile(testfile, suffix=suffix, empty=True)
 
     # Test dissolve polygons with different options for groupby and explodecollections
     output_path = tmp_path / f"{input_path.stem}_dissolve-emptyfile{suffix}"
-    groupby_columns = ["GEWASGROEP"]
+    if testfile == "polygon-parcel":
+        groupby_columns = ["GEWASGROEP"]
+        expected_geometrytype = GeometryType.POLYGON
+    elif testfile == "linestring-row-trees":
+        groupby_columns = ["rowtype"]
+        expected_geometrytype = GeometryType.LINESTRING
+    elif testfile == "point":
+        groupby_columns = ["type"]
+        expected_geometrytype = GeometryType.POINT
+    else:
+        raise ValueError(f"unimplimentd testfile: {testfile}")
+    if not explodecollections or suffix == ".shp":
+        expected_geometrytype = expected_geometrytype.to_multitype
+
     gfo.dissolve(
         input_path=input_path,
         output_path=output_path,
-        explodecollections=False,
+        explodecollections=explodecollections,
         groupby_columns=groupby_columns,
     )
 
@@ -643,7 +659,7 @@ def test_dissolve_emptyfile(tmp_path, suffix):
     assert output_path.exists()
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == 0
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+    assert output_layerinfo.geometrytype == expected_geometrytype
     assert list(output_layerinfo.columns) == groupby_columns
 
 

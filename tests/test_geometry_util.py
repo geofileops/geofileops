@@ -20,36 +20,54 @@ from tests import test_helper
 def test_geometrytype():
     # Creating a GeometryType from None is invalid
     with pytest.raises(ValueError, match="None is not a valid GeometryType"):
-        geometrytype = GeometryType(None)
+        _ = GeometryType(None)
 
     # Create different types of Geometrytype
-    geometrytype = GeometryType(3)
-    assert geometrytype is GeometryType.POLYGON
-    geometrytype = GeometryType("PoLyGoN")
-    assert geometrytype is GeometryType.POLYGON
-    geometrytype = GeometryType(GeometryType.POLYGON)
-    assert geometrytype is GeometryType.POLYGON
+    assert GeometryType(3) is GeometryType.POLYGON
+    assert GeometryType("PoLyGoN") is GeometryType.POLYGON
+    assert GeometryType(GeometryType.POLYGON) is GeometryType.POLYGON
 
     # Test to_primitivetype
-    primitivetype = GeometryType.POLYGON.to_primitivetype
-    assert primitivetype is PrimitiveType.POLYGON
-    primitivetype = GeometryType.MULTIPOLYGON.to_primitivetype
-    assert primitivetype is PrimitiveType.POLYGON
+    assert GeometryType.POLYGON.to_primitivetype is PrimitiveType.POLYGON
+    assert GeometryType.MULTIPOLYGON.to_primitivetype is PrimitiveType.POLYGON
+    assert GeometryType.LINESTRING.to_primitivetype is PrimitiveType.LINESTRING
+    assert GeometryType.MULTILINESTRING.to_primitivetype is PrimitiveType.LINESTRING
+    assert GeometryType.POINT.to_primitivetype is PrimitiveType.POINT
+    assert GeometryType.MULTIPOINT.to_primitivetype is PrimitiveType.POINT
+
+    # Test to_multitype
+    assert GeometryType.POLYGON.to_multitype is GeometryType.MULTIPOLYGON
+    assert GeometryType.MULTIPOLYGON.to_multitype is GeometryType.MULTIPOLYGON
+    assert GeometryType.LINESTRING.to_multitype is GeometryType.MULTILINESTRING
+    assert GeometryType.MULTILINESTRING.to_multitype is GeometryType.MULTILINESTRING
+    assert GeometryType.POINT.to_multitype is GeometryType.MULTIPOINT
+    assert GeometryType.MULTIPOINT.to_multitype is GeometryType.MULTIPOINT
+    assert GeometryType.GEOMETRY.to_multitype is GeometryType.GEOMETRY
+    assert (
+        GeometryType.GEOMETRYCOLLECTION.to_multitype is GeometryType.GEOMETRYCOLLECTION
+    )
+
+    # Test to_singletype
+    assert GeometryType.POLYGON.to_singletype is GeometryType.POLYGON
+    assert GeometryType.MULTIPOLYGON.to_singletype is GeometryType.POLYGON
+    assert GeometryType.LINESTRING.to_singletype is GeometryType.LINESTRING
+    assert GeometryType.MULTILINESTRING.to_singletype is GeometryType.LINESTRING
+    assert GeometryType.POINT.to_singletype is GeometryType.POINT
+    assert GeometryType.MULTIPOINT.to_singletype is GeometryType.POINT
+    assert GeometryType.GEOMETRY.to_singletype is GeometryType.GEOMETRY
+    assert GeometryType.GEOMETRYCOLLECTION.to_singletype is GeometryType.GEOMETRY
 
     # A geometry collection doesn't have a primitive type
     with pytest.raises(
-        Exception, match="Geometrycollection doesn't have a primitive type"
+        Exception, match="GeometryType.GEOMETRYCOLLECTION doesn't have a primitive type"
     ):
         GeometryType.GEOMETRYCOLLECTION.to_primitivetype
 
 
 def test_primitivetype():
-    primitivetype = PrimitiveType(3)
-    assert primitivetype is PrimitiveType.POLYGON
-    primitivetype = PrimitiveType("PoLyGoN")
-    assert primitivetype is PrimitiveType.POLYGON
-    primitivetype = PrimitiveType(PrimitiveType.POLYGON)
-    assert primitivetype is PrimitiveType.POLYGON
+    assert PrimitiveType(3) is PrimitiveType.POLYGON
+    assert PrimitiveType("PoLyGoN") is PrimitiveType.POLYGON
+    assert PrimitiveType(PrimitiveType.POLYGON) is PrimitiveType.POLYGON
 
 
 def test_makevalid():

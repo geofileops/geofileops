@@ -181,8 +181,8 @@ class GeometryType(enum.Enum):
             return PrimitiveType.LINESTRING
         elif self in [GeometryType.POLYGON, GeometryType.MULTIPOLYGON]:
             return PrimitiveType.POLYGON
-        elif self is GeometryType.GEOMETRYCOLLECTION:
-            raise Exception("Geometrycollection doesn't have a primitive type")
+        elif self in [GeometryType.GEOMETRY, GeometryType.GEOMETRYCOLLECTION]:
+            raise Exception(f"{self} doesn't have a primitive type")
         else:
             raise Exception(f"No primitive type implemented for {self}")
 
