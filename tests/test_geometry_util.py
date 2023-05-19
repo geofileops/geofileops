@@ -25,7 +25,20 @@ def test_geometrytype():
     # Create different types of Geometrytype
     assert GeometryType(3) is GeometryType.POLYGON
     assert GeometryType("PoLyGoN") is GeometryType.POLYGON
+    assert GeometryType("PoLyGoN") is GeometryType.POLYGON
     assert GeometryType(GeometryType.POLYGON) is GeometryType.POLYGON
+
+
+def test_geometrytype_name_camelcase():
+    # Test to_singletype
+    assert GeometryType.POLYGON.name_camelcase == "Polygon"
+    assert GeometryType.MULTIPOLYGON.name_camelcase == "MultiPolygon"
+    assert GeometryType.LINESTRING.name_camelcase == "LineString"
+    assert GeometryType.MULTILINESTRING.name_camelcase == "MultiLineString"
+    assert GeometryType.POINT.name_camelcase == "Point"
+    assert GeometryType.MULTIPOINT.name_camelcase == "MultiPoint"
+    assert GeometryType.GEOMETRY.name_camelcase == "Geometry"
+    assert GeometryType.GEOMETRYCOLLECTION.name_camelcase == "GeometryCollection"
 
 
 def test_geometrytype_to_primitivetype():

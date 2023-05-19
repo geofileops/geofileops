@@ -88,13 +88,8 @@ class GeometryType(enum.Enum):
             [GeometryType]: The corresponding GeometryType.
         """
         if isinstance(value, str):
-            # If a string is passed in, try lookup based on case insensitive
-            # enum name
+            # If a string is passed in, try lookup based on case insensitive enum name
             return cls(GeometryType[value.upper()])
-        elif isinstance(value, GeometryType):
-            # If a Geometry type is passed in, return same GeometryType
-            # TODO: why create a new one?
-            return cls(value.value)
         # Default behaviour (= lookup based on value)
         return super()._missing_(value)
 
@@ -198,12 +193,8 @@ class PrimitiveType(enum.Enum):
 
     @classmethod
     def _missing_(cls, value):
-        if value is None:
-            return None
-        elif isinstance(value, str):
+        if isinstance(value, str):
             return cls(PrimitiveType[value.upper()])
-        elif isinstance(value, PrimitiveType):
-            return cls(value.value)
         return super()._missing_(value)
 
     @property
