@@ -27,6 +27,8 @@ def test_geometrytype():
     assert GeometryType("PoLyGoN") is GeometryType.POLYGON
     assert GeometryType(GeometryType.POLYGON) is GeometryType.POLYGON
 
+
+def test_geometrytype_to_primitivetype():
     # Test to_primitivetype
     assert GeometryType.POLYGON.to_primitivetype is PrimitiveType.POLYGON
     assert GeometryType.MULTIPOLYGON.to_primitivetype is PrimitiveType.POLYGON
@@ -35,6 +37,14 @@ def test_geometrytype():
     assert GeometryType.POINT.to_primitivetype is PrimitiveType.POINT
     assert GeometryType.MULTIPOINT.to_primitivetype is PrimitiveType.POINT
 
+    # A geometry collection doesn't have a primitive type
+    with pytest.raises(
+        Exception, match="GeometryType.GEOMETRYCOLLECTION doesn't have a primitive type"
+    ):
+        GeometryType.GEOMETRYCOLLECTION.to_primitivetype
+
+
+def test_geometrytype_to_multitype():
     # Test to_multitype
     assert GeometryType.POLYGON.to_multitype is GeometryType.MULTIPOLYGON
     assert GeometryType.MULTIPOLYGON.to_multitype is GeometryType.MULTIPOLYGON
@@ -47,6 +57,8 @@ def test_geometrytype():
         GeometryType.GEOMETRYCOLLECTION.to_multitype is GeometryType.GEOMETRYCOLLECTION
     )
 
+
+def test_geometrytype_to_singletype():
     # Test to_singletype
     assert GeometryType.POLYGON.to_singletype is GeometryType.POLYGON
     assert GeometryType.MULTIPOLYGON.to_singletype is GeometryType.POLYGON
@@ -56,12 +68,6 @@ def test_geometrytype():
     assert GeometryType.MULTIPOINT.to_singletype is GeometryType.POINT
     assert GeometryType.GEOMETRY.to_singletype is GeometryType.GEOMETRY
     assert GeometryType.GEOMETRYCOLLECTION.to_singletype is GeometryType.GEOMETRY
-
-    # A geometry collection doesn't have a primitive type
-    with pytest.raises(
-        Exception, match="GeometryType.GEOMETRYCOLLECTION doesn't have a primitive type"
-    ):
-        GeometryType.GEOMETRYCOLLECTION.to_primitivetype
 
 
 def test_primitivetype():
