@@ -152,6 +152,27 @@ class GeometryType(enum.Enum):
             raise Exception(f"No multitype implemented for: {self}")
 
     @property
+    def to_singletype(self):
+        """Get the corresponding multitype."""
+        if self in [
+            GeometryType.GEOMETRY,
+            GeometryType.POINT,
+            GeometryType.LINESTRING,
+            GeometryType.POLYGON,
+        ]:
+            return self
+        elif self is GeometryType.MULTIPOINT:
+            return GeometryType.POINT
+        elif self is GeometryType.MULTILINESTRING:
+            return GeometryType.LINESTRING
+        elif self is GeometryType.MULTIPOLYGON:
+            return GeometryType.POLYGON
+        elif GeometryType.GEOMETRYCOLLECTION:
+            return GeometryType.GEOMETRY
+        else:
+            raise Exception(f"No multitype implemented for: {self}")
+
+    @property
     def to_primitivetype(self):
         """Get the corresponding primitive type."""
         if self in [GeometryType.POINT, GeometryType.MULTIPOINT]:

@@ -29,6 +29,7 @@ TESTFILES = ["polygon-parcel", "linestring-row-trees", "point"]
 WHERE_AREA_GT_400 = "ST_Area({geometrycolumn}) > 400"
 WHERE_AREA_GT_5000 = "ST_Area({geometrycolumn}) > 5000"
 WHERE_LENGTH_GT_1000 = "ST_Length({geometrycolumn}) > 1000"
+WHERE_LENGTH_GT_200000 = "ST_Length({geometrycolumn}) > 200000"
 
 
 def prepare_expected_result(

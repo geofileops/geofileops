@@ -22,6 +22,7 @@ from tests.test_helper import (
     EPSGS,
     SUFFIXES,
     WHERE_LENGTH_GT_1000,
+    WHERE_LENGTH_GT_200000,
     WHERE_AREA_GT_5000,
 )
 
@@ -274,6 +275,7 @@ def test_buffer_styles(tmp_path, suffix, epsg):
     "epsg, gridsize, explodecollections, where",
     [
         (31370, 0.001, True, WHERE_LENGTH_GT_1000),
+        (31370, 0.001, False, WHERE_LENGTH_GT_200000),
         (31370, 0.001, True, None),
         (4326, 0.0, False, None),
     ],
@@ -306,6 +308,12 @@ def test_dissolve_linestrings(
     assert output_path.exists()
     assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.geometrytype in [
+        GeometryType.LINESTRING,
+        GeometryType.MULTILINESTRING,
+    ]
+    assert len(output_layerinfo.columns) >= 0
+
     if explodecollections:
         if where is None:
             assert output_layerinfo.featurecount == 83
@@ -314,14 +322,16 @@ def test_dissolve_linestrings(
         else:
             raise ValueError(f"check for where {where} not implemented")
     else:
-        assert output_layerinfo.featurecount == 1
-    assert output_layerinfo.geometrytype in [
-        GeometryType.LINESTRING,
-        GeometryType.MULTILINESTRING,
-    ]
-    assert len(output_layerinfo.columns) >= 0
+        if where is None:
+            assert output_layerinfo.featurecount == 1
+        elif where == WHERE_LENGTH_GT_200000:
+            assert output_layerinfo.featurecount == 0
+            # Output empty, so nothing more to check
+            return
+        else:
+            raise ValueError(f"check for where {where} not implemented")
 
-    # Now check the contents of the result file
+    # Check the contents of the result file
     input_gdf = gfo.read_file(input_path)
     output_gdf = gfo.read_file(output_path)
     assert input_gdf.crs == output_gdf.crs
@@ -625,16 +635,15 @@ def test_dissolve_emptyfile(tmp_path, suffix):
     gfo.dissolve(
         input_path=input_path,
         output_path=output_path,
-        explodecollections=True,
+        explodecollections=False,
         groupby_columns=groupby_columns,
     )
 
     # Now check if the tmp file is correctly created
     assert output_path.exists()
-    input_layerinfo = gfo.get_layerinfo(input_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == 0
-    assert output_layerinfo.geometrytype == input_layerinfo.geometrytype
+    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
     assert list(output_layerinfo.columns) == groupby_columns
 
 

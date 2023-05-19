@@ -272,39 +272,6 @@ def vector_translate(
     result_ds = None
     gdallog_dir = Path(tempfile.gettempdir()) / "geofileops/gdal_log"
     try:
-        # Consolidate all parameters
-        # First take copy of args, because gdal.VectorTranslateOptions adds all
-        # other parameters to the list passed (by ref)!!!
-        args_copy = list(args)
-        options = gdal.VectorTranslateOptions(
-            options=args_copy,
-            format=output_filetype.ogrdriver,
-            accessMode=None,
-            srcSRS=input_srs,
-            dstSRS=output_srs,
-            reproject=reproject,
-            SQLStatement=sql_stmt,
-            SQLDialect=sql_dialect,
-            where=where,
-            selectFields=None,
-            addFields=False,
-            forceNullable=False,
-            spatFilter=spatial_filter,
-            spatSRS=None,
-            datasetCreationOptions=datasetCreationOptions,
-            layerCreationOptions=layerCreationOptions,
-            layers=input_layers,
-            layerName=output_layer,
-            geometryType=output_geometrytypes,
-            dim=None,
-            segmentizeMaxDist=None,
-            zField=None,
-            skipFailures=False,
-            limit=None,
-            callback=None,
-            callback_data=None,
-        )
-
         # In some cases gdal only raises the last exception instead of the stack in
         # VectorTranslate, so you lose necessary details!
         # -> uncomment gdal.DontUseExceptions() when debugging!
@@ -322,10 +289,76 @@ def vector_translate(
 
         # Go!
         with set_config_options(config_options):
+            # Open input datasource already
+            input_ds = gdal.OpenEx(
+                str(input_path),
+                nOpenFlags=gdal.OF_VECTOR | gdal.OF_READONLY | gdal.OF_SHARED,
+            )
+
+            # If output_srs is not specified and the result has 0 rows, gdal creates the
+            # output file without srs.
+            # documented in https://github.com/geofileops/geofileops/issues/313
+            if output_srs is None:
+                set_output_srs = True
+                datasource_layer = None
+                if input_layers is not None:
+                    datasource_layer = input_ds.GetLayer(input_layers)
+                else:
+                    nb_layers = input_ds.GetLayerCount()
+                    if nb_layers == 1:
+                        datasource_layer = input_ds.GetLayerByIndex(0)
+                    elif nb_layers == 0:
+                        raise ValueError(f"no layers found in {input_path}")
+                    else:
+                        # If multiple layers and not explicitly specified, it is in the
+                        # sql statement so difficult to determine... so pass
+                        set_output_srs = False
+
+                if set_output_srs:
+                    # If the layer doesn't exist, return
+                    if datasource_layer is None:
+                        raise RuntimeError(
+                            f"layer {input_layers} not found in: {input_path}"
+                        )
+                    spatialref = datasource_layer.GetSpatialRef()
+                    if spatialref is not None:
+                        output_srs = spatialref.ExportToWkt()
+
+            # Consolidate all parameters
+            # First take copy of args, because gdal.VectorTranslateOptions adds all
+            # other parameters to the list passed (by ref)!!!
+            args_copy = list(args)
+            options = gdal.VectorTranslateOptions(
+                options=args_copy,
+                format=output_filetype.ogrdriver,
+                accessMode=None,
+                srcSRS=input_srs,
+                dstSRS=output_srs,
+                reproject=reproject,
+                SQLStatement=sql_stmt,
+                SQLDialect=sql_dialect,
+                where=where,
+                selectFields=None,
+                addFields=False,
+                forceNullable=False,
+                spatFilter=spatial_filter,
+                spatSRS=None,
+                datasetCreationOptions=datasetCreationOptions,
+                layerCreationOptions=layerCreationOptions,
+                layers=input_layers,
+                layerName=output_layer,
+                geometryType=output_geometrytypes,
+                dim=None,
+                segmentizeMaxDist=None,
+                zField=None,
+                skipFailures=False,
+                limit=None,
+                callback=None,
+                callback_data=None,
+            )
+
             result_ds = gdal.VectorTranslate(
-                destNameOrDestDS=str(output_path),
-                srcDS=str(input_path),
-                options=options,
+                destNameOrDestDS=str(output_path), srcDS=input_ds, options=options
             )
 
         # If there is CPL_LOG logging, write to standard logger as well, extract last
@@ -348,7 +381,8 @@ def vector_translate(
             raise GFOError(f"result_ds is None ({cpl_error})")
 
         # If the output file is an empty shapefile and it was the result of a SQLITE sql
-        # statement, delete the "geom" column if it is present
+        # statement, delete the "geom" or "geometry" column if it is present
+        # gdal bug documented in https://github.com/geofileops/geofileops/issues/313
         if (
             sql_stmt is not None
             and sql_dialect == "SQLITE"
@@ -386,6 +420,7 @@ def vector_translate(
         raise GFOError(message) from ex
     finally:
         result_ds = None
+        input_ds = None
 
     return True
 

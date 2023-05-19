@@ -2707,16 +2707,15 @@ def dissolve_singlethread(
     # If the input is a linestring, also apply st_linemerge(), otherwise the individual
     # lines are just concatenated together and common points are not removed, resulting
     # in the original seperate lines again if explodecollections is True.
-    force_output_geometrytype = None
     if input_layerinfo.geometrytype.to_primitivetype == PrimitiveType.LINESTRING:
         operation = f"ST_LineMerge({operation})"
-        if explodecollections is True:
-            force_output_geometrytype = GeometryType.LINESTRING
 
-    # If there are no input features, the output geometry type needs to be specified
-    # so gdal can create an empty output file with the right geometry type.
-    if force_output_geometrytype is None and input_layerinfo.featurecount == 0:
-        force_output_geometrytype = input_layerinfo.geometrytype
+    # If the output file results in no rows gdal needs force_output_geometrytype to be
+    # able to create an empty output file with the right geometry type.
+    if explodecollections:
+        force_output_geometrytype = input_layerinfo.geometrytype.to_singletype
+    else:
+        force_output_geometrytype = input_layerinfo.geometrytype.to_multitype
 
     # Apply tolerance gridsize on result
     if gridsize != 0.0:
@@ -2724,14 +2723,8 @@ def dissolve_singlethread(
         # ST_Makevalid. It can also result in collapsed (pieces of)
         # geometries, so also collectionextract.
         operation = f"ST_MakeValid(SnapToGrid({operation}, {gridsize}))"
-        if force_output_geometrytype is None:
-            warnings.warn(
-                "a gridsize is specified but no force_output_geometrytype, this "
-                "can result in inconsistent geometries in the output"
-            )
-        else:
-            primitivetypeid = force_output_geometrytype.to_primitivetype.value
-            operation = f"ST_CollectionExtract({operation}, {primitivetypeid})"
+        primitivetypeid = force_output_geometrytype.to_primitivetype.value
+        operation = f"ST_CollectionExtract({operation}, {primitivetypeid})"
 
     # Now the sql query can be assembled
     sql_stmt = f"""
