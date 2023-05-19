@@ -72,8 +72,22 @@ def test_geometrytype_to_singletype():
 
 def test_primitivetype():
     assert PrimitiveType(3) is PrimitiveType.POLYGON
+    assert PrimitiveType(2) is PrimitiveType.LINESTRING
+    assert PrimitiveType(1) is PrimitiveType.POINT
     assert PrimitiveType("PoLyGoN") is PrimitiveType.POLYGON
     assert PrimitiveType(PrimitiveType.POLYGON) is PrimitiveType.POLYGON
+
+
+def test_primitivetype_to_multitype():
+    assert PrimitiveType.POLYGON.to_multitype is GeometryType.MULTIPOLYGON
+    assert PrimitiveType.LINESTRING.to_multitype is GeometryType.MULTILINESTRING
+    assert PrimitiveType.POINT.to_multitype is GeometryType.MULTIPOINT
+
+
+def test_primitivetype_to_singletype():
+    assert PrimitiveType.POLYGON.to_singletype is GeometryType.POLYGON
+    assert PrimitiveType.LINESTRING.to_singletype is GeometryType.LINESTRING
+    assert PrimitiveType.POINT.to_singletype is GeometryType.POINT
 
 
 def test_makevalid():
