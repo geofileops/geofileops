@@ -152,6 +152,27 @@ class GeometryType(enum.Enum):
             raise Exception(f"No multitype implemented for: {self}")
 
     @property
+    def to_singletype(self):
+        """Get the corresponding multitype."""
+        if self in [
+            GeometryType.GEOMETRY,
+            GeometryType.POINT,
+            GeometryType.LINESTRING,
+            GeometryType.POLYGON,
+        ]:
+            return self
+        elif self is GeometryType.MULTIPOINT:
+            return GeometryType.POINT
+        elif self is GeometryType.MULTILINESTRING:
+            return GeometryType.LINESTRING
+        elif self is GeometryType.MULTIPOLYGON:
+            return GeometryType.POLYGON
+        elif GeometryType.GEOMETRYCOLLECTION:
+            return GeometryType.GEOMETRY
+        else:
+            raise Exception(f"No multitype implemented for: {self}")
+
+    @property
     def to_primitivetype(self):
         """Get the corresponding primitive type."""
         if self in [GeometryType.POINT, GeometryType.MULTIPOINT]:
@@ -160,8 +181,8 @@ class GeometryType(enum.Enum):
             return PrimitiveType.LINESTRING
         elif self in [GeometryType.POLYGON, GeometryType.MULTIPOLYGON]:
             return PrimitiveType.POLYGON
-        elif self is GeometryType.GEOMETRYCOLLECTION:
-            raise Exception("Geometrycollection doesn't have a primitive type")
+        elif self in [GeometryType.GEOMETRY, GeometryType.GEOMETRYCOLLECTION]:
+            raise Exception(f"{self} doesn't have a primitive type")
         else:
             raise Exception(f"No primitive type implemented for {self}")
 
@@ -195,7 +216,19 @@ class PrimitiveType(enum.Enum):
         elif self is PrimitiveType.POLYGON:
             return GeometryType.MULTIPOLYGON
         else:
-            raise Exception(f"No multitype implemented for: {self}")
+            raise Exception(f"no multitype implemented for: {self}")
+
+    @property
+    def to_singletype(self) -> GeometryType:
+        """Get the corresponding multitype."""
+        if self is PrimitiveType.POINT:
+            return GeometryType.POINT
+        elif self is PrimitiveType.LINESTRING:
+            return GeometryType.LINESTRING
+        elif self is PrimitiveType.POLYGON:
+            return GeometryType.POLYGON
+        else:
+            raise Exception(f"no singletype implemented for: {self}")
 
 
 def collection_extract(
