@@ -277,7 +277,7 @@ def test_buffer_styles(tmp_path, suffix, epsg):
     [
         (31370, 0.001, True, WHERE_LENGTH_GT_1000),
         (31370, 0.001, False, WHERE_LENGTH_GT_200000),
-        (31370, 0.001, True, None),
+        (31370, 0.001, True, ""),
         (4326, 0.0, False, None),
     ],
 )
@@ -521,8 +521,8 @@ def test_dissolve_linestrings_aggcolumns_json(tmp_path, agg_columns):
 @pytest.mark.parametrize(
     "suffix, epsg, groupby_columns, explode, gridsize, where, expected_featurecount",
     [
-        (".gpkg", 31370, ["GEWASGROEP"], True, 0.0, None, 25),
-        (".gpkg", 31370, ["GEWASGROEP"], False, 0.0, None, 6),
+        (".gpkg", 31370, ["GEWASGROEP"], True, 0.0, "", 25),
+        (".gpkg", 31370, ["GEWASGROEP"], False, 0.0, "", 6),
         (".gpkg", 31370, ["gewasGROEP"], False, 0.01, WHERE_AREA_GT_5000, 4),
         (".gpkg", 31370, ["gewasGROEP"], True, 0.01, WHERE_AREA_GT_5000, 13),
         (".gpkg", 31370, [], True, 0.0, None, 23),

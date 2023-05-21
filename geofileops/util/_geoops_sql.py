@@ -2572,12 +2572,8 @@ def dissolve_singlethread(
         raise ValueError(f"input_path doesn't exist: {input_path}")
     if input_path == output_path:
         raise ValueError("output_path must not equal input_path")
-    if output_path.exists():
-        if force is False:
-            logger.info(f"Stop dissolve: Output exists already {output_path}")
-            return
-        else:
-            gfo.remove(output_path)
+    if where is not None and where == "":
+        where = None
 
     # Check layer names
     if input_layer is None:
@@ -2590,6 +2586,7 @@ def dissolve_singlethread(
     fid_column = (
         input_layerinfo.fid_column if input_layerinfo.fid_column != "" else "rowid"
     )
+
     # Prepare some lists for later use
     columns_available = list(input_layerinfo.columns) + ["fid"]
     columns_available_upper = [column.upper() for column in columns_available]
@@ -2697,6 +2694,14 @@ def dissolve_singlethread(
                     f", {aggregation_str}({distinct_str}{column_str}{extra_param_str}) "
                     f'AS "{agg_column["as"]}"'
                 )
+
+    # Check output path
+    if output_path.exists():
+        if force is False:
+            logger.info(f"Stop dissolve: Output exists already {output_path}")
+            return
+        else:
+            gfo.remove(output_path)
 
     # Now prepare the sql statement
     # Remark: calculating the area in the enclosing selects halves the processing time
