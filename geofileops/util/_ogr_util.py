@@ -159,6 +159,8 @@ def vector_translate(
         # If a sql statement is passed, the input layers are not relevant,
         # and ogr2ogr will give a warning, so clear it.
         input_layers = None
+    if input_layers is not None and isinstance(input_layers, str):
+        input_layers = [input_layers]
 
     # SRS
     if input_srs is not None and isinstance(input_srs, int):
@@ -301,13 +303,15 @@ def vector_translate(
             if output_srs is None:
                 set_output_srs = True
                 datasource_layer = None
-                if input_layers is not None:
-                    datasource_layer = input_ds.GetLayer(input_layers)
+                if input_layers is not None and len(input_layers) == 1:
+                    datasource_layer = input_ds.GetLayer(input_layers[0])
                 else:
                     nb_layers = input_ds.GetLayerCount()
                     if nb_layers == 1:
                         datasource_layer = input_ds.GetLayerByIndex(0)
                     elif nb_layers == 0:
+                        # We never actually get here, because opening a file without
+                        # layers already gives an error.
                         raise ValueError(f"no layers found in {input_path}")
                     else:
                         # If multiple layers and not explicitly specified, it is in the
@@ -318,7 +322,7 @@ def vector_translate(
                     # If the layer doesn't exist, return
                     if datasource_layer is None:
                         raise RuntimeError(
-                            f"layer {input_layers} not found in: {input_path}"
+                            f"input_layers {input_layers} not found in: {input_path}"
                         )
                     spatialref = datasource_layer.GetSpatialRef()
                     if spatialref is not None:

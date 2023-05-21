@@ -53,7 +53,7 @@ def prepare_expected_result(
 
     # Check what filtering is needed
     filter_area_gt = None
-    if where is None:
+    if where is None or where == "":
         pass
     elif where == "ST_Area({geometrycolumn}) > 400":
         filter_area_gt = 400
@@ -63,7 +63,7 @@ def prepare_expected_result(
         raise ValueError(f"unsupported where parameter in test: {where}")
 
     # Apply filtering
-    if not keep_empty_geoms:
+    if keep_empty_geoms is None or not keep_empty_geoms:
         expected_gdf = expected_gdf[~expected_gdf.geometry.isna()]
         expected_gdf = expected_gdf[~expected_gdf.geometry.is_empty]
     if filter_area_gt is not None:

@@ -61,7 +61,7 @@ def basic_combinations_to_test(
         for geoops_module in geoops_modules:
             for testfile in testfiles:
                 where = None
-                keep_empty_geoms = False
+                keep_empty_geoms = None
                 gridsize = 0.001 if epsg == 31370 else GRIDSIZE_DEFAULT
                 if testfile == "polygon-parcel":
                     keep_empty_geoms = False
@@ -90,7 +90,7 @@ def basic_combinations_to_test(
     for suffix in other_suffixes:
         for geoops_module in geoops_modules:
             for testfile in testfiles:
-                where = None
+                where = ""
                 keep_empty_geoms = False
                 gridsize = 0.001 if testfile == "polygon-parcel" else GRIDSIZE_DEFAULT
                 if testfile == "polygon-parcel":
@@ -531,7 +531,7 @@ def test_buffer_negative_where_explode(
 @pytest.mark.parametrize("suffix", SUFFIXES)
 @pytest.mark.parametrize(
     "empty_input, gridsize, keep_empty_geoms, where",
-    [(True, 0.0, True, None), (False, 0.001, False, WHERE_AREA_GT_400)],
+    [(True, 0.0, True, None), (False, 0.001, None, WHERE_AREA_GT_400)],
 )
 def test_convexhull(
     tmp_path, geoops_module, suffix, empty_input, gridsize, keep_empty_geoms, where
