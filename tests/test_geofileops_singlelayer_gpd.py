@@ -316,14 +316,14 @@ def test_dissolve_linestrings(
     assert len(output_layerinfo.columns) >= 0
 
     if explodecollections:
-        if where is None:
+        if where is None or where == "":
             assert output_layerinfo.featurecount == 83
         elif where == WHERE_LENGTH_GT_1000:
             assert output_layerinfo.featurecount == 13
         else:
             raise ValueError(f"check for where {where} not implemented")
     else:
-        if where is None:
+        if where is None or where == "":
             assert output_layerinfo.featurecount == 1
         elif where == WHERE_LENGTH_GT_200000:
             assert output_layerinfo.featurecount == 0
