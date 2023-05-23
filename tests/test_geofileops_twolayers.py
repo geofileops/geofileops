@@ -195,17 +195,19 @@ def test_export_by_distance(tmp_path, testfile, suffix):
 
 @pytest.mark.parametrize("testfile", ["polygon-parcel"])
 @pytest.mark.parametrize(
-    "suffix, epsg, gridsize, nb_parallel",
+    "suffix, epsg, gridsize, explodecollections, nb_parallel",
     [
-        (".gpkg", 31370, 0.0, 1),
-        (".gpkg", 31370, 0.01, 1),
-        (".gpkg", 31370, 0.0, 2),
-        (".gpkg", 4326, 0.0, 2),
-        (".shp", 31370, 0.0, 1),
-        (".shp", 31370, 0.0, 2),
+        (".gpkg", 31370, 0.0, True, 1),
+        (".gpkg", 31370, 0.01, True, 1),
+        (".gpkg", 31370, 0.0, False, 2),
+        (".gpkg", 4326, 0.0, True, 2),
+        (".shp", 31370, 0.0, True, 1),
+        (".shp", 31370, 0.0, False, 2),
     ],
 )
-def test_intersection(tmp_path, testfile, suffix, epsg, gridsize, nb_parallel):
+def test_intersection(
+    tmp_path, testfile, suffix, epsg, explodecollections, gridsize, nb_parallel
+):
     input1_path = test_helper.get_testfile(testfile, suffix=suffix, epsg=epsg)
     input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
 
@@ -222,6 +224,7 @@ def test_intersection(tmp_path, testfile, suffix, epsg, gridsize, nb_parallel):
         input2_path=input2_path,
         output_path=output_path,
         gridsize=gridsize,
+        explodecollections=explodecollections,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
     )
@@ -231,11 +234,14 @@ def test_intersection(tmp_path, testfile, suffix, epsg, gridsize, nb_parallel):
     assert gfo.has_spatial_index(output_path)
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert output_layerinfo.featurecount == 29
     assert len(output_layerinfo.columns) == (
         len(input1_layerinfo.columns) + len(input2_layerinfo.columns)
     )
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+    if explodecollections:
+        assert output_layerinfo.featurecount == 29
+    else:
+        assert output_layerinfo.featurecount == 29
 
     # Check the contents of the result file
     output_gdf = gfo.read_file(output_path)
@@ -244,20 +250,22 @@ def test_intersection(tmp_path, testfile, suffix, epsg, gridsize, nb_parallel):
     input1_gdf = gfo.read_file(input1_path)
     input2_gdf = gfo.read_file(input2_path)
     overlay_operation = "intersection"
-    output_gpd_gdf = input1_gdf.overlay(
+    expected_gdf = input1_gdf.overlay(
         input2_gdf, how=overlay_operation, keep_geom_type=True
     )
     renames = {
         name_gpd: name_gfo
-        for name_gpd, name_gfo in zip(output_gpd_gdf.columns, output_gdf.columns)
+        for name_gpd, name_gfo in zip(expected_gdf.columns, output_gdf.columns)
     }
-    output_gpd_gdf = output_gpd_gdf.rename(columns=renames)
+    expected_gdf = expected_gdf.rename(columns=renames)
     if gridsize != 0.0:
-        output_gpd_gdf.geometry = shapely2_or_pygeos.set_precision(
-            output_gpd_gdf.geometry.array.data, grid_size=gridsize
+        expected_gdf.geometry = shapely2_or_pygeos.set_precision(
+            expected_gdf.geometry.array.data, grid_size=gridsize
         )
+    if explodecollections:
+        expected_gdf = expected_gdf.explode(ignore_index=True)
     assert_geodataframe_equal(
-        output_gdf, output_gpd_gdf, check_dtype=False, sort_values=True
+        output_gdf, expected_gdf, check_dtype=False, sort_values=True
     )
 
 
@@ -426,6 +434,59 @@ def test_intersection_columns_fid(tmp_path, testfile, suffix):
         assert sorted(output_gdf.l2_FiD.unique().tolist()) == [0, 1, 2, 3, 4]
     else:
         assert sorted(output_gdf.l2_FiD.unique().tolist()) == [1, 2, 3, 4, 5]
+
+
+@pytest.mark.parametrize(
+    "suffix, explodecollections, where, exp_featurecount",
+    [
+        (".gpkg", False, None, 29),
+        (".gpkg", True, None, 30),
+        (".gpkg", False, "ST_Area(geom) > 1000", 25),
+        (".shp", False, "ST_Area(geom) > 1000", 25),
+        (".gpkg", True, "ST_Area(geom) > 1000", 24),
+        (".shp", True, "ST_Area(geom) > 1000", 24),
+    ],
+)
+def test_intersection_where(
+    tmp_path, suffix, explodecollections, where, exp_featurecount
+):
+    """Test intersection with where parameter."""
+    # TODO: test data should be changed so explodecollections results in more rows
+    # without where already!!!
+    input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
+
+    # Now run test
+    output_path = (
+        tmp_path / f"{input1_path.stem}_intersection_{input2_path.stem}{suffix}"
+    )
+    batchsize = -1
+    input1_layerinfo = gfo.get_layerinfo(input1_path)
+    batchsize = math.ceil(input1_layerinfo.featurecount / 2)
+    gfo.intersection(
+        input1_path=input1_path,
+        input2_path=input2_path,
+        output_path=output_path,
+        explodecollections=explodecollections,
+        where=where,
+        nb_parallel=2,
+        batchsize=batchsize,
+    )
+
+    # Check if the tmp file is correctly created
+    assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
+    input2_layerinfo = gfo.get_layerinfo(input2_path)
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert len(output_layerinfo.columns) == (
+        len(input1_layerinfo.columns) + len(input2_layerinfo.columns)
+    )
+    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+    assert output_layerinfo.featurecount == exp_featurecount
+
+    # Check the contents of the result file
+    output_gdf = gfo.read_file(output_path)
+    assert output_gdf["geometry"][0] is not None
 
 
 def test_prepare_spatial_relations_filter():

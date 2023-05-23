@@ -769,6 +769,7 @@ def clip(
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
+    where: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -851,6 +852,7 @@ def clip(
         output_layer=output_layer,
         explodecollections=explodecollections,
         gridsize=gridsize,
+        where=where,
         force_output_geometrytype=force_output_geometrytype,
         output_with_spatial_index=output_with_spatial_index,
         nb_parallel=nb_parallel,
@@ -869,6 +871,7 @@ def erase(
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
+    where: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -955,6 +958,7 @@ def erase(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
+        where=where,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -973,6 +977,7 @@ def export_by_location(
     input_to_compare_with_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     gridsize: float = 0.0,
+    where: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -1067,6 +1072,7 @@ def export_by_location(
         explodecollections=False,
         force_output_geometrytype=input_layer_info.geometrytype,
         gridsize=gridsize,
+        where=where,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -1083,6 +1089,7 @@ def export_by_distance(
     input2_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     gridsize: float = 0.0,
+    where: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -1131,6 +1138,7 @@ def export_by_distance(
         explodecollections=False,
         force_output_geometrytype=input_layer_info.geometrytype,
         gridsize=gridsize,
+        where=where,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -1150,6 +1158,7 @@ def intersection(
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
+    where: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -1223,6 +1232,7 @@ def intersection(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
+        where=where,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -1246,6 +1256,7 @@ def join_by_location(
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
+    where: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -1367,6 +1378,7 @@ def join_by_location(
         explodecollections=explodecollections,
         force_output_geometrytype=input1_layer_info.geometrytype,
         gridsize=gridsize,
+        where=where,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -1557,6 +1569,7 @@ def select_two_layers(
     force_output_geometrytype: Optional[GeometryType] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
+    where: Optional[str] = None,
     nb_parallel: int = 1,
     batchsize: int = -1,
     force: bool = False,
@@ -1578,6 +1591,7 @@ def select_two_layers(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
+        where=where,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -1597,6 +1611,7 @@ def split(
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
+    where: Optional[str] = None,
     nb_parallel: int = 1,
     batchsize: int = -1,
     force: bool = False,
@@ -1700,6 +1715,7 @@ def split(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
+        where=where,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -1720,6 +1736,7 @@ def symmetric_difference(
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
+    where: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -1750,6 +1767,7 @@ def symmetric_difference(
             output_layer=output_layer,
             explodecollections=explodecollections,
             gridsize=gridsize,
+            where=where,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
@@ -1781,6 +1799,7 @@ def symmetric_difference(
             output_layer=output_layer,
             explodecollections=explodecollections,
             gridsize=gridsize,
+            where=where,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
@@ -1827,6 +1846,7 @@ def union(
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
+    where: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -1859,6 +1879,7 @@ def union(
             output_layer=output_layer,
             explodecollections=explodecollections,
             gridsize=gridsize,
+            where=where,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
@@ -1878,6 +1899,7 @@ def union(
             output_layer=output_layer,
             explodecollections=explodecollections,
             gridsize=gridsize,
+            where=where,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
@@ -1929,6 +1951,7 @@ def _two_layer_vector_operation(
     explodecollections: bool,
     force_output_geometrytype: Optional[GeometryType],
     gridsize: float,
+    where: Optional[str],
     nb_parallel: int,
     batchsize: int,
     force: bool,
@@ -1955,6 +1978,9 @@ def _two_layer_vector_operation(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
+        where (str, optional): filter to apply to the result of the operation (after
+            explodecollections). It should be in sqlite SQL WHERE syntax and
+            |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): [description]. Defaults to -1.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
@@ -2171,6 +2197,11 @@ def _two_layer_vector_operation(
 
                 # Remark: this temp file doesn't need spatial index
                 if use_ogr is False:
+                    if explodecollections and where is not None:
+                        raise ValueError(
+                            "combination of explodecollections and where is not "
+                            "implemented"
+                        )
                     # Use an aggressive speedy sqlite profile
                     future = calculate_pool.submit(
                         _sqlite_util.create_table_as_sql,
@@ -2245,6 +2276,7 @@ def _two_layer_vector_operation(
                     nb_batches == 1
                     and not explodecollections
                     and force_output_geometrytype is None
+                    and where is None
                     and tmp_partial_output_path.suffix.lower()
                     == tmp_output_path.suffix.lower()
                 ):
@@ -2261,6 +2293,7 @@ def _two_layer_vector_operation(
                         dst=tmp_output_path,
                         explodecollections=explodecollections,
                         force_output_geometrytype=force_output_geometrytype,
+                        where=where,
                         create_spatial_index=create_spatial_index,
                         preserve_fid=False,
                     )
