@@ -151,9 +151,9 @@ def test_export_by_location(tmp_path, suffix, gridsize):
     assert output_path.exists()
     assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert output_layerinfo.featurecount == 26
     assert len(output_layerinfo.columns) == len(input_layerinfo.columns) + 1
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+    assert output_layerinfo.featurecount == 27
 
     # Check the contents of the result file
     # TODO: this test should be more elaborate...
@@ -239,9 +239,9 @@ def test_intersection(
     )
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
     if explodecollections:
-        assert output_layerinfo.featurecount == 29
+        assert output_layerinfo.featurecount == 31
     else:
-        assert output_layerinfo.featurecount == 29
+        assert output_layerinfo.featurecount == 30
 
     # Check the contents of the result file
     output_gdf = gfo.read_file(output_path)
@@ -421,9 +421,9 @@ def test_intersection_columns_fid(tmp_path, testfile, suffix):
     assert output_path.exists()
     assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert output_layerinfo.featurecount == 29
     assert len(output_layerinfo.columns) == len(input1_columns) + len(input2_columns)
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+    assert output_layerinfo.featurecount == 30
 
     # Check the contents of the result file
     output_gdf = gfo.read_file(output_path)
@@ -548,9 +548,9 @@ def test_prepare_spatial_relations_filter():
         (".gpkg", 31370, "intersects is False", True, None, None, 0),
         (".gpkg", 31370, "intersects is True", False, 1000, "area_test", 48),
         (".gpkg", 31370, "intersects is True", False, None, None, 49),
-        (".gpkg", 31370, "intersects is True", True, 1000, None, 25),
-        (".gpkg", 31370, "intersects is True", True, None, None, 29),
-        (".gpkg", 4326, "T******** is True or *T******* is True", True, None, None, 29),
+        (".gpkg", 31370, "intersects is True", True, 1000, None, 26),
+        (".gpkg", 31370, "intersects is True", True, None, None, 30),
+        (".gpkg", 4326, "T******** is True or *T******* is True", True, None, None, 30),
         (".gpkg", 4326, "intersects is True", False, None, None, 49),
         (".shp", 31370, "intersects is True", False, None, None, 49),
     ],
@@ -720,7 +720,7 @@ def test_select_two_layers(tmp_path, suffix, epsg, gridsize):
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert output_layerinfo.featurecount == 29
+    assert output_layerinfo.featurecount == 30
     assert len(output_layerinfo.columns) == (
         len(input1_layerinfo.columns) + len(input2_layerinfo.columns) + 1
     )
@@ -983,7 +983,7 @@ def test_split(tmp_path, suffix, epsg, gridsize):
     assert gfo.has_spatial_index(output_path)
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert output_layerinfo.featurecount == 66
+    assert output_layerinfo.featurecount == 67
     assert (len(input1_layerinfo.columns) + len(input2_layerinfo.columns)) == len(
         output_layerinfo.columns
     )
@@ -1102,7 +1102,7 @@ def test_union(tmp_path, suffix, epsg, gridsize):
     assert gfo.has_spatial_index(output_path)
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert output_layerinfo.featurecount == 71
+    assert output_layerinfo.featurecount == 72
     assert (len(input1_layerinfo.columns) + len(input2_layerinfo.columns)) == len(
         output_layerinfo.columns
     )
