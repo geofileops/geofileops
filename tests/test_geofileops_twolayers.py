@@ -439,10 +439,10 @@ def test_intersection_columns_fid(tmp_path, testfile, suffix):
 @pytest.mark.parametrize(
     "suffix, explodecollections, where, exp_featurecount",
     [
-        (".gpkg", False, None, 29),
-        (".gpkg", True, None, 30),
-        (".gpkg", False, "ST_Area(geom) > 1000", 25),
-        (".shp", False, "ST_Area(geom) > 1000", 25),
+        (".gpkg", False, None, 30),
+        (".gpkg", True, None, 31),
+        (".gpkg", False, "ST_Area(geom) > 1000", 26),
+        (".shp", False, "ST_Area(geom) > 1000", 26),
         (".gpkg", True, "ST_Area(geom) > 1000", 24),
         (".shp", True, "ST_Area(geom) > 1000", 24),
     ],

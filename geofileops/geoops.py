@@ -2193,7 +2193,7 @@ def symmetric_difference(
         output_layer=output_layer,
         explodecollections=explodecollections,
         gridsize=gridsize,
-        wyhere=where,
+        where=where,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,

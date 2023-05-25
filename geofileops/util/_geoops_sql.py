@@ -1547,6 +1547,7 @@ def join_nearest(
         force_output_geometrytype=input1_layer_info.geometrytype,
         explodecollections=explodecollections,
         gridsize=gridsize,
+        where=None,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
