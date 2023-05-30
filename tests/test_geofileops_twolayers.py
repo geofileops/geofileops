@@ -443,8 +443,8 @@ def test_intersection_columns_fid(tmp_path, testfile, suffix):
         (".gpkg", True, None, 31),
         (".gpkg", False, "ST_Area(geom) > 1000", 26),
         (".shp", False, "ST_Area(geom) > 1000", 26),
-        (".gpkg", True, "ST_Area(geom) > 1000", 24),
-        (".shp", True, "ST_Area(geom) > 1000", 24),
+        (".gpkg", True, "ST_Area(geom) > 1000", 27),
+        (".shp", True, "ST_Area(geom) > 1000", 27),
     ],
 )
 def test_intersection_where(
