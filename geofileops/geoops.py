@@ -207,7 +207,7 @@ def buffer(
             version.
         where (str, optional): filter to apply to the result of the operation (after
             explodecollections). It should be in sqlite SQL WHERE syntax and
-            |spatialite reference| functions can be used. Defaults to None.
+            |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -217,7 +217,7 @@ def buffer(
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
-    .. |spatialite reference| raw:: html
+    .. |spatialite_reference_link| raw:: html
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite</a>  # noqa: E501
 
@@ -453,8 +453,10 @@ def convexhull(
             Defaults to False.
 
     .. |spatialite_reference_link| raw:: html
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
-    """
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     logger.info(f"Start convexhull on {input_path}")
     if keep_empty_geoms is None:
         keep_empty_geoms = False
@@ -523,8 +525,10 @@ def delete_duplicate_geometries(
             Defaults to False.
 
     .. |spatialite_reference_link| raw:: html
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
-    """
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     logger.info(f"Start delete_duplicate_geometries on {input_path}")
     if keep_empty_geoms is None:
         keep_empty_geoms = False
@@ -704,8 +708,10 @@ def dissolve(
             Defaults to False.
 
     .. |spatialite_reference_link| raw:: html
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
-    """
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     # Init
     if tiles_path is not None:
         tiles_path = Path(tiles_path)
@@ -1099,7 +1105,7 @@ def select(
     * It is recommend to give the table you select from "layer" as alias. If
       you use the {batch_filter} placeholder this is even mandatory.
     * When using the (default) "SQLITE" sql dialect, you can also use the spatialite
-      functions as documented here: |spatialite reference|.
+      functions as documented here: |spatialite_reference_link|.
 
     The result is written to the output file specified.
 
@@ -1139,7 +1145,7 @@ def select(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s). Defaults to False.
 
-    .. |spatialite reference| raw:: html
+    .. |spatialite_reference_link| raw:: html
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
 
@@ -1233,8 +1239,10 @@ def simplify(
             Defaults to False.
 
     .. |spatialite_reference_link| raw:: html
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
-    """
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     logger.info(f"Start simplify on {input_path} with tolerance {tolerance}")
     if keep_empty_geoms is None:
         keep_empty_geoms = False
@@ -1356,12 +1364,14 @@ def clip(
             Defaults to False.
 
     .. |spatialite_reference_link| raw:: html
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
     .. |clip_input| image:: ../_static/images/clip_input.png
         :alt: Clip input
     .. |clip_result| image:: ../_static/images/clip_result.png
         :alt: Clip result
-    """
+    """  # noqa: E501
 
     logger.info(f"Start clip on {input_path} with {clip_path} to {output_path}")
     return _geoops_sql.clip(
@@ -1439,8 +1449,10 @@ def erase(
             Defaults to False.
 
     .. |spatialite_reference_link| raw:: html
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
-    """
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
 
     logger.info(f"Start erase on {input_path} with {erase_path} to {output_path}")
     return _geoops_sql.erase(
@@ -1518,8 +1530,10 @@ def export_by_location(
             Defaults to False.
 
     .. |spatialite_reference_link| raw:: html
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
-    """
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     logger.info(
         f"Start export_by_location: select from {input_to_select_from_path} "
         f"interacting with {input_to_compare_with_path} to {output_path}"
@@ -1592,8 +1606,10 @@ def export_by_distance(
             Defaults to False.
 
     .. |spatialite_reference_link| raw:: html
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
-    """
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     logger.info(
         f"Start export_by_distance: select from {input_to_select_from_path} within "
         f"max_distance of {max_distance} from {input_to_compare_with_path} "
@@ -1722,8 +1738,10 @@ def intersection(
             Defaults to False.
 
     .. |spatialite_reference_link| raw:: html
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
-    """
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     logger.info(
         f"Start intersection between {input1_path} and {input2_path} to {output_path}"
     )
@@ -1841,8 +1859,10 @@ def join_by_location(
             Defaults to False.
 
     .. |spatialite_reference_link| raw:: html
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
-    """
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     logger.info(
         f"Start join_by_location: select from {input1_path} joined with "
         f"{input2_path} to {output_path}"
@@ -2123,10 +2143,14 @@ def select_two_layers(
              ORDER BY distance DESC
 
     .. |spatialite_reference_link| raw:: html
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
     .. |geofileops_sql_link| raw:: html
+
         <a href="https://github.com/geofileops/geofileops/blob/main/geofileops/util/geofileops_sql.py" target="_blank">geofileops_sql.py</a>
-    """
+
+    """  # noqa: E501
     logger.info(
         f"Start select_two_layers: select from {input1_path} and {input2_path} "
         f"to {output_path}"
@@ -2219,8 +2243,10 @@ def symmetric_difference(
             Defaults to False.
 
     .. |spatialite_reference_link| raw:: html
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
-    """
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     logger.info(
         f"Start symmetric_difference of {input1_path} and {input2_path} "
         f"to {output_path}"
@@ -2313,8 +2339,10 @@ def split(
             Defaults to False.
 
     .. |spatialite_reference_link| raw:: html
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
-    """
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     logger.info(f"Start split between {input1_path} and {input2_path} to {output_path}")
     return _geoops_sql.split(
         input1_path=Path(input1_path),
@@ -2400,8 +2428,10 @@ def union(
             Defaults to False.
 
     .. |spatialite_reference_link| raw:: html
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
-    """
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     logger.info(
         f"Start union: select from {input1_path} and {input2_path} to {output_path}"
     )

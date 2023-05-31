@@ -476,8 +476,10 @@ def _apply_geooperation_to_layer(
           If force_output_type is specified, the problem is gone.
 
     .. |spatialite_reference_link| raw:: html
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
-    """
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     # Init
     start_time_global = datetime.now()
 

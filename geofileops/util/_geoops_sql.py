@@ -1999,8 +1999,10 @@ def _two_layer_vector_operation(
         ValueError: [description]
 
     .. |spatialite_reference_link| raw:: html
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
-    """
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     # Init
     if not input1_path.exists():
         raise ValueError(f"{operation_name}: input1_path doesn't exist: {input1_path}")

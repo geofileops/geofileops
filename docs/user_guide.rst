@@ -129,6 +129,9 @@ Remark: some functions might only work on Geopackage files, not on
 shapefiles.
 
 .. |spatialite_reference_link| raw:: html
+
    <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite functions</a>
+
 .. |www.switchfromshapefile.org| raw:: html
+
    <a href="http://www.switchfromshapefile.org" target="_blank">www.switchfromshapefile.org</a>
