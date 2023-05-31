@@ -99,6 +99,9 @@ def apply(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    .. |spatialite_reference_link| raw:: html
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
     """
     logger.info(f"Start apply on {input_path}")
     if keep_empty_geoms is None:
@@ -445,6 +448,9 @@ def convexhull(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    .. |spatialite_reference_link| raw:: html
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
     """
     logger.info(f"Start convexhull on {input_path}")
     if keep_empty_geoms is None:
@@ -512,6 +518,9 @@ def delete_duplicate_geometries(
             |spatialite_reference_link| functions can be used. Defaults to None.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    .. |spatialite_reference_link| raw:: html
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
     """
     logger.info(f"Start delete_duplicate_geometries on {input_path}")
     if keep_empty_geoms is None:
@@ -690,6 +699,9 @@ def dissolve(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    .. |spatialite_reference_link| raw:: html
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
     """
     # Init
     if tiles_path is not None:
@@ -900,6 +912,9 @@ def makevalid(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    .. |spatialite_reference_link| raw:: html
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
     """
 
     logger.info(f"Start makevalid on {input_path}")
@@ -1081,10 +1096,6 @@ def select(
     * When using the (default) "SQLITE" sql dialect, you can also use the spatialite
       functions as documented here: |spatialite_reference_link|.
 
-    .. |spatialite_reference_link| raw:: html
-
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
-
     The result is written to the output file specified.
 
     Args:
@@ -1122,6 +1133,9 @@ def select(
             batch of rows instead of in one go on the entire layer.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s). Defaults to False.
+
+    .. |spatialite_reference_link| raw:: html
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
     """
     logger.info(f"Start select on {input_path}")
 
@@ -1210,6 +1224,9 @@ def simplify(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    .. |spatialite_reference_link| raw:: html
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
     """
     logger.info(f"Start simplify on {input_path} with tolerance {tolerance}")
     if keep_empty_geoms is None:
@@ -1331,6 +1348,8 @@ def clip(
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
+    .. |spatialite_reference_link| raw:: html
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
     .. |clip_input| image:: ../_static/images/clip_input.png
         :alt: Clip input
     .. |clip_result| image:: ../_static/images/clip_result.png
@@ -1411,6 +1430,9 @@ def erase(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    .. |spatialite_reference_link| raw:: html
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
     """
 
     logger.info(f"Start erase on {input_path} with {erase_path} to {output_path}")
@@ -1487,6 +1509,9 @@ def export_by_location(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    .. |spatialite_reference_link| raw:: html
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
     """
     logger.info(
         f"Start export_by_location: select from {input_to_select_from_path} "
@@ -1558,6 +1583,9 @@ def export_by_distance(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    .. |spatialite_reference_link| raw:: html
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
     """
     logger.info(
         f"Start export_by_distance: select from {input_to_select_from_path} within "
@@ -1685,6 +1713,9 @@ def intersection(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    .. |spatialite_reference_link| raw:: html
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
     """
     logger.info(
         f"Start intersection between {input1_path} and {input2_path} to {output_path}"
@@ -1801,6 +1832,9 @@ def join_by_location(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    .. |spatialite_reference_link| raw:: html
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
     """
     logger.info(
         f"Start join_by_location: select from {input1_path} joined with "
@@ -2057,10 +2091,6 @@ def select_two_layers(
     Additionally, there are some examples listed here that highlight
     other features/possibilities.
 
-    .. |geofileops_sql_link| raw:: html
-
-        <a href="https://github.com/geofileops/geofileops/blob/main/geofileops/util/geofileops_sql.py" target="_blank">geofileops_sql.py</a>
-
     *Join nearest features*
 
     For each feature in layer1, get the nearest feature of layer2 with the
@@ -2084,6 +2114,11 @@ def select_two_layers(
                    SELECT MIN(distance) FROM join_with_dist jwd_sub
                     WHERE jwd_sub.l1_join_id = jwd.l1_join_id)
              ORDER BY distance DESC
+
+    .. |spatialite_reference_link| raw:: html
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
+    .. |geofileops_sql_link| raw:: html
+        <a href="https://github.com/geofileops/geofileops/blob/main/geofileops/util/geofileops_sql.py" target="_blank">geofileops_sql.py</a>
     """
     logger.info(
         f"Start select_two_layers: select from {input1_path} and {input2_path} "
@@ -2175,6 +2210,9 @@ def symmetric_difference(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    .. |spatialite_reference_link| raw:: html
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
     """
     logger.info(
         f"Start symmetric_difference of {input1_path} and {input2_path} "
@@ -2266,6 +2304,9 @@ def split(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    .. |spatialite_reference_link| raw:: html
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
     """
     logger.info(f"Start split between {input1_path} and {input2_path} to {output_path}")
     return _geoops_sql.split(
@@ -2350,6 +2391,9 @@ def union(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    .. |spatialite_reference_link| raw:: html
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
     """
     logger.info(
         f"Start union: select from {input1_path} and {input2_path} to {output_path}"

@@ -1997,6 +1997,9 @@ def _two_layer_vector_operation(
 
     Raises:
         ValueError: [description]
+
+    .. |spatialite_reference_link| raw:: html
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
     """
     # Init
     if not input1_path.exists():
