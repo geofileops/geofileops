@@ -205,7 +205,7 @@ def buffer(
             version.
         where (str, optional): filter to apply to the result of the operation (after
             explodecollections). It should be in sqlite SQL WHERE syntax and
-            |spatialite_reference_link| functions can be used. Defaults to None.
+            |spatialite reference| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -268,8 +268,8 @@ def buffer(
            - |buffer_mitre_25|
            - |buffer_mitre_10|
 
-    .. |spatialite_reference_link| raw:: html
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite</a>  # noqa: E501.
+    .. |spatialite reference| raw:: html
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite</a>  # noqa: E501
     .. |buffer_quadrantsegm_5| image:: ../_static/images/buffer_quadrantsegments_5.png
         :alt: Buffer with quadrantsegments=5
     .. |buffer_quadrantsegm_2| image:: ../_static/images/buffer_quadrantsegments_2.png
@@ -294,7 +294,6 @@ def buffer(
         :alt: Buffer with mitre=2.5
     .. |buffer_mitre_10| image:: ../_static/images/buffer_mitre_10.png
         :alt: Buffer with mitre=1.0
-
     """
     logger.info(
         f"Start buffer on {input_path} "
@@ -1094,7 +1093,7 @@ def select(
     * It is recommend to give the table you select from "layer" as alias. If
       you use the {batch_filter} placeholder this is even mandatory.
     * When using the (default) "SQLITE" sql dialect, you can also use the spatialite
-      functions as documented here: |spatialite_reference_link|.
+      functions as documented here: |spatialite reference|.
 
     The result is written to the output file specified.
 
@@ -1134,7 +1133,7 @@ def select(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s). Defaults to False.
 
-    .. |spatialite_reference_link| raw:: html
+    .. |spatialite reference| raw:: html
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
     """
     logger.info(f"Start select on {input_path}")
