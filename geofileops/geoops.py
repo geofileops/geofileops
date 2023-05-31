@@ -215,6 +215,9 @@ def buffer(
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
+    .. |spatialite reference| raw:: html
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite</a>  # noqa: E501
+
     **Buffer style options**
 
     Using the different buffer style option parameters you can control how the
@@ -268,8 +271,6 @@ def buffer(
            - |buffer_mitre_25|
            - |buffer_mitre_10|
 
-    .. |spatialite reference| raw:: html
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite</a>  # noqa: E501
     .. |buffer_quadrantsegm_5| image:: ../_static/images/buffer_quadrantsegments_5.png
         :alt: Buffer with quadrantsegments=5
     .. |buffer_quadrantsegm_2| image:: ../_static/images/buffer_quadrantsegments_2.png
