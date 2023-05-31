@@ -216,6 +216,7 @@ def buffer(
             Defaults to False.
 
     .. |spatialite reference| raw:: html
+
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite</a>  # noqa: E501
 
     **Buffer style options**
@@ -1135,6 +1136,7 @@ def select(
         force (bool, optional): overwrite existing output file(s). Defaults to False.
 
     .. |spatialite reference| raw:: html
+
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
     """
     logger.info(f"Start select on {input_path}")
