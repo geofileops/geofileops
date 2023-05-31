@@ -101,8 +101,10 @@ def apply(
             Defaults to False.
 
     .. |spatialite_reference_link| raw:: html
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
-    """
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     logger.info(f"Start apply on {input_path}")
     if keep_empty_geoms is None:
         keep_empty_geoms = False
@@ -915,8 +917,10 @@ def makevalid(
             Defaults to False.
 
     .. |spatialite_reference_link| raw:: html
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
-    """
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
 
     logger.info(f"Start makevalid on {input_path}")
 
@@ -1137,8 +1141,9 @@ def select(
 
     .. |spatialite reference| raw:: html
 
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>  # noqa: E501
-    """
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     logger.info(f"Start select on {input_path}")
 
     # Convert force_output_geometrytype to GeometryType (if necessary)
