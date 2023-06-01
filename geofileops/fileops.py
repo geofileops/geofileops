@@ -1985,7 +1985,12 @@ def append_to(
     Raises:
         ValueError: an invalid parameter value was passed.
         RuntimeError: timeout was reached while trying to append data to path.
-    """
+
+    .. |spatialite_reference_link| raw:: html
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     # Check/clean input params
     src = Path(src)
     dst = Path(dst)
@@ -2218,7 +2223,12 @@ def convert(
             Defaults to False.
         force (bool, optional): overwrite existing output file(s)
             Defaults to False.
-    """
+
+    .. |spatialite_reference_link| raw:: html
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     # Init
     src = Path(src)
     dst = Path(dst)
