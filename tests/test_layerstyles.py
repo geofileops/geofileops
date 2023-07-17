@@ -49,7 +49,7 @@ def test_add_get_remove_layer_styles(tmp_path):
 
     # Backup the styled file to be a able to check it manually in QGIS
     styled_path = tmp_path / f"{test_path.stem}_styled{test_path.suffix}"
-    gfo.copy(src=test_path, dst=styled_path)
+    gfo.copy_geofile(src=test_path, dst=styled_path)
 
     # Remove the style again
     gfo.remove_layerstyle(test_path, id=1)
