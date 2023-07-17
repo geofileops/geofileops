@@ -1492,7 +1492,7 @@ def join_nearest(
         tempdir = _io_util.create_tempdir("geofileops/join_nearest")
         input1_tmp_path = tempdir / "both_input_layers.sqlite"
         input1_tmp_layer = "input1_layer"
-        gfo.convert(
+        gfo.copy_layer(
             src=input1_path,
             src_layer=input1_layer,
             dst=input1_tmp_path,
@@ -1820,7 +1820,7 @@ def symmetric_difference(
         if erase1_output_path.suffix != output_path.suffix:
             # Output file should be in diffent format, so convert
             tmp_output_path = tempdir / output_path.name
-            gfo.convert(src=erase1_output_path, dst=tmp_output_path)
+            gfo.copy_layer(src=erase1_output_path, dst=tmp_output_path)
         else:
             # Create spatial index
             gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
@@ -1920,7 +1920,7 @@ def union(
         if split_output_path.suffix != output_path.suffix:
             # Output file should be in different format, so convert
             tmp_output_path = tempdir / output_path.name
-            gfo.convert(src=split_output_path, dst=tmp_output_path)
+            gfo.copy_layer(src=split_output_path, dst=tmp_output_path)
         else:
             # Create spatial index
             gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
@@ -2505,7 +2505,7 @@ def _prepare_processing_params(
         else:
             # If not ok, copy the input layer to gpkg
             returnvalue.input1_path = tempdir / f"{input1_path.stem}.gpkg"
-            gfo.convert(
+            gfo.copy_layer(
                 src=input1_path,
                 src_layer=input1_layer,
                 dst=returnvalue.input1_path,
@@ -2525,7 +2525,7 @@ def _prepare_processing_params(
             else:
                 # If not spatialite compatible, copy the input layer to gpkg
                 returnvalue.input2_path = tempdir / f"{input2_path.stem}.gpkg"
-                gfo.convert(
+                gfo.copy_layer(
                     src=input2_path,
                     src_layer=input2_layer,
                     dst=returnvalue.input2_path,

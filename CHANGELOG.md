@@ -35,6 +35,7 @@
   changed to `True` in a future version. This is also explained in a futurewarning (#262)
 - removed the long-deprecated functions `get_driver`, `get_driver_for_ext`,
   `to_multi_type` and `to_generaltypeid`  (#276)
+- rename and deprecate `convert` to `copy_layer` (#310)
 - removed the long-deprecated `vector_util`, `geofileops.geofile` and
   `geofileops.geofileops` namespaces (#276)
 
