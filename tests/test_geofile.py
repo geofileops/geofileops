@@ -142,7 +142,7 @@ def test_append_different_columns(tmp_path, suffix):
         "polygon-parcel", dst_dir=tmp_path, suffix=suffix
     )
     dst_path = tmp_path / f"dst{suffix}"
-    gfo.copy_geofile(src_path, dst_path)
+    gfo.copy(src_path, dst_path)
     gfo.add_column(src_path, name="extra_column", type=gfo.DataType.INTEGER)
     gfo.append_to(src_path, dst_path)
 
@@ -161,7 +161,7 @@ def test_cmp(tmp_path, suffix):
 
     # Copy test file to tmpdir
     dst = tmp_path / f"polygons_parcels_output{suffix}"
-    gfo.copy_geofile(src, dst)
+    gfo.copy(src, dst)
 
     # Now compare source and dst files
     assert gfo.cmp(src, dst) is True
@@ -315,7 +315,7 @@ def test_copy(tmp_path, suffix):
 
     # Copy to dest file
     dst = tmp_path / f"{src.stem}-output{suffix}"
-    gfo.copy_geofile(src, dst)
+    gfo.copy(src, dst)
     assert src.exists()
     assert dst.exists()
     if suffix == ".shp":
@@ -324,7 +324,7 @@ def test_copy(tmp_path, suffix):
     # Copy to dest dir
     dst_dir = tmp_path / "dest_dir"
     dst_dir.mkdir(parents=True, exist_ok=True)
-    gfo.copy_geofile(src, dst_dir)
+    gfo.copy(src, dst_dir)
     dst = dst_dir / src.name
     assert src.exists()
     assert dst.exists()

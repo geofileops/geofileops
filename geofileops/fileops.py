@@ -1127,7 +1127,7 @@ def _read_file_base_fiona(
         tmp_fid_path = Path(tempfile.mkdtemp()) / f"{path.stem}.gpkg"
         try:
             if GeofileType(path) == GeofileType.GPKG:
-                copy_geofile(path, tmp_fid_path)
+                copy(path, tmp_fid_path)
                 add_column(tmp_fid_path, "__TMP_GEOFILEOPS_FID", "INTEGER", "fid")
             else:
                 copy_layer(path, tmp_fid_path)
@@ -1813,16 +1813,6 @@ def cmp(
 
 
 def copy(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]):
-    """
-    DEPRECATED: please use copy_geofile.
-    """
-    warnings.warn("geofileops.copy is deprecated: use copy_geofile.", FutureWarning)
-    return copy_geofile(src=src, dst=dst)
-
-
-def copy_geofile(
-    src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]
-):
     """
     Copies the geofile from src to dst. Is the source file is a geofile containing
     of multiple files (eg. .shp) all files are copied.

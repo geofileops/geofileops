@@ -109,7 +109,7 @@ def prepare_test_file(
             assert input_layerinfo.crs is not None
             if input_layerinfo.crs.to_epsg() == crs_epsg:
                 if input_path.suffix == suffix:
-                    gfo.copy_geofile(input_path, input_prepared_path)
+                    gfo.copy(input_path, input_prepared_path)
                 else:
                     gfo.copy_layer(input_path, input_prepared_path)
             else:
@@ -126,7 +126,7 @@ def prepare_test_file(
     # Now copy the prepared file to the output dir
     output_path = output_dir / input_prepared_path.name
     if str(input_prepared_path) != str(output_path):
-        gfo.copy_geofile(input_prepared_path, output_path)
+        gfo.copy(input_prepared_path, output_path)
     return output_path
 
 
