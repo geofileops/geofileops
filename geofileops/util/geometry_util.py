@@ -600,8 +600,6 @@ def simplify_ext(
         if preserve_topology is True and result_poly is None:
             return polygon
 
-        # evade pyLance warning + return
-        assert isinstance(result_poly, (sh_geom.MultiPolygon, sh_geom.Polygon))
         return result_poly
 
     def simplify_linestring(linestring: sh_geom.LineString) -> sh_geom.LineString:
