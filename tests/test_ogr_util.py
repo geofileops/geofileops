@@ -147,7 +147,7 @@ def test_vector_translate_geom_null(
     )
 
     assert output_path.exists()
-    output_layerinfo = gfo.get_layerinfo(output_path, raise_on_nogeom=False)
+    output_layerinfo = gfo.get_layerinfo(output_path)
     assert "geom" not in output_layerinfo.columns
     assert "geometry" not in output_layerinfo.columns
     assert len(output_layerinfo.columns) == 2
