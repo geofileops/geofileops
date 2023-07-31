@@ -25,6 +25,7 @@ setuptools.setup(
         "numpy",
         "pandas",
         "psutil",
+        "pygeoops>=0.2,<0.3",
         "pyogrio",
         "pyproj",
         "shapely",

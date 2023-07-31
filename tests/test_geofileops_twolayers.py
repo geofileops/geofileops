@@ -254,7 +254,7 @@ def test_intersection(
     else:
         assert output_layerinfo.featurecount == 30
 
-    # Check the contents of the result file
+    # Check the contents of the result file by comparing with geopandas
     output_gdf = gfo.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
 
