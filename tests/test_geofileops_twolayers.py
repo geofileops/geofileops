@@ -62,7 +62,7 @@ def test_erase(tmp_path, testfile, suffix, gridsize, where):
     erase_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
-    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
+    output_path = tmp_path / f"{input_path.stem}-output_gpd{suffix}"
 
     gfo.erase(
         input_path=input_path,
