@@ -3,19 +3,17 @@
 Module containing utilities regarding sqlite/spatialite files.
 """
 
-import concurrent.futures
 import datetime
 import enum
 import logging
-import math
 from pathlib import Path
 import shutil
 import sqlite3
 import tempfile
 from typing import List, Optional, Union
-import numpy as np
 
 import pygeoops
+from pygeoops import _difference as difference
 import shapely
 from shapely.geometry.base import BaseMultipartGeometry
 
@@ -102,12 +100,10 @@ def get_columns(
     empty_output_ok: bool = True,
     use_spatialite: bool = True,
     output_geometrytype: str = None,
-    input1_databasename: str = "input1",
-    input2_databasename: str = "input2",
 ) -> dict[str, str]:
     # Create temp output db to be sure the output DB is writable, even though we only
     # create a temporary table.
-    tmp_dir = Path(tempfile.mkdtemp(prefix="geofileops"))
+    tmp_dir = Path(tempfile.mkdtemp(prefix="geofileops/get_columns_"))
     tmp_path = tmp_dir / f"temp{input1_path.suffix}"
     create_new_spatialdb(path=tmp_path)
 
@@ -122,15 +118,18 @@ def get_columns(
                 conn.execute(sql)
 
         # Attach to input1
+        input1_databasename = "input1"
         sql = f"ATTACH DATABASE ? AS {input1_databasename}"
         dbSpec = (str(input1_path),)
         conn.execute(sql, dbSpec)
 
         # If input2 isn't the same database input1, attach to it
+        input2_databasename = None
         if input2_path is not None:
             if input2_path == input1_path:
                 input2_databasename = input1_databasename
             else:
+                input2_databasename = "input2"
                 sql = f"ATTACH DATABASE ? AS {input2_databasename}"
                 dbSpec = (str(input2_path),)
                 conn.execute(sql, dbSpec)
@@ -157,6 +156,7 @@ def get_columns(
         sql = "PRAGMA TABLE_INFO(tmp)"
         cur = conn.execute(sql)
         tmpcolumns = cur.fetchall()
+        cur.close()
 
         # Fetch one row to try to get more detailed data types if needed
         sql = "SELECT * FROM tmp"
@@ -242,8 +242,6 @@ def create_table_as_sql(
     empty_output_ok: bool = True,
     column_datatypes: Optional[dict] = None,
     profile: SqliteProfile = SqliteProfile.DEFAULT,
-    input1_databasename: str = "input1",
-    input2_databasename: str = "input2",
 ):
     """
     Execute sql statement and save the result in the output file.
@@ -295,7 +293,7 @@ def create_table_as_sql(
         create_new_spatialdb(path=output_path, crs_epsg=crs_epsg)
 
     sql = None
-    conn = sqlite3.connect(output_path, detect_types=sqlite3.PARSE_DECLTYPES)
+    conn = sqlite3.connect(output_path, detect_types=sqlite3.PARSE_DECLTYPES, uri=True)
     try:
         with conn:
 
@@ -324,17 +322,24 @@ def create_table_as_sql(
             conn.execute(sql)
 
             # If attach to input1
+            input1_databasename = "input1"
             sql = f"ATTACH DATABASE ? AS {input1_databasename}"
             dbSpec = (str(input1_path),)
+            # input1_uri = f"file:{input1_path}?immutable=1"
+            # dbSpec = (str(input1_uri),)
             conn.execute(sql, dbSpec)
 
             # If input2 isn't the same database input1, attach to it
+            input2_databasename = None
             if input2_path is not None:
                 if input2_path == input1_path:
                     input2_databasename = input1_databasename
                 else:
+                    input2_databasename = "input2"
                     sql = f"ATTACH DATABASE ? AS {input2_databasename}"
                     dbSpec = (str(input2_path),)
+                    # input2_uri = f"file:{input1_path}?immutable=1"
+                    # dbSpec = (str(input2_uri),)
                     conn.execute(sql, dbSpec)
 
             # Use the sqlite profile specified
@@ -366,9 +371,17 @@ def create_table_as_sql(
                     empty_output_ok=empty_output_ok,
                     use_spatialite=True,
                     output_geometrytype=output_geometrytype,
-                    input1_databasename=input1_databasename,
-                    input2_databasename=input2_databasename,
                 )
+
+            # If geometry type was not specified, look for it in column_types
+            if output_geometrytype is None:
+                if "geom" in column_types:
+                    output_geometrytype = GeometryType(column_types["geom"])
+                else:
+                    raise ValueError(
+                        "output_geometrytype not specified + determination from "
+                        "sql_stmt failed"
+                    )
 
             # Prepare sql statement
             sql_stmt = sql_stmt.format(
@@ -500,7 +513,7 @@ def create_table_as_sql(
         if output_path.exists():
             output_path.unlink()
     except Exception as ex:
-        raise Exception(f"Error {ex} executing {sql}") from ex
+        raise RuntimeError(f"Error {ex} executing {sql}") from ex
     finally:
         if conn is not None:
             conn.close()
@@ -603,11 +616,13 @@ def load_spatialite(conn):
     )
 
     # Register custom aggregate function
-    conn.create_aggregate("st_difference_agg", 2, DifferenceAgg)
+    # conn.create_aggregate("st_difference_agg", 2, DifferenceAgg)
 
 
 def st_difference_collection(geom1: bytes, geom2: bytes, keep_geom_type: int = 0):
     # Check/prepare input
+    if geom1 is None:
+        return None
     if geom2 is None:
         return geom1
 
@@ -617,11 +632,11 @@ def st_difference_collection(geom1: bytes, geom2: bytes, keep_geom_type: int = 0
 
     try:
         if not isinstance(geoms_to_subtract, BaseMultipartGeometry):
-            result = difference_all(
+            result = pygeoops.difference_all_tiled(
                 geom, geoms_to_subtract, keep_geom_type=keep_geom_type
             )
         else:
-            result = difference_all(
+            result = pygeoops.difference_all_tiled(
                 geom,
                 shapely.get_parts(geoms_to_subtract),
                 keep_geom_type=keep_geom_type,
@@ -629,6 +644,7 @@ def st_difference_collection(geom1: bytes, geom2: bytes, keep_geom_type: int = 0
 
         return shapely.to_wkb(result)
     except Exception as ex:
+        # ex.with_traceback()
         print(ex)
 
 
@@ -651,7 +667,7 @@ class DifferenceAgg:
                 geom = shapely.from_wkb(geom)
                 self.geom_mbrp = shapely.box(*geom.bounds)
                 self.geom_dimension = shapely.get_dimensions(geom)
-                self.tmpdiff, self.is_split = _split_if_needed(
+                self.tmpdiff, self.is_split = difference._split_if_needed(
                     geom, self.num_coords_max
                 )
             elif shapely.is_empty(self.tmpdiff).all():
@@ -659,9 +675,10 @@ class DifferenceAgg:
 
             # Apply difference
             geom_to_subtract = shapely.from_wkb(geoms_to_subtract)
-            self.tmpdiff = _difference(
+            self.tmpdiff = difference._difference_intersecting(
                 self.tmpdiff, geom_to_subtract, output_dimensions=self.geom_dimension
             )
+            self.tmpdiff = self.tmpdiff[~shapely.is_empty(self.tmpdiff)]
 
         except Exception as ex:
             # ex.with_traceback()
@@ -677,204 +694,3 @@ class DifferenceAgg:
                 return shapely.to_wkb(self.tmpdiff[0])
         except Exception as ex:
             raise ex
-
-
-def difference_all(geometry, geometries_to_subtract, keep_geom_type: bool = False):
-    """
-    Subtracts one or more geometries from another geometry, in an optimized way.
-
-    Args:
-        geometry (_type_): geometry
-        geometries_to_subtract (_type_): geometry or arraylike of geometries
-        keep_geom_type (bool, optional): True to only keep the geometry dimensions
-            specified in the output (0: point, 1: lines, 2: polygons).
-            Defaults to False.
-
-    Returns:
-        _type_: _description_
-    """
-    # Subtract all geometries from input in loop
-    num_coords_max = 1000
-
-    shapely.prepare(geometry)
-    geoms_to_subtract_idx = np.nonzero(
-        shapely.intersects(geometry, geometries_to_subtract)
-    )[0]
-    geom_diff, geom_split = _split_if_needed(geometry, num_coords_max)
-    if keep_geom_type:
-        output_dimensions = shapely.get_dimensions(geometry)
-    else:
-        output_dimensions = None
-    for idx in geoms_to_subtract_idx:
-        geom_to_subtract = geometries_to_subtract[idx]
-        geom_diff = _difference(
-            geom_diff, geom_to_subtract, output_dimensions=output_dimensions
-        )
-
-    if geom_split:
-        geom_diff = shapely.unary_union(geom_diff)
-
-    return geom_diff
-
-
-def _split_if_needed(geom, num_coords_max: int):
-    shapely.prepare(geom)
-    num_coords = shapely.get_num_coordinates(geom)
-    if num_coords <= num_coords_max:
-        return (np.array([geom]), False)
-    else:
-        grid = pygeoops.create_grid2(
-            total_bounds=geom.bounds,
-            nb_squarish_tiles=math.ceil(num_coords / num_coords_max),
-        )
-        geom_split = shapely.intersection(geom, grid)
-        if shapely.get_dimensions(geom) == 2:
-            geom_split = pygeoops.collection_extract(
-                geom_split, pygeoops.PrimitiveType.POLYGON
-            )
-        geom_split = geom_split[~shapely.is_empty(geom_split)]
-        return (geom_split, True)
-
-
-def _difference(
-    geometry, geometry_to_subtract, output_dimensions: Optional[int] = None
-):
-    """
-    if shapely.get_num_coordinates(geom_to_subtract) >= self.num_coords_max:
-        geom_to_subtract = geom_to_subtract.intersection(self.geom_mbrp)
-    """
-
-    # Check which parts of the input geom intersect with geom_to_subtract
-    # Remarks:
-    #   - Using a prepared feature: 10 * faster
-    #   - Testing for touches is quite slow, so faster not to do this test
-    shapely.prepare(geometry)
-    idx_intersects = np.nonzero(shapely.intersects(geometry, geometry_to_subtract))[0]
-    idx_to_diff = idx_intersects
-    # Try intersection before applying difference, mayby better optimized?
-    """
-    to_subtract_arr = shapely.intersection(
-        tmpresult[idx_intersects], geom_to_subtract
-    )
-    """
-    """
-    to_subtract_arr = pygeoops.collection_extract(
-        to_subtract_arr, pygeoops.PrimitiveType.POLYGON
-    )
-    idx_to_diff = idx_intersects
-    """
-    if len(idx_to_diff) > 0:
-        to_subtract_arr = np.repeat(geometry_to_subtract, len(idx_to_diff))
-        try:
-            subtracted = shapely.difference(geometry[idx_to_diff], to_subtract_arr)
-        except Exception as ex:
-            raise ex
-
-        if output_dimensions is not None:
-            if output_dimensions == 2:
-                subtracted = pygeoops.collection_extract(
-                    subtracted, pygeoops.PrimitiveType.POLYGON
-                )
-            elif output_dimensions == 1:
-                subtracted = pygeoops.collection_extract(
-                    subtracted, pygeoops.PrimitiveType.LINESTRING
-                )
-
-        for idx_subtracted, idx_to_diff in enumerate(idx_to_diff):
-            geometry[idx_to_diff] = subtracted[idx_subtracted]
-        geometry = geometry[~shapely.is_empty(geometry)]
-
-    return geometry
-
-
-def st_difference_collection2(geom1: str, geom2: str):
-    num_coords_max = 10000
-
-    try:
-        geom1 = shapely.from_wkb(geom1)
-        geom2 = shapely.from_wkb(geom2)
-
-        def apply_difference(geom_in, geom_erase):
-            # First check if geom_in has a reasonable number of points. If not,
-            # split it using a grid.
-            shapely.prepare(geom_in)
-            num_coords = shapely.get_num_coordinates(geom_in)
-            geom_in_split = False
-            if num_coords > num_coords_max:
-                geom_in_split = True
-                grid = pygeoops.create_grid2(
-                    total_bounds=geom_in.bounds,
-                    nb_squarish_tiles=int(num_coords / num_coords_max),
-                )
-                geom_in = shapely.intersection(geom_in, grid)
-
-            if not isinstance(geom_erase, BaseMultipartGeometry):
-                """
-                shapely.prepare(geom_in)
-                if shapely.intersects(geom_in, geom_erase) and not shapely.touches(
-                    geom_in, geom_erase
-                ):
-                    return shapely.difference(geom_in, geom_erase)
-                else:
-                    return geom_in
-                """
-                diff = shapely.difference(geom_in, geom_erase)
-            else:
-                diff = geom_in
-                for geom in geom_erase.geoms:
-                    shapely.prepare(diff)
-                    if shapely.intersects(diff, geom) and not shapely.touches(
-                        diff, geom
-                    ):
-                        diff = shapely.difference(diff, geom)
-                    """
-                    if not isinstance(geom, BaseMultipartGeometry):
-                        shapely.prepare(diff)
-                        if shapely.intersects(diff, geom) and not shapely.touches(
-                            diff, geom
-                        ):
-                            diff = shapely.difference(diff, geom)
-                    else:
-                        for geom2 in geom.geoms:
-                            shapely.prepare(diff)
-                            if shapely.intersects(
-                                diff, geom
-                            ) and not shapely.touches(diff, geom):
-                                diff = shapely.difference(diff, geom2)
-                    """
-
-            # If the input has been split, union it again
-            if geom_in_split:
-                diff = shapely.unary_union(diff)
-
-            return diff
-
-        if not isinstance(geom1, BaseMultipartGeometry):
-            result = apply_difference(geom1, geom2)
-        else:
-            result = []
-            nb_workers = min(len(geom1.geoms), 4)
-            with concurrent.futures.ThreadPoolExecutor(nb_workers) as pool:
-                futures = [
-                    pool.submit(apply_difference, geom, geom2) for geom in geom1.geoms
-                ]
-                for future in concurrent.futures.as_completed(futures):
-                    res = future.result()
-                    if not shapely.is_empty(res):
-                        result.append(res)
-
-            """
-            for geom in geom1.geoms:
-                res = apply_difference(geom, geom2)
-                if not shapely.is_empty(res):
-                    result.append(res)
-            """
-            result = pygeoops.collect(result)
-
-        # If result is None or empty, return None
-        if result is None or shapely.is_empty(result):
-            return None
-
-        return shapely.to_wkb(result)
-    except Exception as ex:
-        print(ex)

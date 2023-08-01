@@ -29,6 +29,7 @@ dependencies:
   # docs
   - pydata-sphinx-theme
   - pip:
+    - pygeoops ==0.3.0a0
     - sphinx-automodapi==0.13
     # optional
     - simplification

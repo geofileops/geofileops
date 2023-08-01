@@ -3,6 +3,7 @@
 Helper functions for all tests.
 """
 
+import os
 from pathlib import Path
 import tempfile
 from typing import List, Optional, Union
@@ -30,6 +31,10 @@ WHERE_AREA_GT_400 = "ST_Area({geometrycolumn}) > 400"
 WHERE_AREA_GT_5000 = "ST_Area({geometrycolumn}) > 5000"
 WHERE_LENGTH_GT_1000 = "ST_Length({geometrycolumn}) > 1000"
 WHERE_LENGTH_GT_200000 = "ST_Length({geometrycolumn}) > 200000"
+
+RUNS_LOCAL = True
+if "GITHUB_ACTIONS" in os.environ:
+    RUNS_LOCAL = False
 
 
 def prepare_expected_result(

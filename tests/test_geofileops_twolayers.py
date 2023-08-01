@@ -52,17 +52,25 @@ def test_clip(tmp_path, testfile, suffix):
     )
 
 
-@pytest.mark.parametrize("testfile", TESTFILES)
 @pytest.mark.parametrize("suffix", SUFFIXES)
 @pytest.mark.parametrize(
-    "gridsize, where", [(0.0, "ST_Area(geom) > 2000"), (0.001, None)]
+    "testfile, gridsize, where",
+    [
+        ("linestring-row-trees", 0.0, "ST_Length(geom) > 100"),
+        ("linestring-row-trees", 0.001, None),
+        ("point", 0.0, None),
+        ("point", 0.001, None),
+        ("polygon-parcel", 0.0, None),
+        ("polygon-parcel", 0.0, "ST_Area(geom) > 2000"),
+        ("polygon-parcel", 0.001, None),
+    ],
 )
-def test_erase(tmp_path, testfile, suffix, gridsize, where):
+def test_erase(tmp_path, suffix, testfile, gridsize, where):
     input_path = test_helper.get_testfile(testfile, suffix=suffix)
     erase_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
-    output_path = tmp_path / f"{input_path.stem}-output_gpd{suffix}"
+    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
 
     gfo.erase(
         input_path=input_path,
@@ -84,10 +92,19 @@ def test_erase(tmp_path, testfile, suffix, gridsize, where):
     )
     if gridsize != 0.0:
         output_gpd_gdf.geometry = shapely2_or_pygeos.set_precision(
-            output_gpd_gdf.geometry.array.data, grid_size=gridsize
+            output_gpd_gdf.geometry.array, grid_size=gridsize
         )
     if where is not None:
-        output_gpd_gdf = output_gpd_gdf[output_gpd_gdf.geometry.area > 2000]
+        if where == "ST_Area(geom) > 2000":
+            output_gpd_gdf = output_gpd_gdf[output_gpd_gdf.geometry.area > 2000]
+        elif where == "ST_Length(geom) > 100":
+            output_gpd_gdf = output_gpd_gdf[output_gpd_gdf.geometry.length > 100]
+        else:
+            raise ValueError(f"where filter not implemented: {where}")
+    output_gpd_path = tmp_path / f"{input_path.stem}-output_gpd{suffix}"
+
+    if test_helper.RUNS_LOCAL:
+        gfo.to_file(output_gpd_gdf, output_gpd_path)
 
     assert_geodataframe_equal(
         output_gdf,
@@ -97,6 +114,9 @@ def test_erase(tmp_path, testfile, suffix, gridsize, where):
         check_less_precise=True,
         normalize=True,
     )
+
+    # Make sure the output still has rows, otherwise the test isn't super useful
+    assert len(output_gdf) > 0
 
 
 def test_erase_explodecollections(tmp_path):
@@ -814,7 +834,7 @@ def test_select_two_layers_invalid_sql(tmp_path, suffix):
          WHERE 1=1
            AND ST_Area(layer1.{input1_geometrycolumn}) > 5
     """
-    with pytest.raises(Exception, match='Error <Error near "layer1": syntax error'):
+    with pytest.raises(RuntimeError, match='Error near "layer1": syntax error'):
         gfo.select_two_layers(
             input1_path=input1_path,
             input2_path=input2_path,

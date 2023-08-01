@@ -2135,7 +2135,7 @@ def _two_layer_vector_operation(
         )
     if use_ogr is True and input1_path != input2_path:
         raise ValueError(
-            f"{operation_name}: if use_ogr True, input1_path == input2_path!"
+            f"{operation_name}: if use_ogr True, input1_path should equal input2_path!"
         )
     if output_path.exists():
         if force is False:
@@ -2259,8 +2259,6 @@ def _two_layer_vector_operation(
             sql_stmt=sql_template,
             input1_path=processing_params.input1_path,
             input2_path=processing_params.input2_path,
-            input1_databasename=processing_params.input1_databasename,
-            input2_databasename=processing_params.input2_databasename,
         )
 
         # Add snaptogrid around sql_template if gridsize specified
@@ -2353,8 +2351,6 @@ def _two_layer_vector_operation(
                     input2_path=processing_params.input2_path,
                     output_path=tmp_partial_output_path,
                     sql_stmt=sql_stmt,
-                    input1_databasename=processing_params.input1_databasename,
-                    input2_databasename=processing_params.input2_databasename,
                     output_layer=output_layer,
                     explodecollections=explodecollections_now,
                     force_output_geometrytype=force_output_geometrytype,
@@ -2463,8 +2459,6 @@ def calculate_two_layers(
     input2_path: Path,
     output_path: Path,
     sql_stmt: str,
-    input1_databasename: str,
-    input2_databasename: str,
     output_layer: str,
     explodecollections: bool,
     force_output_geometrytype: GeometryType,
@@ -2508,8 +2502,8 @@ def calculate_two_layers(
         #   * input2 path (= using attach) doesn't seem to work
         #   * ogr doesn't fill out database names, so do it now
         sql_stmt = sql_stmt.format(
-            input1_databasename=input1_databasename,
-            input2_databasename=input2_databasename,
+            input1_databasename="main",
+            input2_databasename="main",
         )
 
         _ogr_util.vector_translate(
@@ -2528,19 +2522,15 @@ class ProcessingParams:
         self,
         input1_path: Optional[Path] = None,
         input1_layer: Optional[str] = None,
-        input1_databasename: Optional[str] = None,
         input2_path: Optional[Path] = None,
         input2_layer: Optional[str] = None,
-        input2_databasename: Optional[str] = None,
         nb_parallel: int = -1,
         batches: Optional[dict] = None,
     ):
         self.input1_path = input1_path
         self.input1_layer = input1_layer
-        self.input1_databasename = input1_databasename
         self.input2_path = input2_path
         self.input2_layer = input2_layer
-        self.input2_databasename = input2_databasename
         self.nb_parallel = nb_parallel
         self.batches = batches
 
@@ -2673,13 +2663,6 @@ def _prepare_processing_params(
                     dst_layer=returnvalue.input2_layer,
                     preserve_fid=True,
                 )
-
-    # Fill out the database names to use in the sql statements
-    returnvalue.input1_databasename = "input1"
-    if input2_path is None or input1_path == input2_path:
-        returnvalue.input2_databasename = returnvalue.input1_databasename
-    else:
-        returnvalue.input2_databasename = "input2"
 
     # Prepare batches to process
     # Get column names and info
