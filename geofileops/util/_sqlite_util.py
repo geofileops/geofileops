@@ -13,7 +13,6 @@ import tempfile
 from typing import Dict, List, Optional, Union
 
 import pygeoops
-from pygeoops import _difference as difference
 import shapely
 from shapely.geometry.base import BaseMultipartGeometry
 
@@ -99,7 +98,7 @@ def get_columns(
     input2_path: Optional[Path] = None,
     empty_output_ok: bool = True,
     use_spatialite: bool = True,
-    output_geometrytype: Optional[str] = None,
+    output_geometrytype: Optional[GeometryType] = None,
 ) -> Dict[str, str]:
     # Create temp output db to be sure the output DB is writable, even though we only
     # create a temporary table.
@@ -510,7 +509,6 @@ def create_table_as_sql(
     except EmptyResultError:
         logger.info(f"Query didn't return any rows: {sql_stmt}")
         conn.close()
-        conn = None
         if output_path.exists():
             output_path.unlink()
     except Exception as ex:
@@ -653,6 +651,7 @@ def st_difference_collection(geom1: bytes, geom2: bytes, keep_geom_type: int = 0
         print(ex)
 
 
+"""
 class DifferenceAgg:
     def __init__(self):
         self.init_todo = True
@@ -699,3 +698,4 @@ class DifferenceAgg:
                 return shapely.to_wkb(self.tmpdiff[0])
         except Exception as ex:
             raise ex
+"""
