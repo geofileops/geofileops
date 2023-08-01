@@ -28,7 +28,7 @@ setuptools.setup(
         "pygeoops>=0.2,<0.3",
         "pyogrio",
         "pyproj",
-        "shapely",
+        "shapely>=2,<2.1",
         "topojson",
     ],
     extras_require={"full": ["simplification"]},
