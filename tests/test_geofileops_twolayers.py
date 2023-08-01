@@ -92,7 +92,7 @@ def test_erase(tmp_path, suffix, testfile, gridsize, where):
     )
     if gridsize != 0.0:
         output_gpd_gdf.geometry = shapely2_or_pygeos.set_precision(
-            output_gpd_gdf.geometry.array, grid_size=gridsize
+            output_gpd_gdf.geometry, grid_size=gridsize
         )
     if where is not None:
         if where == "ST_Area(geom) > 2000":
@@ -288,7 +288,7 @@ def test_intersection(
     expected_gdf = expected_gdf.rename(columns=renames)
     if gridsize != 0.0:
         expected_gdf.geometry = shapely2_or_pygeos.set_precision(
-            expected_gdf.geometry.array.data, grid_size=gridsize
+            expected_gdf.geometry, grid_size=gridsize
         )
     if explodecollections:
         expected_gdf = expected_gdf.explode(ignore_index=True)
@@ -1028,7 +1028,7 @@ def test_split(tmp_path, suffix, epsg, gridsize):
     output_gpd_gdf = output_gpd_gdf.rename(columns=renames)
     if gridsize != 0.0:
         output_gpd_gdf.geometry = shapely2_or_pygeos.set_precision(
-            output_gpd_gdf.geometry.array.data, grid_size=gridsize
+            output_gpd_gdf.geometry, grid_size=gridsize
         )
     # OIDN is float vs int? -> check_column_type=False
     assert_geodataframe_equal(
@@ -1076,7 +1076,7 @@ def test_symmetric_difference(tmp_path, suffix, epsg, gridsize):
     output_gpd_gdf = output_gpd_gdf.rename(columns=renames)
     if gridsize != 0.0:
         output_gpd_gdf.geometry = shapely2_or_pygeos.set_precision(
-            output_gpd_gdf.geometry.array.data, grid_size=gridsize
+            output_gpd_gdf.geometry, grid_size=gridsize
         )
     assert_geodataframe_equal(
         output_gfo_gdf,
@@ -1149,7 +1149,7 @@ def test_union(
     output_gpd_gdf["l1_DATUM"] = pd.to_datetime(output_gpd_gdf["l1_DATUM"])
     if gridsize != 0.0:
         output_gpd_gdf.geometry = shapely2_or_pygeos.set_precision(
-            output_gpd_gdf.geometry.array.data, grid_size=gridsize
+            output_gpd_gdf.geometry, grid_size=gridsize
         )
     if explodecollections:
         output_gpd_gdf = output_gpd_gdf.explode(ignore_index=True)

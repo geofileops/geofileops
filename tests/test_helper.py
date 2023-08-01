@@ -51,7 +51,7 @@ def prepare_expected_result(
 
     if gridsize != 0.0:
         expected_gdf.geometry = shapely2_or_pygeos.set_precision(
-            expected_gdf.geometry.array.data, grid_size=gridsize
+            expected_gdf.geometry, grid_size=gridsize
         )
     if explodecollections:
         expected_gdf = expected_gdf.explode(ignore_index=True)
