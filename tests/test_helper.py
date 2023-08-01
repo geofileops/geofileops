@@ -319,10 +319,10 @@ def assert_geodataframe_equal(
     if sort_values:
         if normalize:
             left.geometry = gpd.GeoSeries(
-                shapely2_or_pygeos.normalize(left.geometry.array.data), index=left.index
+                shapely2_or_pygeos.normalize(left.geometry), index=left.index
             )
             right.geometry = gpd.GeoSeries(
-                shapely2_or_pygeos.normalize(right.geometry.array.data),
+                shapely2_or_pygeos.normalize(right.geometry),
                 index=right.index,
             )
         if promote_to_multi:
