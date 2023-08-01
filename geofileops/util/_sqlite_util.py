@@ -99,7 +99,7 @@ def get_columns(
     input2_path: Optional[Path] = None,
     empty_output_ok: bool = True,
     use_spatialite: bool = True,
-    output_geometrytype: str = None,
+    output_geometrytype: Optional[str] = None,
 ) -> dict[str, str]:
     # Create temp output db to be sure the output DB is writable, even though we only
     # create a temporary table.
@@ -143,13 +143,14 @@ def get_columns(
 
         # Create temp table to get the column names + general data types
         # + fetch one row to use it to determine geometrytype.
+        # Remark: specify redundant OFFSET 0 to keep sqlite from flattings the subquery.
         sql = f"""
             CREATE TEMPORARY TABLE tmp AS
             SELECT *
                 FROM (
                 {sql}
                 )
-            LIMIT 1;
+             LIMIT 1 OFFSET 0;
         """
         conn.execute(sql)
         conn.commit()
@@ -641,6 +642,10 @@ def st_difference_collection(geom1: bytes, geom2: bytes, keep_geom_type: int = 0
                 shapely.get_parts(geoms_to_subtract),
                 keep_geom_type=keep_geom_type,
             )
+
+        # If an empty result, return None
+        if result is None or result.is_empty:
+            return None
 
         return shapely.to_wkb(result)
     except Exception as ex:

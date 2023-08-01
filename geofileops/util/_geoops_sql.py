@@ -600,10 +600,10 @@ def _single_layer_vector_operation(
             cols = _sqlite_util.get_columns(
                 sql_stmt=sql_tmp, input1_path=processing_params.input1_path
             )
-            cols = [
+            attributes = [
                 col for col in cols if col.lower() != input_layerinfo.geometrycolumn
             ]
-            columns_to_select = _ogr_sql_util.columns_quoted(cols)
+            columns_to_select = _ogr_sql_util.columns_quoted(attributes)
             sql_template = f"""
                 SELECT {gridsize_op} AS {{geometrycolumn}}
                       {columns_to_select}
@@ -663,7 +663,7 @@ def _single_layer_vector_operation(
             max_workers=processing_params.nb_parallel,
             initializer=_processing_util.initialize_worker(),
         ) as calculate_pool:
-            batches = {}
+            batches: dict[int, dict] = {}
             future_to_batch_id = {}
             for batch_id in processing_params.batches:
                 batches[batch_id] = {}
@@ -948,7 +948,7 @@ def erase(
     input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
     sql_template = f"""
         SELECT * FROM
-          ( WITH layer2_unioned AS (
+          ( WITH layer2_collect AS (
               SELECT layer1.rowid AS layer1_rowid
                     ,ST_collect(layer2.{{input2_geometrycolumn}}) AS geom
                 FROM {{input1_databasename}}."{{input1_layer}}" layer1
@@ -971,96 +971,22 @@ def erase(
                  --       layer2.{{input2_geometrycolumn}}) = 0
                GROUP BY layer1.rowid
             )
-            SELECT ST_GeomFromWKB(
-                        ST_Difference_Collection(
-                            ST_AsBinary(layer1.{{input1_geometrycolumn}}),
-                            ST_AsBinary(layer2_unioned.geom),
-                            1)) AS geom
+            SELECT IIF(layer2_collect.geom IS NULL,
+                       layer1.{{input1_geometrycolumn}},
+                       ST_GeomFromWKB(
+                            ST_Difference_Collection(
+                                ST_AsBinary(layer1.{{input1_geometrycolumn}}),
+                                ST_AsBinary(layer2_collect.geom),
+                                1))) AS geom
                   {{layer1_columns_prefix_alias_str}}
               FROM {{input1_databasename}}."{{input1_layer}}" layer1
-              LEFT JOIN layer2_unioned ON layer1.rowid = layer2_unioned.layer1_rowid
+              LEFT JOIN layer2_collect ON layer1.rowid = layer2_collect.layer1_rowid
              WHERE 1=1
                {{batch_filter}}
             LIMIT -1 OFFSET 0
           )
          WHERE geom IS NOT NULL
     """
-
-    '''
-    sql_template = f"""
-        SELECT * FROM
-          (
-              SELECT layer1.rowid AS layer1_rowid
-                    ,ST_CollectionExtract(
-                            ST_GeomFromWKB(
-                                ST_difference_agg(
-                                    ST_AsBinary(layer1.{{input1_geometrycolumn}}),
-                                    ST_AsBinary(layer2.{{input2_geometrycolumn}}))),
-                            {primitivetypeid}) AS geom
-                    {{layer1_columns_prefix_alias_str}}
-                FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
-                  ON layer1.fid = layer1tree.id
-                JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
-                  ON layer2.fid = layer2tree.id
-               WHERE 1=1
-                 {{batch_filter}}
-                 AND layer1tree.minx <= layer2tree.maxx
-                 AND layer1tree.maxx >= layer2tree.minx
-                 AND layer1tree.miny <= layer2tree.maxy
-                 AND layer1tree.maxy >= layer2tree.miny
-                 --AND ST_Intersects(
-                 --       layer1.{{input1_geometrycolumn}},
-                 --       layer2.{{input2_geometrycolumn}}) = 1
-                 --AND ST_Touches(
-                 --       layer1.{{input1_geometrycolumn}},
-                 --       layer2.{{input2_geometrycolumn}}) = 0
-               GROUP BY layer1.rowid
-          )
-         WHERE geom IS NOT NULL
-           AND ST_NPoints(geom) > 0
-           -- ST_CollectionExtract outputs empty, but not NULL geoms in spatialite 4.3
-    """
-
-    sql_template = f"""
-        SELECT * FROM
-          (
-              SELECT layer1.rowid AS layer1_rowid
-                    ,ST_CollectionExtract(
-                            ST_GeomFromWKB(
-                                ST_difference_all(
-                                    ST_AsBinary(layer1.{{input1_geometrycolumn}}),
-                                    ST_AsBinary(
-                                        ST_collect(layer2.{{input2_geometrycolumn}})),
-                                    1)),
-                            {primitivetypeid}) AS geom
-                    {{layer1_columns_prefix_alias_str}}
-                FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
-                  ON layer1.fid = layer1tree.id
-                JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
-                  ON layer2.fid = layer2tree.id
-               WHERE 1=1
-                 {{batch_filter}}
-                 AND layer1tree.minx <= layer2tree.maxx
-                 AND layer1tree.maxx >= layer2tree.minx
-                 AND layer1tree.miny <= layer2tree.maxy
-                 AND layer1tree.maxy >= layer2tree.miny
-                 --AND ST_Intersects(
-                 --       layer1.{{input1_geometrycolumn}},
-                 --       layer2.{{input2_geometrycolumn}}) = 1
-                 --AND ST_Touches(
-                 --       layer1.{{input1_geometrycolumn}},
-                 --       layer2.{{input2_geometrycolumn}}) = 0
-               GROUP BY layer1.rowid
-          )
-         WHERE geom IS NOT NULL
-           AND ST_NPoints(geom) > 0
-           -- ST_CollectionExtract outputs empty, but not NULL geoms in spatialite 4.3
-    """
-    '''
 
     # Go!
     return _two_layer_vector_operation(
@@ -2253,10 +2179,16 @@ def _two_layer_vector_operation(
             batch_filter="{batch_filter}",
         )
 
-        column_datatypes = None
         # Determine column names and types based on sql statement
+        column_datatypes = None
+        # Use first batch_filter to improve performance
+        sql_stmt = sql_template.format(
+            input1_databasename="{input1_databasename}",
+            input2_databasename="{input2_databasename}",
+            batch_filter=processing_params.batches[0]["batch_filter"],
+        )
         column_datatypes = _sqlite_util.get_columns(
-            sql_stmt=sql_template,
+            sql_stmt=sql_stmt,
             input1_path=processing_params.input1_path,
             input2_path=processing_params.input2_path,
         )
@@ -2278,13 +2210,17 @@ def _two_layer_vector_operation(
                 gridsize_op = f"ST_CollectionExtract({gridsize_op}, {primitivetypeid})"
 
             # All columns need to be specified
+            # Remark:
+            # - use "LIMIT -1 OFFSET 0" to avoid the subquery flattening. Flattening
+            #   "geom IS NOT NULL" leads to ST_Difference_Collection calculated double!
             cols = [col for col in column_datatypes if col.lower() != "geom"]
             columns_to_select = _ogr_sql_util.columns_quoted(cols)
             sql_template = f"""
                 SELECT {gridsize_op} AS geom
                         {columns_to_select}
-                    FROM ( {sql_template}
-                    ) sub_gridsize
+                  FROM ( {sql_template}
+                  ) sub_gridsize
+                 LIMIT -1 OFFSET 0
             """
 
         # Prepare/apply where parameter
@@ -2297,7 +2233,8 @@ def _two_layer_vector_operation(
                 SELECT * FROM
                     ( {sql_template}
                     )
-                    WHERE {where}
+                 WHERE {where}
+                 LIMIT -1 OFFSET 0
             """
             # Where has been applied already so set to None.
             where = None
@@ -2317,7 +2254,7 @@ def _two_layer_vector_operation(
             initializer=_processing_util.initialize_worker(),
         ) as calculate_pool:
             # Start looping
-            batches = {}
+            batches: dict[int, dict] = {}
             future_to_batch_id = {}
             for batch_id in processing_params.batches:
                 batches[batch_id] = {}
@@ -2461,7 +2398,7 @@ def calculate_two_layers(
     sql_stmt: str,
     output_layer: str,
     explodecollections: bool,
-    force_output_geometrytype: GeometryType,
+    force_output_geometrytype: Optional[GeometryType],
     create_spatial_index: bool,
     column_datatypes: dict,
     use_ogr: bool,
@@ -2675,7 +2612,7 @@ def _prepare_processing_params(
     if nb_batches > int(nb_rows_input_layer / 10):
         nb_batches = max(int(nb_rows_input_layer / 10), 1)
 
-    batches = {}
+    batches: dict[int, dict] = {}
     if nb_batches == 1:
         # If only one batch, no filtering is needed
         batches[0] = {}
