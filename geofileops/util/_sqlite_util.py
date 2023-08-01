@@ -10,7 +10,7 @@ from pathlib import Path
 import shutil
 import sqlite3
 import tempfile
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import pygeoops
 from pygeoops import _difference as difference
@@ -100,7 +100,7 @@ def get_columns(
     empty_output_ok: bool = True,
     use_spatialite: bool = True,
     output_geometrytype: Optional[str] = None,
-) -> dict[str, str]:
+) -> Dict[str, str]:
     # Create temp output db to be sure the output DB is writable, even though we only
     # create a temporary table.
     tmp_dir = Path(tempfile.mkdtemp(prefix="geofileops/get_columns_"))

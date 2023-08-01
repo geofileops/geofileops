@@ -13,7 +13,7 @@ import multiprocessing
 from pathlib import Path
 import shutil
 import string
-from typing import Iterable, List, Literal, Optional, Union
+from typing import Dict, Iterable, List, Literal, Optional, Union
 import warnings
 
 import pandas as pd
@@ -663,7 +663,7 @@ def _single_layer_vector_operation(
             max_workers=processing_params.nb_parallel,
             initializer=_processing_util.initialize_worker(),
         ) as calculate_pool:
-            batches: dict[int, dict] = {}
+            batches: Dict[int, dict] = {}
             future_to_batch_id = {}
             for batch_id in processing_params.batches:
                 batches[batch_id] = {}
@@ -2254,7 +2254,7 @@ def _two_layer_vector_operation(
             initializer=_processing_util.initialize_worker(),
         ) as calculate_pool:
             # Start looping
-            batches: dict[int, dict] = {}
+            batches: Dict[int, dict] = {}
             future_to_batch_id = {}
             for batch_id in processing_params.batches:
                 batches[batch_id] = {}
@@ -2612,7 +2612,7 @@ def _prepare_processing_params(
     if nb_batches > int(nb_rows_input_layer / 10):
         nb_batches = max(int(nb_rows_input_layer / 10), 1)
 
-    batches: dict[int, dict] = {}
+    batches: Dict[int, dict] = {}
     if nb_batches == 1:
         # If only one batch, no filtering is needed
         batches[0] = {}
