@@ -13,7 +13,7 @@ dependencies:
   - pandas =1.1  # released 2020-06-28
   - psutil
   #- pygeoops >=0.2,<0.3
-  - pygeos
+  #- pygeos
   - pyogrio =0.5.1  # released 2023-01-26
   - pyproj =3.4  # released 2022-09-10
   - shapely >=2,<2.1  # released 2022-12-12
