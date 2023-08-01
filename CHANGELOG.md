@@ -32,7 +32,7 @@
 
 ### Deprecations and compatibility notes
 
-- Drop support for shapely1! (#329)
+- Drop support for shapely1 and pygeos (#329)
 - `makevalid` parameter `precision` is renamed to `gridsize` as this is the typical
   terminology in other libraries (#273)
 - `keep_empty_geoms` parameters are added with default value `False` for most operations
