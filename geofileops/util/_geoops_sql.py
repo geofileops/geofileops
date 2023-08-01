@@ -2660,9 +2660,10 @@ def _prepare_processing_params(
         else:
             # The rowids are not consecutive, so determine the optimal rowid
             # ranges for each batch so each batch has same number of elements
-            # Remark: this might take some seconds for larger datasets!
+            # Remark: - this might take some seconds for larger datasets!
+            #         - (batch_id - 1) AS id to make the id zero-based
             sql_stmt = f"""
-                SELECT batch_id AS id
+                SELECT (batch_id - 1) AS id
                       ,COUNT(*) AS nb_rows
                       ,MIN(rowid) AS start_rowid
                       ,MAX(rowid) AS end_rowid
