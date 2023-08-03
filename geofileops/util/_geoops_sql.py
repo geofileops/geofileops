@@ -946,6 +946,98 @@ def erase(
     #   - Not relevant anymore, but ST_difference(geometry , NULL) gives NULL as result
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
     input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
+
+    # Template using aggregate function for the difference: slow for polygons with many
+    # overlaps as it seems only +- 40 aggregate python (empty) calls can be ran /s.
+    sql_template = f"""
+        SELECT * FROM
+          ( WITH layer1_diff_layer2 AS (
+              SELECT layer1.rowid AS layer1_rowid
+                    ,ST_GeomFromWKB(
+                        ST_difference_agg(
+                            ST_AsBinary(layer1.{{input1_geometrycolumn}}),
+                            ST_AsBinary(layer2.{{input2_geometrycolumn}}),
+                            1)
+                     ) AS geom
+                FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                  ON layer1.fid = layer1tree.id
+                JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                  ON layer2.fid = layer2tree.id
+               WHERE 1=1
+                 {{batch_filter}}
+                 AND layer1tree.minx <= layer2tree.maxx
+                 AND layer1tree.maxx >= layer2tree.minx
+                 AND layer1tree.miny <= layer2tree.maxy
+                 AND layer1tree.maxy >= layer2tree.miny
+                 --AND ST_Intersects(
+                 --       layer1.{{input1_geometrycolumn}},
+                 --       layer2.{{input2_geometrycolumn}}) = 1
+                 --AND ST_Touches(
+                 --       layer1.{{input1_geometrycolumn}},
+                 --       layer2.{{input2_geometrycolumn}}) = 0
+               GROUP BY layer1.rowid
+            )
+            SELECT IIF(layer1_diff_layer2.layer1_rowid IS NOT NULL,
+                       layer1.{{input1_geometrycolumn}},
+                       layer1_diff_layer2.geom) AS geom
+                  {{layer1_columns_prefix_alias_str}}
+              FROM {{input1_databasename}}."{{input1_layer}}" layer1
+              LEFT JOIN layer1_diff_layer2
+                ON layer1.rowid = layer1_diff_layer2.layer1_rowid
+             WHERE 1=1
+               {{batch_filter}}
+            LIMIT -1 OFFSET 0
+          )
+         WHERE geom IS NOT NULL
+    """
+
+    #
+    sql_template = f"""
+        SELECT * FROM
+          ( WITH layer1_diff_layer2 AS (
+              SELECT layer1.rowid AS layer1_rowid
+                    ,ST_GeomFromWKB(
+                        ST_Difference_Collection(
+                            ST_AsBinary(layer1.{{input1_geometrycolumn}}),
+                            ST_AsBinary(ST_Collect(layer2.{{input2_geometrycolumn}})),
+                            1)) AS geom
+                FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                  ON layer1.fid = layer1tree.id
+                JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                  ON layer2.fid = layer2tree.id
+               WHERE 1=1
+                 {{batch_filter}}
+                 AND layer1tree.minx <= layer2tree.maxx
+                 AND layer1tree.maxx >= layer2tree.minx
+                 AND layer1tree.miny <= layer2tree.maxy
+                 AND layer1tree.maxy >= layer2tree.miny
+                 --AND ST_Intersects(
+                 --       layer1.{{input1_geometrycolumn}},
+                 --       layer2.{{input2_geometrycolumn}}) = 1
+                 --AND ST_Touches(
+                 --       layer1.{{input1_geometrycolumn}},
+                 --       layer2.{{input2_geometrycolumn}}) = 0
+               GROUP BY layer1.rowid
+            )
+            SELECT IIF(layer1_diff_layer2.layer1_rowid IS NOT NULL,
+                       layer1.{{input1_geometrycolumn}},
+                       layer1_diff_layer2.geom) AS geom
+                  {{layer1_columns_prefix_alias_str}}
+              FROM {{input1_databasename}}."{{input1_layer}}" layer1
+              LEFT JOIN layer1_diff_layer2
+                ON layer1.rowid = layer1_diff_layer2.layer1_rowid
+             WHERE 1=1
+               {{batch_filter}}
+            LIMIT -1 OFFSET 0
+          )
+         WHERE geom IS NOT NULL
+    """
+
+    # Original template
     sql_template = f"""
         SELECT * FROM
           ( WITH layer2_collect AS (
@@ -983,9 +1075,197 @@ def erase(
               LEFT JOIN layer2_collect ON layer1.rowid = layer2_collect.layer1_rowid
              WHERE 1=1
                {{batch_filter}}
-            LIMIT -1 OFFSET 0
+             LIMIT -1 OFFSET 0
           )
          WHERE geom IS NOT NULL
+    """
+
+    # Original template
+    sql_template = f"""
+        SELECT * FROM
+          ( WITH layer2_collect AS (
+              SELECT layer1.rowid AS layer1_rowid
+                    ,ST_collect(layer2.{{input2_geometrycolumn}}) AS geom
+                FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                  ON layer1.fid = layer1tree.id
+                JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                  ON layer2.fid = layer2tree.id
+               WHERE 1=1
+                 {{batch_filter}}
+                 AND layer1tree.minx <= layer2tree.maxx
+                 AND layer1tree.maxx >= layer2tree.minx
+                 AND layer1tree.miny <= layer2tree.maxy
+                 AND layer1tree.maxy >= layer2tree.miny
+                 --AND ST_Intersects(
+                 --       layer1.{{input1_geometrycolumn}},
+                 --       layer2.{{input2_geometrycolumn}}) = 1
+                 --AND ST_Touches(
+                 --       layer1.{{input1_geometrycolumn}},
+                 --       layer2.{{input2_geometrycolumn}}) = 0
+               GROUP BY layer1.rowid
+               LIMIT -1 OFFSET 0
+            )
+            SELECT ST_GeomFromWKB(ST_Difference_Collection(
+                        ST_AsBinary(layer1.{{input1_geometrycolumn}}),
+                        ST_AsBinary(layer2_collect.geom),
+                        1)) AS geom
+                  {{layer1_columns_prefix_alias_str}}
+              FROM {{input1_databasename}}."{{input1_layer}}" layer1
+              LEFT JOIN layer2_collect ON layer1.rowid = layer2_collect.layer1_rowid
+             WHERE 1=1
+               {{batch_filter}}
+             LIMIT -1 OFFSET 0
+          )
+         WHERE geom IS NOT NULL
+    """
+
+    # Inlinen van de with -> TRAAG
+    sql_template = f"""
+        SELECT * FROM
+          ( WITH layer1_diff_layer2 AS (
+              SELECT layer1_sub.rowid AS layer1_rowid
+                    ,IFNULL(
+                                ST_GeomFromWKB(ST_Difference_Collection(
+                                    ST_AsBinary(layer1_sub.{{input1_geometrycolumn}}),
+                                    ST_AsBinary(ST_Collect(
+                                        layer2_sub.{{input2_geometrycolumn}})),
+                                    1)),
+                                'EMPTY_DIFF'
+                            ) AS geom
+                FROM {{input1_databasename}}."{{input1_layer}}" layer1_sub
+                JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                  ON layer1_sub.fid = layer1tree.id
+                JOIN {{input2_databasename}}."{{input2_layer}}" layer2_sub
+                JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                  ON layer2_sub.fid = layer2tree.id
+               WHERE 1=1
+                 AND layer1tree.minx <= layer2tree.maxx
+                 AND layer1tree.maxx >= layer2tree.minx
+                 AND layer1tree.miny <= layer2tree.maxy
+                 AND layer1tree.maxy >= layer2tree.miny
+                 --AND ST_Intersects(
+                 --       layer1.{{input1_geometrycolumn}},
+                 --       layer2.{{input2_geometrycolumn}}) = 1
+                 --AND ST_Touches(
+                 --       layer1.{{input1_geometrycolumn}},
+                 --       layer2.{{input2_geometrycolumn}}) = 0
+               GROUP BY layer1_sub.rowid
+               -- LIMIT -1 OFFSET 0
+            )
+            SELECT IFNULL(
+                     ( SELECT geom FROM layer1_diff_layer2
+                        WHERE layer1_diff_layer2.layer1_rowid = layer1.rowid
+                        LIMIT -1 OFFSET 0
+                     ),
+                     layer1.geom
+                   ) AS geom
+                  {{layer1_columns_prefix_alias_str}}
+              FROM {{input1_databasename}}."{{input1_layer}}" layer1
+             WHERE 1=1
+               {{batch_filter}}
+             LIMIT -1 OFFSET 0
+          )
+         WHERE geom IS NOT NULL
+           AND geom <> 'EMPTY_DIFF'
+    """
+
+    # Prepare sql template
+    # - Calculate difference in correlated subquery in SELECT clause
+    # - Using a WITH with a GROUP BY on layer1.rowid was a few % faster, but this
+    #   processed the entire batch in memory so used > 10 * more memory. E.g. for one
+    #   test file 4-7 GB per process versus 70-700 MB). For another: crash.
+    # - Specify return_empty=1, to have ST_Difference_Collection returns an empty
+    #   geometry (not NULL) if the difference results in an empty result. With the
+    #   combination of the IFNULL we know this way whether the subquery is not giving a
+    #   result (no match with spatial index) or if the difference results in an empty
+    #   geometry.
+    sql_template = f"""
+        SELECT * FROM (
+          SELECT IFNULL(
+                   ( SELECT ST_GeomFromWKB(ST_Difference_Collection(
+                                ST_AsBinary(layer1_sub.{{input1_geometrycolumn}}),
+                                ST_AsBinary(ST_Collect(
+                                    layer2_sub.{{input2_geometrycolumn}})),
+                                1,
+                                1)
+                            ) AS geom_diff
+                       FROM {{input1_databasename}}."{{input1_layer}}" layer1_sub
+                       JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                         ON layer1_sub.fid = layer1tree.id
+                       JOIN {{input2_databasename}}."{{input2_layer}}" layer2_sub
+                       JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                         ON layer2_sub.fid = layer2tree.id
+                      WHERE 1=1
+                        AND layer1_sub.rowid = layer1.rowid
+                        AND layer1tree.minx <= layer2tree.maxx
+                        AND layer1tree.maxx >= layer2tree.minx
+                        AND layer1tree.miny <= layer2tree.maxy
+                        AND layer1tree.maxy >= layer2tree.miny
+                      GROUP BY layer1_sub.rowid
+                      LIMIT -1 OFFSET 0
+                   ),
+                   layer1.{{input1_geometrycolumn}}
+                 ) AS geom
+                {{layer1_columns_prefix_alias_str}}
+            FROM {{input1_databasename}}."{{input1_layer}}" layer1
+           WHERE 1=1
+             {{batch_filter}}
+           LIMIT -1 OFFSET 0
+          )
+         WHERE geom IS NOT NULL
+           AND ST_IsEmpty(geom) = 0
+    """
+
+    # Prepare sql template
+    # - Calculate difference in correlated subquery in SELECT clause
+    # - Using a WITH with a GROUP BY on layer1.rowid was a few % faster, but this
+    #   processed the entire batch in memory so used > 10 * more memory. E.g. for one
+    #   test file 4-7 GB per process versus 70-700 MB). For another: crash.
+    # - Check if the result of ST_Difference_Collection is empty (NULL) using IFNULL,
+    #   and if this ois the case set to 'DIFF_EMPTY'. This way we can make the
+    #   distinction whether the subquery is finding a row (no match with spatial index)
+    #   or if the difference results in an empty/NULL geometry.
+    #   Tried to return EMPTY GEOMETRY from ST_Difference_Collection, but it didn't
+    #   work to use spatialite's ST_IsEmpty(geom) = 0 to filter on this for an unclear
+    #   reason.
+    sql_template = f"""
+        SELECT * FROM (
+          SELECT IFNULL(
+                   ( SELECT IFNULL(
+                                ST_GeomFromWKB(ST_Difference_Collection(
+                                    ST_AsBinary(layer1_sub.{{input1_geometrycolumn}}),
+                                    ST_AsBinary(ST_Collect(
+                                        layer2_sub.{{input2_geometrycolumn}})),
+                                    1)),
+                                'DIFF_EMPTY'
+                            ) AS diff_geom
+                       FROM {{input1_databasename}}."{{input1_layer}}" layer1_sub
+                       JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                         ON layer1_sub.fid = layer1tree.id
+                       JOIN {{input2_databasename}}."{{input2_layer}}" layer2_sub
+                       JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                         ON layer2_sub.fid = layer2tree.id
+                      WHERE 1=1
+                        AND layer1_sub.rowid = layer1.rowid
+                        AND layer1tree.minx <= layer2tree.maxx
+                        AND layer1tree.maxx >= layer2tree.minx
+                        AND layer1tree.miny <= layer2tree.maxy
+                        AND layer1tree.maxy >= layer2tree.miny
+                      GROUP BY layer1_sub.rowid
+                      LIMIT -1 OFFSET 0
+                   ),
+                   layer1.{{input1_geometrycolumn}}
+                 ) AS geom
+                {{layer1_columns_prefix_alias_str}}
+            FROM {{input1_databasename}}."{{input1_layer}}" layer1
+           WHERE 1=1
+             {{batch_filter}}
+           LIMIT -1 OFFSET 0
+          )
+         WHERE geom IS NOT NULL
+           AND geom <> 'DIFF_EMPTY'
     """
 
     # Go!
