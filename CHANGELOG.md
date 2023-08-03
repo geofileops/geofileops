@@ -12,10 +12,14 @@
 - Add `where` parameter to `gfo.convert` and `gfo.append_to` (#311)
 - Support creating geofile without geometry column using `gfo.select` (#322)
 - Improve performance of `makevalid` and `isvalid` (#258)
-- Improvements to `erase`: for files with very large input geometries, 100x faster + 10x less
-  memory usage (#329, #330)
-- Improvemets to `split`: for files with very large input geometries, 2x faster + 10x less
-  memory usage (#331)
+- Improvements to `erase`: for files with very large input geometries, 100x faster +
+  10x less memory usage. (#329, #330)
+- Several operations are based on `erase` and/or `split` and get benefits from the
+  improvements above:
+  - `symmetric difference`: is fully based on `erase`, so gets the same improvement.
+  - `union`: is based and `erase` and `split`.
+- Improvements to `split`: for files with very large input geometries, 2x faster + 10x less
+  memory usage. Because `split` is also used in ``  (#331)
 - Improve performance of spatial operations when only one batch is used (#271)
 - Add checks that `output_path` must not be equal to the/an `input_path` for geo
   operations (#246)
