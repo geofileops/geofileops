@@ -7,13 +7,13 @@ import sys
 
 import geopandas as gpd
 import numpy as np
+import pygeoops
 import pytest
 import shapely.geometry as sh_geom
 
 import geofileops as gfo
 from geofileops import GeometryType, PrimitiveType
 from geofileops.util import geometry_util
-from geofileops.util import grid_util
 from tests import test_helper
 
 
@@ -483,15 +483,17 @@ def test_simplify_ext_keep_points_on_lang(tmp_path):
     input_gdf = gfo.read_file(input_path)
 
     # Create geometry where we want the points kept
-    grid_gdf = grid_util.create_grid(
-        total_bounds=(
-            210431.875 - 1000,
-            176640.125 - 1000,
-            210431.875 + 1000,
-            176640.125 + 1000,
+    grid_gdf = gpd.GeoDataFrame(
+        geometry=pygeoops.create_grid(
+            total_bounds=(
+                210431.875 - 1000,
+                176640.125 - 1000,
+                210431.875 + 1000,
+                176640.125 + 1000,
+            ),
+            nb_columns=2,
+            nb_rows=2,
         ),
-        nb_columns=2,
-        nb_rows=2,
         crs="epsg:31370",
     )
     gfo.to_file(grid_gdf, tmp_path / "grid.gpkg")
@@ -565,15 +567,17 @@ def test_simplify_ext_keep_points_on_rdp(tmp_path):
     input_gdf = gfo.read_file(input_path)
 
     # Create geometry where we want the points kept
-    grid_gdf = grid_util.create_grid(
-        total_bounds=(
-            210431.875 - 1000,
-            176640.125 - 1000,
-            210431.875 + 1000,
-            176640.125 + 1000,
+    grid_gdf = gpd.GeoDataFrame(
+        geometry=pygeoops.create_grid(
+            total_bounds=(
+                210431.875 - 1000,
+                176640.125 - 1000,
+                210431.875 + 1000,
+                176640.125 + 1000,
+            ),
+            nb_columns=2,
+            nb_rows=2,
         ),
-        nb_columns=2,
-        nb_rows=2,
         crs="epsg:31370",
     )
     gfo.to_file(grid_gdf, tmp_path / "grid.gpkg")
@@ -641,15 +645,17 @@ def test_simplify_ext_keep_points_on_vw(tmp_path):
     input_gdf = gfo.read_file(input_path)
 
     # Create geometry where we want the points kept
-    grid_gdf = grid_util.create_grid(
-        total_bounds=(
-            210431.875 - 1000,
-            176640.125 - 1000,
-            210431.875 + 1000,
-            176640.125 + 1000,
+    grid_gdf = gpd.GeoDataFrame(
+        geometry=pygeoops.create_grid(
+            total_bounds=(
+                210431.875 - 1000,
+                176640.125 - 1000,
+                210431.875 + 1000,
+                176640.125 + 1000,
+            ),
+            nb_columns=2,
+            nb_rows=2,
         ),
-        nb_columns=2,
-        nb_rows=2,
         crs="epsg:31370",
     )
     gfo.to_file(grid_gdf, tmp_path / "grid.gpkg")

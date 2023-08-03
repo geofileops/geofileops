@@ -10,6 +10,7 @@ from typing import List, Optional, Union
 
 import geopandas as gpd
 import numpy as np
+from pygeoops import GeometryType, PrimitiveType
 import pyproj
 import shapely.coords as sh_coords
 import shapely.geometry as sh_geom
@@ -59,6 +60,7 @@ class BufferEndCapStyle(enum.Enum):
 #####################################################################
 
 
+'''
 class GeometryType(enum.Enum):
     """
     Enumeration of the different geometry types.
@@ -220,6 +222,7 @@ class PrimitiveType(enum.Enum):
             return GeometryType.POLYGON
         else:
             raise Exception(f"no singletype implemented for: {self}")
+'''
 
 
 def collection_extract(
