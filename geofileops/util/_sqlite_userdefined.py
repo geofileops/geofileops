@@ -42,11 +42,11 @@ def st_difference_collection(
     # Extract wkb's, and return if empty
     geom = shapely.from_wkb(geom_wkb)
     if geom.is_empty:
-        return geom
-    del geom_wkb
+        return geom_wkb
     geoms_to_subtract = shapely.from_wkb(geom_to_subtract_wkb)
     if geoms_to_subtract.is_empty:
-        return geom
+        return geom_wkb
+    del geom_wkb
     del geom_to_subtract_wkb
 
     # Check and convert booleanish int inputs to bool.
