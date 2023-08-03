@@ -11,7 +11,15 @@
 - Add `where` parameter to many two layer spatial operations (#312)
 - Add `where` parameter to `gfo.convert` and `gfo.append_to` (#311)
 - Support creating geofile without geometry column using `gfo.select` (#322)
-- Improve performance of makevalid and isvalid (#258)
+- Improve performance of `makevalid` and `isvalid` (#258)
+- Improvements to `erase`: for files with very large input geometries, 100x faster +
+  10x less memory usage. (#329, #330)
+- Several operations are based on `erase` and/or `split` and get benefits from the
+  improvements above:
+  - `symmetric difference`: is fully based on `erase`, so gets the same improvement.
+  - `union`: is based and `erase` and `split`.
+- Improvements to `split`: for files with very large input geometries, 2x faster + 10x less
+  memory usage. Because `split` is also used in ``  (#331)
 - Improve performance of spatial operations when only one batch is used (#271)
 - Add checks that `output_path` must not be equal to the/an `input_path` for geo
   operations (#246)
@@ -31,6 +39,7 @@
 
 ### Deprecations and compatibility notes
 
+- Drop support for shapely1 and pygeos (#329)
 - `makevalid` parameter `precision` is renamed to `gridsize` as this is the typical
   terminology in other libraries (#273)
 - `keep_empty_geoms` parameters are added with default value `False` for most operations
