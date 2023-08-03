@@ -665,9 +665,11 @@ def test_simplify(
     "algorithm",
     [
         "lang",
+        "lang+",
         "rdp",
         "vw",
         geoops.SimplifyAlgorithm.LANG,
+        geoops.SimplifyAlgorithm.LANGP,
         geoops.SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER,
         geoops.SimplifyAlgorithm.VISVALINGAM_WHYATT,
     ],
