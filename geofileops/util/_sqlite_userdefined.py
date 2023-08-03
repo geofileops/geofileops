@@ -1,10 +1,11 @@
-import datetime
+# import datetime
 from typing import Optional
 import shapely
 from shapely.geometry.base import BaseMultipartGeometry
 import pygeoops
-from pygeoops import _difference as difference
-from pygeoops import _paramvalidation as paramvalidation
+
+# from pygeoops import _difference as difference
+# from pygeoops import _paramvalidation as paramvalidation
 
 
 def st_difference_collection(
@@ -78,6 +79,7 @@ def st_difference_collection(
         return None
 
 
+"""
 class DifferenceAgg:
     def __init__(self):
         self.init_todo = True
@@ -174,6 +176,7 @@ class DifferenceAgg:
                 file.write(f"self.progress: {self.step_count}, {nb_steps_per_sec}/s\n")
             self.steps_last_progress = self.step_count
             self.last_progress = now
+"""
 
 
 def _int2bool(value: int, variable_name: str) -> bool:
