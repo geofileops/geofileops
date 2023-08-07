@@ -4,6 +4,7 @@ Module containing utilities regarding operations on geoseries.
 
 import logging
 from typing import List, Optional
+import warnings
 
 import geopandas as gpd
 import geopandas._compat as gpd_compat
@@ -307,6 +308,13 @@ def simplify_ext(
     Returns:
         gpd.GeoSeries: the simplified geoseries
     """
+    warnings.warn(
+        "simplify_ext in geofileops is deprecated and was moved to pygeoops.simplify. "
+        "simplify_ext will be removed in a future version of geofileops.",
+        FutureWarning,
+        stacklevel=2,
+    )
+
     # If ramer-douglas-peucker and no keep_points_on, use standard geopandas algorithm
     if algorithm is SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER and keep_points_on is None:
         return geoseries.simplify(tolerance=tolerance, preserve_topology=True)
