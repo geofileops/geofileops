@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Module containing the implementation of Geofile operations using GeoPandas.
 """
@@ -93,10 +92,10 @@ class ParallelizationConfig:
             self.bytes_usable = bytes_usable
 
 
-parallelizationParams = NamedTuple(
-    "result",
-    [("nb_parallel", int), ("nb_batches_recommended", int), ("nb_rows_per_batch", int)],
-)
+class parallelizationParams(NamedTuple):
+    nb_parallel: int
+    nb_batches_recommended: int
+    nb_rows_per_batch: int
 
 
 def get_parallelization_params(
