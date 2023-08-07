@@ -61,7 +61,7 @@ def test_apply(tmp_path, suffix, only_geom_input, gridsize, keep_empty_geoms, wh
         gfo.apply(
             input_path=input_path,
             output_path=output_path,
-            func=lambda geom: geometry_util.remove_inner_rings(
+            func=lambda geom: pygeoops.remove_inner_rings(
                 geometry=geom, min_area_to_keep=2, crs=input_layerinfo.crs
             ),
             only_geom_input=True,
@@ -74,7 +74,7 @@ def test_apply(tmp_path, suffix, only_geom_input, gridsize, keep_empty_geoms, wh
         gfo.apply(
             input_path=input_path,
             output_path=output_path,
-            func=lambda row: geometry_util.remove_inner_rings(
+            func=lambda row: pygeoops.remove_inner_rings(
                 row.geometry, min_area_to_keep=2, crs=input_layerinfo.crs
             ),
             only_geom_input=False,
@@ -149,7 +149,7 @@ def test_apply_None(tmp_path, suffix, only_geom_input, force_output_geometrytype
         gfo.apply(
             input_path=input_path,
             output_path=output_path,
-            func=lambda geom: geometry_util.remove_inner_rings(
+            func=lambda geom: pygeoops.remove_inner_rings(
                 geometry=geom, min_area_to_keep=2, crs=input_layerinfo.crs
             ),
             only_geom_input=True,
@@ -160,7 +160,7 @@ def test_apply_None(tmp_path, suffix, only_geom_input, force_output_geometrytype
         gfo.apply(
             input_path=input_path,
             output_path=output_path,
-            func=lambda row: geometry_util.remove_inner_rings(
+            func=lambda row: pygeoops.remove_inner_rings(
                 row.geometry, min_area_to_keep=2, crs=input_layerinfo.crs
             ),
             only_geom_input=False,
