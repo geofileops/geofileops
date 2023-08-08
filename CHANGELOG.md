@@ -10,6 +10,7 @@
   (#262)
 - Add `where` parameter to many two layer spatial operations (#312)
 - Add `where` parameter to `gfo.convert` and `gfo.append_to` (#311)
+- Add support for lang+ algorithm in `gfo.simplify` (#334)
 - Support creating geofile without geometry column using `gfo.select` (#322)
 - Improve performance of `makevalid` and `isvalid` (#258)
 - Improvements to `erase`: for files with very large input geometries, 100x faster +
