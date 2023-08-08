@@ -9,26 +9,15 @@ from typing import List, Optional, Union
 
 import geopandas as gpd
 import numpy as np
+import pygeoops
+from pygeoops import GeometryType, PrimitiveType
 import pyproj
 import shapely.coords as sh_coords
 import shapely.geometry as sh_geom
-import shapely.ops as sh_ops
 import shapely.validation
-
-
-#####################################################################
-# First define/init some general variables/constants
-#####################################################################
-
 
 # Get a logger...
 logger = logging.getLogger(__name__)
-# logger.setLevel(logging.DEBUG)
-
-
-#####################################################################
-# Buffer helpers
-#####################################################################
 
 
 class BufferJoinStyle(enum.Enum):
@@ -53,172 +42,14 @@ class BufferEndCapStyle(enum.Enum):
     SQUARE = 3
 
 
-#####################################################################
-# Geometry helpers
-#####################################################################
-
-
-class GeometryType(enum.Enum):
+class SimplifyAlgorithm(enum.Enum):
     """
-    Enumeration of the different geometry types.
+    Enumeration of the supported simplification algorythms.
     """
 
-    MISSING = -1
-    GEOMETRY = 0
-    POINT = 1
-    LINESTRING = 2
-    POLYGON = 3
-    MULTIPOINT = 4
-    MULTILINESTRING = 5
-    MULTIPOLYGON = 6
-    GEOMETRYCOLLECTION = 7
-
-    @classmethod
-    def _missing_(cls, value: Union[str, int]):
-        """
-        Expand options in the Geometrytype() constructor.
-
-        Args:
-            value (Union[str, int, GeometryType]):
-                * string: lookup using case insensitive name
-                * GeometryType: create the same GeometryType as the one passed in
-
-        Returns:
-            [GeometryType]: The corresponding GeometryType.
-        """
-        if isinstance(value, str):
-            # If a string is passed in, try lookup based on case insensitive enum name
-            return cls(GeometryType[value.upper()])
-        # Default behaviour (= lookup based on value)
-        return super()._missing_(value)
-
-    @property
-    def name_camelcase(self) -> str:
-        """Get the name in camel case."""
-        if self is GeometryType.POINT:
-            return "Point"
-        elif self is GeometryType.LINESTRING:
-            return "LineString"
-        elif self is GeometryType.POLYGON:
-            return "Polygon"
-        elif self is GeometryType.MULTIPOINT:
-            return "MultiPoint"
-        elif self is GeometryType.MULTILINESTRING:
-            return "MultiLineString"
-        elif self is GeometryType.MULTIPOLYGON:
-            return "MultiPolygon"
-        elif self is GeometryType.GEOMETRYCOLLECTION:
-            return "GeometryCollection"
-        elif self is GeometryType.GEOMETRY:
-            return "Geometry"
-        else:
-            raise ValueError(f"No camelcase name implemented for: {self}")
-
-    @property
-    def is_multitype(self):
-        """Returns if the geometry type is a multi type."""
-        return self in (
-            GeometryType.GEOMETRY,
-            GeometryType.MULTIPOINT,
-            GeometryType.MULTILINESTRING,
-            GeometryType.MULTIPOLYGON,
-            GeometryType.GEOMETRYCOLLECTION,
-        )
-
-    @property
-    def to_multitype(self):
-        """Get the corresponding multitype."""
-        if self in [
-            GeometryType.GEOMETRY,
-            GeometryType.MULTIPOINT,
-            GeometryType.MULTILINESTRING,
-            GeometryType.MULTIPOLYGON,
-            GeometryType.GEOMETRYCOLLECTION,
-        ]:
-            return self
-        elif self is GeometryType.POINT:
-            return GeometryType.MULTIPOINT
-        elif self is GeometryType.LINESTRING:
-            return GeometryType.MULTILINESTRING
-        elif self is GeometryType.POLYGON:
-            return GeometryType.MULTIPOLYGON
-        else:
-            raise Exception(f"No multitype implemented for: {self}")
-
-    @property
-    def to_singletype(self):
-        """Get the corresponding multitype."""
-        if self in [
-            GeometryType.GEOMETRY,
-            GeometryType.POINT,
-            GeometryType.LINESTRING,
-            GeometryType.POLYGON,
-        ]:
-            return self
-        elif self is GeometryType.MULTIPOINT:
-            return GeometryType.POINT
-        elif self is GeometryType.MULTILINESTRING:
-            return GeometryType.LINESTRING
-        elif self is GeometryType.MULTIPOLYGON:
-            return GeometryType.POLYGON
-        elif GeometryType.GEOMETRYCOLLECTION:
-            return GeometryType.GEOMETRY
-        else:
-            raise Exception(f"No multitype implemented for: {self}")
-
-    @property
-    def to_primitivetype(self):
-        """Get the corresponding primitive type."""
-        if self in [GeometryType.POINT, GeometryType.MULTIPOINT]:
-            return PrimitiveType.POINT
-        elif self in [GeometryType.LINESTRING, GeometryType.MULTILINESTRING]:
-            return PrimitiveType.LINESTRING
-        elif self in [GeometryType.POLYGON, GeometryType.MULTIPOLYGON]:
-            return PrimitiveType.POLYGON
-        elif self in [GeometryType.GEOMETRY, GeometryType.GEOMETRYCOLLECTION]:
-            raise Exception(f"{self} doesn't have a primitive type")
-        else:
-            raise Exception(f"No primitive type implemented for {self}")
-
-
-class PrimitiveType(enum.Enum):
-    """
-    Enumeration of the different existing primitive types of a geometry.
-    """
-
-    POINT = 1
-    LINESTRING = 2
-    POLYGON = 3
-
-    @classmethod
-    def _missing_(cls, value):
-        if isinstance(value, str):
-            return cls(PrimitiveType[value.upper()])
-        return super()._missing_(value)
-
-    @property
-    def to_multitype(self) -> GeometryType:
-        """Get the corresponding multitype."""
-        if self is PrimitiveType.POINT:
-            return GeometryType.MULTIPOINT
-        elif self is PrimitiveType.LINESTRING:
-            return GeometryType.MULTILINESTRING
-        elif self is PrimitiveType.POLYGON:
-            return GeometryType.MULTIPOLYGON
-        else:
-            raise Exception(f"no multitype implemented for: {self}")
-
-    @property
-    def to_singletype(self) -> GeometryType:
-        """Get the corresponding multitype."""
-        if self is PrimitiveType.POINT:
-            return GeometryType.POINT
-        elif self is PrimitiveType.LINESTRING:
-            return GeometryType.LINESTRING
-        elif self is PrimitiveType.POLYGON:
-            return GeometryType.POLYGON
-        else:
-            raise Exception(f"no singletype implemented for: {self}")
+    RAMER_DOUGLAS_PEUCKER = "rdp"
+    LANG = "lang"
+    VISVALINGAM_WHYATT = "vw"
 
 
 def collection_extract(
@@ -335,31 +166,6 @@ def collect(
         raise Exception(f"Unsupported geometry type: {result_collection_type}")
 
 
-"""
-def force_geometrytype(
-        geometry: sh_geom.base.BaseGeometry,
-        dest_geometrytype: GeometryType) -> sh_geom.base.BaseGeometry:
-    # Cast to destination geometrytype
-    if dest_geometrytype is GeometryType.MULTIPOLYGON:
-        gdf.geometry = [sh_geom.MultiPolygon([feature])
-                        if type(feature) == sh_geom.Polygon
-                        else feature for feature in gdf.geometry]
-    elif dest_geometrytype is GeometryType.MULTIPOINT:
-        gdf.geometry = [sh_geom.MultiPoint([feature])
-                        if type(feature) == sh_geom.Point
-                        else feature for feature in gdf.geometry]
-    elif dest_geometrytype is GeometryType.MULTILINESTRING:
-        gdf.geometry = [sh_geom.MultiLineString([feature])
-                        if type(feature) == sh_geom.LineString
-                        else feature for feature in gdf.geometry]
-    elif dest_geometrytype in [
-            GeometryType.POLYGON, GeometryType.POINT, GeometryType.LINESTRING]:
-        logger.debug(f"geometrytype is {dest_geometrytype}, so no conversion is done")
-    else:
-        raise Exception(f"Unsupported geometrytype: {dest_geometrytype}")
-"""
-
-
 def make_valid(
     geometry: Optional[sh_geom.base.BaseGeometry],
 ) -> Optional[sh_geom.base.BaseGeometry]:
@@ -388,24 +194,7 @@ def numberpoints(geometry: Optional[sh_geom.base.BaseGeometry]) -> int:
     Returns:
         int: the number of points in the geometry.
     """
-    # If it is a multi-part, recursively call numberpoints for all parts.
-    if geometry is None:
-        return 0
-    elif isinstance(geometry, sh_geom.base.BaseMultipartGeometry):
-        nb_points = 0
-        for geom in geometry.geoms:
-            nb_points += numberpoints(geom)
-        return nb_points
-    elif isinstance(geometry, sh_geom.Polygon):
-        # If it is a polygon, calculate number for exterior and interior rings.
-        assert geometry.exterior is not None
-        nb_points = len(geometry.exterior.coords)
-        for ring in geometry.interiors:
-            nb_points += len(ring.coords)
-        return nb_points
-    else:
-        # For other types, it is just the number of coordinates.
-        return len(geometry.coords)
+    return shapely.get_num_coordinates(geometry)
 
 
 def remove_inner_rings(
@@ -433,80 +222,9 @@ def remove_inner_rings(
         Union[sh_geom.Polygon, sh_geom.MultiPolygon, None]: the resulting
             (multi)polygon.
     """
-    # If input geom is None, just return.
-    if geometry is None:
-        return None
-
-    # Define function to treat simple polygons
-    def remove_inner_rings_polygon(
-        geom_poly: sh_geom.Polygon,
-        min_area_to_keep: Optional[float] = None,
-        crs: Optional[pyproj.CRS] = None,
-    ) -> sh_geom.Polygon:
-        # If all inner rings need to be removed...
-        if min_area_to_keep is None or min_area_to_keep == 0.0:
-            # If there are no interior rings anyway, just return input
-            if len(geom_poly.interiors) == 0:
-                return geom_poly
-            else:
-                # Else create new polygon with only the exterior ring
-                return sh_ops.Polygon(geom_poly.exterior)
-
-        # If only small rings need to be removed... loop over them
-        ring_coords_to_keep = []
-        small_ring_found = False
-        for ring in geom_poly.interiors:
-            # Calculate area
-            if crs is None:
-                ring_area = sh_ops.Polygon(ring).area
-            elif crs.is_projected is True:
-                ring_area = sh_ops.Polygon(ring).area
-            else:
-                geod = crs.get_geod()
-                assert geod is not None
-                ring_area, ring_perimeter = geod.geometry_area_perimeter(ring)
-
-            # If ring area small, skip it, otherwise keep it
-            if abs(ring_area) <= min_area_to_keep:
-                small_ring_found = True
-            else:
-                ring_coords_to_keep.append(ring.coords)
-
-        # If no small rings were found, just return input
-        if small_ring_found is False:
-            return geom_poly
-        else:
-            assert geom_poly.exterior is not None
-            return sh_ops.Polygon(geom_poly.exterior.coords, ring_coords_to_keep)
-
-    # If the input is a simple Polygon, apply remove on it and return.
-    if isinstance(geometry, sh_geom.Polygon):
-        return remove_inner_rings_polygon(geometry, min_area_to_keep, crs=crs)
-    elif isinstance(geometry, sh_geom.MultiPolygon):
-        # If the input is a MultiPolygon, apply remove on each Polygon in it.
-        polys = []
-        for poly in geometry.geoms:
-            polys.append(remove_inner_rings_polygon(poly, min_area_to_keep, crs=crs))
-        return sh_geom.MultiPolygon(polys)
-    else:
-        raise Exception(
-            f"remove_inner_rings impossible on {geometry.geom_type}: {geometry}"
-        )
-
-
-#####################################################################
-# Simplify helpers
-#####################################################################
-
-
-class SimplifyAlgorithm(enum.Enum):
-    """
-    Enumeration of the supported simplification algorythms.
-    """
-
-    RAMER_DOUGLAS_PEUCKER = "rdp"
-    LANG = "lang"
-    VISVALINGAM_WHYATT = "vw"
+    return pygeoops.remove_inner_rings(
+        geometry=geometry, min_area_to_keep=min_area_to_keep, crs=crs
+    )
 
 
 def simplify_ext(
