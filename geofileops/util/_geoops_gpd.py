@@ -34,6 +34,7 @@ import pandas as pd
 import pygeoops
 import psutil
 
+from pygeoops import GeometryType, PrimitiveType
 import shapely
 import shapely.geometry as sh_geom
 
@@ -45,8 +46,8 @@ from geofileops.util import _io_util
 from geofileops.util import _ogr_util
 from geofileops.helpers import _parameter_helper
 from geofileops.util import _processing_util
-from geofileops.util.geometry_util import GeometryType, PrimitiveType, SimplifyAlgorithm
-from geofileops.util.geometry_util import BufferEndCapStyle, BufferJoinStyle
+from geofileops.util._geometry_util import SimplifyAlgorithm
+from geofileops.util._geometry_util import BufferEndCapStyle, BufferJoinStyle
 
 ################################################################################
 # Some init

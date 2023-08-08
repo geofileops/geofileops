@@ -50,7 +50,11 @@
 - rename and deprecate `convert` to `copy_layer` (#310)
 - removed the long-deprecated `vector_util`, `geofileops.geofile` and
   `geofileops.geofileops` namespaces (#276)
-
+- move the functions in `geometry_util` either to `_geometry_util` to make it clearer
+  they are not public or to `pygeoops` (#)
+- move the functions in `geoseries_util` either to `_geoseries_util`  to make it clearer
+  they are not public or to `pygeoops` (#)
+ 
 ## 0.7.0 (2023-03-17)
 
 ### Improvements
