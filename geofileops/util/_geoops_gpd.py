@@ -29,16 +29,12 @@ import warnings
 
 import cloudpickle
 import geopandas as gpd
-import geopandas._compat as gpd_compat
 import numpy as np
 import pandas as pd
 import pygeoops
 import psutil
 
-if gpd_compat.USE_PYGEOS:
-    import pygeos as shapely2_or_pygeos
-else:
-    import shapely as shapely2_or_pygeos
+import shapely
 import shapely.geometry as sh_geom
 
 import geofileops as gfo
@@ -758,9 +754,7 @@ def _apply_geooperation(
 
     if gridsize != 0.0:
         assert isinstance(data_gdf, gpd.GeoDataFrame)
-        data_gdf.geometry = shapely2_or_pygeos.set_precision(
-            data_gdf.geometry, grid_size=gridsize
-        )
+        data_gdf.geometry = shapely.set_precision(data_gdf.geometry, grid_size=gridsize)
 
     # If the result is empty, and no output geometrytype specified, use input
     # geometrytype
@@ -960,7 +954,7 @@ def dissolve(
         # Apply gridsize tolerance on tiles, otherwise the border polygons can't be
         # unioned properly because gaps appear after rounding coordinates.
         if gridsize != 0.0:
-            result_tiles_gdf.geometry = shapely2_or_pygeos.set_precision(
+            result_tiles_gdf.geometry = shapely.set_precision(
                 result_tiles_gdf.geometry, grid_size=gridsize
             )
         if len(result_tiles_gdf) > 1:
@@ -1038,7 +1032,7 @@ def dissolve(
                 # Apply gridsize tolerance on tiles, otherwise the border polygons can't
                 # be unioned properly because gaps appear after rounding coordinates.
                 if gridsize != 0.0:
-                    tiles_gdf.geometry = shapely2_or_pygeos.set_precision(
+                    tiles_gdf.geometry = shapely.set_precision(
                         tiles_gdf.geometry, grid_size=gridsize
                     )
                 gfo.to_file(tiles_gdf, tempdir / f"output_{pass_id}_tiles.gpkg")
@@ -1664,9 +1658,7 @@ def _dissolve_polygons(
         diss_gdf["tile_id"] = tile_id
 
     if gridsize != 0.0:
-        diss_gdf.geometry = shapely2_or_pygeos.set_precision(
-            diss_gdf.geometry, grid_size=gridsize
-        )
+        diss_gdf.geometry = shapely.set_precision(diss_gdf.geometry, grid_size=gridsize)
 
     # Save the result to destination file(s)
     start_to_file = datetime.now()
