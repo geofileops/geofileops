@@ -21,7 +21,7 @@ setuptools.setup(
         "cloudpickle",
         "fiona",
         "gdal",
-        "geopandas>=0.11,<0.14",
+        "geopandas>=0.12,<0.14",
         "numpy",
         "pandas",
         "psutil",
@@ -29,7 +29,7 @@ setuptools.setup(
         "pyogrio",
         "pyproj",
         "shapely>=2,<2.1",
-        "topojson",
+        "topojson<2",
     ],
     extras_require={"full": ["simplification"]},
     classifiers=[
