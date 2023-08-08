@@ -1681,7 +1681,7 @@ def _dissolve_polygons(
     else:
         # If not, save the polygons on the border seperately
         bbox_lines = pygeoops.explode(
-            shapely2_or_pygeos.boundary(sh_geom.box(bbox[0], bbox[1], bbox[2], bbox[3]))
+            shapely.boundary(sh_geom.box(bbox[0], bbox[1], bbox[2], bbox[3]))
         )
         bbox_lines_gdf = gpd.GeoDataFrame(geometry=bbox_lines, crs=input_gdf.crs)
         onborder_gdf = gpd.sjoin(diss_gdf, bbox_lines_gdf, predicate="intersects")
