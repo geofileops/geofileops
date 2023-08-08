@@ -130,7 +130,7 @@ def harmonize_geometrytypes(
 def is_valid_reason(geoseries: gpd.GeoSeries) -> pd.Series:
     # Get result and keep geoseries indexes
     return pd.Series(
-        data=shapely2_or_pygeos.is_valid_reason(geoseries.array.data),
+        data=shapely2_or_pygeos.is_valid_reason(geoseries.array),
         index=geoseries.index,
     )
 
