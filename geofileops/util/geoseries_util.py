@@ -42,6 +42,14 @@ def geometry_collection_extract(
         [geometry_util.collection_extract(geom, primitivetype) for geom in geoseries])
     """
     # Apply the collection_extract
+    warnings.warn(
+        "geometry_collection_extract in geofileops is deprecated and was moved to "
+        "pygeoops.collection_extract. geometry_collection_extract will be removed in a "
+        "future version of geofileops.",
+        FutureWarning,
+        stacklevel=2,
+    )
+
     geoseries_copy = geoseries.copy()
     for index, geom in geoseries_copy.items():
         geoseries_copy[index] = geometry_util.collection_extract(geom, primitivetype)
@@ -231,6 +239,14 @@ def simplify_topo_ext(
     Returns:
         gpd.GeoSeries: the simplified geoseries
     """
+    warnings.warn(
+        "simplify_topo_ext in geofileops is deprecated and was moved to "
+        "pygeoops.simplify. simplify_topo_ext will be removed in a future version of "
+        "geofileops.",
+        FutureWarning,
+        stacklevel=2,
+    )
+
     try:
         import topojson
         import topojson.ops
