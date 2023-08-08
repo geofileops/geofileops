@@ -38,4 +38,5 @@ class SimplifyAlgorithm(enum.Enum):
 
     RAMER_DOUGLAS_PEUCKER = "rdp"
     LANG = "lang"
+    LANGP = "lang+"
     VISVALINGAM_WHYATT = "vw"
