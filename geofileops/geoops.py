@@ -8,14 +8,15 @@ from pathlib import Path
 from typing import Any, Callable, List, Literal, Optional, Tuple, Union, TYPE_CHECKING
 import warnings
 
+from pygeoops import GeometryType
+
 from geofileops.util import _geoops_gpd
 from geofileops.util import _geoops_sql
 from geofileops.util import _geoops_ogr
-from geofileops.util.geometry_util import (
+from geofileops.util._geometry_util import (
     BufferEndCapStyle,
     BufferJoinStyle,
     SimplifyAlgorithm,
-    GeometryType,
 )
 
 if TYPE_CHECKING:

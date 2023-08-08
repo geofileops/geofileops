@@ -14,7 +14,7 @@ import shapely.geometry as sh_geom
 
 import geofileops as gfo
 from geofileops import GeometryType
-from geofileops.util import geometry_util
+from geofileops.util import _geometry_util
 from geofileops.util import _geoops_gpd as geoops_gpd
 from tests import test_helper
 from tests.test_helper import (
@@ -251,8 +251,8 @@ def test_buffer_styles(tmp_path, suffix, epsg):
         input_path=input_path,
         output_path=output_path,
         distance=distance,
-        endcap_style=geometry_util.BufferEndCapStyle.SQUARE,
-        join_style=geometry_util.BufferJoinStyle.MITRE,
+        endcap_style=_geometry_util.BufferEndCapStyle.SQUARE,
+        join_style=_geometry_util.BufferJoinStyle.MITRE,
         batchsize=batchsize,
     )
 
@@ -1078,7 +1078,7 @@ def test_simplify_lang(tmp_path, suffix, epsg, testfile, gridsize):
         input_path=input_path,
         output_path=output_path,
         tolerance=tolerance,
-        algorithm=geometry_util.SimplifyAlgorithm.LANG,
+        algorithm=_geometry_util.SimplifyAlgorithm.LANG,
         lookahead=8,
         gridsize=gridsize,
         batchsize=batchsize,
@@ -1132,7 +1132,7 @@ def test_simplify_vw(tmp_path, suffix, epsg, testfile, gridsize):
         input_path=input_path,
         output_path=output_path,
         tolerance=tolerance,
-        algorithm=geometry_util.SimplifyAlgorithm.VISVALINGAM_WHYATT,
+        algorithm=_geometry_util.SimplifyAlgorithm.VISVALINGAM_WHYATT,
         gridsize=gridsize,
         batchsize=batchsize,
     )
