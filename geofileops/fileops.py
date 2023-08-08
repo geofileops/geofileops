@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Module with helper functions for geo files.
 """
@@ -23,11 +22,11 @@ from geopandas.io import file as gpd_io_file
 import numpy as np
 from osgeo import gdal
 import pandas as pd
+from pygeoops import GeometryType, PrimitiveType  # noqa: F401
 import pyogrio
 import pyproj
 
-from geofileops.util.geometry_util import GeometryType, PrimitiveType  # noqa: F401
-from geofileops.util import geoseries_util
+from geofileops.util import _geoseries_util
 from geofileops.util import _io_util
 from geofileops.util import _ogr_util
 from geofileops.util import _ogr_sql_util
@@ -1571,7 +1570,7 @@ def _to_file_fiona(
             # doesn't like > 1 type in a layer
             if schema is None or (len(gdf) > 0 and schema["geometry"] != "None"):
                 gdf = gdf.copy()
-                gdf.geometry = geoseries_util.harmonize_geometrytypes(
+                gdf.geometry = _geoseries_util.harmonize_geometrytypes(
                     gdf.geometry, force_multitype=force_multitype
                 )
                 assert isinstance(gdf, gpd.GeoDataFrame)
@@ -2291,7 +2290,7 @@ def copy_layer(
             return
 
     # Convert
-    logger.info(f"Convert {src} to {dst}")
+    logger.info(f"Copy layer from {src} to {dst}")
     _append_to_nolock(
         src,
         dst,

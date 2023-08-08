@@ -39,7 +39,7 @@
 
 ### Deprecations and compatibility notes
 
-- Drop support for shapely1 and pygeos (#329)
+- Drop support for shapely1 (#329, #338)
 - `makevalid` parameter `precision` is renamed to `gridsize` as this is the typical
   terminology in other libraries (#273)
 - `keep_empty_geoms` parameters are added with default value `False` for most operations
@@ -50,7 +50,11 @@
 - rename and deprecate `convert` to `copy_layer` (#310)
 - removed the long-deprecated `vector_util`, `geofileops.geofile` and
   `geofileops.geofileops` namespaces (#276)
-
+- Remove `geometry_util`, `geoseries_util` and `grid_util` (#339):
+   - Most functions were moved to `pygeoops` because they are generally reusable.
+   - Remaining functions are moved either to `_geometry_util` or `_geoseries_util` to
+     make it clearer they are not public.
+ 
 ## 0.7.0 (2023-03-17)
 
 ### Improvements

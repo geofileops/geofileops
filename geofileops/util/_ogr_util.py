@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Module containing utilities regarding the usage of ogr functionalities.
 """
@@ -14,10 +13,10 @@ from threading import Lock
 from typing import List, Literal, Optional, Tuple, Union
 
 from osgeo import gdal
+from pygeoops import GeometryType
 
 import geofileops as gfo
 from geofileops.util.geofiletype import GeofileType
-from geofileops.util.geometry_util import GeometryType
 
 #####################################################################
 # First define/init some general variables/constants
@@ -539,7 +538,7 @@ def _prepare_gdal_options(options: dict, split_by_option_type: bool = False) -> 
     return result
 
 
-class set_config_options(object):
+class set_config_options:
     """
     Context manager to set config options.
 

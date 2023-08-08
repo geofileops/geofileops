@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for functionalities in geofileops.general.
 """
@@ -8,13 +7,13 @@ from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
+from pygeoops import GeometryType
 import pytest
 import shapely.geometry as sh_geom
 
 import geofileops as gfo
 from geofileops import fileops
-from geofileops.util import geoseries_util
-from geofileops.util.geometry_util import GeometryType
+from geofileops.util import _geoseries_util
 from geofileops.util import _io_util
 from tests import test_helper
 from tests.test_helper import SUFFIXES
@@ -1126,9 +1125,9 @@ def test_to_file_geomempty(tmp_path, suffix, engine_setter):
         ]
     )
     # By default, get_geometrytypes ignores the type of empty geometries.
-    test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
+    test_geometrytypes = _geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 1
-    test_geometrytypes_includingempty = geoseries_util.get_geometrytypes(
+    test_geometrytypes_includingempty = _geoseries_util.get_geometrytypes(
         test_gdf.geometry, ignore_empty_geometries=False
     )
     assert len(test_geometrytypes_includingempty) == 2
@@ -1137,7 +1136,7 @@ def test_to_file_geomempty(tmp_path, suffix, engine_setter):
 
     # Now check the result if the data is still the same after being read again
     test_read_gdf = gfo.read_file(output_empty_path)
-    test_read_geometrytypes = geoseries_util.get_geometrytypes(test_read_gdf.geometry)
+    test_read_geometrytypes = _geoseries_util.get_geometrytypes(test_read_gdf.geometry)
     assert len(test_gdf) == len(test_read_gdf)
     if suffix == ".shp":
         # When dataframe with "empty" gemetries is written to shapefile and
@@ -1161,7 +1160,7 @@ def test_to_file_geomnone(tmp_path, suffix, engine_setter):
     test_gdf = gpd.GeoDataFrame(
         geometry=[None, test_helper.TestData.polygon_with_island]
     )
-    test_geometrytypes = geoseries_util.get_geometrytypes(test_gdf.geometry)
+    test_geometrytypes = _geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 1
     output_none_path = tmp_path / f"file_with_nonegeom{suffix}"
     gfo.to_file(test_gdf, output_none_path)
@@ -1178,7 +1177,7 @@ def test_to_file_geomnone(tmp_path, suffix, engine_setter):
     else:
         assert test_file_geometrytype == test_geometrytypes[0]
     # The result type in the geodataframe is also the same as originaly
-    test_read_geometrytypes = geoseries_util.get_geometrytypes(test_read_gdf.geometry)
+    test_read_geometrytypes = _geoseries_util.get_geometrytypes(test_read_gdf.geometry)
     assert len(test_gdf) == len(test_read_gdf)
     assert test_read_geometrytypes == test_geometrytypes
 
@@ -1187,7 +1186,7 @@ def test_to_file_geomnone(tmp_path, suffix, engine_setter):
 def test_to_file_index(tmp_path, points_gdf, suffix, engine_setter):
     """Strongly based on similar test in geopandas."""
 
-    class FileNumber(object):
+    class FileNumber:
         def __init__(self, tmpdir, base, ext):
             self.tmpdir = str(tmpdir)
             self.base = base
@@ -1195,7 +1194,7 @@ def test_to_file_index(tmp_path, points_gdf, suffix, engine_setter):
             self.fileno = 0
 
         def __repr__(self):
-            filename = "{0}{1:02d}.{2}".format(self.base, self.fileno, self.ext)
+            filename = f"{self.base}{self.fileno:02d}.{self.ext}"
             return os.path.join(self.tmpdir, filename)
 
         def __next__(self):
