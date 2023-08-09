@@ -12,6 +12,7 @@
 - Add `where` parameter to `gfo.convert` and `gfo.append_to` (#311)
 - Support creating geofile without geometry column using `gfo.select` (#322)
 - Improve performance of `makevalid` and `isvalid` (#258)
+- Improve performance of `intersection` for large input geometries: 2x faster (#340)
 - Improvements to `erase`: for files with very large input geometries, 100x faster +
   10x less memory usage. (#329, #330)
 - Several operations are based on `erase` and/or `split` and get benefits from the
