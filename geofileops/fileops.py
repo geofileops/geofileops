@@ -976,9 +976,8 @@ def read_file(
         rows (slice, optional): return only the rows specified. For many file formats
             (e.g. Geopackage) this is slow, so using e.g. a where filter instead is
             recommended. Defaults to None, then all rows are returned.
-        where (str, optional): only returns the rows that comply to the filter
-            specified. Filter should be in SQL WHERE syntax in the relevant SQL dialect
-            as explained in the sql_dialect parameter. Defaults to None.
+        where (str, optional): only return the rows that comply to the filter specified.
+            Filter should be in |restricted_where| sql format. Defaults to None.
         sql_stmt (str): sql statement to use. Only supported with "pyogrio" engine.
         sql_dialect (str, optional): Sql dialect used. Options are None, "SQLITE" or
             "OGRSQL". If None, for data sources with explicit SQL support the statement
@@ -997,7 +996,16 @@ def read_file(
 
     Returns:
         gpd.GeoDataFrame: the data read.
-    """
+
+    .. |restricted_where| raw:: html
+
+        <a href="https://ogdi.sourceforge.net/prop/6.2.CapabilitiesMetadata.html#:~:text=qe_format%3Drestricted_where" target="_blank">restricted where</a>
+
+    .. |spatialite_reference_link| raw:: html
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     result_gdf = _read_file_base(
         path=path,
         layer=layer,
