@@ -205,6 +205,7 @@ def _prepare_processing_params(
     input_layer: str,
     nb_parallel: int,
     parallelization_config: Optional[ParallelizationConfig] = None,
+    tmp_dir: Optional[Path] = None,
 ) -> ProcessingParams:
     input_info = gfo.get_layerinfo(input_path, input_layer)
     fid_column = input_info.fid_column if input_info.fid_column != "" else "fid"
@@ -281,7 +282,7 @@ def _prepare_processing_params(
         # Now loop over all batch ranges to build up the necessary filters
         for batch_info in batch_info_df.itertuples():
             # The batch filter
-            if batch_info.batch_id < nb_batches:
+            if batch_info.batch_id < nb_batches - 1:
                 batches.append(
                     f"({fid_column} >= {batch_info.start_fid} "
                     f"AND {fid_column} <= {batch_info.end_fid}) "
@@ -294,6 +295,8 @@ def _prepare_processing_params(
         returnvalue.nb_parallel = len(batches)
 
     returnvalue.batches = batches
+    if tmp_dir is not None:
+        returnvalue.to_json(tmp_dir / "processing_params.json")
     return returnvalue
 
 
@@ -611,8 +614,8 @@ def _apply_geooperation_to_layer(
             where = where.format(geometrycolumn="geom")
 
     # Prepare tmp files
-    tempdir = _io_util.create_tempdir(f"geofileops/{operation.value}")
-    logger.info(f"Start calculation to temp files in {tempdir}")
+    tmp_dir = _io_util.create_tempdir(f"geofileops/{operation.value}")
+    logger.info(f"Start calculation to temp files in {tmp_dir}")
 
     try:
         # Calculate the best number of parallel processes and batches for
@@ -632,6 +635,7 @@ def _apply_geooperation_to_layer(
             input_layer=input_layer,
             nb_parallel=nb_parallel,
             parallelization_config=parallellization_config,
+            tmp_dir=tmp_dir,
         )
         assert processing_params.batches is not None
 
@@ -645,7 +649,7 @@ def _apply_geooperation_to_layer(
             initializer=_processing_util.initialize_worker(),
         ) as calculate_pool:
             # Prepare output filename
-            tmp_output_path = tempdir / output_path.name
+            tmp_output_path = tmp_dir / output_path.name
 
             batches: Dict[int, dict] = {}
             future_to_batch_id = {}
@@ -659,7 +663,7 @@ def _apply_geooperation_to_layer(
                 # Output each batch to a seperate temporary file, otherwise there
                 # are timeout issues when processing large files
                 output_tmp_partial_path = (
-                    tempdir / f"{output_path.stem}_{batch_id}.gpkg"
+                    tmp_dir / f"{output_path.stem}_{batch_id}.gpkg"
                 )
                 batches[batch_id]["tmp_partial_output_path"] = output_tmp_partial_path
                 batches[batch_id]["filter"] = batch_filter
@@ -753,7 +757,7 @@ def _apply_geooperation_to_layer(
             logger.debug(f"Result of {operation} was empty!")
 
     finally:
-        shutil.rmtree(tempdir, ignore_errors=True)
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
     logger.info(f"{operation} ready, took {datetime.now()-start_time_global}!")
 
