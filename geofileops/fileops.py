@@ -976,9 +976,8 @@ def read_file(
         rows (slice, optional): return only the rows specified. For many file formats
             (e.g. Geopackage) this is slow, so using e.g. a where filter instead is
             recommended. Defaults to None, then all rows are returned.
-        where (str, optional): only returns the rows that comply to the filter
-            specified. Filter should be in SQL WHERE syntax in the relevant SQL dialect
-            as explained in the sql_dialect parameter. Defaults to None.
+        where (str, optional): filter returned rows. Only a limited set of the SQL WHERE
+            syntax is supported. Defaults to None.
         sql_stmt (str): sql statement to use. Only supported with "pyogrio" engine.
         sql_dialect (str, optional): Sql dialect used. Options are None, "SQLITE" or
             "OGRSQL". If None, for data sources with explicit SQL support the statement
@@ -1238,7 +1237,7 @@ def _read_file_base_pyogrio(
         skip_features = 0
         max_features = None
     # Arrow doesn't support filtering rows like this
-    use_arrow = True if rows is None else False
+    # use_arrow = True if rows is None else False
 
     # If no sql_stmt specified
     columns_prepared = None
@@ -1278,13 +1277,22 @@ def _read_file_base_pyogrio(
         sql_dialect=sql_dialect,
         read_geometry=not ignore_geometry,
         fid_as_index=fid_as_index,
-        use_arrow=use_arrow,
+        # use_arrow=use_arrow,
     )
 
     # Reorder columns + change casing so they are the same as columns parameter
     if columns_prepared is not None and len(columns_prepared) > 0:
         result_gdf = result_gdf[list(columns_prepared) + ["geometry"]]
         result_gdf = result_gdf.rename(columns=columns_prepared)
+
+    # Cast columns that are of object type, but contain datetime.date or datetime.date
+    # to proper datetime64 columns.
+    if len(result_gdf) > 0:
+        for column in result_gdf.select_dtypes(include=["object"]):
+            if isinstance(
+                result_gdf[column].iloc[0], (datetime.date, datetime.datetime)
+            ):
+                result_gdf[column] = pd.to_datetime(result_gdf[column])
 
     assert isinstance(result_gdf, (gpd.GeoDataFrame, pd.DataFrame))
     return result_gdf
@@ -1508,8 +1516,16 @@ def _to_file_fiona(
     # Shapefile doesn't support datetime columns, so first cast them to string
     if GeofileType(path) == GeofileType.ESRIShapefile:
         gdf = gdf.copy()
+        # Columns that have a proper datetime64 type
         for column in gdf.select_dtypes(include=["datetime64"]):
             gdf[column] = gdf[column].astype(str)
+
+        # Columns that are of object type, but contain datetime.date or datetime.date
+        # type data instead of strings.
+        if len(gdf) > 0:
+            for column in gdf.select_dtypes(include=["object"]):
+                if isinstance(gdf[column][0], (datetime.date, datetime.datetime)):
+                    gdf[column] = gdf[column].astype(str)
 
     # Handle some specific cases where the file schema needs to be manipulated.
     schema = None

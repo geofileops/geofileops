@@ -12,7 +12,6 @@ dependencies:
   - libspatialite >=5.0
   - numpy
   - pandas
-  - pyarrow
   - psutil
   #- pygeoops >=0.3,<0.4
   - pyogrio

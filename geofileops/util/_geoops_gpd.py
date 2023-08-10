@@ -207,6 +207,7 @@ def _prepare_processing_params(
     parallelization_config: Optional[ParallelizationConfig] = None,
 ) -> ProcessingParams:
     input_info = gfo.get_layerinfo(input_path, input_layer)
+    fid_column = input_info.fid_column if input_info.fid_column != "" else "fid"
     nb_parallel, nb_batches, real_batchsize = _get_parallelization_params(
         nb_rows_total=input_info.featurecount,
         nb_parallel=nb_parallel,
@@ -223,72 +224,70 @@ def _prepare_processing_params(
         # If only one batch, no filtering is needed
         batches.append("")
     else:
-        # Determine the min_rowid and max_rowid
-        # Remark: SELECT MIN(rowid), MAX(rowid) FROM ... is a lot slower than UNION ALL!
+        # Determine the min_fid and max_fid
+        # Remark: SELECT MIN(fid), MAX(fid) FROM ... is a lot slower than UNION ALL!
         sql_stmt = f"""
-            SELECT MIN(rowid) minmax_rowid FROM "{input_info.name}"
+            SELECT MIN({fid_column}) minmax_fid FROM "{input_info.name}"
             UNION ALL
-            SELECT MAX(rowid) minmax_rowid FROM "{input_info.name}"
+            SELECT MAX({fid_column}) minmax_fid FROM "{input_info.name}"
         """
-        batch_info_df = gfo.read_file(
-            path=input_path, sql_stmt=sql_stmt, sql_dialect="SQLITE"
-        )
-        min_rowid = pd.to_numeric(batch_info_df["minmax_rowid"][0]).item()
-        max_rowid = pd.to_numeric(batch_info_df["minmax_rowid"][1]).item()
+        batch_info_df = gfo.read_file(path=input_path, sql_stmt=sql_stmt)
+        min_fid = pd.to_numeric(batch_info_df["minmax_fid"][0]).item()
+        max_fid = pd.to_numeric(batch_info_df["minmax_fid"][1]).item()
 
         # Determine the exact batches to use
-        if ((max_rowid - min_rowid) / input_info.featurecount) < 1.1:
-            # If the rowid's are quite consecutive, use an imperfect, but
+        if ((max_fid - min_fid) / input_info.featurecount) < 1.1:
+            # If the fid's are quite consecutive, use an imperfect, but
             # fast distribution in batches
             batch_info_list = []
             nb_rows_per_batch = round(input_info.featurecount / nb_batches)
             offset = 0
-            offset_per_batch = round((max_rowid - min_rowid) / nb_batches)
+            offset_per_batch = round((max_fid - min_fid) / nb_batches)
             for batch_id in range(nb_batches):
-                start_rowid = offset
+                start_fid = offset
                 if batch_id < (nb_batches - 1):
-                    # End rowid for this batch is the next start_rowid - 1
-                    end_rowid = offset + offset_per_batch - 1
+                    # End fid for this batch is the next start_fid - 1
+                    end_fid = offset + offset_per_batch - 1
                 else:
-                    # For the last batch, take the max_rowid so no rowid's are
+                    # For the last batch, take the max_fid so no fid's are
                     # 'lost' due to rounding errors
-                    end_rowid = max_rowid
+                    end_fid = max_fid
                 batch_info_list.append(
-                    (batch_id, nb_rows_per_batch, start_rowid, end_rowid)
+                    (batch_id, nb_rows_per_batch, start_fid, end_fid)
                 )
                 offset += offset_per_batch
             batch_info_df = pd.DataFrame(
-                batch_info_list, columns=["id", "nb_rows", "start_rowid", "end_rowid"]
+                batch_info_list, columns=["batch_id", "nb_rows", "start_fid", "end_fid"]
             )
         else:
-            # The rowids are not consecutive, so determine the optimal rowid
+            # The fids are not consecutive, so determine the optimal fid
             # ranges for each batch so each batch has same number of elements
             # Remark: - this might take some seconds for larger datasets!
             #         - (batch_id - 1) AS id to make the id zero-based
             sql_stmt = f"""
-                SELECT (batch_id - 1) AS id
+                SELECT (batch_id_1 - 1) AS batch_id
                       ,COUNT(*) AS nb_rows
-                      ,MIN(rowid) AS start_rowid
-                      ,MAX(rowid) AS end_rowid
+                      ,MIN({fid_column}) AS start_fid
+                      ,MAX({fid_column}) AS end_fid
                   FROM
-                    ( SELECT rowid
-                            ,NTILE({nb_batches}) OVER (ORDER BY rowid) batch_id
+                    ( SELECT {fid_column}
+                            ,NTILE({nb_batches}) OVER (ORDER BY {fid_column}) batch_id_1
                         FROM "{input_info.name}"
                     )
-                 GROUP BY batch_id;
+                 GROUP BY batch_id_1;
             """
             batch_info_df = gfo.read_file(path=input_path, sql_stmt=sql_stmt)
 
         # Now loop over all batch ranges to build up the necessary filters
         for batch_info in batch_info_df.itertuples():
             # The batch filter
-            if batch_info.id < nb_batches:
+            if batch_info.batch_id < nb_batches:
                 batches.append(
-                    f"(rowid >= {batch_info.start_rowid} "
-                    f"AND rowid <= {batch_info.end_rowid}) "
+                    f"({fid_column} >= {batch_info.start_fid} "
+                    f"AND {fid_column} <= {batch_info.end_fid}) "
                 )
             else:
-                batches.append(f"rowid >= {batch_info.start_rowid} ")
+                batches.append(f"{fid_column} >= {batch_info.start_fid} ")
 
     # No use starting more processes than the number of batches...
     if len(batches) < returnvalue.nb_parallel:
@@ -787,33 +786,34 @@ def _apply_geooperation(
         path=input_path, layer=input_layer, columns=columns, where=where
     )
 
-    # Run operations
-    if operation is GeoOperation.BUFFER:
-        data_gdf.geometry = data_gdf.geometry.buffer(
-            distance=operation_params["distance"],
-            resolution=operation_params["quadrantsegments"],
-            cap_style=operation_params["endcap_style"].value,
-            join_style=operation_params["join_style"].value,
-            mitre_limit=operation_params["mitre_limit"],
-            single_sided=operation_params["single_sided"],
-        )
-    elif operation is GeoOperation.CONVEXHULL:
-        data_gdf.geometry = data_gdf.geometry.convex_hull
-    elif operation is GeoOperation.SIMPLIFY:
-        data_gdf.geometry = pygeoops.simplify(
-            data_gdf.geometry,
-            algorithm=operation_params["algorithm"].value,
-            tolerance=operation_params["tolerance"],
-            lookahead=operation_params["step"],
-        )
-    elif operation is GeoOperation.APPLY:
-        func = pickle.loads(operation_params["pickled_func"])
-        if operation_params["only_geom_input"] is True:
-            data_gdf.geometry = data_gdf.geometry.apply(func)
+    # Run operation if data read
+    if len(data_gdf) > 0:
+        if operation is GeoOperation.BUFFER:
+            data_gdf.geometry = data_gdf.geometry.buffer(
+                distance=operation_params["distance"],
+                resolution=operation_params["quadrantsegments"],
+                cap_style=operation_params["endcap_style"].value,
+                join_style=operation_params["join_style"].value,
+                mitre_limit=operation_params["mitre_limit"],
+                single_sided=operation_params["single_sided"],
+            )
+        elif operation is GeoOperation.CONVEXHULL:
+            data_gdf.geometry = data_gdf.geometry.convex_hull
+        elif operation is GeoOperation.SIMPLIFY:
+            data_gdf.geometry = pygeoops.simplify(
+                data_gdf.geometry,
+                algorithm=operation_params["algorithm"].value,
+                tolerance=operation_params["tolerance"],
+                lookahead=operation_params["step"],
+            )
+        elif operation is GeoOperation.APPLY:
+            func = pickle.loads(operation_params["pickled_func"])
+            if operation_params["only_geom_input"] is True:
+                data_gdf.geometry = data_gdf.geometry.apply(func)
+            else:
+                data_gdf.geometry = data_gdf.apply(func, axis=1)
         else:
-            data_gdf.geometry = data_gdf.apply(func, axis=1)
-    else:
-        raise ValueError(f"operation not supported: {operation}")
+            raise ValueError(f"operation not supported: {operation}")
 
     # Set empty geometries to null/None
     assert data_gdf.geometry is not None
