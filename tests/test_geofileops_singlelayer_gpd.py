@@ -28,7 +28,7 @@ from tests.test_helper import (
 
 
 def test_get_parallelization_params():
-    parallelization_params = geoops_gpd.get_parallelization_params(500000)
+    parallelization_params = geoops_gpd._get_parallelization_params(500000)
     assert parallelization_params is not None
 
 

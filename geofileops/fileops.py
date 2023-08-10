@@ -930,6 +930,7 @@ def read_file(
     columns: Optional[Iterable[str]] = None,
     bbox=None,
     rows=None,
+    where: Optional[str] = None,
     sql_stmt: Optional[str] = None,
     sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     ignore_geometry: bool = False,
@@ -970,15 +971,21 @@ def read_file(
             In addition to standard columns, it is also possible
             to specify "fid", a unique index available in all input files. Note that the
             "fid" will be aliased eg. to "fid_1". Defaults to None.
-        bbox ([type], optional): Read only geometries intersecting this bbox.
+        bbox (Tuple, optional): return only geometries intersecting this bbox.
             Defaults to None, then all rows are read.
-        rows ([type], optional): Read only the rows specified.
-            Defaults to None, then all rows are read.
+        rows (slice, optional): return only the rows specified. For many file formats
+            (e.g. Geopackage) this is slow, so using e.g. a where filter instead is
+            recommended. Defaults to None, then all rows are returned.
+        where (str, optional): only returns the rows that comply to the filter
+            specified. Filter should be in SQL WHERE syntax in the relevant SQL dialect
+            as explained in the sql_dialect parameter. Defaults to None.
         sql_stmt (str): sql statement to use. Only supported with "pyogrio" engine.
-        sql_dialect (str, optional): Sql dialect used. If None, for data sources with
-            explicit SQL support the statement is processed by the default SQL engine
-            (e.g. PostGIS, Geopackage, Spatialite,...). For data sources
-            without SQL support, the "OGRSQL" dialect is the default. Defaults to None.
+        sql_dialect (str, optional): Sql dialect used. Options are None, "SQLITE" or
+            "OGRSQL". If None, for data sources with explicit SQL support the statement
+            is processed by the default SQL engine (e.g. for Geopackage and Spatialite
+            this is "SQLITE"). For data sources without native SQL support (e.g. .shp),
+            the "OGRSQL" dialect is the default. If the "SQLITE" dialect is specified,
+            |spatialite_reference_link| functions can also be used. Defaults to None.
         ignore_geometry (bool, optional): True not to read/return the geometry.
             Defaults to False.
         fid_as_index (bool, optional): If True, will use the FIDs of the features that
@@ -997,6 +1004,7 @@ def read_file(
         columns=columns,
         bbox=bbox,
         rows=rows,
+        where=where,
         sql_stmt=sql_stmt,
         sql_dialect=sql_dialect,
         ignore_geometry=ignore_geometry,
@@ -1046,6 +1054,7 @@ def _read_file_base(
     columns: Optional[Iterable[str]] = None,
     bbox=None,
     rows=None,
+    where: Optional[str] = None,
     sql_stmt: Optional[str] = None,
     sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     ignore_geometry: bool = False,
@@ -1069,6 +1078,7 @@ def _read_file_base(
             columns=columns,
             bbox=bbox,
             rows=rows,
+            where=where,
             sql_stmt=sql_stmt,
             sql_dialect=sql_dialect,
             ignore_geometry=ignore_geometry,
@@ -1081,6 +1091,7 @@ def _read_file_base(
             columns=columns,
             bbox=bbox,
             rows=rows,
+            where=where,
             sql_stmt=sql_stmt,
             sql_dialect=sql_dialect,
             ignore_geometry=ignore_geometry,
@@ -1104,6 +1115,7 @@ def _read_file_base_fiona(
     columns: Optional[Iterable[str]] = None,
     bbox=None,
     rows=None,
+    where: Optional[str] = None,
     sql_stmt: Optional[str] = None,
     sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     ignore_geometry: bool = False,
@@ -1164,6 +1176,7 @@ def _read_file_base_fiona(
         bbox=bbox,
         rows=rows,
         include_fields=columns_list,
+        where=where,
         sql=sql_stmt,
         sql_dialect=sql_dialect,
         ignore_geometry=ignore_geometry,
@@ -1203,6 +1216,7 @@ def _read_file_base_pyogrio(
     columns: Optional[Iterable[str]] = None,
     bbox=None,
     rows=None,
+    where: Optional[str] = None,
     sql_stmt: Optional[str] = None,
     sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     ignore_geometry: bool = False,
@@ -1216,13 +1230,15 @@ def _read_file_base_pyogrio(
     if path.exists() is False:
         raise ValueError(f"file doesn't exist: {path}")
 
-    # Convert slice object to pyogrio parameters
+    # Convert rows slice object to pyogrio parameters
     if rows is not None:
         skip_features = rows.start
         max_features = rows.stop - rows.start
     else:
         skip_features = 0
         max_features = None
+    # Arrow doesn't support filtering rows like this
+    use_arrow = True if rows is None else False
 
     # If no sql_stmt specified
     columns_prepared = None
@@ -1257,10 +1273,12 @@ def _read_file_base_pyogrio(
         bbox=bbox,
         skip_features=skip_features,
         max_features=max_features,
+        where=where,
         sql=sql_stmt,
         sql_dialect=sql_dialect,
         read_geometry=not ignore_geometry,
         fid_as_index=fid_as_index,
+        use_arrow=use_arrow,
     )
 
     # Reorder columns + change casing so they are the same as columns parameter

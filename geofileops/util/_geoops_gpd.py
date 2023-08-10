@@ -18,6 +18,7 @@ import time
 from typing import (
     Any,
     Callable,
+    Dict,
     Iterable,
     List,
     NamedTuple,
@@ -49,18 +50,10 @@ from geofileops.util import _processing_util
 from geofileops.util._geometry_util import SimplifyAlgorithm
 from geofileops.util._geometry_util import BufferEndCapStyle, BufferJoinStyle
 
-################################################################################
-# Some init
-################################################################################
-
 # Don't show this geopandas warning...
 warnings.filterwarnings("ignore", "GeoSeries.isna", UserWarning)
 
 logger = logging.getLogger(__name__)
-
-################################################################################
-# Some helper functions
-################################################################################
 
 
 class ParallelizationConfig:
@@ -95,7 +88,7 @@ class parallelizationParams(NamedTuple):
     nb_rows_per_batch: int
 
 
-def get_parallelization_params(
+def _get_parallelization_params(
     nb_rows_total: int,
     nb_parallel: int = -1,
     nb_batches_previous_pass: Optional[int] = None,
@@ -190,16 +183,126 @@ def get_parallelization_params(
     return parallelizationParams(nb_parallel, nb_batches, batch_size)
 
 
+class ProcessingParams:
+    def __init__(
+        self,
+        nb_rows_to_process: int,
+        nb_parallel: int = -1,
+        batches: Optional[List[str]] = None,
+    ):
+        self.nb_rows_to_process = nb_rows_to_process
+        self.nb_parallel = nb_parallel
+        self.batches = batches
+
+    def to_json(self, path: Path):
+        prepared = _general_util.prepare_for_serialize(vars(self))
+        with open(path, "w") as file:
+            file.write(json.dumps(prepared, indent=4, sort_keys=True))
+
+
+def _prepare_processing_params(
+    input_path: Path,
+    input_layer: str,
+    nb_parallel: int,
+    parallelization_config: Optional[ParallelizationConfig] = None,
+) -> ProcessingParams:
+    input_info = gfo.get_layerinfo(input_path, input_layer)
+    nb_parallel, nb_batches, real_batchsize = _get_parallelization_params(
+        nb_rows_total=input_info.featurecount,
+        nb_parallel=nb_parallel,
+        parallelization_config=parallelization_config,
+    )
+
+    returnvalue = ProcessingParams(
+        nb_rows_to_process=input_info.featurecount, nb_parallel=nb_parallel
+    )
+
+    # Prepare batches to process
+    batches: List[str] = []
+    if nb_batches == 1:
+        # If only one batch, no filtering is needed
+        batches.append("")
+    else:
+        # Determine the min_rowid and max_rowid
+        # Remark: SELECT MIN(rowid), MAX(rowid) FROM ... is a lot slower than UNION ALL!
+        sql_stmt = f"""
+            SELECT MIN(rowid) minmax_rowid FROM "{input_info.name}"
+            UNION ALL
+            SELECT MAX(rowid) minmax_rowid FROM "{input_info.name}"
+        """
+        batch_info_df = gfo.read_file(
+            path=input_path, sql_stmt=sql_stmt, sql_dialect="SQLITE"
+        )
+        min_rowid = pd.to_numeric(batch_info_df["minmax_rowid"][0]).item()
+        max_rowid = pd.to_numeric(batch_info_df["minmax_rowid"][1]).item()
+
+        # Determine the exact batches to use
+        if ((max_rowid - min_rowid) / input_info.featurecount) < 1.1:
+            # If the rowid's are quite consecutive, use an imperfect, but
+            # fast distribution in batches
+            batch_info_list = []
+            nb_rows_per_batch = round(input_info.featurecount / nb_batches)
+            offset = 0
+            offset_per_batch = round((max_rowid - min_rowid) / nb_batches)
+            for batch_id in range(nb_batches):
+                start_rowid = offset
+                if batch_id < (nb_batches - 1):
+                    # End rowid for this batch is the next start_rowid - 1
+                    end_rowid = offset + offset_per_batch - 1
+                else:
+                    # For the last batch, take the max_rowid so no rowid's are
+                    # 'lost' due to rounding errors
+                    end_rowid = max_rowid
+                batch_info_list.append(
+                    (batch_id, nb_rows_per_batch, start_rowid, end_rowid)
+                )
+                offset += offset_per_batch
+            batch_info_df = pd.DataFrame(
+                batch_info_list, columns=["id", "nb_rows", "start_rowid", "end_rowid"]
+            )
+        else:
+            # The rowids are not consecutive, so determine the optimal rowid
+            # ranges for each batch so each batch has same number of elements
+            # Remark: - this might take some seconds for larger datasets!
+            #         - (batch_id - 1) AS id to make the id zero-based
+            sql_stmt = f"""
+                SELECT (batch_id - 1) AS id
+                      ,COUNT(*) AS nb_rows
+                      ,MIN(rowid) AS start_rowid
+                      ,MAX(rowid) AS end_rowid
+                  FROM
+                    ( SELECT rowid
+                            ,NTILE({nb_batches}) OVER (ORDER BY rowid) batch_id
+                        FROM "{input_info.name}"
+                    )
+                 GROUP BY batch_id;
+            """
+            batch_info_df = gfo.read_file(path=input_path, sql_stmt=sql_stmt)
+
+        # Now loop over all batch ranges to build up the necessary filters
+        for batch_info in batch_info_df.itertuples():
+            # The batch filter
+            if batch_info.id < nb_batches:
+                batches.append(
+                    f"(rowid >= {batch_info.start_rowid} "
+                    f"AND rowid <= {batch_info.end_rowid}) "
+                )
+            else:
+                batches.append(f"rowid >= {batch_info.start_rowid} ")
+
+    # No use starting more processes than the number of batches...
+    if len(batches) < returnvalue.nb_parallel:
+        returnvalue.nb_parallel = len(batches)
+
+    returnvalue.batches = batches
+    return returnvalue
+
+
 class GeoOperation(enum.Enum):
     SIMPLIFY = "simplify"
     BUFFER = "buffer"
     CONVEXHULL = "convexhull"
     APPLY = "apply"
-
-
-################################################################################
-# The real stuff
-################################################################################
 
 
 def apply(
@@ -316,7 +419,7 @@ def convexhull(
     force: bool = False,
 ):
     # Init
-    operation_params = {}
+    operation_params: Dict[str, Any] = {}
 
     # Go!
     return _apply_geooperation_to_layer(
@@ -500,7 +603,6 @@ def _apply_geooperation_to_layer(
         force_output_geometrytype = force_output_geometrytype.name
 
     # Prepare where_to_apply and filter_null_geoms
-    input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
     if where is not None:
         if where == "":
             where = None
@@ -513,14 +615,9 @@ def _apply_geooperation_to_layer(
     tempdir = _io_util.create_tempdir(f"geofileops/{operation.value}")
     logger.info(f"Start calculation to temp files in {tempdir}")
 
-    # Calculate
     try:
-        # Remark: calculating can be done in parallel, but only one process
-        # can write to the same output file at the time...
-
         # Calculate the best number of parallel processes and batches for
         # the available resources
-        nb_rows_total = input_layerinfo.featurecount
         if batchsize > 0:
             parallellization_config = ParallelizationConfig(
                 min_avg_rows_per_batch=math.ceil(batchsize / 2),
@@ -530,46 +627,33 @@ def _apply_geooperation_to_layer(
             parallellization_config = ParallelizationConfig(
                 max_avg_rows_per_batch=50000
             )
-        nb_parallel, nb_batches, real_batchsize = get_parallelization_params(
-            nb_rows_total=nb_rows_total,
+
+        processing_params = _prepare_processing_params(
+            input_path=input_path,
+            input_layer=input_layer,
             nb_parallel=nb_parallel,
             parallelization_config=parallellization_config,
         )
-
-        # TODO: determine the optimal batch sizes with min and max of rowid will
-        # in some case improve performance
-        """
-        sql_stmt = f'''SELECT MIN(rowid) as min_rowid, MAX(rowid) as max_rowid
-                         FROM "{input_layer}"'''
-        result = gfo.read_file(
-            path=temp_path, layer=input_layer, sql_stmt=sql_stmt, sql_dialect="SQLITE"
-        )
-        if len(result) == 1:
-            min_rowid = result['min_rowid'].values[0]
-            max_rowid = result['max_rowid'].values[0]
-            nb_rowids_per_batch = (max_rowid - min_rowid)/nb_batches
-        else:
-            raise Exception(
-                f"Error getting min and max rowid for {temp_path}, layer {input_layer}"
-            )
-        """
+        assert processing_params.batches is not None
 
         # Processing in threads is 2x faster for small datasets (on Windows)
-        calculate_in_threads = True if input_layerinfo.featurecount <= 100 else False
+        calculate_in_threads = (
+            True if processing_params.nb_rows_to_process <= 100 else False
+        )
         with _processing_util.PooledExecutorFactory(
             threadpool=calculate_in_threads,
-            max_workers=nb_parallel,
+            max_workers=processing_params.nb_parallel,
             initializer=_processing_util.initialize_worker(),
         ) as calculate_pool:
             # Prepare output filename
             tmp_output_path = tempdir / output_path.name
 
-            row_offset = 0
-            batches = {}
+            batches: Dict[int, dict] = {}
             future_to_batch_id = {}
+            nb_batches = len(processing_params.batches)
             nb_done = 0
 
-            for batch_id in range(nb_batches):
+            for batch_id, batch_filter in enumerate(processing_params.batches):
                 batches[batch_id] = {}
                 batches[batch_id]["layer"] = output_layer
 
@@ -579,12 +663,7 @@ def _apply_geooperation_to_layer(
                     tempdir / f"{output_path.stem}_{batch_id}.gpkg"
                 )
                 batches[batch_id]["tmp_partial_output_path"] = output_tmp_partial_path
-
-                # For the last translate_id, take all rowid's left...
-                if batch_id < nb_batches - 1:
-                    rows = slice(row_offset, row_offset + real_batchsize)
-                else:
-                    rows = slice(row_offset, nb_rows_total)
+                batches[batch_id]["filter"] = batch_filter
 
                 # Remark: this temp file doesn't need spatial index
                 # Remark: because force_output_geometrytype for GeoDataFrame
@@ -599,20 +678,25 @@ def _apply_geooperation_to_layer(
                     input_layer=input_layer,
                     columns=columns,
                     output_layer=output_layer,
-                    rows=rows,
+                    where=batch_filter,
                     explodecollections=explodecollections,
                     gridsize=gridsize,
                     keep_empty_geoms=keep_empty_geoms,
                     force=force,
                 )
                 future_to_batch_id[future] = batch_id
-                row_offset += real_batchsize
 
             # Loop till all parallel processes are ready, but process each one
             # that is ready already
+            # Remark: calculating can be done in parallel, but only one process
+            # can write to the same output file at the time...
             start_time = datetime.now()
             _general_util.report_progress(
-                start_time, nb_done, nb_batches, operation.value, nb_parallel
+                start_time,
+                nb_done,
+                nb_todo=nb_batches,
+                operation=operation.value,
+                nb_parallel=processing_params.nb_parallel,
             )
             for future in futures.as_completed(future_to_batch_id):
                 try:
@@ -683,7 +767,7 @@ def _apply_geooperation(
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
-    rows=None,
+    where=None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
     keep_empty_geoms: bool = True,
@@ -700,7 +784,7 @@ def _apply_geooperation(
     # Now go!
     start_time = datetime.now()
     data_gdf = gfo.read_file(
-        path=input_path, layer=input_layer, columns=columns, rows=rows
+        path=input_path, layer=input_layer, columns=columns, where=where
     )
 
     # Run operations
@@ -778,7 +862,7 @@ def _apply_geooperation(
         create_spatial_index=False,
     )
 
-    message = f"Took {datetime.now()-start_time} for {len(data_gdf)} rows ({rows})!"
+    message = f"Took {datetime.now()-start_time} for {len(data_gdf)} rows ({where})!"
     return message
 
 
@@ -995,7 +1079,7 @@ def dissolve(
                     )
                 else:
                     parallelization_config = ParallelizationConfig()
-                nb_parallel, nb_batches_recommended, _ = get_parallelization_params(
+                nb_parallel, nb_batches_recommended, _ = _get_parallelization_params(
                     nb_rows_total=nb_rows_total,
                     nb_parallel=nb_parallel,
                     nb_batches_previous_pass=prev_nb_batches,
