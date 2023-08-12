@@ -80,12 +80,12 @@ def create_new_spatialdb(path: Path, crs_epsg: Optional[int] = None):
                 sql = "DROP TRIGGER gpkg_metadata_reference_row_id_value_insert;"
                 try:
                     conn.execute(sql)
-                except Exception:
+                except Exception:  # pragma: no cover
                     pass
                 sql = "DROP TRIGGER gpkg_metadata_reference_row_id_value_update;"
                 try:
                     conn.execute(sql)
-                except Exception:
+                except Exception:  # pragma: no cover
                     pass
 
             elif output_suffix_lower == ".sqlite":
