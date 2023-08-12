@@ -618,7 +618,7 @@ def load_spatialite(conn):
     conn.enable_load_extension(True)
     try:
         conn.load_extension("mod_spatialite")
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
         raise MissingRuntimeDependencyError(
             "Error trying to load mod_spatialite."
         ) from ex
