@@ -248,8 +248,7 @@ def get_layerinfo(
     """
     Get information about a layer in the geofile.
 
-    Raises ValueError if the layer definition has errors like invalid column
-    names,...
+    Raises ValueError if the layer definition has errors like invalid column names,...
 
     Args:
         path (PathLike): path to the file to get info about
@@ -623,7 +622,8 @@ def remove_spatial_index(
         if geofiletype.is_spatialite_based:
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             result = datasource.ExecuteSQL(
-                f"SELECT DisableSpatialIndex('{layerinfo.name}', '{layerinfo.geometrycolumn}')",  # noqa: E501
+                "SELECT DisableSpatialIndex("
+                f"      '{layerinfo.name}', '{layerinfo.geometrycolumn}')",
                 dialect="SQLITE",
             )
             datasource.ReleaseResultSet(result)
