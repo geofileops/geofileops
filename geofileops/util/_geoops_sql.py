@@ -1519,7 +1519,6 @@ def join_nearest(
     input2_columns_prefix: str = "l2_",
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
-    gridsize: float = 0.0,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -1603,7 +1602,7 @@ def join_nearest(
         output_layer=output_layer,
         force_output_geometrytype=input1_layer_info.geometrytype,
         explodecollections=explodecollections,
-        gridsize=gridsize,
+        gridsize=0.0,
         where=None,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -2254,6 +2253,11 @@ def _two_layer_vector_operation(
             else:
                 primitivetypeid = force_output_geometrytype.to_primitivetype.value
                 gridsize_op = f"ST_CollectionExtract({gridsize_op}, {primitivetypeid})"
+
+            gridsize_op = (
+                "ST_GeomFromWKB(GFO_ReducePrecision("
+                f"ST_AsBinary(sub_gridsize.geom), {gridsize}))"
+            )
 
             # All columns need to be specified
             # Remark:
