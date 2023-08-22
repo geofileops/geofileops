@@ -971,25 +971,6 @@ def makevalid(
         force=force,
     )
 
-    """
-    _geoops_sql.makevalid(
-        input_path=Path(input_path),
-        output_path=Path(output_path),
-        input_layer=input_layer,
-        output_layer=output_layer,
-        columns=columns,
-        explodecollections=explodecollections,
-        force_output_geometrytype=force_output_geometrytype,
-        gridsize=gridsize,
-        keep_empty_geoms=keep_empty_geoms,
-        where=where,
-        validate_attribute_data=validate_attribute_data,
-        nb_parallel=nb_parallel,
-        batchsize=batchsize,
-        force=force,
-    )
-    """
-
 
 def warp(
     input_path: Path,
