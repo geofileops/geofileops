@@ -73,7 +73,7 @@ def gfo_difference_collection(
             return None
 
         return shapely.to_wkb(result)
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
         # ex.with_traceback()
         print(ex)
         return None
@@ -98,7 +98,9 @@ def gfo_reduceprecision(
 
     Args:
         geom_wkb (bytes): geometry to reduce precision from in wkb format.
-        gridsize (int): gridsize
+        gridsize (int): the size of the grid the coordinates of the ouput will be
+            rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change the
+            precision.
         makevalid_first (int): if 1, the input is first made valid before reducing the
             precision.
 
@@ -131,7 +133,7 @@ def gfo_reduceprecision(
             return None
 
         return shapely.to_wkb(result)
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
         # ex.with_traceback()
         print(ex)
         return None
