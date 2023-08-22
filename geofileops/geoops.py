@@ -9,6 +9,7 @@ from typing import Any, Callable, List, Literal, Optional, Tuple, Union, TYPE_CH
 import warnings
 
 from pygeoops import GeometryType
+import shapely
 
 from geofileops.util import _geoops_gpd
 from geofileops.util import _geoops_sql
@@ -952,6 +953,25 @@ def makevalid(
             stacklevel=2,
         )
 
+    _geoops_gpd.apply(
+        input_path=Path(input_path),
+        output_path=Path(output_path),
+        func=lambda geom: shapely.make_valid(geom),
+        operation_name="makevalid",
+        input_layer=input_layer,
+        output_layer=output_layer,
+        columns=columns,
+        explodecollections=explodecollections,
+        force_output_geometrytype=force_output_geometrytype,
+        gridsize=gridsize,
+        keep_empty_geoms=keep_empty_geoms,
+        where=where,
+        nb_parallel=nb_parallel,
+        batchsize=batchsize,
+        force=force,
+    )
+
+    """
     _geoops_sql.makevalid(
         input_path=Path(input_path),
         output_path=Path(output_path),
@@ -968,6 +988,7 @@ def makevalid(
         batchsize=batchsize,
         force=force,
     )
+    """
 
 
 def warp(
@@ -1908,7 +1929,6 @@ def join_nearest(
     input2_columns: Optional[List[str]] = None,
     input2_columns_prefix: str = "l2_",
     output_layer: Optional[str] = None,
-    gridsize: float = 0.0,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -1940,9 +1960,6 @@ def join_nearest(
             Defaults to "l2_".
         output_layer (str, optional): output layer name. If None, the output_path stem
             is used. Defaults to None.
-        gridsize (float, optional): the size of the grid the coordinates of the ouput
-            will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
-            the precision. Defaults to 0.0.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available processors.
         batchsize (int, optional): indicative number of rows to process per
@@ -1969,7 +1986,6 @@ def join_nearest(
         input2_columns_prefix=input2_columns_prefix,
         output_layer=output_layer,
         explodecollections=False,
-        gridsize=gridsize,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
