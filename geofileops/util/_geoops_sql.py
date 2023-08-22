@@ -2265,8 +2265,8 @@ def _two_layer_vector_operation(
                 SELECT {gridsize_op} AS geom
                         {columns_to_select}
                   FROM ( {sql_template}
+                         LIMIT -1 OFFSET 0
                   ) sub_gridsize
-                 LIMIT -1 OFFSET 0
             """
 
         # Prepare/apply where parameter
@@ -2278,9 +2278,9 @@ def _two_layer_vector_operation(
             sql_template = f"""
                 SELECT * FROM
                     ( {sql_template}
+                      LIMIT -1 OFFSET 0
                     )
                  WHERE {where}
-                 LIMIT -1 OFFSET 0
             """
             # Where has been applied already so set to None.
             where = None
