@@ -1,6 +1,7 @@
 import pytest
 import shapely
 from shapely import MultiPolygon, Point, Polygon
+from shapely.testing import assert_geometries_equal
 
 from geofileops.util import _sqlite_userdefined as sqlite_userdefined
 
@@ -95,7 +96,6 @@ def test_difference_collection_invalid_params():
     ],
 )
 def test_gfo_reduceprecision(test_descr, geom, exp_result):
-    exp_result = None if exp_result is None else exp_result.normalize()
     geom_wkb = None if geom is None else geom.wkb
 
     result = sqlite_userdefined.gfo_reduceprecision(geom_wkb, gridsize=1)
@@ -104,5 +104,11 @@ def test_gfo_reduceprecision(test_descr, geom, exp_result):
     if exp_result is None:
         assert result is None, f"Issue with test {test_descr}"
     else:
-        result = result.normalize()
-        assert result == exp_result, f"Issue with test {test_descr}"
+        # Depending on the version of geos, sometimes result is a multipolygon...
+        if isinstance(exp_result, Polygon):
+            exp_result = MultiPolygon([exp_result])
+        if isinstance(result, Polygon):
+            result = MultiPolygon([result])
+        assert_geometries_equal(
+            result, exp_result, normalize=True, err_msg=f"Issue with test {test_descr}"
+        )
