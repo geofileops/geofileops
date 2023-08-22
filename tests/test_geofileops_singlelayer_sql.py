@@ -7,7 +7,6 @@ import math
 import geopandas as gpd
 import pytest
 
-import shapely
 import geofileops as gfo
 from geofileops import GeometryType
 from geofileops.util import _geoops_sql as geoops_sql
@@ -16,8 +15,7 @@ from tests.test_helper import EPSGS, SUFFIXES
 from tests.test_helper import assert_geodataframe_equal
 
 
-@pytest.mark.parametrize("gridsize", [0.0, 0.1])
-def test_delete_duplicate_geometries(tmp_path, gridsize):
+def test_delete_duplicate_geometries(tmp_path):
     # Prepare test data
     test_gdf = gpd.GeoDataFrame(
         geometry=[
@@ -39,18 +37,12 @@ def test_delete_duplicate_geometries(tmp_path, gridsize):
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
     print(f"Run test for suffix {suffix}")
     # delete_duplicate_geometries isn't multiprocess, so no batchsize needed
-    gfo.delete_duplicate_geometries(
-        input_path=input_path, output_path=output_path, gridsize=gridsize
-    )
+    gfo.delete_duplicate_geometries(input_path=input_path, output_path=output_path)
 
     # Check result, 2 duplicates should be removed
     result_info = gfo.get_layerinfo(output_path)
     assert result_info.featurecount == input_info.featurecount - 2
     result_gdf = gfo.read_file(output_path)
-    if gridsize != 0.0:
-        expected_gdf.geometry = shapely.set_precision(
-            expected_gdf.geometry, grid_size=gridsize
-        )
     assert_geodataframe_equal(result_gdf, expected_gdf)
 
 
