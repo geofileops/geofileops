@@ -161,7 +161,6 @@ def delete_duplicate_geometries(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
-    gridsize: float = 0.0,
     keep_empty_geoms: bool = True,
     where: Optional[str] = None,
     force: bool = False,
@@ -192,7 +191,7 @@ def delete_duplicate_geometries(
         columns=columns,
         explodecollections=explodecollections,
         force_output_geometrytype=input_layer_info.geometrytype,
-        gridsize=gridsize,
+        gridsize=0.0,
         keep_empty_geoms=keep_empty_geoms,
         where=where,
         sql_dialect="SQLITE",
@@ -1227,7 +1226,7 @@ def intersection(
     )
 
     # For the output file, if output is going to be polygon or linestring, force
-    # MULTI variant to evade ugly warnings
+    # MULTI variant to avoid ugly warnings
     force_output_geometrytype = primitivetype_to_extract.to_multitype
 
     # Prepare sql template for this operation
@@ -1247,7 +1246,7 @@ def intersection(
                        ST_Intersection(
                             layer1.{{input1_geometrycolumn}},
                             layer2.{{input2_geometrycolumn}}),
-                            {primitivetype_to_extract.value}) as geom
+                            {primitivetype_to_extract.value}) AS geom
                     {{layer1_columns_prefix_alias_str}}
                     {{layer2_columns_prefix_alias_str}}
                 FROM {{input1_databasename}}."{{input1_layer}}" layer1

@@ -486,7 +486,6 @@ def delete_duplicate_geometries(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
-    gridsize: float = 0.0,
     keep_empty_geoms: Optional[bool] = None,
     where: Optional[str] = None,
     force: bool = False,
@@ -507,9 +506,6 @@ def delete_duplicate_geometries(
             "fid" will be aliased eg. to "fid_1". Defaults to None.
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
-        gridsize (float, optional): the size of the grid the coordinates of the ouput
-            will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
-            the precision. Defaults to 0.0.
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
             in the output. Defaults to False now, but default becomes True in a future
             version.
@@ -542,7 +538,6 @@ def delete_duplicate_geometries(
         output_layer=output_layer,
         columns=columns,
         explodecollections=explodecollections,
-        gridsize=gridsize,
         keep_empty_geoms=keep_empty_geoms,
         where=where,
         force=force,
