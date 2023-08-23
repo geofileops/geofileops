@@ -1243,10 +1243,12 @@ def intersection(
              {{layer2_columns_from_subselect_str}}
           FROM
             ( SELECT ST_CollectionExtract(
-                       ST_Intersection(
-                            layer1.{{input1_geometrycolumn}},
-                            layer2.{{input2_geometrycolumn}}),
-                            {primitivetype_to_extract.value}) AS geom
+                       ST_GeomFromWKB(GFO_Intersection(
+                            ST_AsBinary(layer1.{{input1_geometrycolumn}}),
+                            ST_AsBinary(layer2.{{input2_geometrycolumn}})
+                        )),
+                        {primitivetype_to_extract.value}
+                     ) AS geom
                     {{layer1_columns_prefix_alias_str}}
                     {{layer2_columns_prefix_alias_str}}
                 FROM {{input1_databasename}}."{{input1_layer}}" layer1

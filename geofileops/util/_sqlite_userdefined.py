@@ -79,6 +79,67 @@ def gfo_difference_collection(
         return None
 
 
+def gfo_intersection(
+    geom_wkb1: bytes,
+    geom_wkb2: bytes,
+    keep_geom_type: int = 0,
+) -> Optional[bytes]:
+    """
+    Calculates the intersection between geom_wkb1 and geom_wkb2.
+
+    If geom has many points, it will be subdivided in smaller times to speed up
+    processing. This will result in extra collinear points being added to its
+    boundaties.
+
+    Args:
+        geom_wkb1 (bytes): first geometry in wkb format.
+        geom_wkb2 (bytes): second geometry in wkb format.
+        keep_geom_type (int, optional): 1 to only retain geometries in the results of
+            the same geometry type/dimension as the input. Eg. if input is a Polygon,
+            remove LineStrings and Points from the difference result before returning.
+            Defaults to 0.
+
+    Returns:
+        Optional[bytes]: return the intersection. If there is no intersection, NULL is
+            returned.
+    """
+    # Check/prepare input
+    if geom_wkb1 is None:
+        return None
+    if geom_wkb2 is None:
+        return None
+
+    # Extract wkb's, and return if empty
+    geom1 = shapely.from_wkb(geom_wkb1)
+    if geom1.is_empty:
+        return None
+    geom2 = shapely.from_wkb(geom_wkb2)
+    if geom2.is_empty:
+        return None
+    del geom_wkb1
+    del geom_wkb2
+
+    # Check and convert booleanish int inputs to bool.
+    keep_geom_type = _int2bool(keep_geom_type, "keep_geom_type")
+
+    try:
+        # Apply difference
+        result = shapely.intersection(geom1, geom2)
+
+        # If an empty result, return None
+        # Remark: tried to return empty geometry an empty GeometryCollection, but
+        # apparentle ST_IsEmpty of spatialite doesn't work (in combination with gpkg
+        # and/or wkb?).
+        if result is None or result.is_empty:
+            return None
+
+        return shapely.to_wkb(result)
+    except Exception as ex:  # pragma: no cover
+        # ex.with_traceback()
+        print(ex)
+        return None
+
+
 def gfo_reduceprecision(
     geom_wkb: bytes,
     gridsize: int,
