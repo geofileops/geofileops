@@ -636,6 +636,13 @@ def load_spatialite(conn):
     )
 
     conn.create_function(
+        "GFO_Intersection",
+        -1,
+        sqlite_userdefined.gfo_intersection,
+        deterministic=True,
+    )
+
+    conn.create_function(
         "GFO_ReducePrecision",
         -1,
         sqlite_userdefined.gfo_reduceprecision,
