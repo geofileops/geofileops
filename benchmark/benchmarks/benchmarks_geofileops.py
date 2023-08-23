@@ -8,9 +8,11 @@ import multiprocessing
 import inspect
 from pathlib import Path
 
+import geopandas as gpd
+import shapely
+
 from benchmark.benchmarker import RunResult
 from benchmark.benchmarks import testdata
-
 import geofileops as gfo
 from geofileops.util import _geoops_sql
 from geofileops.util import _geoops_gpd
@@ -255,6 +257,50 @@ def intersection(tmp_dir: Path) -> RunResult:
     return result
 
 
+def intersection_complexpoly(tmp_dir: Path) -> RunResult:
+    # Init
+    function_name = inspect.currentframe().f_code.co_name  # type: ignore[union-attr]
+    input1_path = testdata.TestFile.AGRIPRC_2018.get_file(tmp_dir)
+    # Prepare a complex polygon to test with
+    poly_complex = _create_complex_poly(
+        xmin=30000.123,
+        ymin=170000.123,
+        width=10000,
+        height=10000,
+        line_distance=500,
+        max_segment_length=100,
+    )
+    print(f"num_coordinates: {shapely.get_num_coordinates(poly_complex)}")
+    input2_path = tmp_dir / "complex.gpkg"
+    complex_gdf = gpd.GeoDataFrame(geometry=[poly_complex], crs="epsg:31370")
+    complex_gdf.to_file(input2_path, engine="pyogrio")
+
+    # Go!
+    start_time = datetime.now()
+    output_path = tmp_dir / f"{input1_path.stem}_inters_{input2_path.stem}.gpkg"
+    gfo.intersection(
+        input1_path=input1_path,
+        input2_path=input2_path,
+        output_path=output_path,
+        nb_parallel=nb_parallel,
+        force=True,
+    )
+    result = RunResult(
+        package=_get_package(),
+        package_version=_get_version(),
+        operation=function_name,
+        secs_taken=(datetime.now() - start_time).total_seconds(),
+        operation_descr=(
+            f"{function_name} between complex + 1 agri parcel layers BEFL"
+        ),
+        run_details={"nb_cpu": nb_parallel},
+    )
+
+    # Cleanup and return
+    output_path.unlink()
+    return result
+
+
 def intersection_gridsize(tmp_dir: Path) -> RunResult:
     # Init
     input1_path = testdata.TestFile.AGRIPRC_2018.get_file(tmp_dir)
@@ -461,3 +507,39 @@ def union(tmp_dir: Path) -> RunResult:
     # Cleanup and return
     output_path.unlink()
     return result
+
+
+def _create_complex_poly(
+    xmin: float,
+    ymin: float,
+    width: int,
+    height: int,
+    line_distance: int,
+    max_segment_length: int,
+) -> shapely.Polygon:
+    """Create complex polygon of a ~grid-shape the size specified."""
+    lines = []
+
+    # Vertical lines
+    for x_offset in range(0, 0 + width, line_distance):
+        lines.append(
+            shapely.LineString(
+                [(xmin + x_offset, ymin), (xmin + x_offset, ymin + height)]
+            )
+        )
+
+    # Horizontal lines
+    for y_offset in range(0, 0 + height, line_distance):
+        lines.append(
+            shapely.LineString(
+                [(xmin, ymin + y_offset), (xmin + width, ymin + y_offset)]
+            )
+        )
+
+    poly_complex = shapely.unary_union(shapely.MultiLineString(lines).buffer(2))
+    poly_complex = shapely.segmentize(
+        poly_complex, max_segment_length=max_segment_length
+    )
+    assert len(shapely.get_parts(poly_complex)) == 1
+
+    return poly_complex
