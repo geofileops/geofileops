@@ -939,9 +939,9 @@ def erase(
     # - use "LIMIT -1 OFFSET 0" to avoid the subquery flattening. Flattening e.g.
     #   "geom IS NOT NULL" leads to GFO_Difference_Collection calculated double!
     # - ST_Intersects and ST_Touches slow down a lot when the data contains huge geoms
-    # - Calculate difference in correlated subquery in SELECT clause
-    # - Using a WITH with a GROUP BY on layer1.rowid was a few % faster, but this
-    #   processed the entire batch in memory so used > 10 * more memory. E.g. for one
+    # - Calculate difference in correlated subquery in SELECT clause reduces memory
+    #   usage by a factor 10 compared with a WITH with GROUP BY. The WITH with a GROUP
+    #   BY on layer1.rowid was a few % faster, but this is not worth it. E.g. for one
     #   test file 4-7 GB per process versus 70-700 MB). For another: crash.
     # - Check if the result of GFO_Difference_Collection is empty (NULL) using IFNULL,
     #   and if this ois the case set to 'DIFF_EMPTY'. This way we can make the
@@ -950,6 +950,8 @@ def erase(
     #   Tried to return EMPTY GEOMETRY from GFO_Difference_Collection, but it didn't
     #   work to use spatialite's ST_IsEmpty(geom) = 0 to filter on this for an unclear
     #   reason.
+    # - Using ST_Subdivide instead of GFO_Subdivide is 10 * slower, not sure why. Maybe
+    #   the result of that function isn't cached?
     # - Not relevant anymore, but ST_difference(geometry , NULL) gives NULL as result
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
     input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
@@ -960,63 +962,24 @@ def erase(
                    ( SELECT IFNULL(
                                 ST_GeomFromWKB(GFO_Difference_Collection(
                                     ST_AsBinary(layer1_sub.{{input1_geometrycolumn}}),
-                                    ST_AsBinary(ST_Collect(
-                                        layer2_sub.{{input2_geometrycolumn}})),
-                                    1)),
+                                    ST_AsBinary(ST_Collect(layer2_sub.geom_split)),
+                                    1
+                                )),
                                 'DIFF_EMPTY'
                             ) AS diff_geom
                        FROM {{input1_databasename}}."{{input1_layer}}" layer1_sub
                        JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
-                         ON layer1_sub.fid = layer1tree.id
-                       JOIN {{input2_databasename}}."{{input2_layer}}" layer2_sub
-                       JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
-                         ON layer2_sub.fid = layer2tree.id
-                      WHERE 1=1
-                        AND layer1_sub.rowid = layer1.rowid
-                        AND layer1tree.minx <= layer2tree.maxx
-                        AND layer1tree.maxx >= layer2tree.minx
-                        AND layer1tree.miny <= layer2tree.maxy
-                        AND layer1tree.maxy >= layer2tree.miny
-                      GROUP BY layer1_sub.rowid
-                      LIMIT -1 OFFSET 0
-                   ),
-                   layer1.{{input1_geometrycolumn}}
-                 ) AS geom
-                {{layer1_columns_prefix_alias_str}}
-            FROM {{input1_databasename}}."{{input1_layer}}" layer1
-           WHERE 1=1
-             {{batch_filter}}
-           LIMIT -1 OFFSET 0
-          )
-         WHERE geom IS NOT NULL
-           AND geom <> 'DIFF_EMPTY'
-    """
-
-    sql_template = f"""
-        SELECT * FROM (
-          SELECT IFNULL(
-                   ( SELECT IFNULL(
-                                ST_GeomFromWKB(GFO_Difference_Collection(
-                                    ST_AsBinary(layer1_sub.{{input1_geometrycolumn}}),
-                                    ST_AsBinary(ST_Collect(
-                                        layer2_sub.{{input2_geometrycolumn}})),
-                                    1)),
-                                'DIFF_EMPTY'
-                            ) AS diff_geom
-                       FROM {{input1_databasename}}."{{input1_layer}}" layer1_sub
-                       JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
-                         ON layer1_sub.fid = layer1tree.id
+                         ON layer1_sub.rowid = layer1tree.id
                        JOIN (SELECT layer2_sub2.rowid
-                                   ,layer2_sub2.fid
-                                   ,ST_GeomFromWKB(GFO_Split_If_Needed(
+                                   ,ST_GeomFromWKB(GFO_Subdivide(
                                      ST_AsBinary(layer2_sub2.{{input2_geometrycolumn}}),
                                      1000
-                                    )) AS geom
-                            FROM {{input2_databasename}}."{{input2_layer}}" layer2_sub2
-                           LIMIT -1 OFFSET 0
+                                    )) AS geom_split
+                             FROM {{input2_databasename}}."{{input2_layer}}" layer2_sub2
+                             LIMIT -1 OFFSET 0
                          ) layer2_sub
                        JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
-                         ON layer2_sub.fid = layer2tree.id
+                         ON layer2_sub.rowid = layer2tree.id
                       WHERE 1=1
                         AND layer1_sub.rowid = layer1.rowid
                         AND layer1tree.minx <= layer2tree.maxx

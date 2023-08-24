@@ -152,7 +152,7 @@ def gfo_reduceprecision(
         return None
 
 
-def gfo_split_if_needed(geom_wkb, num_coords_max):
+def gfo_subdivide(geom_wkb, num_coords_max):
     try:
         # Check/prepare input
         if geom_wkb is None:
@@ -174,6 +174,10 @@ def gfo_split_if_needed(geom_wkb, num_coords_max):
 
         if result is None:
             return None
+        if not hasattr(result, "__len__"):
+            return shapely.to_wkb(result)
+        if len(result) == 1:
+            return shapely.to_wkb(result[0])
 
         return shapely.to_wkb(shapely.GeometryCollection(result.tolist()))
 

@@ -643,9 +643,9 @@ def load_spatialite(conn):
     )
 
     conn.create_function(
-        "GFO_Split_If_Needed",
+        "GFO_Subdivide",
         -1,
-        sqlite_userdefined.gfo_split_if_needed,
+        sqlite_userdefined.gfo_subdivide,
         deterministic=True,
     )
 
