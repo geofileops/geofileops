@@ -6,7 +6,7 @@ def main():
     functions_to_run = [
         # "intersection",
         # "intersection_gridsize",
-        "intersection_complexpoly_agri",
+        "symmetric_difference_complexpoly_agri",
     ]
     # Run all bechmark functions
     # functions_to_run = None
