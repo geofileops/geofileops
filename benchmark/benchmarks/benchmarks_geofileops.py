@@ -257,23 +257,23 @@ def intersection(tmp_dir: Path) -> RunResult:
     return result
 
 
-def intersection_complexpoly(tmp_dir: Path) -> RunResult:
+def intersection_complexpoly_agri(tmp_dir: Path) -> RunResult:
     # Init
     function_name = inspect.currentframe().f_code.co_name  # type: ignore[union-attr]
-    input1_path = testdata.TestFile.AGRIPRC_2018.get_file(tmp_dir)
     # Prepare a complex polygon to test with
     poly_complex = _create_complex_poly(
         xmin=30000.123,
         ymin=170000.123,
-        width=10000,
-        height=10000,
+        width=20000,
+        height=20000,
         line_distance=500,
         max_segment_length=100,
     )
     print(f"num_coordinates: {shapely.get_num_coordinates(poly_complex)}")
-    input2_path = tmp_dir / "complex.gpkg"
+    input1_path = tmp_dir / "complex.gpkg"
     complex_gdf = gpd.GeoDataFrame(geometry=[poly_complex], crs="epsg:31370")
-    complex_gdf.to_file(input2_path, engine="pyogrio")
+    complex_gdf.to_file(input1_path, engine="pyogrio")
+    input2_path = testdata.TestFile.AGRIPRC_2018.get_file(tmp_dir)
 
     # Go!
     start_time = datetime.now()
@@ -283,6 +283,7 @@ def intersection_complexpoly(tmp_dir: Path) -> RunResult:
         input2_path=input2_path,
         output_path=output_path,
         nb_parallel=nb_parallel,
+        tiled=True,
         force=True,
     )
     result = RunResult(
@@ -291,7 +292,8 @@ def intersection_complexpoly(tmp_dir: Path) -> RunResult:
         operation=function_name,
         secs_taken=(datetime.now() - start_time).total_seconds(),
         operation_descr=(
-            f"{function_name} between complex + 1 agri parcel layers BEFL"
+            f"{function_name} between 1 complex poly and the agriparcels BEFL "
+            "(~500k poly)"
         ),
         run_details={"nb_cpu": nb_parallel},
     )

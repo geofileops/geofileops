@@ -1212,6 +1212,7 @@ def intersection(
     where: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
+    tiled: bool = False,
     force: bool = False,
 ):
     # In the query, important to only extract the geometry types that are expected
@@ -1235,43 +1236,208 @@ def intersection(
     # - ST_Intersects is fine, but ST_Touches slows down. Especially when the data
     #   contains huge geoms, time doubles or worse. The filter on sub.geom IS NOT NULL
     #   removes rows without intersection anyway.
+    # - use "LIMIT -1 OFFSET 0" to avoid the subquery flattening. Flattening e.g.
+    #   "geom IS NOT NULL" leads to GFO_Difference_Collection calculated double!
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
     input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
-    sql_template = f"""
-        SELECT sub.geom
-             {{layer1_columns_from_subselect_str}}
-             {{layer2_columns_from_subselect_str}}
-          FROM
-            ( SELECT ST_CollectionExtract(
-                       ST_GeomFromWKB(GFO_Intersection(
-                            ST_AsBinary(layer1.{{input1_geometrycolumn}}),
-                            ST_AsBinary(layer2.{{input2_geometrycolumn}})
-                        )),
-                        {primitivetype_to_extract.value}
-                     ) AS geom
-                    {{layer1_columns_prefix_alias_str}}
-                    {{layer2_columns_prefix_alias_str}}
-                FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
-                  ON layer1.fid = layer1tree.id
-                JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
-                  ON layer2.fid = layer2tree.id
-               WHERE 1=1
-                 {{batch_filter}}
-                 AND layer1tree.minx <= layer2tree.maxx
-                 AND layer1tree.maxx >= layer2tree.minx
-                 AND layer1tree.miny <= layer2tree.maxy
-                 AND layer1tree.maxy >= layer2tree.miny
-                 AND ST_Intersects(
-                        layer1.{{input1_geometrycolumn}},
-                        layer2.{{input2_geometrycolumn}}) = 1
-                 --AND ST_Touches(
-                 --       layer1.{{input1_geometrycolumn}},
-                 --       layer2.{{input2_geometrycolumn}}) = 0
-            ) sub
-         WHERE sub.geom IS NOT NULL
-    """
+
+    # Use the template depending on the input
+    if not tiled:
+        sql_template = f"""
+            SELECT sub.geom
+                 {{layer1_columns_from_subselect_str}}
+                 {{layer2_columns_from_subselect_str}}
+              FROM
+                ( SELECT ST_CollectionExtract(
+                           ST_Intersection(
+                                layer1.{{input1_geometrycolumn}},
+                                layer2.{{input2_geometrycolumn}}),
+                                {primitivetype_to_extract.value}) AS geom
+                        {{layer1_columns_prefix_alias_str}}
+                        {{layer2_columns_prefix_alias_str}}
+                    FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                    JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                      ON layer1.fid = layer1tree.id
+                    JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                    JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                      ON layer2.fid = layer2tree.id
+                   WHERE 1=1
+                     {{batch_filter}}
+                     AND layer1tree.minx <= layer2tree.maxx
+                     AND layer1tree.maxx >= layer2tree.minx
+                     AND layer1tree.miny <= layer2tree.maxy
+                     AND layer1tree.maxy >= layer2tree.miny
+                     AND ST_Intersects(
+                            layer1.{{input1_geometrycolumn}},
+                            layer2.{{input2_geometrycolumn}}) = 1
+                     --AND ST_Touches(
+                     --       layer1.{{input1_geometrycolumn}},
+                     --       layer2.{{input2_geometrycolumn}}) = 0
+                   LIMIT -1 OFFSET 0
+                ) sub
+             WHERE sub.geom IS NOT NULL
+        """
+
+    else:
+        # Template using GFO_Intersection
+        sql_template = f"""
+            SELECT sub.geom
+                 {{layer1_columns_from_subselect_str}}
+                 {{layer2_columns_from_subselect_str}}
+              FROM
+                ( SELECT ST_CollectionExtract(
+                           ST_GeomFromWKB(GFO_Intersection(
+                                ST_AsBinary(layer1.{{input1_geometrycolumn}}),
+                                ST_AsBinary(layer2.{{input2_geometrycolumn}}),
+                                {gridsize}
+                            )),
+                            {primitivetype_to_extract.value}
+                         ) AS geom
+                        {{layer1_columns_prefix_alias_str}}
+                        {{layer2_columns_prefix_alias_str}}
+                    FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                    JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                      ON layer1.fid = layer1tree.id
+                    JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                    JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                      ON layer2.fid = layer2tree.id
+                   WHERE 1=1
+                     {{batch_filter}}
+                     AND layer1tree.minx <= layer2tree.maxx
+                     AND layer1tree.maxx >= layer2tree.minx
+                     AND layer1tree.miny <= layer2tree.maxy
+                     AND layer1tree.maxy >= layer2tree.miny
+                     AND ST_Intersects(
+                            layer1.{{input1_geometrycolumn}},
+                            layer2.{{input2_geometrycolumn}}) = 1
+                     --AND ST_Touches(
+                     --       layer1.{{input1_geometrycolumn}},
+                     --       layer2.{{input2_geometrycolumn}}) = 0
+                   LIMIT -1 OFFSET 0
+                ) sub
+             WHERE sub.geom IS NOT NULL
+        """
+
+        # Template using GFO_Intersection with tiling 100% python
+        sql_template = f"""
+            SELECT sub.geom
+                 {{layer1_columns_from_subselect_str}}
+                 {{layer2_columns_from_subselect_str}}
+              FROM
+                ( SELECT ST_CollectionExtract(
+                           ST_GeomFromWKB(GFO_Intersection_Collections(
+                                ST_AsBinary(layer1.geom_split),
+                                ST_AsBinary(layer2.geom_split),
+                                {gridsize}
+                            )),
+                            {primitivetype_to_extract.value}
+                         ) AS geom
+                        {{layer1_columns_prefix_alias_str}}
+                        {{layer2_columns_prefix_alias_str}}
+                    FROM (SELECT ST_GeomFromWKB(GFO_Split_If_Needed(
+                                      ST_AsBinary(layer1_sub.{{input1_geometrycolumn}}),
+                                      1000
+                                 )) AS geom_split
+                                ,layer1_sub.*
+                            FROM {{input1_databasename}}."{{input1_layer}}" layer1_sub
+                           LIMIT -1 OFFSET 0
+                         ) layer1
+                    JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                      ON layer1.fid = layer1tree.id
+                    JOIN (SELECT ST_GeomFromWKB(GFO_Split_If_Needed(
+                                     ST_AsBinary(layer2_sub.{{input2_geometrycolumn}}),
+                                     1000
+                                 )) AS geom_split
+                                ,layer2_sub.*
+                            FROM {{input2_databasename}}."{{input2_layer}}" layer2_sub
+                           LIMIT -1 OFFSET 0
+                         ) layer2
+                    JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                      ON layer2.fid = layer2tree.id
+                   WHERE 1=1
+                     {{batch_filter}}
+                     AND layer1tree.minx <= layer2tree.maxx
+                     AND layer1tree.maxx >= layer2tree.minx
+                     AND layer1tree.miny <= layer2tree.maxy
+                     AND layer1tree.maxy >= layer2tree.miny
+                     AND ST_Intersects(
+                            layer1.{{input1_geometrycolumn}},
+                            layer2.{{input2_geometrycolumn}}) = 1
+                     --AND ST_Touches(
+                     --       layer1.{{input1_geometrycolumn}},
+                     --       layer2.{{input2_geometrycolumn}}) = 0
+                   LIMIT -1 OFFSET 0
+                ) sub
+             WHERE sub.geom IS NOT NULL
+        """
+
+        # Template using GFO_Intersection with tiling if number points large enough
+        sql_template = f"""
+            SELECT sub.geom
+                 {{layer1_columns_from_subselect_str}}
+                 {{layer2_columns_from_subselect_str}}
+              FROM
+                ( SELECT ST_CollectionExtract(
+                           ST_GeomFromWKB(GFO_Intersection_Collections(
+                                ST_AsBinary(layer1.geom_split),
+                                ST_AsBinary(layer2.geom_split),
+                                {gridsize}
+                            )),
+                            {primitivetype_to_extract.value}
+                         ) AS geom
+                        {{layer1_columns_prefix_alias_str}}
+                        {{layer2_columns_prefix_alias_str}}
+                    FROM (SELECT layer1.rowid
+                                ,IIF(ST_NPoints(layer1.{{input1_geometrycolumn}}) < 1000
+                                    ,layer1.{{input1_geometrycolumn}}
+                                    ,ST_GeomFromWKB(GFO_Split_If_Needed(
+                                      ST_AsBinary(layer1.{{input1_geometrycolumn}}),
+                                      1000))
+                                 ) AS geom_split
+                                ,layer1.*
+                            FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                           WHERE 1=1
+                             {{batch_filter}}
+                           LIMIT -1 OFFSET 0
+                         ) layer1
+                    JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                      ON layer1.fid = layer1tree.id
+                    JOIN (SELECT layer2_sub.rowid
+                                ,IIF(ST_NPoints(
+                                        layer2_sub.{{input2_geometrycolumn}}
+                                     ) < 1000
+                                    ,layer2_sub.{{input2_geometrycolumn}}
+                                    ,ST_GeomFromWKB(GFO_Split_If_Needed(
+                                     ST_AsBinary(layer2_sub.{{input2_geometrycolumn}}),
+                                     1000
+                                    ))
+                                 ) AS geom_split
+                                ,layer2_sub.*
+                            FROM {{input2_databasename}}."{{input2_layer}}" layer2_sub
+                           LIMIT -1 OFFSET 0
+                         ) layer2
+                    JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                      ON layer2.fid = layer2tree.id
+                   WHERE 1=1
+                     --{{batch_filter}}
+                     AND layer1tree.minx <= layer2tree.maxx
+                     AND layer1tree.maxx >= layer2tree.minx
+                     AND layer1tree.miny <= layer2tree.maxy
+                     AND layer1tree.maxy >= layer2tree.miny
+                     AND ST_Intersects(
+                            layer1.{{input1_geometrycolumn}},
+                            layer2.{{input2_geometrycolumn}}) = 1
+                     --AND ST_Touches(
+                     --       layer1.{{input1_geometrycolumn}},
+                     --       layer2.{{input2_geometrycolumn}}) = 0
+                   LIMIT -1 OFFSET 0
+                ) sub
+             WHERE sub.geom IS NOT NULL
+        """
+
+        # Gridsize was already applied in the template above, so doesn't need to be
+        # passed on further, otherwise it is applied again.
+        gridsize = 0.0
 
     # Go!
     return _two_layer_vector_operation(
@@ -1353,7 +1519,7 @@ def join_by_location(
 
     # Prepare sql template
     #
-    # Remark: use "LIMIT -1 OFFSET 0" to evade that the sqlite query optimizer
+    # Remark: use "LIMIT -1 OFFSET 0" to avoid that the sqlite query optimizer
     #     "flattens" the subquery, as that makes checking the spatial
     #     relations (using ST_RelateMatch) very slow!
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"

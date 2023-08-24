@@ -1692,6 +1692,7 @@ def intersection(
     where: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
+    tiled: bool = False,
     force: bool = False,
 ):
     """
@@ -1736,6 +1737,9 @@ def intersection(
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
+        tiled (bool, optional): True to apply internal tiling on complex input
+            geometries. When the input datasets don't contain (many) features with
+            > 1000 points this is typically slower. Defaults to False.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
@@ -1763,6 +1767,7 @@ def intersection(
         where=where,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
+        tiled=tiled,
         force=force,
     )
 
