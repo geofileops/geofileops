@@ -1776,6 +1776,7 @@ def split(
                    layer1.{{input1_geometrycolumn}}
                  ) AS geom
                 {{layer1_columns_prefix_alias_str}}
+                {{layer2_columns_prefix_alias_null_str}}
             FROM {{input1_databasename}}."{{input1_layer}}" layer1
            WHERE 1=1
              {{batch_filter}}
