@@ -992,6 +992,52 @@ def erase(
            AND geom <> 'DIFF_EMPTY'
     """
 
+    sql_template = f"""
+        SELECT * FROM (
+          SELECT IFNULL(
+                   ( SELECT IFNULL(
+                                ST_GeomFromWKB(GFO_Difference_Collection(
+                                    ST_AsBinary(layer1_sub.{{input1_geometrycolumn}}),
+                                    ST_AsBinary(ST_Collect(
+                                        layer2_sub.{{input2_geometrycolumn}})),
+                                    1)),
+                                'DIFF_EMPTY'
+                            ) AS diff_geom
+                       FROM {{input1_databasename}}."{{input1_layer}}" layer1_sub
+                       JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                         ON layer1_sub.fid = layer1tree.id
+                       JOIN (SELECT layer2_sub2.rowid
+                                   ,layer2_sub2.fid
+                                   ,ST_GeomFromWKB(GFO_Split_If_Needed(
+                                     ST_AsBinary(layer2_sub2.{{input2_geometrycolumn}}),
+                                     1000
+                                    )) AS geom
+                            FROM {{input2_databasename}}."{{input2_layer}}" layer2_sub2
+                           LIMIT -1 OFFSET 0
+                         ) layer2_sub
+                       JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                         ON layer2_sub.fid = layer2tree.id
+                      WHERE 1=1
+                        AND layer1_sub.rowid = layer1.rowid
+                        AND layer1tree.minx <= layer2tree.maxx
+                        AND layer1tree.maxx >= layer2tree.minx
+                        AND layer1tree.miny <= layer2tree.maxy
+                        AND layer1tree.maxy >= layer2tree.miny
+                      GROUP BY layer1_sub.rowid
+                      LIMIT -1 OFFSET 0
+                   ),
+                   layer1.{{input1_geometrycolumn}}
+                 ) AS geom
+                {{layer1_columns_prefix_alias_str}}
+            FROM {{input1_databasename}}."{{input1_layer}}" layer1
+           WHERE 1=1
+             {{batch_filter}}
+           LIMIT -1 OFFSET 0
+          )
+         WHERE geom IS NOT NULL
+           AND geom <> 'DIFF_EMPTY'
+    """
+
     # Go!
     return _two_layer_vector_operation(
         input1_path=input_path,

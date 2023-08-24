@@ -1,11 +1,15 @@
 # import datetime
+import logging
 from typing import Optional
-import shapely
-from shapely.geometry.base import BaseMultipartGeometry
-import pygeoops
 
-# from pygeoops import _difference as difference
+import shapely
+from pygeoops import _difference as difference
+
 # from pygeoops import _paramvalidation as paramvalidation
+from geofileops.util import _difference as local_diff
+
+# Get a logger...
+logger = logging.getLogger(__name__)
 
 
 def gfo_difference_collection(
@@ -33,37 +37,39 @@ def gfo_difference_collection(
         Optional[bytes]: return the difference. If geom was completely removed due to
             the difference applied, NULL is returned.
     """
-    # Check/prepare input
-    if geom_wkb is None:
-        return None
-    if geom_to_subtract_wkb is None:
-        return geom_wkb
+    try:
+        # Check/prepare input
+        if geom_wkb is None:
+            return None
+        if geom_to_subtract_wkb is None:
+            return geom_wkb
 
-    # Extract wkb's, and return if empty
-    geom = shapely.from_wkb(geom_wkb)
-    if geom.is_empty:
-        return geom_wkb
-    geoms_to_subtract = shapely.from_wkb(geom_to_subtract_wkb)
-    if geoms_to_subtract.is_empty:
-        return geom_wkb
-    del geom_wkb
-    del geom_to_subtract_wkb
+        # Extract wkb's, and return if empty
+        geom = shapely.from_wkb(geom_wkb)
+        if geom.is_empty:
+            return geom_wkb
+        geoms_to_subtract = shapely.from_wkb(geom_to_subtract_wkb)
+        if geoms_to_subtract.is_empty:
+            return geom_wkb
+        del geom_wkb
+        del geom_to_subtract_wkb
 
-    # Check and convert booleanish int inputs to bool.
-    keep_geom_type = _int2bool(keep_geom_type, "keep_geom_type")
+        # Check and convert booleanish int inputs to bool.
+        keep_geom_type = _int2bool(keep_geom_type, "keep_geom_type")
+
+    except Exception as ex:  # pragma: no cover
+        # ex.with_traceback()
+        logger.exception(f"Error in gfo_difference_collection: {ex}")
+        raise
 
     try:
         # Apply difference
-        if not isinstance(geoms_to_subtract, BaseMultipartGeometry):
-            result = pygeoops.difference_all_tiled(
-                geom, geoms_to_subtract, keep_geom_type=keep_geom_type
-            )
-        else:
-            result = pygeoops.difference_all_tiled(
-                geom,
-                shapely.get_parts(geoms_to_subtract),
-                keep_geom_type=keep_geom_type,
-            )
+        result = local_diff.difference_all_tiled(
+            geom,
+            geoms_to_subtract,
+            keep_geom_type=keep_geom_type,
+            coords_per_tile=1000,
+        )
 
         # If an empty result, return None
         # Remark: tried to return empty geometry an empty GeometryCollection, but
@@ -75,7 +81,7 @@ def gfo_difference_collection(
         return shapely.to_wkb(result)
     except Exception as ex:  # pragma: no cover
         # ex.with_traceback()
-        print(ex)
+        logger.exception(f"Error in gfo_difference_collection: {ex}")
         return None
 
 
@@ -168,15 +174,21 @@ def gfo_reduceprecision(
     Returns:
         Optional[bytes]: return the geometry with the precision reduced.
     """
-    # Check/prepare input
-    if geom_wkb is None:
-        return None
+    try:
+        # Check/prepare input
+        if geom_wkb is None:
+            return None
 
-    # Extract wkb's, and return if empty
-    geom = shapely.from_wkb(geom_wkb)
-    if geom.is_empty:
-        return geom_wkb
-    del geom_wkb
+        # Extract wkb's, and return if empty
+        geom = shapely.from_wkb(geom_wkb)
+        if geom.is_empty:
+            return geom_wkb
+        del geom_wkb
+
+    except Exception as ex:  # pragma: no cover
+        # ex.with_traceback()
+        logger.exception(f"Error in gfo_reduceprecision: {ex}")
+        raise
 
     try:
         # If needed, apply makevalid first
@@ -194,9 +206,41 @@ def gfo_reduceprecision(
             return None
 
         return shapely.to_wkb(result)
+
     except Exception as ex:  # pragma: no cover
         # ex.with_traceback()
-        print(ex)
+        logger.exception(f"Error in gfo_reduceprecision: {ex}")
+        return None
+
+
+def gfo_split_if_needed(geom_wkb, num_coords_max):
+    try:
+        # Check/prepare input
+        if geom_wkb is None:
+            return None
+
+        # Extract wkb's, and return if empty
+        geom = shapely.from_wkb(geom_wkb)
+        if geom.is_empty:
+            return geom_wkb
+        del geom_wkb
+
+    except Exception as ex:  # pragma: no cover
+        # ex.with_traceback()
+        logger.exception(f"Error in gfo_split_if_needed: {ex}")
+        raise
+
+    try:
+        result = difference._split_if_needed(geom, num_coords_max=num_coords_max)
+
+        if result is None:
+            return None
+
+        return shapely.to_wkb(shapely.GeometryCollection(result.tolist()))
+
+    except Exception as ex:  # pragma: no cover
+        # ex.with_traceback()
+        logger.exception(f"Error in gfo_split_if_needed: {ex}")
         return None
 
 

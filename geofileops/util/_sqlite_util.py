@@ -649,5 +649,12 @@ def load_spatialite(conn):
         deterministic=True,
     )
 
+    conn.create_function(
+        "GFO_Split_If_Needed",
+        -1,
+        sqlite_userdefined.gfo_split_if_needed,
+        deterministic=True,
+    )
+
     # Register custom aggregate function
     # conn.create_aggregate("GFO_Difference_Agg", 3, userdefined.DifferenceAgg)
