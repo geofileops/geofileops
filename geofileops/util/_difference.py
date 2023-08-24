@@ -65,7 +65,7 @@ def difference_all_tiled(
 
     # Split the input geometry if it has many points to speedup processing.
     # Max 1000 coordinates seems to work fine based on some testing.
-    geom_diff = _split_if_needed(geometry, coords_per_tile)
+    geom_diff = subdivide(geometry, coords_per_tile)
 
     """
     # Subtract all intersecting ones
@@ -178,21 +178,19 @@ def difference_all(
     return geom_diff
 
 
-def _split_if_needed(
-    geometry: BaseGeometry, num_coords_max: int
-) -> NDArray[BaseGeometry]:
+def subdivide(geometry: BaseGeometry, num_coords_max: int) -> NDArray[BaseGeometry]:
     """
-    Split the input geometry to smaller pieces using a grid.
-
-    The grid is choosen so the average number of points per grid tile < num_coords_max.
+    Divide the input geometry to smaller parts using rectilinear lines.
 
     Args:
         geometry (geometry): the geometry to split.
-        num_coords_max (int): maximum coordinates the input geometry should contain.
+        num_coords_max (int): maximum number of coordinates targetted for each
+            subdivision. At the time of writing, this is the average number of
+            coordinates the subdividions will consist of.
 
     Returns:
         array of geometries: if geometry has < num_coords_max coordinates, the array
-            will contain the input geometry. Otherwise it will have more elements.
+            will contain the input geometry. Otherwise it will contain subdivisions.
     """
     shapely.prepare(geometry)
     num_coords = shapely.get_num_coordinates(geometry)
@@ -203,61 +201,12 @@ def _split_if_needed(
             total_bounds=geometry.bounds,
             nb_squarish_tiles=math.ceil(num_coords / num_coords_max),
         )
-        geom_split = shapely.intersection(geometry, grid)
+        geom_divided = shapely.intersection(geometry, grid)
         input_primitivetype_id = pygeoops.get_primitivetype_id(geometry)
         assert isinstance(input_primitivetype_id, (int, np.integer))
-        geom_split = pygeoops.collection_extract(geom_split, input_primitivetype_id)
-        geom_split = geom_split[~shapely.is_empty(geom_split)]
-        return geom_split
-
-
-def _split_if_needed2(
-    geometry: BaseGeometry, num_coords_max: int
-) -> NDArray[BaseGeometry]:
-    """
-    Split the input geometry to smaller pieces using a grid.
-
-    The grid is choosen so the average number of points per grid tile < num_coords_max.
-
-    Args:
-        geometry (geometry): the geometry to split.
-        num_coords_max (int): maximum coordinates the input geometry should contain.
-
-    Returns:
-        array of geometries: if geometry has < num_coords_max coordinates, the array
-            will contain the input geometry. Otherwise it will have more elements.
-    """
-    shapely.prepare(geometry)
-    num_coords = shapely.get_num_coordinates(geometry)
-    if num_coords <= num_coords_max:
-        return np.array([geometry])
-    else:
-        geom_split = _split_geometry(geometry, num_coords, num_coords_max)
-        geom_split_ok = []
-        for geom_curr in geom_split:
-            num_coords = shapely.get_num_coordinates(geom_curr)
-            if num_coords <= num_coords_max:
-                geom_split_ok.append(geom_curr)
-            else:
-                geom_split_ok.extend(
-                    _split_geometry(geometry, num_coords, num_coords_max)
-                )
-
-        return np.array(geom_split)
-
-
-def _split_geometry(geometry, num_coords: int, num_coords_max: int):
-    grid = pygeoops.create_grid2(
-        total_bounds=geometry.bounds,
-        nb_squarish_tiles=math.ceil(num_coords / num_coords_max),
-    )
-    geom_split = shapely.intersection(geometry, grid)
-    input_primitivetype_id = pygeoops.get_primitivetype_id(geometry)
-    assert isinstance(input_primitivetype_id, (int, np.integer))
-    geom_split = pygeoops.collection_extract(geom_split, input_primitivetype_id)
-    geom_split = geom_split[~shapely.is_empty(geom_split)]
-
-    return geom_split
+        geom_divided = pygeoops.collection_extract(geom_divided, input_primitivetype_id)
+        geom_divided = geom_divided[~shapely.is_empty(geom_divided)]
+        return geom_divided
 
 
 def _difference_intersecting(
