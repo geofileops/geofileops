@@ -120,14 +120,15 @@ def test_gfo_reduceprecision(test_descr, geom, exp_result):
 
 
 @pytest.mark.parametrize(
-    "test_descr, geom, exp_result",
+    "test_descr, geom, subdivide_coords, exp_result",
     [
-        ("None", None, None),
-        ("empty", Point(), Point()),
-        ("point", Point(1, 1), Point(1, 1)),
+        ("None", None, 3, None),
+        ("empty", Point(), 3, Point()),
+        ("point", Point(1, 1), 3, Point(1, 1)),
         (
-            "multipoly",
+            "poly",
             Polygon([(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)]),
+            3,
             shapely.GeometryCollection(
                 [
                     Polygon([(0, 0), (0, 10), (5, 10), (5, 0), (0, 0)]),
@@ -135,14 +136,20 @@ def test_gfo_reduceprecision(test_descr, geom, exp_result):
                 ]
             ),
         ),
+        (
+            "poly_nodivide",
+            Polygon([(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)]),
+            0,
+            Polygon([(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)]),
+        ),
     ],
 )
-def test_gfo_subdivide(test_descr, geom, exp_result):
+def test_gfo_subdivide(test_descr, geom, subdivide_coords, exp_result):
     # Prepare test data
     geom_wkb = None if geom is None else geom.wkb
 
     # Test
-    result_wkb = sqlite_userdefined.gfo_subdivide(geom_wkb, num_coords_max=3)
+    result_wkb = sqlite_userdefined.gfo_subdivide(geom_wkb, coords=subdivide_coords)
 
     # Check result
     result = shapely.from_wkb(result_wkb)

@@ -920,6 +920,7 @@ def erase(
     where: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
+    subdivide_coords: int = 1000,
     force: bool = False,
     input_columns_prefix: str = "",
     output_with_spatial_index: bool = True,
@@ -963,7 +964,8 @@ def erase(
                                 ST_GeomFromWKB(GFO_Difference_Collection(
                                     ST_AsBinary(layer1_sub.{{input1_geometrycolumn}}),
                                     ST_AsBinary(ST_Collect(layer2_sub.geom_split)),
-                                    1
+                                    1,
+                                    {subdivide_coords}
                                 )),
                                 'DIFF_EMPTY'
                             ) AS diff_geom
@@ -973,7 +975,7 @@ def erase(
                        JOIN (SELECT layer2_sub2.rowid
                                    ,ST_GeomFromWKB(GFO_Subdivide(
                                      ST_AsBinary(layer2_sub2.{{input2_geometrycolumn}}),
-                                     1000
+                                     {subdivide_coords}
                                     )) AS geom_split
                              FROM {{input2_databasename}}."{{input2_layer}}" layer2_sub2
                              LIMIT -1 OFFSET 0
@@ -1679,6 +1681,7 @@ def split(
     where: Optional[str] = None,
     nb_parallel: int = 1,
     batchsize: int = -1,
+    subdivide_coords: int = 1000,
     force: bool = False,
     output_with_spatial_index: bool = True,
 ):
@@ -1715,64 +1718,71 @@ def split(
 
     sql_template = f"""
         SELECT * FROM (
-            SELECT ST_CollectionExtract(
-                        ST_intersection(layer1.{{input1_geometrycolumn}},
-                                        layer2.{{input2_geometrycolumn}}),
-                        {primitivetype_to_extract.value}) as geom
-                  {{layer1_columns_prefix_alias_str}}
-                  {{layer2_columns_prefix_alias_str}}
-              FROM {{input1_databasename}}."{{input1_layer}}" layer1
-              JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
-                ON layer1.fid = layer1tree.id
-              JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-              JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
-                ON layer2.fid = layer2tree.id
-             WHERE 1=1
-               {{batch_filter}}
-               AND layer1tree.minx <= layer2tree.maxx
-               AND layer1tree.maxx >= layer2tree.minx
-               AND layer1tree.miny <= layer2tree.maxy
-               AND layer1tree.maxy >= layer2tree.miny
-               AND ST_Intersects(layer1.{{input1_geometrycolumn}},
-                                 layer2.{{input2_geometrycolumn}}) = 1
-               --AND ST_Touches(layer1.{{input1_geometrycolumn}},
-               --               layer2.{{input2_geometrycolumn}}) = 0
-            UNION ALL
-            SELECT IFNULL(
-                     ( SELECT IFNULL(
-                                  ST_GeomFromWKB(GFO_Difference_Collection(
-                                      ST_AsBinary(layer1_sub.{{input1_geometrycolumn}}),
-                                      ST_AsBinary(ST_Collect(
-                                          layer2_sub.{{input2_geometrycolumn}})),
-                                      1)),
-                                  'DIFF_EMPTY'
-                              ) AS diff_geom
-                         FROM {{input1_databasename}}."{{input1_layer}}" layer1_sub
-                         JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
-                           ON layer1_sub.fid = layer1tree.id
-                         JOIN {{input2_databasename}}."{{input2_layer}}" layer2_sub
-                         JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
-                           ON layer2_sub.fid = layer2tree.id
-                        WHERE 1=1
-                          AND layer1_sub.rowid = layer1.rowid
-                          AND layer1tree.minx <= layer2tree.maxx
-                          AND layer1tree.maxx >= layer2tree.minx
-                          AND layer1tree.miny <= layer2tree.maxy
-                          AND layer1tree.maxy >= layer2tree.miny
-                        GROUP BY layer1_sub.rowid
-                        LIMIT -1 OFFSET 0
-                     ),
-                     layer1.{{input1_geometrycolumn}}
-                   ) AS geom
-                  {{layer1_columns_prefix_alias_str}}
-                  {{layer2_columns_prefix_alias_null_str}}
-              FROM {{input1_databasename}}."{{input1_layer}}" layer1
-             WHERE 1=1
-               {{batch_filter}}
-             LIMIT -1 OFFSET 0
-            )
-         WHERE geom IS NOT NULL
-           AND geom <> 'DIFF_EMPTY'
+          SELECT ST_CollectionExtract(
+                      ST_intersection(layer1.{{input1_geometrycolumn}},
+                                      layer2.{{input2_geometrycolumn}}),
+                      {primitivetype_to_extract.value}) as geom
+                {{layer1_columns_prefix_alias_str}}
+                {{layer2_columns_prefix_alias_str}}
+            FROM {{input1_databasename}}."{{input1_layer}}" layer1
+            JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+              ON layer1.fid = layer1tree.id
+            JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+            JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+              ON layer2.fid = layer2tree.id
+           WHERE 1=1
+             {{batch_filter}}
+             AND layer1tree.minx <= layer2tree.maxx
+             AND layer1tree.maxx >= layer2tree.minx
+             AND layer1tree.miny <= layer2tree.maxy
+             AND layer1tree.maxy >= layer2tree.miny
+             AND ST_Intersects(layer1.{{input1_geometrycolumn}},
+                               layer2.{{input2_geometrycolumn}}) = 1
+             --AND ST_Touches(layer1.{{input1_geometrycolumn}},
+             --               layer2.{{input2_geometrycolumn}}) = 0
+          UNION ALL
+          SELECT IFNULL(
+                   ( SELECT IFNULL(
+                                ST_GeomFromWKB(GFO_Difference_Collection(
+                                    ST_AsBinary(layer1_sub.{{input1_geometrycolumn}}),
+                                    ST_AsBinary(ST_Collect(layer2_sub.geom_split)),
+                                    1,
+                                    {subdivide_coords}
+                                )),
+                                'DIFF_EMPTY'
+                            ) AS diff_geom
+                       FROM {{input1_databasename}}."{{input1_layer}}" layer1_sub
+                       JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                         ON layer1_sub.rowid = layer1tree.id
+                       JOIN (SELECT layer2_sub2.rowid
+                                   ,ST_GeomFromWKB(GFO_Subdivide(
+                                     ST_AsBinary(layer2_sub2.{{input2_geometrycolumn}}),
+                                     {subdivide_coords}
+                                    )) AS geom_split
+                             FROM {{input2_databasename}}."{{input2_layer}}" layer2_sub2
+                             LIMIT -1 OFFSET 0
+                         ) layer2_sub
+                       JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                         ON layer2_sub.rowid = layer2tree.id
+                      WHERE 1=1
+                        AND layer1_sub.rowid = layer1.rowid
+                        AND layer1tree.minx <= layer2tree.maxx
+                        AND layer1tree.maxx >= layer2tree.minx
+                        AND layer1tree.miny <= layer2tree.maxy
+                        AND layer1tree.maxy >= layer2tree.miny
+                      GROUP BY layer1_sub.rowid
+                      LIMIT -1 OFFSET 0
+                   ),
+                   layer1.{{input1_geometrycolumn}}
+                 ) AS geom
+                {{layer1_columns_prefix_alias_str}}
+            FROM {{input1_databasename}}."{{input1_layer}}" layer1
+           WHERE 1=1
+             {{batch_filter}}
+           LIMIT -1 OFFSET 0
+          )
+        WHERE geom IS NOT NULL
+          AND geom <> 'DIFF_EMPTY'
     """
 
     # Go!
@@ -1816,6 +1826,7 @@ def symmetric_difference(
     where: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
+    subdivide_coords: int = 1000,
     force: bool = False,
 ):
     # A symmetric difference can be simulated by doing an "erase" of input1
@@ -1847,6 +1858,7 @@ def symmetric_difference(
             where=where,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
+            subdivide_coords=subdivide_coords,
             force=force,
             output_with_spatial_index=False,
         )
@@ -1879,6 +1891,7 @@ def symmetric_difference(
             where=where,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
+            subdivide_coords=subdivide_coords,
             force=force,
             output_with_spatial_index=False,
         )
@@ -1926,6 +1939,7 @@ def union(
     where: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
+    subdivide_coords: int = 1000,
     force: bool = False,
 ):
     # A union can be simulated by doing a "split" of input1 and input2 and
@@ -1959,6 +1973,7 @@ def union(
             where=where,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
+            subdivide_coords=subdivide_coords,
             force=force,
             output_with_spatial_index=False,
         )
@@ -1979,6 +1994,7 @@ def union(
             where=where,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
+            subdivide_coords=subdivide_coords,
             force=force,
             output_with_spatial_index=False,
         )

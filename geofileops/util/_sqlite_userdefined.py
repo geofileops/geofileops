@@ -16,13 +16,18 @@ def gfo_difference_collection(
     geom_wkb: bytes,
     geom_to_subtract_wkb: bytes,
     keep_geom_type: int = 0,
+    subdivide_coords: int = 1000,
 ) -> Optional[bytes]:
     """
     Applies the difference of geom_to_subtract on geom.
 
-    If geom has many points, it will be subdivided in smaller times to speed up
-    processing. This will result in extra collinear points being added to its
-    boundaties.
+    If the input geometry has many points, they can be subdivided in smaller parts
+    to potentially speed up processing as controlled by parameter `subdivide_coords`.
+    This will result in extra collinear points being added to the boundaries of the
+    output.
+
+    Note that the geom_to_subtract_wkb won't be subdivided automatically, so if it
+    can contain complex geometries as well you can use `gfo_subdivide` on it/them.
 
     Args:
         geom_wkb (bytes): geometry to substract geom_to_subtract_wkb from in wkb format.
@@ -32,6 +37,11 @@ def gfo_difference_collection(
             the same geometry type/dimension as the input. Eg. if input is a Polygon,
             remove LineStrings and Points from the difference result before returning.
             Defaults to 0.
+        subdivide_coords (int, optional): if > 0, the input geometry will be
+            subdivided to parts with about this number of points which can speed up
+            processing for complex geometries. Subdividing can result in extra collinear
+            points being added to the boundaries of the output. If <= 0, no subdividing
+            is applied. Defaults to 1000.
 
     Returns:
         Optional[bytes]: return the difference. If geom was completely removed due to
@@ -68,7 +78,7 @@ def gfo_difference_collection(
             geom,
             geoms_to_subtract,
             keep_geom_type=keep_geom_type,
-            coords_per_tile=1000,
+            subdivide_coords=subdivide_coords,
         )
 
         # If an empty result, return None
@@ -99,8 +109,8 @@ def gfo_reduceprecision(
     than 0. Line and polygon geometries may collapse to empty geometries if all vertices
     are closer together than grid_size. Z values, if present, will not be modified.
 
-    Note: unless parameter makevalid_first=1 is used, input geometries should be
-    geometrically valid. Unexpected results may occur if input geometries are not.
+    Note: unless parameter makevalid_first=1 is used, the input geometry should be
+    geometrically valid. Unexpected results may occur if input geometry is not.
 
     Args:
         geom_wkb (bytes): geometry to reduce precision from in wkb format.
@@ -152,11 +162,27 @@ def gfo_reduceprecision(
         return None
 
 
-def gfo_subdivide(geom_wkb, num_coords_max):
+def gfo_subdivide(geom_wkb: bytes, coords: int = 1000):
+    """
+    Divide the input geometry to smaller parts using rectilinear lines.
+
+    Args:
+        geom_wkb (geometry): the geometry to subdivide in wkb format.
+        coords (int): number of coordinates per subdivision to aim for. In the current
+            implementation, coords will be the average number of coordinates the
+            subdividions will consist of. If <= 0, no subdividing is applied.
+            Defaults to 1000.
+
+    Returns:
+        geometry wkb: if geometry has < coords coordinates, the input geometry is
+            returned. Otherwise the subdivisions as a GeometryCollection.
+    """
     try:
         # Check/prepare input
         if geom_wkb is None:
             return None
+        if coords <= 0:
+            return geom_wkb
 
         # Extract wkb's, and return if empty
         geom = shapely.from_wkb(geom_wkb)
@@ -166,11 +192,11 @@ def gfo_subdivide(geom_wkb, num_coords_max):
 
     except Exception as ex:  # pragma: no cover
         # ex.with_traceback()
-        logger.exception(f"Error in gfo_split_if_needed: {ex}")
+        logger.exception(f"Error in gfo_subdivide: {ex}")
         raise
 
     try:
-        result = pygeoops.subdivide(geom, num_coords_max=num_coords_max)
+        result = pygeoops.subdivide(geom, num_coords_max=coords)
 
         if result is None:
             return None
@@ -183,7 +209,7 @@ def gfo_subdivide(geom_wkb, num_coords_max):
 
     except Exception as ex:  # pragma: no cover
         # ex.with_traceback()
-        logger.exception(f"Error in gfo_split_if_needed: {ex}")
+        logger.exception(f"Error in gfo_subdivide: {ex}")
         return None
 
 
