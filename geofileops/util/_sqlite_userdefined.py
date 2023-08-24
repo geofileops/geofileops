@@ -3,10 +3,10 @@ import logging
 from typing import Optional
 
 import shapely
-from pygeoops import _difference as difference
+import pygeoops
 
+# from pygeoops import _difference as _difference
 # from pygeoops import _paramvalidation as paramvalidation
-from geofileops.util import _difference as local_diff
 
 # Get a logger...
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ def gfo_difference_collection(
 
     try:
         # Apply difference
-        result = local_diff.difference_all_tiled(
+        result = pygeoops.difference_all_tiled(
             geom,
             geoms_to_subtract,
             keep_geom_type=keep_geom_type,
@@ -170,7 +170,7 @@ def gfo_subdivide(geom_wkb, num_coords_max):
         raise
 
     try:
-        result = difference._split_if_needed(geom, num_coords_max=num_coords_max)
+        result = pygeoops.subdivide(geom, num_coords_max=num_coords_max)
 
         if result is None:
             return None
@@ -230,7 +230,7 @@ class DifferenceAgg:
                 )
 
                 # Split input geometry if needed
-                self.tmpdiff = difference._split_if_needed(geom, self.num_coords_max)
+                self.tmpdiff = pygeoops.subdivide(geom, self.num_coords_max)
 
             # If the difference is already empty, no use to continue
             if self.tmpdiff is None:
@@ -238,7 +238,7 @@ class DifferenceAgg:
 
             # Apply difference
             geom_to_subtract = shapely.from_wkb(geoms_to_subtract)
-            self.tmpdiff = difference._difference_intersecting(
+            self.tmpdiff = _difference._difference_intersecting(
                 self.tmpdiff,
                 geom_to_subtract,
                 keep_geom_type=self.keep_geom_type_dimension,
