@@ -286,7 +286,7 @@ def test_intersection(
     if explodecollections:
         expected_gdf = expected_gdf.explode(ignore_index=True)
     assert_geodataframe_equal(
-        output_gdf, expected_gdf, check_dtype=False, sort_values=True
+        output_gdf, expected_gdf, check_dtype=False, normalize=True, sort_values=True
     )
 
 

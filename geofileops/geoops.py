@@ -1699,7 +1699,7 @@ def intersection(
     where: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    tiled: bool = False,
+    subdivide_coords: int = 1000,
     force: bool = False,
 ):
     """
@@ -1744,9 +1744,11 @@ def intersection(
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
-        tiled (bool, optional): True to apply internal tiling on complex input
-            geometries. When the input datasets don't contain (many) features with
-            > 1000 points this is typically slower. Defaults to False.
+        subdivide_coords (int, optional): the input geometries will be subdivided to
+            parts with about subdivide_coords coordinates during processing which can
+            offer a large speed up for complex geometries. Subdividing can result in
+            extra collinear points being added to the boundaries of the output. If < 0,
+            no subdividing is applied. Defaults to 1000.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
@@ -1774,7 +1776,7 @@ def intersection(
         where=where,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
-        tiled=tiled,
+        subdivide_coords=subdivide_coords,
         force=force,
     )
 

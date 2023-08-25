@@ -219,11 +219,11 @@ def gfo_intersection_collections(
 
     try:
         if isinstance(geom1, shapely.GeometryCollection):
-            geom1 = shapely.get_parts(geom1)
+            geom1 = shapely.get_parts(shapely.get_parts(geom1))
         else:
             geom1 = [geom1]
         if isinstance(geom2, shapely.GeometryCollection):
-            geom2 = shapely.get_parts(geom2)
+            geom2 = shapely.get_parts(shapely.get_parts(geom2))
         else:
             geom2 = [geom2]
 
@@ -317,7 +317,6 @@ def gfo_reduceprecision(
         geom = shapely.from_wkb(geom_wkb)
         if geom.is_empty:
             return geom_wkb
-        del geom_wkb
 
     except Exception as ex:  # pragma: no cover
         # ex.with_traceback()
@@ -373,7 +372,6 @@ def gfo_subdivide(geom_wkb: bytes, coords: int = 1000):
         geom = shapely.from_wkb(geom_wkb)
         if geom.is_empty:
             return geom_wkb
-        del geom_wkb
 
     except Exception as ex:  # pragma: no cover
         # ex.with_traceback()
