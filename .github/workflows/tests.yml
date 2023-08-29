@@ -37,10 +37,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ubuntu-latest
+        os: [ubuntu-latest]
         dev: [false]
         python: ["3.8", "3.9", "3.10", "3.11"]
-        env: "latest.yml"
+        env: ["latest.yml"]
         include:
           - env: minimal.yaml
             os: ubuntu-latest
