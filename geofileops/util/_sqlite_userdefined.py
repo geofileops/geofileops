@@ -219,11 +219,11 @@ def gfo_intersection_collections(
 
     try:
         if isinstance(geom1, shapely.GeometryCollection):
-            geom1 = shapely.get_parts(shapely.get_parts(geom1))
+            geom1 = shapely.get_parts(geom1)
         else:
             geom1 = [geom1]
         if isinstance(geom2, shapely.GeometryCollection):
-            geom2 = shapely.get_parts(shapely.get_parts(geom2))
+            geom2 = shapely.get_parts(geom2)
         else:
             geom2 = [geom2]
 
