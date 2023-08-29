@@ -261,7 +261,7 @@ def intersection_complexpoly_agri(tmp_dir: Path) -> RunResult:
     # Init
     function_name = inspect.currentframe().f_code.co_name  # type: ignore[union-attr]
     # Prepare a complex polygon to test with
-    poly_complex = _create_complex_poly(
+    poly_complex = testdata.create_complex_poly(
         xmin=30000.123,
         ymin=170000.123,
         width=20000,
@@ -283,7 +283,6 @@ def intersection_complexpoly_agri(tmp_dir: Path) -> RunResult:
         input2_path=input2_path,
         output_path=output_path,
         nb_parallel=nb_parallel,
-        tiled=True,
         force=True,
     )
     result = RunResult(
@@ -556,39 +555,3 @@ def union(tmp_dir: Path) -> RunResult:
     # Cleanup and return
     output_path.unlink()
     return result
-
-
-def _create_complex_poly(
-    xmin: float,
-    ymin: float,
-    width: int,
-    height: int,
-    line_distance: int,
-    max_segment_length: int,
-) -> shapely.Polygon:
-    """Create complex polygon of a ~grid-shape the size specified."""
-    lines = []
-
-    # Vertical lines
-    for x_offset in range(0, 0 + width, line_distance):
-        lines.append(
-            shapely.LineString(
-                [(xmin + x_offset, ymin), (xmin + x_offset, ymin + height)]
-            )
-        )
-
-    # Horizontal lines
-    for y_offset in range(0, 0 + height, line_distance):
-        lines.append(
-            shapely.LineString(
-                [(xmin, ymin + y_offset), (xmin + width, ymin + y_offset)]
-            )
-        )
-
-    poly_complex = shapely.unary_union(shapely.MultiLineString(lines).buffer(2))
-    poly_complex = shapely.segmentize(
-        poly_complex, max_segment_length=max_segment_length
-    )
-    assert len(shapely.get_parts(poly_complex)) == 1
-
-    return poly_complex
