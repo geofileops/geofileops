@@ -17,10 +17,6 @@ from geofileops import GeometryType
 from geofileops.util._general_util import MissingRuntimeDependencyError
 from geofileops.util import _sqlite_userdefined as sqlite_userdefined
 
-#####################################################################
-# First define/init some general variables/constants
-#####################################################################
-
 # Get a logger...
 logger = logging.getLogger(__name__)
 
@@ -36,11 +32,6 @@ class EmptyResultError(Exception):
     def __init__(self, message):
         self.message = message
         super().__init__(self.message)
-
-
-#####################################################################
-# The real work
-#####################################################################
 
 
 def check_runtimedependencies():
@@ -152,9 +143,8 @@ def get_columns(
             batch_filter="",
         )
 
-        # Log explain plan
-        log_explain_plan = True
-        if log_explain_plan:
+        # Log explain plan if debug logging enabled.
+        if logger.isEnabledFor(logging.DEBUG):
             sql = f"""
                 EXPLAIN QUERY PLAN
                 SELECT * FROM (
@@ -164,7 +154,7 @@ def get_columns(
             cur = conn.execute(sql)
             plan = cur.fetchall()
             cur.close()
-            logger.info(pprint.pformat(plan))
+            logger.debug(pprint.pformat(plan))
 
         # Create temp table to get the column names + general data types
         # + fetch one row to use it to determine geometrytype.
