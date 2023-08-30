@@ -24,6 +24,12 @@ dependencies. ::
     conda activate geofileops-dev
 
 
+Now you can install the pre-commit hook that will take care of some automatic checks
+and formatting ::
+
+    pre-commit install
+
+
 .. _miniforge installer : https://github.com/conda-forge/miniforge#miniforge3
 
 .. |geofileOps git repository| raw:: html
