@@ -1238,8 +1238,6 @@ def _read_file_base_fiona(
                         result_gdf[col].astype(object).replace(np.nan, None)
                     )
 
-    # assert to evade pyLance warning
-    assert isinstance(result_gdf, (gpd.GeoDataFrame, pd.DataFrame))
     return result_gdf
 
 
@@ -1675,7 +1673,7 @@ def _to_file_fiona(
         gdftemp_lockpath = None
         if "a" not in fiona.supported_drivers[geofiletype.ogrdriver]:
             # Get a unique temp file path. The file cannot be created yet, so
-            # only create a lock file to evade other processes using the same
+            # only create a lock file to avoid other processes using the same
             # temp file name
             gdftemp_path, gdftemp_lockpath = _io_util.get_tempfile_locked(
                 base_filename="gdftemp", suffix=path.suffix, dirname="geofile_to_file"

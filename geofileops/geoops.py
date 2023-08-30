@@ -669,7 +669,7 @@ def dissolve(
         tiles_path (PathLike, optional): a path to a geofile containing tiles.
             If specified, the output will be dissolved/unioned only within the
             tiles provided.
-            Can be used to evade huge geometries being created if the input
+            Can be used to avoid huge geometries being created if the input
             geometries are very interconnected.
             Defaults to None (= the output is not tiled).
         nb_squarish_tiles (int, optional): the approximate number of tiles the
@@ -677,7 +677,7 @@ def dissolve(
             automatically created based on the total bounds of the input file.
             The input geometries will be dissolved/unioned only within the
             tiles generated.
-            Can be used to evade huge geometries being created if the input
+            Can be used to avoid huge geometries being created if the input
             geometries are very interconnected.
             Defaults to 1 (= the output is not tiled).
         input_layer (str, optional): input layer name. Optional if the
