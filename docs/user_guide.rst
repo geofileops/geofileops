@@ -1,5 +1,6 @@
 .. currentmodule:: geofileops
 
+==========
 User guide
 ==========
 

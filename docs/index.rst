@@ -5,6 +5,7 @@
 
 .. currentmodule:: geofileops
 
+====================
 GeofileOps |version|
 ====================
 
