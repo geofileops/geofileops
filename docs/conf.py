@@ -92,7 +92,7 @@ html_theme_options = {
 }
 html_sidebars = {
     "**": [
-        "globaltoc.html",
+        "localtoc.html",
     ]
 }
 
