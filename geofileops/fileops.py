@@ -1002,7 +1002,7 @@ def read_file(
             (e.g. Geopackage) this is slow, so using e.g. a where filter instead is
             recommended. Defaults to None, then all rows are returned.
         where (str, optional): only return the rows that comply to the filter specified.
-            Filter should be in |restricted_where| sql format. Defaults to None.
+            Filter should be in |OGRSQL_WHERE| sql format. Defaults to None.
         sql_stmt (str): sql statement to use. Only supported with "pyogrio" engine.
         sql_dialect (str, optional): Sql dialect used. Options are None, "SQLITE" or
             "OGRSQL". If None, for data sources with explicit SQL support the statement
@@ -1022,9 +1022,9 @@ def read_file(
     Returns:
         gpd.GeoDataFrame: the data read.
 
-    .. |restricted_where| raw:: html
+    .. |OGRSQL_WHERE| raw:: html
 
-        <a href="https://ogdi.sourceforge.net/prop/6.2.CapabilitiesMetadata.html#:~:text=qe_format%3Drestricted_where" target="_blank">restricted where</a>
+        <a href="https://gdal.org/user/ogr_sql_dialect.html#where" target="_blank">OGRSQL WHERE</a>
 
     .. |spatialite_reference_link| raw:: html
 
