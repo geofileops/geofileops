@@ -125,8 +125,7 @@ This is an example to get information about the (only) layer in a geo file:
     layerinfo = gfo.get_layerinfo(path='...')
     print(f"Layer {layerinfo.name} contains {layerinfo.featurecount} features")
 
-Remark: some functions might only work on Geopackage files, not on 
-shapefiles.
+Remark: some functions might only work on Geopackage files, not on shapefiles.
 
 .. |spatialite_reference_link| raw:: html
 
