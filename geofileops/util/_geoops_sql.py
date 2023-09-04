@@ -1084,7 +1084,7 @@ def export_by_location(
                                     layer2.{{input2_geometrycolumn}}) = 0)
             """
     else:
-        # Calculate intersect area
+        # Intersect area needs to be calculated
         if area_inters_column_name is None:
             area_inters_column_name = "area_inters"
         area_inters_column_expression = f"""
@@ -1123,6 +1123,7 @@ def export_by_location(
             sql_template = f"""
                 SELECT sub.* FROM
                   ( {sql_template}
+                     LIMIT -1 OFFSET 0
                   ) sub
                 WHERE sub.{area_inters_column_name} >= {min_area_intersect}
             """

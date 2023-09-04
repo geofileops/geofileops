@@ -17,7 +17,7 @@
   for large input geometries (#340, #358)
 - Improve performance of `clip`: 3x faster for typical data (#358)
 - Improve performance of `export_by_location`, especially when `area_inters_column_name`
-  and `min_area_intersect` are `None`: a lot faster + 10x less memory usage (#)
+  and `min_area_intersect` are `None`: a lot faster + 10x less memory usage (#370)
 - Support on-the-fly subdividing of complex geometries to speed up processing in
   `erase`, `split`, `symmetric difference` and `union` (#329, #330, #331, #357).
   The new parameter `subdivide_coords` can be used to control the feature.
@@ -47,7 +47,7 @@
 - `makevalid` parameter `precision` is renamed to `gridsize` as this is the typical
   terminology in other libraries (#273)
 - parameter `area_inters_column_name` in `export_by_location` now defaults to `None`
-  instead of "area_inters" (#)
+  instead of "area_inters" (#370)
 - `keep_empty_geoms` parameters are added with default value `False` for most operations
   as this was the default behaviour for those operations in the past. This will be
   changed to `True` in a future version. This is also explained in a futurewarning (#262)
