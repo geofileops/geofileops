@@ -548,6 +548,21 @@ def _single_layer_vector_operation(
             fid_column=input_layerinfo.fid_column,
         )
 
+        # Fill out template already for known info
+        columns_to_select_str = column_formatter.prefixed_aliased()
+        if input_layerinfo.fid_column != "":
+            # If there is an fid column defined, select that column as well so the fids
+            # can be retained in the output if possible.
+            columns_to_select_str = (
+                f",{input_layerinfo.fid_column}{columns_to_select_str}"
+            )
+        sql_template = sql_template.format(
+            geometrycolumn=input_layerinfo.geometrycolumn,
+            columns_to_select_str=columns_to_select_str,
+            input_layer=processing_params.input1_layer,
+            batch_filter="{batch_filter}",
+        )
+
         #  to Check if a geometry column is available + selected
         if geom_selected is None:
             if input_layerinfo.geometrycolumn is None:
@@ -555,12 +570,7 @@ def _single_layer_vector_operation(
                 geom_selected = False
             else:
                 # There is a geometry column in the source file, check if it is selected
-                sql_tmp = sql_template.format(
-                    geometrycolumn=input_layerinfo.geometrycolumn,
-                    columns_to_select_str=column_formatter.prefixed_aliased(),
-                    input_layer=processing_params.input1_layer,
-                    batch_filter="",
-                )
+                sql_tmp = sql_template.format(batch_filter="")
                 cols = _sqlite_util.get_columns(
                     sql_stmt=sql_tmp,
                     input1_path=processing_params.input1_path,
@@ -576,7 +586,8 @@ def _single_layer_vector_operation(
             # ST_Makevalid. It can also result in collapsed (pieces of)
             # geometries, so also collectionextract.
             gridsize_op = (
-                f"ST_MakeValid(SnapToGrid(sub_gridsize.{{geometrycolumn}}, {gridsize}))"
+                "ST_MakeValid(SnapToGrid("
+                f"    sub_gridsize.{input_layerinfo.geometrycolumn}, {gridsize}))"
             )
             if force_output_geometrytype is None:
                 warnings.warn(
@@ -589,12 +600,7 @@ def _single_layer_vector_operation(
                 gridsize_op = f"ST_CollectionExtract({gridsize_op}, {primitivetypeid})"
 
             # Get all columns of the sql_template
-            sql_tmp = sql_template.format(
-                geometrycolumn=input_layerinfo.geometrycolumn,
-                columns_to_select_str=column_formatter.prefixed_aliased(),
-                input_layer=processing_params.input1_layer,
-                batch_filter="",
-            )
+            sql_tmp = sql_template.format(batch_filter="")
             cols = _sqlite_util.get_columns(
                 sql_stmt=sql_tmp, input1_path=processing_params.input1_path
             )
@@ -603,7 +609,7 @@ def _single_layer_vector_operation(
             ]
             columns_to_select = _ogr_sql_util.columns_quoted(attributes)
             sql_template = f"""
-                SELECT {gridsize_op} AS {{geometrycolumn}}
+                SELECT {gridsize_op} AS {input_layerinfo.geometrycolumn}
                       {columns_to_select}
                   FROM ( {sql_template}
                     ) sub_gridsize
@@ -615,7 +621,7 @@ def _single_layer_vector_operation(
                 SELECT * FROM
                     ( {sql_template}
                     )
-                 WHERE {{geometrycolumn}} IS NOT NULL
+                 WHERE {input_layerinfo.geometrycolumn} IS NOT NULL
             """
 
         # Prepare/apply where_post parameter
@@ -641,13 +647,12 @@ def _single_layer_vector_operation(
                 SELECT * FROM
                     ( {sql_template}
                     )
-                 ORDER BY {{geometrycolumn}} IS NULL
+                 ORDER BY {input_layerinfo.geometrycolumn} IS NULL
             """
 
+        # Fill out geometrycolumn again as there might have popped up extra ones
         sql_template = sql_template.format(
             geometrycolumn=input_layerinfo.geometrycolumn,
-            columns_to_select_str=column_formatter.prefixed_aliased(),
-            input_layer=processing_params.input1_layer,
             batch_filter="{batch_filter}",
         )
 

@@ -795,7 +795,11 @@ def _apply_geooperation(
     # Now go!
     start_time = datetime.now()
     data_gdf = gfo.read_file(
-        path=input_path, layer=input_layer, columns=columns, where=where
+        path=input_path,
+        layer=input_layer,
+        columns=columns,
+        where=where,
+        fid_as_index=True,
     )
 
     # Run operation if data read
@@ -860,6 +864,10 @@ def _apply_geooperation(
     if len(data_gdf) == 0:
         input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
         force_output_geometrytype = input_layerinfo.geometrytype.to_multitype.name
+
+    # If the index is still unique, save it as fid column
+    if data_gdf.index.is_unique:
+        data_gdf = data_gdf.reset_index(names=["fid"])
 
     # Use force_multitype, to avoid warnings when some batches contain
     # singletype and some contain multitype geometries
