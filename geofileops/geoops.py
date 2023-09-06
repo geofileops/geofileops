@@ -373,6 +373,9 @@ def clip_by_geometry(
     """
     Clip all geometries in the imput file by the geometry provided.
 
+    If ``explodecollections`` is False and the output file is a GeoPackage, the fid
+    will be preserved. In other cases this will typically not be the case.
+
     Args:
         input_path (PathLike): the input file
         output_path (PathLike): the file to write the result to
@@ -760,6 +763,9 @@ def export_by_bounds(
 ):
     """
     Export the rows that intersect with the bounds specified.
+
+    If ``explodecollections`` is False and the output file is a GeoPackage, the fid
+    will be preserved. In other cases this will typically not be the case.
 
     Args:
         input_path (PathLike): the input file

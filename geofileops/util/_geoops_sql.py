@@ -321,7 +321,7 @@ def makevalid(
     # Now we can prepare the entire statement
     sql_template = f"""
         SELECT {operation} AS {{geometrycolumn}}
-                {{columns_to_select_str}}
+              {{columns_to_select_str}}
           FROM "{{input_layer}}" layer
          WHERE 1=1
            {{batch_filter}}
