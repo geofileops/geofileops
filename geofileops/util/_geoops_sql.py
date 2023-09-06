@@ -502,6 +502,11 @@ def _single_layer_vector_operation(
         else:
             gfo.remove(output_path)
 
+    # Determine if fid can be preserved
+    preserve_fid = False
+    if not explodecollections and GeofileType(output_path) == GeofileType.GPKG:
+        preserve_fid = True
+
     # Calculate
     tempdir = _io_util.create_tempdir(f"geofileops/{operation_name.replace(' ', '_')}")
     try:
@@ -689,9 +694,6 @@ def _single_layer_vector_operation(
                 create_spatial_index = False
                 if nb_batches == 1:
                     create_spatial_index = True
-                preserve_fid = True
-                if explodecollections:
-                    preserve_fid = False
                 translate_info = _ogr_util.VectorTranslateInfo(
                     input_path=processing_params.batches[batch_id]["path"],
                     output_path=tmp_partial_output_path,
@@ -761,6 +763,7 @@ def _single_layer_vector_operation(
                         force_output_geometrytype=force_output_geometrytype,
                         where=where_post,
                         create_spatial_index=False,
+                        preserve_fid=preserve_fid,
                     )
                     gfo.remove(tmp_partial_output_path)
 

@@ -41,7 +41,7 @@ import shapely
 import shapely.geometry as sh_geom
 
 import geofileops as gfo
-from geofileops import fileops
+from geofileops import fileops, GeofileType
 from geofileops.util import _general_util
 from geofileops.util import _geoops_sql
 from geofileops.util import _io_util
@@ -792,6 +792,11 @@ def _apply_geooperation(
         else:
             gfo.remove(output_path)
 
+    # Check if we want to preserve the fid in the output
+    preserve_fid = False
+    if not explodecollections and GeofileType(output_path) == GeofileType.GPKG:
+        preserve_fid = True
+
     # Now go!
     start_time = datetime.now()
     data_gdf = gfo.read_file(
@@ -799,7 +804,7 @@ def _apply_geooperation(
         layer=input_layer,
         columns=columns,
         where=where,
-        fid_as_index=True,
+        fid_as_index=preserve_fid,
     )
 
     # Run operation if data read
@@ -866,7 +871,7 @@ def _apply_geooperation(
         force_output_geometrytype = input_layerinfo.geometrytype.to_multitype.name
 
     # If the index is still unique, save it to fid column so to_file can save it
-    if data_gdf.index.is_unique:
+    if preserve_fid:
         data_gdf["fid"] = data_gdf.index
 
     # Use force_multitype, to avoid warnings when some batches contain
