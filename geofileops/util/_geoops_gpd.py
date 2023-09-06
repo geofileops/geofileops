@@ -865,9 +865,9 @@ def _apply_geooperation(
         input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
         force_output_geometrytype = input_layerinfo.geometrytype.to_multitype.name
 
-    # If the index is still unique, save it as fid column
+    # If the index is still unique, save it to fid column so to_file can save it
     if data_gdf.index.is_unique:
-        data_gdf = data_gdf.reset_index(names=["fid"])
+        data_gdf["fid"] = data_gdf.index
 
     # Use force_multitype, to avoid warnings when some batches contain
     # singletype and some contain multitype geometries
