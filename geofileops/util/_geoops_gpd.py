@@ -612,6 +612,11 @@ def _apply_geooperation_to_layer(
     if isinstance(force_output_geometrytype, GeometryType):
         force_output_geometrytype = force_output_geometrytype.name
 
+    # Check if we want to preserve the fid in the output
+    preserve_fid = False
+    if not explodecollections and GeofileType(output_path) == GeofileType.GPKG:
+        preserve_fid = True
+
     # Prepare where_to_apply and filter_null_geoms
     if where_post is not None:
         if where_post == "":
@@ -693,6 +698,7 @@ def _apply_geooperation_to_layer(
                     explodecollections=explodecollections,
                     gridsize=gridsize,
                     keep_empty_geoms=keep_empty_geoms,
+                    preserve_fid=preserve_fid,
                     force=force,
                 )
                 future_to_batch_id[future] = batch_id
@@ -741,6 +747,7 @@ def _apply_geooperation_to_layer(
                                 create_spatial_index=False,
                                 force_output_geometrytype=force_output_geometrytype,
                                 where=where_post,
+                                preserve_fid=preserve_fid,
                             )
                             gfo.remove(tmp_partial_output_path)
 
@@ -782,6 +789,7 @@ def _apply_geooperation(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     keep_empty_geoms: bool = True,
+    preserve_fid: bool = False,
     force: bool = False,
 ) -> str:
     # Init
@@ -791,11 +799,6 @@ def _apply_geooperation(
             return message
         else:
             gfo.remove(output_path)
-
-    # Check if we want to preserve the fid in the output
-    preserve_fid = False
-    if not explodecollections and GeofileType(output_path) == GeofileType.GPKG:
-        preserve_fid = True
 
     # Now go!
     start_time = datetime.now()

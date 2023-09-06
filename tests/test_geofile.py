@@ -1118,11 +1118,11 @@ def test_to_file_fid_append_to(tmp_path, engine_setter):
     output2_gdf = gfo.read_file(output2_path, fid_as_index=True)
     assert_geodataframe_equal(output2_gdf, test2_gdf.set_index("fid"))
 
-    # Now merge them
-    gfo.copy(output1_path, output_path)
+    # Now merge them, but start with the high fid numbers
+    gfo.copy(output2_path, output_path)
     gfo.rename_layer(output_path, output_path.stem)
     gfo.append_to(
-        output2_path, output_path, dst_layer=output_path.stem, preserve_fid=True
+        output1_path, output_path, dst_layer=output_path.stem, preserve_fid=True
     )
 
     # Prepare expected result
