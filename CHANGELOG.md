@@ -6,30 +6,33 @@
 
 - Add support to read/add/remove embedded layer styles in gpkg (#263)
 - Add `gridsize` parameter to most spatial operations (#261)
-- Add `keep_empty_geoms` and `where` parameters to many single layer spatial operations
+- Add `keep_empty_geoms` and `where_post` parameters to many single layer spatial operations
   (#262)
-- Add `where` parameter to many two layer spatial operations (#312)
-- Add `where` parameter to `gfo.convert` and `gfo.append_to` (#311)
-- Add support for lang+ algorithm in `gfo.simplify` (#334)
-- Support creating geofile without geometry column using `gfo.select` (#322)
+- Add `where_post` parameter to many two layer spatial operations (#312)
+- Add `where` parameter to `copy_layer` and `append_to` (#311)
+- Add support for lang+ algorithm in `simplify` (#334)
+- Support creating geofile without geometry column using `select` (#322)
 - Improve performance of `makevalid` and `isvalid` (#258)
 - Improve performance of `intersection`, 30% faster for typical data, up to 4x faster
   for large input geometries (#340, #358)
 - Improve performance of `clip`: 3x faster for typical data (#358)
+- Improve performance of `export_by_location`, especially when `area_inters_column_name`
+  and `min_area_intersect` are `None`: a lot faster + 10x less memory usage (#370)
 - Support on-the-fly subdividing of complex geometries to speed up processing in
   `erase`, `split`, `symmetric difference` and `union` (#329, #330, #331, #357).
   The new parameter `subdivide_coords` can be used to control the feature.
   For files with very large input geometries, up to 100x faster + 10x less memory usage.
 - Improve performance of spatial operations when only one batch is used (#271)
+- Improve performance of single layer operations (#375)
 - Improve performance of some geopandas/shapely based operations (#342)
 - Add checks that `output_path` must not be equal to the/an `input_path` for geo
   operations (#246)
 - Follow geopandas behaviour of using shapely2 and/or pygeos instead of forcing pygeos
   (#294)
-- Improve handling of "SELECT * ..." style queries in `gfo.select` and 
-  `gfo.select_two_layers` (#283)
+- Improve handling of "SELECT * ..." style queries in `select` and 
+  `select_two_layers` (#283)
 - Improve handling + tests regarding empty input layers/NULL geometries (#320)
-- Many small improvements to logging, documentation, error messages,... (#321,...)
+- Many small improvements to logging, documentation, error messages,... (#321, #366,...)
 - Use ruff instead of flake8 for linting (#317)
 
 ### Bugs fixed
@@ -44,6 +47,8 @@
 - Drop support for shapely1 (#329, #338)
 - `makevalid` parameter `precision` is renamed to `gridsize` as this is the typical
   terminology in other libraries (#273)
+- parameter `area_inters_column_name` in `export_by_location` now defaults to `None`
+  instead of "area_inters" (#370)
 - `keep_empty_geoms` parameters are added with default value `False` for most operations
   as this was the default behaviour for those operations in the past. This will be
   changed to `True` in a future version. This is also explained in a futurewarning (#262)
@@ -70,8 +75,7 @@
 - Add function `get_layer_geometrytypes` to get a list of all geometry types that
   are actually in a layer (#230)
 - Add `fid_as_index` parameter to `read_file` (#215)
-- Add `force_output_geometrytype` parameter to `apply` (#233)
-- Add `fid_as_index` parameter to `read_file` (#215)
+- Preserve `fid` values in single layer operations when possible (#)
 - Add `force_output_geometrytype` parameter to `apply` (#233)
 - Optimize performance of operations when only one batch is used (#19)
 - Optimize number batches for single layer sql operations (#214)

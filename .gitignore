@@ -4,8 +4,10 @@
 *.log
 *.pyc
 *.gpkg-*
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
 .vscode/
-.ruff_cache
 tests/data/testdata.qgz
 
 build/
@@ -15,4 +17,4 @@ docs/_build
 docs/api
 geofileops.egg-info/
 htmlcov/
-tmp/
+local_ignore/

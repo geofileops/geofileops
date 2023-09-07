@@ -52,7 +52,7 @@ def basic_combinations_to_test(
 ) -> list:
     """
     Return sensible combinations of parameters to be used in tests for following params:
-        suffix, epsg, geoops_module, testfile, empty_input, gridsize, where
+        suffix, epsg, geoops_module, testfile, empty_input, gridsize, where_post
     """
     result = []
 
@@ -62,13 +62,13 @@ def basic_combinations_to_test(
     for epsg in epsgs:
         for geoops_module in geoops_modules:
             for testfile in testfiles:
-                where = None
+                where_post = None
                 keep_empty_geoms = None
                 gridsize = 0.001 if epsg == 31370 else GRIDSIZE_DEFAULT
                 if testfile == "polygon-parcel":
                     keep_empty_geoms = False
                     if epsg == 31370:
-                        where = WHERE_AREA_GT_400
+                        where_post = WHERE_AREA_GT_400
                 elif testfile == "point":
                     keep_empty_geoms = True
                 result.append(
@@ -80,7 +80,7 @@ def basic_combinations_to_test(
                         False,
                         gridsize,
                         keep_empty_geoms,
-                        where,
+                        where_post,
                     )
                 )
 
@@ -92,11 +92,11 @@ def basic_combinations_to_test(
     for suffix in other_suffixes:
         for geoops_module in geoops_modules:
             for testfile in testfiles:
-                where = ""
+                where_post = ""
                 keep_empty_geoms = False
                 gridsize = 0.001 if testfile == "polygon-parcel" else GRIDSIZE_DEFAULT
                 if testfile == "polygon-parcel":
-                    where = WHERE_AREA_GT_400
+                    where_post = WHERE_AREA_GT_400
                 else:
                     keep_empty_geoms = True
                 result.append(
@@ -108,7 +108,7 @@ def basic_combinations_to_test(
                         False,
                         gridsize,
                         keep_empty_geoms,
-                        where,
+                        where_post,
                     )
                 )
 
@@ -119,7 +119,7 @@ def basic_combinations_to_test(
         for suffix in suffixes:
             gridsize = 0.001 if suffix == ".gpkg" else GRIDSIZE_DEFAULT
             keep_empty_geoms = False
-            where = None
+            where_post = None
             result.append(
                 (
                     suffix,
@@ -129,7 +129,7 @@ def basic_combinations_to_test(
                     True,
                     gridsize,
                     keep_empty_geoms,
-                    where,
+                    where_post,
                 )
             )
 
@@ -138,7 +138,7 @@ def basic_combinations_to_test(
 
 @pytest.mark.parametrize(
     "suffix, epsg, geoops_module, testfile, empty_input, gridsize, keep_empty_geoms, "
-    "where",
+    "where_post",
     basic_combinations_to_test(),
 )
 def test_buffer(
@@ -150,7 +150,7 @@ def test_buffer(
     empty_input,
     gridsize,
     keep_empty_geoms,
-    where,
+    where_post,
 ):
     """Buffer basics are available both in the gpd and sql implementations."""
     # Prepare test data
@@ -173,7 +173,10 @@ def test_buffer(
     expected_gdf = fileops.read_file(input_path)
     expected_gdf.geometry = expected_gdf.geometry.buffer(distance, resolution=5)
     expected_gdf = test_helper.prepare_expected_result(
-        expected_gdf, gridsize=gridsize, keep_empty_geoms=keep_empty_geoms, where=where
+        expected_gdf,
+        gridsize=gridsize,
+        keep_empty_geoms=keep_empty_geoms,
+        where_post=where_post,
     )
 
     # Test positive buffer
@@ -183,7 +186,7 @@ def test_buffer(
         distance=distance,
         gridsize=gridsize,
         keep_empty_geoms=keep_empty_geoms,
-        where=where,
+        where_post=where_post,
         nb_parallel=2,
         batchsize=batchsize,
     )
@@ -342,7 +345,7 @@ def test_buffer_invalid_params(
 
 @pytest.mark.parametrize(
     "suffix, epsg, geoops_module, testfile, empty_input, gridsize, keep_empty_geoms, "
-    "where",
+    "where_post",
     basic_combinations_to_test(epsgs=[31370]),
 )
 def test_buffer_negative(
@@ -354,7 +357,7 @@ def test_buffer_negative(
     empty_input,
     gridsize,
     keep_empty_geoms,
-    where,
+    where_post,
 ):
     """Buffer basics are available both in the gpd and sql implementations."""
     input_path = test_helper.get_testfile(testfile, suffix=suffix)
@@ -374,7 +377,7 @@ def test_buffer_negative(
         distance=distance,
         gridsize=gridsize,
         keep_empty_geoms=keep_empty_geoms,
-        where=where,
+        where_post=where_post,
         nb_parallel=2,
         batchsize=batchsize,
     )
@@ -417,7 +420,7 @@ def test_buffer_negative(
             expected_gdf,
             gridsize=gridsize,
             keep_empty_geoms=keep_empty_geoms,
-            where=where,
+            where_post=where_post,
         )
         assert_geodataframe_equal(output_gdf, expected_gdf, sort_values=True)
 
@@ -475,11 +478,11 @@ def test_buffer_negative_explode(tmp_path, geoops_module):
 @pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
 @pytest.mark.parametrize("suffix", SUFFIXES)
 @pytest.mark.parametrize(
-    "keep_empty_geoms, where", [(False, None), (False, WHERE_AREA_GT_400)]
+    "keep_empty_geoms, where_post", [(False, None), (False, WHERE_AREA_GT_400)]
 )
 @pytest.mark.parametrize("explodecollections", [True, False])
 def test_buffer_negative_where_explode(
-    tmp_path, suffix, geoops_module, keep_empty_geoms, where, explodecollections
+    tmp_path, suffix, geoops_module, keep_empty_geoms, where_post, explodecollections
 ):
     """Buffer basics are available both in the gpd and sql implementations."""
     # Prepare test data/environment
@@ -495,7 +498,7 @@ def test_buffer_negative_where_explode(
     expected_gdf = test_helper.prepare_expected_result(
         expected_gdf,
         keep_empty_geoms=keep_empty_geoms,
-        where=where,
+        where_post=where_post,
         explodecollections=explodecollections,
     )
 
@@ -506,7 +509,7 @@ def test_buffer_negative_where_explode(
         distance=distance,
         explodecollections=explodecollections,
         keep_empty_geoms=keep_empty_geoms,
-        where=where,
+        where_post=where_post,
         nb_parallel=2,
         batchsize=batchsize,
     )
@@ -529,13 +532,60 @@ def test_buffer_negative_where_explode(
 
 
 @pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
+def test_buffer_preserve_fid_gpkg(tmp_path, geoops_module):
+    """
+    Buffer test to check if fid is properly preserved.
+
+    Only relevant for e.g. Geopackage as it saves the fid as a value. For e.g.
+    shapefiles the fid is not retained, but always a sequence from 0 in the file.
+    """
+    # Prepare test data: remove 2 fid's from file to check if the fid's are preserved
+    input_full_path = test_helper.get_testfile("polygon-parcel")
+    input_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    input_layer = fileops.get_only_layer(input_path)
+    sql_stmt = f'DELETE FROM "{input_layer}" WHERE fid IN (5, 6)'
+    fileops.execute_sql(input_path, sql_stmt=sql_stmt)
+
+    # Now run test
+    output_path = tmp_path / f"{input_path.stem}-{geoops_module}.gpkg"
+    set_geoops_module(geoops_module)
+    input_layerinfo = fileops.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+
+    # Test positive buffer
+    geoops.buffer(
+        input_path=input_path,
+        output_path=output_path,
+        distance=1,
+        keep_empty_geoms=False,
+        nb_parallel=2,
+        batchsize=batchsize,
+    )
+
+    # Prepare expected result to compare with
+    expected_gdf = fileops.read_file(input_full_path, fid_as_index=True)
+    expected_gdf = expected_gdf[~expected_gdf.index.isin([5, 6])]
+
+    # Check if the output file with the expected result
+    assert output_path.exists()
+    assert fileops.has_spatial_index(output_path)
+    output_gdf = fileops.read_file(output_path, fid_as_index=True)
+    assert len(output_gdf) == len(expected_gdf)
+    assert output_gdf["geometry"].iloc[0] is not None
+    assert (
+        output_gdf.index.sort_values().tolist()
+        == expected_gdf.index.sort_values().tolist()
+    )
+
+
+@pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
 @pytest.mark.parametrize("suffix", SUFFIXES)
 @pytest.mark.parametrize(
-    "empty_input, gridsize, keep_empty_geoms, where",
+    "empty_input, gridsize, keep_empty_geoms, where_post",
     [(True, 0.0, True, None), (False, 0.001, None, WHERE_AREA_GT_400)],
 )
 def test_convexhull(
-    tmp_path, geoops_module, suffix, empty_input, gridsize, keep_empty_geoms, where
+    tmp_path, geoops_module, suffix, empty_input, gridsize, keep_empty_geoms, where_post
 ):
     # Prepare test data
     logging.basicConfig(level=logging.DEBUG)
@@ -556,7 +606,7 @@ def test_convexhull(
         expected_gdf,
         gridsize=gridsize,
         keep_empty_geoms=keep_empty_geoms,
-        where=where,
+        where_post=where_post,
         columns=columns,
     )
 
@@ -568,7 +618,7 @@ def test_convexhull(
         output_path=output_path,
         gridsize=gridsize,
         keep_empty_geoms=keep_empty_geoms,
-        where=where,
+        where_post=where_post,
         nb_parallel=2,
         batchsize=batchsize,
     )
@@ -728,7 +778,7 @@ def test_makevalid_invalidparams():
 
 @pytest.mark.parametrize(
     "suffix, epsg, geoops_module, testfile, empty_input, gridsize, keep_empty_geoms, "
-    "where",
+    "where_post",
     basic_combinations_to_test(testfiles=["polygon-parcel", "linestring-row-trees"]),
 )
 def test_simplify(
@@ -740,7 +790,7 @@ def test_simplify(
     empty_input,
     gridsize,
     keep_empty_geoms,
-    where,
+    where_post,
 ):
     # Prepare test data
     tmp_dir = tmp_path / f"{geoops_module}_{epsg}"
@@ -766,7 +816,7 @@ def test_simplify(
         expected_gdf,
         gridsize=gridsize,
         keep_empty_geoms=keep_empty_geoms,
-        where=where,
+        where_post=where_post,
     )
 
     # Test default algorithm (rdp)
@@ -777,7 +827,7 @@ def test_simplify(
         tolerance=tolerance,
         gridsize=gridsize,
         keep_empty_geoms=keep_empty_geoms,
-        where=where,
+        where_post=where_post,
         nb_parallel=2,
         batchsize=batchsize,
     )

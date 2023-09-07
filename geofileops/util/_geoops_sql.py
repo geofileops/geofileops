@@ -51,7 +51,7 @@ def buffer(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     keep_empty_geoms: bool = True,
-    where: Optional[str] = None,
+    where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -97,7 +97,7 @@ def buffer(
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
         keep_empty_geoms=keep_empty_geoms,
-        where=where,
+        where_post=where_post,
         sql_dialect="SQLITE",
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -114,7 +114,7 @@ def convexhull(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     keep_empty_geoms: bool = False,  # Should become True
-    where: Optional[str] = None,
+    where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -146,7 +146,7 @@ def convexhull(
         force_output_geometrytype=input_layerinfo.geometrytype,
         gridsize=gridsize,
         keep_empty_geoms=keep_empty_geoms,
-        where=where,
+        where_post=where_post,
         sql_dialect="SQLITE",
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -162,7 +162,7 @@ def delete_duplicate_geometries(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     keep_empty_geoms: bool = True,
-    where: Optional[str] = None,
+    where_post: Optional[str] = None,
     force: bool = False,
 ):
     # The query as written doesn't give correct results when parallellized,
@@ -193,7 +193,7 @@ def delete_duplicate_geometries(
         force_output_geometrytype=input_layer_info.geometrytype,
         gridsize=0.0,
         keep_empty_geoms=keep_empty_geoms,
-        where=where,
+        where_post=where_post,
         sql_dialect="SQLITE",
         nb_parallel=1,
         batchsize=-1,
@@ -237,7 +237,7 @@ def isvalid(
         force_output_geometrytype=GeometryType.POINT,
         gridsize=0.0,
         keep_empty_geoms=False,
-        where=None,
+        where_post=None,
         sql_dialect="SQLITE",
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -284,7 +284,7 @@ def makevalid(
     force_output_geometrytype: Optional[GeometryType] = None,
     gridsize: float = 0.0,
     keep_empty_geoms: bool = True,
-    where: Optional[str] = None,
+    where_post: Optional[str] = None,
     validate_attribute_data: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -321,7 +321,7 @@ def makevalid(
     # Now we can prepare the entire statement
     sql_template = f"""
         SELECT {operation} AS {{geometrycolumn}}
-                {{columns_to_select_str}}
+              {{columns_to_select_str}}
           FROM "{{input_layer}}" layer
          WHERE 1=1
            {{batch_filter}}
@@ -340,7 +340,7 @@ def makevalid(
         force_output_geometrytype=force_output_geometrytype,
         gridsize=0.0,
         keep_empty_geoms=keep_empty_geoms,
-        where=where,
+        where_post=where_post,
         sql_dialect="SQLITE",
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -370,7 +370,7 @@ def select(
     batchsize: int = -1,
     force: bool = False,
 ):
-    # Check if output exists already here, to evade to much logging to be written
+    # Check if output exists already here, to avoid to much logging to be written
     if output_path.exists():
         if force is False:
             logger.info(f"Stop select: output exists already {output_path}")
@@ -401,7 +401,7 @@ def select(
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
         keep_empty_geoms=keep_empty_geoms,
-        where=None,
+        where_post=None,
         sql_dialect=sql_dialect,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -419,7 +419,7 @@ def simplify(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     keep_empty_geoms: bool = True,
-    where: Optional[str] = None,
+    where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -450,7 +450,7 @@ def simplify(
         force_output_geometrytype=input_layer_info.geometrytype,
         gridsize=gridsize,
         keep_empty_geoms=keep_empty_geoms,
-        where=where,
+        where_post=where_post,
         sql_dialect="SQLITE",
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -471,7 +471,7 @@ def _single_layer_vector_operation(
     force_output_geometrytype: Optional[GeometryType],
     gridsize: float,
     keep_empty_geoms: bool,
-    where: Optional[str],
+    where_post: Optional[str],
     sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]],
     nb_parallel: int,
     batchsize: int,
@@ -485,8 +485,8 @@ def _single_layer_vector_operation(
         raise ValueError(f"{operation_name}: input_path doesn't exist: {input_path}")
     if input_path == output_path:
         raise ValueError(f"{operation_name}: output_path must not equal input_path")
-    if where is not None and where == "":
-        where = None
+    if where_post is not None and where_post == "":
+        where_post = None
 
     # Check/get layer names
     if input_layer is None:
@@ -501,6 +501,11 @@ def _single_layer_vector_operation(
             return
         else:
             gfo.remove(output_path)
+
+    # Determine if fid can be preserved
+    preserve_fid = False
+    if not explodecollections and GeofileType(output_path) == GeofileType.GPKG:
+        preserve_fid = True
 
     # Calculate
     tempdir = _io_util.create_tempdir(f"geofileops/{operation_name.replace(' ', '_')}")
@@ -548,6 +553,21 @@ def _single_layer_vector_operation(
             fid_column=input_layerinfo.fid_column,
         )
 
+        # Fill out template already for known info
+        columns_to_select_str = column_formatter.prefixed_aliased()
+        if input_layerinfo.fid_column != "":
+            # If there is an fid column defined, select that column as well so the fids
+            # can be retained in the output if possible.
+            columns_to_select_str = (
+                f",{input_layerinfo.fid_column}{columns_to_select_str}"
+            )
+        sql_template = sql_template.format(
+            geometrycolumn=input_layerinfo.geometrycolumn,
+            columns_to_select_str=columns_to_select_str,
+            input_layer=processing_params.input1_layer,
+            batch_filter="{batch_filter}",
+        )
+
         #  to Check if a geometry column is available + selected
         if geom_selected is None:
             if input_layerinfo.geometrycolumn is None:
@@ -555,12 +575,7 @@ def _single_layer_vector_operation(
                 geom_selected = False
             else:
                 # There is a geometry column in the source file, check if it is selected
-                sql_tmp = sql_template.format(
-                    geometrycolumn=input_layerinfo.geometrycolumn,
-                    columns_to_select_str=column_formatter.prefixed_aliased(),
-                    input_layer=processing_params.input1_layer,
-                    batch_filter="",
-                )
+                sql_tmp = sql_template.format(batch_filter="")
                 cols = _sqlite_util.get_columns(
                     sql_stmt=sql_tmp,
                     input1_path=processing_params.input1_path,
@@ -576,7 +591,8 @@ def _single_layer_vector_operation(
             # ST_Makevalid. It can also result in collapsed (pieces of)
             # geometries, so also collectionextract.
             gridsize_op = (
-                f"ST_MakeValid(SnapToGrid(sub_gridsize.{{geometrycolumn}}, {gridsize}))"
+                "ST_MakeValid(SnapToGrid("
+                f"    sub_gridsize.{input_layerinfo.geometrycolumn}, {gridsize}))"
             )
             if force_output_geometrytype is None:
                 warnings.warn(
@@ -589,12 +605,7 @@ def _single_layer_vector_operation(
                 gridsize_op = f"ST_CollectionExtract({gridsize_op}, {primitivetypeid})"
 
             # Get all columns of the sql_template
-            sql_tmp = sql_template.format(
-                geometrycolumn=input_layerinfo.geometrycolumn,
-                columns_to_select_str=column_formatter.prefixed_aliased(),
-                input_layer=processing_params.input1_layer,
-                batch_filter="",
-            )
+            sql_tmp = sql_template.format(batch_filter="")
             cols = _sqlite_util.get_columns(
                 sql_stmt=sql_tmp, input1_path=processing_params.input1_path
             )
@@ -603,9 +614,11 @@ def _single_layer_vector_operation(
             ]
             columns_to_select = _ogr_sql_util.columns_quoted(attributes)
             sql_template = f"""
-                SELECT {gridsize_op} AS {{geometrycolumn}}
+                SELECT {gridsize_op} AS {input_layerinfo.geometrycolumn}
                       {columns_to_select}
-                  FROM ( {sql_template}
+                  FROM
+                    ( {sql_template}
+                       LIMIT -1 OFFSET 0
                     ) sub_gridsize
             """
 
@@ -614,24 +627,26 @@ def _single_layer_vector_operation(
             sql_template = f"""
                 SELECT * FROM
                     ( {sql_template}
+                       LIMIT -1 OFFSET 0
                     )
-                 WHERE {{geometrycolumn}} IS NOT NULL
+                 WHERE {input_layerinfo.geometrycolumn} IS NOT NULL
             """
 
-        # Prepare/apply where parameter
-        if where is not None and not explodecollections:
-            # explodecollections is not True, so we can add where to sql_stmt.
+        # Prepare/apply where_post parameter
+        if where_post is not None and not explodecollections:
+            # explodecollections is not True, so we can add where_post to sql_stmt.
             # If explodecollections would be True, we need to wait to apply the
-            # where till after explodecollections is applied, so when appending the
+            # where_post till after explodecollections is applied, so when appending the
             # partial results to the output file.
             sql_template = f"""
                 SELECT * FROM
                     ( {sql_template}
+                       LIMIT -1 OFFSET 0
                     )
-                    WHERE {where}
+                    WHERE {where_post}
             """
-            # Where has been applied already so set to None.
-            where = None
+            # where_post has been applied already so set to None.
+            where_post = None
 
         # When null geometries are being kept, we need to make sure the geom in the
         # first row is not NULL because of a bug in gdal, so add ORDER BY as last step.
@@ -640,14 +655,14 @@ def _single_layer_vector_operation(
             sql_template = f"""
                 SELECT * FROM
                     ( {sql_template}
+                       LIMIT -1 OFFSET 0
                     )
-                 ORDER BY {{geometrycolumn}} IS NULL
+                 ORDER BY {input_layerinfo.geometrycolumn} IS NULL
             """
 
+        # Fill out geometrycolumn again as there might have popped up extra ones
         sql_template = sql_template.format(
             geometrycolumn=input_layerinfo.geometrycolumn,
-            columns_to_select_str=column_formatter.prefixed_aliased(),
-            input_layer=processing_params.input1_layer,
             batch_filter="{batch_filter}",
         )
 
@@ -684,9 +699,6 @@ def _single_layer_vector_operation(
                 create_spatial_index = False
                 if nb_batches == 1:
                     create_spatial_index = True
-                preserve_fid = True
-                if explodecollections:
-                    preserve_fid = False
                 translate_info = _ogr_util.VectorTranslateInfo(
                     input_path=processing_params.batches[batch_id]["path"],
                     output_path=tmp_partial_output_path,
@@ -735,25 +747,28 @@ def _single_layer_vector_operation(
                 if (
                     nb_batches == 1
                     and tmp_partial_output_path.suffix == tmp_output_path.suffix
-                    and where is None
+                    and where_post is None
                 ):
                     # If there is only one batch
                     #   + partial file is already is correct file format
-                    #   + no more where needs to be applied
+                    #   + no more where_post needs to be applied
                     # -> just rename partial file, because it is already OK.
                     gfo.move(tmp_partial_output_path, tmp_output_path)
                 else:
                     # Append partial file to full destination file
-                    if where is not None:
+                    if where_post is not None:
                         info = gfo.get_layerinfo(tmp_partial_output_path, output_layer)
-                        where = where.format(geometrycolumn=info.geometrycolumn)
+                        where_post = where_post.format(
+                            geometrycolumn=info.geometrycolumn
+                        )
                     fileops._append_to_nolock(
                         src=tmp_partial_output_path,
                         dst=tmp_output_path,
                         explodecollections=explodecollections,
                         force_output_geometrytype=force_output_geometrytype,
-                        where=where,
+                        where=where_post,
                         create_spatial_index=False,
+                        preserve_fid=preserve_fid,
                     )
                     gfo.remove(tmp_partial_output_path)
 
@@ -815,7 +830,7 @@ def clip(
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    where: Optional[str] = None,
+    where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -839,7 +854,7 @@ def clip(
     # - use of the with instead of an inline view is a lot faster
     # - use "LIMIT -1 OFFSET 0" to avoid the subquery flattening. Flattening e.g.
     #   "geom IS NOT NULL" leads to geom operation to be calculated twice!
-    # - WHERE geom IS NOT NULL to evade rows with a NULL geom, they give issues in
+    # - WHERE geom IS NOT NULL to avoid rows with a NULL geom, they give issues in
     #   later operations.
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
     input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
@@ -900,7 +915,7 @@ def clip(
         output_layer=output_layer,
         explodecollections=explodecollections,
         gridsize=gridsize,
-        where=where,
+        where_post=where_post,
         force_output_geometrytype=force_output_geometrytype,
         output_with_spatial_index=output_with_spatial_index,
         nb_parallel=nb_parallel,
@@ -919,7 +934,7 @@ def erase(
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    where: Optional[str] = None,
+    where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     subdivide_coords: int = 1000,
@@ -1028,7 +1043,7 @@ def erase(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
-        where=where,
+        where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -1041,13 +1056,13 @@ def export_by_location(
     input_to_compare_with_path: Path,
     output_path: Path,
     min_area_intersect: Optional[float] = None,
-    area_inters_column_name: Optional[str] = "area_inters",
+    area_inters_column_name: Optional[str] = None,
     input_layer: Optional[str] = None,
     input_columns: Optional[List[str]] = None,
     input_to_compare_with_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     gridsize: float = 0.0,
-    where: Optional[str] = None,
+    where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -1056,73 +1071,75 @@ def export_by_location(
     # TODO: test performance difference between the following two queries
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
     input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
-    sql_template = f"""
-        SELECT layer1.{{input1_geometrycolumn}} AS geom
-              {{layer1_columns_prefix_alias_str}}
-          FROM {{input1_databasename}}."{{input1_layer}}" layer1
-          JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
-            ON layer1.fid = layer1tree.id
-         WHERE 1=1
-           {{batch_filter}}
-           AND EXISTS (
-              SELECT 1
-                FROM {{input2_databasename}}."{{input2_layer}}" layer2
-                JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
-                  ON layer2.fid = layer2tree.id
-               WHERE layer1tree.minx <= layer2tree.maxx
-                 AND layer1tree.maxx >= layer2tree.minx
-                 AND layer1tree.miny <= layer2tree.maxy
-                 AND layer1tree.maxy >= layer2tree.miny
-                 AND ST_intersects(layer1.{{input1_geometrycolumn}},
-                                   layer2.{{input2_geometrycolumn}}) = 1
-                 AND ST_touches(layer1.{{input1_geometrycolumn}},
-                                layer2.{{input2_geometrycolumn}}) = 0)
-    """
 
-    # Calculate intersect area if necessary
-    area_inters_column_expression = ""
-    if area_inters_column_name is not None or min_area_intersect is not None:
+    # If intersect area needs to be calculated, other query needed
+    if area_inters_column_name is None and min_area_intersect is None:
+        sql_template = f"""
+            SELECT layer1.{{input1_geometrycolumn}} AS geom
+                  {{layer1_columns_prefix_alias_str}}
+              FROM {{input1_databasename}}."{{input1_layer}}" layer1
+              JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                ON layer1.fid = layer1tree.id
+             WHERE 1=1
+               {{batch_filter}}
+               AND EXISTS (
+                  SELECT 1
+                    FROM {{input2_databasename}}."{{input2_layer}}" layer2
+                    JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                      ON layer2.fid = layer2tree.id
+                   WHERE layer1tree.minx <= layer2tree.maxx
+                     AND layer1tree.maxx >= layer2tree.minx
+                     AND layer1tree.miny <= layer2tree.maxy
+                     AND layer1tree.maxy >= layer2tree.miny
+                     AND ST_intersects(layer1.{{input1_geometrycolumn}},
+                                       layer2.{{input2_geometrycolumn}}) = 1
+                     AND ST_touches(layer1.{{input1_geometrycolumn}},
+                                    layer2.{{input2_geometrycolumn}}) = 0)
+            """
+    else:
+        # Intersect area needs to be calculated
         if area_inters_column_name is None:
             area_inters_column_name = "area_inters"
         area_inters_column_expression = f"""
             ,ST_area(ST_intersection(
-                 ST_union(layer1.{{input1_geometrycolumn}}),
-                 ST_union(layer2.{{input2_geometrycolumn}})
-             )) AS {area_inters_column_name}
+                    ST_union(layer1.{{input1_geometrycolumn}}),
+                    ST_union(layer2.{{input2_geometrycolumn}})
+                )) AS {area_inters_column_name}
         """
 
-    # Prepare sql template for this operation
-    sql_template = f"""
-        SELECT ST_union(layer1.{{input1_geometrycolumn}}) as geom
-              {{layer1_columns_prefix_str}}
-              {area_inters_column_expression}
-          FROM {{input1_databasename}}."{{input1_layer}}" layer1
-          JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
-            ON layer1.fid = layer1tree.id
-          JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-          JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
-            ON layer2.fid = layer2tree.id
-         WHERE 1=1
-           {{batch_filter}}
-           AND layer1tree.minx <= layer2tree.maxx
-           AND layer1tree.maxx >= layer2tree.minx
-           AND layer1tree.miny <= layer2tree.maxy
-           AND layer1tree.maxy >= layer2tree.miny
-           AND ST_Intersects(layer1.{{input1_geometrycolumn}},
-                             layer2.{{input2_geometrycolumn}}) = 1
-           AND ST_Touches(layer1.{{input1_geometrycolumn}},
-                          layer2.{{input2_geometrycolumn}}) = 0
-         GROUP BY layer1.rowid {{layer1_columns_prefix_str}}
-    """
-
-    # Filter on intersect area if necessary
-    if min_area_intersect is not None:
+        # Prepare sql template with intersect area calculation
         sql_template = f"""
-            SELECT sub.* FROM
-              ( {sql_template}
-              ) sub
-             WHERE sub.{area_inters_column_name} >= {min_area_intersect}
+            SELECT ST_union(layer1.{{input1_geometrycolumn}}) as geom
+                  {{layer1_columns_prefix_str}}
+                  {area_inters_column_expression}
+              FROM {{input1_databasename}}."{{input1_layer}}" layer1
+              JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                ON layer1.fid = layer1tree.id
+              JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+              JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                ON layer2.fid = layer2tree.id
+             WHERE 1=1
+               {{batch_filter}}
+               AND layer1tree.minx <= layer2tree.maxx
+               AND layer1tree.maxx >= layer2tree.minx
+               AND layer1tree.miny <= layer2tree.maxy
+               AND layer1tree.maxy >= layer2tree.miny
+               AND ST_Intersects(layer1.{{input1_geometrycolumn}},
+                                 layer2.{{input2_geometrycolumn}}) = 1
+               AND ST_Touches(layer1.{{input1_geometrycolumn}},
+                              layer2.{{input2_geometrycolumn}}) = 0
+             GROUP BY layer1.rowid {{layer1_columns_prefix_str}}
         """
+
+        # Filter on intersect area if necessary
+        if min_area_intersect is not None:
+            sql_template = f"""
+                SELECT sub.* FROM
+                  ( {sql_template}
+                     LIMIT -1 OFFSET 0
+                  ) sub
+                WHERE sub.{area_inters_column_name} >= {min_area_intersect}
+            """
 
     # Go!
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
@@ -1142,7 +1159,7 @@ def export_by_location(
         explodecollections=False,
         force_output_geometrytype=input_layer_info.geometrytype,
         gridsize=gridsize,
-        where=where,
+        where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -1159,7 +1176,7 @@ def export_by_distance(
     input2_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     gridsize: float = 0.0,
-    where: Optional[str] = None,
+    where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -1208,7 +1225,7 @@ def export_by_distance(
         explodecollections=False,
         force_output_geometrytype=input_layer_info.geometrytype,
         gridsize=gridsize,
-        where=where,
+        where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -1228,7 +1245,7 @@ def intersection(
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    where: Optional[str] = None,
+    where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     subdivide_coords: int = 1000,
@@ -1929,7 +1946,7 @@ def intersection(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
-        where=where,
+        where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -1953,7 +1970,7 @@ def join_by_location(
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    where: Optional[str] = None,
+    where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -1984,7 +2001,7 @@ def join_by_location(
     # Prepare spatial relations filter
     if spatial_relations_query != "intersects is True":
         # joining should only be possible on features that at least have an
-        # interaction! So, add "intersects is True" to query to evade errors!
+        # interaction! So, add "intersects is True" to query to avoid errors!
         spatial_relations_query = f"({spatial_relations_query}) and intersects is True"
     spatial_relations_filter = _prepare_spatial_relations_filter(
         spatial_relations_query
@@ -2075,7 +2092,7 @@ def join_by_location(
         explodecollections=explodecollections,
         force_output_geometrytype=input1_layer_info.geometrytype,
         gridsize=gridsize,
-        where=where,
+        where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -2243,7 +2260,7 @@ def join_nearest(
         force_output_geometrytype=input1_layer_info.geometrytype,
         explodecollections=explodecollections,
         gridsize=0.0,
-        where=None,
+        where_post=None,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -2266,7 +2283,7 @@ def select_two_layers(
     force_output_geometrytype: Optional[GeometryType] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    where: Optional[str] = None,
+    where_post: Optional[str] = None,
     nb_parallel: int = 1,
     batchsize: int = -1,
     force: bool = False,
@@ -2288,7 +2305,7 @@ def select_two_layers(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
-        where=where,
+        where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -2308,7 +2325,7 @@ def split(
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    where: Optional[str] = None,
+    where_post: Optional[str] = None,
     nb_parallel: int = 1,
     batchsize: int = -1,
     subdivide_coords: int = 1000,
@@ -2321,7 +2338,7 @@ def split(
     input1_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
     primitivetype_to_extract = input1_layer_info.geometrytype.to_primitivetype
 
-    # For the output file, force MULTI variant to evade ugly warnings
+    # For the output file, force MULTI variant to avoid ugly warnings
     force_output_geometrytype = primitivetype_to_extract.to_multitype
 
     # Prepare sql template for this operation
@@ -2441,7 +2458,7 @@ def split(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
-        where=where,
+        where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -2462,7 +2479,7 @@ def symmetric_difference(
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    where: Optional[str] = None,
+    where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     subdivide_coords: int = 1000,
@@ -2494,7 +2511,7 @@ def symmetric_difference(
             output_layer=output_layer,
             explodecollections=explodecollections,
             gridsize=gridsize,
-            where=where,
+            where_post=where_post,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             subdivide_coords=subdivide_coords,
@@ -2527,7 +2544,7 @@ def symmetric_difference(
             output_layer=output_layer,
             explodecollections=explodecollections,
             gridsize=gridsize,
-            where=where,
+            where_post=where_post,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             subdivide_coords=subdivide_coords,
@@ -2575,7 +2592,7 @@ def union(
     output_layer: Optional[str] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    where: Optional[str] = None,
+    where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     subdivide_coords: int = 1000,
@@ -2609,7 +2626,7 @@ def union(
             output_layer=output_layer,
             explodecollections=explodecollections,
             gridsize=gridsize,
-            where=where,
+            where_post=where_post,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             subdivide_coords=subdivide_coords,
@@ -2630,7 +2647,7 @@ def union(
             output_layer=output_layer,
             explodecollections=explodecollections,
             gridsize=gridsize,
-            where=where,
+            where_post=where_post,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             subdivide_coords=subdivide_coords,
@@ -2683,7 +2700,7 @@ def _two_layer_vector_operation(
     explodecollections: bool,
     force_output_geometrytype: Optional[GeometryType],
     gridsize: float,
-    where: Optional[str],
+    where_post: Optional[str],
     nb_parallel: int,
     batchsize: int,
     force: bool,
@@ -2720,8 +2737,8 @@ def _two_layer_vector_operation(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
-        where (str, optional): filter to apply to the result of the operation (after
-            explodecollections). It should be in sqlite SQL WHERE syntax and
+        where_post (str, optional): sql filter to apply after all other processing,
+            including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): [description]. Defaults to -1.
         batchsize (int, optional): indicative number of rows to process per
@@ -2936,21 +2953,21 @@ def _two_layer_vector_operation(
                   ) sub_gridsize
             """
 
-        # Prepare/apply where parameter
-        if where is not None and not explodecollections:
-            # explodecollections is not True, so we can add where to sql_stmt.
+        # Prepare/apply where_post parameter
+        if where_post is not None and not explodecollections:
+            # explodecollections is not True, so we can add where_post to sql_stmt.
             # If explodecollections would be True, we need to wait to apply the
-            # where till after explodecollections is applied, so when appending the
+            # where_post till after explodecollections is applied, so when appending the
             # partial results to the output file.
             sql_template = f"""
                 SELECT * FROM
                     ( {sql_template}
                       LIMIT -1 OFFSET 0
                     )
-                 WHERE {where}
+                 WHERE {where_post}
             """
-            # Where has been applied already so set to None.
-            where = None
+            # where_post has been applied already so set to None.
+            where_post = None
 
         # Calculate
         # ---------
@@ -2986,12 +3003,12 @@ def _two_layer_vector_operation(
                 )
                 batches[batch_id]["sqlite_stmt"] = sql_stmt
 
-                # If explodecollections and there is a where to be applied, we need to
-                # apply explodecollections now already to be able to apply the where in
-                # the append of partial files later on even though this involves an
-                # extra copy of the result data under the hood in practice!
+                # If explodecollections and there is a where_post to be applied, we need
+                # to apply explodecollections now already to be able to apply the
+                # where_post in the append of partial files later on even though this
+                # involves an extra copy of the result data under the hood in practice!
                 explodecollections_now = False
-                if explodecollections and where is not None:
+                if explodecollections and where_post is not None:
                     explodecollections_now = True
                 # Remark: this temp file doesn't need spatial index
                 future = calculate_pool.submit(
@@ -3049,7 +3066,7 @@ def _two_layer_vector_operation(
                     nb_batches == 1
                     and not explodecollections
                     and force_output_geometrytype is None
-                    and where is None
+                    and where_post is None
                     and tmp_partial_output_path.suffix.lower()
                     == tmp_output_path.suffix.lower()
                 ):
@@ -3066,7 +3083,7 @@ def _two_layer_vector_operation(
                         dst=tmp_output_path,
                         explodecollections=explodecollections,
                         force_output_geometrytype=force_output_geometrytype,
-                        where=where,
+                        where=where_post,
                         create_spatial_index=create_spatial_index,
                         preserve_fid=False,
                     )
@@ -3431,7 +3448,7 @@ def dissolve_singlethread(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     keep_empty_geoms: bool = True,
-    where: Optional[str] = None,
+    where_post: Optional[str] = None,
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     force: bool = False,
@@ -3447,8 +3464,8 @@ def dissolve_singlethread(
         raise ValueError(f"input_path doesn't exist: {input_path}")
     if input_path == output_path:
         raise ValueError("output_path must not equal input_path")
-    if where is not None and where == "":
-        where = None
+    if where_post is not None and where_post == "":
+        where_post = None
 
     # Check layer names
     if input_layer is None:
@@ -3624,21 +3641,21 @@ def dissolve_singlethread(
              WHERE geom IS NOT NULL
         """
 
-    # Prepare/apply where parameter
-    if where is not None and not explodecollections:
-        # explodecollections is not True, so we can add where to sql_stmt.
+    # Prepare/apply where_post parameter
+    if where_post is not None and not explodecollections:
+        # explodecollections is not True, so we can add where_post to sql_stmt.
         # If explodecollections would be True, we need to wait to apply the
-        # where till after explodecollections is applied, so when appending
+        # where_post till after explodecollections is applied, so when appending
         # the partial results to the output file.
-        where = where.format(geometrycolumn="geom")
+        where_post = where_post.format(geometrycolumn="geom")
         sql_stmt = f"""
             SELECT * FROM
                 ( {sql_stmt}
                 )
-                WHERE {where}
+                WHERE {where_post}
         """
-        # Where has been applied already so set to None.
-        where = None
+        # where_post has been applied already so set to None.
+        where_post = None
 
     # When null geometries are being kept, we need to make sure the geom in the
     # first row is not NULL because of a bug in gdal, so add ORDER BY as last step.
@@ -3656,8 +3673,8 @@ def dissolve_singlethread(
     try:
         create_spatial_index = True
         suffix = output_path.suffix
-        if where is not None:
-            # Where needs to be applied still, so no spatial index needed
+        if where_post is not None:
+            # where_post needs to be applied still, so no spatial index needed
             create_spatial_index = False
             suffix = ".gpkg"
         tmp_output_path = tempdir / f"output_tmp{suffix}"
@@ -3673,14 +3690,16 @@ def dissolve_singlethread(
             options={"LAYER_CREATION.SPATIAL_INDEX": create_spatial_index},
         )
 
-        # We still need to apply a where filter
-        if where is not None:
+        # We still need to apply the where_post filter
+        if where_post is not None:
             tmp_output_where_path = tempdir / f"output_tmp2_where{output_path.suffix}"
             tmp_output_info = gfo.get_layerinfo(tmp_output_path)
-            where = where.format(geometrycolumn=tmp_output_info.geometrycolumn)
+            where_post = where_post.format(
+                geometrycolumn=tmp_output_info.geometrycolumn
+            )
             sql_stmt = f"""
                 SELECT * FROM "{output_layer}"
-                 WHERE {where}
+                 WHERE {where_post}
             """
             _ogr_util.vector_translate(
                 input_path=tmp_output_path,

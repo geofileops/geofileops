@@ -41,7 +41,7 @@ import shapely
 import shapely.geometry as sh_geom
 
 import geofileops as gfo
-from geofileops import fileops
+from geofileops import fileops, GeofileType
 from geofileops.util import _general_util
 from geofileops.util import _geoops_sql
 from geofileops.util import _io_util
@@ -314,7 +314,7 @@ def apply(
     input_path: Path,
     output_path: Path,
     func: Callable[[Any], Any],
-    operation_name: str = None,
+    operation_name: Optional[str] = None,
     only_geom_input: bool = True,
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
@@ -323,7 +323,7 @@ def apply(
     force_output_geometrytype: Union[GeometryType, str, None] = None,
     gridsize: float = 0.0,
     keep_empty_geoms: bool = True,
-    where: Optional[str] = None,
+    where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -349,7 +349,7 @@ def apply(
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
         keep_empty_geoms=keep_empty_geoms,
-        where=where,
+        where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -371,7 +371,7 @@ def buffer(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     keep_empty_geoms: bool = True,
-    where: Optional[str] = None,
+    where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -405,7 +405,7 @@ def buffer(
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
         keep_empty_geoms=keep_empty_geoms,
-        where=where,
+        where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -421,7 +421,7 @@ def convexhull(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     keep_empty_geoms: bool = True,
-    where: Optional[str] = None,
+    where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -442,7 +442,7 @@ def convexhull(
         force_output_geometrytype=None,
         gridsize=gridsize,
         keep_empty_geoms=keep_empty_geoms,
-        where=where,
+        where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -461,7 +461,7 @@ def simplify(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     keep_empty_geoms: bool = True,
-    where: Optional[str] = None,
+    where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -486,7 +486,7 @@ def simplify(
         force_output_geometrytype=None,
         gridsize=gridsize,
         keep_empty_geoms=keep_empty_geoms,
-        where=where,
+        where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
@@ -505,7 +505,7 @@ def _apply_geooperation_to_layer(
     force_output_geometrytype: Union[GeometryType, str, None],  # = None
     gridsize: float,  # = 0.0
     keep_empty_geoms: bool,  # = True
-    where: Optional[str],  # = None
+    where_post: Optional[str],  # = None
     nb_parallel: int,  # = -1
     batchsize: int,  # = -1
     force: bool,  # = False
@@ -564,8 +564,8 @@ def _apply_geooperation_to_layer(
             the precision. Defaults to 0.0.
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
             in the output. Defaults to True.
-        where (str, optional): filter to apply to the result of the operation (after
-            explodecollections). It should be in sqlite SQL WHERE syntax and
+        where_post (str, optional): sql filter to apply after all other processing,
+            including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): [description]. Defaults to -1.
         batchsize (int, optional): indicative number of rows to process per
@@ -612,14 +612,19 @@ def _apply_geooperation_to_layer(
     if isinstance(force_output_geometrytype, GeometryType):
         force_output_geometrytype = force_output_geometrytype.name
 
+    # Check if we want to preserve the fid in the output
+    preserve_fid = False
+    if not explodecollections and GeofileType(output_path) == GeofileType.GPKG:
+        preserve_fid = True
+
     # Prepare where_to_apply and filter_null_geoms
-    if where is not None:
-        if where == "":
-            where = None
+    if where_post is not None:
+        if where_post == "":
+            where_post = None
         else:
-            # Always set geometrycolumn to "geom", because where parameter for shp
+            # Always set geometrycolumn to "geom", because where_post parameter for shp
             # doesn't seem to work... so create temp partial files always as gpkg.
-            where = where.format(geometrycolumn="geom")
+            where_post = where_post.format(geometrycolumn="geom")
 
     # Prepare tmp files
     tmp_dir = _io_util.create_tempdir(f"geofileops/{operation.value}")
@@ -693,6 +698,7 @@ def _apply_geooperation_to_layer(
                     explodecollections=explodecollections,
                     gridsize=gridsize,
                     keep_empty_geoms=keep_empty_geoms,
+                    preserve_fid=preserve_fid,
                     force=force,
                 )
                 future_to_batch_id[future] = batch_id
@@ -730,7 +736,7 @@ def _apply_geooperation_to_layer(
                             nb_batches == 1
                             and force_output_geometrytype is None
                             and tmp_partial_output_path.suffix == tmp_output_path.suffix
-                            and where is None
+                            and where_post is None
                         ):
                             gfo.move(tmp_partial_output_path, tmp_output_path)
                         else:
@@ -740,7 +746,8 @@ def _apply_geooperation_to_layer(
                                 explodecollections=explodecollections,
                                 create_spatial_index=False,
                                 force_output_geometrytype=force_output_geometrytype,
-                                where=where,
+                                where=where_post,
+                                preserve_fid=preserve_fid,
                             )
                             gfo.remove(tmp_partial_output_path)
 
@@ -782,6 +789,7 @@ def _apply_geooperation(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     keep_empty_geoms: bool = True,
+    preserve_fid: bool = False,
     force: bool = False,
 ) -> str:
     # Init
@@ -795,7 +803,11 @@ def _apply_geooperation(
     # Now go!
     start_time = datetime.now()
     data_gdf = gfo.read_file(
-        path=input_path, layer=input_layer, columns=columns, where=where
+        path=input_path,
+        layer=input_layer,
+        columns=columns,
+        where=where,
+        fid_as_index=preserve_fid,
     )
 
     # Run operation if data read
@@ -861,9 +873,11 @@ def _apply_geooperation(
         input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
         force_output_geometrytype = input_layerinfo.geometrytype.to_multitype.name
 
-    # assert to evade pyLance warning
-    assert isinstance(data_gdf, gpd.GeoDataFrame)
-    # Use force_multitype, to evade warnings when some batches contain
+    # If the index is still unique, save it to fid column so to_file can save it
+    if preserve_fid:
+        data_gdf["fid"] = data_gdf.index
+
+    # Use force_multitype, to avoid warnings when some batches contain
     # singletype and some contain multitype geometries
     gfo.to_file(
         gdf=data_gdf,
@@ -890,7 +904,7 @@ def dissolve(
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     gridsize: float = 0.0,
-    where: Optional[str] = None,
+    where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -1008,18 +1022,18 @@ def dissolve(
             output_layer=output_layer,
             gridsize=gridsize,
             keep_empty_geoms=False,
-            where=where,
+            where_post=where_post,
             force=force,
         )
 
     elif input_layerinfo.geometrytype.to_primitivetype is PrimitiveType.POLYGON:
-        # Prepare where
-        if where is not None:
-            if where == "":
-                where = None
+        # Prepare where_post
+        if where_post is not None:
+            if where_post == "":
+                where_post = None
             else:
                 # Set geometrycolumn to "geom", because temp files are saved as gpkg.
-                where = where.format(geometrycolumn="geom")
+                where_post = where_post.format(geometrycolumn="geom")
 
         # If a tiles_path is specified, read those tiles...
         result_tiles_gdf = None
@@ -1271,7 +1285,7 @@ def dissolve(
                                 f'{extra_param_str}) AS "{agg_column["as"]}"'
                             )
 
-                # Add a column to order the result by to evade having all
+                # Add a column to order the result by to avoid having all
                 # complex geometries together in the output file.
                 orderby_column = "temp_ordercolumn_geohash"
                 _add_orderby_column(
@@ -1335,24 +1349,24 @@ def dissolve(
                           ORDER BY geo_data.{orderby_column}
                     """
 
-                # Apply where parameter if needed/possible
-                if where is not None and not not explodecollections:
+                # Apply where_post parameter if needed/possible
+                if where_post is not None and not not explodecollections:
                     # explodecollections is not True, so we can add it to sql_stmt.
                     # If explodecollections would be True, we need to wait to apply the
-                    # where till after explodecollections is applied, so when appending
-                    # the partial results to the output file.
-                    where = where.format(geometrycolumn="geom")
+                    # where_post till after explodecollections is applied, so when
+                    # appending the partial results to the output file.
+                    where_post = where_post.format(geometrycolumn="geom")
                     sql_stmt = f"""
                         SELECT * FROM
                             ( {sql_stmt}
                             )
-                        WHERE {where}
+                        WHERE {where_post}
                     """
-                    # Where has been applied already so set to None.
-                    where = None
+                    # where_post has been applied already so set to None.
+                    where_post = None
 
                 logger.info("Postprocess output file")
-                if where is None:
+                if where_post is None:
                     name = f"output_tmp2_final{output_path.suffix}"
                 else:
                     name = f"output_tmp2_final{output_tmp_path.suffix}"
@@ -1360,7 +1374,7 @@ def dissolve(
                 sql_stmt = sql_stmt.format(
                     geometrycolumn="geom", input_layer=output_layer
                 )
-                create_spatial_index = True if where is None else False
+                create_spatial_index = True if where_post is None else False
                 _ogr_util.vector_translate(
                     input_path=output_tmp_path,
                     output_path=output_tmp2_final_path,
@@ -1372,15 +1386,17 @@ def dissolve(
                     options={"LAYER_CREATION.SPATIAL_INDEX": create_spatial_index},
                 )
 
-                # We still need to apply the where filter
-                if where is not None:
+                # We still need to apply the where_post filter
+                if where_post is not None:
                     name = f"output_tmp3_where{output_path.suffix}"
                     output_tmp3_where_path = tempdir / name
                     output_tmp2_info = gfo.get_layerinfo(output_tmp2_final_path)
-                    where = where.format(geometrycolumn=output_tmp2_info.geometrycolumn)
+                    where_post = where_post.format(
+                        geometrycolumn=output_tmp2_info.geometrycolumn
+                    )
                     sql_stmt = f"""
                         SELECT * FROM "{output_layer}"
-                         WHERE {where}
+                         WHERE {where_post}
                     """
                     tmp_info = gfo.get_layerinfo(output_tmp2_final_path, output_layer)
                     sql_stmt = sql_stmt.format(geometrycolumn=tmp_info.geometrycolumn)
@@ -1680,8 +1696,6 @@ def _dissolve_polygons(
         GeometryType.POLYGON,
         GeometryType.MULTIPOLYGON,
     ]:
-        # assert to evade pyLance warning
-        assert isinstance(diss_gdf, gpd.GeoDataFrame)
         diss_gdf = diss_gdf.explode(ignore_index=True)
 
     # Clip the result on the borders of the bbox not to have overlaps
@@ -1763,9 +1777,9 @@ def _dissolve_polygons(
     # If the tiles don't need to be merged afterwards, we can just save the result as
     # it is.
     if str(output_notonborder_path) == str(output_onborder_path):
-        # assert to evade pyLance warning
+        # assert to avoid pyLance warning
         assert isinstance(diss_gdf, gpd.GeoDataFrame)
-        # Use force_multitype, to evade warnings when some batches contain
+        # Use force_multitype, to avoid warnings when some batches contain
         # singletype and some contain multitype geometries
         gfo.to_file(
             diss_gdf,
@@ -1784,9 +1798,7 @@ def _dissolve_polygons(
         onborder_gdf = gpd.sjoin(diss_gdf, bbox_lines_gdf, predicate="intersects")
         onborder_gdf.drop("index_right", axis=1, inplace=True)
         if len(onborder_gdf) > 0:
-            # assert to evade pyLance warning
-            assert isinstance(onborder_gdf, gpd.GeoDataFrame)
-            # Use force_multitype, to evade warnings when some batches contain
+            # Use force_multitype, to avoid warnings when some batches contain
             # singletype and some contain multitype geometries
             gfo.to_file(
                 onborder_gdf,
@@ -1798,9 +1810,7 @@ def _dissolve_polygons(
 
         notonborder_gdf = diss_gdf[~diss_gdf.index.isin(onborder_gdf.index)]
         if len(notonborder_gdf) > 0:
-            # assert to evade pyLance warning
-            assert isinstance(notonborder_gdf, gpd.GeoDataFrame)
-            # Use force_multitype, to evade warnings when some batches contain
+            # Use force_multitype, to avoid warnings when some batches contain
             # singletype and some contain multitype geometries
             gfo.to_file(
                 notonborder_gdf,
