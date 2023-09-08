@@ -10,7 +10,7 @@ dependencies:
   - gdal >=3.6.4
   - geopandas-base >=0.12
   - libspatialite >=5.0
-  - nomkl  # Avoid mkl from being installed as it is huge -> openblas will be used
+  # - nomkl  # Use openblas instead of mkl saves 600 MB. Linux OK, 50% slower on Windows and OSX!
   - numpy
   - pandas
   - psutil
