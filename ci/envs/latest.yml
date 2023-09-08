@@ -1,13 +1,15 @@
-name: test
+name: geofileops-latest
 channels:
   - conda-forge
 dependencies:
+  - python
   - pip
   # required
   - cloudpickle
   - fiona
   - gdal
-  - geopandas >=0.12
+  - geopandas-base >=0.12
+  - nomkl  # Avoid mkl from being installed as it is huge -> openblas will be used
   - numpy
   - pandas
   - psutil

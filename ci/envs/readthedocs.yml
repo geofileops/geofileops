@@ -1,4 +1,4 @@
-name: geofileopsdev
+name: geofileops-doc
 channels:
   - conda-forge
 dependencies:
@@ -8,7 +8,8 @@ dependencies:
   - cloudpickle
   - fiona
   - gdal
-  - geopandas >=0.12
+  - geopandas-base >=0.12
+  - nomkl  # Avoid mkl from being installed as it is huge -> openblas will be used
   - numpy
   - pandas
   - psutil
