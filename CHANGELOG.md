@@ -33,7 +33,7 @@
   `select_two_layers` (#283)
 - Improve handling + tests regarding empty input layers/NULL geometries (#320)
 - Many small improvements to logging, documentation, error messages,... (#321, #366,...)
-- Speed up tests by reducing conda dependency footprint (use `geopandas-base`, `nomkl`) (#)
+- Speed up tests by reducing conda dependency footprint (use `geopandas-base`, `nomkl`) (#377)
 - Use ruff instead of flake8 for linting (#317)
 
 ### Bugs fixed
@@ -46,7 +46,6 @@
 ### Deprecations and compatibility notes
 
 - Drop support for shapely1 (#329, #338)
-- Depend on `geopandas-base` instead on `geopandas` to reduce footprint when using conda (#)
 - `makevalid` parameter `precision` is renamed to `gridsize` as this is the typical
   terminology in other libraries (#273)
 - parameter `area_inters_column_name` in `export_by_location` now defaults to `None`
