@@ -42,16 +42,12 @@ jobs:
         python: ["3.8", "3.9", "3.10", "3.11"]
         env: ["latest"]
         # Use openblas instead of mkl saves 600 MB. Linux OK, 50% slower on Windows and OSX!
-        extra: >-
-          nomkl
+        extra: ["nomkl"]
         include:
           - env: minimal
             os: ubuntu-latest
             dev: false
             python: "3.8"
-            # Use openblas instead of mkl saves 600 MB. Linux OK, 50% slower on Windows and OSX!
-            extra:  >-
-              nomkl
           - env: latest
             os: macos-latest
             dev: false
