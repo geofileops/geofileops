@@ -2,7 +2,7 @@ name: geofileops-dev
 channels:
   - conda-forge
 dependencies:
-  - python=3.11
+  - python =3.11
   - pip
   # required
   - cloudpickle
@@ -14,8 +14,8 @@ dependencies:
   - numpy
   - pandas
   - psutil
-  #- pygeoops >=0.3,<0.4
-  - pyogrio
+  - pygeoops >=0.3,<0.4
+  - pyogrio >=0.5
   - pyproj
   - shapely >=2,<2.1
   # optional
@@ -32,7 +32,6 @@ dependencies:
   # docs
   - pydata-sphinx-theme
   - pip:
-    - pygeoops ==0.3.0a5
     - sphinx-automodapi==0.13
     # optional
     - simplification
