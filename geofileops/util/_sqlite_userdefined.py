@@ -205,9 +205,10 @@ def gfo_subdivide(geom_wkb: bytes, coords: int = 1000):
         if len(result) == 1:
             return shapely.to_wkb(result[0])
 
-        # Explode because they will be exploded anyway by spatialite.ST_Collect and
-        # spatialite.ST_AsBinary and/or spatialite.ST_GeomFromWkb don't seem to handle
-        # nested collections well.
+        # Explode because
+        #   - they will be exploded anyway by spatialite.ST_Collect
+        #   - spatialite.ST_AsBinary and/or spatialite.ST_GeomFromWkb don't seem to
+        #     handle nested collections well.
         return shapely.to_wkb(
             shapely.GeometryCollection(shapely.get_parts(result).tolist())
         )
