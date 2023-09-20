@@ -11,7 +11,8 @@
 - Add `where_post` parameter to many two layer spatial operations (#312)
 - Add `where` parameter to `copy_layer` and `append_to` (#311)
 - Add support for lang+ algorithm in `simplify` (#334)
-- Support creating geofile without geometry column using `select` (#322)
+- Add support to create geofile without geometry column using `select` (#322)
+- Add support to use select_two_layers on non-geo-files (#379)
 - Improve performance of `makevalid` and `isvalid` (#258)
 - Improve performance of `intersection`, 30% faster for typical data, up to 4x faster
   for large input geometries (#340, #358)
