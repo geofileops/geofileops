@@ -885,13 +885,15 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
     exp_columns = len(input1_layerinfo.columns) + len(input2_layerinfo.columns)
     if input_nogeom == "both":
         assert output_layerinfo.featurecount == 2
+        assert len(output_layerinfo.columns) == exp_columns + 1
         assert output_layerinfo.geometrycolumn is None
         assert output_layerinfo.geometrytype is None
-        assert len(output_layerinfo.columns) == exp_columns + 1
+        assert output_layerinfo.crs is None
     else:
         assert output_layerinfo.featurecount == 35
-        assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
         assert len(output_layerinfo.columns) == exp_columns
+        assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+        assert output_layerinfo.crs.to_epsg() == 31370
 
     # Check the contents of the result file
     output_gdf = gfo.read_file(output_path)

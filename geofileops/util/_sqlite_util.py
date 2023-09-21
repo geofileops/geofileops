@@ -257,6 +257,7 @@ def create_table_as_sql(
     input1_path: Path,
     input1_layer: str,
     input2_path: Path,
+    input2_layer: str,
     output_path: Path,
     sql_stmt: str,
     output_layer: str,
@@ -275,6 +276,7 @@ def create_table_as_sql(
         input1_path (Path): the path to the 1st input file.
         input1_layer (str): the layer/table to select from in het 1st input file
         input2_path (Path): the path to the 2nd input file.
+        input2_layer (str): the layer/table to select from in het 2nd input file
         output_path (Path): the path where the output file needs to be created/appended.
         sql_stmt (str): SELECT statement to run on the input files.
         output_layer (str): layer/table name to use.
@@ -309,15 +311,24 @@ def create_table_as_sql(
     if input2_path is not None and output_suffix_lower != input2_path.suffix.lower():
         raise ValueError("output_path and both input paths must have the same suffix!")
 
-    # Use crs epsg from input1_layer, if it has one
-    input1_layerinfo = gfo.get_layerinfo(
-        input1_path, input1_layer, raise_on_nogeom=False
-    )
+    # Check if crs are the same in the input layers + use it (if there is one)
+    input1_info = gfo.get_layerinfo(input1_path, input1_layer, raise_on_nogeom=False)
+    input2_info = gfo.get_layerinfo(input2_path, input2_layer, raise_on_nogeom=False)
     crs_epsg = -1
-    if input1_layerinfo.crs is not None:
-        epsg = input1_layerinfo.crs.to_epsg()
-        if epsg is not None:
-            crs_epsg = epsg
+    if input1_info.crs is not None:
+        crs_epsg1 = input1_info.crs.to_epsg()
+        if crs_epsg1 is not None:
+            crs_epsg = crs_epsg1
+        # If input 2 also has a crs, check if it is the same.
+        if input2_info.crs is not None and crs_epsg1 != input2_info.crs.to_epsg():
+            logger.warning(
+                "input1 layer doesn't have the same crs as input2 layer: "
+                f"{input1_info.crs} vs {input2_info.crs}"
+            )
+    elif input2_info.crs is not None:
+        crs_epsg2 = input2_info.crs.to_epsg()
+        if crs_epsg2 is not None:
+            crs_epsg = crs_epsg2
 
     # If output file doesn't exist yet, create and init it
     if not output_path.exists():
