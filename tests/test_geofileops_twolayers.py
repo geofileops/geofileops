@@ -834,6 +834,7 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
         layer1 = "input_nogeom layer1"
         layer2 = '"{input2_layer}" layer2'
         exp_output_geom = True
+        exp_featurecount = 35
     elif input_nogeom == "input2":
         input1_path = input_geom_path
         input2_path = input_nogeom_path
@@ -841,6 +842,7 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
         layer1 = '"{input1_layer}" layer1'
         layer2 = "input_nogeom layer2"
         exp_output_geom = True
+        exp_featurecount = 35
     elif input_nogeom == "both":
         input1_path = input_nogeom_path
         input2_path = input_nogeom_path
@@ -848,6 +850,7 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
         layer1 = "input_nogeom layer1"
         layer2 = "input_nogeom layer2"
         exp_output_geom = False
+        exp_featurecount = 2
 
     if suffix == ".shp" and not exp_output_geom:
         # For shapefiles, if there is no geometry only the .dbf file is written
@@ -871,6 +874,7 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
         input2_path=input2_path,
         output_path=output_path,
         sql_stmt=sql_stmt,
+        batchsize=exp_featurecount / 2,
     )
 
     # Check if the tmp file is correctly created
@@ -884,13 +888,13 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
 
     exp_columns = len(input1_layerinfo.columns) + len(input2_layerinfo.columns)
     if input_nogeom == "both":
-        assert output_layerinfo.featurecount == 2
+        assert output_layerinfo.featurecount == exp_featurecount
         assert len(output_layerinfo.columns) == exp_columns + 1
         assert output_layerinfo.geometrycolumn is None
         assert output_layerinfo.geometrytype is None
         assert output_layerinfo.crs is None
     else:
-        assert output_layerinfo.featurecount == 35
+        assert output_layerinfo.featurecount == exp_featurecount
         assert len(output_layerinfo.columns) == exp_columns
         assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
         assert output_layerinfo.crs.to_epsg() == 31370
