@@ -165,7 +165,7 @@ def delete_duplicate_geometries(
     where_post: Optional[str] = None,
     force: bool = False,
 ):
-    # The query as written doesn't give correct results when parallellized,
+    # The query as written doesn't give correct results when parallelized,
     # but it isn't useful to do it for this operation.
     sql_template = """
         SELECT {geometrycolumn} AS {geometrycolumn}
@@ -477,6 +477,36 @@ def _single_layer_vector_operation(
     batchsize: int,
     force: bool,
 ):
+    """
+    Execute a sql query template on the input layer.
+
+    Args:
+        input_path (Path): _description_
+        output_path (Path): _description_
+        sql_template (str): _description_
+        geom_selected (Optional[bool]): True if a geometry column is selected in the
+            sql_template. False if no geometry column is selected. None if it is
+            unclear.
+        operation_name (str): _description_
+        input_layer (Optional[str]): _description_
+        output_layer (Optional[str]): _description_
+        columns (Optional[List[str]]): _description_
+        explodecollections (bool): _description_
+        force_output_geometrytype (Optional[GeometryType]): _description_
+        gridsize (float): _description_
+        keep_empty_geoms (bool): _description_
+        where_post (Optional[str]): _description_
+        sql_dialect (Optional[Literal["SQLITE", "OGRSQL"]]): _description_
+        nb_parallel (int): _description_
+        batchsize (int): _description_
+        force (bool): _description_
+
+    Raises:
+        ValueError: _description_
+        ValueError: _description_
+        ValueError: _description_
+        Exception: _description_
+    """
     # Init
     start_time = datetime.now()
 
@@ -2147,7 +2177,7 @@ def _two_layer_vector_operation(
         raise ValueError(f"{operation_name}: input1_path doesn't exist: {input1_path}")
     if not input2_path.exists():
         raise ValueError(f"{operation_name}: input2_path doesn't exist: {input2_path}")
-    if input1_path == output_path or input2_path == output_path:
+    if output_path in (input1_path, input2_path):
         raise ValueError(
             f"{operation_name}: output_path must not equal one of input paths"
         )
@@ -2174,10 +2204,6 @@ def _two_layer_vector_operation(
     if output_layer is None:
         output_layer = gfo.get_default_layer(output_path)
     tempdir = _io_util.create_tempdir(f"geofileops/{operation_name}")
-
-    # Use get_layerinfo to check if the input files are valid
-    gfo.get_layerinfo(input1_path, input1_layer)
-    gfo.get_layerinfo(input2_path, input2_layer)
 
     # Prepare output filename
     tmp_output_path = tempdir / output_path.name
@@ -2235,7 +2261,9 @@ def _two_layer_vector_operation(
         # Format column strings for use in select
         assert processing_params.input1_path is not None
         input1_tmp_layerinfo = gfo.get_layerinfo(
-            processing_params.input1_path, processing_params.input1_layer
+            processing_params.input1_path,
+            processing_params.input1_layer,
+            raise_on_nogeom=False,
         )
         input1_col_strs = _ogr_sql_util.ColumnFormatter(
             columns_asked=input1_columns,
@@ -2246,7 +2274,9 @@ def _two_layer_vector_operation(
         )
         assert processing_params.input2_path is not None
         input2_tmp_layerinfo = gfo.get_layerinfo(
-            processing_params.input2_path, processing_params.input2_layer
+            processing_params.input2_path,
+            processing_params.input2_layer,
+            raise_on_nogeom=False,
         )
         input2_col_strs = _ogr_sql_util.ColumnFormatter(
             columns_asked=input2_columns,
@@ -2484,7 +2514,10 @@ def _two_layer_vector_operation(
         if tmp_output_path.exists():
             if output_with_spatial_index:
                 gfo.create_spatial_index(
-                    path=tmp_output_path, layer=output_layer, exist_ok=True
+                    path=tmp_output_path,
+                    layer=output_layer,
+                    exist_ok=True,
+                    no_geom_ok=True,
                 )
             if tmp_output_path != output_path:
                 output_path.parent.mkdir(parents=True, exist_ok=True)
