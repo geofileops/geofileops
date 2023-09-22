@@ -30,6 +30,9 @@ jobs:
         dev: [false]
         python: ["3.11"]
         ref: ["v0.7.1.0"]
+        env: ["installed"]
+        # Use openblas instead of mkl saves 600 MB. Linux OK, 50% slower on Windows and OSX!
+        extra: ["nomkl"]
 
     steps:
       - uses: actions/checkout@v4
@@ -42,10 +45,11 @@ jobs:
         uses: mamba-org/setup-micromamba@v1
         with:
           micromamba-version: '1.5.1-0'
-          environment-name: test-installed-env
+          environment-file: ci/envs/${{ matrix.env }}.yml
           create-args: >-
             python=${{ matrix.python }}
-            geofileops
+            ${{ matrix.extra }}
+
       - name: Test
         run: |
           pytest --color=yes tests/
