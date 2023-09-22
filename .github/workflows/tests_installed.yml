@@ -46,3 +46,6 @@ jobs:
           create-args: >-
             python=${{ matrix.python }}
             geofileops
+      - name: Test
+        run: |
+          pytest --color=yes tests/
