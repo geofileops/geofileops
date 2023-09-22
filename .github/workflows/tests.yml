@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
           python-version: "3.11"
@@ -28,7 +28,7 @@ jobs:
 
   Test:
     needs: Linting
-    name: ${{ matrix.os }} - ${{ matrix.env }} (python ${{ matrix.python }})
+    name: ${{ matrix.env }}|python ${{ matrix.python }}|${{ matrix.os }}
     timeout-minutes: 30
     runs-on: ${{ matrix.os }}
     defaults:
@@ -58,7 +58,7 @@ jobs:
             python: "3.11"
             
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install Conda environment with Micromamba
         uses: mamba-org/setup-micromamba@v1
@@ -74,4 +74,33 @@ jobs:
           pytest --color=yes --cov=geofileops --cov-append --cov-report term-missing --cov-report xml tests/
 
       - uses: codecov/codecov-action@v3
-      
+
+  TestInstalled:    
+    name: ${{ matrix.env }}|python ${{ matrix.python }}|${{ matrix.os }}
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        dev: [false]
+        python: ["3.11"]
+        env: ["latest"]
+        extra: ["geofileops"]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            tests
+      - name: Install Conda environment with Micromamba
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          micromamba-version: '1.5.1-0'
+          environment-file: ci/envs/${{ matrix.env }}.yml
+          create-args: >-
+            python=${{ matrix.python }}
+            ${{ matrix.extra }}
