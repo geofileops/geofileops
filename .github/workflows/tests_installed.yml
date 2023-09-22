@@ -4,10 +4,8 @@
 name: TestsOnInstalled
 
 on:
-  push:
-    branches: [ main, v0.** ]
-  pull_request:
-    branches: [ main, v0.** ]
+  # pull_request:
+  #   branches: [ main, v0.** ]
   schedule:
     - cron: "0 0 * * *"
 
