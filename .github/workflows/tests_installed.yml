@@ -33,7 +33,7 @@ jobs:
             # Use openblas instead of mkl saves 600 MB. Linux OK, 50% slower on Windows and OSX!
             extra: >-
               nomkl
-              geofileops==0.7.1
+              geofileops=0.7.1
 
     steps:
       - uses: actions/checkout@v4
