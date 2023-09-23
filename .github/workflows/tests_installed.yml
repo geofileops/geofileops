@@ -29,7 +29,7 @@ jobs:
         python: ["3.11"]
         env: ["installed"]
         include:
-          - ref: ["v0.7.x"]
+          - ref: "v0.7.x"
             # Use openblas instead of mkl saves 600 MB. Linux OK, 50% slower on Windows and OSX!
             extra: ["nomkl", "geofileops==0.7.1"]
 
