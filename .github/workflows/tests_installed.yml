@@ -29,16 +29,16 @@ jobs:
         python: ["3.11"]
         env: ["installed"]
         include:
-          - ref: v0.7.x
+          - checkout_ref: v0.7.x
             # Use openblas instead of mkl saves 600 MB. Linux OK, 50% slower on Windows and OSX!
-            extra: >-
+            install_extra: >-
               nomkl
               geofileops=0.7.1
 
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ matrix.ref }}
+          ref: ${{ matrix.checkout_ref }}
           sparse-checkout: |
             ci
             tests
@@ -49,7 +49,7 @@ jobs:
           environment-file: ci/envs/${{ matrix.env }}.yml
           create-args: >-
             python=${{ matrix.python }}
-            ${{ matrix.extra }}
+            ${{ matrix.install_extra }}
 
       - name: Test
         run: |
