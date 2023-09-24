@@ -14,6 +14,7 @@ dependencies:
   - numpy
   - pandas
   - psutil
+  - pyarrow
   - pygeoops >=0.3,<0.4
   - pyogrio >=0.5
   - pyproj
