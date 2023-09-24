@@ -2820,6 +2820,23 @@ def _determine_nb_batches(
     batchsize: int,
     is_twolayer_operation: bool,
 ) -> Tuple[int, int]:
+    """
+    Determine an optimal number of batches and parallel workers.
+
+    Args:
+        nb_rows_input_layer (int): number of input rows
+        nb_parallel (int): recommended number of workers
+        batchsize (int): recommended number of rows per batch
+        is_twolayer_operation (bool): True if optimization for a two layer operation,
+            False if it involves a single layer operation.
+
+    Returns:
+        Tuple[int, int]: Tuple of (nb_parallel, nb_batches)
+    """
+    # If there are no or 1 input rows, one batch and one parallel is optimal
+    if nb_rows_input_layer <= 1:
+        return (1, 1)
+
     # Determine the optimal number of parallel processes + batches
     if nb_parallel == -1:
         # If no batch size specified, put at least 100 rows in a batch
@@ -2867,9 +2884,12 @@ def _determine_nb_batches(
     else:
         nb_batches = 1
 
-    # Make sure there are at least 10 rows in each batch to avoid a batch per row
-    if batchsize < 0 and nb_batches != 1 and nb_batches > int(nb_rows_input_layer / 10):
-        nb_batches = int(nb_rows_input_layer / 10)
+    # Make sure there are at least 10 rows in each batch to avoid e.g. a batch per row
+    if batchsize <= 0:
+        nb_batches = max(int(nb_rows_input_layer / 10), 1)
+
+    if nb_parallel > nb_batches:
+        nb_parallel = nb_batches
 
     return (nb_parallel, nb_batches)
 

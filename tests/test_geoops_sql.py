@@ -7,8 +7,14 @@ from geofileops.util import _geoops_sql
     "descr, nb_rows_input_layer, nb_parallel, batchsize, is_twolayer_operation, "
     "exp_nb_parallel, exp_nb_batches",
     [
-        ("Empty input layer, singlelayer", 0, -1, -1, 0, 1, 1),
-        ("Empty input1 layer, twolayer", 0, -1, -1, 1, 1, 1),
+        ("0 input rows, batchsize=1, singlelayer", 0, 2, 1, 0, 1, 1),
+        ("0 input rows, nb_parallel=2, singlelayer", 0, 2, 0, 0, 1, 1),
+        ("0 input rows, singlelayer", 0, -1, -1, 0, 1, 1),
+        ("0 input rows, twolayer", 0, -1, -1, 1, 1, 1),
+        ("1 input row, batchsize=1, singlelayer", 1, 2, 1, 0, 1, 1),
+        ("1 input rows, nb_parallel=2, singlelayer", 1, 2, 0, 0, 1, 1),
+        ("1 input rows, singlelayer", 1, -1, -1, 0, 1, 1),
+        ("1 input rows, twolayer", 1, -1, -1, 1, 1, 1),
     ],
 )
 def test_determine_nb_batches(
