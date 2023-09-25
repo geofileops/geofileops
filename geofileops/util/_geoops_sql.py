@@ -2837,12 +2837,15 @@ def _determine_nb_batches(
         Tuple[int, int]: Tuple of (nb_parallel, nb_batches)
     """
     # If no or 1 input rows or if 1 parallel worker is asked
+    # Remark: especially for 'select' operation, if nb_parallel is 1 nb_batches should
+    # be 1 (select might give wrong results)
     if nb_rows_input_layer <= 1 or nb_parallel == 1:
         return (1, 1)
+
     if cpu_count is None:
         cpu_count = multiprocessing.cpu_count()
 
-    # Determine the optimal number of parallel processes + batches
+    # Determine the optimal number of parallel workers
     if nb_parallel == -1:
         # If no batch size specified, put at least 100 rows in a batch
         if batchsize <= 0:
@@ -2855,8 +2858,6 @@ def _determine_nb_batches(
         nb_parallel = min(cpu_count, max_parallel)
 
     # Determine optimal number of batches
-    # Remark: especially for 'select' operation, if nb_parallel is 1
-    #         nb_batches should be 1 (select might give wrong results)
     if nb_parallel > 1:
         # Limit number of rows processed in parallel to limit memory use
         if batchsize > 0:
@@ -2878,22 +2879,23 @@ def _determine_nb_batches(
             # If a batchsize is specified, try to honer it
             nb_batches = nb_parallel
         else:
+            nb_batches = nb_parallel
+
             # If no batchsize specified and 2 layer processing, add some batches to
             # reduce impact of possible unbalanced batches on total processing time.
-            nb_batches = nb_parallel
             if is_twolayer_operation:
-                nb_batches = nb_parallel * 2
+                nb_batches *= 2
 
     elif batchsize > 0:
         nb_batches = math.ceil(nb_rows_input_layer / batchsize)
+
     else:
         nb_batches = 1
 
-    # Avoid a very small number of rows per batch
-    if batchsize <= 0 and nb_batches > (nb_rows_input_layer / 10):
-        nb_batches = math.ceil(nb_rows_input_layer / 10)
-
-    # More parellel than number of batches is useless...
+    # If more batches than rows, limit nb batches
+    if nb_batches > nb_rows_input_layer:
+        nb_batches = nb_rows_input_layer
+    # If more parallel than number of batches, nimit nb_parallel
     if nb_parallel > nb_batches:
         nb_parallel = nb_batches
 

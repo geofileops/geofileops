@@ -15,6 +15,8 @@ from geofileops.util import _geoops_sql
         ("1 input rows, nb_parallel=2, singlelayer", 1, 2, 0, 0, 1, 1),
         ("1 input rows, singlelayer", 1, -1, -1, 0, 1, 1),
         ("1 input rows, twolayer", 1, -1, -1, 1, 1, 1),
+        ("1 input rows, singlelayer", 1, -1, -1, 0, 1, 1),
+        ("2 input rows, nb_parallel=10, singlelayer", 2, 10, -1, 0, 2, 2),
         ("100 input row, batchsize=20, singlelayer", 100, -1, 20, 0, 5, 5),
         ("100 input rows, nb_parallel=2, singlelayer", 100, 2, 0, 0, 2, 2),
         ("100 input rows, nb_parallel=1, singlelayer", 100, 1, 0, 0, 1, 1),
