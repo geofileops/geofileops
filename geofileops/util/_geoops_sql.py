@@ -2819,6 +2819,7 @@ def _determine_nb_batches(
     nb_parallel: int,
     batchsize: int,
     is_twolayer_operation: bool,
+    cpu_count: Optional[int] = None,
 ) -> Tuple[int, int]:
     """
     Determine an optimal number of batches and parallel workers.
@@ -2829,13 +2830,17 @@ def _determine_nb_batches(
         batchsize (int): recommended number of rows per batch
         is_twolayer_operation (bool): True if optimization for a two layer operation,
             False if it involves a single layer operation.
+        cpu_count (int, optional): the number of CPU's available. If None, this is
+            determined automatically if needed.
 
     Returns:
         Tuple[int, int]: Tuple of (nb_parallel, nb_batches)
     """
-    # If there are no or 1 input rows, one batch and one parallel is optimal
-    if nb_rows_input_layer <= 1:
+    # If no or 1 input rows or if 1 parallel worker is asked
+    if nb_rows_input_layer <= 1 or nb_parallel == 1:
         return (1, 1)
+    if cpu_count is None:
+        cpu_count = multiprocessing.cpu_count()
 
     # Determine the optimal number of parallel processes + batches
     if nb_parallel == -1:
@@ -2847,7 +2852,7 @@ def _determine_nb_batches(
             min_rows_per_batch = batchsize
 
         max_parallel = max(int(nb_rows_input_layer / min_rows_per_batch), 1)
-        nb_parallel = min(multiprocessing.cpu_count(), max_parallel)
+        nb_parallel = min(cpu_count, max_parallel)
 
     # Determine optimal number of batches
     # Remark: especially for 'select' operation, if nb_parallel is 1
@@ -2884,10 +2889,11 @@ def _determine_nb_batches(
     else:
         nb_batches = 1
 
-    # Make sure there are at least 10 rows in each batch to avoid e.g. a batch per row
-    if batchsize <= 0:
-        nb_batches = max(int(nb_rows_input_layer / 10), 1)
+    # Avoid a very small number of rows per batch
+    if batchsize <= 0 and nb_batches > (nb_rows_input_layer / 10):
+        nb_batches = math.ceil(nb_rows_input_layer / 10)
 
+    # More parellel than number of batches is useless...
     if nb_parallel > nb_batches:
         nb_parallel = nb_batches
 
