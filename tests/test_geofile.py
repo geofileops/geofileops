@@ -690,34 +690,51 @@ def test_read_file(suffix, engine_setter):
     assert len(read_gdf.columns) == 12
     assert len(read_gdf) == 46
 
-    # Test no columns
-    read_gdf = gfo.read_file(src, columns=[])
-    assert isinstance(read_gdf, gpd.GeoDataFrame)
-    assert len(read_gdf.columns) == 1
-    assert len(read_gdf) == 46
 
-    # Test specific columns (+ test case insensitivity + order)
-    columns = ["OIDN", "uidn", "HFDTLT", "lblhfdtlt", "GEWASGROEP", "lengte", "OPPERVL"]
-    read_gdf = gfo.read_file(src, columns=columns)
-    assert len(read_gdf) == 46
-    columns.append("geometry")
-    for index, column in enumerate(read_gdf.columns):
-        assert str(column) == columns[index]
+@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize(
+    "columns, geometry",
+    [
+        ([], "YES"),
+        (["OIDN", "uidn", "HFDTLT", "lblhfdtlt", "GEWASGROEP", "lengte"], "YES"),
+        (["OIDN", "uidn", "HFDTLT", "lblhfdtlt", "GEWASGROEP", "lengte"], "NO"),
+        (["OIDN", "uidn", "HFDTLT", "lblhfdtlt", "GEWASGROEP", "lengte"], "IGNORE"),
+    ],
+)
+def test_read_file_columns_geometry(tmp_path, suffix, columns, geometry, engine_setter):
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
-    # Test no geom
-    read_gdf = gfo.read_file_nogeom(src)
-    assert isinstance(read_gdf, pd.DataFrame)
-    assert len(read_gdf) == 46
-
-    # Test ignore_geometry, no columns
-    read_gdf = gfo.read_file_nogeom(src, columns=[])
-    assert isinstance(read_gdf, pd.DataFrame)
-    if engine_setter == "fiona":
-        # fiona: 0 rows
-        assert len(read_gdf) == 0
+    if geometry == "YES":
+        ignore_geometry = False
+    elif geometry == "NO":
+        # Write test file without geometry
+        input_geom_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+        input_df = gfo.read_file(input_geom_path, ignore_geometry=True)
+        if suffix == ".shp":
+            # A shapefile without geometry results in only a .dbf file
+            test_path = tmp_path / f"{input_geom_path.stem}_nogeom.dbf"
+        else:
+            test_path = tmp_path / f"{input_geom_path.stem}_nogeom{suffix}"
+        gfo.to_file(input_df, test_path)
+        src = test_path
+        ignore_geometry = True
+    elif geometry == "IGNORE":
+        ignore_geometry = True
     else:
-        # pyogrio: 0, pyogrio + pyarrow=True: 46 (= the index)
-        assert len(read_gdf) == 0
+        raise ValueError(f"Invalid value for geometry: {geometry}")
+
+    exp_columns = columns
+    if not ignore_geometry:
+        exp_columns = columns + ["geometry"]
+
+    # Test
+    read_gdf = gfo.read_file(src, columns=columns, ignore_geometry=ignore_geometry)
+    assert isinstance(read_gdf, pd.DataFrame)
+    if not ignore_geometry:
+        assert isinstance(read_gdf, gpd.GeoDataFrame)
+    assert list(read_gdf.columns) == exp_columns
+    assert len(read_gdf) == 46
 
 
 def test_read_file_invalid_params(tmp_path, engine_setter):
@@ -749,6 +766,22 @@ def test_read_file_fid_as_index(suffix, engine_setter):
     else:
         # Geopackage fid starts at 1
         assert read_gdf.index[0] == 6
+
+
+@pytest.mark.parametrize("suffix", SUFFIXES)
+def test_read_file_no_columns_no_geom(suffix, engine_setter):
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+
+    # Test ignore_geometry + no columns
+    read_gdf = gfo.read_file(src, columns=[], ignore_geometry=True)
+    assert isinstance(read_gdf, pd.DataFrame)
+    if engine_setter == "fiona":
+        # fiona: 0 rows
+        assert len(read_gdf) == 0
+    else:
+        # pyogrio: 0, pyogrio + pyarrow=True: 46 (= the index)
+        assert len(read_gdf) == 0
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES)

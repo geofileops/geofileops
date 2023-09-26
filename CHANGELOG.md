@@ -44,6 +44,7 @@
 - Fix `fid` column in output having only null values in e.g. `union` (#362)
 - Fix "json" aggregate column handling in dissolve on line and point input files gives
   wrong results (#257)
+- Fix error in `read_file`` when `read_geometry=False` and `columns` specified (#)
 
 ### Deprecations and compatibility notes
 
