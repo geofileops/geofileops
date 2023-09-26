@@ -703,20 +703,36 @@ def test_read_file(suffix, engine_setter):
 )
 def test_read_file_columns_geometry(tmp_path, suffix, columns, geometry, engine_setter):
     # Prepare test data
-    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    # If possible, use a 2 layer file for better test coverage
+    if gfo.GeofileType(suffix).is_singlelayer:
+        testfile = "polygon-parcel"
+        src = test_helper.get_testfile(testfile, suffix=suffix)
+        layer = src.stem
+    else:
+        testfile = "polygon-twolayers"
+        src = test_helper.get_testfile(testfile, suffix=suffix)
+        layer = "parcels"
 
+    # Interprete the geometry parameter
     if geometry == "YES":
         ignore_geometry = False
     elif geometry == "NO":
         # Write test file without geometry
-        input_geom_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
-        input_df = gfo.read_file(input_geom_path, ignore_geometry=True)
+        input_df = gfo.read_file(src, layer=layer, ignore_geometry=True)
+        layer = f"{src.stem}_nogeom"
         if suffix == ".shp":
             # A shapefile without geometry results in only a .dbf file
-            test_path = tmp_path / f"{input_geom_path.stem}_nogeom.dbf"
+            test_path = tmp_path / f"{layer}.dbf"
         else:
-            test_path = tmp_path / f"{input_geom_path.stem}_nogeom{suffix}"
-        gfo.to_file(input_df, test_path)
+            test_path = tmp_path / f"{layer}{suffix}"
+        if gfo.GeofileType(suffix).is_singlelayer:
+            gfo.to_file(input_df, test_path, layer=layer)
+        else:
+            # For a multilayer filetype, add the attribute table so the file stays
+            # multi-layer
+            gfo.copy(src, test_path)
+            gfo.to_file(input_df, test_path, layer=layer, append=False)
+            assert len(gfo.listlayers(test_path)) > 1
         src = test_path
         ignore_geometry = True
     elif geometry == "IGNORE":
@@ -729,7 +745,9 @@ def test_read_file_columns_geometry(tmp_path, suffix, columns, geometry, engine_
         exp_columns = columns + ["geometry"]
 
     # Test
-    read_gdf = gfo.read_file(src, columns=columns, ignore_geometry=ignore_geometry)
+    read_gdf = gfo.read_file(
+        src, layer=layer, columns=columns, ignore_geometry=ignore_geometry
+    )
     assert isinstance(read_gdf, pd.DataFrame)
     if not ignore_geometry:
         assert isinstance(read_gdf, gpd.GeoDataFrame)

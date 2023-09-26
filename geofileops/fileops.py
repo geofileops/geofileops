@@ -1208,8 +1208,8 @@ def _read_file_base_fiona(
     # Checking if field/column names should be read is case sensitive in fiona, so
     # make sure the column names specified have the same casing.
     columns_prepared = None
-    layerinfo = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
     if columns is not None:
+        layerinfo = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
         columns_upper_lookup = {column.upper(): column for column in columns}
         columns_prepared = {
             column: columns_upper_lookup[column.upper()]
@@ -1293,7 +1293,6 @@ def _read_file_base_pyogrio(
 
     # If no sql_stmt specified
     columns_prepared = None
-    layerinfo = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
     if sql_stmt is None:
         # If no layer specified, there should be only one layer in the file.
         if layer is None:
@@ -1302,6 +1301,7 @@ def _read_file_base_pyogrio(
         # Checking if column names should be read is case sensitive in pyogrio, so
         # make sure the column names specified have the same casing.
         if columns is not None:
+            layerinfo = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
             columns_upper_lookup = {column.upper(): column for column in columns}
             columns_prepared = {
                 column: columns_upper_lookup[column.upper()]
@@ -1517,6 +1517,7 @@ def to_file(
         isinstance(gdf, gpd.GeoDataFrame) and "geometry" not in gdf.columns
     ):
         engine = "fiona"
+        create_spatial_index = False
     else:
         engine = _get_engine()
 
