@@ -703,7 +703,7 @@ def test_read_file(suffix, engine_setter):
 )
 def test_read_file_columns_geometry(tmp_path, suffix, columns, geometry, engine_setter):
     # Prepare test data
-    # If possible, use a 2 layer file for better test coverage
+    # For multi-layer filetype, use 2-layer file for better test coverage
     if gfo.GeofileType(suffix).is_singlelayer:
         testfile = "polygon-parcel"
         src = test_helper.get_testfile(testfile, suffix=suffix)
@@ -805,11 +805,18 @@ def test_read_file_no_columns_no_geom(suffix, engine_setter):
 @pytest.mark.parametrize("suffix", SUFFIXES)
 def test_read_file_sql(suffix, engine_setter):
     # Prepare test data
-    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    # For multi-layer filetype, use 2-layer file for better test coverage
+    if gfo.GeofileType(suffix).is_singlelayer:
+        testfile = "polygon-parcel"
+        src = test_helper.get_testfile(testfile, suffix=suffix)
+        layer = src.stem
+    else:
+        testfile = "polygon-twolayers"
+        src = test_helper.get_testfile(testfile, suffix=suffix)
+        layer = "parcels"
 
     # Test
-    src_layerinfo = gfo.get_layerinfo(src)
-    sql_stmt = f'SELECT * FROM "{src_layerinfo.name}"'
+    sql_stmt = f'SELECT * FROM "{layer}"'
     if engine_setter == "fiona":
         with pytest.raises(ValueError, match="sql_stmt is not supported with fiona"):
             _ = gfo.read_file(src, sql_stmt=sql_stmt)
