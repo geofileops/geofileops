@@ -720,6 +720,8 @@ def test_join_nearest(tmp_path, suffix, epsg):
         input2_path=input2_path,
         output_path=output_path,
         nb_nearest=nb_nearest,
+        distance=1000,
+        expand=True,
         batchsize=batchsize,
         force=True,
     )
