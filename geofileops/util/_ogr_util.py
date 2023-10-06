@@ -507,12 +507,12 @@ def vector_translate(
         output_ds = None
         input_ds = None
         # Truncate the cpl log file already, because it typically is locked
-        with open(gdal_cpl_log_path, "r+") as logfile:
-            logfile.truncate(0)  # size '0' necessary when using r+
-        try:
-            gdal_cpl_log_path.unlink(missing_ok=True)
-        except Exception:
-            pass
+        # with open(gdal_cpl_log_path, "r+") as logfile:
+        #     logfile.truncate(0)  # size '0' necessary when using r+
+        # try:
+        #     gdal_cpl_log_path.unlink(missing_ok=True)
+        # except Exception:
+        #     pass
 
     return True
 
