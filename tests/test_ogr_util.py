@@ -84,7 +84,14 @@ def test_prepare_gdal_options():
 def test_read_cpl_log(tmp_path):
     # Prepare test data
     cpl_log_path = tmp_path / "cpl_log.log"
-    test_log_lines = ["logging line 1", "ERROR1", "ERROR2", "\0", "", "logging line 3"]
+    test_log_lines = [
+        "logging line 1\n",
+        "ERROR1\n",
+        "\nERROR2\n",
+        "\0\n",
+        "\n",
+        "logging line 3\n",
+    ]
     with open(cpl_log_path, mode="w") as file:
         file.writelines(test_log_lines)
 
