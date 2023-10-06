@@ -55,6 +55,14 @@ class GDALError(Exception):
             return super().__str__()
 
 
+def get_drivers() -> dict:
+    drivers = {}
+    for i in range(gdal.GetDriverCount()):
+        driver = gdal.GetDriver(i)
+        drivers[driver.ShortName] = driver.GetDescription()
+    return drivers
+
+
 def read_cpl_log(path: Path) -> Tuple[List[str], List[str]]:
     """
     Reads a cpl_log file and returns a list with log lines and errors.
@@ -83,14 +91,6 @@ def read_cpl_log(path: Path) -> Tuple[List[str], List[str]]:
                 lines_error.append(line)
 
     return (lines_cleaned, lines_error)
-
-
-def get_drivers() -> dict:
-    drivers = {}
-    for i in range(gdal.GetDriverCount()):
-        driver = gdal.GetDriver(i)
-        drivers[driver.ShortName] = driver.GetDescription()
-    return drivers
 
 
 class VectorTranslateInfo:
@@ -340,7 +340,6 @@ def vector_translate(
         os.close(fd)
         config_options["CPL_LOG"] = gdal_cpl_log_path
         gdal_cpl_log_path = Path(gdal_cpl_log_path)
-        gdal_cpl_log_path.unlink()
     else:
         gdal_cpl_log_path = Path(config_options["CPL_LOG"])
     if "CPL_LOG_ERRORS" not in config_options:
@@ -519,14 +518,16 @@ def vector_translate(
     finally:
         output_ds = None
         input_ds = None
-        # Truncate the cpl log file already, because sometimes it is locked and cannot
-        # be unlinked.
-        with open(gdal_cpl_log_path, "r+") as logfile:
-            logfile.truncate(0)  # size '0' necessary when using r+
-        try:
-            gdal_cpl_log_path.unlink(missing_ok=True)
-        except Exception:
-            pass
+
+        if gdal_cpl_log_path.exists():
+            # Truncate the cpl log file already, because sometimes it is locked and
+            # cannot be unlinked.
+            with open(gdal_cpl_log_path, "r+") as logfile:
+                logfile.truncate(0)  # size '0' necessary when using r+
+            try:
+                gdal_cpl_log_path.unlink(missing_ok=True)
+            except Exception:
+                pass
 
     return True
 
