@@ -331,6 +331,7 @@ def vector_translate(
     fd, gdal_cpl_log_path = tempfile.mkstemp(suffix=".log", dir=gdal_cpl_log_dir)
     os.close(fd)
     gdal_cpl_log_path = Path(gdal_cpl_log_path)
+    gdal_cpl_log_path.unlink()
     try:
         # Have gdal throw exception on error
         gdal.UseExceptions()
