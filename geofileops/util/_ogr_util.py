@@ -28,9 +28,24 @@ class GDALError(Exception):
     def __init__(
         self,
         message: str,
+        gdal_cpl_log_path: Optional[Path] = None,
         gdal_cpl_log_lines: Optional[List[str]] = None,
     ):
         super().__init__(message)
+
+        if gdal_cpl_log_lines is not None and gdal_cpl_log_path is not None:
+            raise ValueError(
+                "only one of gdal_cpl_log_lines and gdal_cpl_log_path can be specified"
+            )
+
+        self.gdal_cpl_log_path = gdal_cpl_log_path
+
+        # If file path is passed, read file
+        if gdal_cpl_log_path is not None:
+            if gdal_cpl_log_path.exists() and gdal_cpl_log_path.stat().st_size > 0:
+                gdal_cpl_log_lines = []
+                with open(gdal_cpl_log_path) as logfile:
+                    gdal_cpl_log_lines = logfile.readlines()
 
         # Cleanup + set the gdal_cpl_log info
         self.gdal_cpl_log_lines = None
@@ -480,20 +495,13 @@ def vector_translate(
     except Exception as ex:
         output_ds = None
 
-        # If there is CPL_LOG logging, read it + prepare to add to the exception as it
-        # can contain important information.
-        cpl_log_lines = []
-        if gdal_cpl_log_path.exists() and gdal_cpl_log_path.stat().st_size > 0:
-            with open(gdal_cpl_log_path) as logfile:
-                cpl_log_lines = logfile.readlines()
-
         # Prepart exception message
         message = f"Error {ex} while creating {output_path}"
         if sql_stmt is not None:
             message = f"{message} using sql_stmt {sql_stmt}"
 
         # Raise
-        raise GDALError(message, cpl_log_lines) from ex
+        raise GDALError(message, gdal_cpl_log_path=gdal_cpl_log_path) from ex
 
     finally:
         output_ds = None
