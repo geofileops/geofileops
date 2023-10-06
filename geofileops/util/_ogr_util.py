@@ -1,10 +1,7 @@
 """
-Module containing utilities regarding the usage of ogr functionalities.
+Module containing utilities regarding the usage of ogr/gdal functionalities.
 """
 
-# -------------------------------------
-# Import/init needed modules
-# -------------------------------------
 import logging
 import os
 from pathlib import Path
@@ -18,34 +15,42 @@ from pygeoops import GeometryType
 import geofileops as gfo
 from geofileops.util.geofiletype import GeofileType
 
-#####################################################################
-# First define/init some general variables/constants
-#####################################################################
-
 # Make sure only one instance per process is running
 lock = Lock()
 
 # Get a logger...
 logger = logging.getLogger(__name__)
 
-#####################################################################
-# The real work
-#####################################################################
-
 
 class GDALError(Exception):
     """Error with extra gdal info."""
 
-    def __init__(self, message, gdal_cpl_log_errors=None, gdal_cpl_log_all=None):
+    def __init__(
+        self,
+        message: str,
+        gdal_cpl_log_lines: Optional[List[str]] = None,
+    ):
         super().__init__(message)
 
-        if gdal_cpl_log_errors is not None and len(gdal_cpl_log_errors) == 0:
-            gdal_cpl_log_errors = None
-        self.gdal_cpl_log_errors = gdal_cpl_log_errors
+        # Cleanup + set the gdal_cpl_log info
+        self.gdal_cpl_log_lines = None
+        self.gdal_cpl_log_errors = None
+        if gdal_cpl_log_lines is not None:
+            # Cleanup + check for errors
+            lines_cleaned = []
+            lines_error = []
+            for line in gdal_cpl_log_lines:
+                line = line.strip("\0\n ")
+                if line != "":
+                    lines_cleaned.append(line)
+                    if line.startswith("ERROR"):
+                        lines_error.append(line)
 
-        if gdal_cpl_log_all is not None and len(gdal_cpl_log_all) == 0:
-            gdal_cpl_log_all = None
-        self.gdal_cpl_log_all = gdal_cpl_log_all
+            # Set class attributes
+            if len(lines_cleaned) > 0:
+                self.gdal_cpl_log_lines = lines_cleaned
+            if len(lines_error) > 0:
+                self.gdal_cpl_log_errors = lines_error
 
     def __str__(self):
         retstring = ""
@@ -54,11 +59,11 @@ class GDALError(Exception):
             retstring += "\n    -------------------"
             retstring += "\n    "
             retstring += "\n    ".join(self.gdal_cpl_log_errors)
-        if self.gdal_cpl_log_all is not None:
+        if self.gdal_cpl_log_lines is not None:
             retstring += "\n    GDAL CPL_LOG ALL"
             retstring += "\n    ----------------"
             retstring += "\n    "
-            retstring += "\n    ".join(self.gdal_cpl_log_all)
+            retstring += "\n    ".join(self.gdal_cpl_log_lines)
 
         return f"{retstring}\n{super().__str__()}"
 
@@ -302,7 +307,7 @@ def vector_translate(
 
     # Now we can really get to work
     output_ds = None
-    gdal_cpl_log_dir = Path(tempfile.gettempdir()) / "geofileops/gdal_log"
+    gdal_cpl_log_dir = Path(tempfile.gettempdir()) / "geofileops/gdal_cpl_log"
     gdal_cpl_log_dir.mkdir(parents=True, exist_ok=True)
     fd, gdal_cpl_log_path = tempfile.mkstemp(suffix=".log", dir=gdal_cpl_log_dir)
     os.close(fd)
@@ -477,18 +482,10 @@ def vector_translate(
 
         # If there is CPL_LOG logging, read it + prepare to add to the exception as it
         # can contain important information.
-        cpl_log_all = []
-        cpl_log_errors = []
+        cpl_log_lines = []
         if gdal_cpl_log_path.exists() and gdal_cpl_log_path.stat().st_size > 0:
             with open(gdal_cpl_log_path) as logfile:
-                lines = logfile.readlines()
-
-                # Cleanup + check for errors
-                for line in lines:
-                    line = line.strip("\0\n")
-                    cpl_log_all.append(line)
-                    if line.startswith("ERROR"):
-                        cpl_log_errors.append(line)
+                cpl_log_lines = logfile.readlines()
 
         # Prepart exception message
         message = f"Error {ex} while creating {output_path}"
@@ -496,7 +493,7 @@ def vector_translate(
             message = f"{message} using sql_stmt {sql_stmt}"
 
         # Raise
-        raise GDALError(message, cpl_log_errors, cpl_log_all) from ex
+        raise GDALError(message, cpl_log_lines) from ex
 
     finally:
         output_ds = None

@@ -13,25 +13,27 @@ from tests import test_helper
 
 
 @pytest.mark.parametrize(
-    "gdal_cpl_log_errors, gdal_cpl_log_all",
-    [(None, None), ([], []), (["Error1", "Error2"], ["Logline1", "Logline2"])],
+    "gdal_cpl_log_lines",
+    [(None), ([]), (["Logline1", "Logline2", "ERROR1", "ERROR2", "\n", " "])],
 )
-def test_GDALError(gdal_cpl_log_errors, gdal_cpl_log_all):
+def test_GDALError(gdal_cpl_log_lines):
     ex = _ogr_util.GDALError(
         "Error",
-        gdal_cpl_log_errors=gdal_cpl_log_errors,
-        gdal_cpl_log_all=gdal_cpl_log_all,
+        gdal_cpl_log_lines=gdal_cpl_log_lines,
     )
 
     ex_str = str(ex)
-    if gdal_cpl_log_errors is not None and len(gdal_cpl_log_errors) > 0:
+    if gdal_cpl_log_lines is not None and len(gdal_cpl_log_lines) > 0:
+        # The line with only "\n" is dropped
+        assert len(ex.gdal_cpl_log_lines) == len(gdal_cpl_log_lines) - 2
+        assert len(ex.gdal_cpl_log_errors) == 2
         assert "GDAL CPL_LOG ERRORS" in ex_str
-        for error in gdal_cpl_log_errors:
-            assert error in ex_str
-    if gdal_cpl_log_all is not None and len(gdal_cpl_log_all) > 0:
         assert "GDAL CPL_LOG ALL" in ex_str
-        for line in gdal_cpl_log_all:
+        for line in gdal_cpl_log_lines:
             assert line in ex_str
+    else:
+        assert ex.gdal_cpl_log_errors is None
+        assert ex.gdal_cpl_log_lines is None
 
 
 def test_get_drivers():
@@ -128,7 +130,7 @@ def test_vector_translate_gdal_error(tmp_path):
         )
     except _ogr_util.GDALError as ex:
         assert ex.gdal_cpl_log_errors is None
-        assert ex.gdal_cpl_log_all is not None
+        assert ex.gdal_cpl_log_lines is not None
 
         # Test succesful: GDALError was raised correctly
         return
