@@ -81,6 +81,21 @@ def test_prepare_gdal_options():
         assert error_raised is True, f"Error should have been raised for {option}"
 
 
+def test_read_cpl_log(tmp_path):
+    # Prepare test data
+    cpl_log_path = tmp_path / "cpl_log.log"
+    test_log_lines = ["logging line 1", "ERROR1", "ERROR2", "\0", "", "logging line 3"]
+    with open(cpl_log_path, mode="w") as file:
+        file.writelines(test_log_lines)
+
+    # Test
+    log_lines, error_lines = _ogr_util.read_cpl_log(cpl_log_path)
+
+    assert len(error_lines) == 2
+    # There are two lines with no usefull data, thay will be ignored
+    assert len(log_lines) == len(test_log_lines) - 2
+
+
 def test_set_config_options():
     # Init
     test1_config_notset = "TEST_CONFIG_OPTION_1"
