@@ -324,30 +324,34 @@ def vector_translate(
         if "OGR_SQLITE_CACHE" not in config_options:
             config_options["OGR_SQLITE_CACHE"] = "128"
 
-    # Now we can really get to work
-    output_ds = None
-    gdal_cpl_log_dir = Path(tempfile.gettempdir()) / "geofileops/gdal_cpl_log"
-    gdal_cpl_log_dir.mkdir(parents=True, exist_ok=True)
-    fd, gdal_cpl_log_path = tempfile.mkstemp(suffix=".log", dir=gdal_cpl_log_dir)
-    os.close(fd)
-    gdal_cpl_log_path = Path(gdal_cpl_log_path)
-    gdal_cpl_log_path.unlink()
-    try:
-        # Have gdal throw exception on error
-        gdal.UseExceptions()
+    # Have gdal throw exception on error
+    gdal.UseExceptions()
 
-        # In some cases gdal only raises the last exception instead of the stack in
-        # VectorTranslate, so you then you would lose necessary details!
-        # Solution: have gdal log everything to a file using the CPL_LOG config setting,
-        # and if an error occurs, add the contents of the log file to the exception.
-        # I also tried using gdal.ConfigurePythonLogging, but with enable_debug=True all
-        # gdal debug logging is always logged, which is quite verbose and messy, and
-        # with enable_debug=True nothing is logged. In addition, after
-        # gdal.ConfigurePythonLogging is called, the CPL_LOG config setting is ignored.
-        config_options["CPL_LOG"] = str(gdal_cpl_log_path)
+    # In some cases gdal only raises the last exception instead of the stack in
+    # VectorTranslate, so you then you would lose necessary details!
+    # Solution: have gdal log everything to a file using the CPL_LOG config setting,
+    # and if an error occurs, add the contents of the log file to the exception.
+    # I also tried using gdal.ConfigurePythonLogging, but with enable_debug=True all
+    # gdal debug logging is always logged, which is quite verbose and messy, and
+    # with enable_debug=True nothing is logged. In addition, after
+    # gdal.ConfigurePythonLogging is called, the CPL_LOG config setting is ignored.
+    if "CPL_LOG" not in config_options:
+        gdal_cpl_log_dir = Path(tempfile.gettempdir()) / "geofileops/gdal_cpl_log"
+        gdal_cpl_log_dir.mkdir(parents=True, exist_ok=True)
+        fd, gdal_cpl_log_path = tempfile.mkstemp(suffix=".log", dir=gdal_cpl_log_dir)
+        os.close(fd)
+        config_options["CPL_LOG"] = gdal_cpl_log_path
+        gdal_cpl_log_path = Path(gdal_cpl_log_path)
+    else:
+        gdal_cpl_log_path = Path(config_options["CPL_LOG"])
+    if "CPL_LOG_ERRORS" not in config_options:
         config_options["CPL_LOG_ERRORS"] = "ON"
+    if "CPL_DEBUG" not in config_options:
         config_options["CPL_DEBUG"] = "ON"
 
+    # Now we can really get to work
+    output_ds = None
+    try:
         # Go!
         with set_config_options(config_options):
             # Open input datasource already
