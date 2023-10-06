@@ -33,8 +33,28 @@ logger = logging.getLogger(__name__)
 #####################################################################
 
 
-class GFOError(Exception):
-    pass
+class GDALError(Exception):
+    """Error with extra gdal info."""
+
+    def __init__(self, message, gdal_cpl_errors=None, gdal_cpl_loglines=None):
+        super().__init__(message)
+        self.gdal_cpl_errors = gdal_cpl_errors
+        self.gdal_cpl_loglines = gdal_cpl_loglines
+
+    def __str__(self):
+        retstring = ""
+        if self.gdal_cpl_errors is not None and len(self.gdal_cpl_errors) > 0:
+            retstring += "\n    GDAL CPL_LOG ERRORS"
+            retstring += "\n    -------------------"
+            retstring += "\n    "
+            retstring += "\n    ".join(self.gdal_cpl_errors)
+        if self.gdal_cpl_loglines is not None and len(self.gdal_cpl_loglines) > 0:
+            retstring += "\n    GDAL CPL_LOG DEBUG"
+            retstring += "\n    ------------------"
+            retstring += "\n    "
+            retstring += "\n    ".join(self.gdal_cpl_loglines)
+
+        return f"{retstring}\n{super().__str__()}"
 
 
 def get_drivers() -> dict:
@@ -275,23 +295,27 @@ def vector_translate(
             config_options["OGR_SQLITE_CACHE"] = "128"
 
     # Now we can really get to work
-    result_ds = None
-    gdallog_dir = Path(tempfile.gettempdir()) / "geofileops/gdal_log"
+    output_ds = None
+    gdal_cpl_log_dir = Path(tempfile.gettempdir()) / "geofileops/gdal_log"
+    gdal_cpl_log_dir.mkdir(parents=True, exist_ok=True)
+    fd, gdal_cpl_log_path = tempfile.mkstemp(suffix=".log", dir=gdal_cpl_log_dir)
+    os.close(fd)
+    gdal_cpl_log_path = Path(gdal_cpl_log_path)
     try:
-        # In some cases gdal only raises the last exception instead of the stack in
-        # VectorTranslate, so you lose necessary details!
-        # -> uncomment gdal.DontUseExceptions() when debugging!
-        # gdal.DontUseExceptions()
+        # Have gdal throw exception on error
         gdal.UseExceptions()
-        enable_debug = True if logger.level == logging.DEBUG else False
-        gdal.ConfigurePythonLogging(logger_name="gdal", enable_debug=enable_debug)
 
-        # Sometimes GDAL doesn't log to standard logging nor throw an exception but just
-        # writes to a seperate logging system. Enable this seperate logging to check it
-        # afterwards.
-        errorlog_path = gdallog_dir / f"gdal_errors_{os.getpid()}.log"
-        config_options["CPL_LOG"] = str(errorlog_path)
+        # In some cases gdal only raises the last exception instead of the stack in
+        # VectorTranslate, so you then you would lose necessary details!
+        # Solution: have gdal log everything to a file using the CPL_LOG config setting,
+        # and if an error occurs, add the contents of the log file to the exception.
+        # I also tried using gdal.ConfigurePythonLogging, but with enable_debug=True all
+        # gdal debug logging is always logged, which is quite verbose and messy, and
+        # with enable_debug=True nothing is logged. In addition, after
+        # gdal.ConfigurePythonLogging is called, the CPL_LOG config setting is ignored.
+        config_options["CPL_LOG"] = str(gdal_cpl_log_path)
         config_options["CPL_LOG_ERRORS"] = "ON"
+        config_options["CPL_DEBUG"] = "ON"
 
         # Go!
         with set_config_options(config_options):
@@ -380,34 +404,19 @@ def vector_translate(
                 callback_data=None,
             )
 
-            result_ds = gdal.VectorTranslate(
+            output_ds = gdal.VectorTranslate(
                 destNameOrDestDS=str(output_path), srcDS=input_ds, options=options
             )
 
-        # If there is CPL_LOG logging, write to standard logger as well, extract last
-        # error and clean log file.
-        cpl_error = None
-        if errorlog_path.exists() and errorlog_path.stat().st_size > 0:
-            with open(errorlog_path, "r+") as errorlog_file:
-                lines = errorlog_file.readlines()
-                for line in lines:
-                    line = line.lstrip("\0")
-                    if line.startswith("ERROR"):
-                        logger.error(line)
-                        cpl_error = line
-                    else:
-                        logger.info(line)
-                errorlog_file.truncate(0)  # size '0' when using r+
-
         # If the resulting datasource is None, something went wrong
-        if result_ds is None:
-            raise GFOError(f"result_ds is None ({cpl_error})")
+        if output_ds is None:
+            raise RuntimeError("output_ds is None")
 
         # Sometimes an invalid output file is written, so close and try to reopen it.
-        result_ds = None
+        output_ds = None
         if output_path.exists():
             try:
-                result_ds = gdal.OpenEx(
+                output_ds = gdal.OpenEx(
                     str(output_path), nOpenFlags=gdal.OF_VECTOR | gdal.OF_UPDATE
                 )
 
@@ -424,11 +433,11 @@ def vector_translate(
                 # list of the Dataset returned by VectorTranslate. E.g. when the input
                 # file is empty.
                 if not input_has_geometry_attribute or not input_has_geom_attribute:
-                    assert isinstance(result_ds, gdal.Dataset)
+                    assert isinstance(output_ds, gdal.Dataset)
                     if output_layer is not None:
-                        result_layer = result_ds.GetLayer(output_layer)
-                    elif result_ds.GetLayerCount() == 1:
-                        result_layer = result_ds.GetLayerByIndex(0)
+                        result_layer = output_ds.GetLayer(output_layer)
+                    elif output_ds.GetLayerCount() == 1:
+                        result_layer = output_ds.GetLayerByIndex(0)
                     else:
                         result_layer = None
                         logger.warning(
@@ -455,17 +464,44 @@ def vector_translate(
                 )
                 gfo.remove(output_path)
             finally:
-                result_ds = None
+                output_ds = None
 
     except Exception as ex:
-        result_ds = None
+        output_ds = None
+
+        # If there is CPL_LOG logging, read it + prepare to add to the exception as it
+        # can contain important information.
+        cpl_logs = []
+        cpl_errors = []
+        if gdal_cpl_log_path.exists() and gdal_cpl_log_path.stat().st_size > 0:
+            with open(gdal_cpl_log_path) as logfile:
+                lines = logfile.readlines()
+
+                # Cleanup + check for errors
+                for line in lines:
+                    line = line.strip("\0\n")
+                    cpl_logs.append(line)
+                    if line.startswith("ERROR"):
+                        cpl_errors.append(line)
+
+        # Prepart exception message
         message = f"Error {ex} while creating {output_path}"
         if sql_stmt is not None:
             message = f"{message} using sql_stmt {sql_stmt}"
-        raise GFOError(message) from ex
+
+        # Raise
+        raise GDALError(message, cpl_errors, cpl_logs) from ex
+
     finally:
-        result_ds = None
+        output_ds = None
         input_ds = None
+        # Truncate the cpl log file already, because it typically is locked
+        with open(gdal_cpl_log_path, "r+") as logfile:
+            logfile.truncate(0)  # size '0' necessary when using r+
+        try:
+            gdal_cpl_log_path.unlink(missing_ok=True)
+        except Exception:
+            pass
 
     return True
 
