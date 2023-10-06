@@ -28,59 +28,63 @@ class GDALError(Exception):
     def __init__(
         self,
         message: str,
-        gdal_cpl_log_path: Optional[Path] = None,
-        gdal_cpl_log_lines: Optional[List[str]] = None,
+        log_details: [List[str]] = [],
+        error_details: [List[str]] = [],
+        log_path: Optional[Path] = None,
     ):
         super().__init__(message)
 
-        if gdal_cpl_log_lines is not None and gdal_cpl_log_path is not None:
-            raise ValueError(
-                "only one of gdal_cpl_log_lines and gdal_cpl_log_path can be specified"
-            )
-
-        self.gdal_cpl_log_path = gdal_cpl_log_path
-
-        # If file path is passed, read file
-        if gdal_cpl_log_path is not None:
-            if gdal_cpl_log_path.exists() and gdal_cpl_log_path.stat().st_size > 0:
-                gdal_cpl_log_lines = []
-                with open(gdal_cpl_log_path) as logfile:
-                    gdal_cpl_log_lines = logfile.readlines()
-
-        # Cleanup + set the gdal_cpl_log info
-        self.gdal_cpl_log_lines = None
-        self.gdal_cpl_log_errors = None
-        if gdal_cpl_log_lines is not None:
-            # Cleanup + check for errors
-            lines_cleaned = []
-            lines_error = []
-            for line in gdal_cpl_log_lines:
-                line = line.strip("\0\n ")
-                if line != "":
-                    lines_cleaned.append(line)
-                    if line.startswith("ERROR"):
-                        lines_error.append(line)
-
-            # Set class attributes
-            if len(lines_cleaned) > 0:
-                self.gdal_cpl_log_lines = lines_cleaned
-            if len(lines_error) > 0:
-                self.gdal_cpl_log_errors = lines_error
+        self.log_details = log_details
+        self.error_details = error_details
+        self.log_path = log_path
 
     def __str__(self):
         retstring = ""
-        if self.gdal_cpl_log_errors is not None:
+        if len(self.error_details) > 0:
             retstring += "\n    GDAL CPL_LOG ERRORS"
             retstring += "\n    -------------------"
             retstring += "\n    "
-            retstring += "\n    ".join(self.gdal_cpl_log_errors)
-        if self.gdal_cpl_log_lines is not None:
+            retstring += "\n    ".join(self.error_details)
+        if len(self.log_details) > 0:
             retstring += "\n    GDAL CPL_LOG ALL"
             retstring += "\n    ----------------"
             retstring += "\n    "
-            retstring += "\n    ".join(self.gdal_cpl_log_lines)
+            retstring += "\n    ".join(self.log_details)
 
-        return f"{retstring}\n{super().__str__()}"
+        if len(retstring) > 0:
+            return f"{retstring}\n{super().__str__()}"
+        else:
+            return super().__str__()
+
+
+def read_cpl_log(path: Path) -> Tuple[List[str], List[str]]:
+    """
+    Reads a cpl_log file and returns a list with log lines and errors.
+
+    Args:
+        path (Path): the file path to the cpl_log file.
+
+    Returns:
+        Tuple[List[str], List[str]]: tuple with a list of all log lines and a list of
+            errors.
+    """
+    if not path.exists() or path.stat().st_size == 0:
+        return ([], [])
+
+    with open(path) as logfile:
+        log_lines = logfile.readlines()
+
+    # Cleanup + check for errors
+    lines_cleaned = []
+    lines_error = []
+    for line in log_lines:
+        line = line.strip("\0\n ")
+        if line != "":
+            lines_cleaned.append(line)
+            if line.startswith("ERROR"):
+                lines_error.append(line)
+
+    return (lines_cleaned, lines_error)
 
 
 def get_drivers() -> dict:
@@ -495,13 +499,21 @@ def vector_translate(
     except Exception as ex:
         output_ds = None
 
-        # Prepart exception message
+        # Prepare exception message
         message = f"Error {ex} while creating {output_path}"
         if sql_stmt is not None:
             message = f"{message} using sql_stmt {sql_stmt}"
 
+        # Read cpl_log file
+        log_lines, log_errors = read_cpl_log(gdal_cpl_log_path)
+
         # Raise
-        raise GDALError(message, gdal_cpl_log_path=gdal_cpl_log_path) from ex
+        raise GDALError(
+            message,
+            log_details=log_lines,
+            error_details=log_errors,
+            log_path=gdal_cpl_log_path,
+        ) from ex
 
     finally:
         output_ds = None

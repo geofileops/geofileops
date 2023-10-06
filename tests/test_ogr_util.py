@@ -19,21 +19,21 @@ from tests import test_helper
 def test_GDALError(gdal_cpl_log_lines):
     ex = _ogr_util.GDALError(
         "Error",
-        gdal_cpl_log_lines=gdal_cpl_log_lines,
+        log_details=gdal_cpl_log_lines,
     )
 
     ex_str = str(ex)
     if gdal_cpl_log_lines is not None and len(gdal_cpl_log_lines) > 0:
         # The line with only "\n" is dropped
-        assert len(ex.gdal_cpl_log_lines) == len(gdal_cpl_log_lines) - 2
-        assert len(ex.gdal_cpl_log_errors) == 2
+        assert len(ex.log_details) == len(gdal_cpl_log_lines) - 2
+        assert len(ex.error_details) == 2
         assert "GDAL CPL_LOG ERRORS" in ex_str
         assert "GDAL CPL_LOG ALL" in ex_str
         for line in gdal_cpl_log_lines:
             assert line in ex_str
     else:
-        assert ex.gdal_cpl_log_errors is None
-        assert ex.gdal_cpl_log_lines is None
+        assert ex.error_details is None
+        assert ex.log_details is None
 
 
 def test_get_drivers():
@@ -129,9 +129,9 @@ def test_vector_translate_gdal_error(tmp_path):
             input_path, output_path, explodecollections=True, preserve_fid=True
         )
     except _ogr_util.GDALError as ex:
-        assert ex.gdal_cpl_log_path.stat().st_size == -1
-        assert ex.gdal_cpl_log_errors is None
-        assert ex.gdal_cpl_log_lines is not None
+        assert ex.log_path.stat().st_size == -1
+        assert ex.error_details is None
+        assert ex.log_details is not None
 
         # Test succesful: GDALError was raised correctly
         return
