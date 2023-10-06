@@ -133,7 +133,6 @@ def test_vector_translate_gdal_error(tmp_path):
             input_path, output_path, explodecollections=True, preserve_fid=True
         )
     except _ogr_util.GDALError as ex:
-        # assert ex.log_path.stat().st_size == -1
         assert ex.error_details == []
         assert len(ex.log_details) > 0
 

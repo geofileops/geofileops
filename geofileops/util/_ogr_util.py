@@ -30,13 +30,11 @@ class GDALError(Exception):
         message: str,
         log_details: [List[str]] = [],
         error_details: [List[str]] = [],
-        log_path: Optional[Path] = None,
     ):
         super().__init__(message)
 
         self.log_details = log_details
         self.error_details = error_details
-        self.log_path = log_path
 
     def __str__(self):
         retstring = ""
@@ -316,8 +314,8 @@ def vector_translate(
             layerCreationOptions.extend([f"{option_name}={value}"])
 
     # General configuration options
-    # Remark: they cannot be passed on as parameter, but are set as
-    # environment variables later on (using a context manager).
+    # Remark: passing them as parameter using --config doesn't work, but they are set as
+    # runtime config options later on (using a context manager).
     config_options = dict(gdal_options["CONFIG"])
     if input_filetype.is_spatialite_based or output_filetype.is_spatialite_based:
         # If spatialite based file, increase SQLITE cache size by default
@@ -515,22 +513,20 @@ def vector_translate(
 
         # Raise
         raise GDALError(
-            message,
-            log_details=log_lines,
-            error_details=log_errors,
-            log_path=gdal_cpl_log_path,
+            message, log_details=log_lines, error_details=log_errors
         ) from ex
 
     finally:
         output_ds = None
         input_ds = None
-        # Truncate the cpl log file already, because it typically is locked
-        # with open(gdal_cpl_log_path, "r+") as logfile:
-        #     logfile.truncate(0)  # size '0' necessary when using r+
-        # try:
-        #     gdal_cpl_log_path.unlink(missing_ok=True)
-        # except Exception:
-        #     pass
+        # Truncate the cpl log file already, because sometimes it is locked and cannot
+        # be unlinked.
+        with open(gdal_cpl_log_path, "r+") as logfile:
+            logfile.truncate(0)  # size '0' necessary when using r+
+        try:
+            gdal_cpl_log_path.unlink(missing_ok=True)
+        except Exception:
+            pass
 
     return True
 
