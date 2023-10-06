@@ -13,27 +13,31 @@ from tests import test_helper
 
 
 @pytest.mark.parametrize(
-    "gdal_cpl_log_lines",
-    [(None), ([]), (["Logline1", "Logline2", "ERROR1", "ERROR2", "\n", " "])],
+    "log_details, error_details",
+    [
+        ([], []),
+        (["Logline1", "Logline2", "ERROR1", "ERROR2"], ["ERROR1", "ERROR2"]),
+    ],
 )
-def test_GDALError(gdal_cpl_log_lines):
+def test_GDALError(log_details, error_details):
     ex = _ogr_util.GDALError(
-        "Error",
-        log_details=gdal_cpl_log_lines,
+        "Error", log_details=log_details, error_details=error_details
     )
 
     ex_str = str(ex)
-    if gdal_cpl_log_lines is not None and len(gdal_cpl_log_lines) > 0:
+    if len(log_details) > 0:
         # The line with only "\n" is dropped
-        assert len(ex.log_details) == len(gdal_cpl_log_lines) - 2
+        assert len(ex.log_details) == len(log_details)
         assert len(ex.error_details) == 2
         assert "GDAL CPL_LOG ERRORS" in ex_str
         assert "GDAL CPL_LOG ALL" in ex_str
-        for line in gdal_cpl_log_lines:
+        for line in log_details:
+            assert line in ex_str
+        for line in error_details:
             assert line in ex_str
     else:
-        assert ex.error_details is None
-        assert ex.log_details is None
+        assert ex.error_details == []
+        assert ex.log_details == []
 
 
 def test_get_drivers():
