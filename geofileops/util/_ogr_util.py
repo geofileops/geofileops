@@ -318,15 +318,14 @@ def vector_translate(
     # General configuration options
     # Remark: they cannot be passed on as parameter, but are set as
     # environment variables later on (using a context manager).
-    config_options = gdal_options["CONFIG"]
+    config_options = dict(gdal_options["CONFIG"])
     if input_filetype.is_spatialite_based or output_filetype.is_spatialite_based:
         # If spatialite based file, increase SQLITE cache size by default
         if "OGR_SQLITE_CACHE" not in config_options:
             config_options["OGR_SQLITE_CACHE"] = "128"
 
     # Have gdal throw exception on error
-    # gdal.UseExceptions()
-    gdal.DontUseExceptions()
+    gdal.UseExceptions()
 
     # In some cases gdal only raises the last exception instead of the stack in
     # VectorTranslate, so you then you would lose necessary details!
@@ -343,6 +342,7 @@ def vector_translate(
         os.close(fd)
         config_options["CPL_LOG"] = gdal_cpl_log_path
         gdal_cpl_log_path = Path(gdal_cpl_log_path)
+        gdal_cpl_log_path.unlink()
     else:
         gdal_cpl_log_path = Path(config_options["CPL_LOG"])
     if "CPL_LOG_ERRORS" not in config_options:
