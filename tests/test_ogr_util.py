@@ -129,6 +129,7 @@ def test_vector_translate_gdal_error(tmp_path):
             input_path, output_path, explodecollections=True, preserve_fid=True
         )
     except _ogr_util.GDALError as ex:
+        assert ex.gdal_cpl_log_path == "joske"
         assert ex.gdal_cpl_log_errors is None
         assert ex.gdal_cpl_log_lines is not None
 
