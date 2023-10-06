@@ -326,6 +326,7 @@ def vector_translate(
 
     # Have gdal throw exception on error
     # gdal.UseExceptions()
+    gdal.DontUseExceptions()
 
     # In some cases gdal only raises the last exception instead of the stack in
     # VectorTranslate, so you then you would lose necessary details!
