@@ -36,23 +36,29 @@ logger = logging.getLogger(__name__)
 class GDALError(Exception):
     """Error with extra gdal info."""
 
-    def __init__(self, message, gdal_cpl_errors=None, gdal_cpl_loglines=None):
+    def __init__(self, message, gdal_cpl_log_errors=None, gdal_cpl_log_all=None):
         super().__init__(message)
-        self.gdal_cpl_errors = gdal_cpl_errors
-        self.gdal_cpl_loglines = gdal_cpl_loglines
+
+        if gdal_cpl_log_errors is not None and len(gdal_cpl_log_errors) == 0:
+            gdal_cpl_log_errors = None
+        self.gdal_cpl_log_errors = gdal_cpl_log_errors
+
+        if gdal_cpl_log_all is not None and len(gdal_cpl_log_all) == 0:
+            gdal_cpl_log_all = None
+        self.gdal_cpl_log_all = gdal_cpl_log_all
 
     def __str__(self):
         retstring = ""
-        if self.gdal_cpl_errors is not None and len(self.gdal_cpl_errors) > 0:
+        if self.gdal_cpl_log_errors is not None:
             retstring += "\n    GDAL CPL_LOG ERRORS"
             retstring += "\n    -------------------"
             retstring += "\n    "
-            retstring += "\n    ".join(self.gdal_cpl_errors)
-        if self.gdal_cpl_loglines is not None and len(self.gdal_cpl_loglines) > 0:
-            retstring += "\n    GDAL CPL_LOG DEBUG"
-            retstring += "\n    ------------------"
+            retstring += "\n    ".join(self.gdal_cpl_log_errors)
+        if self.gdal_cpl_log_all is not None:
+            retstring += "\n    GDAL CPL_LOG ALL"
+            retstring += "\n    ----------------"
             retstring += "\n    "
-            retstring += "\n    ".join(self.gdal_cpl_loglines)
+            retstring += "\n    ".join(self.gdal_cpl_log_all)
 
         return f"{retstring}\n{super().__str__()}"
 
@@ -471,8 +477,8 @@ def vector_translate(
 
         # If there is CPL_LOG logging, read it + prepare to add to the exception as it
         # can contain important information.
-        cpl_logs = []
-        cpl_errors = []
+        cpl_log_all = []
+        cpl_log_errors = []
         if gdal_cpl_log_path.exists() and gdal_cpl_log_path.stat().st_size > 0:
             with open(gdal_cpl_log_path) as logfile:
                 lines = logfile.readlines()
@@ -480,9 +486,9 @@ def vector_translate(
                 # Cleanup + check for errors
                 for line in lines:
                     line = line.strip("\0\n")
-                    cpl_logs.append(line)
+                    cpl_log_all.append(line)
                     if line.startswith("ERROR"):
-                        cpl_errors.append(line)
+                        cpl_log_errors.append(line)
 
         # Prepart exception message
         message = f"Error {ex} while creating {output_path}"
@@ -490,7 +496,7 @@ def vector_translate(
             message = f"{message} using sql_stmt {sql_stmt}"
 
         # Raise
-        raise GDALError(message, cpl_errors, cpl_logs) from ex
+        raise GDALError(message, cpl_log_errors, cpl_log_all) from ex
 
     finally:
         output_ds = None

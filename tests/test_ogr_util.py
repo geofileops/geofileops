@@ -12,6 +12,28 @@ from geofileops.util import _ogr_util
 from tests import test_helper
 
 
+@pytest.mark.parametrize(
+    "gdal_cpl_log_errors, gdal_cpl_log_all",
+    [(None, None), ([], []), (["Error1", "Error2"], ["Logline1", "Logline2"])],
+)
+def test_GDALError(gdal_cpl_log_errors, gdal_cpl_log_all):
+    ex = _ogr_util.GDALError(
+        "Error",
+        gdal_cpl_log_errors=gdal_cpl_log_errors,
+        gdal_cpl_log_all=gdal_cpl_log_all,
+    )
+
+    ex_str = str(ex)
+    if gdal_cpl_log_errors is not None and len(gdal_cpl_log_errors) > 0:
+        assert "GDAL CPL_LOG ERRORS" in ex_str
+        for error in gdal_cpl_log_errors:
+            assert error in ex_str
+    if gdal_cpl_log_all is not None and len(gdal_cpl_log_all) > 0:
+        assert "GDAL CPL_LOG ALL" in ex_str
+        for line in gdal_cpl_log_all:
+            assert line in ex_str
+
+
 def test_get_drivers():
     drivers = _ogr_util.get_drivers()
     assert len(drivers) > 0
@@ -95,6 +117,23 @@ def test_set_config_options():
     # If option via env is changed, it changes here as well
     os.environ[test3_config_envset] = "test3_new_env_value"
     assert gdal.GetConfigOption(test3_config_envset) == "test3_new_env_value"
+
+
+def test_vector_translate_gdal_error(tmp_path):
+    input_path = test_helper.get_testfile("polygon-parcel")
+    output_path = tmp_path / "output.gpkg"
+    try:
+        _ogr_util.vector_translate(
+            input_path, output_path, explodecollections=True, preserve_fid=True
+        )
+    except _ogr_util.GDALError as ex:
+        assert ex.gdal_cpl_log_errors is None
+        assert ex.gdal_cpl_log_all is not None
+
+        # Test succesful: GDALError was raised correctly
+        return
+
+    assert False, "A GDALError should have been raised but wasn't"
 
 
 def test_vector_translate_input_nolayer(tmp_path):
