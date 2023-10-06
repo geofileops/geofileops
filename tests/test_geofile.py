@@ -238,7 +238,7 @@ def test_copy_layer_explodecollections(tmp_path):
 
     # copy_layer, with explodecollections. Default behaviour of gdal was to try to
     # preserve the fids, but this didn't work with explodecolledtions, this was
-    # overruled in #
+    # overruled in #395
     gfo.copy_layer(src, dst, explodecollections=True)
 
 
