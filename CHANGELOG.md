@@ -55,9 +55,6 @@
   terminology in other libraries (#273)
 - parameter `area_inters_column_name` in `export_by_location` now defaults to `None`
   instead of "area_inters" (#370)
-- `keep_empty_geoms` parameters are added with default value `False` for most operations
-  as this was the default behaviour for those operations in the past. This will be
-  changed to `True` in a future version. This is also explained in a futurewarning (#262)
 - removed the long-deprecated functions `get_driver`, `get_driver_for_ext`,
   `to_multi_type` and `to_generaltypeid`  (#276)
 - rename and deprecate `convert` to `copy_layer` (#310)
