@@ -7,7 +7,7 @@
 - Add support to read/add/remove embedded layer styles in gpkg (#263)
 - Add `gridsize` parameter to most spatial operations (#261)
 - Add `keep_empty_geoms` and `where_post` parameters to many single layer spatial operations
-  (#262)
+  (#262, #398)
 - Add `where_post` parameter to many two layer spatial operations (#312)
 - Add `where` parameter to `copy_layer` and `append_to` (#311)
 - Add support for lang+ algorithm in `simplify` (#334)
