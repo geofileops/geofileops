@@ -1723,7 +1723,7 @@ def select_two_layers(
     )
 
 
-def split(
+def identity(
     input1_path: Path,
     input2_path: Path,
     output_path: Path,
@@ -2024,7 +2024,7 @@ def union(
     try:
         # First split input1 with input2 to a temporary output gfo...
         split_output_path = tempdir / "split_output.gpkg"
-        split(
+        identity(
             input1_path=input1_path,
             input2_path=input2_path,
             output_path=split_output_path,
