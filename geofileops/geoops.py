@@ -1789,13 +1789,15 @@ def split(
     """
     DEPRECATED: please use identity.
     """
-    warnings.warn(  # pragma: no cover
+    warnings.warn(
         "split() is deprecated because it was renamed to identity(). "
         "Will be removed in a future version",
         FutureWarning,
         stacklevel=2,
     )
-    logger.info(f"Start split between {input1_path} and {input2_path} to {output_path}")
+    logger.info(
+        f"Start identity between {input1_path} and {input2_path} to {output_path}"
+    )
     return _geoops_sql.identity(
         input1_path=Path(input1_path),
         input2_path=Path(input2_path),

@@ -19,7 +19,7 @@
 - Improve performance of `clip`: 3x faster for typical data (#358)
 - Improve performance of `export_by_location`, especially when `area_inters_column_name`
   and `min_area_intersect` are `None`: a lot faster + 10x less memory usage (#370)
-- Improve performance of `erase`, `split`, `symmetric difference` and `union` by
+- Improve performance of `erase`, `identity`, `symmetric difference` and `union` by
   applying on-the-fly subdividing of complex geometries to speed up processing. The new
   parameter `subdivide_coords` can be used to control the feature. For files with very
   large input geometries, up to 100x faster + 10x less memory usage.
@@ -313,12 +313,12 @@ In this release, the main change is a new operation that has been added: nearest
 ## 0.2.2 (2021-05-05)
 
 Improved performance for all operations that involve overlays between 2 layers 
-(intersect, union, split,...).
+(intersect, union, identity/split,...).
 
 ### Improvements
 
 - Improved performance for all operations that involve overlays between 2 
-  layers (intersect, union, split,...). Especially if the input files are in 
+  layers (intersect, union, identity/split,...). Especially if the input files are in 
   Geopackage format the improvement should be significant because in this case 
   the input data isn't copied to temp files anymore.
 - Added the method geofile.execute_sql() to be able to execute a DML/DDL sql 
@@ -327,7 +327,7 @@ Improved performance for all operations that involve overlays between 2 layers
 
 ### Bugs fixed
 
-- In the split and union operations, in some cases (mainly when input layers 
+- In the identity/split and union operations, in some cases (mainly when input layers 
   had self-intersections) intersections in the output were unioned instead of 
   keeping them as seperate rows.
 - When using an input file with multiple layers (eg. a geopackage), this 
