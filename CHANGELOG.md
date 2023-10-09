@@ -46,22 +46,24 @@
 - Fix "json" aggregate column handling in dissolve on line and point input files gives
   wrong results (#257)
 - Fix error in `read_file` when `read_geometry=False` and `columns` specified (#393)
-- Fix error in `copy_layer` with `explodecollections` on some input files (#395)
+- Fix error in `copy_layer`/`convert` with `explodecollections` on some input files
+  (#395)
 
 ### Deprecations and compatibility notes
 
 - Drop support for shapely1 (#329, #338)
-- `makevalid` parameter `precision` is renamed to `gridsize` as this is the typical
+- Parameter `precision` of `makevalid` is renamed to `gridsize` as this is the typical
   terminology in other libraries (#273)
-- parameter `area_inters_column_name` in `export_by_location` now defaults to `None`
+- Parameter `area_inters_column_name` in `export_by_location` now defaults to `None`
   instead of "area_inters" (#370)
-- `keep_empty_geoms` parameters are added with default value `False` for most operations
+- Parameter `keep_empty_geoms` is added with default value `False` for most operations
   as this was the default behaviour for those operations in the past. This will be
   changed to `True` in a future version. This is also explained in a futurewarning (#262)
-- removed the long-deprecated functions `get_driver`, `get_driver_for_ext`,
+- Removed the long-deprecated functions `get_driver`, `get_driver_for_ext`,
   `to_multi_type` and `to_generaltypeid`  (#276)
-- rename and deprecate `convert` to `copy_layer` (#310)
-- removed the long-deprecated `vector_util`, `geofileops.geofile` and
+- Deprecate `convert` and rename to `copy_layer` (#310)
+- Deprecate `split` and rename to `identity` #397
+- Removed the long-deprecated `vector_util`, `geofileops.geofile` and
   `geofileops.geofileops` namespaces (#276)
 - Remove `geometry_util`, `geoseries_util` and `grid_util` (#339):
    - Most functions were moved to `pygeoops` because they are generally reusable.
