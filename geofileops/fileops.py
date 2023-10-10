@@ -1681,7 +1681,10 @@ def _to_file_fiona(
     ):
         # No geometry, so prepare to be written as attribute table: add geometry column
         # with None geometry type in schema
-        gdf = gpd.GeoDataFrame(gdf, geometry=[None for i in gdf.index])
+        # With older versions of pandas and/or geopandas, without the copy the actual
+        # gdf is changed and returned which isn't OK.
+        # This caused test_to_file with .csv to fail for the "minimal" CI env.
+        gdf = gpd.GeoDataFrame(gdf.copy(), geometry=[None for i in gdf.index])
 
         schema = gpd_io_file.infer_schema(gdf)
         schema["geometry"] = "None"
