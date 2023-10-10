@@ -16,12 +16,12 @@ import geofileops as gfo
 from geofileops import GeometryType
 from geofileops.util import _geoops_sql as geoops_sql
 from tests import test_helper
-from tests.test_helper import SUFFIXES, TESTFILES
+from tests.test_helper import SUFFIXES_GEOOPS, TESTFILES
 from tests.test_helper import assert_geodataframe_equal
 
 
 @pytest.mark.parametrize("testfile", TESTFILES)
-@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 def test_clip(tmp_path, testfile, suffix):
     input_path = test_helper.get_testfile(testfile, suffix=suffix)
     clip_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
@@ -48,7 +48,7 @@ def test_clip(tmp_path, testfile, suffix):
     )
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize(
     "testfile, gridsize, where_post",
     [
@@ -213,7 +213,7 @@ def test_erase_subdivide_multipolygons(tmp_path):
     )
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize(
     "area_inters_column_name, gridsize, where_post, exp_featurecount",
     [("area_inters", 0.0, "ST_Area(geom) > 2000", 25), (None, 0.001, None, 27)],
@@ -258,7 +258,7 @@ def test_export_by_location(
 
 
 @pytest.mark.parametrize("testfile", ["polygon-parcel"])
-@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 def test_export_by_distance(tmp_path, testfile, suffix):
     input_to_select_from_path = test_helper.get_testfile(testfile, suffix=suffix)
     input_to_compare_with_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
@@ -486,7 +486,7 @@ def test_intersection_resultempty(tmp_path, suffix):
 
 
 @pytest.mark.parametrize("testfile", ["polygon-parcel"])
-@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 def test_intersection_columns_fid(tmp_path, testfile, suffix):
     input1_path = test_helper.get_testfile(testfile, suffix=suffix)
     input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
@@ -806,7 +806,7 @@ def test_select_two_layers(tmp_path, suffix, epsg, gridsize):
     assert output_gdf["geometry"][0] is not None
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize("input_nogeom", ["input1", "input2", "both"])
 def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
     # Prepare test file with geom
@@ -962,7 +962,7 @@ def test_select_two_layers_invalid_paths(
         )
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 def test_select_two_layers_invalid_sql(tmp_path, suffix):
     # Prepare test data
     input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
@@ -989,7 +989,7 @@ def test_select_two_layers_invalid_sql(tmp_path, suffix):
         )
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize(
     "nb_parallel, has_batch_filter, exp_raise",
     [(1, False, False), (2, True, False), (2, False, True)],
@@ -1084,7 +1084,7 @@ def test_select_two_layers_no_databasename_placeholder(tmp_path):
     assert output_gdf["geometry"][0] is not None
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 def test_select_two_layers_select_star_fids_not_unique(tmp_path, suffix):
     # Prepare test data
     input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
@@ -1108,7 +1108,7 @@ def test_select_two_layers_select_star_fids_not_unique(tmp_path, suffix):
         )
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 def test_select_two_layers_select_star_fids_unique(tmp_path, suffix):
     """
     Test for a join where the fid of one layer is selected (select *), but where this

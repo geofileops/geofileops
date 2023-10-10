@@ -18,7 +18,7 @@ import warnings
 import pandas as pd
 
 import geofileops as gfo
-from geofileops import GeofileType, GeometryType, PrimitiveType
+from geofileops import GeometryType, PrimitiveType
 from geofileops import fileops
 from geofileops.fileops import _append_to_nolock
 from geofileops.util import _general_util
@@ -28,6 +28,7 @@ from geofileops.util import _ogr_util
 from geofileops.helpers import _parameter_helper
 from geofileops.util import _processing_util
 from geofileops.util import _sqlite_util
+from geofileops.util._geofiletype import GeofileType
 
 ################################################################################
 # Some init

@@ -41,7 +41,7 @@ import shapely
 import shapely.geometry as sh_geom
 
 import geofileops as gfo
-from geofileops import fileops, GeofileType
+from geofileops import fileops
 from geofileops.util import _general_util
 from geofileops.util import _geoops_sql
 from geofileops.util import _io_util
@@ -50,6 +50,7 @@ from geofileops.helpers import _parameter_helper
 from geofileops.util import _processing_util
 from geofileops.util._geometry_util import SimplifyAlgorithm
 from geofileops.util._geometry_util import BufferEndCapStyle, BufferJoinStyle
+from geofileops.util._geofiletype import GeofileType
 
 # Don't show this geopandas warning...
 warnings.filterwarnings("ignore", "GeoSeries.isna", UserWarning)
@@ -1444,7 +1445,7 @@ def _dissolve_polygons_pass(
     nb_parallel: int,
 ):
     # Make sure the input file has a spatial index
-    gfo.create_spatial_index(input_path, exist_ok=True)
+    gfo.create_spatial_index(input_path, layer=input_layer, exist_ok=True)
 
     # Start calculation in parallel
     start_time = datetime.now()

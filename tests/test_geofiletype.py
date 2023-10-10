@@ -1,10 +1,23 @@
 """
-Tests for functionalities in geofileops.general.
+Tests for functionalities in geofiletype.
 """
 
 from pathlib import Path
 
-from geofileops.util.geofiletype import GeofileType
+import pytest
+
+from geofileops.util._geofiletype import GeofileType
+from geofileops.util import _geofiletype
+from tests import test_helper
+
+
+@pytest.mark.parametrize(
+    "suffix, driver", [(".gpkg", "GPKG"), (".shp", "ESRI Shapefile")]
+)
+def test_get_driver(suffix, driver):
+    test_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+
+    assert _geofiletype.get_driver(test_path) == driver
 
 
 def test_geofiletype_enum():

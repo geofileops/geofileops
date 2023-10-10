@@ -19,7 +19,7 @@ from geofileops.util import _geoops_gpd as geoops_gpd
 from tests import test_helper
 from tests.test_helper import (
     EPSGS,
-    SUFFIXES,
+    SUFFIXES_GEOOPS,
     TESTFILES,
     WHERE_LENGTH_GT_1000,
     WHERE_LENGTH_GT_200000,
@@ -32,7 +32,7 @@ def test_get_parallelization_params():
     assert parallelization_params is not None
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize(
     "only_geom_input, gridsize, keep_empty_geoms, where_post",
     [
@@ -122,7 +122,7 @@ def test_apply(
             assert len(cur_geometry.interiors) == 1
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize("only_geom_input", [False, True])
 @pytest.mark.parametrize("force_output_geometrytype", [None, GeometryType.POLYGON])
 def test_apply_None(tmp_path, suffix, only_geom_input, force_output_geometrytype):
@@ -272,7 +272,7 @@ def test_buffer_styles(tmp_path, suffix, epsg):
     assert area_square_buffer > area_default_buffer
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize(
     "epsg, gridsize, explodecollections, where_post",
     [
@@ -342,7 +342,7 @@ def test_dissolve_linestrings(
     # TODO: add more in depth check of result
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize("epsg", EPSGS)
 def test_dissolve_linestrings_groupby(tmp_path, suffix, epsg):
     # Prepare test data
@@ -386,7 +386,7 @@ def test_dissolve_linestrings_groupby(tmp_path, suffix, epsg):
     # TODO: add more in depth check of result
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize("epsg", EPSGS)
 def test_dissolve_linestrings_aggcolumns_columns(tmp_path, suffix, epsg):
     # Prepare test data
@@ -627,7 +627,7 @@ def test_dissolve_polygons(
 
 @pytest.mark.parametrize("explodecollections", [True, False])
 @pytest.mark.parametrize("testfile", TESTFILES)
-@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 def test_dissolve_emptyfile(tmp_path, testfile, suffix, explodecollections):
     # Prepare test data
     input_path = test_helper.get_testfile(testfile, suffix=suffix, empty=True)
@@ -780,7 +780,7 @@ def test_dissolve_polygons_groupby_None(tmp_path):
     )
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 def test_dissolve_polygons_specialcases(tmp_path, suffix):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
@@ -845,7 +845,7 @@ def test_dissolve_polygons_specialcases(tmp_path, suffix):
             assert output_path.stat().st_mtime != mtime_orig
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize("nb_parallel", [-1, 2])
 def test_dissolve_polygons_tiles_empty(tmp_path, suffix, nb_parallel):
     # Prepare test data
@@ -901,7 +901,7 @@ def test_dissolve_polygons_tiles_empty(tmp_path, suffix, nb_parallel):
     assert output_gdf["geometry"][0] is not None
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)

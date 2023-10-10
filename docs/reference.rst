@@ -88,8 +88,6 @@ General file operations
 
    cmp
    copy
-   is_geofile
-   is_geofile_ext
    listlayers
    move
    remove
