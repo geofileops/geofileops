@@ -88,6 +88,7 @@ General file operations
 
    cmp
    copy
+   get_driver
    listlayers
    move
    remove
@@ -101,8 +102,6 @@ Classes
    BufferEndCapStyle
    BufferJoinStyle
    DataType
-   GeofileType
-   GeometryType
    LayerInfo
    PrimitiveType
    SimplifyAlgorithm

@@ -11,9 +11,10 @@ import geopandas as gpd
 import pytest
 from shapely import MultiPolygon, Polygon
 
-from geofileops import geoops
 from geofileops import fileops
 from geofileops import GeometryType
+from geofileops import geoops
+from geofileops.fileops import _get_geofileinfo
 from geofileops.util import _geoops_sql
 from geofileops.util import _io_util as io_util
 from tests import test_helper
@@ -241,7 +242,7 @@ def test_buffer_columns_fid(tmp_path, suffix, geoops_module, testfile):
 
     # Read input file and extract some info
     input_gdf = fileops.read_file(input_path, fid_as_index=True)
-    if fileops._get_geofileinfo(input_path).is_fid_zerobased:
+    if _get_geofileinfo(input_path).is_fid_zerobased:
         assert input_gdf.index[0] == 0
     else:
         assert input_gdf.index[0] == 1

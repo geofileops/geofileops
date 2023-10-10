@@ -14,7 +14,7 @@ import shapely
 import shapely.geometry as sh_geom
 
 import geofileops as gfo
-from geofileops import fileops
+from geofileops.fileops import _get_geofileinfo
 from geofileops.util import geodataframe_util
 from geofileops.util import _geoseries_util
 
@@ -154,7 +154,7 @@ def get_testfile(
     if prepared_path.exists():
         return prepared_path
     layers = gfo.listlayers(testfile_path)
-    dst_info = fileops._get_geofileinfo(prepared_path)
+    dst_info = _get_geofileinfo(prepared_path)
     if len(layers) > 1 and dst_info.is_singlelayer:
         raise ValueError(
             f"multilayer testfile ({testfile}) cannot be converted to single layer "

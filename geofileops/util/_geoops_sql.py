@@ -20,7 +20,8 @@ import pandas as pd
 import geofileops as gfo
 from geofileops import GeometryType, PrimitiveType
 from geofileops import fileops
-from geofileops.fileops import _append_to_nolock
+
+from geofileops.fileops import _append_to_nolock, _get_geofileinfo
 from geofileops.util import _general_util
 from geofileops.util import _io_util
 from geofileops.util import _ogr_sql_util
@@ -256,8 +257,8 @@ def isvalid(
     # If output is sqlite based, check if all data can be read
     if validate_attribute_data:
         try:
-            input_geofiletype = GeofileType(input_path)
-            if input_geofiletype.is_spatialite_based:
+            input_info = _get_geofileinfo(input_path)
+            if input_info.is_spatialite_based:
                 _sqlite_util.test_data_integrity(path=input_path)
                 logger.debug("test_data_integrity was succesfull")
         except Exception:

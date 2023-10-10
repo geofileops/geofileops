@@ -13,7 +13,7 @@ from osgeo import gdal
 from pygeoops import GeometryType
 
 import geofileops as gfo
-from geofileops import fileops
+from geofileops.fileops import _get_geofileinfo
 
 # Make sure only one instance per process is running
 lock = Lock()
@@ -198,7 +198,7 @@ def vector_translate(
     gdal_options = _prepare_gdal_options(options, split_by_option_type=True)
 
     # Input file parameters
-    input_info = fileops._get_geofileinfo(input_path)
+    input_info = _get_geofileinfo(input_path)
     # Cleanup the input_layers variable.
     if input_info.drivername == "ESRI Shapefile":
         # For shapefiles, having input_layers not None gives issues
@@ -258,7 +258,7 @@ def vector_translate(
 
     # Output file parameters
     # Get driver for the output_path
-    output_info = fileops._get_geofileinfo(output_path)
+    output_info = _get_geofileinfo(output_path)
 
     # Shapefiles only can have one layer, and the layer name == the stem of the file
     if output_info.drivername == "ESRI Shapefile":
