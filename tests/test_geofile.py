@@ -1008,11 +1008,7 @@ def test_rename_layer(tmp_path):
 
 def test_rename_layer_unsupported(tmp_path):
     path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=".shp")
-    with pytest.raises(ValueError, match="rename_layer error for"):
-        _ = gfo.rename_layer(path, layer="layer", new_layer="new_layer")
-
-    path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=".fgb")
-    with pytest.raises(ValueError, match="rename_layer not implemented for"):
+    with pytest.raises(ValueError, match="rename_layer not possible for"):
         _ = gfo.rename_layer(path, layer="layer", new_layer="new_layer")
 
 
