@@ -781,22 +781,23 @@ def rename_layer(
     if layer is None:
         layer = get_only_layer(path)
 
-    # Now really rename
-    datasource = None
+    # Renaming the layer name is not possible for single layer file formats.
     path_info = _get_geofileinfo(path)
     if path_info.is_singlelayer:
-        try:
-            datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
-            sql_stmt = f'ALTER TABLE "{layer}" RENAME TO "{new_layer}"'
-            result = datasource.ExecuteSQL(sql_stmt)
-            datasource.ReleaseResultSet(result)
-        except Exception as ex:
-            ex.args = (f"rename_layer error: {ex}, for {path}.{layer}",)
-            raise
-        finally:
-            datasource = None
-    else:
         raise ValueError(f"rename_layer not possible for {path_info.drivername} file")
+
+    # Now really rename
+    datasource = None
+    try:
+        datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
+        sql_stmt = f'ALTER TABLE "{layer}" RENAME TO "{new_layer}"'
+        result = datasource.ExecuteSQL(sql_stmt)
+        datasource.ReleaseResultSet(result)
+    except Exception as ex:
+        ex.args = (f"rename_layer error: {ex}, for {path}.{layer}",)
+        raise
+    finally:
+        datasource = None
 
 
 def rename_column(
