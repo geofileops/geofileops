@@ -10,6 +10,67 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 
+class GeofileInfo:
+    """
+    A data object containing meta-information about a geofile.
+
+    Attributes:
+        driver (str): the relevant gdal driver for the file.
+    """
+
+    def __init__(
+        self,
+        path: Path,
+        drivername: str,
+    ):
+        """
+        Constructor of Layerinfo.
+
+        Args:
+            path (Path): the path to the file.
+            drivername (str): the relevant gdal driver for the file.
+        """
+        self.path = path
+        self.drivername = drivername
+
+    def __repr__(self):
+        """Overrides the representation property of GeofileInfo."""
+        return f"{self.__class__}({self.__dict__})"
+
+    @property
+    def is_fid_zerobased(self) -> bool:
+        """Returns True if the fid is zero based."""
+        if self.drivername in ("ESRI Shapefile"):
+            return True
+        else:
+            return False
+
+    @property
+    def is_spatialite_based(self) -> bool:
+        """Returns True if file driver is based on spatialite."""
+        if self.drivername in ("GPKG", "SQLITE"):
+            return True
+        else:
+            return False
+
+    @property
+    def is_singlelayer(self) -> bool:
+        """Returns True if this geofile can only have one layer."""
+        if self.is_spatialite_based:
+            return False
+        else:
+            return True
+
+    @property
+    def suffixes_extrafiles(self) -> List[str]:
+        """Returns a list of suffixes for the extra files for this GeofileType."""
+        try:
+            geofiletype = GeofileType(self.path)
+            return geofiletype.suffixes_extrafiles
+        except Exception:
+            return []
+
+
 @dataclass
 class GeofileTypeInfo:
     """

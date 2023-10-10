@@ -16,6 +16,7 @@ import geofileops as gfo
 from geofileops import GeometryType
 from geofileops.util import _geometry_util
 from geofileops.util import _geoops_gpd as geoops_gpd
+from geofileops.util._geofiletype import GeofileType
 from tests import test_helper
 from tests.test_helper import (
     EPSGS,
@@ -442,7 +443,7 @@ def test_dissolve_linestrings_aggcolumns_columns(tmp_path, suffix, epsg):
     # Some more default checks for NISCODE 12009
     niscode_idx = output_gdf[output_gdf["NIScode"] == "12009"].index.item()
     fid_concat_result = sorted(output_gdf["fid_concat"][niscode_idx].split(","))
-    if gfo.GeofileType(input_path).is_fid_zerobased:
+    if GeofileType(input_path).is_fid_zerobased:
         assert fid_concat_result == ["38", "42", "44", "54"]
     else:
         assert fid_concat_result == ["39", "43", "45", "55"]
@@ -505,7 +506,7 @@ def test_dissolve_linestrings_aggcolumns_json(tmp_path, agg_columns):
     ]
     assert naam_result == exp
     fid_result = sorted([str(value["fid_orig"]) for value in json_value])
-    if gfo.GeofileType(input_path).is_fid_zerobased:
+    if GeofileType(input_path).is_fid_zerobased:
         assert fid_result == ["38", "42", "44", "54"]
     else:
         assert fid_result == ["39", "43", "45", "55"]
@@ -999,7 +1000,7 @@ def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
     )
     assert output_gdf["lbl_cnt_d"][groenten_idx] == 4
     fid_concat_result = sorted(output_gdf["fid_concat"][groenten_idx].split(","))
-    if gfo.GeofileType(input_path).is_fid_zerobased:
+    if GeofileType(input_path).is_fid_zerobased:
         assert fid_concat_result == ["41", "42", "43", "44", "45"]
     else:
         assert fid_concat_result == ["42", "43", "44", "45", "46"]

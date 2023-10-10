@@ -29,9 +29,9 @@ import pyproj
 
 from geofileops.util import _geoseries_util
 from geofileops.util import _io_util
+from geofileops.util import _geofiletype
 from geofileops.util import _ogr_util
 from geofileops.util import _ogr_sql_util
-from geofileops.util import _geofiletype
 
 #####################################################################
 # First define/init some general variables/constants
@@ -126,67 +126,6 @@ class ColumnInfo:
         return f"{self.__class__}({self.__dict__})"
 
 
-class GeofileInfo:
-    """
-    A data object containing meta-information about a geofile.
-
-    Attributes:
-        driver (str): the relevant gdal driver for the file.
-    """
-
-    def __init__(
-        self,
-        path: Path,
-        drivername: str,
-    ):
-        """
-        Constructor of Layerinfo.
-
-        Args:
-            path (Path): the path to the file.
-            drivername (str): the relevant gdal driver for the file.
-        """
-        self.path = path
-        self.drivername = drivername
-
-    def __repr__(self):
-        """Overrides the representation property of GeofileInfo."""
-        return f"{self.__class__}({self.__dict__})"
-
-    @property
-    def is_fid_zerobased(self) -> bool:
-        """Returns True if the fid is zero based."""
-        if self.drivername in ("ESRI Shapefile"):
-            return True
-        else:
-            return False
-
-    @property
-    def is_spatialite_based(self) -> bool:
-        """Returns True if file driver is based on spatialite."""
-        if self.drivername in ("GPKG", "SQLITE"):
-            return True
-        else:
-            return False
-
-    @property
-    def is_singlelayer(self) -> bool:
-        """Returns True if this geofile can only have one layer."""
-        if self.is_spatialite_based:
-            return False
-        else:
-            return True
-
-    @property
-    def suffixes_extrafiles(self) -> List[str]:
-        """Returns a list of suffixes for the extra files for this GeofileType."""
-        try:
-            geofiletype = _geofiletype.GeofileType(self.path)
-            return geofiletype.suffixes_extrafiles
-        except Exception:
-            return []
-
-
 class LayerInfo:
     """
     A data object containing meta-information about a layer.
@@ -267,6 +206,22 @@ def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
     """
     path = Path(path)
 
+    def get_driver_for_path(input_path) -> str:
+        # If there is no suffix, possibly it is only a suffix, so prefix with filename
+        if input_path.suffix == "":
+            local_path = f"temp{input_path}"
+        else:
+            local_path = input_path
+
+        drivers = GetOutputDriversFor(local_path, is_raster=False)
+        if len(drivers) == 1:
+            return drivers[0]
+        else:
+            raise ValueError(
+                f"Could not infer driver from path: {input_path}. Please specify "
+                "driver explicitly by prefixing the file path with `<DRIVER>:`"
+            )
+
     # If the file exists, determine the driver based on the file.
     if path.exists():
         datasource = None
@@ -277,28 +232,20 @@ def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
             driver = datasource.GetDriver()
             drivername = driver.ShortName
         except Exception as ex:
-            ex.args = (f"get_driver error for {path}: {ex}",)
-            raise
+            try:
+                drivername = get_driver_for_path(path)
+            except Exception:
+                ex.args = (f"get_driver error for {path}: {ex}",)
+                raise
         finally:
             datasource = None
     else:
-        # If there is no suffix, possibly it is only a suffix, so prefix with filename
-        if path.suffix == "":
-            path = f"temp{path}"
-
-        drivers = GetOutputDriversFor(path, is_raster=False)
-        if len(drivers) == 1:
-            drivername = drivers[0]
-        else:
-            raise ValueError(
-                f"Could not infer driver from path: {path}. Please specify driver "
-                "explicitly by prefixing the file path with `<DRIVER>:`"
-            )
+        drivername = get_driver_for_path(path)
 
     return drivername
 
 
-def _get_geofileinfo(path: Union[str, "os.PathLike[Any]"]) -> GeofileInfo:
+def _get_geofileinfo(path: Union[str, "os.PathLike[Any]"]) -> _geofiletype.GeofileInfo:
     """
     Get information about a geofile.
 
@@ -311,7 +258,7 @@ def _get_geofileinfo(path: Union[str, "os.PathLike[Any]"]) -> GeofileInfo:
     path = Path(path)
     drivername = get_driver(path=path)
 
-    return GeofileInfo(path=path, drivername=drivername)
+    return _geofiletype.GeofileInfo(path=path, drivername=drivername)
 
 
 def listlayers(
@@ -682,7 +629,7 @@ def create_spatial_index(
             elif exist_ok:
                 return
             else:
-                raise RuntimeError(f"Spatial index exists already on {path}.{layer}")
+                raise RuntimeError(f"spatial index exists already on {path}.{layer}")
 
         if path_info.is_spatialite_based:
             # The config options need to be set before opening the file!
@@ -837,21 +784,19 @@ def rename_layer(
     # Now really rename
     datasource = None
     path_info = _get_geofileinfo(path)
-    if path_info.is_spatialite_based:
+    if path_info.is_singlelayer:
         try:
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             sql_stmt = f'ALTER TABLE "{layer}" RENAME TO "{new_layer}"'
             result = datasource.ExecuteSQL(sql_stmt)
             datasource.ReleaseResultSet(result)
         except Exception as ex:
-            ex.args = (f"rename_layer error for {path}.{layer}:\n  {ex}",)
+            ex.args = (f"rename_layer error: {ex}, for {path}.{layer}",)
             raise
         finally:
             datasource = None
-    elif path_info.drivername == "ESRI Shapefile":
-        raise ValueError(f"rename_layer not possible for {path_info} file")
     else:
-        raise ValueError(f"rename_layer not implemented for {path.suffix} file")
+        raise ValueError(f"rename_layer not possible for {path_info.drivername} file")
 
 
 def rename_column(
@@ -886,18 +831,26 @@ def rename_column(
     try:
         datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
         datasource_layer = datasource.GetLayer(layer)
-        if datasource_layer.TestCapability(gdal.ogr.OLCAlterFieldDefn):
-            sql_stmt = (
-                f'ALTER TABLE "{layer}" '
-                f'RENAME COLUMN "{column_name}" TO "{new_column_name}"'
-            )
-            result = datasource.ExecuteSQL(sql_stmt)
-            datasource.ReleaseResultSet(result)
-        else:
-            raise ValueError(f"rename_column is not supported for {path}")
+        if not datasource_layer.TestCapability(gdal.ogr.OLCAlterFieldDefn):
+            raise ValueError(f"rename_column not supported for {path}")
+
+        # Rename column
+        sql_stmt = (
+            f'ALTER TABLE "{layer}" '
+            f'RENAME COLUMN "{column_name}" TO "{new_column_name}"'
+        )
+        result = datasource.ExecuteSQL(sql_stmt)
+        datasource.ReleaseResultSet(result)
 
     except Exception as ex:
-        ex.args = (f"rename_column error for {path}.{layer}:\n  {ex}",)
+        # If it is the ValueError thrown above, just raise
+        if isinstance(ex, ValueError) and str(ex).startswith(
+            "rename_column not supported for"
+        ):
+            raise
+
+        # It is another error... add some more context
+        ex.args = (f"rename_column error: {ex} for {path}.{layer}",)
         raise
     finally:
         datasource = None

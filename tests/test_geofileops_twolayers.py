@@ -15,6 +15,7 @@ import shapely.geometry as sh_geom
 import geofileops as gfo
 from geofileops import GeometryType
 from geofileops.util import _geoops_sql as geoops_sql
+from geofileops.util._geofiletype import GeofileType
 from tests import test_helper
 from tests.test_helper import SUFFIXES_GEOOPS, TESTFILES
 from tests.test_helper import assert_geodataframe_equal
@@ -579,7 +580,7 @@ def test_intersection_columns_fid(tmp_path, testfile, suffix):
     assert output_gdf["geometry"][0] is not None
     assert "l1_fid" in output_gdf.columns
     assert "l2_FiD" in output_gdf.columns
-    if gfo.GeofileType(input2_path).is_fid_zerobased:
+    if GeofileType(input2_path).is_fid_zerobased:
         assert sorted(output_gdf.l2_FiD.unique().tolist()) == [0, 1, 2, 3, 4]
     else:
         assert sorted(output_gdf.l2_FiD.unique().tolist()) == [1, 2, 3, 4, 5]
@@ -795,7 +796,7 @@ def test_join_nearest(tmp_path, suffix, epsg):
     # TODO: this test should be more elaborate...
     output_gdf = gfo.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
-    if gfo.GeofileType(input1_path).is_fid_zerobased:
+    if GeofileType(input1_path).is_fid_zerobased:
         assert output_gdf.l1_fid.min() == 0
     else:
         assert output_gdf.l1_fid.min() == 1

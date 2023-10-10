@@ -435,6 +435,27 @@ def test_get_default_layer(suffix):
     assert layer == src.stem
 
 
+@pytest.mark.parametrize(
+    "suffix, driver", [(".gpkg", "GPKG"), (".shp", "ESRI Shapefile"), (".csv", "CSV")]
+)
+@pytest.mark.parametrize(
+    "existing_file, invalid_file", [(True, True), (True, False), (False, False)]
+)
+def test_get_driver(tmp_path, suffix, driver, existing_file: bool, invalid_file: bool):
+    """Get a driver."""
+    # Prepare test data
+    if existing_file:
+        if invalid_file:
+            test_path = tmp_path / f"test_invalid{suffix}"
+            test_path.touch()
+        else:
+            test_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    else:
+        test_path = tmp_path / f"test_unexisting{suffix}"
+
+    assert gfo.get_driver(test_path) == driver
+
+
 @pytest.mark.parametrize("suffix", [s for s in SUFFIXES_FILEOPS if s != ".csv"])
 def test_get_layer_geometrytypes(suffix):
     # Prepare test data + test
@@ -971,11 +992,7 @@ def test_rename_column(tmp_path, suffix):
 
 def test_rename_column_unsupported(tmp_path):
     path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=".shp")
-    with pytest.raises(ValueError, match="rename_column is not possible for"):
-        _ = gfo.rename_column(path, column_name="abc", new_column_name="def")
-
-    path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=".fgb")
-    with pytest.raises(ValueError, match="rename_column is not implemented for"):
+    with pytest.raises(Exception, match="rename_column error"):
         _ = gfo.rename_column(path, column_name="abc", new_column_name="def")
 
 
@@ -991,7 +1008,7 @@ def test_rename_layer(tmp_path):
 
 def test_rename_layer_unsupported(tmp_path):
     path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=".shp")
-    with pytest.raises(ValueError, match="rename_layer not possible for"):
+    with pytest.raises(ValueError, match="rename_layer error for"):
         _ = gfo.rename_layer(path, layer="layer", new_layer="new_layer")
 
     path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=".fgb")
@@ -1078,7 +1095,7 @@ def test_spatial_index(tmp_path, suffix):
 
     # Spatial index if it exists already by default gives error
     with pytest.raises(
-        Exception, match="create_spatial_index error: Spatial index exists already"
+        Exception, match="create_spatial_index error: spatial index exists already"
     ):
         gfo.create_spatial_index(path=test_path, layer=layer)
     gfo.create_spatial_index(path=test_path, layer=layer, exist_ok=True)

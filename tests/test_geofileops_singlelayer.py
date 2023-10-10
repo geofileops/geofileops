@@ -241,7 +241,7 @@ def test_buffer_columns_fid(tmp_path, suffix, geoops_module, testfile):
 
     # Read input file and extract some info
     input_gdf = fileops.read_file(input_path, fid_as_index=True)
-    if fileops.GeofileType(input_path).is_fid_zerobased:
+    if fileops._get_geofileinfo(input_path).is_fid_zerobased:
         assert input_gdf.index[0] == 0
     else:
         assert input_gdf.index[0] == 1
