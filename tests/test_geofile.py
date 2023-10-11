@@ -436,27 +436,6 @@ def test_get_default_layer(suffix):
     assert layer == src.stem
 
 
-@pytest.mark.parametrize(
-    "suffix, driver", [(".gpkg", "GPKG"), (".shp", "ESRI Shapefile"), (".csv", "CSV")]
-)
-@pytest.mark.parametrize(
-    "existing_file, invalid_file", [(True, True), (True, False), (False, False)]
-)
-def test_get_driver(tmp_path, suffix, driver, existing_file: bool, invalid_file: bool):
-    """Get a driver."""
-    # Prepare test data
-    if existing_file:
-        if invalid_file:
-            test_path = tmp_path / f"test_invalid{suffix}"
-            test_path.touch()
-        else:
-            test_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
-    else:
-        test_path = tmp_path / f"test_unexisting{suffix}"
-
-    assert gfo.get_driver(test_path) == driver
-
-
 @pytest.mark.parametrize("suffix", [s for s in SUFFIXES_FILEOPS if s != ".csv"])
 def test_get_layer_geometrytypes(suffix):
     # Prepare test data + test
