@@ -785,7 +785,7 @@ def test_read_file_columns_geometry(tmp_path, suffix, columns, geometry, engine_
     else:
         raise ValueError(f"Invalid value for geometry: {geometry}")
 
-    if ignore_geometry or (engine_setter == "pyogrio" and src_info.drivername == "CSV"):
+    if ignore_geometry or (engine_setter == "pyogrio" and src_info.driver == "CSV"):
         expect_geometry = False
     else:
         expect_geometry = True

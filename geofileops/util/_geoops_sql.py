@@ -2649,10 +2649,10 @@ def _prepare_processing_params(
         # If input files are of the same format + are spatialite compatible,
         # just use them
         if input1_info.is_spatialite_based and (
-            input2_info is None or input1_info.drivername == input2_info.drivername
+            input2_info is None or input1_info.driver == input2_info.driver
         ):
             if (
-                input1_info.drivername == "GPKG"
+                input1_info.driver == "GPKG"
                 and input1_layerinfo.geometrycolumn is not None
             ):
                 # HasSpatialindex doesn't work for spatialite file
@@ -2670,7 +2670,10 @@ def _prepare_processing_params(
             input1_path = input1_tmp_path
 
         if input2_path is not None and input2_info is not None:
-            if input2_info == input1_info and input2_info.is_spatialite_based:
+            if (
+                input2_info.driver == input1_info.driver
+                and input2_info.is_spatialite_based
+            ):
                 input2_layerinfo = gfo.get_layerinfo(
                     input2_path, input2_layer, raise_on_nogeom=False
                 )

@@ -92,8 +92,8 @@ class GeofileInfo:
             drivername (str): the relevant gdal driver for the file.
         """
         self.path = path
-        self.drivername = drivername
-        self.geofiletype_info = geofiletypes.get(self.drivername.replace(" ", ""))
+        self.driver = drivername
+        self.geofiletype_info = geofiletypes.get(self.driver.replace(" ", ""))
 
     def __repr__(self):
         """Overrides the representation property of GeofileInfo."""
