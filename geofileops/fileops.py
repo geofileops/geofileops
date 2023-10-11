@@ -581,7 +581,7 @@ def create_spatial_index(
             "has_spatial_index not supported for"
         ):
             raise ValueError(
-                f"create_spatial_index not supported for {path_info.driver}: {path}"
+                f"create_spatial_index not supported for {path_info.gdaldriver}: {path}"
             ) from ex
         else:
             ex.args = (f"create_spatial_index error: {ex}, for {path}.{layer}",)
@@ -633,12 +633,12 @@ def has_spatial_index(
             has_spatial_index = result.GetNextFeature().GetField(0) == 1
             datasource.ReleaseResultSet(result)
             return has_spatial_index
-        elif path_info.driver == "ESRI Shapefile":
+        elif path_info.gdaldriver == "ESRI Shapefile":
             index_path = path.parent / f"{path.stem}.qix"
             return index_path.exists()
         else:
             raise ValueError(
-                f"has_spatial_index not supported for {path_info.driver}: {path}"
+                f"has_spatial_index not supported for {path_info.gdaldriver}: {path}"
             )
 
     except ValueError:
@@ -677,13 +677,13 @@ def remove_spatial_index(
                 dialect="SQLITE",
             )
             datasource.ReleaseResultSet(result)
-        elif path_info.driver == "ESRI Shapefile":
+        elif path_info.gdaldriver == "ESRI Shapefile":
             # DROP SPATIAL INDEX ON ... command gives an error, so just remove .qix
             index_path = path.parent / f"{path.stem}.qix"
             index_path.unlink()
         else:
             raise ValueError(
-                f"remove_spatial_index not supported for {path_info.driver}: {path}"
+                f"remove_spatial_index not supported for {path_info.gdaldriver}: {path}"
             )
 
     except ValueError:
@@ -716,7 +716,7 @@ def rename_layer(
     # Renaming the layer name is not possible for single layer file formats.
     path_info = _geofileinfo.get_geofileinfo(path)
     if path_info.is_singlelayer:
-        raise ValueError(f"rename_layer not possible for {path_info.driver} file")
+        raise ValueError(f"rename_layer not possible for {path_info.gdaldriver} file")
 
     # Now really rename
     datasource = None
@@ -1213,7 +1213,7 @@ def _read_file_base_fiona(
         tmp_fid_path = Path(tempfile.mkdtemp()) / f"{path.stem}.gpkg"
         path_info = _geofileinfo.get_geofileinfo(path)
         try:
-            if path_info.driver == "GPKG":
+            if path_info.gdaldriver == "GPKG":
                 copy(path, tmp_fid_path)
             else:
                 copy_layer(path, tmp_fid_path)
@@ -1662,7 +1662,7 @@ def _to_file_fiona(
         kwargs: Dict[str, Any] = {}
         kwargs["engine"] = "fiona"
         kwargs["mode"] = mode
-        drivername = _geofileinfo.get_driver(path)
+        drivername = _geofileinfo.get_gdaldriver(path)
         kwargs["driver"] = drivername
         kwargs["index"] = index
         if create_spatial_index is not None:
@@ -1708,7 +1708,7 @@ def _to_file_fiona(
         path_info = _geofileinfo.get_geofileinfo(path)
         gdftemp_path = None
         gdftemp_lockpath = None
-        if "a" not in fiona.supported_drivers[path_info.driver]:
+        if "a" not in fiona.supported_drivers[path_info.gdaldriver]:
             # Get a unique temp file path. The file cannot be created yet, so
             # only create a lock file to avoid other processes using the same
             # temp file name
@@ -1817,7 +1817,7 @@ def _to_file_pyogrio(
     if create_spatial_index is not None:
         kwargs["SPATIAL_INDEX"] = create_spatial_index
     path_info = _geofileinfo.get_geofileinfo(path)
-    kwargs["driver"] = path_info.driver
+    kwargs["driver"] = path_info.gdaldriver
     kwargs["index"] = index
     if create_spatial_index is not None:
         kwargs["SPATIAL_INDEX"] = create_spatial_index

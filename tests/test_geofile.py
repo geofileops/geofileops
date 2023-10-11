@@ -454,7 +454,7 @@ def test_get_driver(tmp_path, suffix, driver, existing_file: bool, invalid_file:
     else:
         test_path = tmp_path / f"test_unexisting{suffix}"
 
-    assert gfo.get_driver(test_path) == driver
+    assert gfo.get_gdaldriver(test_path) == driver
 
 
 @pytest.mark.parametrize("suffix", [s for s in SUFFIXES_FILEOPS if s != ".csv"])
@@ -785,7 +785,7 @@ def test_read_file_columns_geometry(tmp_path, suffix, columns, geometry, engine_
     else:
         raise ValueError(f"Invalid value for geometry: {geometry}")
 
-    if ignore_geometry or (engine_setter == "pyogrio" and src_info.driver == "CSV"):
+    if ignore_geometry or (engine_setter == "pyogrio" and src_info.gdaldriver == "CSV"):
         expect_geometry = False
     else:
         expect_geometry = True
@@ -1361,7 +1361,7 @@ def test_to_file_geomempty(tmp_path, suffix, engine_setter):
     )
     assert len(test_geometrytypes_includingempty) == 2
     output_empty_path = tmp_path / f"testfile_with_emptygeom{suffix}"
-    test_gdf.to_file(output_empty_path, driver=gfo.get_driver(suffix))
+    test_gdf.to_file(output_empty_path, driver=gfo.get_gdaldriver(suffix))
 
     # Now check the result if the data is still the same after being read again
     test_read_gdf = gfo.read_file(output_empty_path)

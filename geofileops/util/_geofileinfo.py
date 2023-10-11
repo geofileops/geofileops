@@ -172,21 +172,16 @@ class GeofileInfo:
         driver (str): the relevant gdal driver for the file.
     """
 
-    def __init__(
-        self,
-        path: Path,
-        drivername: str,
-    ):
+    def __init__(self, path: Path):
         """
         Constructor of Layerinfo.
 
         Args:
             path (Path): the path to the file.
-            drivername (str): the relevant gdal driver for the file.
         """
         self.path = path
-        self.driver = drivername
-        self.geofiletype_info = geofiletypes.get(self.driver.replace(" ", ""))
+        self.gdaldriver = get_gdaldriver(path=path)
+        self.geofiletype_info = geofiletypes.get(self.gdaldriver.replace(" ", ""))
 
     def __repr__(self):
         """Overrides the representation property of GeofileInfo."""
@@ -229,7 +224,7 @@ class GeofileInfo:
             return []
 
 
-def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
+def get_gdaldriver(path: Union[str, "os.PathLike[Any]"]) -> str:
     """
     Get the gdal driver name for the file specified.
 
@@ -284,13 +279,13 @@ def get_geofileinfo(path: Union[str, "os.PathLike[Any]"]) -> GeofileInfo:
     """
     Get information about a geofile.
 
+    Not a public function, as the properties are for internal use and might change in
+    the future.
+
     Args:
         path (Union[str, PathLike): the path to the file.
 
     Returns:
         GeofileInfo: _description_
     """
-    path = Path(path)
-    drivername = get_driver(path=path)
-
-    return GeofileInfo(path=path, drivername=drivername)
+    return GeofileInfo(path=path)

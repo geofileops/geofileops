@@ -200,7 +200,7 @@ def vector_translate(
     # Input file parameters
     input_info = fileops._geofileinfo.get_geofileinfo(input_path)
     # Cleanup the input_layers variable.
-    if input_info.driver == "ESRI Shapefile":
+    if input_info.gdaldriver == "ESRI Shapefile":
         # For shapefiles, having input_layers not None gives issues
         input_layers = None
     elif sql_stmt is not None:
@@ -261,7 +261,7 @@ def vector_translate(
     output_info = fileops._geofileinfo.get_geofileinfo(output_path)
 
     # Shapefiles only can have one layer, and the layer name == the stem of the file
-    if output_info.driver == "ESRI Shapefile":
+    if output_info.gdaldriver == "ESRI Shapefile":
         output_layer = output_path.stem
 
     # SRS
@@ -280,7 +280,7 @@ def vector_translate(
     # will be created
     if output_path.exists() is False or update is False:
         dataset_creation_options = gdal_options["DATASET_CREATION"]
-        if output_info.driver == "SQLite":
+        if output_info.gdaldriver == "SQLite":
             # If SQLite file, use the spatialite type of sqlite by default
             if "SPATIALITE" not in dataset_creation_options:
                 dataset_creation_options["SPATIALITE"] = "YES"
@@ -414,7 +414,7 @@ def vector_translate(
             args_copy = list(args)
             options = gdal.VectorTranslateOptions(
                 options=args_copy,
-                format=output_info.driver,
+                format=output_info.gdaldriver,
                 accessMode=None,
                 srcSRS=input_srs,
                 dstSRS=output_srs,
