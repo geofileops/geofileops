@@ -89,6 +89,49 @@ PRJ_EPSG_31370 = (
 #####################################################################
 
 
+def listlayers(
+    path: Union[str, "os.PathLike[Any]"],
+    only_spatial_layers: bool = True,
+) -> List[str]:
+    """
+    Get the list of layers in a geofile.
+
+    Args:
+        path (PathLike): path to the file to get info about
+        only_spatial_layers (bool, optional): True to only list spatial layers.
+            False to list all tables.
+
+    Returns:
+        List[str]: the list of layers
+    """
+    path = Path(path)
+    if path.suffix.lower() == ".shp":
+        return [path.stem]
+
+    datasource = None
+    layers = []
+    try:
+        datasource = gdal.OpenEx(
+            str(path), nOpenFlags=gdal.OF_VECTOR | gdal.OF_READONLY | gdal.OF_SHARED
+        )
+        nb_layers = datasource.GetLayerCount()
+        for layer_id in range(nb_layers):
+            datasource_layer = datasource.GetLayerByIndex(layer_id)
+            if (
+                only_spatial_layers is False
+                or datasource_layer.GetGeometryColumn() != ""
+            ):
+                layers.append(datasource_layer.GetName())
+
+    except Exception as ex:
+        ex.args = (f"listlayers error for {path}:\n  {ex}",)
+        raise
+    finally:
+        datasource = None
+
+    return layers
+
+
 class ColumnInfo:
     """
     A data object containing meta-information about a column.
@@ -191,49 +234,6 @@ class LayerInfo:
     def __repr__(self):
         """Overrides the representation property of LayerInfo."""
         return f"{self.__class__}({self.__dict__})"
-
-
-def listlayers(
-    path: Union[str, "os.PathLike[Any]"],
-    only_spatial_layers: bool = True,
-) -> List[str]:
-    """
-    Get the list of layers in a geofile.
-
-    Args:
-        path (PathLike): path to the file to get info about
-        only_spatial_layers (bool, optional): True to only list spatial layers.
-            False to list all tables.
-
-    Returns:
-        List[str]: the list of layers
-    """
-    path = Path(path)
-    if path.suffix.lower() == ".shp":
-        return [path.stem]
-
-    datasource = None
-    layers = []
-    try:
-        datasource = gdal.OpenEx(
-            str(path), nOpenFlags=gdal.OF_VECTOR | gdal.OF_READONLY | gdal.OF_SHARED
-        )
-        nb_layers = datasource.GetLayerCount()
-        for layer_id in range(nb_layers):
-            datasource_layer = datasource.GetLayerByIndex(layer_id)
-            if (
-                only_spatial_layers is False
-                or datasource_layer.GetGeometryColumn() != ""
-            ):
-                layers.append(datasource_layer.GetName())
-
-    except Exception as ex:
-        ex.args = (f"listlayers error for {path}:\n  {ex}",)
-        raise
-    finally:
-        datasource = None
-
-    return layers
 
 
 def get_layer_geometrytypes(
