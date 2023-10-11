@@ -42,15 +42,14 @@ import shapely.geometry as sh_geom
 
 import geofileops as gfo
 from geofileops import fileops
+from geofileops.helpers import _parameter_helper
 from geofileops.util import _general_util
 from geofileops.util import _geoops_sql
 from geofileops.util import _io_util
 from geofileops.util import _ogr_util
-from geofileops.helpers import _parameter_helper
 from geofileops.util import _processing_util
 from geofileops.util._geometry_util import SimplifyAlgorithm
 from geofileops.util._geometry_util import BufferEndCapStyle, BufferJoinStyle
-from geofileops.util._geofileinfo import GeofileType
 
 # Don't show this geopandas warning...
 warnings.filterwarnings("ignore", "GeoSeries.isna", UserWarning)
@@ -615,7 +614,7 @@ def _apply_geooperation_to_layer(
 
     # Check if we want to preserve the fid in the output
     preserve_fid = False
-    if not explodecollections and GeofileType(output_path) == GeofileType.GPKG:
+    if not explodecollections and gfo.get_driver(output_path) == "GPKG":
         preserve_fid = True
 
     # Prepare where_to_apply and filter_null_geoms
