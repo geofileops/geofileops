@@ -88,7 +88,7 @@ General file operations
 
    cmp
    copy
-   get_driver
+   get_gdaldriver
    listlayers
    move
    remove
