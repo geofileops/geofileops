@@ -537,7 +537,7 @@ def _single_layer_vector_operation(
 
     # Determine if fid can be preserved
     preserve_fid = False
-    if not explodecollections and gfo.get_gdaldriver(output_path) == "GPKG":
+    if not explodecollections and gfo.get_driver(output_path) == "GPKG":
         preserve_fid = True
 
     # Calculate
@@ -829,7 +829,7 @@ def _single_layer_vector_operation(
             output_path.parent.mkdir(parents=True, exist_ok=True)
             gfo.move(tmp_output_path, output_path)
         elif (
-            gfo.get_gdaldriver(tmp_output_path) == "ESRI Shapefile"
+            gfo.get_driver(tmp_output_path) == "ESRI Shapefile"
             and tmp_output_path.with_suffix(".dbf").exists()
         ):
             # If the output shapefile doesn't have a geometry column, the .shp file
@@ -1606,7 +1606,7 @@ def join_nearest(
     # Prepare input files
     # To use knn index, the input layers need to be in sqlite file format
     # (not a .gpkg!), so prepare this
-    if input1_path == input2_path and gfo.get_gdaldriver(input1_path) == "SQLite":
+    if input1_path == input2_path and gfo.get_driver(input1_path) == "SQLite":
         # Input files already ok...
         input1_tmp_path = input1_path
         input1_tmp_layer = input1_layer
@@ -2649,10 +2649,10 @@ def _prepare_processing_params(
         # If input files are of the same format + are spatialite compatible,
         # just use them
         if input1_info.is_spatialite_based and (
-            input2_info is None or input1_info.gdaldriver == input2_info.gdaldriver
+            input2_info is None or input1_info.driver == input2_info.driver
         ):
             if (
-                input1_info.gdaldriver == "GPKG"
+                input1_info.driver == "GPKG"
                 and input1_layerinfo.geometrycolumn is not None
             ):
                 # HasSpatialindex doesn't work for spatialite file
@@ -2671,14 +2671,14 @@ def _prepare_processing_params(
 
         if input2_path is not None and input2_info is not None:
             if (
-                input2_info.gdaldriver == input1_info.gdaldriver
+                input2_info.driver == input1_info.driver
                 and input2_info.is_spatialite_based
             ):
                 input2_layerinfo = gfo.get_layerinfo(
                     input2_path, input2_layer, raise_on_nogeom=False
                 )
                 if (
-                    input2_info.gdaldriver == "GPKG"
+                    input2_info.driver == "GPKG"
                     and input2_layerinfo.geometrycolumn is not None
                 ):
                     # HasSpatialindex doesn't work for spatialite file

@@ -614,7 +614,7 @@ def _apply_geooperation_to_layer(
 
     # Check if we want to preserve the fid in the output
     preserve_fid = False
-    if not explodecollections and gfo.get_gdaldriver(output_path) == "GPKG":
+    if not explodecollections and gfo.get_driver(output_path) == "GPKG":
         preserve_fid = True
 
     # Prepare where_to_apply and filter_null_geoms

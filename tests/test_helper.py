@@ -158,7 +158,7 @@ def get_testfile(
     if len(layers) > 1 and dst_info.is_singlelayer:
         raise ValueError(
             f"multilayer testfile ({testfile}) cannot be converted to single layer "
-            f"geofiletype: {dst_info.gdaldriver}"
+            f"geofiletype: {dst_info.driver}"
         )
 
     # Convert all layers found

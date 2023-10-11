@@ -180,8 +180,8 @@ class GeofileInfo:
             path (Path): the path to the file.
         """
         self.path = path
-        self.gdaldriver = get_gdaldriver(path=path)
-        self.geofiletype_info = geofiletypes.get(self.gdaldriver.replace(" ", ""))
+        self.driver = get_driver(path=path)
+        self.geofiletype_info = geofiletypes.get(self.driver.replace(" ", ""))
 
     def __repr__(self):
         """Overrides the representation property of GeofileInfo."""
@@ -224,7 +224,7 @@ class GeofileInfo:
             return []
 
 
-def get_gdaldriver(path: Union[str, "os.PathLike[Any]"]) -> str:
+def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
     """
     Get the gdal driver name for the file specified.
 
