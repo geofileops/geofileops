@@ -93,7 +93,7 @@ class GeofileInfo:
         """
         self.path = path
         self.drivername = drivername
-        self.geofiletype_info = geofiletypes.get(self.drivername)
+        self.geofiletype_info = geofiletypes.get(self.drivername.replace(" ", ""))
 
     def __repr__(self):
         """Overrides the representation property of GeofileInfo."""
@@ -119,8 +119,11 @@ class GeofileInfo:
     @property
     def is_singlelayer(self) -> bool:
         """Returns True if this geofile can only have one layer."""
-        if self.geofiletype_info is not None:
-            return self.geofiletype_info.is_singlelayer
+        if (
+            self.geofiletype_info is not None
+            and self.geofiletype_info.is_spatialite_based
+        ):
+            return False
         else:
             return True
 
