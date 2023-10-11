@@ -2678,7 +2678,7 @@ def _prepare_processing_params(
                     input2_path, input2_layer, raise_on_nogeom=False
                 )
                 if (
-                    input2_info == "GPKG"
+                    input2_info.driver == "GPKG"
                     and input2_layerinfo.geometrycolumn is not None
                 ):
                     # HasSpatialindex doesn't work for spatialite file
