@@ -4,7 +4,7 @@ Tests for functionalities in geofiletype.
 
 from pathlib import Path
 
-from geofileops.util._geofiletype import GeofileType
+from geofileops.util._geofileinfo import GeofileType
 
 
 def test_geofiletype_enum():

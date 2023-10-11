@@ -21,15 +21,14 @@ import geopandas as gpd
 from geopandas.io import file as gpd_io_file
 import numpy as np
 from osgeo import gdal
-from osgeo_utils.auxiliary.util import GetOutputDriversFor
 import pandas as pd
 from pygeoops import GeometryType, PrimitiveType  # noqa: F401
 import pyogrio
 import pyproj
 
+from geofileops.util import _geofileinfo
 from geofileops.util import _geoseries_util
 from geofileops.util import _io_util
-from geofileops.util import _geofiletype
 from geofileops.util import _ogr_util
 from geofileops.util import _ogr_sql_util
 
@@ -192,73 +191,6 @@ class LayerInfo:
     def __repr__(self):
         """Overrides the representation property of LayerInfo."""
         return f"{self.__class__}({self.__dict__})"
-
-
-def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
-    """
-    Get the gdal driver name for the file specified.
-
-    Args:
-        path (PathLike): The file path.
-
-    Returns:
-        str: The OGR driver name.
-    """
-    path = Path(path)
-
-    def get_driver_for_path(input_path) -> str:
-        # If there is no suffix, possibly it is only a suffix, so prefix with filename
-        if input_path.suffix == "":
-            local_path = f"temp{input_path}"
-        else:
-            local_path = input_path
-
-        drivers = GetOutputDriversFor(local_path, is_raster=False)
-        if len(drivers) == 1:
-            return drivers[0]
-        else:
-            raise ValueError(
-                f"Could not infer driver from path: {input_path}. Please specify "
-                "driver explicitly by prefixing the file path with `<DRIVER>:`"
-            )
-
-    # If the file exists, determine the driver based on the file.
-    if path.exists():
-        datasource = None
-        try:
-            datasource = gdal.OpenEx(
-                str(path), nOpenFlags=gdal.OF_VECTOR | gdal.OF_READONLY | gdal.OF_SHARED
-            )
-            driver = datasource.GetDriver()
-            drivername = driver.ShortName
-        except Exception as ex:
-            try:
-                drivername = get_driver_for_path(path)
-            except Exception:
-                ex.args = (f"get_driver error for {path}: {ex}",)
-                raise
-        finally:
-            datasource = None
-    else:
-        drivername = get_driver_for_path(path)
-
-    return drivername
-
-
-def _get_geofileinfo(path: Union[str, "os.PathLike[Any]"]) -> _geofiletype.GeofileInfo:
-    """
-    Get information about a geofile.
-
-    Args:
-        path (Union[str, PathLike): the path to the file.
-
-    Returns:
-        GeofileInfo: _description_
-    """
-    path = Path(path)
-    drivername = get_driver(path=path)
-
-    return _geofiletype.GeofileInfo(path=path, drivername=drivername)
 
 
 def listlayers(
@@ -616,7 +548,7 @@ def create_spatial_index(
     # Add index
     datasource = None
     try:
-        path_info = _get_geofileinfo(path)
+        path_info = _geofileinfo.get_geofileinfo(path)
 
         layerinfo = get_layerinfo(path, layer, raise_on_nogeom=not no_geom_ok)
         if no_geom_ok and layerinfo.geometrycolumn is None:
@@ -686,7 +618,7 @@ def has_spatial_index(
 
     # Now check the index
     datasource = None
-    path_info = _get_geofileinfo(path)
+    path_info = _geofileinfo.get_geofileinfo(path)
     try:
         if path_info.is_spatialite_based:
             layerinfo = get_layerinfo(path, layer, raise_on_nogeom=not no_geom_ok)
@@ -734,7 +666,7 @@ def remove_spatial_index(
 
     # Now really remove index
     datasource = None
-    path_info = _get_geofileinfo(path)
+    path_info = _geofileinfo.get_geofileinfo(path)
     path_layerinfo = get_layerinfo(path, layer)
     try:
         if path_info.is_spatialite_based:
@@ -782,7 +714,7 @@ def rename_layer(
         layer = get_only_layer(path)
 
     # Renaming the layer name is not possible for single layer file formats.
-    path_info = _get_geofileinfo(path)
+    path_info = _geofileinfo.get_geofileinfo(path)
     if path_info.is_singlelayer:
         raise ValueError(f"rename_layer not possible for {path_info.drivername} file")
 
@@ -1279,7 +1211,7 @@ def _read_file_base_fiona(
     if fid_as_index:
         # Make a copy/copy input file to geopackage, as we will add an fid/rowd column
         tmp_fid_path = Path(tempfile.mkdtemp()) / f"{path.stem}.gpkg"
-        path_info = _get_geofileinfo(path)
+        path_info = _geofileinfo.get_geofileinfo(path)
         try:
             if path_info.drivername == "GPKG":
                 copy(path, tmp_fid_path)
@@ -1730,7 +1662,7 @@ def _to_file_fiona(
         kwargs: Dict[str, Any] = {}
         kwargs["engine"] = "fiona"
         kwargs["mode"] = mode
-        drivername = get_driver(path)
+        drivername = _geofileinfo.get_driver(path)
         kwargs["driver"] = drivername
         kwargs["index"] = index
         if create_spatial_index is not None:
@@ -1773,7 +1705,7 @@ def _to_file_fiona(
         # Remark: fiona pre-1.8.14 didn't support appending to geopackage. Once
         # older versions becomes rare, dependency can be put to this version, and
         # this code can be cleaned up...
-        path_info = _get_geofileinfo(path)
+        path_info = _geofileinfo.get_geofileinfo(path)
         gdftemp_path = None
         gdftemp_lockpath = None
         if "a" not in fiona.supported_drivers[path_info.drivername]:
@@ -1884,7 +1816,7 @@ def _to_file_pyogrio(
     # Prepare kwargs to use in geopandas.to_file
     if create_spatial_index is not None:
         kwargs["SPATIAL_INDEX"] = create_spatial_index
-    path_info = _get_geofileinfo(path)
+    path_info = _geofileinfo.get_geofileinfo(path)
     kwargs["driver"] = path_info.drivername
     kwargs["index"] = index
     if create_spatial_index is not None:
@@ -1958,7 +1890,7 @@ def is_geofile_ext(file_ext: str) -> bool:
     )
     try:
         # If the driver can be determined, it is a (supported) geo file.
-        _ = _geofiletype.GeofileType(file_ext)
+        _ = _geofileinfo.GeofileType(file_ext)
         return True
     except Exception:
         return False
@@ -2013,7 +1945,7 @@ def copy(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
     # Check input parameters
     src = Path(src)
     dst = Path(dst)
-    src_info = _get_geofileinfo(src)
+    src_info = _geofileinfo.get_geofileinfo(src)
 
     # Copy the main file
     shutil.copy(str(src), dst)
@@ -2048,7 +1980,7 @@ def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
     # Check input parameters
     src = Path(src)
     dst = Path(dst)
-    src_info = _get_geofileinfo(src)
+    src_info = _geofileinfo.get_geofileinfo(src)
 
     # Move the main file
     shutil.move(str(src), dst)
@@ -2083,7 +2015,7 @@ def remove(path: Union[str, "os.PathLike[Any]"], missing_ok: bool = False):
     """
     # Check input parameters
     path = Path(path)
-    path_info = _get_geofileinfo(path)
+    path_info = _geofileinfo.get_geofileinfo(path)
 
     # If there is a lock file, remove it
     lockfile_path = path.parent / f"{path.name}.lock"

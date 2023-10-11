@@ -15,7 +15,7 @@ import shapely.geometry as sh_geom
 import geofileops as gfo
 from geofileops import GeometryType
 from geofileops.util import _geoops_sql as geoops_sql
-from geofileops.util._geofiletype import GeofileType
+from geofileops.util._geofileinfo import GeofileType
 from tests import test_helper
 from tests.test_helper import SUFFIXES_GEOOPS, TESTFILES
 from tests.test_helper import assert_geodataframe_equal

@@ -13,7 +13,7 @@ import shapely.geometry as sh_geom
 
 import geofileops as gfo
 from geofileops import fileops
-from geofileops.fileops import _get_geofileinfo
+from geofileops.util import _geofileinfo
 from geofileops.util import _geoseries_util
 from geofileops.util import _io_util
 from geofileops.util import _ogr_util
@@ -748,7 +748,7 @@ def test_read_file(suffix, engine_setter):
 def test_read_file_columns_geometry(tmp_path, suffix, columns, geometry, engine_setter):
     # Prepare test data
     # For multi-layer filetype, use 2-layer file for better test coverage
-    src_info = _get_geofileinfo(suffix)
+    src_info = _geofileinfo.get_geofileinfo(suffix)
     if src_info.is_singlelayer:
         testfile = "polygon-parcel"
         src = test_helper.get_testfile(testfile, suffix=suffix)
@@ -839,7 +839,7 @@ def test_read_file_fid_as_index(suffix, engine_setter):
     assert isinstance(read_gdf, pd.DataFrame)
     assert len(read_gdf.columns) == exp_columns
     assert len(read_gdf) == 5
-    if _get_geofileinfo(src).is_fid_zerobased:
+    if _geofileinfo.get_geofileinfo(src).is_fid_zerobased:
         assert read_gdf.index[0] == 5
     else:
         # Geopackage fid starts at 1
@@ -866,7 +866,7 @@ def test_read_file_no_columns_no_geom(suffix, engine_setter):
 def test_read_file_sql(suffix, engine_setter):
     # Prepare test data
     # For multi-layer filetype, use 2-layer file for better test coverage
-    if _get_geofileinfo(suffix).is_singlelayer:
+    if _geofileinfo.get_geofileinfo(suffix).is_singlelayer:
         testfile = "polygon-parcel"
         src = test_helper.get_testfile(testfile, suffix=suffix)
         layer = src.stem
