@@ -71,9 +71,138 @@ def _init_geofiletypes():
 _init_geofiletypes()
 
 
+class GeofileInfo:
+    """
+    A data object containing meta-information about a geofile.
+
+    Attributes:
+        driver (str): the relevant gdal driver for the file.
+    """
+
+    def __init__(
+        self,
+        path: Path,
+        drivername: str,
+    ):
+        """
+        Constructor of Layerinfo.
+
+        Args:
+            path (Path): the path to the file.
+            drivername (str): the relevant gdal driver for the file.
+        """
+        self.path = path
+        self.drivername = drivername
+        self.geofiletype_info = geofiletypes.get(self.drivername)
+
+    def __repr__(self):
+        """Overrides the representation property of GeofileInfo."""
+        return f"{self.__class__}({self.__dict__})"
+
+    @property
+    def is_fid_zerobased(self) -> bool:
+        """Returns True if the fid is zero based."""
+        if self.geofiletype_info is not None:
+            return self.geofiletype_info.is_fid_zerobased
+        else:
+            # Default, not zero-based (at least the case for CSV)
+            return False
+
+    @property
+    def is_spatialite_based(self) -> bool:
+        """Returns True if file driver is based on spatialite."""
+        if self.geofiletype_info is not None:
+            return self.geofiletype_info.is_spatialite_based
+        else:
+            return False
+
+    @property
+    def is_singlelayer(self) -> bool:
+        """Returns True if this geofile can only have one layer."""
+        if self.geofiletype_info is not None:
+            return self.geofiletype_info.is_singlelayer
+        else:
+            return True
+
+    @property
+    def suffixes_extrafiles(self) -> List[str]:
+        """Returns a list of suffixes for the extra files for this GeofileType."""
+        if self.geofiletype_info is not None:
+            return self.geofiletype_info.suffixes_extrafiles
+        else:
+            return []
+
+
+def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
+    """
+    Get the gdal driver name for the file specified.
+
+    Args:
+        path (PathLike): The file path.
+
+    Returns:
+        str: The OGR driver name.
+    """
+    path = Path(path)
+
+    def get_driver_for_path(input_path) -> str:
+        # If there is no suffix, possibly it is only a suffix, so prefix with filename
+        if input_path.suffix == "":
+            local_path = f"temp{input_path}"
+        else:
+            local_path = input_path
+
+        drivers = GetOutputDriversFor(local_path, is_raster=False)
+        if len(drivers) == 1:
+            return drivers[0]
+        else:
+            raise ValueError(
+                f"Could not infer driver from path: {input_path}. Please specify "
+                "driver explicitly by prefixing the file path with `<DRIVER>:`"
+            )
+
+    # If the file exists, determine the driver based on the file.
+    if path.exists():
+        datasource = None
+        try:
+            datasource = gdal.OpenEx(
+                str(path), nOpenFlags=gdal.OF_VECTOR | gdal.OF_READONLY | gdal.OF_SHARED
+            )
+            driver = datasource.GetDriver()
+            drivername = driver.ShortName
+        except Exception as ex:
+            try:
+                drivername = get_driver_for_path(path)
+            except Exception:
+                ex.args = (f"get_driver error for {path}: {ex}",)
+                raise
+        finally:
+            datasource = None
+    else:
+        drivername = get_driver_for_path(path)
+
+    return drivername
+
+
+def get_geofileinfo(path: Union[str, "os.PathLike[Any]"]) -> GeofileInfo:
+    """
+    Get information about a geofile.
+
+    Args:
+        path (Union[str, PathLike): the path to the file.
+
+    Returns:
+        GeofileInfo: _description_
+    """
+    path = Path(path)
+    drivername = get_driver(path=path)
+
+    return GeofileInfo(path=path, drivername=drivername)
+
+
 class GeofileType(enum.Enum):
     """
-    Enumeration of relevant geo file types and their properties.
+    DEPRECATED Enumeration of relevant geo file types and their properties.
     """
 
     ESRIShapefile = enum.auto()
@@ -162,131 +291,3 @@ class GeofileType(enum.Enum):
             return False
         else:
             return True
-
-
-class GeofileInfo:
-    """
-    A data object containing meta-information about a geofile.
-
-    Attributes:
-        driver (str): the relevant gdal driver for the file.
-    """
-
-    def __init__(
-        self,
-        path: Path,
-        drivername: str,
-    ):
-        """
-        Constructor of Layerinfo.
-
-        Args:
-            path (Path): the path to the file.
-            drivername (str): the relevant gdal driver for the file.
-        """
-        self.path = path
-        self.drivername = drivername
-
-    def __repr__(self):
-        """Overrides the representation property of GeofileInfo."""
-        return f"{self.__class__}({self.__dict__})"
-
-    @property
-    def is_fid_zerobased(self) -> bool:
-        """Returns True if the fid is zero based."""
-        if self.drivername in ("ESRI Shapefile"):
-            return True
-        else:
-            return False
-
-    @property
-    def is_spatialite_based(self) -> bool:
-        """Returns True if file driver is based on spatialite."""
-        if self.drivername in ("GPKG", "SQLITE"):
-            return True
-        else:
-            return False
-
-    @property
-    def is_singlelayer(self) -> bool:
-        """Returns True if this geofile can only have one layer."""
-        if self.is_spatialite_based:
-            return False
-        else:
-            return True
-
-    @property
-    def suffixes_extrafiles(self) -> List[str]:
-        """Returns a list of suffixes for the extra files for this GeofileType."""
-        try:
-            geofiletype = GeofileType(self.path)
-            return geofiletype.suffixes_extrafiles
-        except Exception:
-            return []
-
-
-def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
-    """
-    Get the gdal driver name for the file specified.
-
-    Args:
-        path (PathLike): The file path.
-
-    Returns:
-        str: The OGR driver name.
-    """
-    path = Path(path)
-
-    def get_driver_for_path(input_path) -> str:
-        # If there is no suffix, possibly it is only a suffix, so prefix with filename
-        if input_path.suffix == "":
-            local_path = f"temp{input_path}"
-        else:
-            local_path = input_path
-
-        drivers = GetOutputDriversFor(local_path, is_raster=False)
-        if len(drivers) == 1:
-            return drivers[0]
-        else:
-            raise ValueError(
-                f"Could not infer driver from path: {input_path}. Please specify "
-                "driver explicitly by prefixing the file path with `<DRIVER>:`"
-            )
-
-    # If the file exists, determine the driver based on the file.
-    if path.exists():
-        datasource = None
-        try:
-            datasource = gdal.OpenEx(
-                str(path), nOpenFlags=gdal.OF_VECTOR | gdal.OF_READONLY | gdal.OF_SHARED
-            )
-            driver = datasource.GetDriver()
-            drivername = driver.ShortName
-        except Exception as ex:
-            try:
-                drivername = get_driver_for_path(path)
-            except Exception:
-                ex.args = (f"get_driver error for {path}: {ex}",)
-                raise
-        finally:
-            datasource = None
-    else:
-        drivername = get_driver_for_path(path)
-
-    return drivername
-
-
-def get_geofileinfo(path: Union[str, "os.PathLike[Any]"]) -> GeofileInfo:
-    """
-    Get information about a geofile.
-
-    Args:
-        path (Union[str, PathLike): the path to the file.
-
-    Returns:
-        GeofileInfo: _description_
-    """
-    path = Path(path)
-    drivername = get_driver(path=path)
-
-    return GeofileInfo(path=path, drivername=drivername)
