@@ -54,21 +54,39 @@ def test_geofiletype_enum():
     [(".gpkg", "GPKG"), (".GPKG", "GPKG"), (".shp", "ESRI Shapefile"), (".csv", "CSV")],
 )
 @pytest.mark.parametrize(
-    "existing_file, invalid_file", [(True, True), (True, False), (False, False)]
+    "test_type",
+    ["EXISTING_FILE_VALID", "EXISTING_FILE_EMPTY", "NON_EXISTING_FILE", "SUFFIX"],
 )
-def test_get_driver(tmp_path, suffix, driver, existing_file: bool, invalid_file: bool):
+def test_get_driver(tmp_path, suffix, driver, test_type):
     """Get a driver."""
     # Prepare test data
-    if existing_file:
-        if invalid_file:
-            test_path = tmp_path / f"test_invalid{suffix}"
-            test_path.touch()
-        else:
-            test_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
-    else:
+    if test_type == "EXISTING_FILE_VALID":
+        test_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    elif test_type == "EXISTING_FILE_EMPTY":
+        test_path = tmp_path / f"test_invalid{suffix}"
+        test_path.touch()
+    elif test_type == "NON_EXISTING_FILE":
         test_path = tmp_path / f"test_unexisting{suffix}"
+    elif test_type == "SUFFIX":
+        test_path = suffix
+    else:
+        raise ValueError(f"Unsupported test_type: {test_type}")
 
     assert gfo.get_driver(test_path) == driver
+
+
+def test_get_driver_unsupported_suffix():
+    with pytest.raises(ValueError, match="Could not infer driver from path"):
+        gfo.get_driver(".unsupported")
+
+
+def test_get_driver_unsupported_suffix_driverprefix(tmp_path):
+    csv_path = test_helper.get_testfile(
+        "polygon-parcel", suffix=".csv", dst_dir=tmp_path
+    )
+    unsupported_path = tmp_path / f"{csv_path.stem}.unsupported"
+    csv_path.rename(unsupported_path)
+    assert gfo.get_driver(unsupported_path) == "CSV"
 
 
 def test_get_geofileinfo():
