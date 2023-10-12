@@ -86,7 +86,7 @@ def test_get_driver_unsupported_suffix_driverprefix(tmp_path):
     )
     unsupported_path = tmp_path / f"{csv_path.stem}.unsupported"
     csv_path.rename(unsupported_path)
-    assert gfo.get_driver(unsupported_path) == "CSV"
+    assert gfo.get_driver(f"CSV:{unsupported_path}") == "CSV"
 
 
 def test_get_geofileinfo():

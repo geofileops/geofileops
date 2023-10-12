@@ -248,29 +248,27 @@ def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
             return drivers[0]
         else:
             raise ValueError(
-                f"Could not infer driver from path: {input_path}. Please specify "
-                "driver explicitly by prefixing the file path with `<DRIVER>:`"
+                "Could not infer driver from path. Please specify driver explicitly by "
+                "prefixing the file path with '<DRIVER>:', e.g. 'GPKG:path'. "
+                f"Path: {input_path}"
             )
 
     # If the file exists, determine the driver based on the file.
-    if path.exists():
-        datasource = None
+    datasource = None
+    try:
+        datasource = gdal.OpenEx(
+            str(path), nOpenFlags=gdal.OF_VECTOR | gdal.OF_READONLY | gdal.OF_SHARED
+        )
+        driver = datasource.GetDriver()
+        drivername = driver.ShortName
+    except Exception as ex:
         try:
-            datasource = gdal.OpenEx(
-                str(path), nOpenFlags=gdal.OF_VECTOR | gdal.OF_READONLY | gdal.OF_SHARED
-            )
-            driver = datasource.GetDriver()
-            drivername = driver.ShortName
-        except Exception as ex:
-            try:
-                drivername = get_driver_for_path(path)
-            except Exception:
-                ex.args = (f"get_driver error for {path}: {ex}",)
-                raise
-        finally:
-            datasource = None
-    else:
-        drivername = get_driver_for_path(path)
+            drivername = get_driver_for_path(path)
+        except Exception:
+            ex.args = (f"get_driver error for {path}: {ex}",)
+            raise
+    finally:
+        datasource = None
 
     return drivername
 
