@@ -18,16 +18,19 @@ import warnings
 import pandas as pd
 
 import geofileops as gfo
-from geofileops import GeofileType, GeometryType, PrimitiveType
+from geofileops import GeometryType, PrimitiveType
 from geofileops import fileops
+
 from geofileops.fileops import _append_to_nolock
 from geofileops.util import _general_util
+from geofileops.util import _geofileinfo
 from geofileops.util import _io_util
 from geofileops.util import _ogr_sql_util
 from geofileops.util import _ogr_util
 from geofileops.helpers import _parameter_helper
 from geofileops.util import _processing_util
 from geofileops.util import _sqlite_util
+
 
 ################################################################################
 # Some init
@@ -255,8 +258,8 @@ def isvalid(
     # If output is sqlite based, check if all data can be read
     if validate_attribute_data:
         try:
-            input_geofiletype = GeofileType(input_path)
-            if input_geofiletype.is_spatialite_based:
+            input_info = _geofileinfo.get_geofileinfo(input_path)
+            if input_info.is_spatialite_based:
                 _sqlite_util.test_data_integrity(path=input_path)
                 logger.debug("test_data_integrity was succesfull")
         except Exception:
@@ -349,8 +352,8 @@ def makevalid(
 
     # If asked and output is spatialite based, check if all data can be read
     if validate_attribute_data:
-        output_geofiletype = GeofileType(input_path)
-        if output_geofiletype.is_spatialite_based:
+        output_geofileinfo = _geofileinfo.get_geofileinfo(input_path)
+        if output_geofileinfo.is_spatialite_based:
             _sqlite_util.test_data_integrity(path=input_path)
 
 
@@ -534,7 +537,7 @@ def _single_layer_vector_operation(
 
     # Determine if fid can be preserved
     preserve_fid = False
-    if not explodecollections and GeofileType(output_path) == GeofileType.GPKG:
+    if not explodecollections and gfo.get_driver(output_path) == "GPKG":
         preserve_fid = True
 
     # Calculate
@@ -826,7 +829,7 @@ def _single_layer_vector_operation(
             output_path.parent.mkdir(parents=True, exist_ok=True)
             gfo.move(tmp_output_path, output_path)
         elif (
-            GeofileType(tmp_output_path) == GeofileType.ESRIShapefile
+            gfo.get_driver(tmp_output_path) == "ESRI Shapefile"
             and tmp_output_path.with_suffix(".dbf").exists()
         ):
             # If the output shapefile doesn't have a geometry column, the .shp file
@@ -1009,30 +1012,27 @@ def erase(
         SELECT * FROM (
           SELECT IFNULL(
                    ( SELECT IFNULL(
-                                ST_GeomFromWKB(GFO_Difference_Collection(
-                                    ST_AsBinary(layer1_sub.{{input1_geometrycolumn}}),
-                                    ST_AsBinary(ST_Collect(layer2_sub.geom_divided)),
-                                    1,
-                                    {subdivide_coords}
-                                )),
-                                'DIFF_EMPTY'
+                               ST_GeomFromWKB(GFO_Difference_Collection(
+                                  ST_AsBinary(layer1_sub.{{input1_geometrycolumn}}),
+                                  ST_AsBinary(ST_Collect(
+                                     IIF(
+                                        ST_NPoints(layer2_sub.{{input2_geometrycolumn}})
+                                           < {subdivide_coords},
+                                        layer2_sub.{{input2_geometrycolumn}},
+                                        ST_GeomFromWKB(GFO_Subdivide(
+                                           ST_AsBinary(
+                                              layer2_sub.{{input2_geometrycolumn}}),
+                                           {subdivide_coords}))
+                                     ))),
+                                     1,
+                                     {subdivide_coords}
+                               )),
+                               'DIFF_EMPTY'
                             ) AS diff_geom
                        FROM {{input1_databasename}}."{{input1_layer}}" layer1_sub
                        JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
                          ON layer1_sub.rowid = layer1tree.id
-                       JOIN (SELECT layer2_sub2.rowid
-                                   ,IIF(
-                                      ST_NPoints(layer2_sub2.{{input2_geometrycolumn}})
-                                          < {subdivide_coords},
-                                      layer2_sub2.{{input2_geometrycolumn}},
-                                      ST_GeomFromWKB(GFO_Subdivide(
-                                          ST_AsBinary(
-                                              layer2_sub2.{{input2_geometrycolumn}}),
-                                          {subdivide_coords}))
-                                    ) AS geom_divided
-                             FROM {{input2_databasename}}."{{input2_layer}}" layer2_sub2
-                             LIMIT -1 OFFSET 0
-                         ) layer2_sub
+                       JOIN {{input2_databasename}}."{{input2_layer}}" layer2_sub
                        JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
                          ON layer2_sub.rowid = layer2tree.id
                       WHERE 1=1
@@ -1047,6 +1047,7 @@ def erase(
                    layer1.{{input1_geometrycolumn}}
                  ) AS geom
                 {{layer1_columns_prefix_alias_str}}
+                {{layer2_columns_prefix_alias_null_str}}
             FROM {{input1_databasename}}."{{input1_layer}}" layer1
            WHERE 1=1
              {{batch_filter}}
@@ -1605,7 +1606,7 @@ def join_nearest(
     # Prepare input files
     # To use knn index, the input layers need to be in sqlite file format
     # (not a .gpkg!), so prepare this
-    if input1_path == input2_path and GeofileType(input1_path) == GeofileType.SQLite:
+    if input1_path == input2_path and gfo.get_driver(input1_path) == "SQLite":
         # Input files already ok...
         input1_tmp_path = input1_path
         input1_tmp_layer = input1_layer
@@ -1723,7 +1724,7 @@ def select_two_layers(
     )
 
 
-def split(
+def identity(
     input1_path: Path,
     input2_path: Path,
     output_path: Path,
@@ -1804,30 +1805,27 @@ def split(
           UNION ALL
           SELECT IFNULL(
                    ( SELECT IFNULL(
-                                ST_GeomFromWKB(GFO_Difference_Collection(
-                                    ST_AsBinary(layer1_sub.{{input1_geometrycolumn}}),
-                                    ST_AsBinary(ST_Collect(layer2_sub.geom_divided)),
-                                    1,
-                                    {subdivide_coords}
-                                )),
-                                'DIFF_EMPTY'
+                               ST_GeomFromWKB(GFO_Difference_Collection(
+                                  ST_AsBinary(layer1_sub.{{input1_geometrycolumn}}),
+                                  ST_AsBinary(ST_Collect(
+                                     IIF(
+                                        ST_NPoints(layer2_sub.{{input2_geometrycolumn}})
+                                           < {subdivide_coords},
+                                        layer2_sub.{{input2_geometrycolumn}},
+                                        ST_GeomFromWKB(GFO_Subdivide(
+                                           ST_AsBinary(
+                                              layer2_sub.{{input2_geometrycolumn}}),
+                                           {subdivide_coords}))
+                                     ))),
+                                     1,
+                                     {subdivide_coords}
+                               )),
+                               'DIFF_EMPTY'
                             ) AS diff_geom
                        FROM {{input1_databasename}}."{{input1_layer}}" layer1_sub
                        JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
                          ON layer1_sub.rowid = layer1tree.id
-                       JOIN (SELECT layer2_sub2.rowid
-                                   ,IIF(
-                                      ST_NPoints(layer2_sub2.{{input2_geometrycolumn}})
-                                          < {subdivide_coords},
-                                      layer2_sub2.{{input2_geometrycolumn}},
-                                      ST_GeomFromWKB(GFO_Subdivide(
-                                          ST_AsBinary(
-                                              layer2_sub2.{{input2_geometrycolumn}}),
-                                          {subdivide_coords}))
-                                    ) AS geom_divided
-                             FROM {{input2_databasename}}."{{input2_layer}}" layer2_sub2
-                             LIMIT -1 OFFSET 0
-                         ) layer2_sub
+                       JOIN {{input2_databasename}}."{{input2_layer}}" layer2_sub
                        JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
                          ON layer2_sub.rowid = layer2tree.id
                       WHERE 1=1
@@ -1858,7 +1856,7 @@ def split(
         input2_path=input2_path,
         output_path=output_path,
         sql_template=sql_template,
-        operation_name="split",
+        operation_name="identity",
         input1_layer=input1_layer,
         input1_columns=input1_columns,
         input1_columns_prefix=input1_columns_prefix,
@@ -2009,10 +2007,10 @@ def union(
     subdivide_coords: int = 1000,
     force: bool = False,
 ):
-    # A union can be simulated by doing a "split" of input1 and input2 and
+    # A union can be simulated by doing an "identity" of input1 and input2 and
     # then append the result of an erase of input2 with input1...
 
-    # Because the calculations in split and erase will be towards temp files,
+    # Because the calculations in identity and erase will be towards temp files,
     # we need to do some additional init + checks here...
     if force is False and output_path.exists():
         return
@@ -2022,12 +2020,12 @@ def union(
     start_time = datetime.now()
     tempdir = _io_util.create_tempdir("geofileops/union")
     try:
-        # First split input1 with input2 to a temporary output gfo...
-        split_output_path = tempdir / "split_output.gpkg"
-        split(
+        # First apply identity of input1 with input2 to a temporary output file...
+        identity_output_path = tempdir / "identity_output.gpkg"
+        identity(
             input1_path=input1_path,
             input2_path=input2_path,
-            output_path=split_output_path,
+            output_path=identity_output_path,
             input1_layer=input1_layer,
             input1_columns=input1_columns,
             input1_columns_prefix=input1_columns_prefix,
@@ -2069,17 +2067,17 @@ def union(
         # Now append
         _append_to_nolock(
             src=erase_output_path,
-            dst=split_output_path,
+            dst=identity_output_path,
             src_layer=output_layer,
             dst_layer=output_layer,
         )
 
         # Convert or add spatial index
-        tmp_output_path = split_output_path
-        if split_output_path.suffix != output_path.suffix:
+        tmp_output_path = identity_output_path
+        if identity_output_path.suffix != output_path.suffix:
             # Output file should be in different format, so convert
             tmp_output_path = tempdir / output_path.name
-            gfo.copy_layer(src=split_output_path, dst=tmp_output_path)
+            gfo.copy_layer(src=identity_output_path, dst=tmp_output_path)
         else:
             # Create spatial index
             gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
@@ -2643,16 +2641,18 @@ def _prepare_processing_params(
     # Prepare input files for the calculation
     if convert_to_spatialite_based:
         # Check if the input files are of the correct geofiletype
-        input1_geofiletype = GeofileType(input1_path)
-        input2_geofiletype = None if input2_path is None else GeofileType(input2_path)
+        input1_info = _geofileinfo.get_geofileinfo(input1_path)
+        input2_info = (
+            None if input2_path is None else _geofileinfo.get_geofileinfo(input2_path)
+        )
 
         # If input files are of the same format + are spatialite compatible,
         # just use them
-        if input1_geofiletype.is_spatialite_based and (
-            input2_geofiletype is None or input1_geofiletype == input2_geofiletype
+        if input1_info.is_spatialite_based and (
+            input2_info is None or input1_info.driver == input2_info.driver
         ):
             if (
-                input1_geofiletype == GeofileType.GPKG
+                input1_info.driver == "GPKG"
                 and input1_layerinfo.geometrycolumn is not None
             ):
                 # HasSpatialindex doesn't work for spatialite file
@@ -2669,16 +2669,16 @@ def _prepare_processing_params(
             )
             input1_path = input1_tmp_path
 
-        if input2_path is not None and input2_geofiletype is not None:
+        if input2_path is not None and input2_info is not None:
             if (
-                input2_geofiletype == input1_geofiletype
-                and input2_geofiletype.is_spatialite_based
+                input2_info.driver == input1_info.driver
+                and input2_info.is_spatialite_based
             ):
                 input2_layerinfo = gfo.get_layerinfo(
                     input2_path, input2_layer, raise_on_nogeom=False
                 )
                 if (
-                    input2_geofiletype == GeofileType.GPKG
+                    input2_info.driver == "GPKG"
                     and input2_layerinfo.geometrycolumn is not None
                 ):
                     # HasSpatialindex doesn't work for spatialite file

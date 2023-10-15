@@ -44,7 +44,7 @@ Spatial operations on two layers
    join_by_location
    join_nearest
    select_two_layers
-   split
+   identity
    symmetric_difference
    union
 
@@ -88,8 +88,7 @@ General file operations
 
    cmp
    copy
-   is_geofile
-   is_geofile_ext
+   get_driver
    listlayers
    move
    remove
@@ -103,8 +102,6 @@ Classes
    BufferEndCapStyle
    BufferJoinStyle
    DataType
-   GeofileType
-   GeometryType
    LayerInfo
    PrimitiveType
    SimplifyAlgorithm

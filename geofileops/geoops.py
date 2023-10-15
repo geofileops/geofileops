@@ -84,8 +84,7 @@ def apply(
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
-            in the output. Defaults to False now, but default becomes True in a future
-            version.
+            in the output. Defaults to False.
         where_post (str, optional): sql filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
@@ -104,15 +103,6 @@ def apply(
 
     """  # noqa: E501
     logger.info(f"Start apply on {input_path}")
-    if keep_empty_geoms is None:
-        keep_empty_geoms = False
-        warnings.warn(
-            "keep_empty_geoms defaults to False now for backwards compatibility, but "
-            "this will change to True in a future version. If keep_empty_geoms is "
-            "specified, this warning isn't shown anymore",
-            FutureWarning,
-            stacklevel=2,
-        )
 
     return _geoops_gpd.apply(
         input_path=Path(input_path),
@@ -204,8 +194,7 @@ def buffer(
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
-            in the output. Defaults to False now, but default becomes True in a future
-            version.
+            in the output. Defaults to False.
         where_post (str, optional): sql filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
@@ -304,15 +293,6 @@ def buffer(
         f"Start buffer on {input_path} "
         f"(distance: {distance}, quadrantsegments: {quadrantsegments})"
     )
-    if keep_empty_geoms is None:
-        keep_empty_geoms = False
-        warnings.warn(
-            "keep_empty_geoms defaults to False now for backwards compatibility, but "
-            "this will change to True in a future version. If keep_empty_geoms is "
-            "specified, this warning isn't shown anymore",
-            FutureWarning,
-            stacklevel=2,
-        )
 
     if (
         endcap_style == BufferEndCapStyle.ROUND
@@ -445,8 +425,7 @@ def convexhull(
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
-            in the output. Defaults to False now, but default becomes True in a future
-            version.
+            in the output. Defaults to False.
         where_post (str, optional): sql filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
@@ -465,15 +444,6 @@ def convexhull(
 
     """  # noqa: E501
     logger.info(f"Start convexhull on {input_path}")
-    if keep_empty_geoms is None:
-        keep_empty_geoms = False
-        warnings.warn(
-            "keep_empty_geoms defaults to False now for backwards compatibility, but "
-            "this will change to True in a future version. If keep_empty_geoms is "
-            "specified, this warning isn't shown anymore",
-            FutureWarning,
-            stacklevel=2,
-        )
 
     return _geoops_sql.convexhull(
         input_path=Path(input_path),
@@ -522,8 +492,7 @@ def delete_duplicate_geometries(
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
-            in the output. Defaults to False now, but default becomes True in a future
-            version.
+            in the output. Defaults to False.
         where_post (str, optional): sql filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
@@ -536,15 +505,6 @@ def delete_duplicate_geometries(
 
     """  # noqa: E501
     logger.info(f"Start delete_duplicate_geometries on {input_path}")
-    if keep_empty_geoms is None:
-        keep_empty_geoms = False
-        warnings.warn(
-            "keep_empty_geoms defaults to False now for backwards compatibility, but "
-            "this will change to True in a future version. If keep_empty_geoms is "
-            "specified, this warning isn't shown anymore",
-            FutureWarning,
-            stacklevel=2,
-        )
 
     return _geoops_sql.delete_duplicate_geometries(
         input_path=Path(input_path),
@@ -923,8 +883,7 @@ def makevalid(
             the precision. Defaults to 0.0.
         precision (float, optional): deprecated. Use gridsize.
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
-            in the output. Defaults to False now, but default becomes True in a future
-            version.
+            in the output. Defaults to False.
         where_post (str, optional): sql filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
@@ -946,16 +905,6 @@ def makevalid(
 
     """  # noqa: E501
     logger.info(f"Start makevalid on {input_path}")
-
-    if keep_empty_geoms is None:
-        keep_empty_geoms = False
-        warnings.warn(
-            "keep_empty_geoms defaults to False now for backwards compatibility, but "
-            "this will change to True in a future version. If keep_empty_geoms is "
-            "specified, this warning isn't shown anymore",
-            FutureWarning,
-            stacklevel=2,
-        )
 
     if gridsize is None:
         gridsize = 0.0
@@ -1249,8 +1198,7 @@ def simplify(
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
-            in the output. Defaults to False now, but default becomes True in a future
-            version.
+            in the output. Defaults to False.
         where_post (str, optional): sql filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
@@ -1271,16 +1219,6 @@ def simplify(
     logger.info(f"Start simplify on {input_path} with tolerance {tolerance}")
     if isinstance(algorithm, str):
         algorithm = SimplifyAlgorithm(algorithm)
-
-    if keep_empty_geoms is None:
-        keep_empty_geoms = False
-        warnings.warn(
-            "keep_empty_geoms defaults to False now for backwards compatibility, but "
-            "this will change to True in a future version. If keep_empty_geoms is "
-            "specified, this warning isn't shown anymore",
-            FutureWarning,
-            stacklevel=2,
-        )
 
     if algorithm == SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER:
         return _geoops_sql.simplify(
@@ -1665,6 +1603,156 @@ def export_by_distance(
         where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
+        force=force,
+    )
+
+
+def identity(
+    input1_path: Union[str, "os.PathLike[Any]"],
+    input2_path: Union[str, "os.PathLike[Any]"],
+    output_path: Union[str, "os.PathLike[Any]"],
+    input1_layer: Optional[str] = None,
+    input1_columns: Optional[List[str]] = None,
+    input1_columns_prefix: str = "l1_",
+    input2_layer: Optional[str] = None,
+    input2_columns: Optional[List[str]] = None,
+    input2_columns_prefix: str = "l2_",
+    output_layer: Optional[str] = None,
+    explodecollections: bool = False,
+    gridsize: float = 0.0,
+    where_post: Optional[str] = None,
+    nb_parallel: int = -1,
+    batchsize: int = -1,
+    subdivide_coords: int = 1000,
+    force: bool = False,
+):
+    """
+    Intersection of the input layers, but retain the non-intersecting parts of input1.
+
+    The result is the equivalent of an intersect between the two layers + layer
+    1 erased with layer 2.
+
+    Args:
+        input1_path (PathLike): the 1st input file
+        input2_path (PathLike): the 2nd input file
+        output_path (PathLike): the file to write the result to
+        input1_layer (str, optional): input layer name. Optional if the
+            file only contains one layer. Defaults to None.
+        input1_columns (List[str], optional): list of columns to retain. If None, all
+            standard columns are retained. In addition to standard columns, it is also
+            possible to specify "fid", a unique index available in all input files. Note
+            that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
+            "fid_1". Defaults to None.
+        input1_columns_prefix (str, optional): prefix to use in the column aliases.
+            Defaults to "l1_".
+        input2_layer (str, optional): input layer name. Optional if the
+            file only contains one layer. Defaults to None.
+        input2_columns (List[str], optional): columns to select. If None is specified,
+            all columns are selected. As explained for input1_columns, it is also
+            possible to specify "fid". Defaults to None.
+        input2_columns_prefix (str, optional): prefix to use in the column aliases.
+            Defaults to "l2_".
+        output_layer (str, optional): output layer name. If None, the output_path stem
+            is used. Defaults to None.
+        explodecollections (bool, optional): True to convert all multi-geometries to
+            singular ones after the dissolve. Defaults to False.
+        gridsize (float, optional): the size of the grid the coordinates of the ouput
+            will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
+            the precision. Defaults to 0.0.
+        where_post (str, optional): sql filter to apply after all other processing,
+            including e.g. explodecollections. It should be in sqlite syntax and
+            |spatialite_reference_link| functions can be used. Defaults to None.
+        nb_parallel (int, optional): the number of parallel processes to use.
+            Defaults to -1: use all available processors.
+        batchsize (int, optional): indicative number of rows to process per
+            batch. A smaller batch size, possibly in combination with a
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
+        subdivide_coords (int, optional): the input geometries will be subdivided to
+            parts with about subdivide_coords coordinates during processing which can
+            offer a large speed up for complex geometries. Subdividing can result in
+            extra collinear points being added to the boundaries of the output. If < 0,
+            no subdividing is applied. Defaults to 1000.
+        force (bool, optional): overwrite existing output file(s).
+            Defaults to False.
+
+    .. |spatialite_reference_link| raw:: html
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
+    logger.info(
+        f"Start identity between {input1_path} and {input2_path} to {output_path}"
+    )
+    return _geoops_sql.identity(
+        input1_path=Path(input1_path),
+        input2_path=Path(input2_path),
+        output_path=Path(output_path),
+        input1_layer=input1_layer,
+        input1_columns=input1_columns,
+        input1_columns_prefix=input1_columns_prefix,
+        input2_layer=input2_layer,
+        input2_columns=input2_columns,
+        input2_columns_prefix=input2_columns_prefix,
+        output_layer=output_layer,
+        explodecollections=explodecollections,
+        gridsize=gridsize,
+        where_post=where_post,
+        nb_parallel=nb_parallel,
+        batchsize=batchsize,
+        subdivide_coords=subdivide_coords,
+        force=force,
+    )
+
+
+def split(
+    input1_path: Union[str, "os.PathLike[Any]"],
+    input2_path: Union[str, "os.PathLike[Any]"],
+    output_path: Union[str, "os.PathLike[Any]"],
+    input1_layer: Optional[str] = None,
+    input1_columns: Optional[List[str]] = None,
+    input1_columns_prefix: str = "l1_",
+    input2_layer: Optional[str] = None,
+    input2_columns: Optional[List[str]] = None,
+    input2_columns_prefix: str = "l2_",
+    output_layer: Optional[str] = None,
+    explodecollections: bool = False,
+    gridsize: float = 0.0,
+    where_post: Optional[str] = None,
+    nb_parallel: int = -1,
+    batchsize: int = -1,
+    subdivide_coords: int = 1000,
+    force: bool = False,
+):
+    """
+    DEPRECATED: please use identity.
+    """
+    warnings.warn(
+        "split() is deprecated because it was renamed to identity(). "
+        "Will be removed in a future version",
+        FutureWarning,
+        stacklevel=2,
+    )
+    logger.info(
+        f"Start identity between {input1_path} and {input2_path} to {output_path}"
+    )
+    return _geoops_sql.identity(
+        input1_path=Path(input1_path),
+        input2_path=Path(input2_path),
+        output_path=Path(output_path),
+        input1_layer=input1_layer,
+        input1_columns=input1_columns,
+        input1_columns_prefix=input1_columns_prefix,
+        input2_layer=input2_layer,
+        input2_columns=input2_columns,
+        input2_columns_prefix=input2_columns_prefix,
+        output_layer=output_layer,
+        explodecollections=explodecollections,
+        gridsize=gridsize,
+        where_post=where_post,
+        nb_parallel=nb_parallel,
+        batchsize=batchsize,
+        subdivide_coords=subdivide_coords,
         force=force,
     )
 
@@ -2299,106 +2387,6 @@ def symmetric_difference(
         f"to {output_path}"
     )
     return _geoops_sql.symmetric_difference(
-        input1_path=Path(input1_path),
-        input2_path=Path(input2_path),
-        output_path=Path(output_path),
-        input1_layer=input1_layer,
-        input1_columns=input1_columns,
-        input1_columns_prefix=input1_columns_prefix,
-        input2_layer=input2_layer,
-        input2_columns=input2_columns,
-        input2_columns_prefix=input2_columns_prefix,
-        output_layer=output_layer,
-        explodecollections=explodecollections,
-        gridsize=gridsize,
-        where_post=where_post,
-        nb_parallel=nb_parallel,
-        batchsize=batchsize,
-        subdivide_coords=subdivide_coords,
-        force=force,
-    )
-
-
-def split(
-    input1_path: Union[str, "os.PathLike[Any]"],
-    input2_path: Union[str, "os.PathLike[Any]"],
-    output_path: Union[str, "os.PathLike[Any]"],
-    input1_layer: Optional[str] = None,
-    input1_columns: Optional[List[str]] = None,
-    input1_columns_prefix: str = "l1_",
-    input2_layer: Optional[str] = None,
-    input2_columns: Optional[List[str]] = None,
-    input2_columns_prefix: str = "l2_",
-    output_layer: Optional[str] = None,
-    explodecollections: bool = False,
-    gridsize: float = 0.0,
-    where_post: Optional[str] = None,
-    nb_parallel: int = -1,
-    batchsize: int = -1,
-    subdivide_coords: int = 1000,
-    force: bool = False,
-):
-    """
-    Split the features in input1 with all features in input2.
-
-    The result is the equivalent of an intersect between the two layers + layer
-    1 erased with layer 2.
-
-    Alternative names:
-        - ArcMap, SAGA: identity
-        - GeoPandas: overlay(how="identity")
-
-    Args:
-        input1_path (PathLike): the 1st input file
-        input2_path (PathLike): the 2nd input file
-        output_path (PathLike): the file to write the result to
-        input1_layer (str, optional): input layer name. Optional if the
-            file only contains one layer. Defaults to None.
-        input1_columns (List[str], optional): list of columns to retain. If None, all
-            standard columns are retained. In addition to standard columns, it is also
-            possible to specify "fid", a unique index available in all input files. Note
-            that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
-            "fid_1". Defaults to None.
-        input1_columns_prefix (str, optional): prefix to use in the column aliases.
-            Defaults to "l1_".
-        input2_layer (str, optional): input layer name. Optional if the
-            file only contains one layer. Defaults to None.
-        input2_columns (List[str], optional): columns to select. If None is specified,
-            all columns are selected. As explained for input1_columns, it is also
-            possible to specify "fid". Defaults to None.
-        input2_columns_prefix (str, optional): prefix to use in the column aliases.
-            Defaults to "l2_".
-        output_layer (str, optional): output layer name. If None, the output_path stem
-            is used. Defaults to None.
-        explodecollections (bool, optional): True to convert all multi-geometries to
-            singular ones after the dissolve. Defaults to False.
-        gridsize (float, optional): the size of the grid the coordinates of the ouput
-            will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
-            the precision. Defaults to 0.0.
-        where_post (str, optional): sql filter to apply after all other processing,
-            including e.g. explodecollections. It should be in sqlite syntax and
-            |spatialite_reference_link| functions can be used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available processors.
-        batchsize (int, optional): indicative number of rows to process per
-            batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage.
-            Defaults to -1: (try to) determine optimal size automatically.
-        subdivide_coords (int, optional): the input geometries will be subdivided to
-            parts with about subdivide_coords coordinates during processing which can
-            offer a large speed up for complex geometries. Subdividing can result in
-            extra collinear points being added to the boundaries of the output. If < 0,
-            no subdividing is applied. Defaults to 1000.
-        force (bool, optional): overwrite existing output file(s).
-            Defaults to False.
-
-    .. |spatialite_reference_link| raw:: html
-
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
-
-    """  # noqa: E501
-    logger.info(f"Start split between {input1_path} and {input2_path} to {output_path}")
-    return _geoops_sql.split(
         input1_path=Path(input1_path),
         input2_path=Path(input2_path),
         output_path=Path(output_path),
