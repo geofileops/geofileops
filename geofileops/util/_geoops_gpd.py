@@ -86,13 +86,12 @@ class ParallelizationConfig:
 class parallelizationParams(NamedTuple):
     nb_parallel: int
     nb_batches_recommended: int
-    nb_rows_per_batch: int
 
 
-def _get_parallelization_params(
+def _determine_nb_batches(
     nb_rows_total: int,
     nb_parallel: int = -1,
-    nb_batches_previous_pass: Optional[int] = None,
+    batchsize: int = -1,
     parallelization_config: Optional[ParallelizationConfig] = None,
 ) -> parallelizationParams:
     """
@@ -100,38 +99,52 @@ def _get_parallelization_params(
 
     Args:
         nb_rows_total (int): The total number of rows that will be processed
-        nb_parallel (int, optional): The level of parallelization requested.
-            If -1, tries to use all resources available. Defaults to -1.
-        nb_batches_previous_pass (int, optional): If applicable, the number of batches
-            used in a previous pass of the calculation. Defaults to None.
+        nb_parallel (int): The level of parallelization requested.
+            If -1, tries to use all resources available.
+        batchsize (int): indicative number of rows to process per batch.
+            If -1: (try to) determine optimal size automatically using the heuristics in
+            'parallelization_config'.
         parallelization_config (ParallelizationConfig, optional): Configuration
             parameters to use to suggest parallelisation parameters.
 
     Returns:
         parallelizationParams: The recommended parameters.
     """
-    # Init parallelization config
+    # If 0 or 1 rows to process, one batch
+    if nb_rows_total <= 1:
+        return parallelizationParams(1, 1)
 
-    # If config is None, set to empty dict
-    if parallelization_config is not None:
-        parallelization_config_local = parallelization_config
-    else:
+    # If config is None, use default config
+    parallelization_config_local = parallelization_config
+    if parallelization_config_local is None:
         parallelization_config_local = ParallelizationConfig()
 
-    # If the number of rows is really low, just use one batch
-    # TODO: for very complex features, possibly this limit is not a good idea
-    if nb_rows_total < parallelization_config_local.min_avg_rows_per_batch:
-        return parallelizationParams(1, 1, nb_rows_total)
+    # If batchsize specified, overrule some default config with it
+    nb_batches = None
+    if batchsize > 0:
+        parallelization_config_local.min_avg_rows_per_batch = math.ceil(batchsize / 2)
+        parallelization_config_local.max_avg_rows_per_batch = batchsize
+        nb_batches = nb_rows_total / batchsize
 
-    if nb_parallel == -1:
+    # If the number of rows is really low, just use one batch
+    if nb_parallel < 1 and batchsize < 1:
+        if nb_rows_total < parallelization_config_local.min_avg_rows_per_batch:
+            return parallelizationParams(1, 1)
+        if nb_rows_total <= parallelization_config_local.max_avg_rows_per_batch:
+            return parallelizationParams(1, 1)
+
+    if nb_parallel <= 0:
         nb_parallel = multiprocessing.cpu_count()
 
-    mem_usable = _general_util.formatbytes(parallelization_config_local.bytes_usable)
-    logger.debug(f"memory_usable: {mem_usable}, with:")
-    mem_available = _general_util.formatbytes(psutil.virtual_memory().available)
-    logger.debug(f"  -> mem.available: {mem_available}")
-    swap_free = _general_util.formatbytes(psutil.swap_memory().free)
-    logger.debug(f"  -> swap.free: {swap_free}")
+    if logger.isEnabledFor(logging.DEBUG):
+        mem_usable = _general_util.formatbytes(
+            parallelization_config_local.bytes_usable
+        )
+        logger.debug(f"memory_usable: {mem_usable}, with:")
+        mem_available = _general_util.formatbytes(psutil.virtual_memory().available)
+        logger.debug(f"  -> mem.available: {mem_available}")
+        swap_free = _general_util.formatbytes(psutil.swap_memory().free)
+        logger.debug(f"  -> swap.free: {swap_free}")
 
     # If not enough memory for the amount of parallellism asked, reduce
     if (
@@ -143,14 +156,22 @@ def _get_parallelization_params(
         )
         logger.debug(f"Nb_parallel reduced to {nb_parallel} to reduce memory usage")
 
-    # Optimal number of batches and rows per batch based on memory usage
-    nb_batches = math.ceil(
-        (nb_rows_total * parallelization_config_local.bytes_per_row * nb_parallel)
-        / (
-            parallelization_config_local.bytes_usable
-            - parallelization_config_local.bytes_basefootprint * nb_parallel
+    # Having more workers than rows doesn't make sense
+    if nb_parallel > nb_rows_total:
+        nb_parallel = nb_rows_total
+
+    # If batchsize is not specified, determine number of batches based on memory
+    # available + nb_parallel
+    if batchsize < 1:
+        # Determine minimum number of batches to avoid getting memory issues.
+        nb_batches_min = math.ceil(
+            (nb_rows_total * parallelization_config_local.bytes_per_row * nb_parallel)
+            / (
+                parallelization_config_local.bytes_usable
+                - parallelization_config_local.bytes_basefootprint * nb_parallel
+            )
         )
-    )
+        nb_batches = max(nb_batches_min, nb_parallel)
 
     # Make sure the average batch doesn't contain > max_avg_rows_per_batch
     batch_size = math.ceil(nb_rows_total / nb_batches)
@@ -164,26 +185,26 @@ def _get_parallelization_params(
     ) * nb_batches
 
     # Make sure there are enough batches to use as much parallelism as possible
-    if nb_batches > 1 and nb_batches < nb_parallel:
-        max_parallel_batchsize = int(
-            parallelization_config_local.max_avg_rows_per_batch
-            * nb_batches
-            / batch_size
-        )
-        nb_parallel = min(max_parallel_batchsize, nb_parallel)
-        if nb_batches_previous_pass is None:
-            nb_batches = round(nb_parallel * 1.25)
-        elif nb_batches < nb_batches_previous_pass / 4:
-            nb_batches = round(nb_parallel * 1.25)
-
-    batch_size = math.ceil(nb_rows_total / nb_batches)
+    if nb_batches > 1:
+        if nb_batches > nb_parallel:
+            # Round up to the nearest multiple of nb_parallel
+            nb_batches = math.ceil(nb_batches / nb_parallel) * nb_parallel
+        else:
+            max_parallel_batchsize = int(
+                parallelization_config_local.max_avg_rows_per_batch
+                * nb_batches
+                / batch_size
+            )
+            nb_parallel = min(max_parallel_batchsize, nb_parallel)
+            nb_batches = nb_parallel
 
     # Log result
+    batch_size = math.ceil(nb_rows_total / nb_batches)
     logger.debug(f"nb_batches_recommended: {nb_batches}, rows_per_batch: {batch_size}")
     logger.debug(f" -> nb_rows_input_layer: {nb_rows_total}")
     logger.debug(f" -> mem_predicted: {_general_util.formatbytes(mem_predicted)}")
 
-    return parallelizationParams(nb_parallel, nb_batches, batch_size)
+    return parallelizationParams(nb_parallel, nb_batches)
 
 
 class ProcessingParams:
@@ -207,14 +228,16 @@ def _prepare_processing_params(
     input_path: Path,
     input_layer: str,
     nb_parallel: int,
+    batchsize: int,
     parallelization_config: Optional[ParallelizationConfig] = None,
     tmp_dir: Optional[Path] = None,
 ) -> ProcessingParams:
     input_info = gfo.get_layerinfo(input_path, input_layer)
     fid_column = input_info.fid_column if input_info.fid_column != "" else "fid"
-    nb_parallel, nb_batches, real_batchsize = _get_parallelization_params(
+    nb_parallel, nb_batches = _determine_nb_batches(
         nb_rows_total=input_info.featurecount,
         nb_parallel=nb_parallel,
+        batchsize=batchsize,
         parallelization_config=parallelization_config,
     )
 
@@ -633,21 +656,12 @@ def _apply_geooperation_to_layer(
     try:
         # Calculate the best number of parallel processes and batches for
         # the available resources
-        if batchsize > 0:
-            parallellization_config = ParallelizationConfig(
-                min_avg_rows_per_batch=math.ceil(batchsize / 2),
-                max_avg_rows_per_batch=batchsize,
-            )
-        else:
-            parallellization_config = ParallelizationConfig(
-                max_avg_rows_per_batch=50000
-            )
-
         processing_params = _prepare_processing_params(
             input_path=input_path,
             input_layer=input_layer,
             nb_parallel=nb_parallel,
-            parallelization_config=parallellization_config,
+            batchsize=batchsize,
+            parallelization_config=ParallelizationConfig(max_avg_rows_per_batch=50000),
             tmp_dir=tmp_dir,
         )
         assert processing_params.batches is not None
@@ -1111,18 +1125,10 @@ def dissolve(
 
                 # Calculate the best number of parallel processes and batches for
                 # the available resources for the current pass
-                if batchsize > 0:
-                    parallelization_config = ParallelizationConfig(
-                        min_avg_rows_per_batch=int(math.ceil(batchsize / 2)),
-                        max_avg_rows_per_batch=batchsize,
-                    )
-                else:
-                    parallelization_config = ParallelizationConfig()
-                nb_parallel, nb_batches_recommended, _ = _get_parallelization_params(
+                nb_parallel, nb_batches_recommended = _determine_nb_batches(
                     nb_rows_total=nb_rows_total,
                     nb_parallel=nb_parallel,
-                    nb_batches_previous_pass=prev_nb_batches,
-                    parallelization_config=parallelization_config,
+                    batchsize=batchsize,
                 )
 
                 # If the ideal number of batches is close to the nb. result tiles asked,

@@ -2895,7 +2895,7 @@ def _determine_nb_batches(
     # If more batches than rows, limit nb batches
     if nb_batches > nb_rows_input_layer:
         nb_batches = nb_rows_input_layer
-    # If more parallel than number of batches, nimit nb_parallel
+    # If more parallel than number of batches, limit nb_parallel
     if nb_parallel > nb_batches:
         nb_parallel = nb_batches
 
@@ -2995,7 +2995,7 @@ def dissolve_singlethread(
 
             # The fid should be added as well, but make name unique
             fid_orig_column = "fid_orig"
-            for idx in range(0, 99999):
+            for idx in range(99999):
                 if idx != 0:
                     fid_orig_column = f"fid_orig{idx}"
                 if fid_orig_column not in columns:
