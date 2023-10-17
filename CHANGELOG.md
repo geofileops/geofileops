@@ -5,7 +5,7 @@
 ## Improvements
 
 - Add support to read/add/remove embedded layer styles in gpkg (#263)
-- Add `gridsize` parameter to most spatial operations (#261)
+- Add `gridsize` parameter to most spatial operations (#261, #407)
 - Add `keep_empty_geoms` and `where_post` parameters to many single layer spatial operations
   (#262, #398)
 - Add `where_post` parameter to many two layer spatial operations (#312)
@@ -28,7 +28,7 @@
   (#329, #330, #331, #357, #396)
 - Improve performance of spatial operations when only one batch is used (#271)
 - Improve performance of single layer operations (#375)
-- Improve performance of some geopandas/shapely based operations (#342)
+- Improve performance of some geopandas/shapely based operations (#342, #408)
 - Add checks that `output_path` must not be equal to the/an `input_path` for geo
   operations (#246)
 - Follow geopandas behaviour of using shapely2 and/or pygeos instead of forcing pygeos
