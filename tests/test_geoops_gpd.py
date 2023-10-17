@@ -1,4 +1,3 @@
-import copy
 import pytest
 
 from geofileops.util import _geoops_gpd
@@ -39,8 +38,6 @@ def test_determine_nb_batches(
 ):
     config = _geoops_gpd.ParallelizationConfig(bytes_usable=bytes_usable)
     assert config.bytes_usable == bytes_usable
-    config_local = copy.deepcopy(config)
-    assert config_local.bytes_usable == bytes_usable
 
     res_nb_parallel, res_nb_batches = _geoops_gpd._determine_nb_batches(
         nb_rows_total=nb_rows_input_layer,

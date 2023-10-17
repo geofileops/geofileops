@@ -65,23 +65,27 @@ class ParallelizationConfig:
         bytes_per_row: int = 100,
         min_avg_rows_per_batch: int = 1000,
         max_avg_rows_per_batch: int = 10000,
-        bytes_min_per_process=None,
-        bytes_usable=None,
+        bytes_min_per_process: Optional[int] = None,
+        bytes_usable: Optional[int] = None,
     ):
         self.bytes_basefootprint = bytes_basefootprint
         self.bytes_per_row = bytes_per_row
         self.min_avg_rows_per_batch = min_avg_rows_per_batch
         self.max_avg_rows_per_batch = max_avg_rows_per_batch
-        if bytes_min_per_process is None:
-            self.bytes_min_per_process = (
-                bytes_basefootprint + bytes_per_row * min_avg_rows_per_batch
-            )
-        else:
-            self.bytes_min_per_process = bytes_min_per_process
+        self.bytes_min_per_process = bytes_min_per_process
         if bytes_usable is None:
-            self.bytes_usable = psutil.virtual_memory().available * 0.9
+            self.bytes_usable = int(psutil.virtual_memory().available * 0.9)
         else:
             self.bytes_usable = bytes_usable
+
+    def get_bytes_min_per_process(self):
+        if self.bytes_min_per_process is not None:
+            return self.bytes_min_per_process
+        else:
+            return (
+                self.bytes_basefootprint
+                + self.bytes_per_row * self.min_avg_rows_per_batch
+            )
 
 
 class parallelizationParams(NamedTuple):
@@ -150,14 +154,15 @@ def _determine_nb_batches(
 
     # If not enough memory for the amount of parallellism asked, reduce
     if (
-        nb_parallel * parallelization_config_local.bytes_min_per_process
+        nb_parallel * parallelization_config_local.get_bytes_min_per_process()
     ) > parallelization_config_local.bytes_usable:
         nb_parallel = int(
             parallelization_config_local.bytes_usable
-            / parallelization_config_local.bytes_min_per_process
+            / parallelization_config_local.get_bytes_min_per_process()
         )
         logger.debug(f"Nb_parallel reduced to {nb_parallel} to reduce memory usage")
 
+    assert parallelization_config_local.bytes_usable == 500_000_000
     # Having more workers than rows doesn't make sense
     if nb_parallel > nb_rows_total:
         nb_parallel = nb_rows_total
