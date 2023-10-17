@@ -162,7 +162,6 @@ def _determine_nb_batches(
         )
         logger.debug(f"Nb_parallel reduced to {nb_parallel} to reduce memory usage")
 
-    assert parallelization_config_local.bytes_usable == 500_000_000
     # Having more workers than rows doesn't make sense
     if nb_parallel > nb_rows_total:
         nb_parallel = nb_rows_total
@@ -196,10 +195,9 @@ def _determine_nb_batches(
         if nb_batches > nb_parallel:
             # Round up to the nearest multiple of nb_parallel
             nb_batches = math.ceil(nb_batches / nb_parallel) * nb_parallel
-        else:
+        elif nb_batches < nb_parallel:
             max_parallel_batchsize = int(
-                parallelization_config_local.max_avg_rows_per_batch
-                * nb_batches
+                (parallelization_config_local.max_avg_rows_per_batch * nb_batches)
                 / batch_size
             )
             nb_parallel = min(max_parallel_batchsize, nb_parallel)
