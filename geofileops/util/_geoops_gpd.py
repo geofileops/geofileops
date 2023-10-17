@@ -171,13 +171,13 @@ def _determine_nb_batches(
         nb_batches = math.ceil(nb_rows_total / batchsize)
 
     # Make sure the average batch doesn't contain > max_avg_rows_per_batch
-    res_batchsize = math.ceil(nb_rows_total / nb_batches)
-    if res_batchsize > config_local.max_avg_rows_per_batch:
-        res_batchsize = config_local.max_avg_rows_per_batch
-        nb_batches = math.ceil(nb_rows_total / res_batchsize)
+    batchsize = math.ceil(nb_rows_total / nb_batches)
+    if batchsize > config_local.max_avg_rows_per_batch:
+        batchsize = config_local.max_avg_rows_per_batch
+        nb_batches = math.ceil(nb_rows_total / batchsize)
 
     mem_predicted = (
-        config_local.bytes_basefootprint + res_batchsize * config_local.bytes_per_row
+        config_local.bytes_basefootprint + batchsize * config_local.bytes_per_row
     ) * nb_batches
 
     # Make sure there are enough batches to use as much parallelism as possible
@@ -187,18 +187,19 @@ def _determine_nb_batches(
             nb_batches = math.ceil(nb_batches / nb_parallel) * nb_parallel
         elif nb_batches < nb_parallel:
             max_parallel_batchsize = int(
-                (config_local.max_avg_rows_per_batch * nb_batches) / res_batchsize
+                (config_local.max_avg_rows_per_batch * nb_batches) / batchsize
             )
             nb_parallel = min(max_parallel_batchsize, nb_parallel)
             nb_batches = nb_parallel
 
     # Log result
-    res_batchsize = math.ceil(nb_rows_total / nb_batches)
-    logger.debug(
-        f"nb_batches_recommended: {nb_batches}, rows_per_batch: {res_batchsize}"
-    )
-    logger.debug(f" -> nb_rows_input_layer: {nb_rows_total}")
-    logger.debug(f" -> mem_predicted: {_general_util.formatbytes(mem_predicted)}")
+    if logger.isEnabledFor(logging.DEBUG):
+        batchsize = math.ceil(nb_rows_total / nb_batches)
+        logger.debug(
+            f"nb_batches_recommended: {nb_batches}, rows_per_batch: {batchsize}"
+        )
+        logger.debug(f" -> nb_rows_input_layer: {nb_rows_total}")
+        logger.debug(f" -> mem_predicted: {_general_util.formatbytes(mem_predicted)}")
 
     return (nb_parallel, nb_batches)
 

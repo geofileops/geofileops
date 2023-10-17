@@ -47,7 +47,7 @@ def test_determine_nb_batches(
 
     try:
         # Enable debug logging so debug code is covered
-        logging.basicConfig(level=logging.DEBUG)
+        logging.getLogger().setLevel(logging.DEBUG)
 
         res_nb_parallel, res_nb_batches = _geoops_gpd._determine_nb_batches(
             nb_rows_total=nb_rows_input_layer,
