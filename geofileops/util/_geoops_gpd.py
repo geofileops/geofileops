@@ -158,9 +158,11 @@ def _determine_nb_batches(
     # If batchsize is not specified, determine number of batches based on memory
     # available + nb_parallel
     if batchsize <= 0:
-        # Determine minimum number of batches to avoid getting memory issues.
+        # Determine minimum number of batches to avoid getting memory issues:
+        #   = total memory usage for all rows /
+        #     (free memory - base memory used by all parallel processes)
         nb_batches_min = math.ceil(
-            (nb_rows_total * config_local.bytes_per_row * nb_parallel)
+            (nb_rows_total * config_local.bytes_per_row)
             / (
                 config_local.bytes_usable
                 - config_local.bytes_basefootprint * nb_parallel
