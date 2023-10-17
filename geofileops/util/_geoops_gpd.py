@@ -126,11 +126,9 @@ def _determine_nb_batches(
         parallelization_config_local = copy.deepcopy(parallelization_config)
 
     # If batchsize specified, overrule some default config with it
-    nb_batches = None
     if batchsize > 0:
         parallelization_config_local.min_avg_rows_per_batch = math.ceil(batchsize / 2)
         parallelization_config_local.max_avg_rows_per_batch = batchsize
-        nb_batches = nb_rows_total / batchsize
 
     # If the number of rows is really low, just use one batch
     if nb_parallel < 1 and batchsize < 1:
@@ -168,7 +166,7 @@ def _determine_nb_batches(
 
     # If batchsize is not specified, determine number of batches based on memory
     # available + nb_parallel
-    if batchsize < 1:
+    if batchsize <= 0:
         # Determine minimum number of batches to avoid getting memory issues.
         nb_batches_min = math.ceil(
             (nb_rows_total * parallelization_config_local.bytes_per_row * nb_parallel)
@@ -178,6 +176,8 @@ def _determine_nb_batches(
             )
         )
         nb_batches = max(nb_batches_min, nb_parallel)
+    else:
+        nb_batches = math.ceil(nb_rows_total / batchsize)
 
     # Make sure the average batch doesn't contain > max_avg_rows_per_batch
     batch_size = math.ceil(nb_rows_total / nb_batches)
