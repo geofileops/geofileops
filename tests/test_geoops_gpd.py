@@ -1,3 +1,4 @@
+import logging
 import pytest
 
 from geofileops.util import _geoops_gpd
@@ -44,11 +45,20 @@ def test_determine_nb_batches(
         bytes_usable=bytes_usable, cpu_count=cpu_count
     )
 
-    res_nb_parallel, res_nb_batches = _geoops_gpd._determine_nb_batches(
-        nb_rows_total=nb_rows_input_layer,
-        nb_parallel=nb_parallel,
-        batchsize=batchsize,
-        parallelization_config=config,
-    )
+    try:
+        # Enable debug logging so debug code is covered
+        logging.basicConfig(level=logging.DEBUG)
+
+        res_nb_parallel, res_nb_batches = _geoops_gpd._determine_nb_batches(
+            nb_rows_total=nb_rows_input_layer,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+            parallelization_config=config,
+        )
+    finally:
+        # Remove all handlers associated with the root logger object again.
+        for handler in logging.root.handlers[:]:
+            logging.root.removeHandler(handler)
+
     assert exp_nb_parallel == res_nb_parallel
     assert exp_nb_batches == res_nb_batches
