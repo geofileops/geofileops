@@ -48,16 +48,45 @@ logger = logging.getLogger(__name__)
 
 
 class ParallelizationConfig:
+    """
+    Heuristics for geopandas based geo operations.
+
+    Heuristics meant to be able to optimize the parallelisation parameters for
+    geopandas based geo operation.
+    """
+
     def __init__(
         self,
         bytes_basefootprint: int = 50 * 1024 * 1024,
-        bytes_per_row: int = 500,
+        bytes_per_row: int = 1000,
         min_rows_per_batch: int = 1000,
         max_rows_per_batch: int = 100000,
         bytes_min_per_process: Optional[int] = None,
         bytes_usable: Optional[int] = None,
         cpu_count: int = -1,
     ):
+        """
+        Heuristics for geopandas based geo operations.
+
+        Heuristics meant to be able to optimize the parallelisation parameters for
+        geopandas based geo operation.
+
+        Args:
+            bytes_basefootprint (int, optional): The base memory usage of a geofileops
+                worker process. Defaults to 50 MB.
+            bytes_per_row (int, optional): The number if bytes needed to store/process
+                one row of data. Defaults to 1000.
+            min_rows_per_batch (int, optional): The minimum number of rows to aim for in
+                one batch. Defaults to 1000.
+            max_rows_per_batch (int, optional): The maximum number of rows to aim for in
+                a batch. Defaults to 100000.
+            bytes_min_per_process (Optional[int], optional): The minimum number of bytes
+                needed for a geofileops worker process. Defaults to None.
+            bytes_usable (Optional[int], optional): the memory available for processing.
+                Defaults to None, then the free memory is automatically determined.
+            cpu_count (int, optional): the number of CPU's available. Defaults to -1,
+                then the cpu_count is determined automatically.
+        """
         self.bytes_basefootprint = bytes_basefootprint
         self.bytes_per_row = bytes_per_row
         self.min_rows_per_batch = min_rows_per_batch
