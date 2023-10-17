@@ -67,25 +67,37 @@ class ParallelizationConfig:
         max_avg_rows_per_batch: int = 10000,
         bytes_min_per_process: Optional[int] = None,
         bytes_usable: Optional[int] = None,
+        cpu_count: int = -1,
     ):
         self.bytes_basefootprint = bytes_basefootprint
         self.bytes_per_row = bytes_per_row
         self.min_avg_rows_per_batch = min_avg_rows_per_batch
         self.max_avg_rows_per_batch = max_avg_rows_per_batch
-        self.bytes_min_per_process = bytes_min_per_process
-        if bytes_usable is None:
-            self.bytes_usable = int(psutil.virtual_memory().available * 0.9)
-        else:
-            self.bytes_usable = bytes_usable
 
-    def get_bytes_min_per_process(self):
-        if self.bytes_min_per_process is not None:
-            return self.bytes_min_per_process
+        # Needs some logic to get value if not set explicitly...
+        self._bytes_min_per_process = bytes_min_per_process
+        # If not specified, determine yourself
+        self.bytes_usable = (
+            bytes_usable
+            if bytes_usable is not None
+            else int(psutil.virtual_memory().available * 0.9)
+        )
+        # If not specified, determine yourself
+        self.cpu_count = cpu_count if cpu_count > 0 else multiprocessing.cpu_count()
+
+    @property
+    def bytes_min_per_process(self):
+        if self._bytes_min_per_process is not None:
+            return self._bytes_min_per_process
         else:
             return (
                 self.bytes_basefootprint
                 + self.bytes_per_row * self.min_avg_rows_per_batch
             )
+
+    @bytes_min_per_process.setter
+    def bytes_min_per_process(self, value):
+        self._bytes_min_per_process = value
 
 
 class parallelizationParams(NamedTuple):
@@ -121,29 +133,27 @@ def _determine_nb_batches(
 
     # If config is None, use default config
     if parallelization_config is None:
-        parallelization_config_local = ParallelizationConfig()
+        config_local = ParallelizationConfig()
     else:
-        parallelization_config_local = copy.deepcopy(parallelization_config)
+        config_local = copy.deepcopy(parallelization_config)
 
     # If batchsize specified, overrule some default config with it
     if batchsize > 0:
-        parallelization_config_local.min_avg_rows_per_batch = math.ceil(batchsize / 2)
-        parallelization_config_local.max_avg_rows_per_batch = batchsize
+        config_local.min_avg_rows_per_batch = math.ceil(batchsize / 2)
+        config_local.max_avg_rows_per_batch = batchsize
 
     # If the number of rows is really low, just use one batch
     if nb_parallel < 1 and batchsize < 1:
-        if nb_rows_total < parallelization_config_local.min_avg_rows_per_batch:
+        if nb_rows_total < config_local.min_avg_rows_per_batch:
             return parallelizationParams(1, 1)
-        if nb_rows_total <= parallelization_config_local.max_avg_rows_per_batch:
+        if nb_rows_total <= config_local.max_avg_rows_per_batch:
             return parallelizationParams(1, 1)
 
     if nb_parallel <= 0:
-        nb_parallel = multiprocessing.cpu_count()
+        nb_parallel = config_local.cpu_count
 
     if logger.isEnabledFor(logging.DEBUG):
-        mem_usable = _general_util.formatbytes(
-            parallelization_config_local.bytes_usable
-        )
+        mem_usable = _general_util.formatbytes(config_local.bytes_usable)
         logger.debug(f"memory_usable: {mem_usable}, with:")
         mem_available = _general_util.formatbytes(psutil.virtual_memory().available)
         logger.debug(f"  -> mem.available: {mem_available}")
@@ -151,12 +161,9 @@ def _determine_nb_batches(
         logger.debug(f"  -> swap.free: {swap_free}")
 
     # If not enough memory for the amount of parallellism asked, reduce
-    if (
-        nb_parallel * parallelization_config_local.get_bytes_min_per_process()
-    ) > parallelization_config_local.bytes_usable:
+    if (nb_parallel * config_local.bytes_min_per_process) > config_local.bytes_usable:
         nb_parallel = int(
-            parallelization_config_local.bytes_usable
-            / parallelization_config_local.get_bytes_min_per_process()
+            config_local.bytes_usable / config_local.bytes_min_per_process
         )
         logger.debug(f"Nb_parallel reduced to {nb_parallel} to reduce memory usage")
 
@@ -169,10 +176,10 @@ def _determine_nb_batches(
     if batchsize <= 0:
         # Determine minimum number of batches to avoid getting memory issues.
         nb_batches_min = math.ceil(
-            (nb_rows_total * parallelization_config_local.bytes_per_row * nb_parallel)
+            (nb_rows_total * config_local.bytes_per_row * nb_parallel)
             / (
-                parallelization_config_local.bytes_usable
-                - parallelization_config_local.bytes_basefootprint * nb_parallel
+                config_local.bytes_usable
+                - config_local.bytes_basefootprint * nb_parallel
             )
         )
         nb_batches = max(nb_batches_min, nb_parallel)
@@ -181,13 +188,12 @@ def _determine_nb_batches(
 
     # Make sure the average batch doesn't contain > max_avg_rows_per_batch
     batch_size = math.ceil(nb_rows_total / nb_batches)
-    if batch_size > parallelization_config_local.max_avg_rows_per_batch:
-        batch_size = parallelization_config_local.max_avg_rows_per_batch
+    if batch_size > config_local.max_avg_rows_per_batch:
+        batch_size = config_local.max_avg_rows_per_batch
         nb_batches = math.ceil(nb_rows_total / batch_size)
 
     mem_predicted = (
-        parallelization_config_local.bytes_basefootprint
-        + batch_size * parallelization_config_local.bytes_per_row
+        config_local.bytes_basefootprint + batch_size * config_local.bytes_per_row
     ) * nb_batches
 
     # Make sure there are enough batches to use as much parallelism as possible
@@ -197,8 +203,7 @@ def _determine_nb_batches(
             nb_batches = math.ceil(nb_batches / nb_parallel) * nb_parallel
         elif nb_batches < nb_parallel:
             max_parallel_batchsize = int(
-                (parallelization_config_local.max_avg_rows_per_batch * nb_batches)
-                / batch_size
+                (config_local.max_avg_rows_per_batch * nb_batches) / batch_size
             )
             nb_parallel = min(max_parallel_batchsize, nb_parallel)
             nb_batches = nb_parallel
