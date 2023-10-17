@@ -211,12 +211,14 @@ class ProcessingParams:
     def __init__(
         self,
         nb_rows_to_process: int,
-        nb_parallel: int = -1,
-        batches: Optional[List[str]] = None,
+        nb_parallel: int,
+        batches: List[str],
+        batchsize: int,
     ):
         self.nb_rows_to_process = nb_rows_to_process
         self.nb_parallel = nb_parallel
         self.batches = batches
+        self.batchsize = batchsize
 
     def to_json(self, path: Path):
         prepared = _general_util.prepare_for_serialize(vars(self))
@@ -239,10 +241,6 @@ def _prepare_processing_params(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         parallelization_config=parallelization_config,
-    )
-
-    returnvalue = ProcessingParams(
-        nb_rows_to_process=input_info.featurecount, nb_parallel=nb_parallel
     )
 
     # Prepare batches to process
@@ -317,10 +315,16 @@ def _prepare_processing_params(
                 batches.append(f"{fid_column} >= {batch_info.start_fid} ")
 
     # No use starting more processes than the number of batches...
-    if len(batches) < returnvalue.nb_parallel:
-        returnvalue.nb_parallel = len(batches)
+    if len(batches) < nb_parallel:
+        nb_parallel = len(batches)
 
-    returnvalue.batches = batches
+    returnvalue = ProcessingParams(
+        nb_rows_to_process=input_info.featurecount,
+        nb_parallel=nb_parallel,
+        batches=batches,
+        batchsize=int(input_info.featurecount / len(batches)),
+    )
+
     if tmp_dir is not None:
         returnvalue.to_json(tmp_dir / "processing_params.json")
     return returnvalue
@@ -666,6 +670,10 @@ def _apply_geooperation_to_layer(
         )
         assert processing_params.batches is not None
 
+        logger.info(
+            f"Start {operation_name} ({processing_params.nb_parallel} parallel workers,"
+            f" batchsize: {processing_params.batchsize})"
+        )
         # Processing in threads is 2x faster for small datasets (on Windows)
         calculate_in_threads = (
             True if processing_params.nb_rows_to_process <= 100 else False

@@ -699,6 +699,11 @@ def _single_layer_vector_operation(
             batch_filter="{batch_filter}",
         )
 
+        logger.info(
+            f"Start {operation_name} ({processing_params.nb_parallel} parallel workers,"
+            f" batchsize: {processing_params.batchsize})"
+        )
+
         # Prepare temp output filename
         tmp_output_path = tempdir / output_path.name
 
@@ -2385,7 +2390,8 @@ def _two_layer_vector_operation(
             True if input1_tmp_layerinfo.featurecount <= 100 else False
         )
         logger.info(
-            f"Start {operation_name} ({processing_params.nb_parallel} parallel workers)"
+            f"Start {operation_name} ({processing_params.nb_parallel} parallel workers,"
+            f" batchsize: {processing_params.batchsize})"
         )
         with _processing_util.PooledExecutorFactory(
             threadpool=calculate_in_threads,
@@ -2608,6 +2614,7 @@ class ProcessingParams:
         input2_layer: Optional[str],
         nb_parallel: int,
         batches: dict,
+        batchsize: int,
     ):
         self.input1_path = input1_path
         self.input1_layer = input1_layer
@@ -2615,6 +2622,7 @@ class ProcessingParams:
         self.input2_layer = input2_layer
         self.nb_parallel = nb_parallel
         self.batches = batches
+        self.batchsize = batchsize
 
     def to_json(self, path: Path):
         prepared = _general_util.prepare_for_serialize(vars(self))
@@ -2809,6 +2817,7 @@ def _prepare_processing_params(
         input2_layer=input2_layer,
         nb_parallel=nb_parallel,
         batches=batches,
+        batchsize=int(nb_rows_input_layer / len(batches)),
     )
     returnvalue.to_json(tempdir / "processing_params.json")
     return returnvalue
