@@ -51,17 +51,17 @@ class ParallelizationConfig:
     def __init__(
         self,
         bytes_basefootprint: int = 50 * 1024 * 1024,
-        bytes_per_row: int = 100,
-        min_avg_rows_per_batch: int = 1000,
-        max_avg_rows_per_batch: int = 10000,
+        bytes_per_row: int = 500,
+        min_rows_per_batch: int = 1000,
+        max_rows_per_batch: int = 100000,
         bytes_min_per_process: Optional[int] = None,
         bytes_usable: Optional[int] = None,
         cpu_count: int = -1,
     ):
         self.bytes_basefootprint = bytes_basefootprint
         self.bytes_per_row = bytes_per_row
-        self.min_avg_rows_per_batch = min_avg_rows_per_batch
-        self.max_avg_rows_per_batch = max_avg_rows_per_batch
+        self.min_rows_per_batch = min_rows_per_batch
+        self.max_rows_per_batch = max_rows_per_batch
 
         # Needs some logic to get value if not set explicitly...
         self._bytes_min_per_process = bytes_min_per_process
@@ -80,8 +80,7 @@ class ParallelizationConfig:
             return self._bytes_min_per_process
         else:
             return (
-                self.bytes_basefootprint
-                + self.bytes_per_row * self.min_avg_rows_per_batch
+                self.bytes_basefootprint + self.bytes_per_row * self.min_rows_per_batch
             )
 
     @bytes_min_per_process.setter
@@ -121,16 +120,9 @@ def _determine_nb_batches(
     else:
         config_local = copy.deepcopy(parallelization_config)
 
-    # If batchsize specified, overrule some default config with it
-    if batchsize > 0:
-        config_local.min_avg_rows_per_batch = math.ceil(batchsize / 2)
-        config_local.max_avg_rows_per_batch = batchsize
-
     # If the number of rows is really low, just use one batch
     if nb_parallel < 1 and batchsize < 1:
-        if nb_rows_total < config_local.min_avg_rows_per_batch:
-            return (1, 1)
-        if nb_rows_total <= config_local.max_avg_rows_per_batch:
+        if nb_rows_total <= config_local.min_rows_per_batch:
             return (1, 1)
 
     if nb_parallel <= 0:
@@ -155,48 +147,52 @@ def _determine_nb_batches(
     if nb_parallel > nb_rows_total:
         nb_parallel = nb_rows_total
 
-    # If batchsize is not specified, determine number of batches based on memory
-    # available + nb_parallel
-    if batchsize <= 0:
-        # Determine minimum number of batches to avoid getting memory issues:
-        #   = total memory usage for all rows /
-        #     (free memory - base memory used by all parallel processes)
-        nb_batches_min = math.ceil(
-            (nb_rows_total * config_local.bytes_per_row)
-            / (
-                config_local.bytes_usable
-                - config_local.bytes_basefootprint * nb_parallel
-            )
-        )
-        nb_batches = max(nb_batches_min, nb_parallel)
-    else:
+    # If batchsize is specified, use it to determine number of batches.
+    if batchsize > 0:
         nb_batches = math.ceil(nb_rows_total / batchsize)
 
-    # Make sure the average batch doesn't contain > max_avg_rows_per_batch
-    batchsize = math.ceil(nb_rows_total / nb_batches)
-    if batchsize > config_local.max_avg_rows_per_batch:
-        batchsize = config_local.max_avg_rows_per_batch
-        nb_batches = math.ceil(nb_rows_total / batchsize)
+        # No use to have more workers than number of batches
+        if nb_parallel > nb_batches:
+            nb_parallel = nb_batches
 
-    mem_predicted = (
-        config_local.bytes_basefootprint + batchsize * config_local.bytes_per_row
-    ) * nb_batches
+        return (nb_parallel, nb_batches)
 
-    # Make sure there are enough batches to use as much parallelism as possible
-    if nb_batches > 1:
-        if nb_batches > nb_parallel:
-            # Round up to the nearest multiple of nb_parallel
-            nb_batches = math.ceil(nb_batches / nb_parallel) * nb_parallel
-        elif nb_batches < nb_parallel:
-            max_parallel_batchsize = int(
-                (config_local.max_avg_rows_per_batch * nb_batches) / batchsize
-            )
-            nb_parallel = min(max_parallel_batchsize, nb_parallel)
-            nb_batches = nb_parallel
+    # No batchsize specified, so use heuristics.
+    # Start with 1 batch per worker
+    nb_batches = nb_parallel
+
+    # If the batches < min_rows_per_batch, decrease number batches
+    if nb_rows_total / nb_batches < config_local.min_rows_per_batch:
+        nb_batches = math.ceil(nb_rows_total / config_local.min_rows_per_batch)
+
+    # If the batches > max_rows_per_batch, increase number batches
+    if nb_rows_total / nb_batches > config_local.max_rows_per_batch:
+        nb_batches = math.ceil(nb_rows_total / config_local.max_rows_per_batch)
+        # Round nb_batches up to the nearest multiple of nb_parallel
+        nb_batches = math.ceil(nb_batches / nb_parallel) * nb_parallel
+
+    # Having more workers than batches isn't logical...
+    if nb_parallel > nb_batches:
+        nb_parallel = nb_batches
+
+    # Finally, make sure there are enough batches to avoid memory issues:
+    #   = total memory usage for all rows /
+    #     (free memory - base memory used by all parallel processes)
+    nb_batches_min = math.ceil(
+        (nb_rows_total * config_local.bytes_per_row)
+        / (config_local.bytes_usable - config_local.bytes_basefootprint * nb_parallel)
+    )
+    if nb_batches < nb_batches_min:
+        # Round nb_batches up to the nearest multiple of nb_parallel
+        nb_batches = math.ceil(nb_batches_min / nb_parallel) * nb_parallel
 
     # Log result
     if logger.isEnabledFor(logging.DEBUG):
         batchsize = math.ceil(nb_rows_total / nb_batches)
+        mem_predicted = (
+            config_local.bytes_basefootprint + batchsize * config_local.bytes_per_row
+        ) * nb_batches
+
         logger.debug(
             f"nb_batches_recommended: {nb_batches}, rows_per_batch: {batchsize}"
         )
@@ -664,14 +660,14 @@ def _apply_geooperation_to_layer(
             input_layer=input_layer,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
-            parallelization_config=ParallelizationConfig(max_avg_rows_per_batch=50000),
+            parallelization_config=None,
             tmp_dir=tmp_dir,
         )
         assert processing_params.batches is not None
 
         logger.info(
             f"Start {operation_name} ({processing_params.nb_parallel} parallel workers,"
-            f" batchsize: {processing_params.batchsize})"
+            f" batch size: {processing_params.batchsize})"
         )
         # Processing in threads is 2x faster for small datasets (on Windows)
         calculate_in_threads = (
@@ -1132,16 +1128,20 @@ def dissolve(
 
                 # Calculate the best number of parallel processes and batches for
                 # the available resources for the current pass
-                nb_parallel, nb_batches_recommended = _determine_nb_batches(
+                # Limit the nb of rows per batch, as dissolve slows down with more rows.
+                nb_parallel, nb_batches = _determine_nb_batches(
                     nb_rows_total=nb_rows_total,
                     nb_parallel=nb_parallel,
                     batchsize=batchsize,
+                    parallelization_config=ParallelizationConfig(
+                        max_rows_per_batch=10000
+                    ),
                 )
 
                 # If the ideal number of batches is close to the nb. result tiles asked,
                 # dissolve towards the asked result!
                 # If not, a temporary result is created using smaller tiles
-                if nb_batches_recommended <= len(result_tiles_gdf) * 1.1:
+                if nb_batches <= len(result_tiles_gdf) * 1.1:
                     tiles_gdf = result_tiles_gdf
                     last_pass = True
                     nb_parallel = min(len(result_tiles_gdf), nb_parallel)
@@ -1151,10 +1151,11 @@ def dissolve(
                     nb_squarish_tiles_max = None
                     if prev_nb_batches is not None:
                         nb_squarish_tiles_max = max(prev_nb_batches - 1, 1)
+                        nb_batches = min(nb_batches, nb_squarish_tiles_max)
                     tiles_gdf = gpd.GeoDataFrame(
                         geometry=pygeoops.create_grid2(
                             total_bounds=input_pass_layerinfo.total_bounds,
-                            nb_squarish_tiles=nb_batches_recommended,
+                            nb_squarish_tiles=nb_batches,
                             nb_squarish_tiles_max=nb_squarish_tiles_max,
                         ),
                         crs=input_pass_layerinfo.crs,
@@ -1162,9 +1163,7 @@ def dissolve(
                 else:
                     # If a grid is specified already, add extra columns/rows instead of
                     # creating new one...
-                    tiles_gdf = pygeoops.split_tiles(
-                        result_tiles_gdf, nb_batches_recommended
-                    )
+                    tiles_gdf = pygeoops.split_tiles(result_tiles_gdf, nb_batches)
 
                 # Apply gridsize tolerance on tiles, otherwise the border polygons can't
                 # be unioned properly because gaps appear after rounding coordinates.
@@ -1189,7 +1188,10 @@ def dissolve(
                     output_tmp_onborder_path = output_tmp_path
 
                 # Now go!
-                logger.info(f"Start dissolve pass {pass_id} to {len(tiles_gdf)} tiles")
+                logger.info(
+                    f"Start dissolve pass {pass_id} to {len(tiles_gdf)} tiles "
+                    f"(batch size: {int(nb_rows_total/len(tiles_gdf))})"
+                )
                 _ = _dissolve_polygons_pass(
                     input_path=input_path,
                     output_notonborder_path=output_tmp_path,
@@ -1391,7 +1393,6 @@ def dissolve(
                     # where_post has been applied already so set to None.
                     where_post = None
 
-                logger.info("Postprocess output file")
                 if where_post is None:
                     name = f"output_tmp2_final{output_path.suffix}"
                 else:

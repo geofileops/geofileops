@@ -701,7 +701,7 @@ def _single_layer_vector_operation(
 
         logger.info(
             f"Start {operation_name} ({processing_params.nb_parallel} parallel workers,"
-            f" batchsize: {processing_params.batchsize})"
+            f" batch size: {processing_params.batchsize})"
         )
 
         # Prepare temp output filename
@@ -2391,7 +2391,7 @@ def _two_layer_vector_operation(
         )
         logger.info(
             f"Start {operation_name} ({processing_params.nb_parallel} parallel workers,"
-            f" batchsize: {processing_params.batchsize})"
+            f" batch size: {processing_params.batchsize})"
         )
         with _processing_util.PooledExecutorFactory(
             threadpool=calculate_in_threads,
