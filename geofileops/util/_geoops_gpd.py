@@ -3,6 +3,7 @@ Module containing the implementation of Geofile operations using GeoPandas.
 """
 
 from concurrent import futures
+import copy
 from datetime import datetime
 import enum
 import json
@@ -115,9 +116,10 @@ def _determine_nb_batches(
         return parallelizationParams(1, 1)
 
     # If config is None, use default config
-    parallelization_config_local = parallelization_config
-    if parallelization_config_local is None:
+    if parallelization_config is None:
         parallelization_config_local = ParallelizationConfig()
+    else:
+        parallelization_config_local = copy.deepcopy(parallelization_config)
 
     # If batchsize specified, overrule some default config with it
     nb_batches = None
