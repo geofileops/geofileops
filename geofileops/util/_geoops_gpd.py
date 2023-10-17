@@ -16,18 +16,7 @@ import pickle
 import re
 import shutil
 import time
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Iterable,
-    List,
-    NamedTuple,
-    Optional,
-    Set,
-    Tuple,
-    Union,
-)
+from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Tuple, Union
 import warnings
 
 import cloudpickle
@@ -100,17 +89,12 @@ class ParallelizationConfig:
         self._bytes_min_per_process = value
 
 
-class parallelizationParams(NamedTuple):
-    nb_parallel: int
-    nb_batches_recommended: int
-
-
 def _determine_nb_batches(
     nb_rows_total: int,
     nb_parallel: int = -1,
     batchsize: int = -1,
     parallelization_config: Optional[ParallelizationConfig] = None,
-) -> parallelizationParams:
+) -> Tuple[int, int]:
     """
     Determines recommended parallelization params.
 
@@ -125,11 +109,11 @@ def _determine_nb_batches(
             parameters to use to suggest parallelisation parameters.
 
     Returns:
-        parallelizationParams: The recommended parameters.
+        Tuple[int, int]: Tuple of (nb_parallel, nb_batches)
     """
     # If 0 or 1 rows to process, one batch
     if nb_rows_total <= 1:
-        return parallelizationParams(1, 1)
+        return (1, 1)
 
     # If config is None, use default config
     if parallelization_config is None:
@@ -145,9 +129,9 @@ def _determine_nb_batches(
     # If the number of rows is really low, just use one batch
     if nb_parallel < 1 and batchsize < 1:
         if nb_rows_total < config_local.min_avg_rows_per_batch:
-            return parallelizationParams(1, 1)
+            return (1, 1)
         if nb_rows_total <= config_local.max_avg_rows_per_batch:
-            return parallelizationParams(1, 1)
+            return (1, 1)
 
     if nb_parallel <= 0:
         nb_parallel = config_local.cpu_count
@@ -187,13 +171,13 @@ def _determine_nb_batches(
         nb_batches = math.ceil(nb_rows_total / batchsize)
 
     # Make sure the average batch doesn't contain > max_avg_rows_per_batch
-    batch_size = math.ceil(nb_rows_total / nb_batches)
-    if batch_size > config_local.max_avg_rows_per_batch:
-        batch_size = config_local.max_avg_rows_per_batch
-        nb_batches = math.ceil(nb_rows_total / batch_size)
+    res_batchsize = math.ceil(nb_rows_total / nb_batches)
+    if res_batchsize > config_local.max_avg_rows_per_batch:
+        res_batchsize = config_local.max_avg_rows_per_batch
+        nb_batches = math.ceil(nb_rows_total / res_batchsize)
 
     mem_predicted = (
-        config_local.bytes_basefootprint + batch_size * config_local.bytes_per_row
+        config_local.bytes_basefootprint + res_batchsize * config_local.bytes_per_row
     ) * nb_batches
 
     # Make sure there are enough batches to use as much parallelism as possible
@@ -203,18 +187,20 @@ def _determine_nb_batches(
             nb_batches = math.ceil(nb_batches / nb_parallel) * nb_parallel
         elif nb_batches < nb_parallel:
             max_parallel_batchsize = int(
-                (config_local.max_avg_rows_per_batch * nb_batches) / batch_size
+                (config_local.max_avg_rows_per_batch * nb_batches) / res_batchsize
             )
             nb_parallel = min(max_parallel_batchsize, nb_parallel)
             nb_batches = nb_parallel
 
     # Log result
-    batch_size = math.ceil(nb_rows_total / nb_batches)
-    logger.debug(f"nb_batches_recommended: {nb_batches}, rows_per_batch: {batch_size}")
+    res_batchsize = math.ceil(nb_rows_total / nb_batches)
+    logger.debug(
+        f"nb_batches_recommended: {nb_batches}, rows_per_batch: {res_batchsize}"
+    )
     logger.debug(f" -> nb_rows_input_layer: {nb_rows_total}")
     logger.debug(f" -> mem_predicted: {_general_util.formatbytes(mem_predicted)}")
 
-    return parallelizationParams(nb_parallel, nb_batches)
+    return (nb_parallel, nb_batches)
 
 
 class ProcessingParams:
