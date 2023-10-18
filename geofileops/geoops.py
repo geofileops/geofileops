@@ -102,7 +102,7 @@ def apply(
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
 
     """  # noqa: E501
-    logger.info(f"Start apply on {input_path}")
+    logger.info(f"apply: start on {input_path}")
 
     return _geoops_gpd.apply(
         input_path=Path(input_path),
@@ -290,7 +290,7 @@ def buffer(
         :alt: Buffer with mitre=1.0
     """  # noqa: E501
     logger.info(
-        f"Start buffer on {input_path} "
+        f"buffer: start, on {input_path} "
         f"(distance: {distance}, quadrantsegments: {quadrantsegments})"
     )
 
@@ -374,6 +374,7 @@ def clip_by_geometry(
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
+    logger.info(f"clip_by_geometry: start, on {input_path}")
     return _geoops_ogr.clip_by_geometry(
         input_path=Path(input_path),
         output_path=Path(output_path),
@@ -443,7 +444,7 @@ def convexhull(
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
 
     """  # noqa: E501
-    logger.info(f"Start convexhull on {input_path}")
+    logger.info(f"convexhull: start, on {input_path}")
 
     return _geoops_sql.convexhull(
         input_path=Path(input_path),
@@ -504,7 +505,7 @@ def delete_duplicate_geometries(
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
 
     """  # noqa: E501
-    logger.info(f"Start delete_duplicate_geometries on {input_path}")
+    logger.info(f"delete_duplicate_geometries: start, on {input_path}")
 
     return _geoops_sql.delete_duplicate_geometries(
         input_path=Path(input_path),
@@ -692,7 +693,7 @@ def dissolve(
             # If an empty list of geometry columns is passed, convert it to None
             groupby_columns = None
 
-    logger.info(f"Start dissolve on {input_path} to {output_path}")
+    logger.info(f"dissolve: start, on {input_path} to {output_path}")
     return _geoops_gpd.dissolve(
         input_path=Path(input_path),
         output_path=Path(output_path),
@@ -744,6 +745,7 @@ def export_by_bounds(
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
+    logger.info(f"export_by_bounds: start, on {input_path}")
     return _geoops_ogr.export_by_bounds(
         input_path=Path(input_path),
         output_path=Path(output_path),
@@ -818,7 +820,7 @@ def isvalid(
         )
 
     # Go!
-    logger.info(f"Start isvalid on {input_path}")
+    logger.info(f"isvalid: start, on {input_path}")
     return _geoops_sql.isvalid(
         input_path=Path(input_path),
         output_path=output_path,
@@ -904,7 +906,7 @@ def makevalid(
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
 
     """  # noqa: E501
-    logger.info(f"Start makevalid on {input_path}")
+    logger.info(f"makevalid: start, on {input_path}")
 
     if gridsize is None:
         gridsize = 0.0
@@ -983,7 +985,7 @@ def warp(
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
-    logger.info(f"Start warp on {input_path}")
+    logger.info(f"warp: start, on {input_path}")
     _geoops_ogr.warp(
         input_path=Path(input_path),
         output_path=Path(output_path),
@@ -1121,7 +1123,7 @@ def select(
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
 
     """  # noqa: E501
-    logger.info(f"Start select on {input_path}")
+    logger.info(f"select: start, on {input_path}")
 
     # Convert force_output_geometrytype to GeometryType (if necessary)
     if force_output_geometrytype is not None:
@@ -1216,7 +1218,7 @@ def simplify(
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
 
     """  # noqa: E501
-    logger.info(f"Start simplify on {input_path} with tolerance {tolerance}")
+    logger.info(f"simplify: start, on {input_path} with tolerance {tolerance}")
     if isinstance(algorithm, str):
         algorithm = SimplifyAlgorithm(algorithm)
 
@@ -1338,7 +1340,7 @@ def clip(
     .. |clip_result| image:: ../_static/images/clip_result.png
         :alt: Clip result
     """  # noqa: E501
-    logger.info(f"Start clip on {input_path} with {clip_path} to {output_path}")
+    logger.info(f"clip: start on {input_path} with {clip_path} to {output_path}")
     return _geoops_sql.clip(
         input_path=Path(input_path),
         clip_path=Path(clip_path),
@@ -1424,7 +1426,7 @@ def erase(
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
 
     """  # noqa: E501
-    logger.info(f"Start erase on {input_path} with {erase_path} to {output_path}")
+    logger.info(f"erase: start, on {input_path} with {erase_path} to {output_path}")
     return _geoops_sql.erase(
         input_path=Path(input_path),
         erase_path=Path(erase_path),
@@ -1508,7 +1510,7 @@ def export_by_location(
 
     """  # noqa: E501
     logger.info(
-        f"Start export_by_location: select from {input_to_select_from_path} "
+        f"export_by_location: select from {input_to_select_from_path} "
         f"interacting with {input_to_compare_with_path} to {output_path}"
     )
     return _geoops_sql.export_by_location(
@@ -1586,7 +1588,7 @@ def export_by_distance(
 
     """  # noqa: E501
     logger.info(
-        f"Start export_by_distance: select from {input_to_select_from_path} within "
+        f"export_by_distance: select from {input_to_select_from_path} within "
         f"max_distance of {max_distance} from {input_to_compare_with_path} "
         f"to {output_path}"
     )
@@ -1682,7 +1684,7 @@ def identity(
 
     """  # noqa: E501
     logger.info(
-        f"Start identity between {input1_path} and {input2_path} to {output_path}"
+        f"identity: start, between {input1_path} and {input2_path} to {output_path}"
     )
     return _geoops_sql.identity(
         input1_path=Path(input1_path),
@@ -1734,7 +1736,7 @@ def split(
         stacklevel=2,
     )
     logger.info(
-        f"Start identity between {input1_path} and {input2_path} to {output_path}"
+        f"identity: start,  between {input1_path} and {input2_path} to {output_path}"
     )
     return _geoops_sql.identity(
         input1_path=Path(input1_path),
@@ -1871,7 +1873,7 @@ def intersection(
 
     """  # noqa: E501
     logger.info(
-        f"Start intersection between {input1_path} and {input2_path} to {output_path}"
+        f"intersection: start, between {input1_path} and {input2_path} to {output_path}"
     )
     return _geoops_sql.intersection(
         input1_path=Path(input1_path),
@@ -1992,7 +1994,7 @@ def join_by_location(
 
     """  # noqa: E501
     logger.info(
-        f"Start join_by_location: select from {input1_path} joined with "
+        f"join_by_location: select from {input1_path} joined with "
         f"{input2_path} to {output_path}"
     )
     return _geoops_sql.join_by_location(
@@ -2072,7 +2074,7 @@ def join_nearest(
             Defaults to False.
     """
     logger.info(
-        f"Start join_nearest: select from {input1_path} joined with "
+        f"join_nearest: select from {input1_path} joined with "
         f"{input2_path} to {output_path}"
     )
     return _geoops_sql.join_nearest(
@@ -2281,7 +2283,7 @@ def select_two_layers(
 
     """  # noqa: E501
     logger.info(
-        f"Start select_two_layers: select from {input1_path} and {input2_path} "
+        f"select_two_layers: select from {input1_path} and {input2_path} "
         f"to {output_path}"
     )
     return _geoops_sql.select_two_layers(

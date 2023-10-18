@@ -31,16 +31,11 @@ from geofileops.helpers import _parameter_helper
 from geofileops.util import _processing_util
 from geofileops.util import _sqlite_util
 
-
-################################################################################
-# Some init
-################################################################################
-
 logger = logging.getLogger(__name__)
 
-################################################################################
+# -----------------------
 # Operations on one layer
-################################################################################
+# -----------------------
 
 
 def buffer(
@@ -264,8 +259,8 @@ def isvalid(
                 logger.debug("isvalid: test_data_integrity was succesfull")
         except Exception:
             logger.exception(
-                f"nb_invalid_geoms: {nb_invalid_geoms} + some attributes could not be "
-                "read!"
+                f"isvalid: nb_invalid_geoms: {nb_invalid_geoms} + some attributes "
+                "could not be read!"
             )
             return False
 
@@ -512,6 +507,7 @@ def _single_layer_vector_operation(
     """
     # Init
     start_time = datetime.now()
+    log_prefix = f"{operation_name}: "
 
     # Check/clean input parameters...
     if not input_path.exists():
@@ -530,7 +526,7 @@ def _single_layer_vector_operation(
     # If output file exists already, either clean up or return...
     if output_path.exists():
         if force is False:
-            logger.info(f"{operation_name}: stop, output exists already {output_path}")
+            logger.info(f"{log_prefix}stop, output exists already {output_path}")
             return
         else:
             gfo.remove(output_path)
@@ -700,7 +696,7 @@ def _single_layer_vector_operation(
         )
 
         logger.info(
-            f"{operation_name}: start processing ({processing_params.nb_parallel} "
+            f"{log_prefix}start processing ({processing_params.nb_parallel} "
             f"parallel workers, batch size: {processing_params.batchsize})"
         )
 
@@ -779,7 +775,9 @@ def _single_layer_vector_operation(
 
                 # Normally all partial files should exist, but to be sure.
                 if not tmp_partial_output_path.exists():
-                    logger.warning(f"Result file {tmp_partial_output_path} not found")
+                    logger.warning(
+                        f"{log_prefix}Result file {tmp_partial_output_path} not found"
+                    )
                     continue
 
                 if (
@@ -844,18 +842,18 @@ def _single_layer_vector_operation(
                 tmp_output_path.with_suffix(".dbf"), output_path.with_suffix(".dbf")
             )
         else:
-            logger.debug(f"{operation_name}: result was empty!")
+            logger.debug(f"{log_prefix}result was empty!")
 
     finally:
         # Clean tmp dir
         shutil.rmtree(tempdir, ignore_errors=True)
 
-    logger.info(f"{operation_name}: ready, took {datetime.now()-start_time}!")
+    logger.info(f"{log_prefix}ready, took {datetime.now()-start_time}!")
 
 
-################################################################################
+# ------------------------
 # Operations on two layers
-################################################################################
+# ------------------------
 
 
 def clip(
@@ -979,6 +977,7 @@ def erase(
     force: bool = False,
     input_columns_prefix: str = "",
     output_with_spatial_index: bool = True,
+    log_prefix: str = "",
 ):
     # Init
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
@@ -1084,6 +1083,7 @@ def erase(
         batchsize=batchsize,
         force=force,
         output_with_spatial_index=output_with_spatial_index,
+        log_prefix=log_prefix,
     )
 
 
@@ -1748,6 +1748,7 @@ def identity(
     subdivide_coords: int = 1000,
     force: bool = False,
     output_with_spatial_index: bool = True,
+    log_prefix: str = "",
 ):
     # In the query, important to only extract the geometry types that are
     # expected, so the primitive type of input1_layer
@@ -1877,6 +1878,7 @@ def identity(
         batchsize=batchsize,
         force=force,
         output_with_spatial_index=output_with_spatial_index,
+        log_prefix=log_prefix,
     )
 
 
@@ -1910,9 +1912,14 @@ def symmetric_difference(
     if output_layer is None:
         output_layer = gfo.get_default_layer(output_path)
 
+    logger.info(
+        f"symmetric_difference: start, with input1: {input1_path}, "
+        f"input2: {input2_path}, output: {output_path}"
+    )
     tempdir = _io_util.create_tempdir("geofileops/symmdiff")
     try:
         # First erase input2 from input1 to a temporary output file
+        logger.info("symmetric_difference: step 1 of 3: erase 1")
         erase1_output_path = tempdir / "layer1_erase_layer2_output.gpkg"
         erase(
             input_path=input1_path,
@@ -1931,6 +1938,7 @@ def symmetric_difference(
             subdivide_coords=subdivide_coords,
             force=force,
             output_with_spatial_index=False,
+            log_prefix="symmetric_difference",
         )
 
         if input2_columns is None or len(input2_columns) > 0:
@@ -1946,6 +1954,7 @@ def symmetric_difference(
                 )
 
         # Now erase input1 from input2 to another temporary output file
+        logger.info("symmetric_difference: step 2 of 3: erase 2")
         erase2_output_path = tempdir / "layer2_erase_layer1_output.gpkg"
         erase(
             input_path=input2_path,
@@ -1964,9 +1973,11 @@ def symmetric_difference(
             subdivide_coords=subdivide_coords,
             force=force,
             output_with_spatial_index=False,
+            log_prefix="symmetric_difference",
         )
 
         # Now append
+        logger.info("symmetric_difference: step 2 of 3: finalize")
         _append_to_nolock(
             src=erase2_output_path,
             dst=erase1_output_path,
@@ -2026,6 +2037,7 @@ def union(
     tempdir = _io_util.create_tempdir("geofileops/union")
     try:
         # First apply identity of input1 with input2 to a temporary output file...
+        logger.info("union: step 1 of 3: identity")
         identity_output_path = tempdir / "identity_output.gpkg"
         identity(
             input1_path=input1_path,
@@ -2046,9 +2058,11 @@ def union(
             subdivide_coords=subdivide_coords,
             force=force,
             output_with_spatial_index=False,
+            log_prefix="union",
         )
 
         # Now erase input1 from input2 to another temporary output gfo...
+        logger.info("union: step 2 of 3: erase")
         erase_output_path = tempdir / "erase_output.gpkg"
         erase(
             input_path=input2_path,
@@ -2067,9 +2081,11 @@ def union(
             subdivide_coords=subdivide_coords,
             force=force,
             output_with_spatial_index=False,
+            log_prefix="union",
         )
 
         # Now append
+        logger.info("union: step 3 of 3: finalize")
         _append_to_nolock(
             src=erase_output_path,
             dst=identity_output_path,
@@ -2120,6 +2136,7 @@ def _two_layer_vector_operation(
     force: bool,
     use_ogr: bool = False,
     output_with_spatial_index: bool = True,
+    log_prefix: str = "",
 ):
     """
     Executes an operation that needs 2 input files.
@@ -2166,6 +2183,8 @@ def _two_layer_vector_operation(
             Defaults to False.
         output_with_spatial_index (bool, optional): True to create output file with
             spatial index. Defaults to True.
+        log_prefix (str, optional): text to prefix log messages written with.
+            Defaults to "".
 
     Raises:
         ValueError: [description]
@@ -2176,6 +2195,11 @@ def _two_layer_vector_operation(
 
     """  # noqa: E501
     # Init
+    if log_prefix != "":
+        log_prefix = f"{log_prefix}/{operation_name}: "
+    else:
+        log_prefix = f"{operation_name}: "
+
     if not input1_path.exists():
         raise ValueError(f"{operation_name}: input1_path doesn't exist: {input1_path}")
     if not input2_path.exists():
@@ -2190,7 +2214,7 @@ def _two_layer_vector_operation(
         )
     if output_path.exists():
         if force is False:
-            logger.info(f"{operation_name}: stop, output exists already {output_path}")
+            logger.info(f"{log_prefix}stop, output exists already {output_path}")
             return
         else:
             gfo.remove(output_path)
@@ -2216,7 +2240,7 @@ def _two_layer_vector_operation(
     try:
         # Prepare tmp files/batches
         # -------------------------
-        logger.debug(f"{operation_name}: Prepare input (params), tempdir: {tempdir}")
+        logger.debug(f"{log_prefix}Prepare input (params), tempdir: {tempdir}")
         processing_params = _prepare_processing_params(
             input1_path=input1_path,
             input1_layer=input1_layer,
@@ -2239,13 +2263,13 @@ def _two_layer_vector_operation(
         # Warn no if "{input*_databasename}". placeholders present
         if "input1_databasename" not in sql_template_placeholders:
             logger.warning(
-                'A placeholder "{input1_databasename}". is recommended as prefix for '
-                "the input1 layer/rtree/tables used in sql_stmt."
+                f'{log_prefix}A placeholder "{{input1_databasename}}". is recommended '
+                "as prefix for the input1 layer/rtree/tables used in sql_stmt."
             )
         if "input2_databasename" not in sql_template_placeholders:
             logger.warning(
-                'A placeholder "{input2_databasename}". is recommended as prefix for '
-                "the input2 layer/rtree/tables used in sql_stmt."
+                f'{log_prefix}A placeholder "{{input2_databasename}}". is recommended '
+                "as prefix for the input2 layer/rtree/tables used in sql_stmt."
             )
 
         # If multiple batches, mandatory "batch_filter" placeholder in sql_template
@@ -2290,7 +2314,7 @@ def _two_layer_vector_operation(
         # Check input crs'es
         if input1_tmp_layerinfo.crs != input2_tmp_layerinfo.crs:
             logger.warning(
-                "input1 has a different crs than input2: \n\tinput1: "
+                f"{log_prefix}input1 has a different crs than input2: \n\tinput1: "
                 f"{input1_tmp_layerinfo.crs} \n\tinput2: {input2_tmp_layerinfo.crs}"
             )
 
@@ -2388,7 +2412,7 @@ def _two_layer_vector_operation(
             True if input1_tmp_layerinfo.featurecount <= 100 else False
         )
         logger.info(
-            f"{operation_name}: start processing ({processing_params.nb_parallel} "
+            f"{log_prefix}start processing ({processing_params.nb_parallel} "
             f"parallel workers, batch size: {processing_params.batchsize})"
         )
         with _processing_util.PooledExecutorFactory(
@@ -2456,7 +2480,7 @@ def _two_layer_vector_operation(
                     # Get the result
                     result = future.result()
                     if result is not None:
-                        logger.debug(result)
+                        logger.debug(f"{log_prefix}{result}")
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
                     error = str(ex).partition("\n")[0]
@@ -2471,7 +2495,9 @@ def _two_layer_vector_operation(
 
                 # Normally all partial files should exist, but to be sure...
                 if not tmp_partial_output_path.exists():
-                    logger.warning(f"Result file {tmp_partial_output_path} not found")
+                    logger.warning(
+                        f"{log_prefix}Result file {tmp_partial_output_path} not found"
+                    )
                     continue
 
                 # If there is only one tmp_partial file and it is already ok as
@@ -2526,9 +2552,9 @@ def _two_layer_vector_operation(
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 gfo.move(tmp_output_path, output_path)
         else:
-            logger.debug(f"{operation_name}: result was empty!")
+            logger.debug(f"{log_prefix}result was empty!")
 
-        logger.info(f"{operation_name}: ready, took {datetime.now()-start_time}!")
+        logger.info(f"{log_prefix}ready, took {datetime.now()-start_time}!")
     except Exception:
         gfo.remove(output_path, missing_ok=True)
         gfo.remove(tmp_output_path, missing_ok=True)
@@ -2927,6 +2953,7 @@ def dissolve_singlethread(
     """
     # Init
     start_time = datetime.now()
+    log_prefix = "dissolve: "
 
     # Check input params
     if not input_path.exists():
@@ -3059,7 +3086,7 @@ def dissolve_singlethread(
     # Check output path
     if output_path.exists():
         if force is False:
-            logger.info(f"dissolve: stop, output exists already {output_path}")
+            logger.info(f"{log_prefix}stop, output exists already {output_path}")
             return
         else:
             gfo.remove(output_path)
@@ -3187,4 +3214,4 @@ def dissolve_singlethread(
     finally:
         shutil.rmtree(tempdir, ignore_errors=True)
 
-    logger.info(f"dissolve: ready, took {datetime.now()-start_time}!")
+    logger.info(f"{log_prefix}ready, took {datetime.now()-start_time}!")

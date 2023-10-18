@@ -9,15 +9,7 @@ from shapely import wkt
 import geofileops as gfo
 from geofileops.util import _ogr_util
 
-################################################################################
-# Some init
-################################################################################
-
 logger = logging.getLogger(__name__)
-
-################################################################################
-# Functions
-################################################################################
 
 
 def clip_by_geometry(
@@ -138,7 +130,7 @@ def _run_ogr(
         if force:
             gfo.remove(output_path)
         else:
-            logger.info(f"Stop {operation}: output exists already {output_path}")
+            logger.info(f"{operation}: stop, output exists already {output_path}")
             return True
 
     if input_layer is None:
@@ -170,5 +162,5 @@ def _run_ogr(
 
     # Run + return result
     result = _ogr_util.vector_translate_by_info(info)
-    logger.info(f"{operation} ready, took {datetime.now()-start_time}!")
+    logger.info(f"{operation}: ready, took {datetime.now()-start_time}!")
     return result
