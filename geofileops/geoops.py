@@ -13,6 +13,7 @@ import warnings
 from pygeoops import GeometryType
 import shapely
 
+from geofileops import fileops
 from geofileops.util import _geoops_gpd
 from geofileops.util import _geoops_sql
 from geofileops.util import _geoops_ogr
@@ -57,6 +58,10 @@ def dissolve_within_distance(
         (E.g. 0.000001) should be specified, otherwise some input boundary gaps could
         still be closed due to rounding side effects.
 
+    Alternative names:
+      - ArcMap: aggregate_polygons (similar functionality)
+      - Keywords: merge, dissolve, aggregate, snap, close gaps, union
+
     Args:
         input_path (PathLike): the input file.
         output_path (PathLike): the file to write the result to.
@@ -85,10 +90,19 @@ def dissolve_within_distance(
     """
     start_time = datetime.now()
     operation_name = "dissolve_within_distance"
+    logger = logging.getLogger(f"geofileops.{operation_name}")
     nb_steps = 4
     if not close_input_boundary_gaps:
         # 3 extra steps if boundary gaps not to be closed.
         nb_steps += 3
+
+    # Already check here if it is useful to continue
+    if output_path.exists():
+        if force is False:
+            logger.info(f"Stop, output exists already {output_path}")
+            return
+        else:
+            fileops.remove(output_path)
 
     tempdir = _io_util.create_tempdir(f"geofileops/{operation_name}")
     try:
@@ -97,9 +111,9 @@ def dissolve_within_distance(
         # Note: this reduces the complexity of operations to be executed later on.
         # Note2: this already applies the gridsize, which needs to be applied anyway to
         # avoid issues when determining the addedpieces_1neighbour later on.
-        logger.info(f"{operation_name}: start, with input file {input_path}")
+        logger.info(f"Start, with input file {input_path}")
         step = 1
-        logger.info(f"{operation_name}: STEP {step} OF {nb_steps}")
+        logger.info(f"Step {step} of {nb_steps}")
         diss_path = tempdir / "100_diss.gpkg"
         _geoops_gpd.dissolve(
             input_path=input_path,
@@ -109,6 +123,7 @@ def dissolve_within_distance(
             gridsize=gridsize,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
+            operation_prefix=f"{operation_name}-",
         )
 
         # Positive buffer of distance / 2 to close all gaps.
@@ -118,7 +133,7 @@ def dissolve_within_distance(
         # which isn't wanted + creates issues when determining the
         # addedpieces_1neighbour later on.
         step += 1
-        logger.info(f"{operation_name}: STEP {step} OF {nb_steps}")
+        logger.info(f"Step {step} of {nb_steps}")
         buff_path = tempdir / "110_diss_bufp.gpkg"
         _geoops_gpd.buffer(
             input_path=diss_path,
@@ -130,6 +145,7 @@ def dissolve_within_distance(
             # gridsize=gridsize,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
+            operation_prefix=f"{operation_name}-",
         )
 
         # Dissolve the buffered input
@@ -139,7 +155,7 @@ def dissolve_within_distance(
         # which isn't wanted + creates issues when determining the
         # addedpieces_1neighbour later on.
         step += 1
-        logger.info(f"{operation_name}: STEP {step} OF {nb_steps}")
+        logger.info(f"Step {step} of {nb_steps}")
         buff_diss_path = tempdir / "120_diss_bufp_diss.gpkg"
         _geoops_gpd.dissolve(
             input_path=buff_path,
@@ -148,11 +164,12 @@ def dissolve_within_distance(
             # gridsize=gridsize,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
+            operation_prefix=f"{operation_name}-",
         )
 
         # Negative buffer to get back to the borders of the input geometries
         step += 1
-        logger.info(f"{operation_name}: STEP {step} OF {nb_steps}")
+        logger.info(f"Step {step} of {nb_steps}")
         if close_input_boundary_gaps:
             buff_diss_bufm_path = output_path
             local_output_layer = output_layer
@@ -170,6 +187,7 @@ def dissolve_within_distance(
             gridsize=gridsize,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
+            operation_prefix=f"{operation_name}-",
         )
 
         # If gaps within 'distance' between/in boundaries in the input geometries should
@@ -182,7 +200,7 @@ def dissolve_within_distance(
 
         # Determine the pieces added while closing all gaps compared to the input.
         step += 1
-        logger.info(f"--- {operation_name}: STEP {step} OF {nb_steps} ---")
+        logger.info(f"Step {step} of {nb_steps}")
         added_pieces_path = tempdir / "200_addedpieces.gpkg"
         _geoops_sql.erase(
             input_path=buff_diss_bufm_path,
@@ -192,6 +210,7 @@ def dissolve_within_distance(
             gridsize=gridsize,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
+            operation_prefix=f"{operation_name}-",
         )
 
         # Only retain the added pieces that intersect with only 1 neighbour in the
@@ -243,7 +262,7 @@ def dissolve_within_distance(
         """  # noqa: E501
 
         step += 1
-        logger.info(f"{operation_name}: STEP {step} OF {nb_steps}")
+        logger.info(f"Step {step} of {nb_steps}")
         added_pieces_inters_input = tempdir / "210_addedpieces_1neighbour.gpkg"
         _geoops_sql.select_two_layers(
             input1_path=added_pieces_path,
@@ -254,10 +273,11 @@ def dissolve_within_distance(
             # gridsize=gridsize,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
+            operation_prefix=f"{operation_name}-",
         )
 
         step += 1
-        logger.info(f"{operation_name}: STEP {step} OF {nb_steps}")
+        logger.info(f"Step {step} of {nb_steps}")
         _geoops_sql.erase(
             input_path=buff_diss_bufm_path,
             erase_path=added_pieces_inters_input,
@@ -268,12 +288,13 @@ def dissolve_within_distance(
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
+            operation_prefix=f"{operation_name}-",
         )
 
     finally:
         shutil.rmtree(tempdir, ignore_errors=True)
 
-    logger.info(f"{operation_name} ready, took {datetime.now()-start_time}!")
+    logger.info(f"Ready, took {datetime.now()-start_time}")
 
 
 def apply(

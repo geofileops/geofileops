@@ -1705,6 +1705,7 @@ def select_two_layers(
     nb_parallel: int = 1,
     batchsize: int = -1,
     force: bool = False,
+    operation_prefix: str = "",
 ):
     # Go!
     return _two_layer_vector_operation(
@@ -1712,7 +1713,7 @@ def select_two_layers(
         input2_path=input2_path,
         output_path=output_path,
         sql_template=sql_stmt,
-        operation_name="select_two_layers",
+        operation_name=f"{operation_prefix}select_two_layers",
         input1_layer=input1_layer,
         input1_columns=input1_columns,
         input1_columns_prefix=input1_columns_prefix,
@@ -2029,13 +2030,17 @@ def union(
 
     # Because the calculations in identity and erase will be towards temp files,
     # we need to do some additional init + checks here...
-    if force is False and output_path.exists():
-        return
+    logger = logging.getLogger("geofileops.union")
+    if output_path.exists():
+        if force is False:
+            logger.info(f"Stop, output exists already {output_path}")
+            return
+        else:
+            gfo.remove(output_path)
     if output_layer is None:
         output_layer = gfo.get_default_layer(output_path)
 
     start_time = datetime.now()
-    logger = logging.getLogger("geofileops.union")
     tempdir = _io_util.create_tempdir("geofileops/union")
     try:
         # First apply identity of input1 with input2 to a temporary output file...
