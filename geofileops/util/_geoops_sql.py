@@ -31,16 +31,11 @@ from geofileops.helpers import _parameter_helper
 from geofileops.util import _processing_util
 from geofileops.util import _sqlite_util
 
-
-################################################################################
-# Some init
-################################################################################
-
 logger = logging.getLogger(__name__)
 
-################################################################################
+# -----------------------
 # Operations on one layer
-################################################################################
+# -----------------------
 
 
 def buffer(
@@ -256,6 +251,7 @@ def isvalid(
             gfo.remove(output_path)
 
     # If output is sqlite based, check if all data can be read
+    logger = logging.getLogger("geofileops.isvalid")
     if validate_attribute_data:
         try:
             input_info = _geofileinfo.get_geofileinfo(input_path)
@@ -264,8 +260,8 @@ def isvalid(
                 logger.debug("test_data_integrity was succesfull")
         except Exception:
             logger.exception(
-                f"nb_invalid_geoms: {nb_invalid_geoms} + some attributes could not be "
-                "read!"
+                f"nb_invalid_geoms: {nb_invalid_geoms} + some attributes "
+                "could not be read!"
             )
             return False
 
@@ -295,8 +291,9 @@ def makevalid(
 ):
     # If output file exists already, either clean up or return...
     operation_name = "makevalid"
+    logger = logging.getLogger(f"geofileops.{operation_name}")
     if not force and output_path.exists():
-        logger.info(f"Stop {operation_name}: output exists already {output_path}")
+        logger.info(f"Stop, output exists already {output_path}")
         return
 
     # Init + prepare sql template for this operation
@@ -374,9 +371,10 @@ def select(
     force: bool = False,
 ):
     # Check if output exists already here, to avoid to much logging to be written
+    logger = logging.getLogger("geofileops.select")
     if output_path.exists():
         if force is False:
-            logger.info(f"Stop select: output exists already {output_path}")
+            logger.info(f"Stop, output exists already {output_path}")
             return
     logger.debug(f"  -> select to execute:\n{sql_stmt}")
 
@@ -386,8 +384,8 @@ def select(
             input_path, input_layer, raise_on_nogeom=False
         ).geometrytype
         logger.info(
-            "No force_output_geometrytype specified, so defaults to input layer "
-            f"geometrytype: {force_output_geometrytype}"
+            "No force_output_geometrytype specified, so defaults to input "
+            f"layer geometrytype: {force_output_geometrytype}"
         )
 
     # Go!
@@ -512,6 +510,7 @@ def _single_layer_vector_operation(
     """
     # Init
     start_time = datetime.now()
+    logger = logging.getLogger(f"geofileops.{operation_name}")
 
     # Check/clean input parameters...
     if not input_path.exists():
@@ -530,7 +529,7 @@ def _single_layer_vector_operation(
     # If output file exists already, either clean up or return...
     if output_path.exists():
         if force is False:
-            logger.info(f"Stop {operation_name}: output exists already {output_path}")
+            logger.info(f"Stop, output exists already {output_path}")
             return
         else:
             gfo.remove(output_path)
@@ -700,8 +699,8 @@ def _single_layer_vector_operation(
         )
 
         logger.info(
-            f"Start {operation_name} ({processing_params.nb_parallel} parallel workers,"
-            f" batch size: {processing_params.batchsize})"
+            f"Start processing ({processing_params.nb_parallel} "
+            f"parallel workers, batch size: {processing_params.batchsize})"
         )
 
         # Prepare temp output filename
@@ -844,18 +843,18 @@ def _single_layer_vector_operation(
                 tmp_output_path.with_suffix(".dbf"), output_path.with_suffix(".dbf")
             )
         else:
-            logger.debug(f"Result of {operation_name} was empty!")
+            logger.debug("Result was empty!")
 
     finally:
         # Clean tmp dir
         shutil.rmtree(tempdir, ignore_errors=True)
 
-    logger.info(f"Processing ready, took {datetime.now()-start_time}!")
+    logger.info(f"Ready, took {datetime.now()-start_time}")
 
 
-################################################################################
+# ------------------------
 # Operations on two layers
-################################################################################
+# ------------------------
 
 
 def clip(
@@ -979,6 +978,7 @@ def erase(
     force: bool = False,
     input_columns_prefix: str = "",
     output_with_spatial_index: bool = True,
+    operation_prefix: str = "",
 ):
     # Init
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
@@ -1068,7 +1068,7 @@ def erase(
         input2_path=erase_path,
         output_path=output_path,
         sql_template=sql_template,
-        operation_name="erase",
+        operation_name=f"{operation_prefix}erase",
         input1_layer=input_layer,
         input1_columns=input_columns,
         input1_columns_prefix=input_columns_prefix,
@@ -1600,8 +1600,9 @@ def join_nearest(
     # Init some things...
     # Because there is preprocessing done in this function, check output path
     # here already
+    logger = logging.getLogger("geofileops.join_nearest")
     if output_path.exists() and force is False:
-        logger.info(f"Stop join_nearest: output exists already {output_path}")
+        logger.info(f"Stop, output exists already {output_path}")
         return
     if input1_layer is None:
         input1_layer = gfo.get_only_layer(input1_path)
@@ -1748,6 +1749,7 @@ def identity(
     subdivide_coords: int = 1000,
     force: bool = False,
     output_with_spatial_index: bool = True,
+    operation_prefix: str = "",
 ):
     # In the query, important to only extract the geometry types that are
     # expected, so the primitive type of input1_layer
@@ -1861,7 +1863,7 @@ def identity(
         input2_path=input2_path,
         output_path=output_path,
         sql_template=sql_template,
-        operation_name="identity",
+        operation_name=f"{operation_prefix}identity",
         input1_layer=input1_layer,
         input1_columns=input1_columns,
         input1_columns_prefix=input1_columns_prefix,
@@ -1910,9 +1912,15 @@ def symmetric_difference(
     if output_layer is None:
         output_layer = gfo.get_default_layer(output_path)
 
+    logger = logging.getLogger("geofileops.symmetric_difference")
+    logger.info(
+        f"Start, with input1: {input1_path}, "
+        f"input2: {input2_path}, output: {output_path}"
+    )
     tempdir = _io_util.create_tempdir("geofileops/symmdiff")
     try:
         # First erase input2 from input1 to a temporary output file
+        logger.info("Step 1 of 3: erase 1")
         erase1_output_path = tempdir / "layer1_erase_layer2_output.gpkg"
         erase(
             input_path=input1_path,
@@ -1931,6 +1939,7 @@ def symmetric_difference(
             subdivide_coords=subdivide_coords,
             force=force,
             output_with_spatial_index=False,
+            operation_prefix="symmetric_difference/",
         )
 
         if input2_columns is None or len(input2_columns) > 0:
@@ -1946,6 +1955,7 @@ def symmetric_difference(
                 )
 
         # Now erase input1 from input2 to another temporary output file
+        logger.info("Step 2 of 3: erase 2")
         erase2_output_path = tempdir / "layer2_erase_layer1_output.gpkg"
         erase(
             input_path=input2_path,
@@ -1964,9 +1974,11 @@ def symmetric_difference(
             subdivide_coords=subdivide_coords,
             force=force,
             output_with_spatial_index=False,
+            operation_prefix="symmetric_difference/",
         )
 
         # Now append
+        logger.info("Step 3 of 3: finalize")
         _append_to_nolock(
             src=erase2_output_path,
             dst=erase1_output_path,
@@ -2023,9 +2035,11 @@ def union(
         output_layer = gfo.get_default_layer(output_path)
 
     start_time = datetime.now()
+    logger = logging.getLogger("geofileops.union")
     tempdir = _io_util.create_tempdir("geofileops/union")
     try:
         # First apply identity of input1 with input2 to a temporary output file...
+        logger.info("Step 1 of 3: identity")
         identity_output_path = tempdir / "identity_output.gpkg"
         identity(
             input1_path=input1_path,
@@ -2046,9 +2060,11 @@ def union(
             subdivide_coords=subdivide_coords,
             force=force,
             output_with_spatial_index=False,
+            operation_prefix="union/",
         )
 
         # Now erase input1 from input2 to another temporary output gfo...
+        logger.info("Step 2 of 3: erase")
         erase_output_path = tempdir / "erase_output.gpkg"
         erase(
             input_path=input2_path,
@@ -2067,9 +2083,11 @@ def union(
             subdivide_coords=subdivide_coords,
             force=force,
             output_with_spatial_index=False,
+            operation_prefix="union/",
         )
 
         # Now append
+        logger.info("Step 3 of 3: finalize")
         _append_to_nolock(
             src=erase_output_path,
             dst=identity_output_path,
@@ -2095,7 +2113,7 @@ def union(
     finally:
         shutil.rmtree(tempdir, ignore_errors=True)
 
-    logger.info(f"union ready, took {datetime.now()-start_time}!")
+    logger.info(f"Ready, took {datetime.now()-start_time}")
 
 
 def _two_layer_vector_operation(
@@ -2176,6 +2194,8 @@ def _two_layer_vector_operation(
 
     """  # noqa: E501
     # Init
+    logger = logging.getLogger(f"geofileops.{operation_name}")
+
     if not input1_path.exists():
         raise ValueError(f"{operation_name}: input1_path doesn't exist: {input1_path}")
     if not input2_path.exists():
@@ -2190,7 +2210,7 @@ def _two_layer_vector_operation(
         )
     if output_path.exists():
         if force is False:
-            logger.info(f"Stop {operation_name}: output exists already {output_path}")
+            logger.info(f"Stop, output exists already {output_path}")
             return
         else:
             gfo.remove(output_path)
@@ -2216,9 +2236,7 @@ def _two_layer_vector_operation(
     try:
         # Prepare tmp files/batches
         # -------------------------
-        logger.info(
-            f"Prepare input (params) for {operation_name} with tempdir: {tempdir}"
-        )
+        logger.debug(f"Prepare input (params), tempdir: {tempdir}")
         processing_params = _prepare_processing_params(
             input1_path=input1_path,
             input1_layer=input1_layer,
@@ -2241,13 +2259,13 @@ def _two_layer_vector_operation(
         # Warn no if "{input*_databasename}". placeholders present
         if "input1_databasename" not in sql_template_placeholders:
             logger.warning(
-                'A placeholder "{input1_databasename}". is recommended as prefix for '
-                "the input1 layer/rtree/tables used in sql_stmt."
+                'A placeholder "{input1_databasename}". is recommended '
+                "as prefix for the input1 layer/rtree/tables used in sql_stmt."
             )
         if "input2_databasename" not in sql_template_placeholders:
             logger.warning(
-                'A placeholder "{input2_databasename}". is recommended as prefix for '
-                "the input2 layer/rtree/tables used in sql_stmt."
+                'A placeholder "{input2_databasename}". is recommended '
+                "as prefix for the input2 layer/rtree/tables used in sql_stmt."
             )
 
         # If multiple batches, mandatory "batch_filter" placeholder in sql_template
@@ -2292,7 +2310,7 @@ def _two_layer_vector_operation(
         # Check input crs'es
         if input1_tmp_layerinfo.crs != input2_tmp_layerinfo.crs:
             logger.warning(
-                "input1 has a different crs than input2: \n\tinput1: "
+                f"input1 has a different crs than input2: \n\tinput1: "
                 f"{input1_tmp_layerinfo.crs} \n\tinput2: {input2_tmp_layerinfo.crs}"
             )
 
@@ -2390,8 +2408,8 @@ def _two_layer_vector_operation(
             True if input1_tmp_layerinfo.featurecount <= 100 else False
         )
         logger.info(
-            f"Start {operation_name} ({processing_params.nb_parallel} parallel workers,"
-            f" batch size: {processing_params.batchsize})"
+            f"Start processing ({processing_params.nb_parallel} "
+            f"parallel workers, batch size: {processing_params.batchsize})"
         )
         with _processing_util.PooledExecutorFactory(
             threadpool=calculate_in_threads,
@@ -2458,7 +2476,7 @@ def _two_layer_vector_operation(
                     # Get the result
                     result = future.result()
                     if result is not None:
-                        logger.debug(result)
+                        logger.debug(f"{result}")
                 except Exception as ex:
                     batch_id = future_to_batch_id[future]
                     error = str(ex).partition("\n")[0]
@@ -2528,9 +2546,9 @@ def _two_layer_vector_operation(
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 gfo.move(tmp_output_path, output_path)
         else:
-            logger.debug(f"Result of {operation_name} was empty!")
+            logger.debug("Result was empty!")
 
-        logger.info(f"{operation_name} ready, took {datetime.now()-start_time}!")
+        logger.info(f"Ready, took {datetime.now()-start_time}")
     except Exception:
         gfo.remove(output_path, missing_ok=True)
         gfo.remove(tmp_output_path, missing_ok=True)
@@ -2928,6 +2946,7 @@ def dissolve_singlethread(
     Remark: this is not a parallelized version!!!
     """
     # Init
+    logger = logging.getLogger("geofileops.dissolve")
     start_time = datetime.now()
 
     # Check input params
@@ -3061,7 +3080,7 @@ def dissolve_singlethread(
     # Check output path
     if output_path.exists():
         if force is False:
-            logger.info(f"Stop dissolve: Output exists already {output_path}")
+            logger.info(f"Stop, output exists already {output_path}")
             return
         else:
             gfo.remove(output_path)
@@ -3189,4 +3208,4 @@ def dissolve_singlethread(
     finally:
         shutil.rmtree(tempdir, ignore_errors=True)
 
-    logger.info(f"Processing ready, took {datetime.now()-start_time}!")
+    logger.info(f"Ready, took {datetime.now()-start_time}")

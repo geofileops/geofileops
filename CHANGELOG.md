@@ -37,6 +37,7 @@
 - Improve handling of "SELECT * ..." style queries in `select` and `select_two_layers`
   (#283)
 - Improve handling + tests regarding empty input layers/NULL geometries (#320)
+- Improve logging: use geo operation being executed as `logger name` (#410)
 - Many small improvements to logging, documentation, (gdal)error messages,...
   (#321, #366, #394,...)
 - Use smaller footprint conda packages for tests (use `geopandas-base`, `nomkl`) (#377)
