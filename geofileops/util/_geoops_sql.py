@@ -251,21 +251,22 @@ def isvalid(
             gfo.remove(output_path)
 
     # If output is sqlite based, check if all data can be read
+    logger = logging.getLogger("geofileops.isvalid")
     if validate_attribute_data:
         try:
             input_info = _geofileinfo.get_geofileinfo(input_path)
             if input_info.is_spatialite_based:
                 _sqlite_util.test_data_integrity(path=input_path)
-                logger.debug("isvalid: test_data_integrity was succesfull")
+                logger.debug("test_data_integrity was succesfull")
         except Exception:
             logger.exception(
-                f"isvalid: nb_invalid_geoms: {nb_invalid_geoms} + some attributes "
+                f"nb_invalid_geoms: {nb_invalid_geoms} + some attributes "
                 "could not be read!"
             )
             return False
 
     if nb_invalid_geoms > 0:
-        logger.info(f"isvalid: found {nb_invalid_geoms} invalid geoms in {output_path}")
+        logger.info(f"Found {nb_invalid_geoms} invalid geoms in {output_path}")
         return False
 
     # Nothing invalid found
@@ -290,8 +291,9 @@ def makevalid(
 ):
     # If output file exists already, either clean up or return...
     operation_name = "makevalid"
+    logger = logging.getLogger(f"geofileops.{operation_name}")
     if not force and output_path.exists():
-        logger.info(f"{operation_name}: stop, output exists already {output_path}")
+        logger.info(f"Stop, output exists already {output_path}")
         return
 
     # Init + prepare sql template for this operation
@@ -369,9 +371,10 @@ def select(
     force: bool = False,
 ):
     # Check if output exists already here, to avoid to much logging to be written
+    logger = logging.getLogger("geofileops.select")
     if output_path.exists():
         if force is False:
-            logger.info(f"select: stop, output exists already {output_path}")
+            logger.info(f"Stop, output exists already {output_path}")
             return
     logger.debug(f"  -> select to execute:\n{sql_stmt}")
 
@@ -381,7 +384,7 @@ def select(
             input_path, input_layer, raise_on_nogeom=False
         ).geometrytype
         logger.info(
-            "select: no force_output_geometrytype specified, so defaults to input "
+            "No force_output_geometrytype specified, so defaults to input "
             f"layer geometrytype: {force_output_geometrytype}"
         )
 
@@ -1597,8 +1600,9 @@ def join_nearest(
     # Init some things...
     # Because there is preprocessing done in this function, check output path
     # here already
+    logger = logging.getLogger("geofileops.join_nearest")
     if output_path.exists() and force is False:
-        logger.info(f"join_nearest: stop, output exists already {output_path}")
+        logger.info(f"Stop, output exists already {output_path}")
         return
     if input1_layer is None:
         input1_layer = gfo.get_only_layer(input1_path)
