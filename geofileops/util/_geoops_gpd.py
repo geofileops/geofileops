@@ -699,7 +699,7 @@ def _apply_geooperation_to_layer(
 
         logger.info(
             f"Start processing ({processing_params.nb_parallel} "
-            f" parallel workers, batch size: {processing_params.batchsize})"
+            f"parallel workers, batch size: {processing_params.batchsize})"
         )
         # Processing in threads is 2x faster for small datasets (on Windows)
         calculate_in_threads = (
