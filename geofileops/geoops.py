@@ -89,7 +89,7 @@ def apply(
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available processors.
+            Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
@@ -199,7 +199,7 @@ def buffer(
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available processors.
+            Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
@@ -430,7 +430,7 @@ def convexhull(
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available processors.
+            Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
@@ -666,7 +666,7 @@ def dissolve(
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available processors.
+            Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
@@ -797,7 +797,7 @@ def isvalid(
         validate_attribute_data (bool, optional): True to validate if all attribute data
             can be read. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available processors.
+            Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
@@ -891,7 +891,7 @@ def makevalid(
             can be read. Raises an exception if an error is found, as this type of error
             cannot be fixed using makevalid. Defaults to False.
         nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available processors.
+            Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
@@ -1203,7 +1203,7 @@ def simplify(
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available processors.
+            Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
@@ -1321,7 +1321,7 @@ def clip(
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available processors.
+            Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
@@ -1406,7 +1406,7 @@ def erase(
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available processors.
+            Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
@@ -1494,7 +1494,7 @@ def export_by_location(
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available processors.
+            Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
@@ -1572,7 +1572,7 @@ def export_by_distance(
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available processors.
+            Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
@@ -1663,7 +1663,7 @@ def identity(
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available processors.
+            Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
@@ -1857,7 +1857,7 @@ def intersection(
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available processors.
+            Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
@@ -1978,7 +1978,7 @@ def join_by_location(
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available processors.
+            Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
@@ -2063,7 +2063,7 @@ def join_nearest(
         output_layer (str, optional): output layer name. If None, the output_path stem
             is used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available processors.
+            Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
@@ -2231,7 +2231,7 @@ def select_two_layers(
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available processors.
+            Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
@@ -2363,7 +2363,7 @@ def symmetric_difference(
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available processors.
+            Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduc
@@ -2383,8 +2383,8 @@ def symmetric_difference(
 
     """  # noqa: E501
     logger.info(
-        f"Start symmetric_difference of {input1_path} and {input2_path} "
-        f"to {output_path}"
+        f"symmetric_difference: start, with input1: {input1_path}, "
+        f"input2 {input2_path}, output: {output_path}"
     )
     return _geoops_sql.symmetric_difference(
         input1_path=Path(input1_path),
@@ -2463,7 +2463,7 @@ def union(
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available processors.
+            Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
@@ -2482,7 +2482,8 @@ def union(
 
     """  # noqa: E501
     logger.info(
-        f"Start union: select from {input1_path} and {input2_path} to {output_path}"
+        f"union: start, with input1: {input1_path}, input2: {input2_path}, output: "
+        f"{output_path}"
     )
     return _geoops_sql.union(
         input1_path=Path(input1_path),

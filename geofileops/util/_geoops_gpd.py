@@ -641,7 +641,7 @@ def _apply_geooperation_to_layer(
     start_time_global = datetime.now()
     operation_name = operation_params.get("operation_name")
     if operation_name is None:
-        operation_name = operation.name.lower()
+        operation_name = operation.value
 
     # Check input parameters...
     if not input_path.exists():
@@ -652,7 +652,7 @@ def _apply_geooperation_to_layer(
         input_layer = gfo.get_only_layer(input_path)
     if output_path.exists():
         if force is False:
-            logger.info(f"Stop {operation_name}: output exists already {output_path}")
+            logger.info(f"{operation_name}: stop, output exists already {output_path}")
             return
         else:
             gfo.remove(output_path)
@@ -679,7 +679,7 @@ def _apply_geooperation_to_layer(
 
     # Prepare tmp files
     tmp_dir = _io_util.create_tempdir(f"geofileops/{operation.value}")
-    logger.info(f"Start calculation to temp files in {tmp_dir}")
+    logger.debug(f"Start calculation to temp files in {tmp_dir}")
 
     try:
         # Calculate the best number of parallel processes and batches for
@@ -695,8 +695,8 @@ def _apply_geooperation_to_layer(
         assert processing_params.batches is not None
 
         logger.info(
-            f"Start {operation_name} ({processing_params.nb_parallel} parallel workers,"
-            f" batch size: {processing_params.batchsize})"
+            f"{operation_name}: start processing ({processing_params.nb_parallel} "
+            f" parallel workers, batch size: {processing_params.batchsize})"
         )
         # Processing in threads is 2x faster for small datasets (on Windows)
         calculate_in_threads = (
@@ -815,12 +815,12 @@ def _apply_geooperation_to_layer(
             gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
             gfo.move(tmp_output_path, output_path)
         else:
-            logger.debug(f"Result of {operation} was empty!")
+            logger.debug(f"{operation.value}: result was empty!")
 
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
-    logger.info(f"{operation} ready, took {datetime.now()-start_time_global}!")
+    logger.info(f"{operation_name}: ready, took {datetime.now()-start_time_global}!")
 
 
 def _apply_geooperation(
@@ -1050,7 +1050,7 @@ def dissolve(
         if force is False:
             result_info[
                 "message"
-            ] = f"output exists already {output_path} and force is false"
+            ] = f"dissolve: output exists already {output_path} and force is false"
             logger.info(result_info["message"])
             return result_info
         else:
@@ -1148,7 +1148,7 @@ def dissolve(
             prev_nb_batches = None
             last_pass = False
             pass_id = 0
-            logger.info(f"Start dissolve on file {input_path}")
+            logger.info(f"dissolve: start, input file {input_path}")
             input_pass_layer: Optional[str] = input_layer
             while True:
                 # Get info of the current file that needs to be dissolved
@@ -1218,7 +1218,7 @@ def dissolve(
 
                 # Now go!
                 logger.info(
-                    f"Start dissolve pass {pass_id} to {len(tiles_gdf)} tiles "
+                    f"dissolve: start pass {pass_id} to {len(tiles_gdf)} tiles "
                     f"(batch size: {int(nb_rows_total/len(tiles_gdf))})"
                 )
                 _ = _dissolve_polygons_pass(
@@ -1353,7 +1353,7 @@ def dissolve(
                 # All tiles are already dissolved to groups, but now the
                 # results from all tiles still need to be
                 # grouped/collected together.
-                logger.info("Postprocess prepared features...")
+                logger.info("dissolve: finalize result")
                 if agg_columns is None:
                     # If there are no aggregation columns, things are not too
                     # complicated.
@@ -1480,7 +1480,7 @@ def dissolve(
     # Return result info
     result_info[
         "message"
-    ] = f"Dissolve completely ready, took {datetime.now()-start_time}!"
+    ] = f"dissolve: completely ready, took {datetime.now()-start_time}!"
     logger.info(result_info["message"])
     return result_info
 
@@ -1632,7 +1632,7 @@ def _dissolve_polygons_pass(
                 start_time, nb_batches_done, nb_batches, "dissolve"
             )
 
-    logger.info(f"Dissolve pass ready, took {datetime.now()-start_time}!")
+    logger.info(f"dissolve: pass ready, took {datetime.now()-start_time}!")
 
 
 def _dissolve_polygons(
@@ -1723,7 +1723,7 @@ def _dissolve_polygons(
     perfinfo["time_read"] = (datetime.now() - start_read).total_seconds()
     return_info["nb_rows_done"] = len(input_gdf)
     if return_info["nb_rows_done"] == 0:
-        message = f"No input geometries found in {input_path}"
+        message = f"dissolve: no input geometries found in {input_path}"
         logger.info(message)
         return_info["message"] = message
         return_info["total_time"] = (datetime.now() - start_time).total_seconds()

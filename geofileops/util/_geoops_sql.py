@@ -261,7 +261,7 @@ def isvalid(
             input_info = _geofileinfo.get_geofileinfo(input_path)
             if input_info.is_spatialite_based:
                 _sqlite_util.test_data_integrity(path=input_path)
-                logger.debug("test_data_integrity was succesfull")
+                logger.debug("isvalid: test_data_integrity was succesfull")
         except Exception:
             logger.exception(
                 f"nb_invalid_geoms: {nb_invalid_geoms} + some attributes could not be "
@@ -270,7 +270,7 @@ def isvalid(
             return False
 
     if nb_invalid_geoms > 0:
-        logger.info(f"Found {nb_invalid_geoms} invalid geoms in {output_path}")
+        logger.info(f"isvalid: found {nb_invalid_geoms} invalid geoms in {output_path}")
         return False
 
     # Nothing invalid found
@@ -296,7 +296,7 @@ def makevalid(
     # If output file exists already, either clean up or return...
     operation_name = "makevalid"
     if not force and output_path.exists():
-        logger.info(f"Stop {operation_name}: output exists already {output_path}")
+        logger.info(f"{operation_name}: stop, output exists already {output_path}")
         return
 
     # Init + prepare sql template for this operation
@@ -376,7 +376,7 @@ def select(
     # Check if output exists already here, to avoid to much logging to be written
     if output_path.exists():
         if force is False:
-            logger.info(f"Stop select: output exists already {output_path}")
+            logger.info(f"select: stop, output exists already {output_path}")
             return
     logger.debug(f"  -> select to execute:\n{sql_stmt}")
 
@@ -386,8 +386,8 @@ def select(
             input_path, input_layer, raise_on_nogeom=False
         ).geometrytype
         logger.info(
-            "No force_output_geometrytype specified, so defaults to input layer "
-            f"geometrytype: {force_output_geometrytype}"
+            "select: no force_output_geometrytype specified, so defaults to input "
+            f"layer geometrytype: {force_output_geometrytype}"
         )
 
     # Go!
@@ -530,7 +530,7 @@ def _single_layer_vector_operation(
     # If output file exists already, either clean up or return...
     if output_path.exists():
         if force is False:
-            logger.info(f"Stop {operation_name}: output exists already {output_path}")
+            logger.info(f"{operation_name}: stop, output exists already {output_path}")
             return
         else:
             gfo.remove(output_path)
@@ -700,8 +700,8 @@ def _single_layer_vector_operation(
         )
 
         logger.info(
-            f"Start {operation_name} ({processing_params.nb_parallel} parallel workers,"
-            f" batch size: {processing_params.batchsize})"
+            f"{operation_name}: start processing ({processing_params.nb_parallel} "
+            f"parallel workers, batch size: {processing_params.batchsize})"
         )
 
         # Prepare temp output filename
@@ -844,13 +844,13 @@ def _single_layer_vector_operation(
                 tmp_output_path.with_suffix(".dbf"), output_path.with_suffix(".dbf")
             )
         else:
-            logger.debug(f"Result of {operation_name} was empty!")
+            logger.debug(f"{operation_name}: result was empty!")
 
     finally:
         # Clean tmp dir
         shutil.rmtree(tempdir, ignore_errors=True)
 
-    logger.info(f"Processing ready, took {datetime.now()-start_time}!")
+    logger.info(f"{operation_name}: ready, took {datetime.now()-start_time}!")
 
 
 ################################################################################
@@ -1601,7 +1601,7 @@ def join_nearest(
     # Because there is preprocessing done in this function, check output path
     # here already
     if output_path.exists() and force is False:
-        logger.info(f"Stop join_nearest: output exists already {output_path}")
+        logger.info(f"join_nearest: stop, output exists already {output_path}")
         return
     if input1_layer is None:
         input1_layer = gfo.get_only_layer(input1_path)
@@ -2095,7 +2095,7 @@ def union(
     finally:
         shutil.rmtree(tempdir, ignore_errors=True)
 
-    logger.info(f"union ready, took {datetime.now()-start_time}!")
+    logger.info(f"union: ready, took {datetime.now()-start_time}!")
 
 
 def _two_layer_vector_operation(
@@ -2190,7 +2190,7 @@ def _two_layer_vector_operation(
         )
     if output_path.exists():
         if force is False:
-            logger.info(f"Stop {operation_name}: output exists already {output_path}")
+            logger.info(f"{operation_name}: stop, output exists already {output_path}")
             return
         else:
             gfo.remove(output_path)
@@ -2216,9 +2216,7 @@ def _two_layer_vector_operation(
     try:
         # Prepare tmp files/batches
         # -------------------------
-        logger.info(
-            f"Prepare input (params) for {operation_name} with tempdir: {tempdir}"
-        )
+        logger.debug(f"{operation_name}: Prepare input (params), tempdir: {tempdir}")
         processing_params = _prepare_processing_params(
             input1_path=input1_path,
             input1_layer=input1_layer,
@@ -2390,8 +2388,8 @@ def _two_layer_vector_operation(
             True if input1_tmp_layerinfo.featurecount <= 100 else False
         )
         logger.info(
-            f"Start {operation_name} ({processing_params.nb_parallel} parallel workers,"
-            f" batch size: {processing_params.batchsize})"
+            f"{operation_name}: start processing ({processing_params.nb_parallel} "
+            f"parallel workers, batch size: {processing_params.batchsize})"
         )
         with _processing_util.PooledExecutorFactory(
             threadpool=calculate_in_threads,
@@ -2528,9 +2526,9 @@ def _two_layer_vector_operation(
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 gfo.move(tmp_output_path, output_path)
         else:
-            logger.debug(f"Result of {operation_name} was empty!")
+            logger.debug(f"{operation_name}: result was empty!")
 
-        logger.info(f"{operation_name} ready, took {datetime.now()-start_time}!")
+        logger.info(f"{operation_name}: ready, took {datetime.now()-start_time}!")
     except Exception:
         gfo.remove(output_path, missing_ok=True)
         gfo.remove(tmp_output_path, missing_ok=True)
@@ -3061,7 +3059,7 @@ def dissolve_singlethread(
     # Check output path
     if output_path.exists():
         if force is False:
-            logger.info(f"Stop dissolve: Output exists already {output_path}")
+            logger.info(f"dissolve: stop, output exists already {output_path}")
             return
         else:
             gfo.remove(output_path)
@@ -3189,4 +3187,4 @@ def dissolve_singlethread(
     finally:
         shutil.rmtree(tempdir, ignore_errors=True)
 
-    logger.info(f"Processing ready, took {datetime.now()-start_time}!")
+    logger.info(f"dissolve: ready, took {datetime.now()-start_time}!")
