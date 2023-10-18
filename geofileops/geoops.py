@@ -2,9 +2,11 @@
 Module exposing all supported operations on geomatries in geofiles.
 """
 
+from datetime import datetime
 import logging
 import logging.config
 from pathlib import Path
+import shutil
 from typing import Any, Callable, List, Literal, Optional, Tuple, Union, TYPE_CHECKING
 import warnings
 
@@ -14,6 +16,7 @@ import shapely
 from geofileops.util import _geoops_gpd
 from geofileops.util import _geoops_sql
 from geofileops.util import _geoops_ogr
+from geofileops.util import _io_util
 from geofileops.util._geometry_util import (
     BufferEndCapStyle,
     BufferJoinStyle,
@@ -24,6 +27,253 @@ if TYPE_CHECKING:
     import os
 
 logger = logging.getLogger(__name__)
+
+
+def dissolve_within_distance(
+    input_path: Path,
+    output_path: Path,
+    distance: float,
+    gridsize: float,
+    close_input_boundary_gaps: bool = False,
+    input_layer: Optional[str] = None,
+    output_layer: Optional[str] = None,
+    nb_parallel: int = -1,
+    batchsize: int = -1,
+    force: bool = False,
+):
+    """
+    Dissolve geometries that are within the distance specified.
+
+    The output layer will contain the dissolved geometries where all gaps between the
+    input geometries up to `distance` are closed.
+
+    Notes:
+      - Only tested on polygon input.
+      - Gaps between the individual polygons of multipolygon input features will also
+        be closed.
+      - The polygons in the output file are exploded to simple geometries.
+      - No attributes from the input layer are retained.
+      - If `close_input_boundary_gaps` is False, the default, a `gridsize` > 0
+        (E.g. 0.000001) should be specified, otherwise some input boundary gaps could
+        still be closed due to rounding side effects.
+
+    Args:
+        input_path (PathLike): the input file.
+        output_path (PathLike): the file to write the result to.
+        distance (float): the maximum distance between geometries to be dissolved.
+        gridsize (float, optional): the size of the grid the coordinates of the ouput
+            will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
+            the precision. If `close_boundary_gaps` is False, the default, a
+            `gridsize` > 0 (E.g. 0.000001) should be specified, otherwise some boundary
+            gaps in the input geometries could still be closed due to rounding side
+            effects.
+        close_input_boundary_gaps (bool, optional): close boundary gaps or holes in the
+            input geometries that are narrower than the `distance` specified.
+            E.g. small holes, narrow gaps in boundaries,... Defaults to False.
+        input_layer (str, optional): input layer name. Optional if the input
+            file only contains one layer.
+        output_layer (str, optional): input layer name. Optional if the input
+            file only contains one layer.
+        nb_parallel (int, optional): the number of parallel processes to use.
+            Defaults to -1: use all available CPUs.
+        batchsize (int, optional): indicative number of rows to process per
+            batch. A smaller batch size, possibly in combination with a
+            smaller nb_parallel, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
+        force (bool, optional): overwrite existing output file(s).
+            Defaults to False.
+    """
+    start_time = datetime.now()
+    operation_name = "dissolve_within_distance"
+    nb_steps = 4
+    if not close_input_boundary_gaps:
+        # 3 extra steps if boundary gaps not to be closed.
+        nb_steps += 3
+
+    tempdir = _io_util.create_tempdir(f"geofileops/{operation_name}")
+    try:
+        # First dissolve the input.
+        #
+        # Note: this reduces the complexity of operations to be executed later on.
+        # Note2: this already applies the gridsize, which needs to be applied anyway to
+        # avoid issues when determining the addedpieces_1neighbour later on.
+        logger.info(f"{operation_name}: start, with input file {input_path}")
+        step = 1
+        logger.info(f"{operation_name}: STEP {step} OF {nb_steps}")
+        diss_path = tempdir / "100_diss.gpkg"
+        _geoops_gpd.dissolve(
+            input_path=input_path,
+            output_path=diss_path,
+            explodecollections=True,
+            input_layer=input_layer,
+            gridsize=gridsize,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+        )
+
+        # Positive buffer of distance / 2 to close all gaps.
+        #
+        # Note: gridsize is not applied to preserve all possible accuracy for these
+        # temporary boundaries, otherwise the polygons are sometimes enlarged slightly,
+        # which isn't wanted + creates issues when determining the
+        # addedpieces_1neighbour later on.
+        step += 1
+        logger.info(f"{operation_name}: STEP {step} OF {nb_steps}")
+        buff_path = tempdir / "110_diss_bufp.gpkg"
+        _geoops_gpd.buffer(
+            input_path=diss_path,
+            output_path=buff_path,
+            distance=distance / 2,
+            endcap_style=BufferEndCapStyle.SQUARE,
+            join_style=BufferJoinStyle.MITRE,
+            mitre_limit=distance / 2,
+            # gridsize=gridsize,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+        )
+
+        # Dissolve the buffered input
+        #
+        # Note: gridsize is not applied to preserve all possible accuracy for these
+        # temporary boundaries, otherwise the polygons are sometimes enlarged slightly,
+        # which isn't wanted + creates issues when determining the
+        # addedpieces_1neighbour later on.
+        step += 1
+        logger.info(f"{operation_name}: STEP {step} OF {nb_steps}")
+        buff_diss_path = tempdir / "120_diss_bufp_diss.gpkg"
+        _geoops_gpd.dissolve(
+            input_path=buff_path,
+            output_path=buff_diss_path,
+            explodecollections=True,
+            # gridsize=gridsize,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+        )
+
+        # Negative buffer to get back to the borders of the input geometries
+        step += 1
+        logger.info(f"{operation_name}: STEP {step} OF {nb_steps}")
+        if close_input_boundary_gaps:
+            buff_diss_bufm_path = output_path
+            local_output_layer = output_layer
+        else:
+            buff_diss_bufm_path = tempdir / "130_diss_bufp_diss_bufm.gpkg"
+            local_output_layer = None
+        _geoops_gpd.buffer(
+            input_path=buff_diss_path,
+            output_path=buff_diss_bufm_path,
+            distance=-distance / 2,
+            endcap_style=BufferEndCapStyle.SQUARE,
+            join_style=BufferJoinStyle.MITRE,
+            mitre_limit=distance / 2,
+            output_layer=local_output_layer,
+            gridsize=gridsize,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+        )
+
+        # If gaps within 'distance' between/in boundaries in the input geometries should
+        # also be closed, so we are ready.
+        if close_input_boundary_gaps:
+            return
+
+        # Determine which parts that were added were actually gaps within 'distance' in
+        # the original polygons, so they can be removed again.
+
+        # Determine the pieces added while closing all gaps compared to the input.
+        step += 1
+        logger.info(f"--- {operation_name}: STEP {step} OF {nb_steps} ---")
+        added_pieces_path = tempdir / "200_addedpieces.gpkg"
+        _geoops_sql.erase(
+            input_path=buff_diss_bufm_path,
+            erase_path=diss_path,
+            output_path=added_pieces_path,
+            explodecollections=True,
+            gridsize=gridsize,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+        )
+
+        # Only retain the added pieces that intersect with only 1 neighbour in the
+        # input, so we can remove them again from the result.
+        #
+        # Notes:
+        # - use "LIMIT -1 OFFSET 0" to avoid the subquery flattening. Flattening e.g.
+        #   "geom IS NOT NULL" leads to geom operation to be calculated twice!
+        input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
+        input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
+        sql_stmt = f"""
+            SELECT * FROM (
+              SELECT layer1.{{input1_geometrycolumn}} AS geom
+                    ,( SELECT IIF(count(*) <= 1, 1, 0) AS keep
+                         FROM
+                          ( SELECT layer1_sub.rowid AS layer1_rowid
+                                  ,ST_Intersection(
+                                      layer1_sub.{{input1_geometrycolumn}},
+                                      layer2_sub.{{input2_geometrycolumn}}
+                                   ) AS intersect_geom
+                              FROM {{input1_databasename}}."{{input1_layer}}" layer1_sub
+                              JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                                ON layer1_sub.rowid = layer1tree.id
+                              JOIN {{input2_databasename}}."{{input2_layer}}" layer2_sub
+                              JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                                ON layer2_sub.rowid = layer2tree.id
+                             WHERE 1=1
+                               AND layer1_sub.rowid = layer1.rowid
+                               AND layer1tree.minx <= layer2tree.maxx
+                               AND layer1tree.maxx >= layer2tree.minx
+                               AND layer1tree.miny <= layer2tree.maxy
+                               AND layer1tree.maxy >= layer2tree.miny
+                               AND ST_Intersects(
+                                      layer1_sub.{{input1_geometrycolumn}},
+                                      layer2_sub.{{input2_geometrycolumn}}) = 1
+                             LIMIT -1 OFFSET 0
+                          ) sub1
+                         GROUP BY sub1.layer1_rowid
+                         LIMIT -1 OFFSET 0
+                     ) AS keep
+                    {{layer1_columns_prefix_alias_str}}
+                FROM {{input1_databasename}}."{{input1_layer}}" layer1
+               WHERE 1=1
+                 {{batch_filter}}
+               LIMIT -1 OFFSET 0
+              )
+             WHERE geom IS NOT NULL
+               AND keep = 1
+        """  # noqa: E501
+
+        step += 1
+        logger.info(f"{operation_name}: STEP {step} OF {nb_steps}")
+        added_pieces_inters_input = tempdir / "210_addedpieces_1neighbour.gpkg"
+        _geoops_sql.select_two_layers(
+            input1_path=added_pieces_path,
+            input2_path=input_path,
+            output_path=added_pieces_inters_input,
+            sql_stmt=sql_stmt,
+            input2_layer=input_layer,
+            # gridsize=gridsize,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+        )
+
+        step += 1
+        logger.info(f"{operation_name}: STEP {step} OF {nb_steps}")
+        _geoops_sql.erase(
+            input_path=buff_diss_bufm_path,
+            erase_path=added_pieces_inters_input,
+            output_path=output_path,
+            output_layer=output_layer,
+            explodecollections=True,
+            gridsize=gridsize,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+            force=force,
+        )
+
+    finally:
+        shutil.rmtree(tempdir, ignore_errors=True)
+
+    logger.info(f"{operation_name} ready, took {datetime.now()-start_time}!")
 
 
 def apply(
