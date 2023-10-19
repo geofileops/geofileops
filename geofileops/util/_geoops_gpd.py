@@ -426,9 +426,11 @@ def buffer(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
+    operation_prefix: str = "",
 ):
     # Init
     operation_params = {
+        "operation_name": f"{operation_prefix}buffer",
         "distance": distance,
         "quadrantsegments": quadrantsegments,
         "endcap_style": endcap_style,
@@ -697,7 +699,7 @@ def _apply_geooperation_to_layer(
 
         logger.info(
             f"Start processing ({processing_params.nb_parallel} "
-            f" parallel workers, batch size: {processing_params.batchsize})"
+            f"parallel workers, batch size: {processing_params.batchsize})"
         )
         # Processing in threads is 2x faster for small datasets (on Windows)
         calculate_in_threads = (
@@ -968,6 +970,7 @@ def dissolve(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
+    operation_prefix: str = "",
 ) -> dict:
     """
     Function that applies a dissolve.
@@ -981,7 +984,7 @@ def dissolve(
     # Init and validate input parameters
     # ----------------------------------
     start_time = datetime.now()
-    operation_name = "dissolve"
+    operation_name = f"{operation_prefix}dissolve"
     logger = logging.getLogger(f"geofileops.{operation_name}")
     result_info = {}
 
@@ -1150,7 +1153,7 @@ def dissolve(
             prev_nb_batches = None
             last_pass = False
             pass_id = 0
-            logger.info(f"Start, input file {input_path.name}")
+            logger.info(f"Start, with input {input_path}")
             input_pass_layer: Optional[str] = input_layer
             while True:
                 # Get info of the current file that needs to be dissolved
