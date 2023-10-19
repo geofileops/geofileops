@@ -35,7 +35,7 @@ def dissolve_within_distance(
     output_path: Path,
     distance: float,
     gridsize: float,
-    close_input_boundary_gaps: bool = False,
+    close_internal_gaps: bool = False,
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
     nb_parallel: int = -1,
@@ -54,7 +54,7 @@ def dissolve_within_distance(
         be closed.
       - The polygons in the output file are exploded to simple geometries.
       - No attributes from the input layer are retained.
-      - If `close_input_boundary_gaps` is False, the default, a `gridsize` > 0
+      - If `close_internal_gaps` is False, the default, a `gridsize` > 0
         (E.g. 0.000001) should be specified, otherwise some input boundary gaps could
         still be closed due to rounding side effects.
 
@@ -72,9 +72,9 @@ def dissolve_within_distance(
             `gridsize` > 0 (E.g. 0.000001) should be specified, otherwise some boundary
             gaps in the input geometries could still be closed due to rounding side
             effects.
-        close_input_boundary_gaps (bool, optional): close boundary gaps or holes in the
-            input geometries that are narrower than the `distance` specified.
-            E.g. small holes, narrow gaps in boundaries,... Defaults to False.
+        close_internal_gaps (bool, optional): also close gaps, strips or holes in the
+            input geometries that are narrower than the `distance` specified. E.g. small
+            holes, narrow strips starting at the boundary,... Defaults to False.
         input_layer (str, optional): input layer name. Optional if the input
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input
@@ -92,7 +92,7 @@ def dissolve_within_distance(
     operation_name = "dissolve_within_distance"
     logger = logging.getLogger(f"geofileops.{operation_name}")
     nb_steps = 4
-    if not close_input_boundary_gaps:
+    if not close_internal_gaps:
         # 3 extra steps if boundary gaps not to be closed.
         nb_steps += 3
 
@@ -141,7 +141,7 @@ def dissolve_within_distance(
             distance=distance / 2,
             endcap_style=BufferEndCapStyle.SQUARE,
             join_style=BufferJoinStyle.MITRE,
-            mitre_limit=distance / 2,
+            mitre_limit=1.25,
             # gridsize=gridsize,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
@@ -168,37 +168,28 @@ def dissolve_within_distance(
         )
 
         # Negative buffer to get back to the borders of the input geometries
+        # Use a larger mitre limit, otherwise there are a lot of small triangles that
+        # don't dissappear again.
         step += 1
         logger.info(f"Step {step} of {nb_steps}")
-        if close_input_boundary_gaps:
-            buff_diss_bufm_path = output_path
-            local_output_layer = output_layer
-        else:
-            buff_diss_bufm_path = tempdir / "130_diss_bufp_diss_bufm.gpkg"
-            local_output_layer = None
+        buff_diss_bufm_path = tempdir / "130_diss_bufp_diss_bufm.gpkg"
         _geoops_gpd.buffer(
             input_path=buff_diss_path,
             output_path=buff_diss_bufm_path,
-            distance=-distance / 2,
+            distance=-(distance / 2),
             endcap_style=BufferEndCapStyle.SQUARE,
             join_style=BufferJoinStyle.MITRE,
-            mitre_limit=distance / 2,
-            output_layer=local_output_layer,
+            mitre_limit=2,
             gridsize=gridsize,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             operation_prefix=f"{operation_name}-",
         )
 
-        # If gaps within 'distance' between/in boundaries in the input geometries should
-        # also be closed, so we are ready.
-        if close_input_boundary_gaps:
-            return
-
         # Determine which parts that were added were actually gaps within 'distance' in
         # the original polygons, so they can be removed again.
 
-        # Determine the pieces added while closing all gaps compared to the input.
+        # Determine all pieces added to the input in the process above.
         step += 1
         logger.info(f"Step {step} of {nb_steps}")
         added_pieces_path = tempdir / "200_addedpieces.gpkg"
@@ -213,61 +204,107 @@ def dissolve_within_distance(
             operation_prefix=f"{operation_name}-",
         )
 
-        # Only retain the added pieces that intersect with only 1 neighbour in the
-        # input, so we can remove them again from the result.
-        #
+        # Build a filter to select the pieces that we want to erase again from the
+        # result because they were incorrectly added.
+        # The filter will depend on input parameters.
+        if close_internal_gaps:
+            # True, so also gaps in the original input boundaries should be closed.
+            # This means that in theory all pieces can be retained, but in practice
+            # there are some cases where the above algorithm adds unwanted area, so that
+            # needs to be erased again.
+            #
+            # Parameters that indicate that added pieces won't need to be erased:
+            #   - large areas (>= distance²) seem OK.
+            #   - if > 1 neighbour, seems OK.
+            #
+            # For all pieces that don't comply to the above, the following parameters
+            # indicate that they need to be selected to erase them:
+            #   - pieces can be very narrow slivers. E.g. alongside a long boundary with
+            #     a small bend, probably due to rounding side effects in the +/- buffer.
+            #   - pieces can be spikes. E.g. when a "road" of ~ 'distance' width is not
+            #     filled up between two input geometries has a bend. Depending on the
+            #     angle, the mitre of the negative buffer can leave a spike in place.
+            pieces_to_erase_filter = f"""
+                neighbours_count_distinct <= 1
+                AND geom_area < {distance} * {distance}
+                AND neighbours_perimeter/2 + neighbours_length <= 0.8 * geom_perimeter
+            """
+        else:
+            # False, so we want to keep all pieces that intersect with only 1 neighbour
+            # in the input, so they can be remove again from the result.
+            pieces_to_erase_filter = "neighbours_count_distinct <= 1"
+
         # Notes:
-        # - use "LIMIT -1 OFFSET 0" to avoid the subquery flattening. Flattening e.g.
-        #   "geom IS NOT NULL" leads to geom operation to be calculated twice!
+        # - The conversion to json followed by extraction from json allows to use a
+        #   correlated subquery to return multiple columns. Joining the subquery gives
+        #   very bad performance.
+        # - Every level of nesting of SQL queries is needed to get good performance, in
+        #   combination with "LIMIT -1 OFFSET 0" to avoid the subquery flattening.
+        #   Flattening e.g. "geom IS NOT NULL" leads to geom operation to be calculated
+        #   twice!
         input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
         input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
         sql_stmt = f"""
-            SELECT * FROM (
-              SELECT layer1.{{input1_geometrycolumn}} AS geom
-                    ,( SELECT IIF(count(*) <= 1, 1, 0) AS keep
-                         FROM
-                          ( SELECT layer1_sub.rowid AS layer1_rowid
-                                  ,ST_Intersection(
-                                      layer1_sub.{{input1_geometrycolumn}},
-                                      layer2_sub.{{input2_geometrycolumn}}
-                                   ) AS intersect_geom
-                              FROM {{input1_databasename}}."{{input1_layer}}" layer1_sub
-                              JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
-                                ON layer1_sub.rowid = layer1tree.id
-                              JOIN {{input2_databasename}}."{{input2_layer}}" layer2_sub
-                              JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
-                                ON layer2_sub.rowid = layer2tree.id
-                             WHERE 1=1
-                               AND layer1_sub.rowid = layer1.rowid
-                               AND layer1tree.minx <= layer2tree.maxx
-                               AND layer1tree.maxx >= layer2tree.minx
-                               AND layer1tree.miny <= layer2tree.maxy
-                               AND layer1tree.maxy >= layer2tree.miny
-                               AND ST_Intersects(
-                                      layer1_sub.{{input1_geometrycolumn}},
-                                      layer2_sub.{{input2_geometrycolumn}}) = 1
-                             LIMIT -1 OFFSET 0
-                          ) sub1
-                         GROUP BY sub1.layer1_rowid
-                         LIMIT -1 OFFSET 0
-                     ) AS keep
-                    {{layer1_columns_prefix_alias_str}}
-                FROM {{input1_databasename}}."{{input1_layer}}" layer1
-               WHERE 1=1
-                 {{batch_filter}}
-               LIMIT -1 OFFSET 0
+            WITH neighbours AS (
+                SELECT layer1_sub.rowid AS layer1_rowid
+                      ,layer2_sub.rowid AS layer2_rowid
+                      ,ST_Intersection(
+                          layer1_sub.{{input1_geometrycolumn}},
+                          layer2_sub.{{input2_geometrycolumn}}
+                       ) AS intersect_geom
+                  FROM {{input1_databasename}}."{{input1_layer}}" layer1_sub
+                  JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                    ON layer1_sub.rowid = layer1tree.id
+                  JOIN {{input2_databasename}}."{{input2_layer}}" layer2_sub
+                  JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                    ON layer2_sub.rowid = layer2tree.id
+                 WHERE 1=1
+                   AND layer1tree.minx <= layer2tree.maxx
+                   AND layer1tree.maxx >= layer2tree.minx
+                   AND layer1tree.miny <= layer2tree.maxy
+                   AND layer1tree.maxy >= layer2tree.miny
+                   AND ST_Intersects(
+                          layer1_sub.{{input1_geometrycolumn}},
+                          layer2_sub.{{input2_geometrycolumn}}) = 1
               )
+            SELECT * FROM (
+              SELECT geom
+                    ,ST_Perimeter(geom) AS geom_perimeter
+                    ,ST_Area(geom) AS geom_area
+                    ,neighbours_json ->> '$.nb_distinct' AS neighbours_count_distinct
+                    ,neighbours_json ->> '$.length' AS neighbours_length
+                    ,neighbours_json ->> '$.perimeter' AS neighbours_perimeter
+                FROM (
+                  SELECT layer1.{{input1_geometrycolumn}} AS geom
+                        ,( SELECT json_object(
+                                    'nb_distinct', COUNT(DISTINCT layer2_rowid),
+                                    'length', SUM(ST_Length(intersect_geom)),
+                                    'perimeter', SUM(ST_Perimeter(intersect_geom))
+                                  )
+                             FROM neighbours
+                            WHERE neighbours.layer1_rowid = layer1.rowid
+                              AND neighbours.intersect_geom IS NOT NULL
+                            GROUP BY neighbours.layer1_rowid
+                            LIMIT -1 OFFSET 0
+                         ) AS neighbours_json
+                    FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                   WHERE 1=1
+                     {{batch_filter}}
+                   LIMIT -1 OFFSET 0
+                  )
+                  LIMIT -1 OFFSET 0
+               )
              WHERE geom IS NOT NULL
-               AND keep = 1
-        """  # noqa: E501
+               AND ({pieces_to_erase_filter})
+        """
 
         step += 1
         logger.info(f"Step {step} of {nb_steps}")
-        added_pieces_inters_input = tempdir / "210_addedpieces_1neighbour.gpkg"
+        added_pieces_to_be_erased_input = tempdir / "210_addedpieces_to_be_erased.gpkg"
         _geoops_sql.select_two_layers(
             input1_path=added_pieces_path,
             input2_path=input_path,
-            output_path=added_pieces_inters_input,
+            output_path=added_pieces_to_be_erased_input,
             sql_stmt=sql_stmt,
             input2_layer=input_layer,
             # gridsize=gridsize,
@@ -280,7 +317,7 @@ def dissolve_within_distance(
         logger.info(f"Step {step} of {nb_steps}")
         _geoops_sql.erase(
             input_path=buff_diss_bufm_path,
-            erase_path=added_pieces_inters_input,
+            erase_path=added_pieces_to_be_erased_input,
             output_path=output_path,
             output_layer=output_layer,
             explodecollections=True,
@@ -446,8 +483,8 @@ def buffer(
               * MITRE: corners in the result are sharp
               * BEVEL: are flattened
         mitre_limit (float, optional): in case of join_style MITRE, if the
-            spiky result for a sharp angle becomes longer than this limit, it
-            is "beveled" at this distance. Defaults to 5.0.
+            spiky result for a sharp angle becomes longer than this ratio limit, it
+            is "beveled" using this maximum ratio. Defaults to 5.0.
         single_sided (bool, optional): only one side of the line is buffered,
             if distance is negative, the left side, if distance is positive,
             the right hand side. Only relevant for line geometries.
