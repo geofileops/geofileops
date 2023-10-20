@@ -2,6 +2,7 @@
 import logging
 from typing import Optional
 
+import numpy as np
 import pygeoops
 import shapely
 
@@ -95,6 +96,190 @@ def gfo_difference_collection(
         return None
 
 
+def gfo_intersection(
+    geom_wkb1: bytes,
+    geom_wkb2: bytes,
+    gridsize: int = 0.0,
+    keep_geom_type: int = 0,
+) -> Optional[bytes]:
+    """
+    Calculates the intersection between geom_wkb1 and geom_wkb2.
+
+    If geom has many points, it will be subdivided in smaller times to speed up
+    processing. This will result in extra collinear points being added to its
+    boundaties.
+
+    Args:
+        geom_wkb1 (bytes): first geometry in wkb format.
+        geom_wkb2 (bytes): second geometry in wkb format.
+        gridsize (int): the size of the grid the coordinates of the ouput will be
+            rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change the
+            precision.
+        keep_geom_type (int, optional): 1 to only retain geometries in the results of
+            the same geometry type/dimension as the input. Eg. if input is a Polygon,
+            remove LineStrings and Points from the difference result before returning.
+            Defaults to 0.
+
+    Returns:
+        Optional[bytes]: return the intersection. If there is no intersection, NULL is
+            returned.
+    """
+    try:
+        # Check/prepare input
+        if geom_wkb1 is None:
+            return None
+        if geom_wkb2 is None:
+            return None
+
+        # Extract wkb's, and return if empty
+        geom1 = shapely.from_wkb(geom_wkb1)
+        if geom1.is_empty:
+            return None
+        geom2 = shapely.from_wkb(geom_wkb2)
+        if geom2.is_empty:
+            return None
+        del geom_wkb1
+        del geom_wkb2
+
+        # Check and convert booleanish int inputs to bool.
+        keep_geom_type = _int2bool(keep_geom_type, "keep_geom_type")
+
+    except Exception as ex:  # pragma: no cover
+        # ex.with_traceback()
+        logger.exception(f"Error in gfo_intersection: {ex}")
+        raise
+
+    try:
+        # Apply intersection
+        result = shapely.intersection(geom1, geom2)
+
+        # If an empty result, return None
+        # Remark: tried to return empty geometry an empty GeometryCollection, but
+        # apparentle ST_IsEmpty of spatialite doesn't work (in combination with gpkg
+        # and/or wkb?).
+        if result is None or result.is_empty:
+            return None
+
+        return shapely.to_wkb(result)
+    except Exception as ex:  # pragma: no cover
+        # ex.with_traceback()
+        logger.exception(f"Error in gfo_intersection: {ex}")
+        return None
+
+
+def gfo_intersection_collections(
+    geom1_wkb: bytes,
+    geom2_wkb: bytes,
+    gridsize: int = 0.0,
+    keep_geom_type: int = 0,
+) -> Optional[bytes]:
+    """
+    Calculates the intersection between geom_wkb1 and geom_wkb2.
+
+    Inputs geom_wkb1 and geom_wkb2 can be collections. In this case the result will be
+    unary_unioned so it is back a normal geometry.
+
+    Args:
+        geom1_wkb (bytes): first geometry in wkb format.
+        geom2_wkb (bytes): second geometry in wkb format.
+        gridsize (int): the size of the grid the coordinates of the ouput will be
+            rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change the
+            precision.
+        keep_geom_type (int, optional): 1 to only retain geometries in the results of
+            the same geometry type/dimension as the input. Eg. if input is a Polygon,
+            remove LineStrings and Points from the difference result before returning.
+            Defaults to 0.
+
+    Returns:
+        Optional[bytes]: return the intersection. If there is no intersection, NULL is
+            returned.
+    """
+    try:
+        # Check/prepare input
+        if geom1_wkb is None:
+            return None
+        if geom2_wkb is None:
+            return None
+
+        # Extract wkb's, and return if empty
+        geom1 = shapely.from_wkb(geom1_wkb)
+        if geom1.is_empty:
+            return None
+        geom2 = shapely.from_wkb(geom2_wkb)
+        if geom2.is_empty:
+            return None
+
+        # Check and convert booleanish int inputs to bool.
+        keep_geom_type = _int2bool(keep_geom_type, "keep_geom_type")
+
+    except Exception as ex:  # pragma: no cover
+        # ex.with_traceback()
+        logger.exception(f"Error in gfo_intersection_collections: {ex}")
+        raise
+
+    try:
+        if isinstance(geom1, shapely.GeometryCollection):
+            geom1 = shapely.get_parts(geom1)
+        else:
+            geom1 = [geom1]
+        if isinstance(geom2, shapely.GeometryCollection):
+            geom2 = shapely.get_parts(geom2)
+        else:
+            geom2 = [geom2]
+
+        # If both just contain one geometry, shortcut treatment
+        if len(geom1) == 1 and len(geom2) == 1:
+            result = shapely.intersection(geom1[0], geom2[0])
+
+            # Remark: tried to return empty geometry an empty GeometryCollection, but
+            # apparentle ST_IsEmpty of spatialite doesn't work (in combination with gpkg
+            # and/or wkb?).
+            if result is None or result.is_empty:
+                return None
+
+            return shapely.to_wkb(result)
+
+        # If geom2 has only one part, switch them to avoid having many iterations if one
+        # would be enough.
+        if len(geom2) == 1:
+            geom_tmp = geom2
+            geom2 = geom1
+            geom1 = geom_tmp
+
+        # Loop geom1
+        result = None
+        for geom_part in geom1:
+            shapely.prepare(geom_part)
+            intersecting_idx = np.nonzero(shapely.intersects(geom_part, geom2))[0]
+            if len(intersecting_idx) == 0:
+                continue
+            intersections = shapely.intersection(geom_part, geom2[intersecting_idx])
+            if result is None:
+                result = intersections
+            else:
+                result = np.concatenate([result, intersections])
+
+        if result is None:
+            return None
+        elif len(result) == 1:
+            result = result[0]
+        else:
+            result = shapely.unary_union(result, grid_size=gridsize)
+
+        # If an empty result, return None
+        # Remark: tried to return empty geometry an empty GeometryCollection, but
+        # apparentle ST_IsEmpty of spatialite doesn't work (in combination with gpkg
+        # and/or wkb?).
+        if result is None or result.is_empty:
+            return None
+
+        return shapely.to_wkb(result)
+    except Exception as ex:  # pragma: no cover
+        # ex.with_traceback()
+        logger.exception(f"Error in gfo_intersection_collections: {ex}")
+        return None
+
+
 def gfo_reduceprecision(
     geom_wkb: bytes,
     gridsize: int,
@@ -132,7 +317,6 @@ def gfo_reduceprecision(
         geom = shapely.from_wkb(geom_wkb)
         if geom.is_empty:
             return geom_wkb
-        del geom_wkb
 
     except Exception as ex:  # pragma: no cover
         # ex.with_traceback()
@@ -188,7 +372,6 @@ def gfo_subdivide(geom_wkb: bytes, coords: int = 1000):
         geom = shapely.from_wkb(geom_wkb)
         if geom.is_empty:
             return geom_wkb
-        del geom_wkb
 
     except Exception as ex:  # pragma: no cover
         # ex.with_traceback()

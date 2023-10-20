@@ -17,10 +17,6 @@ from geofileops import GeometryType
 from geofileops.util._general_util import MissingRuntimeDependencyError
 from geofileops.util import _sqlite_userdefined as sqlite_userdefined
 
-#####################################################################
-# First define/init some general variables/constants
-#####################################################################
-
 # Get a logger...
 logger = logging.getLogger(__name__)
 
@@ -36,11 +32,6 @@ class EmptyResultError(Exception):
     def __init__(self, message):
         self.message = message
         super().__init__(self.message)
-
-
-#####################################################################
-# The real work
-#####################################################################
 
 
 def check_runtimedependencies():
@@ -658,6 +649,20 @@ def load_spatialite(conn):
         "GFO_Difference_Collection",
         -1,
         sqlite_userdefined.gfo_difference_collection,
+        deterministic=True,
+    )
+
+    conn.create_function(
+        "GFO_Intersection",
+        -1,
+        sqlite_userdefined.gfo_intersection,
+        deterministic=True,
+    )
+
+    conn.create_function(
+        "GFO_Intersection_Collections",
+        -1,
+        sqlite_userdefined.gfo_intersection_collections,
         deterministic=True,
     )
 
