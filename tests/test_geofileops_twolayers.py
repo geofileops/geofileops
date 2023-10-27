@@ -15,6 +15,7 @@ import shapely.geometry as sh_geom
 import geofileops as gfo
 from geofileops import GeometryType
 from geofileops.util import _geoops_sql as geoops_sql
+from geofileops.util import _sqlite_util
 from tests import test_helper
 from tests.test_helper import SUFFIXES, TESTFILES
 from tests.test_helper import assert_geodataframe_equal
@@ -709,6 +710,8 @@ def test_join_nearest(tmp_path, suffix, epsg):
     input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input1_layerinfo.featurecount / 2)
+    versions = _sqlite_util.check_runtimedependencies()
+    SPATIALITE_GTE_51 = False if versions["spatialite_version"] < "5.1" else True
 
     # Now run test
     output_path = tmp_path / f"{input1_path.stem}-output{suffix}"
@@ -732,9 +735,10 @@ def test_join_nearest(tmp_path, suffix, epsg):
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == nb_nearest * input1_layerinfo.featurecount
-    assert len(output_layerinfo.columns) == (
-        len(input1_columns) + len(input2_layerinfo.columns) + 2
-    )
+    exp_columns = len(input1_columns) + len(input2_layerinfo.columns) + 2
+    if SPATIALITE_GTE_51:
+        exp_columns += 1
+    assert len(output_layerinfo.columns) == exp_columns
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
 
     # Check the contents of the result file
