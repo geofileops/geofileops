@@ -1657,13 +1657,12 @@ def join_nearest(
                   {{layer1_columns_prefix_alias_str}}
                   {{layer2_columns_prefix_alias_str}}
                   ,k.pos, k.distance_m AS distance, k.distance_crs
-              FROM {{input1_databasename}}."{{input1_layer}}" layer1
-              JOIN {{input2_databasename}}.knn2 k
-              JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                ON layer2.rowid = k.fid
+              FROM "{{input1_layer}}" layer1
+              JOIN knn2 k
+              JOIN "{{input2_layer}}" layer2 ON layer2.rowid = k.fid
              WHERE f_table_name = '{{input2_layer}}'
                AND f_geometry_column = '{{input2_geometrycolumn}}'
-               AND ref_geometry = layer1.{{input1_geometrycolumn}}
+               AND ref_geometry = ST_Centroid(layer1.{{input1_geometrycolumn}})
                AND radius = {distance}
                AND max_items = {nb_nearest}
                AND expand = {expand_int}
