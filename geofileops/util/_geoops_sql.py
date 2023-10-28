@@ -1620,7 +1620,7 @@ def join_nearest(
             raise ValueError("expand is mandatory with spatialite >= 5.1")
         expand_int = 1 if expand else False
     else:
-        if not expand:
+        if expand is not None and not expand:
             raise ValueError("expand=False is not supported with spatialite < 5.1")
 
     # Prepare input files
