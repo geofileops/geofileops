@@ -17,7 +17,6 @@ from geofileops import GeometryType
 from geofileops._compat import SPATIALITE_GTE_51
 from geofileops.util import _geofileinfo
 from geofileops.util import _geoops_sql as geoops_sql
-from geofileops.util import _sqlite_util
 from tests import test_helper
 from tests.test_helper import SUFFIXES_GEOOPS, TESTFILES
 from tests.test_helper import assert_geodataframe_equal
