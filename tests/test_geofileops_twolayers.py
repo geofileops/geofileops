@@ -14,6 +14,7 @@ import shapely.geometry as sh_geom
 
 import geofileops as gfo
 from geofileops import GeometryType
+from geofileops._compat import SPATIALITE_GTE_51
 from geofileops.util import _geofileinfo
 from geofileops.util import _geoops_sql as geoops_sql
 from geofileops.util import _sqlite_util
@@ -767,8 +768,6 @@ def test_join_nearest(tmp_path, suffix, epsg):
     input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input1_layerinfo.featurecount / 2)
-    versions = _sqlite_util.check_runtimedependencies()
-    SPATIALITE_GTE_51 = False if versions["spatialite_version"] < "5.1" else True
 
     # Now run test
     output_path = tmp_path / f"{input1_path.stem}-output{suffix}"
@@ -825,8 +824,6 @@ def test_join_nearest_invalid_params(
     tmp_path, kwargs, error_spatialite51, error_spatialite50
 ):
     # Check what version of spatialite we are dealing with
-    versions = _sqlite_util.check_runtimedependencies()
-    SPATIALITE_GTE_51 = False if versions["spatialite_version"] < "5.1" else True
     error = error_spatialite51 if SPATIALITE_GTE_51 else error_spatialite50
 
     # Prepare test data

@@ -21,6 +21,7 @@ import geofileops as gfo
 from geofileops import GeometryType, PrimitiveType
 from geofileops import fileops
 
+from geofileops._compat import SPATIALITE_GTE_51
 from geofileops.fileops import _append_to_nolock
 from geofileops.util import _general_util
 from geofileops.util import _geofileinfo
@@ -1612,8 +1613,6 @@ def join_nearest(
         input2_layer = gfo.get_only_layer(input2_path)
 
     # If spatialite >= 5.1, check some more parameters
-    versions = _sqlite_util.check_runtimedependencies()
-    SPATIALITE_GTE_51 = False if versions["spatialite_version"] < "5.1" else True
     if SPATIALITE_GTE_51:
         if distance is None:
             raise ValueError("distance is mandatory with spatialite >= 5.1")
