@@ -2385,10 +2385,12 @@ def join_nearest(
         output_path (PathLike): the file to write the result to
         nb_nearest (int): the number of nearest features from input 2 to join
             to input1.
-        distance (float): maximum distance to search for the nearest items. If
-            `expand` is True, this is the initial search distance, which will be
-            gradually expanded till `nb_nearest` are found. Only used if spatialite
-            version >= 5.1 is used.
+        distance (float): maximum distance to search for the nearest items. If `expand`
+            is True, this is the initial search distance, which will be gradually
+            expanded (doubled) till `nb_nearest` are found. For optimal performance,
+            it is important to choose the typical value that will be needed to find
+            `nb_nearest` items. If `distance` is too large, performance can be bad.
+            Parameter is only relevant if spatialite version >= 5.1 is used.
         expand (bool): `True` to keep searching till nb_nearest items are found. If
             `False`, only items found within `distance` are returned (`False` is only
             supported if spatialite version >= 5.1 is used).
