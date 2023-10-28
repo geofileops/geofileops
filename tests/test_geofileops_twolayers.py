@@ -809,6 +809,60 @@ def test_join_nearest(tmp_path, suffix, epsg):
 
 
 @pytest.mark.parametrize(
+    "kwargs, error_spatialite51, error_spatialite50",
+    [
+        ({"expand": True}, "distance is mandatory", None),
+        (
+            {"expand": False},
+            "distance is mandatory with spatialite >= 5.1",
+            "expand=False is not supported with spatialite < 5.1",
+        ),
+        (
+            {"distance": 1000},
+            "expand is mandatory with spatialite >= 5.1",
+            "distance is not supported with spatialite < 5.1",
+        ),
+        (
+            {"distance": 1000, "expand": True},
+            None,
+            "distance is not None is not supported with spatialite < 5.1",
+        ),
+    ],
+)
+def test_join_nearest_invalid_params(
+    tmp_path, kwargs, error_spatialite51, error_spatialite50
+):
+    # Check what version of spatialite we are dealing with
+    versions = _sqlite_util.check_runtimedependencies()
+    SPATIALITE_GTE_51 = False if versions["spatialite_version"] < "5.1" else True
+    error = error_spatialite51 if SPATIALITE_GTE_51 else error_spatialite50
+
+    # Prepare test data
+    input1_path = test_helper.get_testfile("polygon-parcel")
+    input2_path = test_helper.get_testfile("polygon-zone")
+    output_path = tmp_path / "output.gpkg"
+
+    # Test
+    if error is not None:
+        with pytest.raises(ValueError, match=error):
+            gfo.join_nearest(
+                input1_path=input1_path,
+                input2_path=input2_path,
+                output_path=output_path,
+                nb_nearest=1,
+                **kwargs,
+            )
+    else:
+        gfo.join_nearest(
+            input1_path=input1_path,
+            input2_path=input2_path,
+            output_path=output_path,
+            nb_nearest=1,
+            **kwargs,
+        )
+
+
+@pytest.mark.parametrize(
     "suffix, epsg, gridsize",
     [(".gpkg", 31370, 0.001), (".gpkg", 4326, 0.0), (".shp", 31370, 0.001)],
 )

@@ -1623,6 +1623,10 @@ def join_nearest(
     else:
         if not expand:
             raise ValueError("expand=False is not supported with spatialite < 5.1")
+        elif distance is not None:
+            raise ValueError(
+                "distance is not None is not supported with spatialite < 5.1"
+            )
 
     # Prepare input files
     # To use knn index, the input layers need to be in sqlite file format
