@@ -2374,7 +2374,7 @@ def join_nearest(
         - distance_crs (float): if the dataset is in a planar (= projected) crs,
           `distance_crs` will be in the unit defined by the projection (meters, feet,
           chains etc.). For a geographic dataset (longitude and latitude degrees),
-          `distance_crs` will be in angles. Only available for spatialite >= 5.1.
+          `distance_crs` will be in angles. Only available with spatialite >= 5.1.
 
     Note: if spatialite version >= 5.1 is used, parameters `distance` and `expand` are
     mandatory.
@@ -2390,8 +2390,8 @@ def join_nearest(
             gradually expanded till `nb_nearest` are found. Only used if spatialite
             version >= 5.1 is used.
         expand (bool): `True` to keep searching till nb_nearest items are found. If
-            `False`, only items found within `distance` are returned. Only used if
-            spatialite version >= 5.1 is used.
+            `False`, only items found within `distance` are returned (`False` is only
+            supported if spatialite version >= 5.1 is used).
         input1_layer (str, optional): input layer name. Optional if the
             file only contains one layer. Defaults to `None`.
         input1_columns (List[str], optional): list of columns to retain. If None, all

@@ -817,16 +817,8 @@ def test_join_nearest(tmp_path, suffix, epsg):
             "distance is mandatory with spatialite >= 5.1",
             "expand=False is not supported with spatialite < 5.1",
         ),
-        (
-            {"distance": 1000},
-            "expand is mandatory with spatialite >= 5.1",
-            "distance is not supported with spatialite < 5.1",
-        ),
-        (
-            {"distance": 1000, "expand": True},
-            None,
-            "distance is not None is not supported with spatialite < 5.1",
-        ),
+        ({"distance": 1000}, "expand is mandatory with spatialite >= 5.1", None),
+        ({"distance": 1000, "expand": True}, None, None),
     ],
 )
 def test_join_nearest_invalid_params(
