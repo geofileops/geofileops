@@ -913,8 +913,12 @@ def _apply_geooperation(
             )
         except shapely.errors.GEOSException as ex:  # pragma: no cover
             # If set_precision fails with TopologyException, try again after make_valid
+            # Because it is applied on a GeoDataFrame with typically many rows, we don't
+            # know which row is invalid, so use only_if_invalid=True.
             if str(ex).lower().startswith("topologyexception"):
-                data_gdf.geometry = shapely.make_valid(data_gdf.geometry)
+                data_gdf.geometry = pygeoops.make_valid(
+                    data_gdf.geometry, keep_collapsed=False, only_if_invalid=True
+                )
                 data_gdf.geometry = shapely.set_precision(
                     data_gdf.geometry, grid_size=gridsize
                 )
