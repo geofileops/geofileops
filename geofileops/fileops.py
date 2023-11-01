@@ -1830,7 +1830,7 @@ def _to_file_pyogrio(
         kwargs["promote_to_multi"] = True
 
     # Temp fix for bug in pyogrio 0.7.2 (https://github.com/geopandas/pyogrio/pull/324)
-    # Test taken from geopandas.to_file
+    # Logic based on geopandas.to_file
     if list(gdf.index.names) == [None] and is_integer_dtype(gdf.index.dtype):
         gdf = gdf.reset_index(drop=True)
 
