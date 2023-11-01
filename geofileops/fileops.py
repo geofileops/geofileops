@@ -1828,6 +1828,9 @@ def _to_file_pyogrio(
     if force_multitype:
         kwargs["promote_to_multi"] = True
 
+    # Temp fix for bug in pyogrio 0.7.2 (https://github.com/geopandas/pyogrio/pull/324)
+    gdf = gdf.reset_index(drop=True)
+
     # Now we can write
     if path_info.is_singlelayer:
         gdf.to_file(str(path), **kwargs)
