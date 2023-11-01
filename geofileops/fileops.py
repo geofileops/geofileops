@@ -1831,7 +1831,7 @@ def _to_file_pyogrio(
 
     # Temp fix for bug in pyogrio 0.7.2 (https://github.com/geopandas/pyogrio/pull/324)
     # Test taken from geopandas.to_file
-    if not (list(gdf.index.names) != [None] or not is_integer_dtype(gdf.index.dtype)):
+    if list(gdf.index.names) == [None] and is_integer_dtype(gdf.index.dtype):
         gdf = gdf.reset_index(drop=True)
 
     # Now we can write
