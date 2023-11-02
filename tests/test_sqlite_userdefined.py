@@ -100,7 +100,9 @@ def test_gfo_reduceprecision(test_descr, geom, exp_result):
     geom_wkb = None if geom is None else geom.wkb
 
     # Run test
-    result_wkb = sqlite_userdefined.gfo_reduceprecision(geom_wkb, gridsize=1)
+    result_wkb = sqlite_userdefined.gfo_reduceprecision(
+        geom_wkb, gridsize=1, makevalid_first=True
+    )
 
     # Check result
     result = shapely.from_wkb(result_wkb)
