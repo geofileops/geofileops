@@ -22,15 +22,16 @@ from geopandas.io import file as gpd_io_file
 import numpy as np
 from osgeo import gdal
 import pandas as pd
+from pandas.api.types import is_integer_dtype
 from pygeoops import GeometryType, PrimitiveType  # noqa: F401
 import pyogrio
 import pyproj
 
+from geofileops.util import _geofileinfo
 from geofileops.util import _geoseries_util
 from geofileops.util import _io_util
 from geofileops.util import _ogr_util
 from geofileops.util import _ogr_sql_util
-from geofileops.util.geofiletype import GeofileType
 
 #####################################################################
 # First define/init some general variables/constants
@@ -297,7 +298,9 @@ def get_layerinfo(
 
     datasource = None
     try:
-        datasource = gdal.OpenEx(str(path))
+        datasource = gdal.OpenEx(
+            str(path), nOpenFlags=gdal.OF_VECTOR | gdal.OF_READONLY | gdal.OF_SHARED
+        )
         datasource_layer = datasource.GetLayer(layer)
 
         # If the layer doesn't exist, return
@@ -307,7 +310,7 @@ def get_layerinfo(
         # Get column info
         columns = {}
         errors = []
-        geofiletype = GeofileType(path)
+        driver = datasource.GetDriver().ShortName
         layer_defn = datasource_layer.GetLayerDefn()
         for i in range(layer_defn.GetFieldCount()):
             name = layer_defn.GetFieldDefn(i).GetName()
@@ -328,7 +331,7 @@ def get_layerinfo(
                 name=name, gdal_type=gdal_type, width=width, precision=precision
             )
             columns[name] = column_info
-            if geofiletype == GeofileType.ESRIShapefile:
+            if driver == "ESRI Shapefile":
                 if name.casefold() == "geometry":
                     errors.append(
                         "An attribute column 'geometry' is not supported in a shapefile"
@@ -340,7 +343,7 @@ def get_layerinfo(
 
         # For shape files, the difference between the 'MULTI' variant and the
         # single one doesn't exists... so always report MULTI variant by convention.
-        if GeofileType(path) == GeofileType.ESRIShapefile:
+        if driver == "ESRI Shapefile":
             if geometrytypename.startswith(("POLYGON", "LINESTRING", "POINT")):
                 geometrytypename = f"MULTI{geometrytypename}"
         if geometrytypename == "UNKNOWN(ANY)":
@@ -383,7 +386,7 @@ def get_layerinfo(
                         crs = pyproj.CRS.from_epsg(31370)
 
                         # If shapefile, add correct 31370 .prj file
-                        if GeofileType(path) == GeofileType.ESRIShapefile:
+                        if driver == "ESRI Shapefile":
                             prj_path = path.parent / f"{path.stem}.prj"
                             if prj_path.exists():
                                 prj_rename_path = path.parent / f"{path.stem}_orig.prj"
@@ -546,7 +549,7 @@ def create_spatial_index(
     # Add index
     datasource = None
     try:
-        geofiletype = GeofileType(path)
+        path_info = _geofileinfo.get_geofileinfo(path)
 
         layerinfo = get_layerinfo(path, layer, raise_on_nogeom=not no_geom_ok)
         if no_geom_ok and layerinfo.geometrycolumn is None:
@@ -559,9 +562,9 @@ def create_spatial_index(
             elif exist_ok:
                 return
             else:
-                raise RuntimeError(f"Spatial index exists already on {path}.{layer}")
+                raise RuntimeError(f"spatial index exists already on {path}.{layer}")
 
-        if geofiletype.is_spatialite_based:
+        if path_info.is_spatialite_based:
             # The config options need to be set before opening the file!
             with _ogr_util.set_config_options({"OGR_SQLITE_CACHE": cache_size_mb}):
                 datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
@@ -575,7 +578,14 @@ def create_spatial_index(
             datasource.ReleaseResultSet(result)
 
     except Exception as ex:
-        ex.args = (f"create_spatial_index error for {path}.{layer}:\n  {ex}",)
+        if isinstance(ex, ValueError) and str(ex).startswith(
+            "has_spatial_index not supported for"
+        ):
+            raise ValueError(
+                f"create_spatial_index not supported for {path_info.driver}: {path}"
+            ) from ex
+        else:
+            ex.args = (f"create_spatial_index error: {ex}, for {path}.{layer}",)
         raise
     finally:
         datasource = None
@@ -609,9 +619,9 @@ def has_spatial_index(
 
     # Now check the index
     datasource = None
-    geofiletype = GeofileType(path)
+    path_info = _geofileinfo.get_geofileinfo(path)
     try:
-        if geofiletype.is_spatialite_based:
+        if path_info.is_spatialite_based:
             layerinfo = get_layerinfo(path, layer, raise_on_nogeom=not no_geom_ok)
             if no_geom_ok and layerinfo.geometrycolumn is None:
                 return False
@@ -624,14 +634,18 @@ def has_spatial_index(
             has_spatial_index = result.GetNextFeature().GetField(0) == 1
             datasource.ReleaseResultSet(result)
             return has_spatial_index
-        elif geofiletype == GeofileType.ESRIShapefile:
+        elif path_info.driver == "ESRI Shapefile":
             index_path = path.parent / f"{path.stem}.qix"
             return index_path.exists()
         else:
-            raise ValueError(f"has_spatial_index not supported for {path}")
+            raise ValueError(
+                f"has_spatial_index not supported for {path_info.driver}: {path}"
+            )
 
+    except ValueError:
+        raise
     except Exception as ex:
-        ex.args = (f"has_spatial_index error for {path}.{layer}:\n  {ex}",)
+        ex.args = (f"has_spatial_index error: {ex}, for {path}.{layer}",)
         raise
     finally:
         datasource = None
@@ -653,28 +667,30 @@ def remove_spatial_index(
 
     # Now really remove index
     datasource = None
-    geofiletype = GeofileType(path)
-    layerinfo = get_layerinfo(path, layer)
+    path_info = _geofileinfo.get_geofileinfo(path)
+    path_layerinfo = get_layerinfo(path, layer)
     try:
-        if geofiletype.is_spatialite_based:
+        if path_info.is_spatialite_based:
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             result = datasource.ExecuteSQL(
                 "SELECT DisableSpatialIndex("
-                f"      '{layerinfo.name}', '{layerinfo.geometrycolumn}')",
+                f"      '{path_layerinfo.name}', '{path_layerinfo.geometrycolumn}')",
                 dialect="SQLITE",
             )
             datasource.ReleaseResultSet(result)
-        elif geofiletype == GeofileType.ESRIShapefile:
+        elif path_info.driver == "ESRI Shapefile":
             # DROP SPATIAL INDEX ON ... command gives an error, so just remove .qix
             index_path = path.parent / f"{path.stem}.qix"
             index_path.unlink()
         else:
-            raise RuntimeError(
-                f"remove_spatial_index is not supported for {path.suffix} file"
+            raise ValueError(
+                f"remove_spatial_index not supported for {path_info.driver}: {path}"
             )
 
+    except ValueError:
+        raise
     except Exception as ex:
-        ex.args = (f"remove_spatial_index error for {path}.{layer}:\n  {ex}",)
+        ex.args = (f"remove_spatial_index error: {ex}, for {path}.{layer}",)
         raise
     finally:
         datasource = None
@@ -698,24 +714,23 @@ def rename_layer(
     if layer is None:
         layer = get_only_layer(path)
 
+    # Renaming the layer name is not possible for single layer file formats.
+    path_info = _geofileinfo.get_geofileinfo(path)
+    if path_info.is_singlelayer:
+        raise ValueError(f"rename_layer not possible for {path_info.driver} file")
+
     # Now really rename
     datasource = None
-    geofiletype = GeofileType(path)
-    if geofiletype.is_spatialite_based:
-        try:
-            datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
-            sql_stmt = f'ALTER TABLE "{layer}" RENAME TO "{new_layer}"'
-            result = datasource.ExecuteSQL(sql_stmt)
-            datasource.ReleaseResultSet(result)
-        except Exception as ex:
-            ex.args = (f"rename_layer error for {path}.{layer}:\n  {ex}",)
-            raise
-        finally:
-            datasource = None
-    elif geofiletype == GeofileType.ESRIShapefile:
-        raise ValueError(f"rename_layer not possible for {geofiletype} file")
-    else:
-        raise ValueError(f"rename_layer not implemented for {path.suffix} file")
+    try:
+        datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
+        sql_stmt = f'ALTER TABLE "{layer}" RENAME TO "{new_layer}"'
+        result = datasource.ExecuteSQL(sql_stmt)
+        datasource.ReleaseResultSet(result)
+    except Exception as ex:
+        ex.args = (f"rename_layer error: {ex}, for {path}.{layer}",)
+        raise
+    finally:
+        datasource = None
 
 
 def rename_column(
@@ -738,7 +753,7 @@ def rename_column(
     path = Path(path)
     if layer is None:
         layer = get_only_layer(path)
-    info = get_layerinfo(path, layer)
+    info = get_layerinfo(path, layer, raise_on_nogeom=False)
     if column_name not in info.columns and new_column_name in info.columns:
         logger.info(
             f"Column {column_name} seems to be renamed already to {new_column_name}"
@@ -747,26 +762,32 @@ def rename_column(
 
     # Now really rename
     datasource = None
-    geofiletype = GeofileType(path)
-    if geofiletype.is_spatialite_based:
-        try:
-            datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
-            sql_stmt = (
-                f'ALTER TABLE "{layer}" '
-                f'RENAME COLUMN "{column_name}" TO "{new_column_name}"'
-            )
-            result = datasource.ExecuteSQL(sql_stmt)
-            datasource.ReleaseResultSet(result)
-        except Exception as ex:
-            ex.args = (f"rename_column error for {path}.{layer}:\n  {ex}",)
-            raise
-        finally:
-            datasource = None
+    try:
+        datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
+        datasource_layer = datasource.GetLayer(layer)
+        if not datasource_layer.TestCapability(gdal.ogr.OLCAlterFieldDefn):
+            raise ValueError(f"rename_column not supported for {path}")
 
-    elif geofiletype == GeofileType.ESRIShapefile:
-        raise ValueError(f"rename_column is not possible for {geofiletype} file")
-    else:
-        raise ValueError(f"rename_column is not implemented for {path.suffix} file")
+        # Rename column
+        sql_stmt = (
+            f'ALTER TABLE "{layer}" '
+            f'RENAME COLUMN "{column_name}" TO "{new_column_name}"'
+        )
+        result = datasource.ExecuteSQL(sql_stmt)
+        datasource.ReleaseResultSet(result)
+
+    except Exception as ex:
+        # If it is the ValueError thrown above, just raise
+        if isinstance(ex, ValueError) and str(ex).startswith(
+            "rename_column not supported for"
+        ):
+            raise
+
+        # It is another error... add some more context
+        ex.args = (f"rename_column error: {ex} for {path}.{layer}",)
+        raise
+    finally:
+        datasource = None
 
 
 class DataType(enum.Enum):
@@ -838,7 +859,7 @@ def add_column(
     path = Path(path)
     if layer is None:
         layer = get_only_layer(path)
-    layerinfo_orig = get_layerinfo(path, layer)
+    layerinfo_orig = get_layerinfo(path, layer, raise_on_nogeom=False)
 
     # Go!
     datasource = None
@@ -890,7 +911,7 @@ def drop_column(
     path = Path(path)
     if layer is None:
         layer = get_only_layer(path)
-    info = get_layerinfo(path, layer)
+    info = get_layerinfo(path, layer, raise_on_nogeom=False)
     if column_name not in info.columns:
         logger.info(f"Column {column_name} not present so cannot be dropped.")
         return
@@ -1191,14 +1212,17 @@ def _read_file_base_fiona(
     if fid_as_index:
         # Make a copy/copy input file to geopackage, as we will add an fid/rowd column
         tmp_fid_path = Path(tempfile.mkdtemp()) / f"{path.stem}.gpkg"
+        path_info = _geofileinfo.get_geofileinfo(path)
         try:
-            if GeofileType(path) == GeofileType.GPKG:
+            if path_info.driver == "GPKG":
                 copy(path, tmp_fid_path)
-                add_column(tmp_fid_path, "__TMP_GEOFILEOPS_FID", "INTEGER", "fid")
             else:
                 copy_layer(path, tmp_fid_path)
+            if path_info.is_fid_zerobased:
                 # fid in shapefile is 0 based, so fid-1
                 add_column(tmp_fid_path, "__TMP_GEOFILEOPS_FID", "INTEGER", "fid-1")
+            else:
+                add_column(tmp_fid_path, "__TMP_GEOFILEOPS_FID", "INTEGER", "fid")
 
             path = tmp_fid_path
         finally:
@@ -1209,7 +1233,7 @@ def _read_file_base_fiona(
     # make sure the column names specified have the same casing.
     columns_prepared = None
     if columns is not None:
-        layerinfo = get_layerinfo(path, layer=layer)
+        layerinfo = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
         columns_upper_lookup = {column.upper(): column for column in columns}
         columns_prepared = {
             column: columns_upper_lookup[column.upper()]
@@ -1238,7 +1262,10 @@ def _read_file_base_fiona(
 
     # Reorder columns + change casing so they are the same as columns parameter
     if columns_prepared is not None and len(columns_prepared) > 0:
-        result_gdf = result_gdf[list(columns_prepared) + ["geometry"]]
+        columns_to_keep = list(columns_prepared)
+        if "geometry" in result_gdf.columns:
+            columns_to_keep += ["geometry"]
+        result_gdf = result_gdf[columns_to_keep]
         result_gdf = result_gdf.rename(columns=columns_prepared)
 
     # Starting from fiona 1.9, string columns with all None values are read as being
@@ -1298,7 +1325,7 @@ def _read_file_base_pyogrio(
         # Checking if column names should be read is case sensitive in pyogrio, so
         # make sure the column names specified have the same casing.
         if columns is not None:
-            layerinfo = get_layerinfo(path, layer=layer)
+            layerinfo = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
             columns_upper_lookup = {column.upper(): column for column in columns}
             columns_prepared = {
                 column: columns_upper_lookup[column.upper()]
@@ -1331,7 +1358,10 @@ def _read_file_base_pyogrio(
 
     # Reorder columns + change casing so they are the same as columns parameter
     if columns_prepared is not None and len(columns_prepared) > 0:
-        result_gdf = result_gdf[list(columns_prepared) + ["geometry"]]
+        columns_to_keep = list(columns_prepared)
+        if layerinfo.geometrycolumn is not None and not ignore_geometry:
+            columns_to_keep += ["geometry"]
+        result_gdf = result_gdf[columns_to_keep]
         result_gdf = result_gdf.rename(columns=columns_prepared)
 
     # Cast columns that are of object type, but contain datetime.date or datetime.date
@@ -1511,6 +1541,7 @@ def to_file(
         isinstance(gdf, gpd.GeoDataFrame) and "geometry" not in gdf.columns
     ):
         engine = "fiona"
+        create_spatial_index = False
     else:
         engine = _get_engine()
 
@@ -1563,7 +1594,7 @@ def _to_file_fiona(
     Writes a pandas dataframe to file using fiona.
     """
     # Shapefile doesn't support datetime columns, so first cast them to string
-    if GeofileType(path) == GeofileType.ESRIShapefile:
+    if path.suffix.lower() in [".shp", ".dbf"]:
         gdf = gdf.copy()
         # Columns that have a proper datetime64 type
         for column in gdf.select_dtypes(include=["datetime64"]):
@@ -1583,7 +1614,10 @@ def _to_file_fiona(
     ):
         # No geometry, so prepare to be written as attribute table: add geometry column
         # with None geometry type in schema
-        gdf = gpd.GeoDataFrame(gdf, geometry=[None for i in gdf.index])
+        # With older versions of pandas and/or geopandas, without the copy the actual
+        # gdf is changed and returned which isn't OK.
+        # This caused test_to_file with .csv to fail for the "minimal" CI env.
+        gdf = gpd.GeoDataFrame(gdf.copy(), geometry=[None for i in gdf.index])
 
         schema = gpd_io_file.infer_schema(gdf)
         schema["geometry"] = "None"
@@ -1629,8 +1663,8 @@ def _to_file_fiona(
         kwargs: Dict[str, Any] = {}
         kwargs["engine"] = "fiona"
         kwargs["mode"] = mode
-        geofiletype = GeofileType(path)
-        kwargs["driver"] = geofiletype.ogrdriver
+        drivername = _geofileinfo.get_driver(path)
+        kwargs["driver"] = drivername
         kwargs["index"] = index
         if create_spatial_index is not None:
             kwargs["SPATIAL_INDEX"] = create_spatial_index
@@ -1640,15 +1674,7 @@ def _to_file_fiona(
             kwargs["schema"] = schema
 
         # Now we can write
-        if geofiletype == GeofileType.ESRIShapefile:
-            """
-            if index is True:
-                gdf_to_write = gdf.reset_index(drop=True)
-            else:
-                gdf_to_write = gdf
-            """
-            gdf.to_file(str(path), **kwargs)
-        elif geofiletype == GeofileType.GPKG:
+        if drivername == "GPKG":
             # Try to harmonize the geometrytype to one (multi)type, as GPKG
             # doesn't like > 1 type in a layer
             if schema is None or (len(gdf) > 0 and schema["geometry"] != "None"):
@@ -1656,14 +1682,9 @@ def _to_file_fiona(
                 gdf.geometry = _geoseries_util.harmonize_geometrytypes(
                     gdf.geometry, force_multitype=force_multitype
                 )
-                assert isinstance(gdf, gpd.GeoDataFrame)
             gdf.to_file(str(path), layer=layer, **kwargs)
-        elif geofiletype == GeofileType.SQLite:
-            gdf.to_file(str(path), layer=layer, **kwargs)
-        elif geofiletype == GeofileType.GeoJSON:
-            gdf.to_file(str(path), **kwargs)
         else:
-            raise ValueError(f"Not implemented for geofiletype {geofiletype}")
+            gdf.to_file(str(path), layer=layer, **kwargs)
 
     # If no append, just write to output path
     if not append:
@@ -1685,10 +1706,10 @@ def _to_file_fiona(
         # Remark: fiona pre-1.8.14 didn't support appending to geopackage. Once
         # older versions becomes rare, dependency can be put to this version, and
         # this code can be cleaned up...
-        geofiletype = GeofileType(path)
+        path_info = _geofileinfo.get_geofileinfo(path)
         gdftemp_path = None
         gdftemp_lockpath = None
-        if "a" not in fiona.supported_drivers[geofiletype.ogrdriver]:
+        if "a" not in fiona.supported_drivers[path_info.driver]:
             # Get a unique temp file path. The file cannot be created yet, so
             # only create a lock file to avoid other processes using the same
             # temp file name
@@ -1741,7 +1762,7 @@ def _to_file_fiona(
                             gdftemp_lockpath.unlink()
                 except Exception as ex:
                     # If sqlite output file locked, also retry
-                    if geofiletype.is_spatialite_based and str(ex) not in [
+                    if path_info.is_spatialite_based and str(ex) not in [
                         "database is locked",
                         "attempt to write a readonly database",
                     ]:
@@ -1796,8 +1817,8 @@ def _to_file_pyogrio(
     # Prepare kwargs to use in geopandas.to_file
     if create_spatial_index is not None:
         kwargs["SPATIAL_INDEX"] = create_spatial_index
-    geofiletype = GeofileType(path)
-    kwargs["driver"] = geofiletype.ogrdriver
+    path_info = _geofileinfo.get_geofileinfo(path)
+    kwargs["driver"] = path_info.driver
     kwargs["index"] = index
     if create_spatial_index is not None:
         kwargs["SPATIAL_INDEX"] = create_spatial_index
@@ -1808,8 +1829,13 @@ def _to_file_pyogrio(
     if force_multitype:
         kwargs["promote_to_multi"] = True
 
+    # Temp fix for bug in pyogrio 0.7.2 (https://github.com/geopandas/pyogrio/pull/324)
+    # Logic based on geopandas.to_file
+    if list(gdf.index.names) == [None] and is_integer_dtype(gdf.index.dtype):
+        gdf = gdf.reset_index(drop=True)
+
     # Now we can write
-    if geofiletype.is_singlelayer:
+    if path_info.is_singlelayer:
         gdf.to_file(str(path), **kwargs)
     else:
         gdf.to_file(str(path), layer=layer, **kwargs)
@@ -1835,12 +1861,19 @@ def is_geofile(path: Union[str, "os.PathLike[Any]"]) -> bool:
     """
     Determines based on the filepath if this is a geofile.
 
+    DEPRECATED.
+
     Args:
         path (PathLike): The file path.
 
     Returns:
         bool: True if it is a geo file.
     """
+    warnings.warn(
+        "is_geofile is deprecated and will be removed in a future version",
+        FutureWarning,
+        stacklevel=2,
+    )
     return is_geofile_ext(Path(path).suffix)
 
 
@@ -1848,15 +1881,22 @@ def is_geofile_ext(file_ext: str) -> bool:
     """
     Determines based on the file extension if this is a geofile.
 
+    DEPRECATED.
+
     Args:
         file_ext (str): the extension.
 
     Returns:
         bool: True if it is a geofile.
     """
+    warnings.warn(
+        "is_geofile_ext is deprecated and will be removed in a future version",
+        FutureWarning,
+        stacklevel=2,
+    )
     try:
         # If the driver can be determined, it is a (supported) geo file.
-        _ = GeofileType(file_ext)
+        _ = _geofileinfo.GeofileType(file_ext)
         return True
     except Exception:
         return False
@@ -1911,21 +1951,21 @@ def copy(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
     # Check input parameters
     src = Path(src)
     dst = Path(dst)
-    geofiletype = GeofileType(src)
+    src_info = _geofileinfo.get_geofileinfo(src)
 
     # Copy the main file
     shutil.copy(str(src), dst)
 
     # For some file types, extra files need to be copied
     # If dest is a dir, just use move. Otherwise concat dest filepaths
-    if geofiletype.suffixes_extrafiles is not None:
+    if src_info.suffixes_extrafiles is not None:
         if dst.is_dir():
-            for suffix in geofiletype.suffixes_extrafiles:
+            for suffix in src_info.suffixes_extrafiles:
                 srcfile = src.parent / f"{src.stem}{suffix}"
                 if srcfile.exists():
                     shutil.copy(str(srcfile), dst)
         else:
-            for suffix in geofiletype.suffixes_extrafiles:
+            for suffix in src_info.suffixes_extrafiles:
                 srcfile = src.parent / f"{src.stem}{suffix}"
                 dstfile = dst.parent / f"{dst.stem}{suffix}"
                 if srcfile.exists():
@@ -1946,21 +1986,21 @@ def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
     # Check input parameters
     src = Path(src)
     dst = Path(dst)
-    geofiletype = GeofileType(src)
+    src_info = _geofileinfo.get_geofileinfo(src)
 
     # Move the main file
     shutil.move(str(src), dst)
 
     # For some file types, extra files need to be moved
     # If dest is a dir, just use move. Otherwise concat dest filepaths
-    if geofiletype.suffixes_extrafiles is not None:
+    if src_info.suffixes_extrafiles is not None:
         if dst.is_dir():
-            for suffix in geofiletype.suffixes_extrafiles:
+            for suffix in src_info.suffixes_extrafiles:
                 srcfile = src.parent / f"{src.stem}{suffix}"
                 if srcfile.exists():
                     shutil.move(str(srcfile), dst)
         else:
-            for suffix in geofiletype.suffixes_extrafiles:
+            for suffix in src_info.suffixes_extrafiles:
                 srcfile = src.parent / f"{src.stem}{suffix}"
                 dstfile = dst.parent / f"{dst.stem}{suffix}"
                 if srcfile.exists():
@@ -1981,7 +2021,7 @@ def remove(path: Union[str, "os.PathLike[Any]"], missing_ok: bool = False):
     """
     # Check input parameters
     path = Path(path)
-    geofiletype = GeofileType(path)
+    path_info = _geofileinfo.get_geofileinfo(path)
 
     # If there is a lock file, remove it
     lockfile_path = path.parent / f"{path.name}.lock"
@@ -1992,8 +2032,8 @@ def remove(path: Union[str, "os.PathLike[Any]"], missing_ok: bool = False):
         path.unlink(missing_ok=missing_ok)
 
     # For some file types, extra files need to be removed
-    if geofiletype.suffixes_extrafiles is not None:
-        for suffix in geofiletype.suffixes_extrafiles:
+    if path_info.suffixes_extrafiles is not None:
+        for suffix in path_info.suffixes_extrafiles:
             curr_path = path.parent / f"{path.stem}{suffix}"
             curr_path.unlink(missing_ok=True)
 

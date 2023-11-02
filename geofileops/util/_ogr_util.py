@@ -1,10 +1,7 @@
 """
-Module containing utilities regarding the usage of ogr functionalities.
+Module containing utilities regarding the usage of ogr/gdal functionalities.
 """
 
-# -------------------------------------
-# Import/init needed modules
-# -------------------------------------
 import logging
 import os
 from pathlib import Path
@@ -16,11 +13,7 @@ from osgeo import gdal
 from pygeoops import GeometryType
 
 import geofileops as gfo
-from geofileops.util.geofiletype import GeofileType
-
-#####################################################################
-# First define/init some general variables/constants
-#####################################################################
+from geofileops import fileops
 
 # Make sure only one instance per process is running
 lock = Lock()
@@ -28,13 +21,38 @@ lock = Lock()
 # Get a logger...
 logger = logging.getLogger(__name__)
 
-#####################################################################
-# The real work
-#####################################################################
 
+class GDALError(Exception):
+    """Error with extra gdal info."""
 
-class GFOError(Exception):
-    pass
+    def __init__(
+        self,
+        message: str,
+        log_details: [List[str]] = [],
+        error_details: [List[str]] = [],
+    ):
+        self.message = message
+        self.log_details = log_details
+        self.error_details = error_details
+        super().__init__(self.message)
+
+    def __str__(self):
+        retstring = ""
+        if len(self.error_details) > 0:
+            retstring += "\n    GDAL CPL_LOG ERRORS"
+            retstring += "\n    -------------------"
+            retstring += "\n    "
+            retstring += "\n    ".join(self.error_details)
+        if len(self.log_details) > 0:
+            retstring += "\n    GDAL CPL_LOG ALL"
+            retstring += "\n    ----------------"
+            retstring += "\n    "
+            retstring += "\n    ".join(self.log_details)
+
+        if len(retstring) > 0:
+            return f"{retstring}\n{super().__str__()}"
+        else:
+            return super().__str__()
 
 
 def get_drivers() -> dict:
@@ -43,6 +61,36 @@ def get_drivers() -> dict:
         driver = gdal.GetDriver(i)
         drivers[driver.ShortName] = driver.GetDescription()
     return drivers
+
+
+def read_cpl_log(path: Path) -> Tuple[List[str], List[str]]:
+    """
+    Reads a cpl_log file and returns a list with log lines and errors.
+
+    Args:
+        path (Path): the file path to the cpl_log file.
+
+    Returns:
+        Tuple[List[str], List[str]]: tuple with a list of all log lines and a list of
+            errors.
+    """
+    if not path.exists() or path.stat().st_size == 0:
+        return ([], [])
+
+    with open(path) as logfile:
+        log_lines = logfile.readlines()
+
+    # Cleanup + check for errors
+    lines_cleaned = []
+    lines_error = []
+    for line in log_lines:
+        line = line.strip("\0\n ")
+        if line != "":
+            lines_cleaned.append(line)
+            if line.startswith("ERROR"):
+                lines_error.append(line)
+
+    return (lines_cleaned, lines_error)
 
 
 class VectorTranslateInfo:
@@ -150,9 +198,9 @@ def vector_translate(
     gdal_options = _prepare_gdal_options(options, split_by_option_type=True)
 
     # Input file parameters
-    input_filetype = GeofileType(input_path)
+    input_info = fileops._geofileinfo.get_geofileinfo(input_path)
     # Cleanup the input_layers variable.
-    if input_filetype == GeofileType.ESRIShapefile:
+    if input_info.driver == "ESRI Shapefile":
         # For shapefiles, having input_layers not None gives issues
         input_layers = None
     elif sql_stmt is not None:
@@ -209,11 +257,11 @@ def vector_translate(
         args.extend(["-oo", f"{option_name}={value}"])
 
     # Output file parameters
-    # Get output format from the filename
-    output_filetype = GeofileType(output_path)
+    # Get driver for the output_path
+    output_info = fileops._geofileinfo.get_geofileinfo(output_path)
 
     # Shapefiles only can have one layer, and the layer name == the stem of the file
-    if output_filetype == GeofileType.ESRIShapefile:
+    if output_info.driver == "ESRI Shapefile":
         output_layer = output_path.stem
 
     # SRS
@@ -232,7 +280,7 @@ def vector_translate(
     # will be created
     if output_path.exists() is False or update is False:
         dataset_creation_options = gdal_options["DATASET_CREATION"]
-        if output_filetype == GeofileType.SQLite:
+        if output_info.driver == "SQLite":
             # If SQLite file, use the spatialite type of sqlite by default
             if "SPATIALITE" not in dataset_creation_options:
                 dataset_creation_options["SPATIALITE"] = "YES"
@@ -252,7 +300,11 @@ def vector_translate(
         output_geometrytypes.append("PROMOTE_TO_MULTI")
     if transaction_size is not None:
         args.extend(["-gt", str(transaction_size)])
-    if preserve_fid is not None:
+    if preserve_fid is None:
+        if explodecollections:
+            # If explodecollections is specified, explicitly disable fid to avoid errors
+            args.append("-unsetFid")
+    else:
         if preserve_fid:
             args.append("-preserve_fid")
         else:
@@ -266,33 +318,42 @@ def vector_translate(
             layerCreationOptions.extend([f"{option_name}={value}"])
 
     # General configuration options
-    # Remark: they cannot be passed on as parameter, but are set as
-    # environment variables later on (using a context manager).
-    config_options = gdal_options["CONFIG"]
-    if input_filetype.is_spatialite_based or output_filetype.is_spatialite_based:
+    # Remark: passing them as parameter using --config doesn't work, but they are set as
+    # runtime config options later on (using a context manager).
+    config_options = dict(gdal_options["CONFIG"])
+    if input_info.is_spatialite_based or output_info.is_spatialite_based:
         # If spatialite based file, increase SQLITE cache size by default
         if "OGR_SQLITE_CACHE" not in config_options:
             config_options["OGR_SQLITE_CACHE"] = "128"
 
-    # Now we can really get to work
-    result_ds = None
-    gdallog_dir = Path(tempfile.gettempdir()) / "geofileops/gdal_log"
-    try:
-        # In some cases gdal only raises the last exception instead of the stack in
-        # VectorTranslate, so you lose necessary details!
-        # -> uncomment gdal.DontUseExceptions() when debugging!
-        # gdal.DontUseExceptions()
-        gdal.UseExceptions()
-        enable_debug = True if logger.level == logging.DEBUG else False
-        gdal.ConfigurePythonLogging(logger_name="gdal", enable_debug=enable_debug)
+    # Have gdal throw exception on error
+    gdal.UseExceptions()
 
-        # Sometimes GDAL doesn't log to standard logging nor throw an exception but just
-        # writes to a seperate logging system. Enable this seperate logging to check it
-        # afterwards.
-        errorlog_path = gdallog_dir / f"gdal_errors_{os.getpid()}.log"
-        config_options["CPL_LOG"] = str(errorlog_path)
+    # In some cases gdal only raises the last exception instead of the stack in
+    # VectorTranslate, so you then you would lose necessary details!
+    # Solution: have gdal log everything to a file using the CPL_LOG config setting,
+    # and if an error occurs, add the contents of the log file to the exception.
+    # I also tried using gdal.ConfigurePythonLogging, but with enable_debug=True all
+    # gdal debug logging is always logged, which is quite verbose and messy, and
+    # with enable_debug=True nothing is logged. In addition, after
+    # gdal.ConfigurePythonLogging is called, the CPL_LOG config setting is ignored.
+    if "CPL_LOG" not in config_options:
+        gdal_cpl_log_dir = Path(tempfile.gettempdir()) / "geofileops/gdal_cpl_log"
+        gdal_cpl_log_dir.mkdir(parents=True, exist_ok=True)
+        fd, gdal_cpl_log_path = tempfile.mkstemp(suffix=".log", dir=gdal_cpl_log_dir)
+        os.close(fd)
+        config_options["CPL_LOG"] = gdal_cpl_log_path
+        gdal_cpl_log_path = Path(gdal_cpl_log_path)
+    else:
+        gdal_cpl_log_path = Path(config_options["CPL_LOG"])
+    if "CPL_LOG_ERRORS" not in config_options:
         config_options["CPL_LOG_ERRORS"] = "ON"
+    if "CPL_DEBUG" not in config_options:
+        config_options["CPL_DEBUG"] = "ON"
 
+    # Now we can really get to work
+    output_ds = None
+    try:
         # Go!
         with set_config_options(config_options):
             # Open input datasource already
@@ -353,7 +414,7 @@ def vector_translate(
             args_copy = list(args)
             options = gdal.VectorTranslateOptions(
                 options=args_copy,
-                format=output_filetype.ogrdriver,
+                format=output_info.driver,
                 accessMode=None,
                 srcSRS=input_srs,
                 dstSRS=output_srs,
@@ -380,34 +441,19 @@ def vector_translate(
                 callback_data=None,
             )
 
-            result_ds = gdal.VectorTranslate(
+            output_ds = gdal.VectorTranslate(
                 destNameOrDestDS=str(output_path), srcDS=input_ds, options=options
             )
 
-        # If there is CPL_LOG logging, write to standard logger as well, extract last
-        # error and clean log file.
-        cpl_error = None
-        if errorlog_path.exists() and errorlog_path.stat().st_size > 0:
-            with open(errorlog_path, "r+") as errorlog_file:
-                lines = errorlog_file.readlines()
-                for line in lines:
-                    line = line.lstrip("\0")
-                    if line.startswith("ERROR"):
-                        logger.error(line)
-                        cpl_error = line
-                    else:
-                        logger.info(line)
-                errorlog_file.truncate(0)  # size '0' when using r+
-
         # If the resulting datasource is None, something went wrong
-        if result_ds is None:
-            raise GFOError(f"result_ds is None ({cpl_error})")
+        if output_ds is None:
+            raise RuntimeError("output_ds is None")
 
         # Sometimes an invalid output file is written, so close and try to reopen it.
-        result_ds = None
+        output_ds = None
         if output_path.exists():
             try:
-                result_ds = gdal.OpenEx(
+                output_ds = gdal.OpenEx(
                     str(output_path), nOpenFlags=gdal.OF_VECTOR | gdal.OF_UPDATE
                 )
 
@@ -424,11 +470,11 @@ def vector_translate(
                 # list of the Dataset returned by VectorTranslate. E.g. when the input
                 # file is empty.
                 if not input_has_geometry_attribute or not input_has_geom_attribute:
-                    assert isinstance(result_ds, gdal.Dataset)
+                    assert isinstance(output_ds, gdal.Dataset)
                     if output_layer is not None:
-                        result_layer = result_ds.GetLayer(output_layer)
-                    elif result_ds.GetLayerCount() == 1:
-                        result_layer = result_ds.GetLayerByIndex(0)
+                        result_layer = output_ds.GetLayer(output_layer)
+                    elif output_ds.GetLayerCount() == 1:
+                        result_layer = output_ds.GetLayerByIndex(0)
                     else:
                         result_layer = None
                         logger.warning(
@@ -455,17 +501,37 @@ def vector_translate(
                 )
                 gfo.remove(output_path)
             finally:
-                result_ds = None
+                output_ds = None
 
     except Exception as ex:
-        result_ds = None
-        message = f"Error {ex} while creating {output_path}"
+        output_ds = None
+
+        # Prepare exception message
+        message = f"Error {ex} while creating/updating {output_path}"
         if sql_stmt is not None:
             message = f"{message} using sql_stmt {sql_stmt}"
-        raise GFOError(message) from ex
+
+        # Read cpl_log file
+        log_lines, log_errors = read_cpl_log(gdal_cpl_log_path)
+
+        # Raise
+        raise GDALError(
+            message, log_details=log_lines, error_details=log_errors
+        ).with_traceback(ex.__traceback__)
+
     finally:
-        result_ds = None
+        output_ds = None
         input_ds = None
+
+        if gdal_cpl_log_path.exists():
+            # Truncate the cpl log file already, because sometimes it is locked and
+            # cannot be unlinked.
+            with open(gdal_cpl_log_path, "r+") as logfile:
+                logfile.truncate(0)  # size '0' necessary when using r+
+            try:
+                gdal_cpl_log_path.unlink(missing_ok=True)
+            except Exception:
+                pass
 
     return True
 
