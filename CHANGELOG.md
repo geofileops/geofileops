@@ -53,7 +53,6 @@
 - Fix error in `read_file` when `read_geometry=False` and `columns` specified (#393)
 - Fix error in `copy_layer`/`convert` with `explodecollections` on some input files
   (#395)
-- Avoid `makevalid` retaining collapsed parts, resulting in GeometryCollections (#415)
 
 ### Deprecations and compatibility notes
 
