@@ -623,10 +623,23 @@ def _single_layer_vector_operation(
             # Apply snaptogrid, but this results in invalid geometries, so also
             # ST_Makevalid. It can also result in collapsed (pieces of)
             # geometries, so also collectionextract.
-            gridsize_op = (
-                "ST_MakeValid(SnapToGrid("
-                f"    sub_gridsize.{input_layerinfo.geometrycolumn}, {gridsize}))"
-            )
+            gridsize_op = f"""
+                IIF(sub_gridsize.{input_layerinfo.geometrycolumn} IS NULL,
+                    NULL,
+                    IFNULL(
+                        ST_ReducePrecision(
+                            sub_gridsize.{input_layerinfo.geometrycolumn},
+                            {gridsize}
+                        ),
+                        ST_ReducePrecision(
+                            ST_MakeValid(
+                                sub_gridsize.{input_layerinfo.geometrycolumn}
+                            ),
+                            {gridsize}
+                        )
+                    )
+                )
+            """
             if force_output_geometrytype is None:
                 warnings.warn(
                     "a gridsize is specified but no force_output_geometrytype, this "
