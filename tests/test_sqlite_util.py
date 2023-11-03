@@ -11,6 +11,7 @@ from geofileops import fileops
 import geofileops as gfo
 from geofileops.util import _sqlite_util as sqlite_util
 from tests import test_helper
+from tests.test_helper import assert_geodataframe_equal
 
 
 @pytest.mark.parametrize("create_spatial_index", [(True), (False)])
@@ -64,36 +65,6 @@ def test_create_table_as_sql(tmp_path, create_spatial_index):
     # These operations give errors if the triggers are still there.
     gfo.drop_column(output_path, column_name="naam")
     gfo.rename_layer(output_path, layer=output_path.stem, new_layer="test_layername")
-
-
-def test_create_table_as_sql_single_input(tmp_path):
-    output_path = tmp_path / "output.gpkg"
-    input_path = test_helper.get_testfile(testfile="polygon-parcel", dst_dir=tmp_path)
-
-    sql_stmt = """
-        SELECT --ST_ReducePrecision(layer.geom, 1) as geom
-               --GEOSMinimumRotatedRectangle(layer.geom) as geom
-               GeosDensify(layer.geom, 10) as geom
-              ,ST_area(layer.geom) AS area
-              ,layer.HFDTLT
-          FROM "parcels" layer
-    """
-
-    sqlite_util.create_table_as_sql(
-        input1_path=input_path,
-        input1_layer="parcels",
-        input2_path=None,
-        input2_layer=None,
-        output_path=output_path,
-        output_layer=None,
-        output_geometrytype=None,
-        sql_stmt=sql_stmt,
-    )
-
-    assert output_path.exists()
-    output_gdf = fileops.read_file(output_path)
-    input_info = fileops.get_layerinfo(input_path)
-    assert len(output_gdf) == input_info.featurecount
 
 
 @pytest.mark.parametrize(
@@ -182,3 +153,36 @@ def test_get_columns():
     )
 
     assert len(columns) == 4
+
+
+def test_create_table_as_sql_single_input(tmp_path):
+    input_path = test_helper.get_testfile(testfile="polygon-parcel", dst_dir=tmp_path)
+    output_path = tmp_path / "output.gpkg"
+    distance = 10
+    resolution = 5
+
+    # Prepare expected result
+    expected_gdf = fileops.read_file(input_path, columns=["HFDTLT"])
+    expected_gdf.geometry = expected_gdf.geometry.buffer(
+        distance, resolution=resolution
+    )
+
+    sql_stmt = f"""
+        SELECT ST_buffer(layer.geom, {distance}, {resolution}) as geom
+              ,layer.HFDTLT
+          FROM "parcels" layer
+    """
+    sqlite_util.create_table_as_sql(
+        input1_path=input_path,
+        input1_layer="parcels",
+        input2_path=None,
+        input2_layer=None,
+        output_path=output_path,
+        output_layer=None,
+        output_geometrytype=None,
+        sql_stmt=sql_stmt,
+    )
+
+    assert output_path.exists()
+    output_gdf = fileops.read_file(output_path)
+    assert_geodataframe_equal(output_gdf, expected_gdf)
