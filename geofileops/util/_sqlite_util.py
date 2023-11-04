@@ -43,10 +43,37 @@ class EmptyResultError(Exception):
 #####################################################################
 
 
-def check_runtimedependencies():
+def check_runtimedependencies() -> Dict[str, str]:
+    """
+    Checks if runtime dependencies are available and returns the versions.
+
+    Versions returned: spatialite_version, geos_version.
+
+    Raises:
+        RuntimeError: if a runtime dependency is not available.
+
+    Returns:
+        Dict[str, str]: a dict with the version of the runtime dependencies.
+    """
     test_path = Path(__file__).resolve().parent / "test.gpkg"
     conn = sqlite3.connect(test_path)
-    load_spatialite(conn)
+    try:
+        load_spatialite(conn)
+        sql = "SELECT spatialite_version(), geos_version()"
+        result = conn.execute(sql).fetchall()
+        spatialite_version = result[0][0]
+        geos_version = result[0][1]
+    except Exception as ex:
+        conn.rollback()
+        raise RuntimeError(f"Error {ex} executing {sql}") from ex
+    finally:
+        conn.close()
+
+    versions = {
+        "spatialite_version": spatialite_version,
+        "geos_version": geos_version,
+    }
+    return versions
 
 
 class SqliteProfile(enum.Enum):
@@ -313,19 +340,27 @@ def create_table_as_sql(
 
     # Check if crs are the same in the input layers + use it (if there is one)
     input1_info = gfo.get_layerinfo(input1_path, input1_layer, raise_on_nogeom=False)
-    input2_info = gfo.get_layerinfo(input2_path, input2_layer, raise_on_nogeom=False)
+    input2_info = None
+    if input2_path is not None:
+        input2_info = gfo.get_layerinfo(
+            input2_path, input2_layer, raise_on_nogeom=False
+        )
     crs_epsg = -1
     if input1_info.crs is not None:
         crs_epsg1 = input1_info.crs.to_epsg()
         if crs_epsg1 is not None:
             crs_epsg = crs_epsg1
         # If input 2 also has a crs, check if it is the same.
-        if input2_info.crs is not None and crs_epsg1 != input2_info.crs.to_epsg():
+        if (
+            input2_info is not None
+            and input2_info.crs is not None
+            and crs_epsg1 != input2_info.crs.to_epsg()
+        ):
             logger.warning(
                 "input1 layer doesn't have the same crs as input2 layer: "
                 f"{input1_info.crs} vs {input2_info.crs}"
             )
-    elif input2_info.crs is not None:
+    elif input2_info is not None and input2_info.crs is not None:
         crs_epsg2 = input2_info.crs.to_epsg()
         if crs_epsg2 is not None:
             crs_epsg = crs_epsg2

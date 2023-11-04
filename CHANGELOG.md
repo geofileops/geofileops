@@ -5,7 +5,7 @@
 ## Improvements
 
 - Add support to read/add/remove embedded layer styles in gpkg (#263)
-- Add `gridsize` parameter to most spatial operations (#261, #407)
+- Add `gridsize` parameter to most spatial operations (#261, #407, #413)
 - Add `keep_empty_geoms` and `where_post` parameters to many single layer spatial operations
   (#262, #398)
 - Add `where_post` parameter to many two layer spatial operations (#312)
@@ -16,6 +16,7 @@
   without geometry column) and/or have an attribute table as result (#322, #379)
 - Add support to process all file types supported by gdal in most general file and layer
   operations, e.g. `get_layerinfo`, `read_file`,... (#402)
+- Add support for spatialite 5.1 in `join_nearest` (#412)
 - Improve performance of `makevalid` and `isvalid` (#258)
 - Improve performance of `intersection`, 30% faster for typical data, up to 4x faster
   for large input geometries (#340, #358)
@@ -58,6 +59,8 @@
 - Drop support for shapely1 (#329, #338)
 - Parameter `precision` of `makevalid` is renamed to `gridsize` as this is the typical
   terminology in other libraries (#273)
+- When `join_nearest` is used with spatialite, >= 5.1, two additional mandatory
+  parameters need to be specified: `distance` and `expand` (#412)
 - Parameter `area_inters_column_name` in `export_by_location` now defaults to `None`
   instead of "area_inters" (#370)
 - Deprecate `convert` and rename to `copy_layer` (#310)
