@@ -5,7 +5,6 @@ Module containing utilities regarding the usage of ogr/gdal functionalities.
 import logging
 import os
 from pathlib import Path
-import shutil
 import tempfile
 from threading import Lock
 from typing import Dict, List, Literal, Optional, Tuple, Union
@@ -109,67 +108,6 @@ def get_drivers() -> dict:
         driver = gdal.GetDriver(i)
         drivers[driver.ShortName] = driver.GetDescription()
     return drivers
-
-
-def get_versions() -> Dict[str, str]:
-    """
-    Gets the versions of gdal/ogr and its dependencies.
-
-    Versions returned: spatialite_version, geos_version.
-
-    Returns:
-        Dict[str, str]: a dict with the version.
-    """
-    test_path = Path(__file__).resolve().parent / "test.gpkg"
-    datasource = None
-    try:
-        datasource = gdal.OpenEx(str(test_path), nOpenFlags=gdal.OF_UPDATE)
-        sql_stmt = "SELECT spatialite_version(), geos_version()"
-        result = datasource.ExecuteSQL(sql_stmt)
-        info = result.GetNextFeature()
-        spatialite_version = info.GetField(0)
-        geos_version = info.GetField(1)
-        datasource.ReleaseResultSet(result)
-
-    except Exception as ex:
-        ex.args = (f"get_version error: {ex}",)
-        raise
-    finally:
-        datasource = None
-
-    versions = {
-        "spatialite_version": spatialite_version,
-        "geos_version": geos_version,
-    }
-    return versions
-
-
-def get_versions_vectortranslate() -> Dict[str, str]:
-    """
-    Gets the versions of gdal/ogr and its dependencies when using gdaltranslate.
-
-    Versions returned: spatialite_version, geos_version.
-
-    Returns:
-        Dict[str, str]: a dict with the version.
-    """
-    test_path = Path(__file__).resolve().parent / "test.gpkg"
-    output_path = Path(tempfile.mkdtemp()) / "versions.gpkg"
-    try:
-        sql_stmt = "SELECT spatialite_version(), geos_version()"
-        vector_translate(
-            input_path=test_path, output_path=output_path, sql_stmt=sql_stmt
-        )
-        versions_df = fileops.read_file(output_path)
-        versions = {
-            "spatialite_version": versions_df.iloc[0][0],
-            "geos_version": versions_df.iloc[0][1],
-        }
-
-    finally:
-        shutil.rmtree(output_path.parent)
-
-    return versions
 
 
 def read_cpl_log(path: Path) -> Tuple[List[str], List[str]]:
