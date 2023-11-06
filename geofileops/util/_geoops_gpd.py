@@ -1831,7 +1831,6 @@ def _dissolve_polygons(
         diss_gdf["tile_id"] = tile_id
 
     if gridsize != 0.0:
-        diss_gdf.geometry = shapely.set_precision(diss_gdf.geometry, grid_size=gridsize)
         try:
             diss_gdf.geometry = shapely.set_precision(
                 diss_gdf.geometry, grid_size=gridsize
