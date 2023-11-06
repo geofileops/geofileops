@@ -2280,7 +2280,7 @@ def _two_layer_vector_operation(
             gfo.remove(output_path)
 
     # Check if spatialite is properly installed to execute this query
-    _sqlite_util.sqlite_spatialite_versions()
+    _sqlite_util.spatialite_version_info()
 
     # Init layer info
     start_time = datetime.now()

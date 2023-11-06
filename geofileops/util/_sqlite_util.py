@@ -34,7 +34,7 @@ class EmptyResultError(Exception):
         super().__init__(self.message)
 
 
-def sqlite_spatialite_versions() -> Dict[str, str]:
+def spatialite_version_info() -> Dict[str, str]:
     """
     Returns the versions of the spatialite modules.
 
