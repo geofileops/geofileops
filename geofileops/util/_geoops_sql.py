@@ -618,37 +618,51 @@ def _single_layer_vector_operation(
         # Fill out/add to the sql_template what is already possible
         # ---------------------------------------------------------
 
-        # Add snaptogrid around sql_template if gridsize specified
+        # Add application of gridsize around sql_template if specified
         if geom_selected and gridsize != 0.0:
-            # Apply snaptogrid, but this results in invalid geometries, so also
-            # ST_Makevalid. It can also result in collapsed (pieces of)
-            # geometries, so also collectionextract.
-            gridsize_op = f"""
-                IIF(sub_gridsize.{input_layerinfo.geometrycolumn} IS NULL,
-                    NULL,
-                    IFNULL(
-                        ST_ReducePrecision(
-                            sub_gridsize.{input_layerinfo.geometrycolumn},
-                            {gridsize}
-                        ),
-                        ST_ReducePrecision(
-                            ST_MakeValid(
-                                sub_gridsize.{input_layerinfo.geometrycolumn}
+            if SPATIALITE_GTE_51:
+                # ST_ReducePrecision only available from spatialite 5.1
+                gridsize_op = f"""
+                    IIF(sub_gridsize.{input_layerinfo.geometrycolumn} IS NULL,
+                        NULL,
+                        IFNULL(
+                            ST_ReducePrecision(
+                                sub_gridsize.{input_layerinfo.geometrycolumn},
+                                {gridsize}
                             ),
-                            {gridsize}
+                            ST_ReducePrecision(
+                                GeosMakeValid(
+                                    sub_gridsize.{input_layerinfo.geometrycolumn},
+                                    0
+                                ),
+                                {gridsize}
+                            )
                         )
                     )
-                )
-            """
-            if force_output_geometrytype is None:
-                warnings.warn(
-                    "a gridsize is specified but no force_output_geometrytype, this "
-                    "can result in inconsistent geometries in the output",
-                    stacklevel=2,
-                )
+                """
             else:
-                primitivetypeid = force_output_geometrytype.to_primitivetype.value
-                gridsize_op = f"ST_CollectionExtract({gridsize_op}, {primitivetypeid})"
+                # Apply snaptogrid, but this results in invalid geometries, so also
+                # Makevalid.
+                gridsize_op = (
+                    "GeosMakeValid(SnapToGrid("
+                    f"    sub_gridsize.{input_layerinfo.geometrycolumn}, {gridsize}),"
+                    "     0"
+                    ")"
+                )
+
+                # SnapToGrid + ST_MakeValid can result in collapsed (pieces of)
+                # geometries, so finally apply collectionextract as well.
+                if force_output_geometrytype is None:
+                    warnings.warn(
+                        "a gridsize is specified but no force_output_geometrytype, "
+                        "this can result in inconsistent geometries in the output",
+                        stacklevel=2,
+                    )
+                else:
+                    primitivetypeid = force_output_geometrytype.to_primitivetype.value
+                    gridsize_op = (
+                        f"ST_CollectionExtract({gridsize_op}, {primitivetypeid})"
+                    )
 
             # Get all columns of the sql_template
             sql_tmp = sql_template.format(batch_filter="")
