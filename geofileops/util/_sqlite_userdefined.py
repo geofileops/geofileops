@@ -101,6 +101,9 @@ def gfo_reduceprecision(geom_wkb: bytes, gridsize: int) -> Optional[bytes]:
     """
     Reduces the precision of the geometry to the gridsize specified.
 
+    If reducing the precison leads to a topologyerror, retries after applying make_valid
+    and returns the input if it still fails.
+
     By default, geometries use double precision coordinates (grid_size = 0). Coordinates
     will be rounded if a precision grid is less precise than the input geometry.
     Duplicated vertices will be dropped from lines and polygons for grid sizes greater

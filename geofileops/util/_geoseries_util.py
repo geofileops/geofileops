@@ -210,8 +210,8 @@ def set_precision(
                 geometry elements are preserved. Collapsed polygonal input elements are
                 removed. Duplicate vertices are removed.
         raise_on_topoerror (bool, optional): If False, instead of raising an error on a
-            topolygy error, retries after applying make_valid or returns the input.
-            Defaults to True.
+            topology error, retries after applying make_valid and returns the input if
+            it still fails. Defaults to True.
 
     Returns:
         geometry or array_like: The input with the precision applied. Returns None if
