@@ -3240,12 +3240,18 @@ def _format_apply_gridsize_operation(
 ) -> str:
     if SPATIALITE_GTE_51:
         # ST_ReducePrecision and GeosMakeValid only available for spatialite >= 5.1
+        # Try to always return a result...
         gridsize_op = f"""
             IIF({geometrycolumn} IS NULL,
                 NULL,
                 IFNULL(
                     ST_ReducePrecision({geometrycolumn}, {gridsize}),
-                    ST_ReducePrecision(GeosMakeValid({geometrycolumn}, 0), {gridsize})
+                    IFNULL(
+                        ST_ReducePrecision(
+                            GeosMakeValid({geometrycolumn}, 0), {gridsize}
+                        ),
+                        {geometrycolumn}
+                    )
                 )
             )
         """
