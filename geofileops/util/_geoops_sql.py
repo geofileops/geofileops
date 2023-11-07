@@ -2376,12 +2376,25 @@ def _two_layer_vector_operation(
             input2_path=processing_params.input2_path,
         )
 
-        # Add GFO_ReducePrecision around sql_template if gridsize specified
+        # Apply gridsize if it is specified
         if gridsize != 0.0:
-            gridsize_op = (
-                "ST_GeomFromWKB(GFO_ReducePrecision("
-                f"ST_AsBinary(sub_gridsize.geom), {gridsize}))"
-            )
+            if SPATIALITE_GTE_51:
+                # Spatialite >= 5.1 available, so we can try ST_ReducePrecision first,
+                # which should be faster.
+                gridsize_op = f"""
+                    IIF(sub_gridsize.geom IS NULL,
+                        NULL,
+                        IFNULL(
+                            ST_ReducePrecision(sub_gridsize.geom, {gridsize}),
+                            ST_GeomFromWKB(GFO_ReducePrecision(
+                                ST_AsBinary(sub_gridsize.geom), {gridsize})
+                    )
+                """
+            else:
+                gridsize_op = (
+                    "ST_GeomFromWKB(GFO_ReducePrecision("
+                    f"ST_AsBinary(sub_gridsize.geom), {gridsize}))"
+                )
 
             # All columns need to be specified
             # Remark:
