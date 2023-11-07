@@ -225,7 +225,7 @@ def set_precision(
         return shapely.set_precision(geometry, grid_size=grid_size, mode=mode)
 
     except shapely.errors.GEOSException as ex:
-        if not str(ex).lower().startswith("topologyexception"):
+        if not str(ex).lower().startswith("topologyexception"):  # pragma: no cover
             raise
 
         # If set_precision fails with TopologyException, try again after make_valid
@@ -245,7 +245,7 @@ def set_precision(
             return geometry
 
         except shapely.errors.GEOSException as ex:
-            if not str(ex).lower().startswith("topologyexception"):
+            if not str(ex).lower().startswith("topologyexception"):  # pragma: no cover
                 raise
 
             # Still getting a TopologyException, so apply set_precision to each element
