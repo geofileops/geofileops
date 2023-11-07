@@ -21,7 +21,7 @@ from tests import test_helper
         ),
         (
             "2_geos_advanced",
-            "SELECT GEOSMinimumRotatedRectangle(ST_GeomFromText('POINT (5 5)')) geom",
+            "SELECT ST_ConcaveHull(ST_GeomFromText('POINT (5 5)')) geom",
             "5.0",
         ),
         (
