@@ -4,6 +4,8 @@ Tests for functionalities in geoseries_util.
 
 import geopandas as gpd
 from pygeoops import GeometryType
+import pytest
+import shapely
 import shapely.geometry as sh_geom
 
 import geofileops as gfo
@@ -237,3 +239,53 @@ def test_is_valid_reason(tmp_path):
 
     assert len(result) == len(gdf)
     assert result[0].startswith("Ring Self-intersection")
+
+
+@pytest.mark.parametrize("raise_on_topoerror", [True, False])
+def test_set_precision(raise_on_topoerror):
+    # The only currently known test case only works with geos 3.12
+    if shapely.geos_version != (3, 12, 0):
+        pytest.skip()
+
+    poly_gridsize_error = shapely.from_wkt(
+        "Polygon ((26352.5 175096.6, 26352.6 175096.6, 26352.6 175096.7, "
+        "26352.5 175096.7, 26352.5 175096.6),(26352.528000000002 175096.676, "
+        "26352.528369565214 175096.67489130437, 26352.528140495866 175096.67619834712, "
+        "26352.52785714286 175096.67714285714, 26352.53 175096.66, "
+        "26352.528000000002 175096.676))"
+    )
+    poly_ok = shapely.from_wkt(
+        "Polygon ((26352.5 175096.7, 26352.66895 175096.76895, 26352.6 175096.6, "
+        "26352.5 175096.6, 26352.5 175096.7))"
+    )
+    test_data = {
+        "descr": ["gridsize_error", "ok"],
+        "geometry": [poly_gridsize_error, poly_ok],
+    }
+    test_gdf = gpd.GeoDataFrame(test_data)
+    grid_size = 0.001
+
+    if raise_on_topoerror:
+        with pytest.raises(Exception, match="TopologyException: Ring edge missing at"):
+            # raise_on_topoerror is default False
+            result_gdf = _geoseries_util.set_precision(
+                test_gdf.geometry, grid_size=grid_size
+            )
+        return
+
+    result_gdf = test_gdf.copy()
+    result_gdf.geometry = _geoseries_util.set_precision(
+        test_gdf.geometry, grid_size=grid_size, raise_on_topoerror=raise_on_topoerror
+    )
+
+    # Check result
+    assert result_gdf is not None
+    assert len(result_gdf) == len(test_gdf)
+
+    # First poly should be exactly the same
+    assert result_gdf.loc[0, "geometry"] == poly_gridsize_error
+
+    # Second poly should be changed
+    assert result_gdf.loc[1, "geometry"].normalize() != poly_ok.normalize()
+    exp_poly_ok = shapely.set_precision(poly_ok, grid_size=grid_size)
+    assert result_gdf.loc[1, "geometry"].normalize() == exp_poly_ok.normalize()

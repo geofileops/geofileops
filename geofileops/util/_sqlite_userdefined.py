@@ -3,10 +3,12 @@ import logging
 from typing import Optional
 
 import pygeoops
-import shapely
 
 # from pygeoops import _difference as _difference
 # from pygeoops import _paramvalidation as paramvalidation
+import shapely
+
+from geofileops.util import _geoseries_util
 
 # Get a logger...
 logger = logging.getLogger(__name__)
@@ -135,16 +137,10 @@ def gfo_reduceprecision(geom_wkb: bytes, gridsize: int) -> Optional[bytes]:
 
     try:
         # Apply set_precision
-        try:
-            result = shapely.set_precision(geom, grid_size=gridsize)
-        except shapely.errors.GEOSException as ex:  # pragma: no cover
-            # If set_precision fails with TopologyException, try again after make_valid
-            if str(ex).lower().startswith("topologyexception"):
-                result = pygeoops.make_valid(result, keep_collapsed=False)
-                result = shapely.set_precision(result, grid_size=gridsize)
-                logger.warning(
-                    f"gridsize succesfully set after makevalid: you can ignore <{ex}>"
-                )
+        result = _geoseries_util.set_precision(
+            geom, grid_size=gridsize, raise_on_topoerror=False
+        )
+
         # If an empty result, return None
         # Remark: apparently ST_IsEmpty of spatialite doesn't work (in combination with
         # gpkg and/or wkb?).
