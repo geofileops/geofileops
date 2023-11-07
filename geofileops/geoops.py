@@ -1242,8 +1242,10 @@ def makevalid(
             stacklevel=2,
         )
 
-    if SPATIALITE_GTE_51:
+    if SPATIALITE_GTE_51 and gridsize == 0.0:
         # If spatialite >= 5.1 available use faster/less memory using sql implementation
+        # Only use this version if gridsize is 0.0, because when gridsize applied it is
+        # less robust than the gpd implementation.
         _geoops_sql.makevalid(
             input_path=Path(input_path),
             output_path=Path(output_path),
