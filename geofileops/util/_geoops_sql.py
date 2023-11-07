@@ -3250,7 +3250,7 @@ def _format_apply_gridsize_operation(
                 NULL,
                 IFNULL(
                     ST_ReducePrecision({geometrycolumn}, {gridsize}),
-                    ST_ReducePrecision(GeosMakeValid({geometrycolumn}, 0), {gridsize}))
+                    ST_ReducePrecision(GeosMakeValid({geometrycolumn}, 0), {gridsize})
                 )
             )
         """
