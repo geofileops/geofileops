@@ -2,6 +2,7 @@
 Tests for functionalities in ogr_util.
 """
 
+from packaging import version
 import pytest
 import shapely.geometry as sh_geom
 
@@ -45,7 +46,9 @@ def test_geos_functions(descr, sql, version_needed):
     """Test some geos functions from different spatialite versions."""
     test_path = test_helper.get_testfile(testfile="polygon-parcel")
 
-    if version_needed < "5.1" or (version_needed >= "5.1" and SPATIALITE_GTE_51):
+    if version.parse(version_needed) < version.parse("5.1") or (
+        version.parse(version_needed) >= version.parse("5.1") and SPATIALITE_GTE_51
+    ):
         gfo.read_file(test_path, sql_stmt=sql)
     else:
         with pytest.raises(Exception, match="no such function"):
