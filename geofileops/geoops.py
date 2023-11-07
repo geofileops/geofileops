@@ -11,7 +11,6 @@ from typing import Any, Callable, List, Literal, Optional, Tuple, Union, TYPE_CH
 import warnings
 
 from pygeoops import GeometryType
-import shapely
 
 from geofileops import fileops
 from geofileops.util import _geoops_gpd
@@ -1158,7 +1157,7 @@ def makevalid(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
-    force_output_geometrytype: Optional[GeometryType] = None,
+    force_output_geometrytype: Union[str, None, GeometryType] = None,
     gridsize: float = 0.0,
     keep_empty_geoms: Optional[bool] = None,
     where_post: Optional[str] = None,
@@ -1175,7 +1174,7 @@ def makevalid(
 
     Alternative names:
         - QGIS: fix geometries
-        - shapely: make_valid
+        - shapely, geopandas: make_valid
 
     If ``explodecollections`` is False and the output file is a GeoPackage, the fid
     will be preserved. In other cases this will typically not be the case.
@@ -1194,7 +1193,7 @@ def makevalid(
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
         force_output_geometrytype (GeometryType, optional): The output geometry type to
-            force the output to. If None, the geometry type of the input is used.
+            force the output to. If None, the geometry type of the input is retained.
             Defaults to None.
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
@@ -1240,11 +1239,9 @@ def makevalid(
             stacklevel=2,
         )
 
-    _geoops_gpd.apply(
+    return _geoops_gpd.makevalid(
         input_path=Path(input_path),
         output_path=Path(output_path),
-        func=lambda geom: shapely.make_valid(geom),
-        operation_name="makevalid",
         input_layer=input_layer,
         output_layer=output_layer,
         columns=columns,

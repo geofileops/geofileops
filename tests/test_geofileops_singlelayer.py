@@ -29,7 +29,11 @@ from tests.test_helper import assert_geodataframe_equal
 
 # Init gfo module
 current_geoops_module = "unknown"
-GEOOPS_MODULES = ["geofileops.geoops", "geofileops.util._geoops_gpd"]
+GEOOPS_MODULES = [
+    "geofileops.geoops",
+    "geofileops.util._geoops_gpd",
+    "geofileops.util._geoops_sql",
+]
 
 
 def set_geoops_module(geoops_module: str):
@@ -60,6 +64,7 @@ def basic_combinations_to_test(
     # On .gpkg test:
     #   - all combinations of geoops_modules, testfiles and epsgs
     #   - fixed empty_input, suffix
+    #   - dimensions="XYZ" for polygon input
     for epsg in epsgs:
         for geoops_module in geoops_modules:
             for testfile in testfiles:
@@ -67,6 +72,7 @@ def basic_combinations_to_test(
                 keep_empty_geoms = None
                 gridsize = 0.001 if epsg == 31370 else GRIDSIZE_DEFAULT
                 if testfile == "polygon-parcel":
+                    dimensions = "XYZ"
                     keep_empty_geoms = False
                     if epsg == 31370:
                         where_post = WHERE_AREA_GT_400
@@ -82,6 +88,7 @@ def basic_combinations_to_test(
                         gridsize,
                         keep_empty_geoms,
                         where_post,
+                        dimensions,
                     )
                 )
 
@@ -100,6 +107,7 @@ def basic_combinations_to_test(
                     where_post = WHERE_AREA_GT_400
                 else:
                     keep_empty_geoms = True
+                dimensions = None
                 result.append(
                     (
                         suffix,
@@ -110,6 +118,7 @@ def basic_combinations_to_test(
                         gridsize,
                         keep_empty_geoms,
                         where_post,
+                        dimensions,
                     )
                 )
 
@@ -121,6 +130,7 @@ def basic_combinations_to_test(
             gridsize = 0.001 if suffix == ".gpkg" else GRIDSIZE_DEFAULT
             keep_empty_geoms = False
             where_post = None
+            dimensions = None
             result.append(
                 (
                     suffix,
@@ -131,6 +141,7 @@ def basic_combinations_to_test(
                     gridsize,
                     keep_empty_geoms,
                     where_post,
+                    dimensions,
                 )
             )
 
@@ -139,7 +150,7 @@ def basic_combinations_to_test(
 
 @pytest.mark.parametrize(
     "suffix, epsg, geoops_module, testfile, empty_input, gridsize, keep_empty_geoms, "
-    "where_post",
+    "where_post, dimensions",
     basic_combinations_to_test(),
 )
 def test_buffer(
@@ -152,11 +163,12 @@ def test_buffer(
     gridsize,
     keep_empty_geoms,
     where_post,
+    dimensions,
 ):
     """Buffer basics are available both in the gpd and sql implementations."""
     # Prepare test data
     input_path = test_helper.get_testfile(
-        testfile, suffix=suffix, epsg=epsg, empty=empty_input
+        testfile, suffix=suffix, epsg=epsg, empty=empty_input, dimensions=dimensions
     )
 
     # Now run test
@@ -346,7 +358,7 @@ def test_buffer_invalid_params(
 
 @pytest.mark.parametrize(
     "suffix, epsg, geoops_module, testfile, empty_input, gridsize, keep_empty_geoms, "
-    "where_post",
+    "where_post, dimensions",
     basic_combinations_to_test(epsgs=[31370]),
 )
 def test_buffer_negative(
@@ -359,6 +371,7 @@ def test_buffer_negative(
     gridsize,
     keep_empty_geoms,
     where_post,
+    dimensions,
 ):
     """Buffer basics are available both in the gpd and sql implementations."""
     input_path = test_helper.get_testfile(testfile, suffix=suffix)
@@ -645,9 +658,7 @@ def test_convexhull(
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize("input_empty", [True, False])
-@pytest.mark.parametrize(
-    "geoops_module", ["geofileops.geoops", "geofileops.util._geoops_sql"]
-)
+@pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
 def test_makevalid(tmp_path, suffix, input_empty, geoops_module):
     # Prepare test data
     input_path = test_helper.get_testfile(
@@ -712,6 +723,53 @@ def test_makevalid(tmp_path, suffix, input_empty, geoops_module):
 @pytest.mark.parametrize(
     "descr, geometry, expected_geometry",
     [
+        ("sliver", Polygon([(0, 0), (5, 0), (10, 0), (15, 0)]), Polygon()),
+        (
+            "poly + line",
+            MultiPolygon(
+                [
+                    Polygon([(0, 5), (5, 5), (5, 10), (0, 10), (0, 5)]),
+                    Polygon([(0, 0), (5, 0), (10, 0), (15, 0)]),
+                ]
+            ),
+            Polygon([(0, 5), (5, 5), (5, 10), (0, 10), (0, 5)]),
+        ),
+    ],
+)
+@pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
+def test_makevalid_collapsing_part(
+    tmp_path, descr: str, geometry, geoops_module, expected_geometry
+):
+    # Prepare test data
+    set_geoops_module(geoops_module)
+    input_gdf = gpd.GeoDataFrame({"descr": [descr]}, geometry=[geometry], crs=31370)
+    input_path = tmp_path / "test.gpkg"
+    fileops.to_file(input_gdf, input_path)
+
+    # Now we are ready to test
+    result_path = tmp_path / "test_makevalid_collapsing_part.gpkg"
+    geoops.makevalid(
+        input_path=input_path,
+        output_path=result_path,
+        keep_empty_geoms=False,
+        force=True,
+    )
+    result_gdf = fileops.read_file(result_path)
+
+    # Compare with expected result
+    expected_gdf = gpd.GeoDataFrame(
+        {"descr": [descr]}, geometry=[expected_geometry], crs=31370
+    )
+    expected_gdf = expected_gdf[~expected_gdf.geometry.is_empty]
+    if len(expected_gdf) == 0:
+        assert len(result_gdf) == 0
+    else:
+        assert_geodataframe_equal(result_gdf, expected_gdf)
+
+
+@pytest.mark.parametrize(
+    "descr, geometry, expected_geometry",
+    [
         ("sliver", Polygon([(0, 0), (10, 0), (10, 0.5), (0, 0)]), Polygon()),
         (
             "poly + sliver",
@@ -725,14 +783,11 @@ def test_makevalid(tmp_path, suffix, input_empty, geoops_module):
         ),
     ],
 )
-@pytest.mark.parametrize(
-    "geoops_module", ["geofileops.geoops", "geofileops.util._geoops_sql"]
-)
+@pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
 def test_makevalid_gridsize(
     tmp_path, descr: str, geometry, geoops_module, expected_geometry
 ):
     # Prepare test data
-    # -----------------
     set_geoops_module(geoops_module)
     input_gdf = gpd.GeoDataFrame({"descr": [descr]}, geometry=[geometry], crs=31370)
     input_path = tmp_path / "test.gpkg"
@@ -740,7 +795,6 @@ def test_makevalid_gridsize(
     gridsize = 1
 
     # Now we are ready to test
-    # ------------------------
     result_path = tmp_path / "test_makevalid.gpkg"
     geoops.makevalid(
         input_path=input_path,
@@ -779,7 +833,7 @@ def test_makevalid_invalidparams():
 
 @pytest.mark.parametrize(
     "suffix, epsg, geoops_module, testfile, empty_input, gridsize, keep_empty_geoms, "
-    "where_post",
+    "where_post, dimensions",
     basic_combinations_to_test(testfiles=["polygon-parcel", "linestring-row-trees"]),
 )
 def test_simplify(
@@ -792,6 +846,7 @@ def test_simplify(
     gridsize,
     keep_empty_geoms,
     where_post,
+    dimensions,
 ):
     # Prepare test data
     tmp_dir = tmp_path / f"{geoops_module}_{epsg}"
