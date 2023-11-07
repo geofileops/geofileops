@@ -12,6 +12,7 @@ import geofileops as gfo
 import geofileops._compat as compat
 from geofileops.util import _geoseries_util
 from tests import test_helper
+from tests.test_helper import assert_geodataframe_equal
 
 
 def test_get_geometrytypes():
@@ -262,8 +263,19 @@ def test_set_precision(raise_on_topoerror):
         "descr": ["gridsize_error", "ok"],
         "geometry": [poly_gridsize_error, poly_ok],
     }
-    test_gdf = gpd.GeoDataFrame(test_data)
+    test_gdf = gpd.GeoDataFrame(test_data, crs=31370)
     grid_size = 0.001
+
+    # Prepare expected result
+    expected_data = {
+        "descr": ["gridsize_error", "ok"],
+        "geometry": [
+            poly_gridsize_error,
+            shapely.set_precision(poly_ok, grid_size=grid_size),
+        ],
+    }
+    assert test_data["geometry"][1] != expected_data["geometry"][1]
+    expected_gdf = gpd.GeoDataFrame(expected_data, crs=31370)
 
     if raise_on_topoerror:
         with pytest.raises(Exception, match="TopologyException: Ring edge missing at"):
@@ -279,13 +291,4 @@ def test_set_precision(raise_on_topoerror):
     )
 
     # Check result
-    assert result_gdf is not None
-    assert len(result_gdf) == len(test_gdf)
-
-    # First poly should be exactly the same
-    assert result_gdf.loc[0, "geometry"] == poly_gridsize_error
-
-    # Second poly should be changed
-    assert result_gdf.loc[1, "geometry"].normalize() != poly_ok.normalize()
-    exp_poly_ok = shapely.set_precision(poly_ok, grid_size=grid_size)
-    assert result_gdf.loc[1, "geometry"].normalize() == exp_poly_ok.normalize()
+    assert_geodataframe_equal(result_gdf, expected_gdf)
