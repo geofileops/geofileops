@@ -685,6 +685,11 @@ def test_makevalid(tmp_path, suffix, input_empty, geoops_module):
         )
         assert isvalid is False, "Input file should contain invalid features"
 
+    # Add some extra kwargs
+    kwargs = {}
+    if geoops_module == "geofileops.geoops":
+        kwargs["validate_attribute_data"] = True
+
     # Do operation
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
     geoops.makevalid(
@@ -692,7 +697,7 @@ def test_makevalid(tmp_path, suffix, input_empty, geoops_module):
         output_path=output_path,
         nb_parallel=2,
         force_output_geometrytype=fileops.GeometryType.MULTIPOLYGON,
-        validate_attribute_data=True,
+        **kwargs,
     )
 
     # Now check if the output file is correctly created
