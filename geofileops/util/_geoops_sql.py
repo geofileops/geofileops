@@ -298,11 +298,20 @@ def makevalid(
 
     # Init + prepare sql template for this operation
     # ----------------------------------------------
+    # Only apply makevalid if the geometry is truly invalid, this is faster
     if SPATIALITE_GTE_51:
-        operation = "GEOSMakeValid({geometrycolumn}, 0)"
+        operation = """
+            IIF(ST_IsValid({geometrycolumn}) = 1,
+                {geometrycolumn},
+                GEOSMakeValid({geometrycolumn}, 0)
+            )"""
     else:
         # Prepare sql template for this operation
-        operation = "ST_MakeValid({geometrycolumn})"
+        operation = """
+            IIF(ST_IsValid({geometrycolumn}) = 1,
+                {geometrycolumn},
+                ST_MakeValid({geometrycolumn})
+            )"""
 
         # Determine output_geometrytype if it wasn't specified. Otherwise makevalid
         # can result in column type 'GEOMETRY'/'UNKNOWN(ANY)'
@@ -3232,18 +3241,16 @@ def _format_apply_gridsize_operation(
 ) -> str:
     if SPATIALITE_GTE_51:
         # ST_ReducePrecision and GeosMakeValid only available for spatialite >= 5.1
-        # Try to always return a result...
+        # Retry with applying makevalid.
+        # It is not possible to return the original geometry if error stays after
+        # makevalid, because spatialite functions return NULL for failures as well as
+        # when the result is correctly NULL, so not possible to make the distinction.
         gridsize_op = f"""
             IIF({geometrycolumn} IS NULL,
                 NULL,
                 IFNULL(
                     ST_ReducePrecision({geometrycolumn}, {gridsize}),
-                    IFNULL(
-                        ST_ReducePrecision(
-                            GeosMakeValid({geometrycolumn}, 0), {gridsize}
-                        ),
-                        {geometrycolumn}
-                    )
+                    ST_ReducePrecision(GeosMakeValid({geometrycolumn}, 0), {gridsize}))
                 )
             )
         """
