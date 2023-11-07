@@ -12,7 +12,6 @@ import geofileops as gfo
 import geofileops._compat as compat
 from geofileops.util import _geoseries_util
 from tests import test_helper
-from tests.test_helper import assert_geodataframe_equal
 
 
 def test_get_geometrytypes():
@@ -263,7 +262,7 @@ poly_ok = shapely.from_wkt(
             [poly_gridsize_error, poly_ok],
             [poly_gridsize_error, shapely.set_precision(poly_ok, grid_size=0.001)],
         ),
-        ([poly_gridsize_error], [poly_gridsize_error]),
+        (poly_gridsize_error, poly_gridsize_error),
     ],
 )
 def test_set_precision(geometry, exp_geometry, raise_on_topoerror):
@@ -271,28 +270,20 @@ def test_set_precision(geometry, exp_geometry, raise_on_topoerror):
     if shapely.geos_version != (3, 12, 0):
         pytest.skip()
 
-    test_data = {"descr": range(len(geometry)), "geometry": geometry}
-    test_gdf = gpd.GeoDataFrame(test_data, crs=31370)
     grid_size = 0.001
-
-    # Prepare expected result
-    expected_data = {"descr": range(len(geometry)), "geometry": exp_geometry}
-    if len(exp_geometry) > 1:
-        assert test_data["geometry"][1] != expected_data["geometry"][1]
-    expected_gdf = gpd.GeoDataFrame(expected_data, crs=31370)
 
     if raise_on_topoerror:
         with pytest.raises(Exception, match="TopologyException: Ring edge missing at"):
             # raise_on_topoerror is default False
-            result_gdf = _geoseries_util.set_precision(
-                test_gdf.geometry, grid_size=grid_size
-            )
+            result = _geoseries_util.set_precision(geometry, grid_size=grid_size)
         return
 
-    result_gdf = test_gdf.copy()
-    result_gdf.geometry = _geoseries_util.set_precision(
-        test_gdf.geometry, grid_size=grid_size, raise_on_topoerror=raise_on_topoerror
+    result = _geoseries_util.set_precision(
+        geometry, grid_size=grid_size, raise_on_topoerror=raise_on_topoerror
     )
 
     # Check result
-    assert_geodataframe_equal(result_gdf, expected_gdf)
+    if hasattr(geometry, "__len__"):
+        assert result.tolist() == exp_geometry
+    else:
+        assert result == exp_geometry
