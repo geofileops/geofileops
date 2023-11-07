@@ -285,7 +285,6 @@ def makevalid(
     gridsize: float = 0.0,
     keep_empty_geoms: bool = True,
     where_post: Optional[str] = None,
-    validate_attribute_data: bool = False,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
@@ -347,12 +346,6 @@ def makevalid(
         batchsize=batchsize,
         force=force,
     )
-
-    # If asked and output is spatialite based, check if all data can be read
-    if validate_attribute_data:
-        output_geofileinfo = _geofileinfo.get_geofileinfo(input_path)
-        if output_geofileinfo.is_spatialite_based:
-            _sqlite_util.test_data_integrity(path=input_path)
 
 
 def select(
