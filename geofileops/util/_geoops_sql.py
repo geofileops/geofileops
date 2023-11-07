@@ -645,9 +645,8 @@ def _single_layer_vector_operation(
                 # Makevalid.
                 gridsize_op = (
                     "ST_MakeValid(SnapToGrid("
-                    f"    sub_gridsize.{input_layerinfo.geometrycolumn}, {gridsize}),"
-                    "     0"
-                    ")"
+                    f"    sub_gridsize.{input_layerinfo.geometrycolumn}, {gridsize}"
+                    "))"
                 )
 
                 # SnapToGrid + ST_MakeValid can result in collapsed (pieces of)
