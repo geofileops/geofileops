@@ -2377,7 +2377,9 @@ def _two_layer_vector_operation(
                         IFNULL(
                             ST_ReducePrecision(sub_gridsize.geom, {gridsize}),
                             ST_GeomFromWKB(GFO_ReducePrecision(
-                                ST_AsBinary(sub_gridsize.geom), {gridsize})
+                                ST_AsBinary(sub_gridsize.geom), {gridsize}
+                            ))
+                        )
                     )
                 """
             else:
