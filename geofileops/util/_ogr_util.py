@@ -10,10 +10,11 @@ from threading import Lock
 from typing import Dict, List, Literal, Optional, Tuple, Union
 
 from osgeo import gdal
+from osgeo import ogr
 from pygeoops import GeometryType
 
 import geofileops as gfo
-from geofileops.util.geofiletype import GeofileType
+from geofileops import fileops
 
 # Make sure only one instance per process is running
 lock = Lock()
@@ -31,10 +32,10 @@ class GDALError(Exception):
         log_details: [List[str]] = [],
         error_details: [List[str]] = [],
     ):
-        super().__init__(message)
-
+        self.message = message
         self.log_details = log_details
         self.error_details = error_details
+        super().__init__(self.message)
 
     def __str__(self):
         retstring = ""
@@ -53,6 +54,52 @@ class GDALError(Exception):
             return f"{retstring}\n{super().__str__()}"
         else:
             return super().__str__()
+
+
+ogrtype_to_geometrytype = {
+    ogr.wkbNone: None,
+    ogr.wkbUnknown: GeometryType.GEOMETRY,
+    ogr.wkbPoint: GeometryType.POINT,
+    ogr.wkbLineString: GeometryType.LINESTRING,
+    ogr.wkbPolygon: GeometryType.POLYGON,
+    ogr.wkbTriangle: GeometryType.TRIANGLE,
+    ogr.wkbMultiPoint: GeometryType.MULTIPOINT,
+    ogr.wkbMultiLineString: GeometryType.MULTILINESTRING,
+    ogr.wkbMultiPolygon: GeometryType.MULTIPOLYGON,
+    ogr.wkbGeometryCollection: GeometryType.GEOMETRYCOLLECTION,
+    ogr.wkbPolyhedralSurface: GeometryType.POLYHEDRALSURFACE,
+    ogr.wkbTIN: GeometryType.TIN,
+    ogr.wkbPoint25D: GeometryType.POINTZ,
+    ogr.wkbLineString25D: GeometryType.LINESTRINGZ,
+    ogr.wkbPolygon25D: GeometryType.POLYGONZ,
+    ogr.wkbTriangleZ: GeometryType.TRIANGLEZ,
+    ogr.wkbMultiPoint25D: GeometryType.MULTIPOINTZ,
+    ogr.wkbMultiLineString25D: GeometryType.MULTILINESTRINGZ,
+    ogr.wkbMultiPolygon25D: GeometryType.MULTIPOLYGONZ,
+    ogr.wkbGeometryCollection25D: GeometryType.GEOMETRYCOLLECTIONZ,
+    ogr.wkbPolyhedralSurfaceZ: GeometryType.POLYHEDRALSURFACEZ,
+    ogr.wkbTINZ: GeometryType.TINZ,
+    ogr.wkbPointM: GeometryType.POINTM,
+    ogr.wkbLineStringM: GeometryType.LINESTRINGM,
+    ogr.wkbPolygonM: GeometryType.POLYGONM,
+    ogr.wkbTriangleM: GeometryType.TRIANGLEM,
+    ogr.wkbMultiPointM: GeometryType.MULTIPOINTM,
+    ogr.wkbMultiLineStringM: GeometryType.MULTILINESTRINGM,
+    ogr.wkbMultiPolygonM: GeometryType.MULTIPOLYGONM,
+    ogr.wkbGeometryCollectionM: GeometryType.GEOMETRYCOLLECTIONM,
+    ogr.wkbPolyhedralSurfaceM: GeometryType.POLYHEDRALSURFACEM,
+    ogr.wkbTINM: GeometryType.TINM,
+    ogr.wkbPointZM: GeometryType.POINTZM,
+    ogr.wkbLineStringZM: GeometryType.LINESTRINGZM,
+    ogr.wkbPolygonZM: GeometryType.POLYGONZM,
+    ogr.wkbTriangleZM: GeometryType.TRIANGLEZM,
+    ogr.wkbMultiPointZM: GeometryType.MULTIPOINTZM,
+    ogr.wkbMultiLineStringZM: GeometryType.MULTILINESTRINGZM,
+    ogr.wkbMultiPolygonZM: GeometryType.MULTIPOLYGONZM,
+    ogr.wkbGeometryCollectionZM: GeometryType.GEOMETRYCOLLECTIONZM,
+    ogr.wkbPolyhedralSurfaceZM: GeometryType.POLYHEDRALSURFACEZM,
+    ogr.wkbTINZM: GeometryType.TINZM,
+}
 
 
 def get_drivers() -> dict:
@@ -117,6 +164,7 @@ class VectorTranslateInfo:
         columns: Optional[List[str]] = None,
         warp: Optional[dict] = None,
         preserve_fid: Optional[bool] = None,
+        dst_dimensions: Optional[str] = None,
     ):
         self.input_path = input_path
         self.output_path = output_path
@@ -139,6 +187,7 @@ class VectorTranslateInfo:
         self.columns = columns
         self.warp = warp
         self.preserve_fid = preserve_fid
+        self.dst_dimensions = dst_dimensions
 
 
 def vector_translate_by_info(info: VectorTranslateInfo):
@@ -164,6 +213,7 @@ def vector_translate_by_info(info: VectorTranslateInfo):
         columns=info.columns,
         warp=info.warp,
         preserve_fid=info.preserve_fid,
+        dst_dimensions=info.dst_dimensions,
     )
 
 
@@ -189,6 +239,7 @@ def vector_translate(
     columns: Optional[List[str]] = None,
     warp: Optional[dict] = None,
     preserve_fid: Optional[bool] = None,
+    dst_dimensions: Optional[bool] = None,
 ) -> bool:
     # API Doc of VectorTranslateOptions:
     #   https://gdal.org/api/python/osgeo.gdal.html#osgeo.gdal.VectorTranslateOptions
@@ -198,9 +249,9 @@ def vector_translate(
     gdal_options = _prepare_gdal_options(options, split_by_option_type=True)
 
     # Input file parameters
-    input_filetype = GeofileType(input_path)
+    input_info = fileops._geofileinfo.get_geofileinfo(input_path)
     # Cleanup the input_layers variable.
-    if input_filetype == GeofileType.ESRIShapefile:
+    if input_info.driver == "ESRI Shapefile":
         # For shapefiles, having input_layers not None gives issues
         input_layers = None
     elif sql_stmt is not None:
@@ -257,11 +308,11 @@ def vector_translate(
         args.extend(["-oo", f"{option_name}={value}"])
 
     # Output file parameters
-    # Get output format from the filename
-    output_filetype = GeofileType(output_path)
+    # Get driver for the output_path
+    output_info = fileops._geofileinfo.get_geofileinfo(output_path)
 
     # Shapefiles only can have one layer, and the layer name == the stem of the file
-    if output_filetype == GeofileType.ESRIShapefile:
+    if output_info.driver == "ESRI Shapefile":
         output_layer = output_path.stem
 
     # SRS
@@ -280,7 +331,7 @@ def vector_translate(
     # will be created
     if output_path.exists() is False or update is False:
         dataset_creation_options = gdal_options["DATASET_CREATION"]
-        if output_filetype == GeofileType.SQLite:
+        if output_info.driver == "SQLite":
             # If SQLite file, use the spatialite type of sqlite by default
             if "SPATIALITE" not in dataset_creation_options:
                 dataset_creation_options["SPATIALITE"] = "YES"
@@ -321,7 +372,7 @@ def vector_translate(
     # Remark: passing them as parameter using --config doesn't work, but they are set as
     # runtime config options later on (using a context manager).
     config_options = dict(gdal_options["CONFIG"])
-    if input_filetype.is_spatialite_based or output_filetype.is_spatialite_based:
+    if input_info.is_spatialite_based or output_info.is_spatialite_based:
         # If spatialite based file, increase SQLITE cache size by default
         if "OGR_SQLITE_CACHE" not in config_options:
             config_options["OGR_SQLITE_CACHE"] = "128"
@@ -414,7 +465,7 @@ def vector_translate(
             args_copy = list(args)
             options = gdal.VectorTranslateOptions(
                 options=args_copy,
-                format=output_filetype.ogrdriver,
+                format=output_info.driver,
                 accessMode=None,
                 srcSRS=input_srs,
                 dstSRS=output_srs,
@@ -432,7 +483,7 @@ def vector_translate(
                 layers=input_layers,
                 layerName=output_layer,
                 geometryType=output_geometrytypes,
-                dim=None,
+                dim=dst_dimensions,
                 segmentizeMaxDist=None,
                 zField=None,
                 skipFailures=False,
@@ -507,7 +558,7 @@ def vector_translate(
         output_ds = None
 
         # Prepare exception message
-        message = f"Error {ex} while creating {output_path}"
+        message = f"Error {ex} while creating/updating {output_path}"
         if sql_stmt is not None:
             message = f"{message} using sql_stmt {sql_stmt}"
 
@@ -517,7 +568,7 @@ def vector_translate(
         # Raise
         raise GDALError(
             message, log_details=log_lines, error_details=log_errors
-        ) from ex
+        ).with_traceback(ex.__traceback__)
 
     finally:
         output_ds = None

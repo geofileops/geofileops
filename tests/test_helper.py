@@ -14,13 +14,15 @@ import shapely
 import shapely.geometry as sh_geom
 
 import geofileops as gfo
+from geofileops.util import _geofileinfo
 from geofileops.util import geodataframe_util
 from geofileops.util import _geoseries_util
 
 _data_dir = Path(__file__).parent.resolve() / "data"
 EPSGS = [31370, 4326]
 GRIDSIZE_DEFAULT = 0.0
-SUFFIXES = [".gpkg", ".shp"]
+SUFFIXES_FILEOPS = [".gpkg", ".shp", ".csv"]
+SUFFIXES_GEOOPS = [".gpkg", ".shp"]
 TESTFILES = ["polygon-parcel", "linestring-row-trees", "point"]
 WHERE_AREA_GT_400 = "ST_Area({geometrycolumn}) > 400"
 WHERE_AREA_GT_5000 = "ST_Area({geometrycolumn}) > 5000"
@@ -136,6 +138,7 @@ def get_testfile(
     suffix: str = ".gpkg",
     epsg: int = 31370,
     empty: bool = False,
+    dimensions: Optional[str] = None,
 ) -> Path:
     # Prepare original filepath
     testfile_path = _data_dir / f"{testfile}.gpkg"
@@ -148,41 +151,58 @@ def get_testfile(
 
     # Prepare file + return
     empty_str = "_empty" if empty else ""
-    prepared_path = dst_dir / f"{testfile_path.stem}_{epsg}{empty_str}{suffix}"
-    dst_geofiletype = gfo.GeofileType(prepared_path)
+    prepared_path = (
+        dst_dir / f"{testfile_path.stem}_{epsg}_{dimensions}{empty_str}{suffix}"
+    )
     if prepared_path.exists():
         return prepared_path
     layers = gfo.listlayers(testfile_path)
-    if len(layers) > 1 and dst_geofiletype.is_singlelayer:
+    dst_info = _geofileinfo.get_geofileinfo(prepared_path)
+    if len(layers) > 1 and dst_info.is_singlelayer:
         raise ValueError(
             f"multilayer testfile ({testfile}) cannot be converted to single layer "
-            f"geofiletype: {dst_geofiletype}"
+            f"geofiletype: {dst_info.driver}"
         )
 
     # Convert all layers found
-    for layer in layers:
+    for src_layer in layers:
+        # Single layer files have stem as layername
+        dst_layer = prepared_path.stem if dst_info.is_singlelayer else src_layer
+
         gfo.copy_layer(
             testfile_path,
             prepared_path,
-            src_layer=layer,
-            dst_layer=layer,
+            src_layer=src_layer,
+            dst_layer=dst_layer,
             dst_crs=epsg,
             reproject=True,
             append=True,
             preserve_fid=True,
+            dst_dimensions=dimensions,
         )
-        # If all rows need to be deleted
+
         if empty:
             # Remove all rows from destination layer.
             # GDAL only supports DELETE using SQLITE dialect, not with OGRSQL.
-            if dst_geofiletype.is_singlelayer:
-                # Layer name can be different for singlelayer output files
-                layer = gfo.listlayers(prepared_path)[0]
             gfo.execute_sql(
                 prepared_path,
-                sql_stmt=f'DELETE FROM "{layer}"',
+                sql_stmt=f'DELETE FROM "{dst_layer}"',
                 sql_dialect="SQLITE",
             )
+        elif dimensions is not None:
+            if dimensions != "XYZ":
+                raise ValueError(f"unimplemented dimensions: {dimensions}")
+
+            prepared_info = gfo.get_layerinfo(
+                prepared_path, layer=dst_layer, raise_on_nogeom=False
+            )
+            if prepared_info.geometrycolumn is not None:
+                gfo.update_column(
+                    prepared_path,
+                    name=prepared_info.geometrycolumn,
+                    expression=f"CastToXYZ({prepared_info.geometrycolumn}, 5.0)",
+                    layer=dst_layer,
+                )
 
     return prepared_path
 
@@ -311,22 +331,24 @@ def assert_geodataframe_equal(
         right = right.copy()
         right.loc[right.geometry.is_empty, ["geometry"]] = None
 
+    if promote_to_multi:
+        left.geometry = _geoseries_util.harmonize_geometrytypes(
+            left.geometry, force_multitype=True
+        )
+        right.geometry = _geoseries_util.harmonize_geometrytypes(
+            right.geometry, force_multitype=True
+        )
+
+    if normalize:
+        left.geometry = gpd.GeoSeries(
+            shapely.normalize(left.geometry), index=left.index
+        )
+        right.geometry = gpd.GeoSeries(
+            shapely.normalize(right.geometry),
+            index=right.index,
+        )
+
     if sort_values:
-        if normalize:
-            left.geometry = gpd.GeoSeries(
-                shapely.normalize(left.geometry), index=left.index
-            )
-            right.geometry = gpd.GeoSeries(
-                shapely.normalize(right.geometry),
-                index=right.index,
-            )
-        if promote_to_multi:
-            left.geometry = _geoseries_util.harmonize_geometrytypes(
-                left.geometry, force_multitype=True
-            )
-            right.geometry = _geoseries_util.harmonize_geometrytypes(
-                right.geometry, force_multitype=True
-            )
         left = geodataframe_util.sort_values(left).reset_index(drop=True)
         right = geodataframe_util.sort_values(right).reset_index(drop=True)
 

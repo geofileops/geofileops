@@ -21,6 +21,7 @@ Spatial operations on a single layer
    convexhull
    delete_duplicate_geometries
    dissolve
+   dissolve_within_distance
    export_by_bounds
    isvalid
    makevalid
@@ -44,7 +45,7 @@ Spatial operations on two layers
    join_by_location
    join_nearest
    select_two_layers
-   split
+   identity
    symmetric_difference
    union
 
@@ -59,7 +60,7 @@ General layer operations
    append_to
    add_column
    add_layerstyle
-   convert
+   copy_layer
    create_spatial_index
    drop_column
    execute_sql
@@ -88,8 +89,7 @@ General file operations
 
    cmp
    copy
-   is_geofile
-   is_geofile_ext
+   get_driver
    listlayers
    move
    remove
@@ -103,8 +103,6 @@ Classes
    BufferEndCapStyle
    BufferJoinStyle
    DataType
-   GeofileType
-   GeometryType
    LayerInfo
    PrimitiveType
    SimplifyAlgorithm
