@@ -35,6 +35,7 @@ from geofileops import fileops
 from geofileops.helpers import _parameter_helper
 from geofileops.util import _general_util
 from geofileops.util import _geoops_sql
+from geofileops.util import _geoseries_util
 from geofileops.util import _io_util
 from geofileops.util import _ogr_util
 from geofileops.util import _processing_util
@@ -502,6 +503,56 @@ def convexhull(
     )
 
 
+def makevalid(
+    input_path: Path,
+    output_path: Path,
+    input_layer: Optional[str] = None,
+    output_layer: Optional[str] = None,
+    columns: Optional[List[str]] = None,
+    explodecollections: bool = False,
+    force_output_geometrytype: Optional[GeometryType] = None,
+    gridsize: float = 0.0,
+    keep_empty_geoms: bool = True,
+    where_post: Optional[str] = None,
+    validate_attribute_data: bool = False,
+    nb_parallel: int = -1,
+    batchsize: int = -1,
+    force: bool = False,
+):
+    # Determine if collapsed parts need to be kept after makevalid or not
+    keep_collapsed = True
+    if force_output_geometrytype is None:
+        keep_collapsed = False
+    else:
+        if isinstance(force_output_geometrytype, GeometryType):
+            force_output_geometrytype = force_output_geometrytype.name
+        info = fileops.get_layerinfo(input_path)
+        if force_output_geometrytype.startswith(
+            info.geometrytypename
+        ) or info.geometrytypename.startswith(force_output_geometrytype):
+            keep_collapsed = False
+
+    apply(
+        input_path=Path(input_path),
+        output_path=Path(output_path),
+        func=lambda geom: pygeoops.make_valid(
+            geom, keep_collapsed=keep_collapsed, only_if_invalid=True
+        ),
+        operation_name="makevalid",
+        input_layer=input_layer,
+        output_layer=output_layer,
+        columns=columns,
+        explodecollections=explodecollections,
+        force_output_geometrytype=force_output_geometrytype,
+        gridsize=gridsize,
+        keep_empty_geoms=keep_empty_geoms,
+        where_post=where_post,
+        nb_parallel=nb_parallel,
+        batchsize=batchsize,
+        force=force,
+    )
+
+
 def simplify(
     input_path: Path,
     output_path: Path,
@@ -906,24 +957,9 @@ def _apply_geooperation(
         data_gdf = data_gdf.explode(ignore_index=True)
 
     if gridsize != 0.0:
-        try:
-            data_gdf.geometry = shapely.set_precision(
-                data_gdf.geometry, grid_size=gridsize
-            )
-        except shapely.errors.GEOSException as ex:  # pragma: no cover
-            # If set_precision fails with TopologyException, try again after make_valid
-            # Because it is applied on a GeoDataFrame with typically many rows, we don't
-            # know which row is invalid, so use only_if_invalid=True.
-            if str(ex).lower().startswith("topologyexception"):
-                data_gdf.geometry = pygeoops.make_valid(
-                    data_gdf.geometry, keep_collapsed=False, only_if_invalid=True
-                )
-                data_gdf.geometry = shapely.set_precision(
-                    data_gdf.geometry, grid_size=gridsize
-                )
-                logger.warning(
-                    f"gridsize succesfully set after makevalid: you can ignore <{ex}>"
-                )
+        data_gdf.geometry = _geoseries_util.set_precision(
+            data_gdf.geometry, grid_size=gridsize, raise_on_topoerror=False
+        )
 
     # Remove rows where geom is None/null/empty
     if not keep_empty_geoms:
@@ -1831,25 +1867,9 @@ def _dissolve_polygons(
         diss_gdf["tile_id"] = tile_id
 
     if gridsize != 0.0:
-        diss_gdf.geometry = shapely.set_precision(diss_gdf.geometry, grid_size=gridsize)
-        try:
-            diss_gdf.geometry = shapely.set_precision(
-                diss_gdf.geometry, grid_size=gridsize
-            )
-        except shapely.errors.GEOSException as ex:  # pragma: no cover
-            # If set_precision fails with TopologyException, try again after make_valid
-            # Because it is applied on a GeoDataFrame with typically many rows, we don't
-            # know which row is invalid, so use only_if_invalid=True.
-            if str(ex).lower().startswith("topologyexception"):
-                diss_gdf.geometry = pygeoops.make_valid(
-                    diss_gdf.geometry, keep_collapsed=False, only_if_invalid=True
-                )
-                diss_gdf.geometry = shapely.set_precision(
-                    diss_gdf.geometry, grid_size=gridsize
-                )
-                logger.warning(
-                    f"gridsize succesfully set after makevalid: you can ignore <{ex}>"
-                )
+        diss_gdf.geometry = _geoseries_util.set_precision(
+            diss_gdf.geometry, grid_size=gridsize, raise_on_topoerror=False
+        )
 
     # Save the result to destination file(s)
     start_to_file = datetime.now()
