@@ -791,7 +791,7 @@ def test_dissolve_polygons_groupby_None(tmp_path):
     # Now check if the tmp file is correctly created
     assert output_path.exists()
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+    assert output_layerinfo.geometrytype == GeometryType.POLYGON
     assert (
         output_layerinfo.columns["none_values"].gdal_type
         == input_layerinfo.columns["none_values"].gdal_type
@@ -835,7 +835,7 @@ def test_dissolve_polygons_specialcases(tmp_path, suffix):
         assert output_layerinfo.featurecount == 25
         assert len(output_layerinfo.columns) == 1
         assert output_layerinfo.name == "banana"
-        assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+        assert output_layerinfo.geometrytype == GeometryType.POLYGON
 
         # Now check the contents of the result file
         input_gdf = gfo.read_file(input_path)
