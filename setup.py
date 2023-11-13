@@ -32,7 +32,7 @@ setuptools.setup(
         "psutil",
         # "pygeoops>=0.3,<0.4",
         "pygeoops==0.4.0a2",
-        "pyogrio",
+        "pyogrio>=0.7",
         "pyproj",
         "shapely>=2,<2.1",
     ],

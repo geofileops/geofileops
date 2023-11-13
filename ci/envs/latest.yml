@@ -17,7 +17,7 @@ dependencies:
   - psutil
   - pyarrow
   # - pygeoops >=0.4,<0.5
-  - pyogrio >=0.5
+  - pyogrio >=0.7.2
   - pyproj
   - shapely >=2,<2.1
   # testing

@@ -1350,6 +1350,7 @@ def _read_file_base_pyogrio(
         read_geometry=not ignore_geometry,
         fid_as_index=fid_as_index,
         use_arrow=use_arrow,
+        arrow_to_pandas_kwargs={"date_as_object": False},
     )
 
     # Reorder columns + change casing so they are the same as columns parameter
@@ -1359,15 +1360,6 @@ def _read_file_base_pyogrio(
             columns_to_keep += ["geometry"]
         result_gdf = result_gdf[columns_to_keep]
         result_gdf = result_gdf.rename(columns=columns_prepared)
-
-    # Cast columns that are of object type, but contain datetime.date or datetime.date
-    # to proper datetime64 columns.
-    if len(result_gdf) > 0:
-        for column in result_gdf.select_dtypes(include=["object"]):
-            if isinstance(
-                result_gdf[column].iloc[0], (datetime.date, datetime.datetime)
-            ):
-                result_gdf[column] = pd.to_datetime(result_gdf[column])
 
     assert isinstance(result_gdf, (gpd.GeoDataFrame, pd.DataFrame))
     return result_gdf
