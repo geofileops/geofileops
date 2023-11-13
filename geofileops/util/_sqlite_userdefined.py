@@ -3,10 +3,12 @@ import logging
 from typing import Optional
 
 import pygeoops
-import shapely
 
 # from pygeoops import _difference as _difference
 # from pygeoops import _paramvalidation as paramvalidation
+import shapely
+
+from geofileops.util import _geoseries_util
 
 # Get a logger...
 logger = logging.getLogger(__name__)
@@ -95,13 +97,12 @@ def gfo_difference_collection(
         return None
 
 
-def gfo_reduceprecision(
-    geom_wkb: bytes,
-    gridsize: int,
-    makevalid_first: int = 0,
-) -> Optional[bytes]:
+def gfo_reduceprecision(geom_wkb: bytes, gridsize: int) -> Optional[bytes]:
     """
     Reduces the precision of the geometry to the gridsize specified.
+
+    If reducing the precison leads to a topologyerror, retries after applying make_valid
+    and returns the input if it still fails.
 
     By default, geometries use double precision coordinates (grid_size = 0). Coordinates
     will be rounded if a precision grid is less precise than the input geometry.
@@ -109,15 +110,13 @@ def gfo_reduceprecision(
     than 0. Line and polygon geometries may collapse to empty geometries if all vertices
     are closer together than grid_size. Z values, if present, will not be modified.
 
-    Note: unless parameter makevalid_first=1 is used, the input geometry should be
-    geometrically valid. Unexpected results may occur if input geometry is not.
+    If the input geometry is found to be invalid while reducing precision, it is retried
+    after makevalid applying makevalid.
 
     Args:
         geom_wkb (bytes): geometry to reduce precision from in wkb format.
         gridsize (int): the size of the grid the coordinates of the ouput will be
             rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change the
-            precision.
-        makevalid_first (int): if 1, the input is first made valid before reducing the
             precision.
 
     Returns:
@@ -140,13 +139,10 @@ def gfo_reduceprecision(
         raise
 
     try:
-        # If needed, apply makevalid first
-        result = geom
-        if makevalid_first:
-            result = shapely.make_valid(result)
-
         # Apply set_precision
-        result = shapely.set_precision(result, grid_size=gridsize)
+        result = _geoseries_util.set_precision(
+            geom, grid_size=gridsize, raise_on_topoerror=False
+        )
 
         # If an empty result, return None
         # Remark: apparently ST_IsEmpty of spatialite doesn't work (in combination with

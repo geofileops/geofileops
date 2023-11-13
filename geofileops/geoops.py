@@ -11,13 +11,15 @@ from typing import Any, Callable, List, Literal, Optional, Tuple, Union, TYPE_CH
 import warnings
 
 from pygeoops import GeometryType
-import shapely
 
+from geofileops._compat import SPATIALITE_GTE_51
 from geofileops import fileops
+from geofileops.util import _geofileinfo
 from geofileops.util import _geoops_gpd
 from geofileops.util import _geoops_sql
 from geofileops.util import _geoops_ogr
 from geofileops.util import _io_util
+from geofileops.util import _sqlite_util
 from geofileops.util._geometry_util import (
     BufferEndCapStyle,
     BufferJoinStyle,
@@ -1158,7 +1160,7 @@ def makevalid(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
-    force_output_geometrytype: Optional[GeometryType] = None,
+    force_output_geometrytype: Union[str, None, GeometryType] = None,
     gridsize: float = 0.0,
     keep_empty_geoms: Optional[bool] = None,
     where_post: Optional[str] = None,
@@ -1175,7 +1177,7 @@ def makevalid(
 
     Alternative names:
         - QGIS: fix geometries
-        - shapely: make_valid
+        - shapely, geopandas: make_valid
 
     If ``explodecollections`` is False and the output file is a GeoPackage, the fid
     will be preserved. In other cases this will typically not be the case.
@@ -1194,7 +1196,7 @@ def makevalid(
         explodecollections (bool, optional): True to output only simple geometries.
             Defaults to False.
         force_output_geometrytype (GeometryType, optional): The output geometry type to
-            force the output to. If None, the geometry type of the input is used.
+            force the output to. If None, the geometry type of the input is retained.
             Defaults to None.
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
@@ -1240,23 +1242,47 @@ def makevalid(
             stacklevel=2,
         )
 
-    _geoops_gpd.apply(
-        input_path=Path(input_path),
-        output_path=Path(output_path),
-        func=lambda geom: shapely.make_valid(geom),
-        operation_name="makevalid",
-        input_layer=input_layer,
-        output_layer=output_layer,
-        columns=columns,
-        explodecollections=explodecollections,
-        force_output_geometrytype=force_output_geometrytype,
-        gridsize=gridsize,
-        keep_empty_geoms=keep_empty_geoms,
-        where_post=where_post,
-        nb_parallel=nb_parallel,
-        batchsize=batchsize,
-        force=force,
-    )
+    if SPATIALITE_GTE_51 and gridsize == 0.0:
+        # If spatialite >= 5.1 available use faster/less memory using sql implementation
+        # Only use this version if gridsize is 0.0, because when gridsize applied it is
+        # less robust than the gpd implementation.
+        _geoops_sql.makevalid(
+            input_path=Path(input_path),
+            output_path=Path(output_path),
+            input_layer=input_layer,
+            output_layer=output_layer,
+            columns=columns,
+            explodecollections=explodecollections,
+            force_output_geometrytype=force_output_geometrytype,
+            gridsize=gridsize,
+            keep_empty_geoms=keep_empty_geoms,
+            where_post=where_post,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+            force=force,
+        )
+    else:
+        _geoops_gpd.makevalid(
+            input_path=Path(input_path),
+            output_path=Path(output_path),
+            input_layer=input_layer,
+            output_layer=output_layer,
+            columns=columns,
+            explodecollections=explodecollections,
+            force_output_geometrytype=force_output_geometrytype,
+            gridsize=gridsize,
+            keep_empty_geoms=keep_empty_geoms,
+            where_post=where_post,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+            force=force,
+        )
+
+    # If asked and output is spatialite based, check if all data can be read
+    if validate_attribute_data:
+        output_geofileinfo = _geofileinfo.get_geofileinfo(input_path)
+        if output_geofileinfo.is_spatialite_based:
+            _sqlite_util.test_data_integrity(path=input_path)
 
 
 def warp(

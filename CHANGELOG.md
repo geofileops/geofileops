@@ -5,7 +5,7 @@
 ## Improvements
 
 - Add support to read/add/remove embedded layer styles in gpkg (#263)
-- Add `gridsize` parameter to most spatial operations (#261, #407)
+- Add `gridsize` parameter to most spatial operations (#261, #407, #413)
 - Add `keep_empty_geoms` and `where_post` parameters to many single layer spatial operations
   (#262, #398)
 - Add `where_post` parameter to many two layer spatial operations (#312)
@@ -16,6 +16,7 @@
   without geometry column) and/or have an attribute table as result (#322, #379)
 - Add support to process all file types supported by gdal in most general file and layer
   operations, e.g. `get_layerinfo`, `read_file`,... (#402)
+- Add support for files with Z/M dimensions in the general file and layer operations (#369)
 - Add support for spatialite 5.1 in `join_nearest` (#412)
 - Improve performance of `makevalid` and `isvalid` (#258)
 - Improve performance of `intersection`, 30% faster for typical data, up to 4x faster
@@ -53,6 +54,7 @@
 - Fix error in `read_file` when `read_geometry=False` and `columns` specified (#393)
 - Fix error in `copy_layer`/`convert` with `explodecollections` on some input files
   (#395)
+- Fix dissolve forcing output to wrong geometrytype in some cases (#424)
 
 ### Deprecations and compatibility notes
 
