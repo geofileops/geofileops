@@ -1007,7 +1007,7 @@ def erase(
           SELECT IFNULL(
                    ( SELECT IFNULL(
                                ST_GeomFromWKB(GFO_Difference_Collection(
-                                  ST_AsBinary(layer1_sub.{{input1_geometrycolumn}}),
+                                  ST_AsBinary(layer1.{{input1_geometrycolumn}}),
                                   ST_AsBinary(ST_Collect(
                                      IIF(
                                         ST_NPoints(layer2_sub.{{input2_geometrycolumn}})
@@ -1023,19 +1023,18 @@ def erase(
                                )),
                                'DIFF_EMPTY'
                             ) AS diff_geom
-                       FROM {{input1_databasename}}."{{input1_layer}}" layer1_sub
-                       JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
-                         ON layer1_sub.rowid = layer1tree.id
+                       FROM {{input1_databasename}}."{input1_layer_rtree}" layer1tree
                        JOIN {{input2_databasename}}."{{input2_layer}}" layer2_sub
                        JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
                          ON layer2_sub.rowid = layer2tree.id
-                      WHERE 1=1
-                        AND layer1_sub.rowid = layer1.rowid
+                      WHERE layer1tree.id = layer1.rowid
                         AND layer1tree.minx <= layer2tree.maxx
                         AND layer1tree.maxx >= layer2tree.minx
                         AND layer1tree.miny <= layer2tree.maxy
                         AND layer1tree.maxy >= layer2tree.miny
-                      GROUP BY layer1_sub.rowid
+                        AND ST_Intersects(
+                                layer1.{{input1_geometrycolumn}},
+                                layer2_sub.{{input2_geometrycolumn}}) = 1
                       LIMIT -1 OFFSET 0
                    ),
                    layer1.{{input1_geometrycolumn}}
