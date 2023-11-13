@@ -1309,7 +1309,7 @@ def _read_file_base_pyogrio(
         skip_features = 0
         max_features = None
     # Arrow doesn't support filtering rows like this
-    use_arrow = True if rows is None else False
+    use_arrow = True  # if rows is None else False
 
     # If no sql_stmt specified
     columns_prepared = None
