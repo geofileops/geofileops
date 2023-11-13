@@ -1857,8 +1857,6 @@ def identity(
             gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
 
         # Now we are ready to move the result to the final spot...
-        if output_path.exists():
-            gfo.remove(output_path)
         gfo.move(tmp_output_path, output_path)
 
     finally:
@@ -2123,8 +2121,6 @@ def union(
             gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
 
         # Now we are ready to move the result to the final spot...
-        if output_path.exists():
-            gfo.remove(output_path)
         gfo.move(tmp_output_path, output_path)
 
     finally:
