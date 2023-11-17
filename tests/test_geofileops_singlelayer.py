@@ -594,6 +594,60 @@ def test_buffer_preserve_fid_gpkg(tmp_path, geoops_module):
 
 
 @pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
+def test_buffer_shp_to_gpkg(
+    tmp_path,
+    geoops_module,
+):
+    """
+    Buffer from shapefile to gpkg.
+
+    Test added because this gave a unique constraint on fid's, because for each partial
+    file the fid started again with 0.
+    """
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=".shp")
+
+    # Now run test
+    output_path = tmp_path / f"{input_path.stem}-{geoops_module}.gpkg"
+    set_geoops_module(geoops_module)
+    input_layerinfo = fileops.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+    distance = 1
+
+    # Prepare expected result
+    expected_gdf = fileops.read_file(input_path)
+    expected_gdf.geometry = expected_gdf.geometry.buffer(distance, resolution=5)
+    expected_gdf = test_helper.prepare_expected_result(
+        expected_gdf, keep_empty_geoms=True
+    )
+
+    # Test positive buffer
+    geoops.buffer(
+        input_path=input_path,
+        output_path=output_path,
+        distance=distance,
+        nb_parallel=2,
+        batchsize=batchsize,
+    )
+
+    # Now check if the output file is correctly created
+    assert output_path.exists()
+    assert fileops.has_spatial_index(output_path)
+    output_layerinfo = fileops.get_layerinfo(output_path)
+    assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
+
+    # More detailed check
+    output_gdf = fileops.read_file(output_path)
+    assert output_gdf["geometry"][0] is not None
+    assert_geodataframe_equal(
+        output_gdf,
+        expected_gdf,
+        promote_to_multi=True,
+        sort_values=True,
+    )
+
+
+@pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize(
     "empty_input, gridsize, keep_empty_geoms, where_post",
