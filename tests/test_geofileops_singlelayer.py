@@ -833,17 +833,13 @@ def test_makevalid_explode_input(tmp_path, suffix, geoops_module):
     """Even if single polygon input, output should be multipolygon."""
     # Prepare test data
     input_path = test_helper.get_testfile(
-        "polygon-invalid", suffix=suffix, explodecollections=True,
+        "polygon-invalid", suffix=suffix, explodecollections=True
     )
     set_geoops_module(geoops_module)
 
     # Do operation
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
-    geoops.makevalid(
-        input_path=input_path,
-        output_path=output_path,
-        nb_parallel=2,
-    )
+    geoops.makevalid(input_path=input_path, output_path=output_path, nb_parallel=2)
 
     # Now check if the output file is correctly created
     assert output_path.exists()
