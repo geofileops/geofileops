@@ -296,6 +296,12 @@ def makevalid(
         logger.info(f"Stop, output exists already {output_path}")
         return
 
+    # Determine output_geometrytype + make it multitype if it wasn't specified.
+    # Otherwise makevalid can result in column type 'GEOMETRY'/'UNKNOWN(ANY)'.
+    if force_output_geometrytype is None:
+        input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
+        force_output_geometrytype = input_layerinfo.geometrytype.to_multitype
+
     # Init + prepare sql template for this operation
     # ----------------------------------------------
     # Only apply makevalid if the geometry is truly invalid, this is faster
@@ -312,12 +318,6 @@ def makevalid(
                 {geometrycolumn},
                 ST_MakeValid({geometrycolumn})
             )"""
-
-        # Determine output_geometrytype if it wasn't specified. Otherwise makevalid
-        # can result in column type 'GEOMETRY'/'UNKNOWN(ANY)'
-        input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
-        if force_output_geometrytype is None:
-            force_output_geometrytype = input_layerinfo.geometrytype
 
         # If we want a specific geometrytype, only extract the relevant type
         if force_output_geometrytype is not GeometryType.GEOMETRYCOLLECTION:
@@ -382,7 +382,7 @@ def select(
     if force_output_geometrytype is None:
         force_output_geometrytype = gfo.get_layerinfo(
             input_path, input_layer, raise_on_nogeom=False
-        ).geometrytype
+        ).geometrytype.to_multitype
         logger.info(
             "No force_output_geometrytype specified, so defaults to input "
             f"layer geometrytype: {force_output_geometrytype}"
