@@ -536,7 +536,11 @@ def _single_layer_vector_operation(
 
     # Determine if fid can be preserved
     preserve_fid = False
-    if not explodecollections and gfo.get_driver(output_path) == "GPKG":
+    if (
+        not explodecollections
+        and _geofileinfo.get_geofileinfo(input_path).is_spatialite_based
+        and _geofileinfo.get_geofileinfo(output_path).is_spatialite_based
+    ):
         preserve_fid = True
 
     # Calculate
