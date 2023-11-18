@@ -300,7 +300,9 @@ def makevalid(
     # Otherwise makevalid can result in column type 'GEOMETRY'/'UNKNOWN(ANY)'.
     if force_output_geometrytype is None:
         input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
-        force_output_geometrytype = input_layerinfo.geometrytype.to_multitype
+        force_output_geometrytype = input_layerinfo.geometrytype
+        if not explodecollections:
+            force_output_geometrytype = force_output_geometrytype.to_multitype
 
     # Init + prepare sql template for this operation
     # ----------------------------------------------
@@ -382,7 +384,10 @@ def select(
     if force_output_geometrytype is None:
         force_output_geometrytype = gfo.get_layerinfo(
             input_path, input_layer, raise_on_nogeom=False
-        ).geometrytype.to_multitype
+        ).geometrytype
+        if force_output_geometrytype is not None and not explodecollections:
+            force_output_geometrytype = force_output_geometrytype.to_multitype
+
         logger.info(
             "No force_output_geometrytype specified, so defaults to input "
             f"layer geometrytype: {force_output_geometrytype}"
@@ -872,11 +877,11 @@ def clip(
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
     primitivetypeid = input_layer_info.geometrytype.to_primitivetype.value
 
-    # If the input type is not point, force the output type to multi,
-    # because erase clip cause eg. polygons to be split to multipolygons...
+    # If explodecollections is False and the input type is not point, force the output
+    # type to multi, because erase clip cause eg. polygons to be split to multipolygons.
     force_output_geometrytype = input_layer_info.geometrytype
-    if force_output_geometrytype is not GeometryType.POINT:
-        force_output_geometrytype = input_layer_info.geometrytype.to_multitype
+    if not explodecollections and force_output_geometrytype is not GeometryType.POINT:
+        force_output_geometrytype = force_output_geometrytype.to_multitype
 
     # Prepare sql template for this operation
     # Remarks:
@@ -976,10 +981,10 @@ def erase(
     # Init
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
 
-    # If the input type is not point, force the output type to multi,
-    # because erase can cause eg. polygons to be split to multipolygons...
+    # If explodecollections is False and the input type is not point, force the output
+    # type to multi, because erase can cause eg. polygons to be split to multipolygons.
     force_output_geometrytype = input_layer_info.geometrytype
-    if force_output_geometrytype is not GeometryType.POINT:
+    if not explodecollections and force_output_geometrytype is not GeometryType.POINT:
         force_output_geometrytype = input_layer_info.geometrytype.to_multitype
 
     # Prepare sql template for this operation
@@ -1291,9 +1296,13 @@ def intersection(
         )
     )
 
-    # For the output file, if output is going to be polygon or linestring, force
-    # MULTI variant to avoid ugly warnings
-    force_output_geometrytype = primitivetype_to_extract.to_multitype
+    # If output is going to be polygon or linestring, force MULTI variant if
+    # explodecollections is False to avoid ugly warnings/issues.
+    if primitivetype_to_extract is not PrimitiveType.POINT:
+        if explodecollections:
+            force_output_geometrytype = primitivetype_to_extract.to_singletype
+        else:
+            force_output_geometrytype = primitivetype_to_extract.to_multitype
 
     # Prepare sql template for this operation
     #

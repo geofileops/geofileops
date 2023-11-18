@@ -828,9 +828,15 @@ def test_makevalid_collapsing_part(
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
+@pytest.mark.parametrize("explodecollections", [True, False])
 @pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
-def test_makevalid_explode_input(tmp_path, suffix, geoops_module):
-    """Even if single polygon input, output should be multipolygon."""
+def test_makevalid_exploded_input(tmp_path, suffix, geoops_module, explodecollections):
+    """
+    Test that even if single polygon input, output is multipolygon.
+
+    Unless explodecollections of the output is True. Is necessary because makevalid can
+    create multipolygons, and then the output becomes GEOMETRY.
+    """
     # Prepare test data
     input_path = test_helper.get_testfile(
         "polygon-invalid", suffix=suffix, explodecollections=True
@@ -839,14 +845,22 @@ def test_makevalid_explode_input(tmp_path, suffix, geoops_module):
 
     # Do operation
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
-    geoops.makevalid(input_path=input_path, output_path=output_path, nb_parallel=2)
+    geoops.makevalid(
+        input_path=input_path,
+        output_path=output_path,
+        explodecollections=explodecollections,
+        nb_parallel=2,
+    )
 
     # Now check if the output file is correctly created
     assert output_path.exists()
     layerinfo_orig = fileops.get_layerinfo(input_path)
     layerinfo_output = fileops.get_layerinfo(output_path)
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
-    assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
+    if explodecollections and suffix != ".shp":
+        assert layerinfo_output.geometrytype == GeometryType.POLYGON
+    else:
+        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
 
 @pytest.mark.parametrize(
