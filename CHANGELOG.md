@@ -9,7 +9,7 @@
 - Add `keep_empty_geoms` and `where_post` parameters to many single layer spatial operations
   (#262, #398)
 - Add `where_post` parameter to many two layer spatial operations (#312)
-- Add `where` parameter to `copy_layer` and `append_to` (#311)
+- Add `columns`, `sql` and `where` parameters to `copy_layer` and `append_to` (#311, #432)
 - Add `dissolve_within_distance` operation (#409)
 - Add support for lang+ algorithm in `simplify` (#334)
 - Add support to use `select` and `select_two_layers` on attribute tables (= tables
@@ -28,7 +28,7 @@
   applying on-the-fly subdividing of complex geometries to speed up processing. The new
   parameter `subdivide_coords` can be used to control the feature. For files with very
   large input geometries, up to 100x faster + 10x less memory usage.
-  (#329, #330, #331, #357, #396, #427)
+  (#329, #330, #331, #357, #396, #427, #433)
 - Improve performance of spatial operations when only one batch is used (#271)
 - Improve performance of single layer operations (#375)
 - Improve performance of some geopandas/shapely based operations (#342, #408)
