@@ -41,7 +41,7 @@
 - Improve handling + tests regarding empty input layers/NULL geometries (#320)
 - Improve logging: use geo operation being executed as `logger name` (#410)
 - Many small improvements to logging, documentation, (gdal)error messages,...
-  (#321, #366, #394,...)
+  (#321, #366, #394, #439,...)
 - Use smaller footprint conda packages for tests (use `geopandas-base`, `nomkl`) (#377)
 - Use ruff instead of flake8 for linting (#317)
 
