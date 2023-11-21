@@ -371,9 +371,10 @@ def select(
     nb_parallel: int = 1,
     batchsize: int = -1,
     force: bool = False,
+    operation_prefix: str = "",
 ):
     # Check if output exists already here, to avoid to much logging to be written
-    logger = logging.getLogger("geofileops.select")
+    logger = logging.getLogger(f"geofileops.{operation_prefix}select")
     if output_path.exists():
         if force is False:
             logger.info(f"Stop, output exists already {output_path}")
@@ -399,7 +400,7 @@ def select(
         output_path=output_path,
         sql_template=sql_stmt,
         geom_selected=None,
-        operation_name="select",
+        operation_name=f"{operation_prefix}select",
         input_layer=input_layer,
         output_layer=output_layer,
         columns=columns,
@@ -979,6 +980,9 @@ def erase(
     operation_prefix: str = "",
 ):
     # Init
+    start_time = datetime.now()
+    operation = f"{operation_prefix}erase"
+    logger = logging.getLogger(f"geofileops.{operation}")
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
 
     # If explodecollections is False and the input type is not point, force the output
@@ -991,24 +995,82 @@ def erase(
     tmp_dir = None
     erase_layer_info = gfo.get_layerinfo(erase_path, erase_layer)
     if erase_layer_info.geometrytype.to_primitivetype == PrimitiveType.POLYGON:
+        geometrycolumn = erase_layer_info.geometrycolumn
+        erase_layer = erase_layer_info.name
+
         # If erase layer has complex geometries, subdivide them to speed up processing.
         complexgeom_sql = f"""
-            SELECT 1
-              FROM "{{input_layer}}"
+            SELECT ST_Intersection(
+                                CastToGeometryCollection(
+                                    ST_SquareGrid(
+                                        layer.{geometrycolumn},
+                                        sqrt(
+                                          ( (MbrMaxX(layer.{geometrycolumn})-
+                                             MbrMinX(layer.{geometrycolumn}))*
+                                            (MbrMaxY(layer.{geometrycolumn})-
+                                             MbrMinY(layer.{geometrycolumn}))
+                                          ) /
+                                          CEIL( ST_NPoints(layer.{geometrycolumn}) * 1.0
+                                                / {subdivide_coords}
+                                          )
+                                        ),
+                                        0,
+                                        ST_Point(
+                                            MbrMinX(layer.{geometrycolumn}),
+                                            MbrMinY(layer.{geometrycolumn})
+                                        )
+                                )),
+                                CastToGeometryCollection(layer.{geometrycolumn})
+                            ) as geom
+                  ,sqrt(
+                                          ( (MbrMaxX(layer.{geometrycolumn})-
+                                             MbrMinX(layer.{geometrycolumn}))*
+                                            (MbrMaxY(layer.{geometrycolumn})-
+                                             MbrMinY(layer.{geometrycolumn}))
+                                          ) /
+                                          CEIL( ST_NPoints(layer.{geometrycolumn}) * 1.0
+                                                / {subdivide_coords}
+                                          )
+                    ) AS len
+                   ,CEIL( ST_NPoints(layer.{geometrycolumn}) * 1.0
+                                                / {subdivide_coords}
+                    ) AS nb_tiles
+                    ,CastToGeometryCollection(ST_SquareGrid(
+                                        layer.{geometrycolumn},
+                                        sqrt(
+                                          ( (MbrMaxX(layer.{geometrycolumn})-
+                                             MbrMinX(layer.{geometrycolumn}))*
+                                            (MbrMaxY(layer.{geometrycolumn})-
+                                             MbrMinY(layer.{geometrycolumn}))
+                                          ) /
+                                          CEIL( ST_NPoints(layer.{geometrycolumn}) * 1.0
+                                                / {subdivide_coords}
+                                          )
+                                        ),
+                                        0,
+                                        ST_Point(
+                                            MbrMinX(layer.{geometrycolumn}),
+                                            MbrMinY(layer.{geometrycolumn})
+                                        )
+                                )) AS grid
+              FROM "{{input_layer}}" layer
              WHERE ST_NPoints({{geometrycolumn}}) > {subdivide_coords}
-             LIMIT 1
+             LIMIT 10
         """
-        start = datetime.now()
-        complexgeom_df = gfo.read_file(
-            erase_path, erase_layer, sql_stmt=complexgeom_sql, sql_dialect="SQLITE"
+        logger.info(
+            f"Check if complex geometries in erase layer (> {subdivide_coords} coords)"
         )
-        logger.info(f"has_complex_geoms took {datetime.now() - start}")
+        complexgeom_df = gfo.read_file(
+            erase_path, sql_stmt=complexgeom_sql, sql_dialect="SQLITE"
+        )
         if len(complexgeom_df) > 0:
+            logger.info("Subdivide needed: complex geometries found")
             tmp_dir = _io_util.create_tempdir("geofileops/erase_input")
-            geometrycolumn = erase_layer_info.geometrycolumn
-            erase_layer = erase_layer_info.name
 
-            # GFO_SubDivide is quite slow... 5 times slower than ST_Subdivide.
+            '''
+            # Problem: GFO_SubDivide is quite slow... 5 times slower than ST_Subdivide.
+            # and difficult to paralellize because gfo.select() cannot be used.
+            # -----------------------------------------------------------------
             subdivide_geom_sql = f"""
                 SELECT IIF( ST_NPoints(layer.{geometrycolumn}) < {subdivide_coords},
                             layer.{geometrycolumn},
@@ -1042,10 +1104,12 @@ def erase(
                 explodecollections=True,
             )
             logger.info(f"explodecollections took {datetime.now() - start_explode}")
+            '''
 
             '''
             # Problem: ST_Subdivide is buggy: creates wrong results for complex
             # polygons :-(...
+            # -----------------------------------------------------------------
             subdivide_geom_sql = f"""
                 SELECT IIF( ST_NPoints(layer.{geometrycolumn}) < {subdivide_coords},
                             layer.{geometrycolumn},
@@ -1070,7 +1134,6 @@ def erase(
             logger.info(
                 f"copy_layer with subdivide took {start_makevalid - start_subdivide}"
             )
-            '''
             """
             gfo.update_column(
                 erase_subdidided_path,
@@ -1080,6 +1143,58 @@ def erase(
             )
             logger.info(f"makevalid took {datetime.now() - start_makevalid}")
             """
+            '''
+
+            # Problem:
+            #   - ST_Intersection: when done on a geometrycollection + polygon or 2
+            #     geometrycollections with touching polygons the result is of the
+            #     intersection of the dissolved polygons, so no splitting occurs
+            #   - ST_Split does not support a multilinestring blade.
+            # -----------------------------------------------------------------
+            subdivide_geom_sql = f"""
+                SELECT IIF( ST_NPoints(layer.{geometrycolumn}) < {subdivide_coords},
+                            layer.{geometrycolumn},
+                            ST_Intersection(
+                                layer.{geometrycolumn},
+                                CastToGeometryCollection(
+                                    ST_SquareGrid(
+                                        layer.{geometrycolumn},
+                                        sqrt(
+                                          ( (MbrMaxX(layer.{geometrycolumn})-
+                                             MbrMinX(layer.{geometrycolumn}))*
+                                            (MbrMaxY(layer.{geometrycolumn})-
+                                             MbrMinY(layer.{geometrycolumn}))
+                                          ) /
+                                          CEIL( ST_NPoints(layer.{geometrycolumn}) * 1.0
+                                                / {subdivide_coords}
+                                          )
+                                        ),
+                                        0,
+                                        ST_Point(
+                                            MbrMinX(layer.{geometrycolumn}),
+                                            MbrMinY(layer.{geometrycolumn})
+                                        )
+                                ))
+                            )
+                       ) AS geom
+                 FROM "{erase_layer}" layer
+                WHERE 1=1
+                  {{batch_filter}}
+            """
+            erase_subdidided_path = tmp_dir / f"{erase_path.stem}_subdivided.gpkg"
+            select(
+                input_path=erase_path,
+                input_layer=erase_layer,
+                output_path=erase_subdidided_path,
+                output_layer=erase_layer,
+                sql_stmt=subdivide_geom_sql,
+                sql_dialect="SQLITE",
+                explodecollections=True,
+                nb_parallel=nb_parallel,
+                batchsize=batchsize,
+                operation_prefix=f"{operation}/subdivide/",
+            )
+
             erase_path = erase_subdidided_path
 
     # Prepare sql template for this operation
@@ -1143,12 +1258,12 @@ def erase(
 
     # Go!
     try:
-        return _two_layer_vector_operation(
+        _two_layer_vector_operation(
             input1_path=input_path,
             input2_path=erase_path,
             output_path=output_path,
             sql_template=sql_template,
-            operation_name=f"{operation_prefix}erase",
+            operation_name=operation,
             input1_layer=input_layer,
             input1_columns=input_columns,
             input1_columns_prefix=input_columns_prefix,
@@ -1168,6 +1283,9 @@ def erase(
     finally:
         if tmp_dir is not None:
             shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    # Print time taken
+    logger.info(f"Ready, full erase took {datetime.now()-start_time}")
 
 
 def export_by_location(
@@ -1961,7 +2079,7 @@ def identity(
     finally:
         shutil.rmtree(tempdir, ignore_errors=True)
 
-    logger.info(f"Ready, took {datetime.now()-start_time}")
+    logger.info(f"Ready, full identity took {datetime.now()-start_time}")
 
 
 def symmetric_difference(
@@ -2225,7 +2343,7 @@ def union(
     finally:
         shutil.rmtree(tempdir, ignore_errors=True)
 
-    logger.info(f"Ready, took {datetime.now()-start_time}")
+    logger.info(f"Ready, full union took {datetime.now()-start_time}")
 
 
 def _two_layer_vector_operation(
