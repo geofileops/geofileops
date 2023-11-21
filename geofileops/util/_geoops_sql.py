@@ -1322,13 +1322,11 @@ def intersection(
         )
     )
 
-    # If output is going to be polygon or linestring, force MULTI variant if
-    # explodecollections is False to avoid ugly warnings/issues.
-    if primitivetype_to_extract is not PrimitiveType.POINT:
-        if explodecollections:
-            force_output_geometrytype = primitivetype_to_extract.to_singletype
-        else:
-            force_output_geometrytype = primitivetype_to_extract.to_multitype
+    # Force MULTI variant if explodecollections is False to avoid ugly warnings/issues.
+    if explodecollections:
+        force_output_geometrytype = primitivetype_to_extract.to_singletype
+    else:
+        force_output_geometrytype = primitivetype_to_extract.to_multitype
 
     # Prepare sql template for this operation
     #
