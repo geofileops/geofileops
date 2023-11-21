@@ -61,7 +61,7 @@ class ParallelizationConfig:
         bytes_basefootprint: int = 50 * 1024 * 1024,
         bytes_per_row: int = 1000,
         min_rows_per_batch: int = 1000,
-        max_rows_per_batch: int = 100000,
+        max_rows_per_batch: int = 50000,
         bytes_min_per_process: Optional[int] = None,
         bytes_usable: Optional[int] = None,
         cpu_count: int = -1,
@@ -766,8 +766,6 @@ def _apply_geooperation_to_layer(
 
             batches: Dict[int, dict] = {}
             future_to_batch_id = {}
-            nb_batches = len(processing_params.batches)
-            nb_done = 0
 
             for batch_id, batch_filter in enumerate(processing_params.batches):
                 batches[batch_id] = {}
@@ -808,6 +806,8 @@ def _apply_geooperation_to_layer(
             # Remark: calculating can be done in parallel, but only one process
             # can write to the same output file at the time...
             start_time = datetime.now()
+            nb_done = 0
+            nb_batches = len(processing_params.batches)
             _general_util.report_progress(
                 start_time,
                 nb_done,
@@ -860,7 +860,11 @@ def _apply_geooperation_to_layer(
                 # Log the progress and prediction speed
                 nb_done += 1
                 _general_util.report_progress(
-                    start_time, nb_done, nb_batches, operation.value, nb_parallel
+                    start_time,
+                    nb_done,
+                    nb_todo=nb_batches,
+                    operation=operation.value,
+                    nb_parallel=processing_params.nb_parallel,
                 )
 
         # Round up and clean up
