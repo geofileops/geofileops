@@ -1052,6 +1052,9 @@ def erase(
                 explodecollections=True,
                 nb_parallel=nb_parallel,
                 batchsize=batchsize,
+                parallelization_config=_geoops_gpd.ParallelizationConfig(
+                    bytes_per_row=2000, max_rows_per_batch=50000
+                ),
             )
 
             erase_path = erase_subdidided_path

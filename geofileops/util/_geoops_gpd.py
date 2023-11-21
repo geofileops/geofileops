@@ -379,6 +379,7 @@ def apply(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
+    parallelization_config: ParallelizationConfig = None,
 ):
     # Init
     operation_params = {
@@ -405,6 +406,7 @@ def apply(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        parallelization_config=parallelization_config,
     )
 
 
@@ -613,6 +615,7 @@ def _apply_geooperation_to_layer(
     nb_parallel: int,  # = -1
     batchsize: int,  # = -1
     force: bool,  # = False
+    parallelization_config: ParallelizationConfig = None,
 ):
     """
     Applies a geo operation on a layer.
@@ -677,6 +680,7 @@ def _apply_geooperation_to_layer(
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): [description]. Defaults to False.
+        parallelization_config (ParallelizationConfig, optional): Defaults to None.
 
     Technical remarks:
         - Retaining None geometry values in the output files is hard, because when
@@ -743,7 +747,7 @@ def _apply_geooperation_to_layer(
             input_layer=input_layer,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
-            parallelization_config=None,
+            parallelization_config=parallelization_config,
             tmp_dir=tmp_dir,
         )
         assert processing_params.batches is not None
