@@ -760,7 +760,11 @@ def _single_layer_vector_operation(
             # the same file at the time.
             nb_done = 0
             _general_util.report_progress(
-                start_time, nb_done, nb_batches, operation_name, nb_parallel=nb_parallel
+                start_time,
+                nb_done,
+                nb_todo=nb_batches,
+                operation=operation_name,
+                nb_parallel=processing_params.nb_parallel,
             )
             for future in futures.as_completed(future_to_batch_id):
                 try:
@@ -815,9 +819,9 @@ def _single_layer_vector_operation(
                 _general_util.report_progress(
                     start_time,
                     nb_done,
-                    nb_batches,
-                    operation_name,
-                    nb_parallel=nb_parallel,
+                    nb_todo=nb_batches,
+                    operation=operation_name,
+                    nb_parallel=processing_params.nb_parallel,
                 )
 
         # Round up and clean up
