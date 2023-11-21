@@ -379,6 +379,7 @@ def apply(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
+    parallelization_config: ParallelizationConfig = None,
 ):
     # Init
     operation_params = {
@@ -405,6 +406,7 @@ def apply(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        parallelization_config=parallelization_config,
     )
 
 
