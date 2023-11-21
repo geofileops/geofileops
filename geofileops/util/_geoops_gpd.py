@@ -61,7 +61,7 @@ class ParallelizationConfig:
         bytes_basefootprint: int = 50 * 1024 * 1024,
         bytes_per_row: int = 1000,
         min_rows_per_batch: int = 1000,
-        max_rows_per_batch: int = 50000,
+        max_rows_per_batch: int = 100000,
         bytes_min_per_process: Optional[int] = None,
         bytes_usable: Optional[int] = None,
         cpu_count: int = -1,
