@@ -993,25 +993,71 @@ def erase(
     if erase_layer_info.geometrytype.to_primitivetype == PrimitiveType.POLYGON:
         # If erase layer has complex geometries, subdivide them to speed up processing.
         complexgeom_sql = f"""
-            SELECT COUNT(*) nb_complexgeom
+            SELECT 1
               FROM "{{input_layer}}"
              WHERE ST_NPoints({{geometrycolumn}}) > {subdivide_coords}
+             LIMIT 1
         """
+        start = datetime.now()
         complexgeom_df = gfo.read_file(
             erase_path, erase_layer, sql_stmt=complexgeom_sql, sql_dialect="SQLITE"
         )
-        if complexgeom_df.iloc[0].nb_complexgeom > 0:
+        logger.info(f"has_complex_geoms took {datetime.now() - start}")
+        if len(complexgeom_df) > 0:
             tmp_dir = _io_util.create_tempdir("geofileops/erase_input")
             geometrycolumn = erase_layer_info.geometrycolumn
             erase_layer = erase_layer_info.name
+
+            # GFO_SubDivide is quite slow... 5 times slower than ST_Subdivide.
             subdivide_geom_sql = f"""
-                SELECT IIF(ST_NPoints(layer.{geometrycolumn}) < {subdivide_coords},
-                           layer.{geometrycolumn},
-                           ST_Subdivide(layer.{geometrycolumn}, {subdivide_coords})
+                SELECT IIF( ST_NPoints(layer.{geometrycolumn}) < {subdivide_coords},
+                            layer.{geometrycolumn},
+                            ST_GeomFromWKB(GFO_SubDivide(
+                                ST_AsBinary(layer.{geometrycolumn}), {subdivide_coords}
+                            ))
+                       ) AS geom
+                 FROM {{input1_databasename}}."{erase_layer}" layer
+            """
+            erase_subdidided1_path = tmp_dir / f"{erase_path.stem}1_subdivided.gpkg"
+            start_subdivide = datetime.now()
+            _sqlite_util.create_table_as_sql(
+                input1_path=erase_path,
+                input1_layer=erase_layer,
+                input2_path=None,
+                input2_layer=None,
+                output_path=erase_subdidided1_path,
+                output_layer=erase_layer,
+                sql_stmt=subdivide_geom_sql,
+                output_geometrytype=GeometryType.MULTIPOLYGON,
+            )
+            start_explode = datetime.now()
+            logger.info(
+                f"copy_layer with subdivide took {start_explode - start_subdivide}"
+            )
+            erase_subdidided_path = tmp_dir / f"{erase_path.stem}_subdivided.gpkg"
+            gfo.copy_layer(
+                src=erase_subdidided1_path,
+                dst=erase_subdidided_path,
+                dst_layer=erase_layer,
+                explodecollections=True,
+            )
+            logger.info(f"explodecollections took {datetime.now() - start_explode}")
+
+            '''
+            # Problem: ST_Subdivide is buggy: creates wrong results for complex
+            # polygons :-(...
+            subdivide_geom_sql = f"""
+                SELECT IIF( ST_NPoints(layer.{geometrycolumn}) < {subdivide_coords},
+                            layer.{geometrycolumn},
+                            --ST_MakeValid(CastToGeometryCollection(
+                                ST_Subdivide(layer.{geometrycolumn}, {subdivide_coords})
+                            --))
                        ) AS geom
                  FROM "{erase_layer}" layer
+                --WHERE ST_NPoints({{geometrycolumn}}) > {subdivide_coords}
             """
             erase_subdidided_path = tmp_dir / f"{erase_path.stem}_subdivided.gpkg"
+            start_subdivide = datetime.now()
             gfo.copy_layer(
                 src=erase_path,
                 dst=erase_subdidided_path,
@@ -1020,6 +1066,20 @@ def erase(
                 sql_dialect="SQLITE",
                 explodecollections=True,
             )
+            start_makevalid = datetime.now()
+            logger.info(
+                f"copy_layer with subdivide took {start_makevalid - start_subdivide}"
+            )
+            '''
+            """
+            gfo.update_column(
+                erase_subdidided_path,
+                name="geom",
+                expression="ST_MakeValid(geom)",
+                where="ST_IsValid(geom) = 0"
+            )
+            logger.info(f"makevalid took {datetime.now() - start_makevalid}")
+            """
             erase_path = erase_subdidided_path
 
     # Prepare sql template for this operation
