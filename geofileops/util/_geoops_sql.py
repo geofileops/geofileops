@@ -986,10 +986,19 @@ def erase(
     output_with_spatial_index: bool = True,
     operation_prefix: str = "",
 ):
-    # Init
-    start_time = datetime.now()
+    # Because there might be extra preparation of the erase layer before going ahead
+    # with the real calculation, do some additional init + checks here...
     operation = f"{operation_prefix}erase"
     logger = logging.getLogger(f"geofileops.{operation}")
+    if output_path.exists():
+        if force is False:
+            logger.info(f"Stop, output exists already {output_path}")
+            return
+        else:
+            gfo.remove(output_path)
+
+    # Init
+    start_time = datetime.now()
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
 
     # If explodecollections is False and the input type is not point, force the output
