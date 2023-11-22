@@ -980,7 +980,7 @@ def erase(
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    subdivide_coords: int = 1000,
+    subdivide_coords: int = 2000,
     force: bool = False,
     input_columns_prefix: str = "",
     output_with_spatial_index: bool = True,
@@ -1857,7 +1857,7 @@ def identity(
     where_post: Optional[str] = None,
     nb_parallel: int = 1,
     batchsize: int = -1,
-    subdivide_coords: int = 1000,
+    subdivide_coords: int = 2000,
     force: bool = False,
 ):
     # An identity is the combination of the results of an "intersection" of input1 and
@@ -1969,7 +1969,7 @@ def symmetric_difference(
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    subdivide_coords: int = 1000,
+    subdivide_coords: int = 2000,
     force: bool = False,
 ):
     # A symmetric difference can be simulated by doing an "erase" of input1
@@ -2092,7 +2092,7 @@ def union(
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    subdivide_coords: int = 1000,
+    subdivide_coords: int = 2000,
     force: bool = False,
 ):
     # A union is the combination of the results of an intersection of input1 and input2,
