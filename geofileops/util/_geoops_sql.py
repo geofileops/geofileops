@@ -1094,20 +1094,23 @@ def erase(
         SELECT * FROM (
           SELECT IFNULL(
                    ( SELECT IFNULL(
-                               --ST_GeomFromWKB(GFO_Difference_Collection(
-                               --     ST_AsBinary(layer1.{{input1_geometrycolumn}}),
-                               --     ST_AsBinary(ST_Collect(
-                               --        layer2_sub.{{input2_geometrycolumn}}
-                               --     )),
-                               --     1,
-                               --     {subdivide_coords}
-                               --)),
-                               ST_CollectionExtract(
-                                    ST_difference(
-                                        layer1.{{input1_geometrycolumn}},
-                                        ST_Union(layer2_sub.{{input2_geometrycolumn}})
-                                    ),
-                                    {primitivetypeid}
+                               IIF(ST_NPoints(layer1.{{input1_geometrycolumn}})
+                                        < {subdivide_coords},
+                                   ST_CollectionExtract(
+                                      ST_difference(
+                                         layer1.{{input1_geometrycolumn}},
+                                         ST_Union(layer2_sub.{{input2_geometrycolumn}})
+                                      ),
+                                      {primitivetypeid}
+                                   ),
+                                   ST_GeomFromWKB(GFO_Difference_Collection(
+                                      ST_AsBinary(layer1.{{input1_geometrycolumn}}),
+                                      ST_AsBinary(ST_Collect(
+                                         layer2_sub.{{input2_geometrycolumn}}
+                                      )),
+                                      1,
+                                      {subdivide_coords}
+                                   ))
                                ),
                                'DIFF_EMPTY'
                             ) AS diff_geom
