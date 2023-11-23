@@ -1080,13 +1080,13 @@ def erase(
     #   BY on layer1.rowid was a few % faster, but this is not worth it. E.g. for one
     #   test file 4-7 GB per process versus 70-700 MB). For another: crash.
     # - Check if the result of GFO_Difference_Collection is empty (NULL) using IFNULL,
-    #   and if this ois the case set to 'DIFF_EMPTY'. This way we can make the
+    #   and if this is the case set to 'DIFF_EMPTY'. This way we can make the
     #   distinction whether the subquery is finding a row (no match with spatial index)
     #   or if the difference results in an empty/NULL geometry.
     #   Tried to return EMPTY GEOMETRY from GFO_Difference_Collection, but it didn't
     #   work to use spatialite's ST_IsEmpty(geom) = 0 to filter on this for an unclear
     #   reason.
-    # - Not relevant anymore, but ST_difference(geometry , NULL) gives NULL as result
+    # - ST_difference(geometry , NULL) gives NULL as result -> handle explicitly
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
     input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
 
@@ -1096,12 +1096,17 @@ def erase(
                    ( SELECT IFNULL(
                                IIF(ST_NPoints(layer1.{{input1_geometrycolumn}})
                                         < {subdivide_coords},
-                                   ST_CollectionExtract(
-                                      ST_difference(
-                                         layer1.{{input1_geometrycolumn}},
-                                         ST_Union(layer2_sub.{{input2_geometrycolumn}})
-                                      ),
-                                      {primitivetypeid}
+                                   IIF(ST_Union(layer2_sub.{{input2_geometrycolumn}})
+                                            IS NULL,
+                                       layer1.{{input1_geometrycolumn}},
+                                       ST_CollectionExtract(
+                                          ST_difference(
+                                             layer1.{{input1_geometrycolumn}},
+                                             ST_Union(
+                                                layer2_sub.{{input2_geometrycolumn}})
+                                          ),
+                                          {primitivetypeid}
+                                       )
                                    ),
                                    ST_GeomFromWKB(GFO_Difference_Collection(
                                       ST_AsBinary(layer1.{{input1_geometrycolumn}}),
