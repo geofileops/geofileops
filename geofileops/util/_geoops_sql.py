@@ -921,9 +921,9 @@ def clip(
                  AND ST_Intersects(
                         layer1.{{input1_geometrycolumn}},
                         layer2.{{input2_geometrycolumn}}) = 1
-                 AND ST_Touches(
-                        layer1.{{input1_geometrycolumn}},
-                        layer2.{{input2_geometrycolumn}}) = 0
+                 --AND ST_Touches(
+                 --       layer1.{{input1_geometrycolumn}},
+                 --       layer2.{{input2_geometrycolumn}}) = 0
                GROUP BY layer1.rowid
                LIMIT -1 OFFSET 0
             )
@@ -1008,10 +1008,13 @@ def erase(
     if not explodecollections and force_output_geometrytype is not GeometryType.POINT:
         force_output_geometrytype = input_layer_info.geometrytype.to_multitype
 
-    # If the erase layer is made out of polygons, check if they are complex
+    # If the erase layer is made out of polygons, subdivide them if needed
     tmp_dir = None
     erase_layer_info = gfo.get_layerinfo(erase_path, erase_layer)
-    if erase_layer_info.geometrytype.to_primitivetype == PrimitiveType.POLYGON:
+    if (
+        subdivide_coords > 0
+        and erase_layer_info.geometrytype.to_primitivetype == PrimitiveType.POLYGON
+    ):
         erase_layer = erase_layer_info.name
 
         # If erase layer has complex geometries, subdivide them to speed up processing.
@@ -1943,6 +1946,7 @@ def identity(
 
         # Now append
         logger.info("Step 3 of 3: finalize")
+        # Note: append will never create an index on an already existing layer.
         _append_to_nolock(
             src=erase_output_path,
             dst=intersection_output_path,
@@ -1999,6 +2003,7 @@ def symmetric_difference(
     if output_layer is None:
         output_layer = gfo.get_default_layer(output_path)
 
+    start_time = datetime.now()
     logger = logging.getLogger("geofileops.symmetric_difference")
     logger.info(
         f"Start, with input1: {input1_path}, "
@@ -2066,6 +2071,7 @@ def symmetric_difference(
 
         # Now append
         logger.info("Step 3 of 3: finalize")
+        # Note: append will never create an index on an already existing layer.
         _append_to_nolock(
             src=erase2_output_path,
             dst=erase1_output_path,
@@ -2090,6 +2096,8 @@ def symmetric_difference(
 
     finally:
         shutil.rmtree(tempdir, ignore_errors=True)
+
+    logger.info(f"Ready, full symmetric_difference took {datetime.now()-start_time}")
 
 
 def union(
@@ -2201,6 +2209,7 @@ def union(
 
         # Now append
         logger.info("Step 4 of 4: finalize")
+        # Note: append will never create an index on an already existing layer.
         _append_to_nolock(
             src=erase1_output_path,
             dst=intersection_output_path,
