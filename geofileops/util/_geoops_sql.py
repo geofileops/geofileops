@@ -1000,6 +1000,7 @@ def erase(
     # Init
     start_time = datetime.now()
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
+    primitivetypeid = input_layer_info.geometrytype.to_primitivetype.value
 
     # If explodecollections is False and the input type is not point, force the output
     # type to multi, because erase can cause eg. polygons to be split to multipolygons.
@@ -1093,14 +1094,21 @@ def erase(
         SELECT * FROM (
           SELECT IFNULL(
                    ( SELECT IFNULL(
-                               ST_GeomFromWKB(GFO_Difference_Collection(
-                                    ST_AsBinary(layer1.{{input1_geometrycolumn}}),
-                                    ST_AsBinary(ST_Collect(
-                                       layer2_sub.{{input2_geometrycolumn}}
-                                    )),
-                                    1,
-                                    {subdivide_coords}
-                               )),
+                               --ST_GeomFromWKB(GFO_Difference_Collection(
+                               --     ST_AsBinary(layer1.{{input1_geometrycolumn}}),
+                               --     ST_AsBinary(ST_Collect(
+                               --        layer2_sub.{{input2_geometrycolumn}}
+                               --     )),
+                               --     1,
+                               --     {subdivide_coords}
+                               --)),
+                               ST_CollectionExtract(
+                                    ST_difference(
+                                        layer1.{{input1_geometrycolumn}},
+                                        ST_Union(layer2_sub.{{input2_geometrycolumn}})
+                                    ),
+                                    {primitivetypeid}
+                               ),
                                'DIFF_EMPTY'
                             ) AS diff_geom
                        FROM {{input1_databasename}}."{input1_layer_rtree}" layer1tree
