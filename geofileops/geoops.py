@@ -361,33 +361,6 @@ def apply(
     If ``explodecollections`` is False and the input and output file type is GeoPackage,
     the fid will be preserved. In other cases this will typically not be the case.
 
-    This example shows the basic usage of `gfo.apply`:
-    ::
-
-        import geofileops as gfo
-
-        gfo.apply(
-            input_path=...,
-            output_path=...,
-            func=lambda geom: pygeoops.remove_inner_rings(geom, min_area_to_keep=1),
-        )
-
-    If you need to use the contents of other columns in your lambda function, you can
-    call `gfo.apply` like this:
-    ::
-
-        import geofileops as gfo
-
-        gfo.apply(
-            input_path=...,
-            output_path=...,
-            func=lambda row: pygeoops.remove_inner_rings(
-                row.geometry, min_area_to_keep=row.min_area_to_keep
-            ),
-            only_geom_input=False,
-        )
-
-
     Args:
         input_path (PathLike): the input file
         output_path (PathLike): the file to write the result to
@@ -428,6 +401,33 @@ def apply(
     .. |spatialite_reference_link| raw:: html
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    Examples:
+    This example shows the basic usage of `gfo.apply`:
+    ::
+
+        import geofileops as gfo
+
+        gfo.apply(
+            input_path=...,
+            output_path=...,
+            func=lambda geom: pygeoops.remove_inner_rings(geom, min_area_to_keep=1),
+        )
+
+    If you need to use the contents of other columns in your lambda function, you can
+    call `gfo.apply` like this:
+    ::
+
+        import geofileops as gfo
+
+        gfo.apply(
+            input_path=...,
+            output_path=...,
+            func=lambda row: pygeoops.remove_inner_rings(
+                row.geometry, min_area_to_keep=row.min_area_to_keep
+            ),
+            only_geom_input=False,
+        )
 
     """  # noqa: E501
     logger = logging.getLogger("geofileops.apply")
