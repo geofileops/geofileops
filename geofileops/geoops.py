@@ -538,7 +538,6 @@ def buffer(
             Defaults to False.
 
     Buffer style options:
-
         Using the different buffer style option parameters you can control how the
         buffer is created:
 
