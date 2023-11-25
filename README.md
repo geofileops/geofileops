@@ -1,4 +1,4 @@
-# geofileops 
+de# geofileops 
 
 [![Actions Status](https://github.com/geofileops/geofileops/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/geofileops/geofileops/actions/workflows/tests.yml?query=workflow%3ATests) 
 [![Coverage Status](https://codecov.io/gh/geofileops/geofileops/branch/main/graph/badge.svg)](https://codecov.io/gh/geofileops/geofileops)
@@ -26,6 +26,6 @@ Different techniques are used under the hood to be able to process large files a
 - use all available CPUs
 
 The following chart gives an impression of the speed improvement that can be expected
-when processing larger files. The [benchmarks] (https://github.com/geofileops/geobenchmark) ran on a Windows PC with 12 cores and include I/O.
+when processing larger files. The [benchmarks](https://github.com/geofileops/geobenchmark) ran on a Windows PC with 12 cores and include I/O.
 
 ![Geo benchmark](https://github.com/geofileops/geobenchmark/blob/main/results_vector_ops/GeoBenchmark.png)
