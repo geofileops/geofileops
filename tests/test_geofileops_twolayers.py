@@ -50,6 +50,49 @@ def test_clip(tmp_path, testfile, suffix):
     )
 
 
+@pytest.mark.parametrize("suffix", [".gpkg", ".shp"])
+@pytest.mark.parametrize("clip_empty", [True, False])
+def test_clip_resultempty(tmp_path, suffix, clip_empty):
+    # Prepare test data
+    # -----------------
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+
+    if clip_empty:
+        clip_path = test_helper.get_testfile(
+            "polygon-zone", suffix=suffix, dst_dir=tmp_path, empty=True
+        )
+    else:
+        input2_data = [
+            {"desc": "input2_1", "geometry": shapely.box(5, 5, 1000, 1000)},
+            {"desc": "input2_2", "geometry": shapely.box(2000, 5, 3000, 1000)},
+        ]
+        clip_gdf = gpd.GeoDataFrame(input2_data, crs=31370)
+        clip_path = tmp_path / f"input2{suffix}"
+        gfo.to_file(clip_gdf, clip_path)
+
+    input_layerinfo = gfo.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+
+    # Now run test
+    # ------------
+    output_path = tmp_path / f"{input_path.stem}_clip_{clip_path.stem}{suffix}"
+    gfo.clip(
+        input_path=input_path,
+        clip_path=clip_path,
+        output_path=output_path,
+        nb_parallel=2,
+        batchsize=batchsize,
+    )
+
+    # Check if the output file is correctly created
+    assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.featurecount == 0
+    assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
+    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+
+
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize(
     "testfile, gridsize, where_post",
@@ -152,7 +195,34 @@ def test_erase_explodecollections(tmp_path):
     )
 
 
-def test_erase_subdivide_multipolygons(tmp_path):
+def test_erase_force(tmp_path):
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel")
+    erase_path = test_helper.get_testfile("polygon-zone")
+    output_path = tmp_path / f"output{input_path.suffix}"
+    output_path.touch()
+
+    # Test with force False (the default): existing output file should stay the same
+    mtime_orig = output_path.stat().st_mtime
+    gfo.erase(
+        input_path=input_path,
+        erase_path=erase_path,
+        output_path=output_path,
+    )
+    assert output_path.stat().st_mtime == mtime_orig
+
+    # With force=True
+    gfo.erase(
+        input_path=input_path,
+        erase_path=erase_path,
+        output_path=output_path,
+        force=True,
+    )
+    assert output_path.stat().st_mtime != mtime_orig
+
+
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
+def test_erase_subdivide_multipolygons(tmp_path, suffix):
     """
     Test if erase with subdivide also works if the erase layer contains multipolygons.
 
@@ -161,12 +231,12 @@ def test_erase_subdivide_multipolygons(tmp_path):
     MultiPolygons).
     """
     # Prepare test data
-    input_path = test_helper.get_testfile("point")
+    input_path = test_helper.get_testfile("point", suffix=suffix)
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
-    # Prepare erase test data: should be multipolygons
-    zone_path = test_helper.get_testfile("polygon-zone")
+    # Prepare erase test data: should be multipolygons for good test coverage
+    zone_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
     zones_gdf = gfo.read_file(zone_path)
 
     erase_geometries = [
@@ -184,10 +254,10 @@ def test_erase_subdivide_multipolygons(tmp_path):
         },
     ]
     erase_gdf = gpd.GeoDataFrame(erase_geometries, crs=31370)
-    erase_path = tmp_path / f"{zone_path.stem}_multi.gpkg"
+    erase_path = tmp_path / f"{zone_path.stem}_multi{suffix}"
     gfo.to_file(erase_gdf, erase_path)
 
-    output_path = tmp_path / f"{input_path.stem}-output_exploded{input_path.suffix}"
+    output_path = tmp_path / f"{input_path.stem}-output_exploded{suffix}"
     gfo.erase(
         input_path=input_path,
         erase_path=erase_path,
@@ -347,6 +417,32 @@ def test_identity(tmp_path, suffix, epsg, gridsize):
     )
 
 
+def test_identity_force(tmp_path):
+    # Prepare test data
+    input1_path = test_helper.get_testfile("polygon-parcel")
+    input2_path = test_helper.get_testfile("polygon-zone")
+    output_path = tmp_path / f"output{input1_path.suffix}"
+    output_path.touch()
+
+    # Test with force False (the default): existing output file should stay the same
+    mtime_orig = output_path.stat().st_mtime
+    gfo.identity(
+        input1_path=input1_path,
+        input2_path=input2_path,
+        output_path=output_path,
+    )
+    assert output_path.stat().st_mtime == mtime_orig
+
+    # With force=True
+    gfo.identity(
+        input1_path=input1_path,
+        input2_path=input2_path,
+        output_path=output_path,
+        force=True,
+    )
+    assert output_path.stat().st_mtime != mtime_orig
+
+
 @pytest.mark.parametrize("testfile", ["polygon-parcel"])
 @pytest.mark.parametrize(
     "suffix, epsg, gridsize, explodecollections, nb_parallel",
@@ -391,7 +487,12 @@ def test_intersection(
     assert len(output_layerinfo.columns) == (
         len(input1_layerinfo.columns) + len(input2_layerinfo.columns)
     )
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+
+    if explodecollections and suffix != ".shp":
+        assert output_layerinfo.geometrytype == GeometryType.POLYGON
+    else:
+        assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+
     if explodecollections:
         assert output_layerinfo.featurecount == 31
     else:
@@ -507,17 +608,27 @@ def test_intersection_output_path_exists(tmp_path):
 
 
 @pytest.mark.parametrize("suffix", [".gpkg", ".shp"])
-def test_intersection_resultempty(tmp_path, suffix):
+@pytest.mark.parametrize("input2_empty", [True, False])
+def test_intersection_resultempty(tmp_path, suffix, input2_empty):
     # Prepare test data
     # -----------------
     input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
-    input2_path = test_helper.get_testfile(
-        "polygon-zone", suffix=suffix, dst_dir=tmp_path, empty=True
-    )
+
+    if input2_empty:
+        input2_path = test_helper.get_testfile(
+            "polygon-zone", suffix=suffix, dst_dir=tmp_path, empty=True
+        )
+    else:
+        input2_data = [
+            {"desc": "input2_1", "geometry": shapely.box(5, 5, 1000, 1000)},
+            {"desc": "input2_2", "geometry": shapely.box(2000, 5, 3000, 1000)},
+        ]
+        input2_gdf = gpd.GeoDataFrame(input2_data, crs=31370)
+        input2_path = tmp_path / f"input2{suffix}"
+        gfo.to_file(input2_gdf, input2_path)
+
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input1_layerinfo.featurecount / 2)
-    input2_layerinfo = gfo.get_layerinfo(input2_path)
-    assert input2_layerinfo.featurecount == 0
 
     # Now run test
     # ------------
@@ -537,6 +648,7 @@ def test_intersection_resultempty(tmp_path, suffix):
     assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == 0
+    input2_layerinfo = gfo.get_layerinfo(input2_path)
     assert len(output_layerinfo.columns) == (
         len(input1_layerinfo.columns) + len(input2_layerinfo.columns)
     )
@@ -632,7 +744,11 @@ def test_intersection_where_post(
     assert len(output_layerinfo.columns) == (
         len(input1_layerinfo.columns) + len(input2_layerinfo.columns)
     )
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+    if explodecollections and suffix != ".shp":
+        assert output_layerinfo.geometrytype == GeometryType.POLYGON
+    else:
+        assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+
     assert output_layerinfo.featurecount == exp_featurecount
 
     # Check the contents of the result file
@@ -1451,7 +1567,12 @@ def test_union(
     if keep_fid:
         exp_columns += 2
     assert len(output_layerinfo.columns) == exp_columns
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+
+    if explodecollections and suffix != ".shp":
+        assert output_layerinfo.geometrytype == GeometryType.POLYGON
+    else:
+        assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+
     assert output_layerinfo.featurecount == exp_featurecount
 
     # Check the contents of the result file
@@ -1591,3 +1712,29 @@ def test_union_circles(tmp_path, suffix, epsg):
         check_less_precise=True,
         normalize=True,
     )
+
+
+def test_union_force(tmp_path):
+    # Prepare test data
+    input1_path = test_helper.get_testfile("polygon-parcel")
+    input2_path = test_helper.get_testfile("polygon-zone")
+    output_path = tmp_path / f"output{input1_path.suffix}"
+    output_path.touch()
+
+    # Test with force False (the default): existing output file should stay the same
+    mtime_orig = output_path.stat().st_mtime
+    gfo.union(
+        input1_path=input1_path,
+        input2_path=input2_path,
+        output_path=output_path,
+    )
+    assert output_path.stat().st_mtime == mtime_orig
+
+    # With force=True
+    gfo.union(
+        input1_path=input1_path,
+        input2_path=input2_path,
+        output_path=output_path,
+        force=True,
+    )
+    assert output_path.stat().st_mtime != mtime_orig

@@ -15,14 +15,12 @@ dependencies:
   - packaging
   - pandas
   - psutil
-  - pyarrow
-  # - pygeoops >=0.4,<0.5
-  - pyogrio >=0.7.2
+  - pygeoops >=0.4,<0.5
+  - pyogrio >=0.5
   - pyproj
   - shapely >=2,<2.1
   # testing
   - pytest
   - pytest-cov
   - pip:
-    - pygeoops ==0.4.0a3
     - simplification
