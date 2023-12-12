@@ -1397,27 +1397,14 @@ def select(
     doubling the "{" and "}", e.g. use {{geometrycolumn}} for {geometrycolumn}. Also
     check out the example below.
 
-    Example: buffer all rows with a certain minimum area to the output file.
-    ::
-
-        import geofileops as gfo
-
-        minimum_area = 100
-        sql_stmt = f'''
-                SELECT ST_Buffer({{geometrycolumn}}, 1) AS {{geometrycolumn}}
-                      {{columns_to_select_str}}
-                  FROM "{{input_layer}}" layer
-                 WHERE 1=1
-                   {{batch_filter}}
-                   AND ST_Area({{geometrycolumn}}) > {minimum_area}
-                '''
-        gfo.select(
-                input_path=...,
-                output_path=...,
-                sql_stmt=sql_stmt)
-
     Some important remarks:
 
+    * Because some sql statement won't give the same result when parallelized
+      (eg. when using a group by statement), nb_parallel is 1 by default.
+      If you do want to use parallel processing, specify nb_parallel + make
+      sure to include the placeholder {batch_filter} in your sql_stmt.
+      This placeholder will be replaced with a filter of the form
+      'AND rowid >= x AND rowid < y'.
     * The name of the geometry column depends on the file format of the input file. E.g.
       for .shp files the column will be called "geometry", for .gpkg files the default
       name is "geom". If you use the {geometrycolumn} placeholder, geofileops will
@@ -1470,10 +1457,10 @@ def select(
             the precision. Defaults to 0.0.
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
             in the output. Defaults to True.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to 1. If nb_parallel != 1, make sure your query still returns
-            correct results if it is executed per batch of rows instead of in one go
-            on the entire layer. To use all available cores, pass -1.
+        nb_parallel (int, optional): the number of parallel processes to use. If -1, all
+            available cores are used. Defaults to 1.
+            If `nb_parallel` != 1, make sure your query still returns correct results if
+            it is executed per batch of rows instead of in one go on the entire layer.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage. If batchsize != -1,
@@ -1481,6 +1468,27 @@ def select(
             batch of rows instead of in one go on the entire layer.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s). Defaults to False.
+
+
+    Example: buffer all rows with a certain minimum area to the output file.
+    ::
+
+        import geofileops as gfo
+
+        minimum_area = 100
+        sql_stmt = f'''
+                SELECT ST_Buffer({{geometrycolumn}}, 1) AS {{geometrycolumn}}
+                      {{columns_to_select_str}}
+                  FROM "{{input_layer}}" layer
+                 WHERE 1=1
+                   {{batch_filter}}
+                   AND ST_Area({{geometrycolumn}}) > {minimum_area}
+                '''
+        gfo.select(
+                input_path=...,
+                output_path=...,
+                sql_stmt=sql_stmt)
+
 
     .. |spatialite_reference_link| raw:: html
 
@@ -2511,9 +2519,64 @@ def select_two_layers(
     force: bool = False,
 ):
     """
-    Executes the sqlite query specified on the 2 input layers specified.
+    Executes the SELECT SQL statement specified specified.
 
-    By convention, the sqlite query can contain following placeholders that
+    The `sql_stmt` must be in SQLite dialect and can contain placeholders that will be
+    replaced automatically. More details can be found in the notes and examples below.
+
+    The result is written to the output file specified.
+
+
+    Args:
+        input1_path (PathLike): the 1st input file.
+        input2_path (PathLike): the 2nd input file.
+        output_path (PathLike): the file to write the result to.
+        sql_stmt (str): the SELECT sql statement to be executed. Must be in SQLite
+            dialect.
+        input1_layer (str, optional): input layer name. Optional if the
+            file only contains one layer. Defaults to None.
+        input1_columns (List[str], optional): list of columns to retain if one of the
+            {layer1_columns_...} placeholders is used in sql_stmt. If None, all
+            standard columns are retained. In addition to standard columns, it is also
+            possible to specify "fid", a unique index available in all input files. Note
+            that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
+            "fid_1". Defaults to None.
+        input1_columns_prefix (str, optional): prefix to use in the column aliases.
+            Defaults to "l1_".
+        input2_layer (str, optional): input layer name. Optional if the
+            file only contains one layer. Defaults to None.
+        input2_columns (List[str], optional): list of columns to retain if one of the
+            {layer2_columns_...} placeholders is used in sql_stmt. If None is specified,
+            all columns are selected. As explained for input1_columns, it is also
+            possible to specify "fid". Defaults to None.
+        input2_columns_prefix (str, optional): prefix to use in the column aliases.
+            Defaults to "l2_".
+        output_layer (str, optional): output layer name. If None, the output_path stem
+            is used. Defaults to None.
+        explodecollections (bool, optional): True to convert all multi-geometries to
+            singular ones after the dissolve. Defaults to False.
+        force_output_geometrytype (GeometryType, optional): The output geometry
+            type to force. Defaults to None, and then the geometry type of the
+            input1 layer is used.
+        gridsize (float, optional): the size of the grid the coordinates of the ouput
+            will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
+            the precision. Defaults to 0.0.
+        where_post (str, optional): sql filter to apply after all other processing,
+            including e.g. explodecollections. It should be in sqlite syntax and
+            |spatialite_reference_link| functions can be used. Defaults to None.
+        nb_parallel (int, optional): the number of parallel processes to use. If -1, all
+            available cores are used. Defaults to 1.
+            If `nb_parallel` != 1, make sure your query still returns correct results if
+            it is executed per batch of rows instead of in one go on the entire layer.
+        batchsize (int, optional): indicative number of rows to process per batch.
+            A smaller batch size, possibly in combination with a smaller nb_parallel,
+            will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
+        force (bool, optional): overwrite existing output file(s).
+            Defaults to False.
+
+    Notes:
+    By convention, the `sql_stmt` can contain following placeholders that
     will be automatically replaced for you:
 
       * {input1_layer}: name of input layer 1
@@ -2582,58 +2645,6 @@ def select_two_layers(
       Note though that if the column placeholders are used (e.g.
       {layer1_columns_prefix_str}), they will start with a "," and if no column precedes
       it the SQL statement will be invalid.
-
-
-    .. |sqlite_reference_link| raw:: html
-
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
-
-    The result is written to the output file specified.
-
-    Args:
-        input1_path (PathLike): the 1st input file.
-        input2_path (PathLike): the 2nd input file.
-        output_path (PathLike): the file to write the result to.
-        sql_stmt (str): the SELECT sql statement to be executed.
-        input1_layer (str, optional): input layer name. Optional if the
-            file only contains one layer. Defaults to None.
-        input1_columns (List[str], optional): list of columns to retain if one of the
-            {layer1_columns_...} placeholders is used in sql_stmt. If None, all
-            standard columns are retained. In addition to standard columns, it is also
-            possible to specify "fid", a unique index available in all input files. Note
-            that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
-            "fid_1". Defaults to None.
-        input1_columns_prefix (str, optional): prefix to use in the column aliases.
-            Defaults to "l1_".
-        input2_layer (str, optional): input layer name. Optional if the
-            file only contains one layer. Defaults to None.
-        input2_columns (List[str], optional): list of columns to retain if one of the
-            {layer2_columns_...} placeholders is used in sql_stmt. If None is specified,
-            all columns are selected. As explained for input1_columns, it is also
-            possible to specify "fid". Defaults to None.
-        input2_columns_prefix (str, optional): prefix to use in the column aliases.
-            Defaults to "l2_".
-        output_layer (str, optional): output layer name. If None, the output_path stem
-            is used. Defaults to None.
-        explodecollections (bool, optional): True to convert all multi-geometries to
-            singular ones after the dissolve. Defaults to False.
-        force_output_geometrytype (GeometryType, optional): The output geometry
-            type to force. Defaults to None, and then the geometry type of the
-            input1 layer is used.
-        gridsize (float, optional): the size of the grid the coordinates of the ouput
-            will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
-            the precision. Defaults to 0.0.
-        where_post (str, optional): sql filter to apply after all other processing,
-            including e.g. explodecollections. It should be in sqlite syntax and
-            |spatialite_reference_link| functions can be used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available CPUs.
-        batchsize (int, optional): indicative number of rows to process per
-            batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage.
-            Defaults to -1: (try to) determine optimal size automatically.
-        force (bool, optional): overwrite existing output file(s).
-            Defaults to False.
 
     **Some more advanced example queries**
 
