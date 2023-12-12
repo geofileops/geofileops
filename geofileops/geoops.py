@@ -386,7 +386,7 @@ def apply(
             the precision. Defaults to 0.0.
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
             in the output. Defaults to False.
-        where_post (str, optional): sql filter to apply after all other processing,
+        where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -525,7 +525,7 @@ def buffer(
             the precision. Defaults to 0.0.
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
             in the output. Defaults to False.
-        where_post (str, optional): sql filter to apply after all other processing,
+        where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -631,7 +631,7 @@ def buffer(
         and join_style == BufferJoinStyle.ROUND
         and single_sided is False
     ):
-        # If default buffer options for spatialite, use the faster sql version
+        # If default buffer options for spatialite, use the faster SQL version
         return _geoops_sql.buffer(
             input_path=Path(input_path),
             output_path=Path(output_path),
@@ -760,7 +760,7 @@ def convexhull(
             the precision. Defaults to 0.0.
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
             in the output. Defaults to False.
-        where_post (str, optional): sql filter to apply after all other processing,
+        where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -828,7 +828,7 @@ def delete_duplicate_geometries(
             Defaults to False.
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
             in the output. Defaults to False.
-        where_post (str, optional): sql filter to apply after all other processing,
+        where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         force (bool, optional): overwrite existing output file(s).
@@ -998,7 +998,7 @@ def dissolve(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
-        where_post (str, optional): sql filter to apply after all other processing,
+        where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -1224,7 +1224,7 @@ def makevalid(
         precision (float, optional): deprecated. Use gridsize.
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
             in the output. Defaults to False.
-        where_post (str, optional): sql filter to apply after all other processing,
+        where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         validate_attribute_data (bool, optional): True to validate if all attribute data
@@ -1263,7 +1263,7 @@ def makevalid(
         )
 
     if SPATIALITE_GTE_51 and gridsize == 0.0:
-        # If spatialite >= 5.1 available use faster/less memory using sql implementation
+        # If spatialite >= 5.1 available use faster/less memory using SQL implementation
         # Only use this version if gridsize is 0.0, because when gridsize applied it is
         # less robust than the gpd implementation.
         _geoops_sql.makevalid(
@@ -1380,7 +1380,7 @@ def select(
     batchsize: int = -1,
     force: bool = False,
 ):
-    """
+    '''
     Executes an SELECT SQL statement on the input file.
 
     The ``sql_stmt`` must be in SQLite dialect and can contain placeholders that will be
@@ -1425,7 +1425,7 @@ def select(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s). Defaults to False.
 
-    Note:
+    Notes:
         By convention, the sqlite query can contain following placeholders that
         will be automatically replaced for you:
 
@@ -1435,26 +1435,26 @@ def select(
         * {input_layer}: the layer name of the input layer.
         * {batch_filter}: the filter used to process in parallel per batch.
 
-        Hint: often you will want to use f"" formatting on the sql statement to fill out
+        Hint: often you will want to use f"" formatting on the SQL statement to fill out
         some parameters of your own as well. You can easily escape the placeholders
         above by doubling the "{" and "}", e.g. use {{geometrycolumn}} for
         {geometrycolumn}. Also check out the example below.
 
         Example: buffer all rows with a certain minimum area to the output file.
 
-        :: code-block:: sqlite3
+        :: code-block:: python
 
             import geofileops as gfo
 
             minimum_area = 100
-            sql_stmt = f'''
+            sql_stmt = f"""
                 SELECT ST_Buffer({{geometrycolumn}}, 1) AS {{geometrycolumn}}
                       {{columns_to_select_str}}
                   FROM "{{input_layer}}" layer
                  WHERE 1=1
                    {{batch_filter}}
                    AND ST_Area({{geometrycolumn}}) > {minimum_area}
-            '''
+            """
             gfo.select(
                 input_path=...,
                 output_path=...,
@@ -1463,33 +1463,33 @@ def select(
 
         Some important remarks:
 
-        * Because some sql statement won't give the same result when parallelized
-          (eg. when using a group by statement), nb_parallel is 1 by default.
-          If you do want to use parallel processing, specify nb_parallel + make
-          sure to include the placeholder {batch_filter} in your sql_stmt.
+        * Because some SQL statements won't give the same result when parallelized
+          (eg. when using a group by statement), ``nb_parallel`` is 1 by default.
+          If you do want to use parallel processing, specify ``nb_parallel`` + make
+          sure to include the placeholder {batch_filter} in your ``sql_stmt``.
           This placeholder will be replaced with a filter of the form
-          'AND rowid >= x AND rowid < y'.
+          "AND rowid >= x AND rowid < y".
         * The name of the geometry column depends on the file format of the input file.
           E.g. for .shp files the column will be called "geometry", for .gpkg files the
           default name is "geom". If you use the {geometrycolumn} placeholder,
           geofileops will replace it with the correct column name for the input file.
         * If you apply (spatialite) functions on the geometry column always alias them
           again to its original column name, e.g. with "AS {geometrycolumn}".
-        * Some sql statements won't give correct results when parallelized/ran in
+        * Some SQL statements won't give correct results when parallelized/ran in
           multiple batches, e.g. when using a group by statement. This is why the
           default value for nb_parallel is 1. If you want to parallelize or run the
-          query in multiple batches (by specifying nb_parallel != 1 or batchsize > 0),
-          you should make sure your query will give correct results if it is executed
-          per batch of rows instead of once on the entire layer.
+          query in multiple batches (by specifying ``nb_parallel`` != 1 or ``batchsize``
+          > 0), you should make sure your query will give correct results if it is
+          executed per batch of rows instead of once on the entire layer.
           Additionally, if you do so, make sure to include the placeholder
-          {batch_filter} in your sql_stmt. This placeholder will be replaced with a
-          filter of the form 'AND rowid >= x AND rowid < y' and will ensure every row is
+          {batch_filter} in your ``sql_stmt``. This placeholder will be replaced with a
+          filter of the form "AND rowid >= x AND rowid < y" and will ensure every row is
           only treated once.
         * Table names are best double quoted as in the example, because some
           characters are otherwise not supported in the table name, eg. '-'.
         * It is recommend to give the table you select from "layer" as alias. If
           you use the {batch_filter} placeholder this is even mandatory.
-        * When using the (default) "SQLITE" sql dialect, you can also use the spatialite
+        * When using the (default) "SQLITE" SQL dialect, you can also use the spatialite
           functions as documented here: |spatialite_reference_link|.
         * It is supported to use an attribute table (= table without geometry column) as
           input layer and/or not to include the geometry column in the selected columns.
@@ -1502,7 +1502,7 @@ def select(
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
 
-    """  # noqa: E501
+    '''  # noqa: E501
     logger = logging.getLogger("geofileops.select")
     logger.info(f"Start, on {input_path}")
 
@@ -1582,7 +1582,7 @@ def simplify(
             the precision. Defaults to 0.0.
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
             in the output. Defaults to False.
-        where_post (str, optional): sql filter to apply after all other processing,
+        where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -1703,7 +1703,7 @@ def clip(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
-        where_post (str, optional): sql filter to apply after all other processing,
+        where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -1789,7 +1789,7 @@ def erase(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
-        where_post (str, optional): sql filter to apply after all other processing,
+        where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -1878,7 +1878,7 @@ def export_by_location(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
-        where_post (str, optional): sql filter to apply after all other processing,
+        where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -1957,7 +1957,7 @@ def export_by_distance(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
-        where_post (str, optional): sql filter to apply after all other processing,
+        where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -2049,7 +2049,7 @@ def identity(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
-        where_post (str, optional): sql filter to apply after all other processing,
+        where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -2241,7 +2241,7 @@ def intersection(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
-        where_post (str, optional): sql filter to apply after all other processing,
+        where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -2361,7 +2361,7 @@ def join_by_location(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
-        where_post (str, optional): sql filter to apply after all other processing,
+        where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -2526,7 +2526,7 @@ def select_two_layers(
     batchsize: int = -1,
     force: bool = False,
 ):
-    r"""
+    r'''
     Executes an SELECT SQL statement on the input files.
 
     The ``sql_stmt`` must be in SQLite dialect and can contain placeholders that will be
@@ -2538,7 +2538,7 @@ def select_two_layers(
         input1_path (PathLike): the 1st input file.
         input2_path (PathLike): the 2nd input file.
         output_path (PathLike): the file to write the result to.
-        sql_stmt (str): the SELECT sql statement to be executed. Must be in SQLite
+        sql_stmt (str): the SELECT SQL statement to be executed. Must be in SQLite
             dialect.
         input1_layer (str, optional): input layer name. Optional if the
             file only contains one layer. Defaults to None.
@@ -2553,7 +2553,7 @@ def select_two_layers(
         input2_layer (str, optional): input layer name. Optional if the
             file only contains one layer. Defaults to None.
         input2_columns (List[str], optional): list of columns to retain if one of the
-            {layer2\_columns_...} placeholders is used in sql_stmt. If None is
+            {layer2\_columns_...} placeholders is used in ``sql_stmt``. If None is
             specified, all columns are selected. As explained for ``input1_columns``, it
             is also possible to specify "fid". Defaults to None.
         input2_columns_prefix (str, optional): prefix to use in the column aliases.
@@ -2568,7 +2568,7 @@ def select_two_layers(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
-        where_post (str, optional): sql filter to apply after all other processing,
+        where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use. If -1, all
@@ -2576,8 +2576,8 @@ def select_two_layers(
             your query still returns correct results if it is executed per batch of rows
             instead of in one go on the entire layer.
         batchsize (int, optional): indicative number of rows to process per batch.
-            A smaller batch size, possibly in combination with a smaller nb_parallel,
-            will reduce the memory usage.
+            A smaller batch size, possibly in combination with a smaller
+            ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
@@ -2617,7 +2617,7 @@ def select_two_layers(
             import geofileops as gfo
 
             minimum_area = 100
-            sql_stmt = f'''
+            sql_stmt = f"""
                 SELECT layer1.{{input1_geometrycolumn}}
                       {{layer1_columns_prefix_alias_str}}
                       {{layer2_columns_prefix_alias_str}}
@@ -2627,7 +2627,7 @@ def select_two_layers(
                  WHERE 1=1
                    {{batch_filter}}
                    AND ST_Area(layer1.{{input1_geometrycolumn}}) > {minimum_area}
-            '''
+            """
             gfo.select_two_layers(
                 input1_path=...,
                 input2_path=...,
@@ -2637,17 +2637,17 @@ def select_two_layers(
 
         Some important remarks:
 
-        * Because some sql statement won't give the same result when parallelized
-          (eg. when using a group by statement), nb_parallel is 1 by default.
-          If you do want to use parallel processing, specify nb_parallel + make
-          sure to include the placeholder {batch_filter} in your sql_stmt.
+        * Because some SQL statements won't give the same result when parallelized
+          (eg. when using a group by statement), ``nb_parallel`` is 1 by default.
+          If you do want to use parallel processing, specify ``nb_parallel`` + make
+          sure to include the placeholder {batch_filter} in your ``sql_stmt``.
           This placeholder will be replaced with a filter of the form
-          'AND rowid >= x AND rowid < y'.
+          "AND rowid >= x AND rowid < y".
         * Table names are best double quoted as in the example, because some
-          characters are otherwise not supported in the table name, eg. '-'.
+          characters are otherwise not supported in the table name, eg. "-".
         * When using supported placeholders, make sure you give the tables you
           select from the appropriate table aliases (layer1, layer2).
-        * Besides the standard sqlite sql syntacs, you can use the spatialite
+        * Besides the standard sqlite SQL syntacs, you can use the spatialite
           functions as documented here: |spatialite_reference_link|
         * It is supported to use attribute tables (= table without geometry column)
           as input layers and/or not to include the geometry column in the selected
@@ -2670,21 +2670,28 @@ def select_two_layers(
         .. code-block:: sqlite3
 
             WITH join_with_dist AS (
-                SELECT layer2.{{input2_geometrycolumn}}
+                SELECT layer1.{{input1_geometrycolumn}} AS geom
                       {{layer1_columns_prefix_alias_str}}
                       {{layer2_columns_prefix_alias_str}}
-                      ,ST_Distance(layer2.{{input2_geometrycolumn}}
-                      ,layer1.{{input1_geometrycolumn}}) AS distance
-                 FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                 JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                   ON layer1.join_id = layer2.join_id
-                )
+                      ,ST_Distance(
+                            layer1.{{input1_geometrycolumn}},
+                            layer2.{{input2_geometrycolumn}}
+                       ) AS distance
+                      ,RANK() OVER ( PARTITION BY layer1.rowid ORDER BY ST_Distance(
+                                        layer1.{{input1_geometrycolumn}},
+                                        layer2.{{input2_geometrycolumn}}
+                                   )
+                       ) AS pos
+                  FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                  JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                    ON layer1.join_id = layer2.join_id
+                 WHERE 1=1
+                   {{batch_filter}}
+            )
             SELECT *
               FROM join_with_dist jwd
-             WHERE distance = (
-                   SELECT MIN(distance) FROM join_with_dist jwd_sub
-                    WHERE jwd_sub.l1_join_id = jwd.l1_join_id)
-             ORDER BY distance DESC
+             WHERE pos = 1
+
 
     .. |spatialite_reference_link| raw:: html
 
@@ -2694,7 +2701,7 @@ def select_two_layers(
 
         <a href="https://github.com/geofileops/geofileops/blob/main/geofileops/util/geofileops_sql.py" target="_blank">geofileops_sql.py</a>
 
-    """  # noqa: E501
+    '''  # noqa: E501
     logger = logging.getLogger("geofileops.select_two_layers")
     logger.info(f"select from {input1_path} and {input2_path} to {output_path}")
     return _geoops_sql.select_two_layers(
@@ -2772,7 +2779,7 @@ def symmetric_difference(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
-        where_post (str, optional): sql filter to apply after all other processing,
+        where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -2873,7 +2880,7 @@ def union(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
-        where_post (str, optional): sql filter to apply after all other processing,
+        where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
