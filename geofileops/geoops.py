@@ -2628,26 +2628,25 @@ def select_two_layers(
 
         Some important remarks:
 
-          * Because some sql statement won't give the same result when parallelized
-            (eg. when using a group by statement), nb_parallel is 1 by default.
-            If you do want to use parallel processing, specify nb_parallel + make
-            sure to include the placeholder {batch_filter} in your sql_stmt.
-            This placeholder will be replaced with a filter of the form
-            'AND rowid >= x AND rowid < y'.
-          * Table names are best double quoted as in the example, because some
-            characters are otherwise not supported in the table name, eg. '-'.
-          * When using supported placeholders, make sure you give the tables you
-            select from the appropriate table aliases (layer1, layer2).
-          * Besides the standard sqlite sql syntacs, you can use the spatialite
-            functions as documented here: |sqlite_reference_link|
-          * It is supported to use attribute tables (= table without geometry column)
-            as input layers and/or not to include the geometry column in the selected
-            columns. Note though that if the column placeholders are used (e.g.
-            {layer1_columns_prefix_str}), they will start with a "," and if no column
-            precedes it the SQL statement will be invalid.
+        * Because some sql statement won't give the same result when parallelized
+          (eg. when using a group by statement), nb_parallel is 1 by default.
+          If you do want to use parallel processing, specify nb_parallel + make
+          sure to include the placeholder {batch_filter} in your sql_stmt.
+          This placeholder will be replaced with a filter of the form
+          'AND rowid >= x AND rowid < y'.
+        * Table names are best double quoted as in the example, because some
+          characters are otherwise not supported in the table name, eg. '-'.
+        * When using supported placeholders, make sure you give the tables you
+          select from the appropriate table aliases (layer1, layer2).
+        * Besides the standard sqlite sql syntacs, you can use the spatialite
+          functions as documented here: |sqlite_reference_link|
+        * It is supported to use attribute tables (= table without geometry column)
+          as input layers and/or not to include the geometry column in the selected
+          columns. Note though that if the column placeholders are used (e.g.
+          {layer1_columns_prefix_str}), they will start with a "," and if no column
+          precedes it the SQL statement will be invalid.
 
     Some more advanced example queries:
-
         An ideal place to get inspiration to write you own advanced queries
         is in the following source code file: |geofileops_sql_link|.
 
