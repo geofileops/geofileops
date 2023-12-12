@@ -2657,24 +2657,24 @@ def select_two_layers(
         For each feature in layer1, get the nearest feature of layer2 with the
         same values for the column join_id.
 
-            .. code-block:: sqlite3
+        .. code-block:: sqlite3
 
-                WITH join_with_dist AS (
-                    SELECT layer2.{{input2_geometrycolumn}}
-                          {{layer1_columns_prefix_alias_str}}
-                          {{layer2_columns_prefix_alias_str}}
-                          ,ST_Distance(layer2.{{input2_geometrycolumn}}
-                          ,layer1.{{input1_geometrycolumn}}) AS distance
-                     FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                     JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                       ON layer1.join_id = layer2.join_id
-                    )
-                SELECT *
-                  FROM join_with_dist jwd
-                 WHERE distance = (
-                       SELECT MIN(distance) FROM join_with_dist jwd_sub
-                        WHERE jwd_sub.l1_join_id = jwd.l1_join_id)
-                 ORDER BY distance DESC
+            WITH join_with_dist AS (
+                SELECT layer2.{{input2_geometrycolumn}}
+                      {{layer1_columns_prefix_alias_str}}
+                      {{layer2_columns_prefix_alias_str}}
+                      ,ST_Distance(layer2.{{input2_geometrycolumn}}
+                      ,layer1.{{input1_geometrycolumn}}) AS distance
+                 FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                 JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                   ON layer1.join_id = layer2.join_id
+                )
+            SELECT *
+              FROM join_with_dist jwd
+             WHERE distance = (
+                   SELECT MIN(distance) FROM join_with_dist jwd_sub
+                    WHERE jwd_sub.l1_join_id = jwd.l1_join_id)
+             ORDER BY distance DESC
 
     .. |spatialite_reference_link| raw:: html
 
