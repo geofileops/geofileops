@@ -48,7 +48,7 @@ def dissolve_within_distance(
     Dissolve geometries that are within the distance specified.
 
     The output layer will contain the dissolved geometries where all gaps between the
-    input geometries up to `distance` are closed.
+    input geometries up to ``distance`` are closed.
 
     Notes:
       - Only tested on polygon input.
@@ -56,7 +56,7 @@ def dissolve_within_distance(
         be closed.
       - The polygons in the output file are exploded to simple geometries.
       - No attributes from the input layer are retained.
-      - If `close_internal_gaps` is False, the default, a `gridsize` > 0
+      - If ``close_internal_gaps`` is False, the default, a ``gridsize`` > 0
         (E.g. 0.000001) should be specified, otherwise some input boundary gaps could
         still be closed due to rounding side effects.
 
@@ -70,13 +70,13 @@ def dissolve_within_distance(
         distance (float): the maximum distance between geometries to be dissolved.
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
-            the precision. If `close_boundary_gaps` is False, the default, a
-            `gridsize` > 0 (E.g. 0.000001) should be specified, otherwise some boundary
-            gaps in the input geometries could still be closed due to rounding side
-            effects.
+            the precision. If ``close_boundary_gaps`` is False, the default, a
+            ``gridsize`` > 0 (E.g. 0.000001) should be specified, otherwise some
+            boundary gaps in the input geometries could still be closed due to rounding
+            side effects.
         close_internal_gaps (bool, optional): also close gaps, strips or holes in the
-            input geometries that are narrower than the `distance` specified. E.g. small
-            holes, narrow strips starting at the boundary,... Defaults to False.
+            input geometries that are narrower than the ``distance`` specified. E.g.
+            small holes, narrow strips starting at the boundary,... Defaults to False.
         input_layer (str, optional): input layer name. Optional if the input
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input
@@ -85,7 +85,7 @@ def dissolve_within_distance(
             Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage.
+            smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
@@ -387,19 +387,19 @@ def apply(
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
             in the output. Defaults to False.
         where_post (str, optional): SQL filter to apply after all other processing,
-            including e.g. explodecollections. It should be in sqlite syntax and
+            including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage.
+            smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
     Examples:
-        This example shows the basic usage of `gfo.apply`:
+        This example shows the basic usage of ``gfo.apply``:
 
         .. code-block:: python
 
@@ -412,7 +412,7 @@ def apply(
             )
 
         If you need to use the contents of other columns in your lambda function, you can
-        call `gfo.apply` like this:
+        call ``gfo.apply`` like this:
 
         .. code-block:: python
 
@@ -498,14 +498,14 @@ def buffer(
               * FLAT: a point stays a point, a buffered line will end flat
                 at the end points
               * SQUARE: a point becomes a square, a buffered line will end
-                flat at the end points, but elongated by "distance"
+                flat at the end points, but elongated by ``distance``
         join_style (BufferJoinStyle, optional): buffer style to use for
             corners in a line or a polygon boundary. Defaults to ROUND.
 
               * ROUND: corners in the result are rounded
               * MITRE: corners in the result are sharp
               * BEVEL: are flattened
-        mitre_limit (float, optional): in case of join_style MITRE, if the
+        mitre_limit (float, optional): in case of ``join_style`` MITRE, if the
             spiky result for a sharp angle becomes longer than this ratio limit, it
             is "beveled" using this maximum ratio. Defaults to 5.0.
         single_sided (bool, optional): only one side of the line is buffered,
@@ -528,13 +528,13 @@ def buffer(
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
             in the output. Defaults to False.
         where_post (str, optional): SQL filter to apply after all other processing,
-            including e.g. explodecollections. It should be in sqlite syntax and
+            including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage.
+            smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
@@ -763,13 +763,13 @@ def convexhull(
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
             in the output. Defaults to False.
         where_post (str, optional): SQL filter to apply after all other processing,
-            including e.g. explodecollections. It should be in sqlite syntax and
+            including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage.
+            smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
@@ -831,7 +831,7 @@ def delete_duplicate_geometries(
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
             in the output. Defaults to False.
         where_post (str, optional): SQL filter to apply after all other processing,
-            including e.g. explodecollections. It should be in sqlite syntax and
+            including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
@@ -948,7 +948,7 @@ def dissolve(
         output_path (PathLike): the file to write the result to
         explodecollections (bool): True to output only simple geometries. If
             False, this can result in huge geometries for large files,
-            especially if no groupby_columns are specified.
+            especially if no ``groupby_columns`` are specified.
         groupby_columns (Union[List[str], str], optional): columns (case insensitive) to
             group on while aggregating. Defaults to None, resulting in a spatial union
             of all geometries that touch.
@@ -1003,13 +1003,13 @@ def dissolve(
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
         where_post (str, optional): SQL filter to apply after all other processing,
-            including e.g. explodecollections. It should be in sqlite syntax and
+            including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage.
+            smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
@@ -1143,7 +1143,7 @@ def isvalid(
             Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage.
+            smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
@@ -1225,11 +1225,11 @@ def makevalid(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
-        precision (float, optional): deprecated. Use gridsize.
+        precision (float, optional): deprecated. Use ``gridsize``.
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
             in the output. Defaults to False.
         where_post (str, optional): SQL filter to apply after all other processing,
-            including e.g. explodecollections. It should be in sqlite syntax and
+            including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         validate_attribute_data (bool, optional): True to validate if all attribute data
             can be read. Raises an exception if an error is found, as this type of error
@@ -1238,7 +1238,7 @@ def makevalid(
             Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage.
+            smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
@@ -1385,7 +1385,7 @@ def select(
     force: bool = False,
 ):
     '''
-    Executes an SELECT SQL statement on the input file.
+    Execute a SELECT SQL statement on the input file.
 
     The ``sql_stmt`` must be in SQLite dialect and can contain placeholders that will be
     replaced automatically. More details can be found in the notes and examples below.
@@ -1423,7 +1423,7 @@ def select(
             layer.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage. If batchsize != -1,
+            smaller ``nb_parallel``, will reduce the memory usage. If batchsize != -1,
             make sure your query still returns correct results if it is executed per
             batch of rows instead of in one go on the entire layer.
             Defaults to -1: (try to) determine optimal size automatically.
@@ -1434,7 +1434,7 @@ def select(
         will be automatically replaced for you:
 
         * {geometrycolumn}: the column where the primary geometry is stored.
-        * {columns_to_select_str}: if 'columns' is not None, those columns, otherwise
+        * {columns_to_select_str}: if ``columns`` is not None, those columns, otherwise
           all columns of the layer.
         * {input_layer}: the layer name of the input layer.
         * {batch_filter}: the filter used to process in parallel per batch.
@@ -1587,13 +1587,13 @@ def simplify(
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
             in the output. Defaults to False.
         where_post (str, optional): SQL filter to apply after all other processing,
-            including e.g. explodecollections. It should be in sqlite syntax and
+            including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage.
+            smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
@@ -1708,13 +1708,13 @@ def clip(
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
         where_post (str, optional): SQL filter to apply after all other processing,
-            including e.g. explodecollections. It should be in sqlite syntax and
+            including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage.
+            smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
@@ -1794,17 +1794,17 @@ def erase(
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
         where_post (str, optional): SQL filter to apply after all other processing,
-            including e.g. explodecollections. It should be in sqlite syntax and
+            including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage.
+            smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         subdivide_coords (int, optional): the input geometries will be subdivided to
-            parts with about subdivide_coords coordinates during processing which can
-            offer a large speed up for complex geometries. Subdividing can result in
+            parts with about ``subdivide_coords`` coordinates during processing which
+            can offer a large speed up for complex geometries. Subdividing can result in
             extra collinear points being added to the boundaries of the output. If < 0,
             no subdividing is applied. Defaults to 2000.
         force (bool, optional): overwrite existing output file(s).
@@ -1854,8 +1854,8 @@ def export_by_location(
     """
     Exports all intersecting features.
 
-    All features in input_to_select_from_path that intersect with any features in
-    input_to_compare_with_path are exported.
+    All features in ``input_to_select_from_path`` that intersect with any features in
+    ``input_to_compare_with_path`` are exported.
 
     Alternative names:
         - QGIS: extract by location
@@ -1883,13 +1883,13 @@ def export_by_location(
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
         where_post (str, optional): SQL filter to apply after all other processing,
-            including e.g. explodecollections. It should be in sqlite syntax and
+            including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage.
+            smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
@@ -1940,8 +1940,8 @@ def export_by_distance(
     """
     Exports all features within the distance specified.
 
-    Features in input_to_select_from_path that are within the distance specified of any
-    features in input_to_compare_with_path.
+    Features in ``input_to_select_from_path`` that are within the distance specified of
+    any features in ``input_to_compare_with_path``.
 
     Args:
         input_to_select_from_path (PathLike): the 1st input file
@@ -1962,13 +1962,13 @@ def export_by_distance(
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
         where_post (str, optional): SQL filter to apply after all other processing,
-            including e.g. explodecollections. It should be in sqlite syntax and
+            including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage.
+            smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
@@ -2035,36 +2035,36 @@ def identity(
         input1_columns (List[str], optional): list of columns to retain. If None, all
             standard columns are retained. In addition to standard columns, it is also
             possible to specify "fid", a unique index available in all input files. Note
-            that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
-            "fid_1". Defaults to None.
+            that the "fid" will be aliased even if ``input1_columns_prefix`` is "", eg.
+            to "fid_1". Defaults to None.
         input1_columns_prefix (str, optional): prefix to use in the column aliases.
             Defaults to "l1\_".
         input2_layer (str, optional): input layer name. Optional if the
             file only contains one layer. Defaults to None.
         input2_columns (List[str], optional): columns to select. If None is specified,
-            all columns are selected. As explained for input1_columns, it is also
+            all columns are selected. As explained for ``input1_columns``, it is also
             possible to specify "fid". Defaults to None.
         input2_columns_prefix (str, optional): prefix to use in the column aliases.
             Defaults to "l2\_".
-        output_layer (str, optional): output layer name. If None, the output_path stem
-            is used. Defaults to None.
+        output_layer (str, optional): output layer name. If None, the ``output_path``
+            stem is used. Defaults to None.
         explodecollections (bool, optional): True to convert all multi-geometries to
             singular ones after the dissolve. Defaults to False.
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
         where_post (str, optional): SQL filter to apply after all other processing,
-            including e.g. explodecollections. It should be in sqlite syntax and
+            including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage.
+            smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         subdivide_coords (int, optional): the input geometries will be subdivided to
-            parts with about subdivide_coords coordinates during processing which can
-            offer a large speed up for complex geometries. Subdividing can result in
+            parts with about ``subdivide_coords`` coordinates during processing which
+            can offer a large speed up for complex geometries. Subdividing can result in
             extra collinear points being added to the boundaries of the output. If < 0,
             no subdividing is applied. Defaults to 2000.
         force (bool, optional): overwrite existing output file(s).
@@ -2227,32 +2227,32 @@ def intersection(
         input1_columns (List[str], optional): list of columns to retain. If None, all
             standard columns are retained. In addition to standard columns, it is also
             possible to specify "fid", a unique index available in all input files. Note
-            that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
-            "fid_1". Defaults to None.
+            that the "fid" will be aliased even if ``input1_columns_prefix`` is "", eg.
+            to "fid_1". Defaults to None.
         input1_columns_prefix (str, optional): prefix to use in the column aliases.
             Defaults to "l1\_".
         input2_layer (str, optional): input layer name. Optional if the
             file only contains one layer. Defaults to None.
         input2_columns (List[str], optional): columns to select. If None is specified,
-            all columns are selected. As explained for input1_columns, it is also
+            all columns are selected. As explained for ``input1_columns``, it is also
             possible to specify "fid". Defaults to None.
         input2_columns_prefix (str, optional): prefix to use in the column aliases.
             Defaults to "l2\_".
-        output_layer (str, optional): output layer name. If None, the output_path stem
-            is used. Defaults to None.
+        output_layer (str, optional): output layer name. If None, the ``output_path``
+            stem is used. Defaults to None.
         explodecollections (bool, optional): True to convert all multi-geometries to
             singular ones after the dissolve. Defaults to False.
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
         where_post (str, optional): SQL filter to apply after all other processing,
-            including e.g. explodecollections. It should be in sqlite syntax and
+            including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage.
+            smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
@@ -2308,18 +2308,18 @@ def join_by_location(
     r"""
     Joins all features in input1 with all features in input2.
 
-    The output will contain the geometries of input1. The spatial_relations_query and
-    min_area_intersect parameters will determine which geometries of input1 will be
-    matched with input2.
+    The output will contain the geometries of input1. The ``spatial_relations_query``
+    and ``min_area_intersect`` parameters will determine which geometries of input1 will
+    be matched with input2.
 
-    The spatial_relations_query is a filter string where you can use the following
+    The ``spatial_relations_query`` is a filter string where you can use the following
     "named spatial predicates": equals, touches, within, overlaps, crosses, intersects,
     contains, covers, coveredby.
 
     If you want even more control, you can also use "spatial masks" as defined by the
     [DE-9IM](https://en.wikipedia.org/wiki/DE-9IM) model.
 
-    Examples for valid spatial_relations_query values:
+    Examples for valid ``spatial_relations_query`` values:
 
         - "overlaps is True and contains is False"
         - "(T*T***T** is True or 1*T***T** is True) and T*****FF* is False"
@@ -2338,7 +2338,7 @@ def join_by_location(
             Defaults to "intersects is True".
         discard_nonmatching (bool, optional): True to only keep rows that
             match with the spatial_relations_query. False to keep rows all
-            rows in the input1_layer (=left outer join). Defaults to True
+            rows in the ``input1_layer`` (=left outer join). Defaults to True
             (=inner join).
         min_area_intersect (float, optional): minimum area of the intersection
             to match. Defaults to None.
@@ -2349,8 +2349,8 @@ def join_by_location(
         input1_columns (List[str], optional): list of columns to retain. If None, all
             standard columns are retained. In addition to standard columns, it is also
             possible to specify "fid", a unique index available in all input files. Note
-            that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
-            "fid_1". Defaults to None.
+            that the "fid" will be aliased even if ``input1_columns_prefix`` is "", eg.
+            to "fid_1". Defaults to None.
         input1_columns_prefix (str, optional): prefix to use in the column aliases.
             Defaults to "l1\_".
         input2_layer (str, optional): input layer name. Optional if the
@@ -2366,13 +2366,13 @@ def join_by_location(
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
         where_post (str, optional): SQL filter to apply after all other processing,
-            including e.g. explodecollections. It should be in sqlite syntax and
+            including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage.
+            smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
@@ -2427,23 +2427,24 @@ def join_nearest(
     force: bool = False,
 ):
     r"""
-    Joins features of `input1` with the `nb_nearest` closest features of `input2`.
+    Joins features of ``input1`` with the ``nb_nearest`` closest features of ``input2``.
 
-    In addition to the columns requested via the `input*_columns` parameters, the
+    In addition to the columns requested via the ``input*_columns`` parameters, the
     following columns will be in the output file as well:
         - pos (int): relative rank (sorted by distance): the closest item will be #1,
           the second closest item will be #2 and so on.
-        - distance (float): if the dataset is in a planar (= projected) crs, `distance`
-          will be in the unit defined by the projection (meters, feet, chains etc.).
-          For a geographic dataset (longitude and latitude degrees), `distance` will be
-          in meters, with the most precise geodetic formulas being applied.
-        - distance_crs (float): if the dataset is in a planar (= projected) crs,
-          `distance_crs` will be in the unit defined by the projection (meters, feet,
+        - distance (float): if the dataset is in a planar (= projected) crs,
+          ``distance`` will be in the unit defined by the projection (meters, feet,
           chains etc.). For a geographic dataset (longitude and latitude degrees),
-          `distance_crs` will be in angles. Only available with spatialite >= 5.1.
+          ``distance`` will be in meters, with the most precise geodetic formulas being
+          applied.
+        - distance_crs (float): if the dataset is in a planar (= projected) crs,
+          ``distance_crs`` will be in the unit defined by the projection (meters, feet,
+          chains etc.). For a geographic dataset (longitude and latitude degrees),
+          ``distance_crs`` will be in angles. Only available with spatialite >= 5.1.
 
-    Note: if spatialite version >= 5.1 is used, parameters `distance` and `expand` are
-    mandatory.
+    Note: if spatialite version >= 5.1 is used, parameters ``distance`` and ``expand``
+    are mandatory.
 
     Args:
         input1_path (PathLike): the input file to join to nb_nearest features.
@@ -2451,38 +2452,38 @@ def join_nearest(
         output_path (PathLike): the file to write the result to
         nb_nearest (int): the number of nearest features from input 2 to join
             to input1.
-        distance (float): maximum distance to search for the nearest items. If `expand`
-            is True, this is the initial search distance, which will be gradually
-            expanded (doubled) till `nb_nearest` are found. For optimal performance,
-            it is important to choose the typical value that will be needed to find
-            `nb_nearest` items. If `distance` is too large, performance can be bad.
-            Parameter is only relevant if spatialite version >= 5.1 is used.
-        expand (bool): `True` to keep searching till nb_nearest items are found. If
-            `False`, only items found within `distance` are returned (`False` is only
+        distance (float): maximum distance to search for the nearest items. If
+            ``expand`` is True, this is the initial search distance, which will be
+            gradually expanded (doubled) till ``nb_nearest`` are found. For optimal
+            performance, it is important to choose the typical value that will be needed
+            to find ``nb_nearest`` items. If ``distance`` is too large, performance can
+            be bad. Parameter is only relevant if spatialite version >= 5.1 is used.
+        expand (bool): True to keep searching till ``nb_nearest`` items are found. If
+            False, only items found within ``distance`` are returned (False is only
             supported if spatialite version >= 5.1 is used).
         input1_layer (str, optional): input layer name. Optional if the
-            file only contains one layer. Defaults to `None`.
+            file only contains one layer. Defaults to None.
         input1_columns (List[str], optional): list of columns to retain. If None, all
             standard columns are retained. In addition to standard columns, it is also
             possible to specify "fid", a unique index available in all input files. Note
-            that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
-            "fid_1". Defaults to None.
+            that the "fid" will be aliased even if ``input1_columns_prefix`` is "", eg.
+            to "fid_1". Defaults to None.
         input1_columns_prefix (str, optional): prefix to use in the column aliases.
             Defaults to "l1\_".
         input2_layer (str, optional): input layer name. Optional if the
             file only contains one layer. Defaults to None.
         input2_columns (List[str], optional): columns to select. If None is specified,
-            all columns are selected. As explained for input1_columns, it is also
+            all columns are selected. As explained for ``input1_columns``, it is also
             possible to specify "fid". Defaults to None.
         input2_columns_prefix (str, optional): prefix to use in the column aliases.
             Defaults to "l2\_".
-        output_layer (str, optional): output layer name. If None, the output_path stem
-            is used. Defaults to None.
+        output_layer (str, optional): output layer name. If None, the ``output_path``
+            stem is used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage.
+            smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
@@ -2531,7 +2532,7 @@ def select_two_layers(
     force: bool = False,
 ):
     r'''
-    Executes an SELECT SQL statement on the input files.
+    Execute a SELECT SQL statement on the input files.
 
     The ``sql_stmt`` must be in SQLite dialect and can contain placeholders that will be
     replaced automatically. More details can be found in the notes and examples below.
@@ -2765,7 +2766,7 @@ def symmetric_difference(
         input1_columns (List[str], optional): list of columns to retain. If None, all
             standard columns are retained. In addition to standard columns, it is also
             possible to specify "fid", a unique index available in all input files. Note
-            that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
+            that the "fid" will be aliased even if ``input1_columns_prefix`` is "", eg. to
             "fid_1". Defaults to None.
         input1_columns_prefix (str, optional): prefix to use in the column aliases.
             Defaults to "l1\_".
@@ -2776,8 +2777,8 @@ def symmetric_difference(
             possible to specify "fid". Defaults to None.
         input2_columns_prefix (str, optional): prefix to use in the column aliases.
             Defaults to "l2\_".
-        output_layer (str, optional): output layer name. If None, the output_path stem
-            is used. Defaults to None.
+        output_layer (str, optional): output layer name. If None, the ``output_path``
+            stem is used. Defaults to None.
         explodecollections (bool, optional): True to convert all multi-geometries to
             singular ones after the dissolve. Defaults to False.
         gridsize (float, optional): the size of the grid the coordinates of the ouput
@@ -2790,12 +2791,11 @@ def symmetric_difference(
             Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduc
-            e the memory usage.
+            smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         subdivide_coords (int, optional): the input geometries will be subdivided to
-            parts with about subdivide_coords coordinates during processing which can
-            offer a large speed up for complex geometries. Subdividing can result in
+            parts with about ``subdivide_coords`` coordinates during processing which
+            can offer a large speed up for complex geometries. Subdividing can result in
             extra collinear points being added to the boundaries of the output. If < 0,
             no subdividing is applied. Defaults to 2000.
         force (bool, optional): overwrite existing output file(s).
@@ -2866,36 +2866,36 @@ def union(
         input1_columns (List[str], optional): list of columns to retain. If None, all
             standard columns are retained. In addition to standard columns, it is also
             possible to specify "fid", a unique index available in all input files. Note
-            that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
-            "fid_1". Defaults to None.
+            that the "fid" will be aliased even if ``input1_columns_prefix`` is "", eg.
+            to "fid_1". Defaults to None.
         input1_columns_prefix (str, optional): prefix to use in the column aliases.
             Defaults to "l1\_".
         input2_layer (str, optional): input layer name. Optional if the
             file only contains one layer. Defaults to None.
         input2_columns (List[str], optional): columns to select. If None is specified,
-            all columns are selected. As explained for input1_columns, it is also
+            all columns are selected. As explained for ``input1_columns``, it is also
             possible to specify "fid". Defaults to None.
         input2_columns_prefix (str, optional): prefix to use in the column aliases.
             Defaults to "l2\_".
-        output_layer (str, optional): output layer name. If None, the output_path stem
-            is used. Defaults to None.
+        output_layer (str, optional): output layer name. If None, the ``output_path``
+            stem is used. Defaults to None.
         explodecollections (bool, optional): True to convert all multi-geometries to
             singular ones after the dissolve. Defaults to False.
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
         where_post (str, optional): SQL filter to apply after all other processing,
-            including e.g. explodecollections. It should be in sqlite syntax and
+            including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
             Defaults to -1: use all available CPUs.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
-            smaller nb_parallel, will reduce the memory usage.
+            smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         subdivide_coords (int, optional): the input geometries will be subdivided to
-            parts with about subdivide_coords coordinates during processing which can
-            offer a large speed up for complex geometries. Subdividing can result in
+            parts with about ``subdivide_coords`` coordinates during processing which
+            can offer a large speed up for complex geometries. Subdividing can result in
             extra collinear points being added to the boundaries of the output. If < 0,
             no subdividing is applied. Defaults to 2000.
         force (bool, optional): overwrite existing output file(s).
