@@ -400,7 +400,7 @@ def apply(
 
     Examples:
         This example shows the basic usage of `gfo.apply`:
-        :: code-block:: python
+        .. code-block:: python
 
             import geofileops as gfo
 
@@ -412,7 +412,7 @@ def apply(
 
         If you need to use the contents of other columns in your lambda function, you can
         call `gfo.apply` like this:
-        :: code-block:: python
+        .. code-block:: python
 
             import geofileops as gfo
 
@@ -886,7 +886,7 @@ def dissolve(
 
     This is an example of how data in the columns that isn't grouped on can be
     aggregated to be added to the output file:
-    ::
+    .. code-block:: python
 
         import geofileops as gfo
 
@@ -916,7 +916,7 @@ def dissolve(
     per group/row in a "json" text field. Shapefiles only support up to 254
     characters in a text field, so this format won't be very suited as output
     format for this option.
-    ::
+    .. code-block:: python
 
         import geofileops as gfo
 
@@ -1441,7 +1441,7 @@ def select(
         {geometrycolumn}. Also check out the example below.
 
         Example: buffer all rows with a certain minimum area to the output file.
-        :: code-block:: python
+        .. code-block:: python
 
             import geofileops as gfo
 
@@ -2610,7 +2610,7 @@ def select_two_layers(
 
         Example: left outer join all features in input1 layer with all rows
         in input2 on join_id.
-        :: code-block:: python
+        .. code-block:: python
 
             import geofileops as gfo
 
