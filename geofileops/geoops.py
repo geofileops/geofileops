@@ -2536,7 +2536,7 @@ def select_two_layers(
         input1_layer (str, optional): input layer name. Optional if the
             file only contains one layer. Defaults to None.
         input1_columns (List[str], optional): list of columns to retain if one of the
-            {layer1_columns_...} placeholders is used in sql_stmt. If None, all
+            `{layer1_columns_...}` placeholders is used in sql_stmt. If None, all
             standard columns are retained. In addition to standard columns, it is also
             possible to specify "fid", a unique index available in all input files. Note
             that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
@@ -2576,75 +2576,75 @@ def select_two_layers(
             Defaults to False.
 
     Notes:
-    By convention, the `sql_stmt` can contain following placeholders that
-    will be automatically replaced for you:
+        By convention, the `sql_stmt` can contain following placeholders that
+        will be automatically replaced for you:
 
-      * {input1_layer}: name of input layer 1
-      * {input1_geometrycolumn}: name of input geometry column 1
-      * {layer1_columns_prefix_str}: komma seperated columns of
-        layer 1, prefixed with "layer1"
-      * {layer1_columns_prefix_alias_str}: komma seperated columns of
-        layer 1, prefixed with "layer1" and with column name aliases
-      * {layer1_columns_from_subselect_str}: komma seperated columns of
-        layer 1, prefixed with "sub"
-      * {input1_databasename}: the database alias for input 1
-      * {input2_layer}: name of input layer 1
-      * {input2_geometrycolumn}: name of input geometry column 2
-      * {layer2_columns_prefix_str}: komma seperated columns of
-        layer 2, prefixed with "layer2"
-      * {layer2_columns_prefix_alias_str}: komma seperated columns of
-        layer 2, prefixed with "layer2" and with column name aliases
-      * {layer2_columns_from_subselect_str}: komma seperated columns of
-        layer 2, prefixed with "sub"
-      * {layer2_columns_prefix_alias_null_str}: komma seperated columns of
-        layer 2, but with NULL for all values and with column aliases
-      * {input2_databasename}: the database alias for input 2
-      * {batch_filter}: the filter to be applied per batch when using
-        parallel processing
+          * {input1_layer}: name of input layer 1
+          * {input1_geometrycolumn}: name of input geometry column 1
+          * {layer1_columns_prefix_str}: komma seperated columns of
+            layer 1, prefixed with "layer1"
+          * {layer1_columns_prefix_alias_str}: komma seperated columns of
+            layer 1, prefixed with "layer1" and with column name aliases
+          * {layer1_columns_from_subselect_str}: komma seperated columns of
+            layer 1, prefixed with "sub"
+          * {input1_databasename}: the database alias for input 1
+          * {input2_layer}: name of input layer 1
+          * {input2_geometrycolumn}: name of input geometry column 2
+          * {layer2_columns_prefix_str}: komma seperated columns of
+            layer 2, prefixed with "layer2"
+          * {layer2_columns_prefix_alias_str}: komma seperated columns of
+            layer 2, prefixed with "layer2" and with column name aliases
+          * {layer2_columns_from_subselect_str}: komma seperated columns of
+            layer 2, prefixed with "sub"
+          * {layer2_columns_prefix_alias_null_str}: komma seperated columns of
+            layer 2, but with NULL for all values and with column aliases
+          * {input2_databasename}: the database alias for input 2
+          * {batch_filter}: the filter to be applied per batch when using parallel
+            processing
 
-    Example: left outer join all features in input1 layer with all rows
-    in input2 on join_id.
-    ::
+        Example: left outer join all features in input1 layer with all rows
+        in input2 on join_id.
+        ::
 
-        import geofileops as gfo
+            import geofileops as gfo
 
-        minimum_area = 100
-        sql_stmt = f'''
-                SELECT layer1.{{input1_geometrycolumn}}
-                      {{layer1_columns_prefix_alias_str}}
-                      {{layer2_columns_prefix_alias_str}}
-                  FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                  LEFT OUTER JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                    ON layer1.join_id = layer2.join_id
-                 WHERE 1=1
-                   {{batch_filter}}
-                   AND ST_Area(layer1.{{input1_geometrycolumn}}) > {minimum_area}
-                '''
-        gfo.select_two_layers(
-                input1_path=...,
-                input2_path=...,
-                output_path=...,
+            minimum_area = 100
+            sql_stmt = f'''
+                    SELECT layer1.{{input1_geometrycolumn}}
+                        {{layer1_columns_prefix_alias_str}}
+                        {{layer2_columns_prefix_alias_str}}
+                    FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                    LEFT OUTER JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                        ON layer1.join_id = layer2.join_id
+                    WHERE 1=1
+                    {{batch_filter}}
+                    AND ST_Area(layer1.{{input1_geometrycolumn}}) > {minimum_area}
+                    '''
+            gfo.select_two_layers(
+                    input1_path=...,
+                    input2_path=...,
+                    output_path=...,
                 sql_stmt=sql_stmt)
 
-    Some important remarks:
+        Some important remarks:
 
-    * Because some sql statement won't give the same result when parallelized
-      (eg. when using a group by statement), nb_parallel is 1 by default.
-      If you do want to use parallel processing, specify nb_parallel + make
-      sure to include the placeholder {batch_filter} in your sql_stmt.
-      This placeholder will be replaced with a filter of the form
-      'AND rowid >= x AND rowid < y'.
-    * Table names are best double quoted as in the example, because some
-      characters are otherwise not supported in the table name, eg. '-'.
-    * When using supported placeholders, make sure you give the tables you
-      select from the appropriate table aliases (layer1, layer2).
-    * Besides the standard sqlite sql syntacs, you can use the spatialite
-      functions as documented here: |sqlite_reference_link|
-    * It is supported to use attribute tables (= table without geometry column) as
-      input layers and/or not to include the geometry column in the selected columns.
-      Note though that if the column placeholders are used (e.g.
-      {layer1_columns_prefix_str}), they will start with a "," and if no column precedes
-      it the SQL statement will be invalid.
+          * Because some sql statement won't give the same result when parallelized
+            (eg. when using a group by statement), nb_parallel is 1 by default.
+            If you do want to use parallel processing, specify nb_parallel + make
+            sure to include the placeholder {batch_filter} in your sql_stmt.
+            This placeholder will be replaced with a filter of the form
+            'AND rowid >= x AND rowid < y'.
+          * Table names are best double quoted as in the example, because some
+            characters are otherwise not supported in the table name, eg. '-'.
+          * When using supported placeholders, make sure you give the tables you
+            select from the appropriate table aliases (layer1, layer2).
+          * Besides the standard sqlite sql syntacs, you can use the spatialite
+            functions as documented here: |sqlite_reference_link|
+          * It is supported to use attribute tables (= table without geometry column)
+            as input layers and/or not to include the geometry column in the selected
+            columns. Note though that if the column placeholders are used (e.g.
+            {layer1_columns_prefix_str}), they will start with a "," and if no column
+            precedes it the SQL statement will be invalid.
 
     **Some more advanced example queries**
 
