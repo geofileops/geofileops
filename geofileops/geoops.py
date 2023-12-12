@@ -1381,63 +1381,18 @@ def select(
     force: bool = False,
 ):
     """
-    Execute an SQL query on the file.
+    Executes an SELECT SQL statement on the input file.
 
-    By convention, the sqlite query can contain following placeholders that
-    will be automatically replaced for you:
-
-      * {geometrycolumn}: the column where the primary geometry is stored.
-      * {columns_to_select_str}: if 'columns' is not None, those columns, otherwise all
-        columns of the layer.
-      * {input_layer}: the layer name of the input layer.
-      * {batch_filter}: the filter used to process in parallel per batch.
-
-    Hint: often you will want to use f"" formatting on the sql statement to fill out
-    some parameters of your own as well. You can easily escape the placeholders above by
-    doubling the "{" and "}", e.g. use {{geometrycolumn}} for {geometrycolumn}. Also
-    check out the example below.
-
-    Some important remarks:
-
-    * Because some sql statement won't give the same result when parallelized
-      (eg. when using a group by statement), nb_parallel is 1 by default.
-      If you do want to use parallel processing, specify nb_parallel + make
-      sure to include the placeholder {batch_filter} in your sql_stmt.
-      This placeholder will be replaced with a filter of the form
-      'AND rowid >= x AND rowid < y'.
-    * The name of the geometry column depends on the file format of the input file. E.g.
-      for .shp files the column will be called "geometry", for .gpkg files the default
-      name is "geom". If you use the {geometrycolumn} placeholder, geofileops will
-      replace it with the correct column name for the input file.
-    * If you apply (spatialite) functions on the geometry column always alias them again
-      to its original column name, e.g. with "AS {geometrycolumn}".
-    * Some sql statements won't give correct results when parallelized/ran in
-      multiple batches, e.g. when using a group by statement. This is why the default
-      value for nb_parallel is 1. If you want to parallelize or run the query in
-      multiple batches (by specifying nb_parallel != 1 or batchsize > 0), you should
-      make sure your query will give correct results if it is executed per batch of
-      rows instead of once on the entire layer.
-      Additionally, if you do so, make sure to include the placeholder {batch_filter}
-      in your sql_stmt. This placeholder will be replaced with a filter of the form
-      'AND rowid >= x AND rowid < y' and will ensure every row is only treated once.
-    * Table names are best double quoted as in the example, because some
-      characters are otherwise not supported in the table name, eg. '-'.
-    * It is recommend to give the table you select from "layer" as alias. If
-      you use the {batch_filter} placeholder this is even mandatory.
-    * When using the (default) "SQLITE" sql dialect, you can also use the spatialite
-      functions as documented here: |spatialite_reference_link|.
-    * It is supported to use an attribute table (= table without geometry column) as
-      input layer and/or not to include the geometry column in the selected columns.
-      Note though that if the {columns_to_select_str} placeholder is used, it will
-      start with a "," and if no column precedes it the SQL statement will be invalid.
+    The ``sql_stmt`` must be in SQLite dialect and can contain placeholders that will be
+    replaced automatically. More details can be found in the notes and examples below.
 
     The result is written to the output file specified.
 
     Args:
         input_path (PathLike): the input file
         output_path (PathLike): the file to write the result to
-        sql_stmt (str): the statement to execute
-        sql_dialect (str, optional): the sql dialect to use. If None, the default sql
+        sql_stmt (str): the SELECT SQL statement to execute
+        sql_dialect (str, optional): the SQL dialect to use. If None, the default SQL
             dialect of the underlying source is used. Defaults to "SQLITE".
         input_layer (str, optional): input layer name. Optional if the input
             file only contains one layer.
@@ -1459,8 +1414,9 @@ def select(
             in the output. Defaults to True.
         nb_parallel (int, optional): the number of parallel processes to use. If -1, all
             available cores are used. Defaults to 1.
-            If `nb_parallel` != 1, make sure your query still returns correct results if
-            it is executed per batch of rows instead of in one go on the entire layer.
+            If ``nb_parallel`` != 1, make sure your query still returns correct results
+            if it is executed per batch of rows instead of in one go on the entire
+            layer.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage. If batchsize != -1,
@@ -1469,25 +1425,77 @@ def select(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s). Defaults to False.
 
+    Note:
+        By convention, the sqlite query can contain following placeholders that
+        will be automatically replaced for you:
 
-    Example: buffer all rows with a certain minimum area to the output file.
-    ::
+        * {geometrycolumn}: the column where the primary geometry is stored.
+        * {columns_to_select_str}: if 'columns' is not None, those columns, otherwise
+          all columns of the layer.
+        * {input_layer}: the layer name of the input layer.
+        * {batch_filter}: the filter used to process in parallel per batch.
 
-        import geofileops as gfo
+        Hint: often you will want to use f"" formatting on the sql statement to fill out
+        some parameters of your own as well. You can easily escape the placeholders
+        above by doubling the "{" and "}", e.g. use {{geometrycolumn}} for
+        {geometrycolumn}. Also check out the example below.
 
-        minimum_area = 100
-        sql_stmt = f'''
+        Example: buffer all rows with a certain minimum area to the output file.
+
+        :: code-block:: sqlite3
+
+            import geofileops as gfo
+
+            minimum_area = 100
+            sql_stmt = f'''
                 SELECT ST_Buffer({{geometrycolumn}}, 1) AS {{geometrycolumn}}
                       {{columns_to_select_str}}
                   FROM "{{input_layer}}" layer
                  WHERE 1=1
                    {{batch_filter}}
                    AND ST_Area({{geometrycolumn}}) > {minimum_area}
-                '''
-        gfo.select(
+            '''
+            gfo.select(
                 input_path=...,
                 output_path=...,
-                sql_stmt=sql_stmt)
+                sql_stmt=sql_stmt,
+            )
+
+        Some important remarks:
+
+        * Because some sql statement won't give the same result when parallelized
+          (eg. when using a group by statement), nb_parallel is 1 by default.
+          If you do want to use parallel processing, specify nb_parallel + make
+          sure to include the placeholder {batch_filter} in your sql_stmt.
+          This placeholder will be replaced with a filter of the form
+          'AND rowid >= x AND rowid < y'.
+        * The name of the geometry column depends on the file format of the input file.
+          E.g. for .shp files the column will be called "geometry", for .gpkg files the
+          default name is "geom". If you use the {geometrycolumn} placeholder,
+          geofileops will replace it with the correct column name for the input file.
+        * If you apply (spatialite) functions on the geometry column always alias them
+          again to its original column name, e.g. with "AS {geometrycolumn}".
+        * Some sql statements won't give correct results when parallelized/ran in
+          multiple batches, e.g. when using a group by statement. This is why the
+          default value for nb_parallel is 1. If you want to parallelize or run the
+          query in multiple batches (by specifying nb_parallel != 1 or batchsize > 0),
+          you should make sure your query will give correct results if it is executed
+          per batch of rows instead of once on the entire layer.
+          Additionally, if you do so, make sure to include the placeholder
+          {batch_filter} in your sql_stmt. This placeholder will be replaced with a
+          filter of the form 'AND rowid >= x AND rowid < y' and will ensure every row is
+          only treated once.
+        * Table names are best double quoted as in the example, because some
+          characters are otherwise not supported in the table name, eg. '-'.
+        * It is recommend to give the table you select from "layer" as alias. If
+          you use the {batch_filter} placeholder this is even mandatory.
+        * When using the (default) "SQLITE" sql dialect, you can also use the spatialite
+          functions as documented here: |spatialite_reference_link|.
+        * It is supported to use an attribute table (= table without geometry column) as
+          input layer and/or not to include the geometry column in the selected columns.
+          Note though that if the {columns_to_select_str} placeholder is used, it will
+          start with a "," and if no column precedes it the SQL statement will be
+          invalid.
 
 
     .. |spatialite_reference_link| raw:: html
@@ -2519,7 +2527,7 @@ def select_two_layers(
     force: bool = False,
 ):
     r"""
-    Executes the SELECT SQL statement specified specified.
+    Executes an SELECT SQL statement on the input files.
 
     The ``sql_stmt`` must be in SQLite dialect and can contain placeholders that will be
     replaced automatically. More details can be found in the notes and examples below.
@@ -2603,27 +2611,29 @@ def select_two_layers(
 
         Example: left outer join all features in input1 layer with all rows
         in input2 on join_id.
-        ::
+
+        :: code-block:: python
 
             import geofileops as gfo
 
             minimum_area = 100
             sql_stmt = f'''
-                    SELECT layer1.{{input1_geometrycolumn}}
-                        {{layer1_columns_prefix_alias_str}}
-                        {{layer2_columns_prefix_alias_str}}
-                    FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                    LEFT OUTER JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                        ON layer1.join_id = layer2.join_id
-                    WHERE 1=1
-                    {{batch_filter}}
-                    AND ST_Area(layer1.{{input1_geometrycolumn}}) > {minimum_area}
-                    '''
+                SELECT layer1.{{input1_geometrycolumn}}
+                      {{layer1_columns_prefix_alias_str}}
+                      {{layer2_columns_prefix_alias_str}}
+                  FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                  LEFT OUTER JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                       ON layer1.join_id = layer2.join_id
+                 WHERE 1=1
+                   {{batch_filter}}
+                   AND ST_Area(layer1.{{input1_geometrycolumn}}) > {minimum_area}
+            '''
             gfo.select_two_layers(
-                    input1_path=...,
-                    input2_path=...,
-                    output_path=...,
-                sql_stmt=sql_stmt)
+                input1_path=...,
+                input2_path=...,
+                output_path=...,
+                sql_stmt=sql_stmt,
+            )
 
         Some important remarks:
 
