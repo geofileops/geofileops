@@ -2526,7 +2526,6 @@ def select_two_layers(
 
     The result is written to the output file specified.
 
-
     Args:
         input1_path (PathLike): the 1st input file.
         input2_path (PathLike): the 2nd input file.
@@ -2579,28 +2578,28 @@ def select_two_layers(
         By convention, the `sql_stmt` can contain following placeholders that
         will be automatically replaced for you:
 
-          * {input1_layer}: name of input layer 1
-          * {input1_geometrycolumn}: name of input geometry column 1
-          * {layer1_columns_prefix_str}: komma seperated columns of
-            layer 1, prefixed with "layer1"
-          * {layer1_columns_prefix_alias_str}: komma seperated columns of
-            layer 1, prefixed with "layer1" and with column name aliases
-          * {layer1_columns_from_subselect_str}: komma seperated columns of
-            layer 1, prefixed with "sub"
-          * {input1_databasename}: the database alias for input 1
-          * {input2_layer}: name of input layer 1
-          * {input2_geometrycolumn}: name of input geometry column 2
-          * {layer2_columns_prefix_str}: komma seperated columns of
-            layer 2, prefixed with "layer2"
-          * {layer2_columns_prefix_alias_str}: komma seperated columns of
-            layer 2, prefixed with "layer2" and with column name aliases
-          * {layer2_columns_from_subselect_str}: komma seperated columns of
-            layer 2, prefixed with "sub"
-          * {layer2_columns_prefix_alias_null_str}: komma seperated columns of
-            layer 2, but with NULL for all values and with column aliases
-          * {input2_databasename}: the database alias for input 2
-          * {batch_filter}: the filter to be applied per batch when using parallel
-            processing
+        * {input1_layer}: name of input layer 1
+        * {input1_geometrycolumn}: name of input geometry column 1
+        * {layer1_columns_prefix_str}: komma seperated columns of
+          layer 1, prefixed with "layer1"
+        * {layer1_columns_prefix_alias_str}: komma seperated columns of
+          layer 1, prefixed with "layer1" and with column name aliases
+        * {layer1_columns_from_subselect_str}: komma seperated columns of
+          layer 1, prefixed with "sub"
+        * {input1_databasename}: the database alias for input 1
+        * {input2_layer}: name of input layer 1
+        * {input2_geometrycolumn}: name of input geometry column 2
+        * {layer2_columns_prefix_str}: komma seperated columns of
+          layer 2, prefixed with "layer2"
+        * {layer2_columns_prefix_alias_str}: komma seperated columns of
+          layer 2, prefixed with "layer2" and with column name aliases
+        * {layer2_columns_from_subselect_str}: komma seperated columns of
+          layer 2, prefixed with "sub"
+        * {layer2_columns_prefix_alias_null_str}: komma seperated columns of
+          layer 2, but with NULL for all values and with column aliases
+        * {input2_databasename}: the database alias for input 2
+        * {batch_filter}: the filter to be applied per batch when using parallel
+          processing
 
         Example: left outer join all features in input1 layer with all rows
         in input2 on join_id.
@@ -2646,7 +2645,7 @@ def select_two_layers(
           {layer1_columns_prefix_str}), they will start with a "," and if no column
           precedes it the SQL statement will be invalid.
 
-    Some more advanced example queries:
+    Examples:
         An ideal place to get inspiration to write you own advanced queries
         is in the following source code file: |geofileops_sql_link|.
 
