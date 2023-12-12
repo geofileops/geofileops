@@ -2610,6 +2610,7 @@ def select_two_layers(
 
         Example: left outer join all features in input1 layer with all rows
         in input2 on join_id.
+
         .. code-block:: python
 
             import geofileops as gfo
@@ -2664,6 +2665,7 @@ def select_two_layers(
 
         For each feature in layer1, get the nearest feature of layer2 with the
         same values for the column join_id.
+
         .. code-block:: sqlite3
 
             WITH join_with_dist AS (
