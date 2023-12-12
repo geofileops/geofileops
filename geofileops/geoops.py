@@ -539,7 +539,7 @@ def buffer(
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
-    Buffer style options:
+    Notes:
         Using the different buffer style option parameters you can control how the
         buffer is created:
 
@@ -549,11 +549,11 @@ def buffer(
             :header-rows: 1
 
             * - 5 (default)
-            - 2
-            - 1
+              - 2
+              - 1
             * - |buffer_quadrantsegm_5|
-            - |buffer_quadrantsegm_2|
-            - |buffer_quadrantsegm_1|
+              - |buffer_quadrantsegm_2|
+              - |buffer_quadrantsegm_1|
 
         - **endcap_style** *(BufferEndCapStyle)*
 
@@ -561,11 +561,11 @@ def buffer(
             :header-rows: 1
 
             * - ROUND (default)
-            - FLAT
-            - SQUARE
+              - FLAT
+              - SQUARE
             * - |buffer_endcap_round|
-            - |buffer_endcap_flat|
-            - |buffer_endcap_square|
+              - |buffer_endcap_flat|
+              - |buffer_endcap_square|
 
         - **join_style** *(BufferJoinStyle)*
 
@@ -573,11 +573,11 @@ def buffer(
             :header-rows: 1
 
             * - ROUND (default)
-            - MITRE
-            - BEVEL
+              - MITRE
+              - BEVEL
             * - |buffer_joinstyle_round|
-            - |buffer_joinstyle_mitre|
-            - |buffer_joinstyle_bevel|
+              - |buffer_joinstyle_mitre|
+              - |buffer_joinstyle_bevel|
 
         - **mitre** *(float)*
 
@@ -585,11 +585,11 @@ def buffer(
             :header-rows: 1
 
             * - 5.0 (default)
-            - 2.5
-            - 1.0
+              - 2.5
+              - 1.0
             * - |buffer_mitre_50|
-            - |buffer_mitre_25|
-            - |buffer_mitre_10|
+              - |buffer_mitre_25|
+              - |buffer_mitre_10|
 
 
     .. |spatialite_reference_link| raw:: html
