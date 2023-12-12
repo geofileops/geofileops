@@ -2521,7 +2521,7 @@ def select_two_layers(
     r"""
     Executes the SELECT SQL statement specified specified.
 
-    The `sql_stmt` must be in SQLite dialect and can contain placeholders that will be
+    The ``sql_stmt`` must be in SQLite dialect and can contain placeholders that will be
     replaced automatically. More details can be found in the notes and examples below.
 
     The result is written to the output file specified.
@@ -2535,23 +2535,23 @@ def select_two_layers(
         input1_layer (str, optional): input layer name. Optional if the
             file only contains one layer. Defaults to None.
         input1_columns (List[str], optional): list of columns to retain if one of the
-            `{layer1_columns_...}` placeholders is used in sql_stmt. If None, all
+            {layer1\_columns_...} placeholders is used in ``sql_stmt``. If None, all
             standard columns are retained. In addition to standard columns, it is also
             possible to specify "fid", a unique index available in all input files. Note
-            that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
-            "fid_1". Defaults to None.
+            that the "fid" will be aliased even if ``input1_columns_prefix`` is "", eg.
+            to "fid_1". Defaults to None.
         input1_columns_prefix (str, optional): prefix to use in the column aliases.
             Defaults to "l1\_".
         input2_layer (str, optional): input layer name. Optional if the
             file only contains one layer. Defaults to None.
         input2_columns (List[str], optional): list of columns to retain if one of the
-            {layer2_columns_...} placeholders is used in sql_stmt. If None is specified,
-            all columns are selected. As explained for input1_columns, it is also
-            possible to specify "fid". Defaults to None.
+            {layer2\_columns_...} placeholders is used in sql_stmt. If None is
+            specified, all columns are selected. As explained for ``input1_columns``, it
+            is also possible to specify "fid". Defaults to None.
         input2_columns_prefix (str, optional): prefix to use in the column aliases.
             Defaults to "l2\_".
-        output_layer (str, optional): output layer name. If None, the output_path stem
-            is used. Defaults to None.
+        output_layer (str, optional): output layer name. If None, the ``output_path``
+            stem is used. Defaults to None.
         explodecollections (bool, optional): True to convert all multi-geometries to
             singular ones after the dissolve. Defaults to False.
         force_output_geometrytype (GeometryType, optional): The output geometry
@@ -2561,12 +2561,12 @@ def select_two_layers(
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
         where_post (str, optional): sql filter to apply after all other processing,
-            including e.g. explodecollections. It should be in sqlite syntax and
+            including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use. If -1, all
-            available cores are used. Defaults to 1.
-            If `nb_parallel` != 1, make sure your query still returns correct results if
-            it is executed per batch of rows instead of in one go on the entire layer.
+            available cores are used. Defaults to 1. If ``nb_parallel`` != 1, make sure
+            your query still returns correct results if it is executed per batch of rows
+            instead of in one go on the entire layer.
         batchsize (int, optional): indicative number of rows to process per batch.
             A smaller batch size, possibly in combination with a smaller nb_parallel,
             will reduce the memory usage.
@@ -2575,7 +2575,7 @@ def select_two_layers(
             Defaults to False.
 
     Notes:
-        By convention, the `sql_stmt` can contain following placeholders that
+        By convention, the ``sql_stmt`` can contain following placeholders that
         will be automatically replaced for you:
 
         * {input1_layer}: name of input layer 1
@@ -2652,7 +2652,7 @@ def select_two_layers(
         Additionally, there are some examples listed here that highlight
         other features/possibilities.
 
-        *Join nearest features*
+        **Join nearest features**
 
         For each feature in layer1, get the nearest feature of layer2 with the
         same values for the column join_id.
