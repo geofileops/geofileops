@@ -400,7 +400,7 @@ def apply(
 
     Examples:
         This example shows the basic usage of `gfo.apply`:
-        ::
+        :: code-block:: python
 
             import geofileops as gfo
 
@@ -412,7 +412,7 @@ def apply(
 
         If you need to use the contents of other columns in your lambda function, you can
         call `gfo.apply` like this:
-        ::
+        :: code-block:: python
 
             import geofileops as gfo
 
@@ -1441,7 +1441,6 @@ def select(
         {geometrycolumn}. Also check out the example below.
 
         Example: buffer all rows with a certain minimum area to the output file.
-
         :: code-block:: python
 
             import geofileops as gfo
@@ -2016,7 +2015,7 @@ def identity(
     subdivide_coords: int = 2000,
     force: bool = False,
 ):
-    """
+    r"""
     Intersection of the input layers, but retain the non-intersecting parts of input1.
 
     The result is the equivalent of an intersect between the two layers + layer
@@ -2034,14 +2033,14 @@ def identity(
             that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
             "fid_1". Defaults to None.
         input1_columns_prefix (str, optional): prefix to use in the column aliases.
-            Defaults to "l1_".
+            Defaults to "l1\_".
         input2_layer (str, optional): input layer name. Optional if the
             file only contains one layer. Defaults to None.
         input2_columns (List[str], optional): columns to select. If None is specified,
             all columns are selected. As explained for input1_columns, it is also
             possible to specify "fid". Defaults to None.
         input2_columns_prefix (str, optional): prefix to use in the column aliases.
-            Defaults to "l2_".
+            Defaults to "l2\_".
         output_layer (str, optional): output layer name. If None, the output_path stem
             is used. Defaults to None.
         explodecollections (bool, optional): True to convert all multi-geometries to
@@ -2208,7 +2207,7 @@ def intersection(
     batchsize: int = -1,
     force: bool = False,
 ):
-    """
+    r"""
     Calculate the pairwise intersection of alle features.
 
     Alternative names:
@@ -2226,14 +2225,14 @@ def intersection(
             that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
             "fid_1". Defaults to None.
         input1_columns_prefix (str, optional): prefix to use in the column aliases.
-            Defaults to "l1_".
+            Defaults to "l1\_".
         input2_layer (str, optional): input layer name. Optional if the
             file only contains one layer. Defaults to None.
         input2_columns (List[str], optional): columns to select. If None is specified,
             all columns are selected. As explained for input1_columns, it is also
             possible to specify "fid". Defaults to None.
         input2_columns_prefix (str, optional): prefix to use in the column aliases.
-            Defaults to "l2_".
+            Defaults to "l2\_".
         output_layer (str, optional): output layer name. If None, the output_path stem
             is used. Defaults to None.
         explodecollections (bool, optional): True to convert all multi-geometries to
@@ -2301,7 +2300,7 @@ def join_by_location(
     batchsize: int = -1,
     force: bool = False,
 ):
-    """
+    r"""
     Joins all features in input1 with all features in input2.
 
     The output will contain the geometries of input1. The spatial_relations_query and
@@ -2348,14 +2347,14 @@ def join_by_location(
             that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
             "fid_1". Defaults to None.
         input1_columns_prefix (str, optional): prefix to use in the column aliases.
-            Defaults to "l1_".
+            Defaults to "l1\_".
         input2_layer (str, optional): input layer name. Optional if the
             file only contains one layer. Defaults to None.
         input2_columns (List[str], optional): columns to select. If None is specified,
             all columns are selected. As explained for input1_columns, it is also
             possible to specify "fid". Defaults to None.
         input2_columns_prefix (str, optional): prefix to use in the column aliases.
-            Defaults to "l2_".
+            Defaults to "l2\_".
         output_layer (str, optional): output layer name. If None, the output_path stem
             is used. Defaults to None.
         gridsize (float, optional): the size of the grid the coordinates of the ouput
@@ -2422,7 +2421,7 @@ def join_nearest(
     batchsize: int = -1,
     force: bool = False,
 ):
-    """
+    r"""
     Joins features of `input1` with the `nb_nearest` closest features of `input2`.
 
     In addition to the columns requested via the `input*_columns` parameters, the
@@ -2464,14 +2463,14 @@ def join_nearest(
             that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
             "fid_1". Defaults to None.
         input1_columns_prefix (str, optional): prefix to use in the column aliases.
-            Defaults to "l1_".
+            Defaults to "l1\_".
         input2_layer (str, optional): input layer name. Optional if the
             file only contains one layer. Defaults to None.
         input2_columns (List[str], optional): columns to select. If None is specified,
             all columns are selected. As explained for input1_columns, it is also
             possible to specify "fid". Defaults to None.
         input2_columns_prefix (str, optional): prefix to use in the column aliases.
-            Defaults to "l2_".
+            Defaults to "l2\_".
         output_layer (str, optional): output layer name. If None, the output_path stem
             is used. Defaults to None.
         nb_parallel (int, optional): the number of parallel processes to use.
@@ -2611,7 +2610,6 @@ def select_two_layers(
 
         Example: left outer join all features in input1 layer with all rows
         in input2 on join_id.
-
         :: code-block:: python
 
             import geofileops as gfo
@@ -2666,7 +2664,6 @@ def select_two_layers(
 
         For each feature in layer1, get the nearest feature of layer2 with the
         same values for the column join_id.
-
         .. code-block:: sqlite3
 
             WITH join_with_dist AS (
@@ -2745,7 +2742,7 @@ def symmetric_difference(
     subdivide_coords: int = 2000,
     force: bool = False,
 ):
-    """
+    r"""
     Calculates the "symmetric difference" of the two input layers.
 
     Alternative names:
@@ -2764,14 +2761,14 @@ def symmetric_difference(
             that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
             "fid_1". Defaults to None.
         input1_columns_prefix (str, optional): prefix to use in the column aliases.
-            Defaults to "l1_".
+            Defaults to "l1\_".
         input2_layer (str, optional): input layer name. Optional if the
             file only contains one layer. Defaults to None.
         input2_columns (List[str], optional): columns to select. If None is specified,
             all columns are selected. As explained for input1_columns, it is also
             possible to specify "fid". Defaults to None.
         input2_columns_prefix (str, optional): prefix to use in the column aliases.
-            Defaults to "l2_".
+            Defaults to "l2\_".
         output_layer (str, optional): output layer name. If None, the output_path stem
             is used. Defaults to None.
         explodecollections (bool, optional): True to convert all multi-geometries to
@@ -2847,7 +2844,7 @@ def union(
     subdivide_coords: int = 2000,
     force: bool = False,
 ):
-    """
+    r"""
     Calculates the pairwise "union" of the two input layers.
 
     Alternative names:
@@ -2865,14 +2862,14 @@ def union(
             that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
             "fid_1". Defaults to None.
         input1_columns_prefix (str, optional): prefix to use in the column aliases.
-            Defaults to "l1_".
+            Defaults to "l1\_".
         input2_layer (str, optional): input layer name. Optional if the
             file only contains one layer. Defaults to None.
         input2_columns (List[str], optional): columns to select. If None is specified,
             all columns are selected. As explained for input1_columns, it is also
             possible to specify "fid". Defaults to None.
         input2_columns_prefix (str, optional): prefix to use in the column aliases.
-            Defaults to "l2_".
+            Defaults to "l2\_".
         output_layer (str, optional): output layer name. If None, the output_path stem
             is used. Defaults to None.
         explodecollections (bool, optional): True to convert all multi-geometries to
