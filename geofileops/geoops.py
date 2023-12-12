@@ -2518,7 +2518,7 @@ def select_two_layers(
     batchsize: int = -1,
     force: bool = False,
 ):
-    """
+    r"""
     Executes the SELECT SQL statement specified specified.
 
     The `sql_stmt` must be in SQLite dialect and can contain placeholders that will be
@@ -2541,7 +2541,7 @@ def select_two_layers(
             that the "fid" will be aliased even if input1_columns_prefix is "", eg. to
             "fid_1". Defaults to None.
         input1_columns_prefix (str, optional): prefix to use in the column aliases.
-            Defaults to "l1__".
+            Defaults to "l1\_".
         input2_layer (str, optional): input layer name. Optional if the
             file only contains one layer. Defaults to None.
         input2_columns (List[str], optional): list of columns to retain if one of the
@@ -2549,7 +2549,7 @@ def select_two_layers(
             all columns are selected. As explained for input1_columns, it is also
             possible to specify "fid". Defaults to None.
         input2_columns_prefix (str, optional): prefix to use in the column aliases.
-            Defaults to "l2__".
+            Defaults to "l2\_".
         output_layer (str, optional): output layer name. If None, the output_path stem
             is used. Defaults to None.
         explodecollections (bool, optional): True to convert all multi-geometries to
