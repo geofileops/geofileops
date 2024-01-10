@@ -4,7 +4,9 @@
 
 ### Bugs fixed
 
-- Fix error in erase if erase_path countains multiple layers (#451)
+- Fix error in `erase` if `erase_path` countains multiple layers (#451)
+- Fix error in `dissolve` if a pass that is not the last one doesn't have any onborder 
+  polygons in its result (#)
 
 ## 0.8.0 (2023-11-24)
 
