@@ -37,7 +37,7 @@ The following chart gives an impression of the speed improvement that can be exp
 when processing larger files. The `benchmarks <https://github.com/geofileops/geobenchmark>`_
 ran on a Windows PC with 12 cores and include I/O.
 
-.. image:: https://github.com/geofileops/geobenchmark/blob/main/results_vector_ops/GeoBenchmark.png
+.. image:: https://github.com/geofileops/geobenchmark/blob/main/results_vector_ops/GeoBenchmark.png?raw=true
    :alt: geobenchmark spatial vector operations performance chart
    
 
