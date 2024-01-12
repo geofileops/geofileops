@@ -9,12 +9,8 @@
 GeofileOps |version|
 ====================
 
-Python toolbox to process large vector files faster.
+GeofileOps is a python toolbox to process large vector files faster.
 
-Introduction
-============
-
-Geofileops provides an easy to use API that can accomplish a lot with few lines of code.
 Most typical GIS operations are available: e.g. :meth:`~buffer`, :meth:`~simplify`,
 :meth:`~dissolve`, :meth:`~intersection`,... You can also run custom logic by using
 :meth:`~apply`, :meth:`~select` or :meth:`~select_two_layers`.
@@ -22,9 +18,6 @@ Most typical GIS operations are available: e.g. :meth:`~buffer`, :meth:`~simplif
 The spatial operations are tested on geopackage and shapefile input files, but
 geopackage is recommended as it will give better performance. General layer and file
 operations can be used on the file formats supported by `GDAL <https://gdal.org>`_.
-
-Performance
-===========
 
 Different techniques are used under the hood to be able to process large files as fast
 as possible:

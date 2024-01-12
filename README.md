@@ -6,11 +6,8 @@
 [![Conda version](https://anaconda.org/conda-forge/geofileops/badges/version.svg)](https://anaconda.org/conda-forge/geofileops)
 [![DOI](https://zenodo.org/badge/203202318.svg)](https://zenodo.org/doi/10.5281/zenodo.10340100)
 
-Python toolbox to process large vector files faster.
+Geofileops is a python toolbox to process large vector files faster.
 
-## Introduction
-
-Geofileops provides an easy to use API that can accomplish a lot with few lines of code.
 Most typical GIS operations are available: e.g.
 [buffer](https://geofileops.readthedocs.io/en/stable/api/geofileops.apply.html#geofileops.buffer), 
 [dissolve](https://geofileops.readthedocs.io/en/stable/api/geofileops.apply.html#geofileops.dissolve),
@@ -25,8 +22,6 @@ and [file operations](https://geofileops.readthedocs.io/en/stable/reference.html
 [GDAL](https://gdal.org/).
 
 The full documentation is available on [readthedocs](https://geofileops.readthedocs.io).
-
-## Performance
 
 Different techniques are used under the hood to be able to process large files as fast
 as possible:
