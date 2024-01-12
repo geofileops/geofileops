@@ -15,8 +15,8 @@ typical GIS operations are available: e.g.
 [erase](https://geofileops.readthedocs.io/en/stable/api/geofileops.apply.html#geofileops.erase)/difference, 
 [intersection](https://geofileops.readthedocs.io/en/stable/api/geofileops.apply.html#geofileops.intersection), 
 [union](https://geofileops.readthedocs.io/en/stable/api/geofileops.apply.html#geofileops.union),... 
-Check out the [API reference](https://geofileops.readthedocs.io/en/stable/reference.html)
-for a full list.
+
+Check out the [readthedocs documentation](https://geofileops.readthedocs.io) for more info.
 
 The spatial operations are tested on geopackage and shapefile input files, but geopackage is recommended as it will give better performance. General [layer](https://geofileops.readthedocs.io/en/stable/reference.html#general-layer-operations) and [file operations](https://geofileops.readthedocs.io/en/stable/reference.html#general-file-operations) can be used on the file formats supported by [GDAL](https://gdal.org/).
 
