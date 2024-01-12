@@ -358,17 +358,8 @@ def apply(
 
     The result is written to the output file specified.
 
-    Examples for the func parameter:
-        * if only_geom_input is True:
-            ``func=lambda geom: pygeoops.remove_inner_rings(``
-                    ``geom, min_area_to_keep=1)``
-
-        * if only_geom_input is False:
-            ``func=lambda row: pygeoops.remove_inner_rings(``
-                    ``row.geometry, min_area_to_keep=1)``
-
-    If ``explodecollections`` is False and the output file is a GeoPackage, the fid
-    will be preserved. In other cases this will typically not be the case.
+    If ``explodecollections`` is False and the input and output file type is GeoPackage,
+    the fid will be preserved. In other cases this will typically not be the case.
 
     Args:
         input_path (PathLike): the input file
@@ -406,6 +397,34 @@ def apply(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    Examples:
+        This example shows the basic usage of `gfo.apply`:
+        ::
+
+            import geofileops as gfo
+
+            gfo.apply(
+                input_path=...,
+                output_path=...,
+                func=lambda geom: pygeoops.remove_inner_rings(geom, min_area_to_keep=1),
+            )
+
+        If you need to use the contents of other columns in your lambda function, you can
+        call `gfo.apply` like this:
+        ::
+
+            import geofileops as gfo
+
+            gfo.apply(
+                input_path=...,
+                output_path=...,
+                func=lambda row: pygeoops.remove_inner_rings(
+                    row.geometry, min_area_to_keep=row.min_area_to_keep
+                ),
+                only_geom_input=False,
+            )
+
 
     .. |spatialite_reference_link| raw:: html
 
@@ -459,8 +478,8 @@ def buffer(
 
     The result is written to the output file specified.
 
-    If ``explodecollections`` is False and the output file is a GeoPackage, the fid
-    will be preserved. In other cases this will typically not be the case.
+    If ``explodecollections`` is False and the input and output file type is GeoPackage,
+    the fid will be preserved. In other cases this will typically not be the case.
 
     Args:
         input_path (PathLike): the input file
@@ -518,62 +537,62 @@ def buffer(
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
+    Buffer style options:
+        Using the different buffer style option parameters you can control how the
+        buffer is created:
+
+        - **quadrantsegments** *(int)*
+
+        .. list-table::
+            :header-rows: 1
+
+            * - 5 (default)
+            - 2
+            - 1
+            * - |buffer_quadrantsegm_5|
+            - |buffer_quadrantsegm_2|
+            - |buffer_quadrantsegm_1|
+
+        - **endcap_style** *(BufferEndCapStyle)*
+
+        .. list-table::
+            :header-rows: 1
+
+            * - ROUND (default)
+            - FLAT
+            - SQUARE
+            * - |buffer_endcap_round|
+            - |buffer_endcap_flat|
+            - |buffer_endcap_square|
+
+        - **join_style** *(BufferJoinStyle)*
+
+        .. list-table::
+            :header-rows: 1
+
+            * - ROUND (default)
+            - MITRE
+            - BEVEL
+            * - |buffer_joinstyle_round|
+            - |buffer_joinstyle_mitre|
+            - |buffer_joinstyle_bevel|
+
+        - **mitre** *(float)*
+
+        .. list-table::
+            :header-rows: 1
+
+            * - 5.0 (default)
+            - 2.5
+            - 1.0
+            * - |buffer_mitre_50|
+            - |buffer_mitre_25|
+            - |buffer_mitre_10|
+
+
     .. |spatialite_reference_link| raw:: html
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite</a>
-
-    **Buffer style options**
-
-    Using the different buffer style option parameters you can control how the
-    buffer is created:
-
-    - **quadrantsegments** *(int)*
-
-      .. list-table::
-         :header-rows: 1
-
-         * - 5 (default)
-           - 2
-           - 1
-         * - |buffer_quadrantsegm_5|
-           - |buffer_quadrantsegm_2|
-           - |buffer_quadrantsegm_1|
-
-    - **endcap_style** *(BufferEndCapStyle)*
-
-      .. list-table::
-         :header-rows: 1
-
-         * - ROUND (default)
-           - FLAT
-           - SQUARE
-         * - |buffer_endcap_round|
-           - |buffer_endcap_flat|
-           - |buffer_endcap_square|
-
-    - **join_style** *(BufferJoinStyle)*
-
-      .. list-table::
-         :header-rows: 1
-
-         * - ROUND (default)
-           - MITRE
-           - BEVEL
-         * - |buffer_joinstyle_round|
-           - |buffer_joinstyle_mitre|
-           - |buffer_joinstyle_bevel|
-
-    - **mitre** *(float)*
-
-      .. list-table::
-         :header-rows: 1
-
-         * - 5.0 (default)
-           - 2.5
-           - 1.0
-         * - |buffer_mitre_50|
-           - |buffer_mitre_25|
-           - |buffer_mitre_10|
 
     .. |buffer_quadrantsegm_5| image:: ../_static/images/buffer_quadrantsegments_5.png
         :alt: Buffer with quadrantsegments=5
@@ -599,6 +618,7 @@ def buffer(
         :alt: Buffer with mitre=2.5
     .. |buffer_mitre_10| image:: ../_static/images/buffer_mitre_10.png
         :alt: Buffer with mitre=1.0
+
     """  # noqa: E501
     logger = logging.getLogger("geofileops.buffer")
     logger.info(
@@ -665,8 +685,8 @@ def clip_by_geometry(
     """
     Clip all geometries in the imput file by the geometry provided.
 
-    If ``explodecollections`` is False and the output file is a GeoPackage, the fid
-    will be preserved. In other cases this will typically not be the case.
+    If ``explodecollections`` is False and the input and output file type is GeoPackage,
+    the fid will be preserved. In other cases this will typically not be the case.
 
     Args:
         input_path (PathLike): the input file
@@ -719,8 +739,8 @@ def convexhull(
 
     The result is written to the output file specified.
 
-    If ``explodecollections`` is False and the output file is a GeoPackage, the fid
-    will be preserved. In other cases this will typically not be the case.
+    If ``explodecollections`` is False and the input and output file type is GeoPackage,
+    the fid will be preserved. In other cases this will typically not be the case.
 
     Args:
         input_path (PathLike): the input file
@@ -790,8 +810,8 @@ def delete_duplicate_geometries(
     """
     Copy all rows to the output file, except for duplicate geometries.
 
-    If ``explodecollections`` is False and the output file is a GeoPackage, the fid
-    will be preserved. In other cases this will typically not be the case.
+    If ``explodecollections`` is False and the input and output file type is GeoPackage,
+    the fid will be preserved. In other cases this will typically not be the case.
 
     Args:
         input_path (PathLike): the input file
@@ -1041,8 +1061,8 @@ def export_by_bounds(
     """
     Export the rows that intersect with the bounds specified.
 
-    If ``explodecollections`` is False and the output file is a GeoPackage, the fid
-    will be preserved. In other cases this will typically not be the case.
+    If ``explodecollections`` is False and the input and output file type is GeoPackage,
+    the fid will be preserved. In other cases this will typically not be the case.
 
     Args:
         input_path (PathLike): the input file
@@ -1093,8 +1113,8 @@ def isvalid(
 
     The results are written to the output file.
 
-    If ``explodecollections`` is False and the output file is a GeoPackage, the fid
-    will be preserved. In other cases this will typically not be the case.
+    If ``explodecollections`` is False and the input and output file type is GeoPackage,
+    the fid will be preserved. In other cases this will typically not be the case.
 
     Args:
         input_path (PathLike): The input file.
@@ -1179,8 +1199,8 @@ def makevalid(
         - QGIS: fix geometries
         - shapely, geopandas: make_valid
 
-    If ``explodecollections`` is False and the output file is a GeoPackage, the fid
-    will be preserved. In other cases this will typically not be the case.
+    If ``explodecollections`` is False and the input and output file type is GeoPackage,
+    the fid will be preserved. In other cases this will typically not be the case.
 
     Args:
         input_path (PathLike): The input file.
@@ -1514,8 +1534,8 @@ def simplify(
 
     The result is written to the output file specified.
 
-    If ``explodecollections`` is False and the output file is a GeoPackage, the fid
-    will be preserved. In other cases this will typically not be the case.
+    If ``explodecollections`` is False and the input and output file type is GeoPackage,
+    the fid will be preserved. In other cases this will typically not be the case.
 
     Args:
         input_path (PathLike): the input file
@@ -1720,7 +1740,7 @@ def erase(
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    subdivide_coords: int = 1000,
+    subdivide_coords: int = 2000,
     force: bool = False,
 ):
     """
@@ -1766,7 +1786,7 @@ def erase(
             parts with about subdivide_coords coordinates during processing which can
             offer a large speed up for complex geometries. Subdividing can result in
             extra collinear points being added to the boundaries of the output. If < 0,
-            no subdividing is applied. Defaults to 1000.
+            no subdividing is applied. Defaults to 2000.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
@@ -1977,7 +1997,7 @@ def identity(
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    subdivide_coords: int = 1000,
+    subdivide_coords: int = 2000,
     force: bool = False,
 ):
     """
@@ -2026,7 +2046,7 @@ def identity(
             parts with about subdivide_coords coordinates during processing which can
             offer a large speed up for complex geometries. Subdividing can result in
             extra collinear points being added to the boundaries of the output. If < 0,
-            no subdividing is applied. Defaults to 1000.
+            no subdividing is applied. Defaults to 2000.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
@@ -2074,7 +2094,7 @@ def split(
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    subdivide_coords: int = 1000,
+    subdivide_coords: int = 2000,
     force: bool = False,
 ):
     """
@@ -2696,7 +2716,7 @@ def symmetric_difference(
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    subdivide_coords: int = 1000,
+    subdivide_coords: int = 2000,
     force: bool = False,
 ):
     """
@@ -2747,7 +2767,7 @@ def symmetric_difference(
             parts with about subdivide_coords coordinates during processing which can
             offer a large speed up for complex geometries. Subdividing can result in
             extra collinear points being added to the boundaries of the output. If < 0,
-            no subdividing is applied. Defaults to 1000.
+            no subdividing is applied. Defaults to 2000.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
@@ -2798,7 +2818,7 @@ def union(
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    subdivide_coords: int = 1000,
+    subdivide_coords: int = 2000,
     force: bool = False,
 ):
     """
@@ -2847,7 +2867,7 @@ def union(
             parts with about subdivide_coords coordinates during processing which can
             offer a large speed up for complex geometries. Subdividing can result in
             extra collinear points being added to the boundaries of the output. If < 0,
-            no subdividing is applied. Defaults to 1000.
+            no subdividing is applied. Defaults to 2000.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 

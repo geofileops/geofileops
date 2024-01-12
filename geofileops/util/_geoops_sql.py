@@ -16,6 +16,8 @@ from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union
 import warnings
 
 import pandas as pd
+import pygeoops
+import shapely
 
 import geofileops as gfo
 from geofileops import GeometryType, PrimitiveType
@@ -25,6 +27,7 @@ from geofileops._compat import SPATIALITE_GTE_51
 from geofileops.fileops import _append_to_nolock
 from geofileops.util import _general_util
 from geofileops.util import _geofileinfo
+from geofileops.util import _geoops_gpd
 from geofileops.util import _io_util
 from geofileops.util import _ogr_sql_util
 from geofileops.util import _ogr_util
@@ -296,6 +299,14 @@ def makevalid(
         logger.info(f"Stop, output exists already {output_path}")
         return
 
+    # Determine output_geometrytype + make it multitype if it wasn't specified.
+    # Otherwise makevalid can result in column type 'GEOMETRY'/'UNKNOWN(ANY)'.
+    if force_output_geometrytype is None:
+        input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
+        force_output_geometrytype = input_layerinfo.geometrytype
+        if not explodecollections:
+            force_output_geometrytype = force_output_geometrytype.to_multitype
+
     # Init + prepare sql template for this operation
     # ----------------------------------------------
     # Only apply makevalid if the geometry is truly invalid, this is faster
@@ -312,12 +323,6 @@ def makevalid(
                 {geometrycolumn},
                 ST_MakeValid({geometrycolumn})
             )"""
-
-        # Determine output_geometrytype if it wasn't specified. Otherwise makevalid
-        # can result in column type 'GEOMETRY'/'UNKNOWN(ANY)'
-        input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
-        if force_output_geometrytype is None:
-            force_output_geometrytype = input_layerinfo.geometrytype
 
         # If we want a specific geometrytype, only extract the relevant type
         if force_output_geometrytype is not GeometryType.GEOMETRYCOLLECTION:
@@ -369,9 +374,10 @@ def select(
     nb_parallel: int = 1,
     batchsize: int = -1,
     force: bool = False,
+    operation_prefix: str = "",
 ):
     # Check if output exists already here, to avoid to much logging to be written
-    logger = logging.getLogger("geofileops.select")
+    logger = logging.getLogger(f"geofileops.{operation_prefix}select")
     if output_path.exists():
         if force is False:
             logger.info(f"Stop, output exists already {output_path}")
@@ -383,6 +389,9 @@ def select(
         force_output_geometrytype = gfo.get_layerinfo(
             input_path, input_layer, raise_on_nogeom=False
         ).geometrytype
+        if force_output_geometrytype is not None and not explodecollections:
+            force_output_geometrytype = force_output_geometrytype.to_multitype
+
         logger.info(
             "No force_output_geometrytype specified, so defaults to input "
             f"layer geometrytype: {force_output_geometrytype}"
@@ -394,7 +403,7 @@ def select(
         output_path=output_path,
         sql_template=sql_stmt,
         geom_selected=None,
-        operation_name="select",
+        operation_name=f"{operation_prefix}select",
         input_layer=input_layer,
         output_layer=output_layer,
         columns=columns,
@@ -536,7 +545,11 @@ def _single_layer_vector_operation(
 
     # Determine if fid can be preserved
     preserve_fid = False
-    if not explodecollections and gfo.get_driver(output_path) == "GPKG":
+    if (
+        not explodecollections
+        and _geofileinfo.get_geofileinfo(input_path).is_spatialite_based
+        and _geofileinfo.get_geofileinfo(output_path).is_spatialite_based
+    ):
         preserve_fid = True
 
     # Calculate
@@ -747,7 +760,11 @@ def _single_layer_vector_operation(
             # the same file at the time.
             nb_done = 0
             _general_util.report_progress(
-                start_time, nb_done, nb_batches, operation_name, nb_parallel=nb_parallel
+                start_time,
+                nb_done,
+                nb_todo=nb_batches,
+                operation=operation_name,
+                nb_parallel=processing_params.nb_parallel,
             )
             for future in futures.as_completed(future_to_batch_id):
                 try:
@@ -802,9 +819,9 @@ def _single_layer_vector_operation(
                 _general_util.report_progress(
                     start_time,
                     nb_done,
-                    nb_batches,
-                    operation_name,
-                    nb_parallel=nb_parallel,
+                    nb_todo=nb_batches,
+                    operation=operation_name,
+                    nb_parallel=processing_params.nb_parallel,
                 )
 
         # Round up and clean up
@@ -868,11 +885,11 @@ def clip(
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
     primitivetypeid = input_layer_info.geometrytype.to_primitivetype.value
 
-    # If the input type is not point, force the output type to multi,
-    # because erase clip cause eg. polygons to be split to multipolygons...
+    # If explodecollections is False and the input type is not point, force the output
+    # type to multi, because erase clip cause eg. polygons to be split to multipolygons.
     force_output_geometrytype = input_layer_info.geometrytype
-    if force_output_geometrytype is not GeometryType.POINT:
-        force_output_geometrytype = input_layer_info.geometrytype.to_multitype
+    if not explodecollections and force_output_geometrytype is not GeometryType.POINT:
+        force_output_geometrytype = force_output_geometrytype.to_multitype
 
     # Prepare sql template for this operation
     # Remarks:
@@ -904,9 +921,9 @@ def clip(
                  AND ST_Intersects(
                         layer1.{{input1_geometrycolumn}},
                         layer2.{{input2_geometrycolumn}}) = 1
-                 AND ST_Touches(
-                        layer1.{{input1_geometrycolumn}},
-                        layer2.{{input2_geometrycolumn}}) = 0
+                 --AND ST_Touches(
+                 --       layer1.{{input1_geometrycolumn}},
+                 --       layer2.{{input2_geometrycolumn}}) = 0
                GROUP BY layer1.rowid
                LIMIT -1 OFFSET 0
             )
@@ -963,20 +980,97 @@ def erase(
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    subdivide_coords: int = 1000,
+    subdivide_coords: int = 2000,
     force: bool = False,
     input_columns_prefix: str = "",
     output_with_spatial_index: bool = True,
     operation_prefix: str = "",
 ):
-    # Init
-    input_layer_info = gfo.get_layerinfo(input_path, input_layer)
+    # Because there might be extra preparation of the erase layer before going ahead
+    # with the real calculation, do some additional init + checks here...
+    operation = f"{operation_prefix}erase"
+    logger = logging.getLogger(f"geofileops.{operation}")
+    if output_path.exists():
+        if force is False:
+            logger.info(f"Stop, output exists already {output_path}")
+            return
+        else:
+            gfo.remove(output_path)
 
-    # If the input type is not point, force the output type to multi,
-    # because erase can cause eg. polygons to be split to multipolygons...
+    # Init
+    start_time = datetime.now()
+    input_layer_info = gfo.get_layerinfo(input_path, input_layer)
+    primitivetypeid = input_layer_info.geometrytype.to_primitivetype.value
+
+    # If explodecollections is False and the input type is not point, force the output
+    # type to multi, because erase can cause eg. polygons to be split to multipolygons.
     force_output_geometrytype = input_layer_info.geometrytype
-    if force_output_geometrytype is not GeometryType.POINT:
+    if not explodecollections and force_output_geometrytype is not GeometryType.POINT:
         force_output_geometrytype = input_layer_info.geometrytype.to_multitype
+
+    # If the erase layer is made out of polygons, subdivide them if needed
+    tmp_dir = None
+    erase_layer_info = gfo.get_layerinfo(erase_path, erase_layer)
+    if (
+        subdivide_coords > 0
+        and erase_layer_info.geometrytype.to_primitivetype == PrimitiveType.POLYGON
+    ):
+        erase_layer = erase_layer_info.name
+
+        # If erase layer has complex geometries, subdivide them to speed up processing.
+        complexgeom_sql = f"""
+            SELECT 1
+              FROM "{{input_layer}}" layer
+             WHERE ST_NPoints({{geometrycolumn}}) > {subdivide_coords}
+             LIMIT 1
+        """
+        logger.info(
+            f"Check if complex geometries in erase layer (> {subdivide_coords} coords)"
+        )
+        complexgeom_df = gfo.read_file(
+            erase_path, sql_stmt=complexgeom_sql, sql_dialect="SQLITE"
+        )
+        if len(complexgeom_df) > 0:
+            logger.info("Subdivide needed: complex geometries found")
+
+            # Do subdivide using python function, because all spatialite options didn't
+            # seem to work.
+            # Check out commits in https://github.com/geofileops/geofileops/pull/433
+            def subdivide(geom, num_coords_max):
+                result = pygeoops.subdivide(geom, num_coords_max=num_coords_max)
+
+                if result is None:
+                    return None
+                if not hasattr(result, "__len__"):
+                    return result
+                if len(result) == 1:
+                    return result[0]
+
+                # Explode because
+                #   - they will be exploded anyway by spatialite.ST_Collect
+                #   - spatialite.ST_AsBinary and/or spatialite.ST_GeomFromWkb don't seem
+                #     to handle nested collections well.
+                return shapely.GeometryCollection(shapely.get_parts(result).tolist())
+
+            tmp_dir = _io_util.create_tempdir("geofileops/erase_input")
+            erase_subdidided_path = tmp_dir / f"{erase_path.stem}_subdivided.gpkg"
+            _geoops_gpd.apply(
+                input_path=erase_path,
+                input_layer=erase_layer,
+                output_path=erase_subdidided_path,
+                output_layer=erase_layer,
+                func=lambda geom: subdivide(geom, num_coords_max=subdivide_coords),
+                operation_name="erase/subdivide",
+                columns=[],
+                explodecollections=True,
+                nb_parallel=nb_parallel,
+                batchsize=batchsize,
+                parallelization_config=_geoops_gpd.ParallelizationConfig(
+                    bytes_per_row=2000, max_rows_per_batch=50000
+                ),
+            )
+
+            erase_path = erase_subdidided_path
 
     # Prepare sql template for this operation
     # - WHERE geom IS NOT NULL to avoid rows with a NULL geom, they give issues in
@@ -989,16 +1083,13 @@ def erase(
     #   BY on layer1.rowid was a few % faster, but this is not worth it. E.g. for one
     #   test file 4-7 GB per process versus 70-700 MB). For another: crash.
     # - Check if the result of GFO_Difference_Collection is empty (NULL) using IFNULL,
-    #   and if this ois the case set to 'DIFF_EMPTY'. This way we can make the
+    #   and if this is the case set to 'DIFF_EMPTY'. This way we can make the
     #   distinction whether the subquery is finding a row (no match with spatial index)
     #   or if the difference results in an empty/NULL geometry.
     #   Tried to return EMPTY GEOMETRY from GFO_Difference_Collection, but it didn't
     #   work to use spatialite's ST_IsEmpty(geom) = 0 to filter on this for an unclear
     #   reason.
-    # - Using ST_Subdivide instead of GFO_Subdivide is 10 * slower, not sure why. Maybe
-    #   the result of that function isn't cached?
-    # - First checking ST_NPoints before GFO_Subdivide provides another 20% speed up.
-    # - Not relevant anymore, but ST_difference(geometry , NULL) gives NULL as result
+    # - ST_difference(geometry , NULL) gives NULL as result -> handle explicitly
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
     input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
 
@@ -1006,36 +1097,42 @@ def erase(
         SELECT * FROM (
           SELECT IFNULL(
                    ( SELECT IFNULL(
-                               ST_GeomFromWKB(GFO_Difference_Collection(
-                                  ST_AsBinary(layer1_sub.{{input1_geometrycolumn}}),
-                                  ST_AsBinary(ST_Collect(
-                                     IIF(
-                                        ST_NPoints(layer2_sub.{{input2_geometrycolumn}})
-                                           < {subdivide_coords},
-                                        layer2_sub.{{input2_geometrycolumn}},
-                                        ST_GeomFromWKB(GFO_Subdivide(
-                                           ST_AsBinary(
-                                              layer2_sub.{{input2_geometrycolumn}}),
-                                           {subdivide_coords}))
-                                     ))),
-                                     1,
-                                     {subdivide_coords}
-                               )),
+                               IIF(ST_NPoints(layer1.{{input1_geometrycolumn}})
+                                        < {subdivide_coords},
+                                   IIF(ST_Union(layer2_sub.{{input2_geometrycolumn}})
+                                            IS NULL,
+                                       layer1.{{input1_geometrycolumn}},
+                                       ST_CollectionExtract(
+                                          ST_difference(
+                                             layer1.{{input1_geometrycolumn}},
+                                             ST_Union(
+                                                layer2_sub.{{input2_geometrycolumn}})
+                                          ),
+                                          {primitivetypeid}
+                                       )
+                                   ),
+                                   ST_GeomFromWKB(GFO_Difference_Collection(
+                                      ST_AsBinary(layer1.{{input1_geometrycolumn}}),
+                                      ST_AsBinary(ST_Collect(
+                                         layer2_sub.{{input2_geometrycolumn}}
+                                      )),
+                                      1,
+                                      {subdivide_coords}
+                                   ))
+                               ),
                                'DIFF_EMPTY'
                             ) AS diff_geom
-                       FROM {{input1_databasename}}."{{input1_layer}}" layer1_sub
-                       JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
-                         ON layer1_sub.rowid = layer1tree.id
+                       FROM {{input1_databasename}}."{input1_layer_rtree}" layer1tree
                        JOIN {{input2_databasename}}."{{input2_layer}}" layer2_sub
                        JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
                          ON layer2_sub.rowid = layer2tree.id
-                      WHERE 1=1
-                        AND layer1_sub.rowid = layer1.rowid
+                      WHERE layer1tree.id = layer1.rowid
                         AND layer1tree.minx <= layer2tree.maxx
                         AND layer1tree.maxx >= layer2tree.minx
                         AND layer1tree.miny <= layer2tree.maxy
                         AND layer1tree.maxy >= layer2tree.miny
-                      GROUP BY layer1_sub.rowid
+                        AND ST_intersects(layer1.{{input1_geometrycolumn}},
+                                          layer2_sub.{{input2_geometrycolumn}}) = 1
                       LIMIT -1 OFFSET 0
                    ),
                    layer1.{{input1_geometrycolumn}}
@@ -1052,28 +1149,35 @@ def erase(
     """
 
     # Go!
-    return _two_layer_vector_operation(
-        input1_path=input_path,
-        input2_path=erase_path,
-        output_path=output_path,
-        sql_template=sql_template,
-        operation_name=f"{operation_prefix}erase",
-        input1_layer=input_layer,
-        input1_columns=input_columns,
-        input1_columns_prefix=input_columns_prefix,
-        input2_layer=erase_layer,
-        input2_columns=[],
-        input2_columns_prefix="",
-        output_layer=output_layer,
-        explodecollections=explodecollections,
-        force_output_geometrytype=force_output_geometrytype,
-        gridsize=gridsize,
-        where_post=where_post,
-        nb_parallel=nb_parallel,
-        batchsize=batchsize,
-        force=force,
-        output_with_spatial_index=output_with_spatial_index,
-    )
+    try:
+        _two_layer_vector_operation(
+            input1_path=input_path,
+            input2_path=erase_path,
+            output_path=output_path,
+            sql_template=sql_template,
+            operation_name=operation,
+            input1_layer=input_layer,
+            input1_columns=input_columns,
+            input1_columns_prefix=input_columns_prefix,
+            input2_layer=erase_layer,
+            input2_columns=[],
+            input2_columns_prefix="",
+            output_layer=output_layer,
+            explodecollections=explodecollections,
+            force_output_geometrytype=force_output_geometrytype,
+            gridsize=gridsize,
+            where_post=where_post,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+            force=force,
+            output_with_spatial_index=output_with_spatial_index,
+        )
+    finally:
+        if tmp_dir is not None:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    # Print time taken
+    logger.info(f"Ready, full erase took {datetime.now()-start_time}")
 
 
 def export_by_location(
@@ -1274,6 +1378,8 @@ def intersection(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
+    output_with_spatial_index: bool = True,
+    operation_prefix: str = "",
 ):
     # In the query, important to only extract the geometry types that are expected
     # TODO: test for geometrycollection, line, point,...
@@ -1286,9 +1392,11 @@ def intersection(
         )
     )
 
-    # For the output file, if output is going to be polygon or linestring, force
-    # MULTI variant to avoid ugly warnings
-    force_output_geometrytype = primitivetype_to_extract.to_multitype
+    # Force MULTI variant if explodecollections is False to avoid ugly warnings/issues.
+    if explodecollections:
+        force_output_geometrytype = primitivetype_to_extract.to_singletype
+    else:
+        force_output_geometrytype = primitivetype_to_extract.to_multitype
 
     # Prepare sql template for this operation
     #
@@ -1341,7 +1449,7 @@ def intersection(
         input2_path=input2_path,
         output_path=output_path,
         sql_template=sql_template,
-        operation_name="intersection",
+        operation_name=f"{operation_prefix}intersection",
         input1_layer=input1_layer,
         input1_columns=input1_columns,
         input1_columns_prefix=input1_columns_prefix,
@@ -1356,6 +1464,7 @@ def intersection(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        output_with_spatial_index=output_with_spatial_index,
     )
 
 
@@ -1767,140 +1876,101 @@ def identity(
     where_post: Optional[str] = None,
     nb_parallel: int = 1,
     batchsize: int = -1,
-    subdivide_coords: int = 1000,
+    subdivide_coords: int = 2000,
     force: bool = False,
-    output_with_spatial_index: bool = True,
-    operation_prefix: str = "",
 ):
-    # In the query, important to only extract the geometry types that are
-    # expected, so the primitive type of input1_layer
-    # TODO: test for geometrycollection, line, point,...
-    input1_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
-    primitivetype_to_extract = input1_layer_info.geometrytype.to_primitivetype
+    # An identity is the combination of the results of an "intersection" of input1 and
+    # input2 and an erase of input2 with input1.
 
-    # For the output file, force MULTI variant to avoid ugly warnings
-    force_output_geometrytype = primitivetype_to_extract.to_multitype
+    # Because the calculations of the intermediate results will be towards temp files,
+    # we need to do some additional init + checks here...
+    logger = logging.getLogger("geofileops.identity")
+    if output_path.exists():
+        if force is False:
+            logger.info(f"Stop, output exists already {output_path}")
+            return
+        else:
+            gfo.remove(output_path)
+    if output_layer is None:
+        output_layer = gfo.get_default_layer(output_path)
 
-    # Prepare sql template for this operation
-    # - WHERE geom IS NOT NULL to avoid rows with a NULL geom, they give issues in
-    #   later operations
-    # - use "LIMIT -1 OFFSET 0" to avoid the subquery flattening. Flattening e.g.
-    #   "geom IS NOT NULL" leads to GFO_Difference_Collection calculated double!
-    # - ST_Intersects is fine, but ST_Touches slows down. Especially when the data
-    #   contains huge geoms, time doubles or worse.
-    # - Calculate difference in correlated subquery in SELECT clause reduces memory
-    #   usage by a factor 10 compared with a WITH with GROUP BY. The WITH with a GROUP
-    #   BY on layer1.rowid was a few % faster, but this is not worth it. E.g. for one
-    #   test file 4-7 GB per process versus 70-700 MB). For another: crash.
-    # - Check if the result of GFO_Difference_Collection is empty (NULL) using IFNULL,
-    #   and if this ois the case set to 'DIFF_EMPTY'. This way we can make the
-    #   distinction whether the subquery is finding a row (no match with spatial index)
-    #   or if the difference results in an empty/NULL geometry.
-    #   Tried to return EMPTY GEOMETRY from GFO_Difference_Collection, but it didn't
-    #   work to use spatialite's ST_IsEmpty(geom) = 0 to filter on this for an unclear
-    #   reason.
-    # - Using ST_Subdivide instead of GFO_Subdivide is 10 * slower, not sure why. Maybe
-    #   the result of that function isn't cached?
-    # - First checking ST_NPoints before GFO_Subdivide provides another 20% speed up.
-    # - Not relevant anymore, but ST_difference(geometry , NULL) gives NULL as result
-    input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
-    input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
+    start_time = datetime.now()
+    tempdir = _io_util.create_tempdir("geofileops/identity")
+    try:
+        # First calculate intersection of input1 with input2 to a temporary output file
+        logger.info("Step 1 of 3: intersection")
+        intersection_output_path = tempdir / "intersection_output.gpkg"
+        intersection(
+            input1_path=input1_path,
+            input2_path=input2_path,
+            output_path=intersection_output_path,
+            input1_layer=input1_layer,
+            input1_columns=input1_columns,
+            input1_columns_prefix=input1_columns_prefix,
+            input2_layer=input2_layer,
+            input2_columns=input2_columns,
+            input2_columns_prefix=input2_columns_prefix,
+            output_layer=output_layer,
+            explodecollections=explodecollections,
+            gridsize=gridsize,
+            where_post=where_post,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+            force=force,
+            output_with_spatial_index=False,
+            operation_prefix="identity/",
+        )
 
-    sql_template = f"""
-        SELECT * FROM (
-          SELECT ST_CollectionExtract(
-                      ST_intersection(layer1.{{input1_geometrycolumn}},
-                                      layer2.{{input2_geometrycolumn}}),
-                      {primitivetype_to_extract.value}) as geom
-                {{layer1_columns_prefix_alias_str}}
-                {{layer2_columns_prefix_alias_str}}
-            FROM {{input1_databasename}}."{{input1_layer}}" layer1
-            JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
-              ON layer1.fid = layer1tree.id
-            JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-            JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
-              ON layer2.fid = layer2tree.id
-           WHERE 1=1
-             {{batch_filter}}
-             AND layer1tree.minx <= layer2tree.maxx
-             AND layer1tree.maxx >= layer2tree.minx
-             AND layer1tree.miny <= layer2tree.maxy
-             AND layer1tree.maxy >= layer2tree.miny
-             AND ST_Intersects(layer1.{{input1_geometrycolumn}},
-                               layer2.{{input2_geometrycolumn}}) = 1
-             --AND ST_Touches(layer1.{{input1_geometrycolumn}},
-             --               layer2.{{input2_geometrycolumn}}) = 0
-          UNION ALL
-          SELECT IFNULL(
-                   ( SELECT IFNULL(
-                               ST_GeomFromWKB(GFO_Difference_Collection(
-                                  ST_AsBinary(layer1_sub.{{input1_geometrycolumn}}),
-                                  ST_AsBinary(ST_Collect(
-                                     IIF(
-                                        ST_NPoints(layer2_sub.{{input2_geometrycolumn}})
-                                           < {subdivide_coords},
-                                        layer2_sub.{{input2_geometrycolumn}},
-                                        ST_GeomFromWKB(GFO_Subdivide(
-                                           ST_AsBinary(
-                                              layer2_sub.{{input2_geometrycolumn}}),
-                                           {subdivide_coords}))
-                                     ))),
-                                     1,
-                                     {subdivide_coords}
-                               )),
-                               'DIFF_EMPTY'
-                            ) AS diff_geom
-                       FROM {{input1_databasename}}."{{input1_layer}}" layer1_sub
-                       JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
-                         ON layer1_sub.rowid = layer1tree.id
-                       JOIN {{input2_databasename}}."{{input2_layer}}" layer2_sub
-                       JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
-                         ON layer2_sub.rowid = layer2tree.id
-                      WHERE 1=1
-                        AND layer1_sub.rowid = layer1.rowid
-                        AND layer1tree.minx <= layer2tree.maxx
-                        AND layer1tree.maxx >= layer2tree.minx
-                        AND layer1tree.miny <= layer2tree.maxy
-                        AND layer1tree.maxy >= layer2tree.miny
-                      GROUP BY layer1_sub.rowid
-                      LIMIT -1 OFFSET 0
-                   ),
-                   layer1.{{input1_geometrycolumn}}
-                 ) AS geom
-                {{layer1_columns_prefix_alias_str}}
-                {{layer2_columns_prefix_alias_null_str}}
-            FROM {{input1_databasename}}."{{input1_layer}}" layer1
-           WHERE 1=1
-             {{batch_filter}}
-           LIMIT -1 OFFSET 0
-          )
-        WHERE geom IS NOT NULL
-          AND geom <> 'DIFF_EMPTY'
-    """
+        # Now erase input1 from input2 to another temporary output gfo...
+        logger.info("Step 2 of 3: erase")
+        erase_output_path = tempdir / "erase_output.gpkg"
+        erase(
+            input_path=input1_path,
+            erase_path=input2_path,
+            output_path=erase_output_path,
+            input_layer=input1_layer,
+            input_columns=input1_columns,
+            input_columns_prefix=input1_columns_prefix,
+            erase_layer=input2_layer,
+            output_layer=output_layer,
+            explodecollections=explodecollections,
+            gridsize=gridsize,
+            where_post=where_post,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+            subdivide_coords=subdivide_coords,
+            force=force,
+            output_with_spatial_index=False,
+            operation_prefix="identity/",
+        )
 
-    # Go!
-    return _two_layer_vector_operation(
-        input1_path=input1_path,
-        input2_path=input2_path,
-        output_path=output_path,
-        sql_template=sql_template,
-        operation_name=f"{operation_prefix}identity",
-        input1_layer=input1_layer,
-        input1_columns=input1_columns,
-        input1_columns_prefix=input1_columns_prefix,
-        input2_layer=input2_layer,
-        input2_columns=input2_columns,
-        input2_columns_prefix=input2_columns_prefix,
-        output_layer=output_layer,
-        explodecollections=explodecollections,
-        force_output_geometrytype=force_output_geometrytype,
-        gridsize=gridsize,
-        where_post=where_post,
-        nb_parallel=nb_parallel,
-        batchsize=batchsize,
-        force=force,
-        output_with_spatial_index=output_with_spatial_index,
-    )
+        # Now append
+        logger.info("Step 3 of 3: finalize")
+        # Note: append will never create an index on an already existing layer.
+        _append_to_nolock(
+            src=erase_output_path,
+            dst=intersection_output_path,
+            src_layer=output_layer,
+            dst_layer=output_layer,
+        )
+
+        # Convert or add spatial index
+        tmp_output_path = intersection_output_path
+        if intersection_output_path.suffix != output_path.suffix:
+            # Output file should be in different format, so convert
+            tmp_output_path = tempdir / output_path.name
+            gfo.copy_layer(src=intersection_output_path, dst=tmp_output_path)
+        else:
+            # Create spatial index
+            gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
+
+        # Now we are ready to move the result to the final spot...
+        gfo.move(tmp_output_path, output_path)
+
+    finally:
+        shutil.rmtree(tempdir, ignore_errors=True)
+
+    logger.info(f"Ready, full identity took {datetime.now()-start_time}")
 
 
 def symmetric_difference(
@@ -1919,7 +1989,7 @@ def symmetric_difference(
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    subdivide_coords: int = 1000,
+    subdivide_coords: int = 2000,
     force: bool = False,
 ):
     # A symmetric difference can be simulated by doing an "erase" of input1
@@ -1933,6 +2003,7 @@ def symmetric_difference(
     if output_layer is None:
         output_layer = gfo.get_default_layer(output_path)
 
+    start_time = datetime.now()
     logger = logging.getLogger("geofileops.symmetric_difference")
     logger.info(
         f"Start, with input1: {input1_path}, "
@@ -2000,6 +2071,7 @@ def symmetric_difference(
 
         # Now append
         logger.info("Step 3 of 3: finalize")
+        # Note: append will never create an index on an already existing layer.
         _append_to_nolock(
             src=erase2_output_path,
             dst=erase1_output_path,
@@ -2025,6 +2097,8 @@ def symmetric_difference(
     finally:
         shutil.rmtree(tempdir, ignore_errors=True)
 
+    logger.info(f"Ready, full symmetric_difference took {datetime.now()-start_time}")
+
 
 def union(
     input1_path: Path,
@@ -2042,13 +2116,13 @@ def union(
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    subdivide_coords: int = 1000,
+    subdivide_coords: int = 2000,
     force: bool = False,
 ):
-    # A union can be simulated by doing an "identity" of input1 and input2 and
-    # then append the result of an erase of input2 with input1...
+    # A union is the combination of the results of an intersection of input1 and input2,
+    # the result of an erase of input2 with input1 and the erase of input1 with input2.
 
-    # Because the calculations in identity and erase will be towards temp files,
+    # Because the calculations of the intermediate results will be towards temp files,
     # we need to do some additional init + checks here...
     logger = logging.getLogger("geofileops.union")
     if output_path.exists():
@@ -2063,13 +2137,13 @@ def union(
     start_time = datetime.now()
     tempdir = _io_util.create_tempdir("geofileops/union")
     try:
-        # First apply identity of input1 with input2 to a temporary output file...
-        logger.info("Step 1 of 3: identity")
-        identity_output_path = tempdir / "identity_output.gpkg"
-        identity(
+        # First apply intersection of input1 with input2 to a temporary output file...
+        logger.info("Step 1 of 4: intersection")
+        intersection_output_path = tempdir / "intersection_output.gpkg"
+        intersection(
             input1_path=input1_path,
             input2_path=input2_path,
-            output_path=identity_output_path,
+            output_path=intersection_output_path,
             input1_layer=input1_layer,
             input1_columns=input1_columns,
             input1_columns_prefix=input1_columns_prefix,
@@ -2082,19 +2156,18 @@ def union(
             where_post=where_post,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
-            subdivide_coords=subdivide_coords,
             force=force,
             output_with_spatial_index=False,
             operation_prefix="union/",
         )
 
         # Now erase input1 from input2 to another temporary output gfo...
-        logger.info("Step 2 of 3: erase")
-        erase_output_path = tempdir / "erase_output.gpkg"
+        logger.info("Step 2 of 4: erase input 1 from input 2")
+        erase1_output_path = tempdir / "erase_input1_from_input2_output.gpkg"
         erase(
             input_path=input2_path,
             erase_path=input1_path,
-            output_path=erase_output_path,
+            output_path=erase1_output_path,
             input_layer=input2_layer,
             input_columns=input2_columns,
             input_columns_prefix=input2_columns_prefix,
@@ -2111,34 +2184,62 @@ def union(
             operation_prefix="union/",
         )
 
+        # Now erase input2 from input1 to another temporary output gfo...
+        logger.info("Step 3 of 4: erase input 2 from input 1")
+        erase2_output_path = tempdir / "erase_input2_from_input1_output.gpkg"
+        erase(
+            input_path=input1_path,
+            erase_path=input2_path,
+            output_path=erase2_output_path,
+            input_layer=input1_layer,
+            input_columns=input1_columns,
+            input_columns_prefix=input1_columns_prefix,
+            erase_layer=input2_layer,
+            output_layer=output_layer,
+            explodecollections=explodecollections,
+            gridsize=gridsize,
+            where_post=where_post,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+            subdivide_coords=subdivide_coords,
+            force=force,
+            output_with_spatial_index=False,
+            operation_prefix="union/",
+        )
+
         # Now append
-        logger.info("Step 3 of 3: finalize")
+        logger.info("Step 4 of 4: finalize")
+        # Note: append will never create an index on an already existing layer.
         _append_to_nolock(
-            src=erase_output_path,
-            dst=identity_output_path,
+            src=erase1_output_path,
+            dst=intersection_output_path,
+            src_layer=output_layer,
+            dst_layer=output_layer,
+        )
+        _append_to_nolock(
+            src=erase2_output_path,
+            dst=intersection_output_path,
             src_layer=output_layer,
             dst_layer=output_layer,
         )
 
         # Convert or add spatial index
-        tmp_output_path = identity_output_path
-        if identity_output_path.suffix != output_path.suffix:
+        tmp_output_path = intersection_output_path
+        if intersection_output_path.suffix != output_path.suffix:
             # Output file should be in different format, so convert
             tmp_output_path = tempdir / output_path.name
-            gfo.copy_layer(src=identity_output_path, dst=tmp_output_path)
+            gfo.copy_layer(src=intersection_output_path, dst=tmp_output_path)
         else:
             # Create spatial index
             gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
 
         # Now we are ready to move the result to the final spot...
-        if output_path.exists():
-            gfo.remove(output_path)
         gfo.move(tmp_output_path, output_path)
 
     finally:
         shutil.rmtree(tempdir, ignore_errors=True)
 
-    logger.info(f"Ready, took {datetime.now()-start_time}")
+    logger.info(f"Ready, full union took {datetime.now()-start_time}")
 
 
 def _two_layer_vector_operation(

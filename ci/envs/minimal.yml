@@ -15,15 +15,15 @@ dependencies:
   - packaging
   - pandas =1.4  # released 2022-01-28
   - psutil
-  # - pygeoops =0.4  # released 2023-11-01
+  - pyarrow
+  - pygeoops =0.4  # released 2023-11-24
   - pygeos
-  - pyogrio =0.5.1  # released 2023-01-26
+  - pyogrio =0.7.2  # released 2023-10-30
   - pyproj =3.4  # released 2022-09-10
   - shapely >=2,<2.1  # released 2022-12-12
   # testing
   - pytest
   - pytest-cov
   - pip:
-    - pygeoops ==0.4.0a3
     # optional
     - simplification
