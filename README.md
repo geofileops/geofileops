@@ -25,10 +25,11 @@ The full documentation is available on [readthedocs](https://geofileops.readthed
 
 Different techniques are used under the hood to be able to process large files as fast
 as possible:
-- process data in batches
-- subdivide/merge complex geometries on the fly
-- process data in different passes
-- use all available CPUs
+
+* process data in batches
+* subdivide/merge complex geometries on the fly
+* process data in different passes
+* use all available CPUs
 
 The following chart gives an impression of the speed improvement that can be expected
 when processing larger files. The [benchmarks](https://github.com/geofileops/geobenchmark)
