@@ -9,16 +9,22 @@
 GeofileOps |version|
 ====================
 
-Geofileops speeds up spatial analysis on large/complex vector datasets.
+Python toolbox to process large vector files faster.
 
-It provides an easy to use API that can accomplish a lot with few lines of code. Most
-typical GIS operations are available: e.g. :meth:`~buffer`, :meth:`~simplify`,
+Introduction
+============
+
+Geofileops provides an easy to use API that can accomplish a lot with few lines of code.
+Most typical GIS operations are available: e.g. :meth:`~buffer`, :meth:`~simplify`,
 :meth:`~dissolve`, :meth:`~intersection`,... You can also run custom logic by using
 :meth:`~apply`, :meth:`~select` or :meth:`~select_two_layers`.
 
 The spatial operations are tested on geopackage and shapefile input files, but
 geopackage is recommended as it will give better performance. General layer and file
 operations can be used on the file formats supported by `GDAL <https://gdal.org>`_.
+
+Performance
+===========
 
 Different techniques are used under the hood to be able to process large files as fast
 as possible:
@@ -31,7 +37,9 @@ The following chart gives an impression of the speed improvement that can be exp
 when processing larger files. The `benchmarks <https://github.com/geofileops/geobenchmark>`_
 ran on a Windows PC with 12 cores and include I/O.
 
-.. figure:: https://github.com/geofileops/geobenchmark/blob/main/results_vector_ops/GeoBenchmark.png
+.. image:: https://github.com/geofileops/geobenchmark/blob/main/results_vector_ops/GeoBenchmark.png
+   :alt: geobenchmark spatial vector operations performance chart
+   
 
 
 .. toctree::
