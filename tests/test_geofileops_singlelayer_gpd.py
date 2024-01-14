@@ -25,6 +25,7 @@ from tests.test_helper import (
     WHERE_LENGTH_GT_1000,
     WHERE_LENGTH_GT_200000,
     WHERE_AREA_GT_5000,
+    assert_geodataframe_equal,
 )
 
 
@@ -361,7 +362,7 @@ def test_dissolve_linestrings_groupby(tmp_path, suffix, epsg):
         output_basepath.parent
         / f"{output_basepath.stem}_groupby_noexpl{output_basepath.suffix}"
     )
-    groupby_columns = ["NISCODE"]
+    groupby_columns = ["NiScoDe"]
     gfo.dissolve(
         input_path=input_path,
         output_path=output_path,
@@ -525,7 +526,7 @@ def test_dissolve_linestrings_aggcolumns_json(tmp_path, agg_columns):
     "suffix, epsg, explode_input, groupby_columns, explode, gridsize, where_post, "
     "expected_featurecount",
     [
-        (".gpkg", 31370, False, ["GEWASGROEP"], True, 0.0, "", 25),
+        (".gpkg", 31370, False, ["GEWASgroep"], True, 0.0, "", 25),
         (".gpkg", 31370, False, ["GEWASGROEP"], False, 0.0, "", 6),
         (".gpkg", 31370, True, ["GEWASGROEP"], False, 0.0, "", 6),
         (".gpkg", 31370, False, ["gewasGROEP"], False, 0.01, WHERE_AREA_GT_5000, 4),
@@ -647,6 +648,26 @@ def test_dissolve_polygons(
     output_area = output_gdf.geometry.area.sort_values().reset_index(drop=True)
     expected_area = expected_gdf.geometry.area.sort_values().reset_index(drop=True)
     pd.testing.assert_series_equal(output_area, expected_area)
+
+
+def test_dissolve_empty_onborder_result(tmp_path):
+    """
+    Test case where the 1st pass of dissolve does not result in any onborder features.
+    """
+    test_gdf = gpd.GeoDataFrame(
+        geometry=[sh_geom.box(5, 5, 10, 10), sh_geom.box(20, 5, 25, 10)], crs=31370
+    )
+    test_path = tmp_path / "test.gpkg"
+    gfo.to_file(test_gdf, test_path)
+
+    output_path = tmp_path / "output.gpkg"
+    gfo.dissolve(
+        test_path, output_path=output_path, explodecollections=True, batchsize=1
+    )
+
+    assert output_path.exists()
+    output_gdf = gfo.read_file(output_path)
+    assert_geodataframe_equal(test_gdf, output_gdf, normalize=True, sort_values=True)
 
 
 @pytest.mark.parametrize("explodecollections", [True, False])
@@ -944,9 +965,9 @@ def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
     #       unique values, to be a better test case!
     agg_columns = {
         "columns": [
-            {"column": "lblhfdtlt", "agg": "max", "as": "lbl_max"},
+            {"column": "lblHFDtlt", "agg": "max", "as": "lbl_max"},
             {"column": "GEWASGROEP", "agg": "count", "as": "gwsgrp_cnt"},
-            {"column": "lblhfdtlt", "agg": "count", "as": "lbl_count"},
+            {"column": "lblhfdTLT", "agg": "count", "as": "lbl_count"},
             {
                 "column": "lblhfdtlt",
                 "agg": "count",
@@ -972,7 +993,7 @@ def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
             {"column": "fid", "agg": "concat", "as": "fid_concat"},
         ]
     }
-    groupby_columns = ["GEWASGROEP"]
+    groupby_columns = ["GEWASgroep"]
     gfo.dissolve(
         input_path=input_path,
         output_path=output_path,
@@ -1000,7 +1021,7 @@ def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
     assert output_gdf["geometry"][0] is not None
 
     # Check agg_columns results
-    grasland_idx = output_gdf[output_gdf["GEWASGROEP"] == "Grasland"].index.to_list()[0]
+    grasland_idx = output_gdf[output_gdf["GEWASgroep"] == "Grasland"].index.to_list()[0]
     assert output_gdf["lbl_max"][grasland_idx] == "Grasland"
     assert output_gdf["gwsgrp_cnt"][grasland_idx] == 30
     assert output_gdf["lbl_count"][grasland_idx] == 30
@@ -1014,7 +1035,7 @@ def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
     assert output_gdf["tlt_sum"][grasland_idx] == 1800
 
     groenten_idx = output_gdf[
-        output_gdf["GEWASGROEP"] == "Groenten, kruiden en sierplanten"
+        output_gdf["GEWASgroep"] == "Groenten, kruiden en sierplanten"
     ].index.to_list()[0]
     assert output_gdf["lbl_count"][groenten_idx] == 5
     print(
@@ -1049,7 +1070,7 @@ def test_dissolve_polygons_aggcolumns_json(tmp_path, agg_columns):
     gfo.dissolve(
         input_path=input_path,
         output_path=output_path,
-        groupby_columns=["GEWASGROEP"],
+        groupby_columns=["GEWASgroep"],
         agg_columns=agg_columns,
         explodecollections=False,
         nb_parallel=2,
