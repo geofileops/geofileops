@@ -971,6 +971,7 @@ def erase(
     input_path: Path,
     erase_path: Path,
     output_path: Path,
+    overlay_self: bool,
     input_layer: Optional[str] = None,
     input_columns: Optional[List[str]] = None,
     erase_layer: Optional[str] = None,
@@ -990,6 +991,18 @@ def erase(
     # with the real calculation, do some additional init + checks here...
     operation = f"{operation_prefix}erase"
     logger = logging.getLogger(f"geofileops.{operation}")
+
+    # If we are doing a self overlay, we need to filter out rows with the same rowid.
+    where_clause_self = "1=1"
+    if overlay_self:
+        where_clause_self = "layer1.rowid <> layer2_sub.rowid"
+
+    # Get layer names
+    if input_layer is None:
+        input_layer = gfo.get_only_layer(input_path)
+    if erase_layer is None:
+        erase_layer = gfo.get_only_layer(erase_path)
+
     if output_path.exists():
         if force is False:
             logger.info(f"Stop, output exists already {output_path}")
@@ -997,7 +1010,6 @@ def erase(
         else:
             gfo.remove(output_path)
 
-    # Init
     start_time = datetime.now()
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
     primitivetypeid = input_layer_info.geometrytype.to_primitivetype.value
@@ -1052,6 +1064,15 @@ def erase(
                 #     to handle nested collections well.
                 return shapely.GeometryCollection(shapely.get_parts(result).tolist())
 
+            # If we are self-erasing the layer, we need to retain the fid to be able to
+            # know which row the subdivided geometries belonged to originally.
+            if overlay_self:
+                columns = ["fid"]
+                # The original fid column will be saved in a new fid_1 column
+                where_clause_self = "layer1.rowid <> layer2_sub.fid_1"
+            else:
+                []
+
             tmp_dir = _io_util.create_tempdir("geofileops/erase_input")
             erase_subdidided_path = tmp_dir / f"{erase_path.stem}_subdivided.gpkg"
             _geoops_gpd.apply(
@@ -1061,7 +1082,7 @@ def erase(
                 output_layer=erase_layer,
                 func=lambda geom: subdivide(geom, num_coords_max=subdivide_coords),
                 operation_name="erase/subdivide",
-                columns=[],
+                columns=columns,
                 explodecollections=True,
                 nb_parallel=nb_parallel,
                 batchsize=batchsize,
@@ -1069,6 +1090,11 @@ def erase(
                     bytes_per_row=2000, max_rows_per_batch=50000
                 ),
             )
+            if overlay_self:
+                sql_create_index = (
+                    f'CREATE INDEX "IDX_{erase_layer}_fid_1" ON "{erase_layer}"(fid_1)'
+                )
+                fileops.execute_sql(erase_subdidided_path, sql_stmt=sql_create_index)
 
             erase_path = erase_subdidided_path
 
@@ -1126,7 +1152,8 @@ def erase(
                        JOIN {{input2_databasename}}."{{input2_layer}}" layer2_sub
                        JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
                          ON layer2_sub.rowid = layer2tree.id
-                      WHERE layer1tree.id = layer1.rowid
+                      WHERE {where_clause_self}
+                        AND layer1tree.id = layer1.rowid
                         AND layer1tree.minx <= layer2tree.maxx
                         AND layer1tree.maxx >= layer2tree.minx
                         AND layer1tree.miny <= layer2tree.maxy
@@ -1365,6 +1392,7 @@ def intersection(
     input1_path: Path,
     input2_path: Path,
     output_path: Path,
+    overlay_self: bool,
     input1_layer: Optional[str] = None,
     input1_columns: Optional[List[str]] = None,
     input1_columns_prefix: str = "l1_",
@@ -1381,8 +1409,16 @@ def intersection(
     output_with_spatial_index: bool = True,
     operation_prefix: str = "",
 ):
+    # If we are doing a self overlay, we need to filter out rows with the same rowid.
+    where_clause_self = "1=1"
+    if overlay_self:
+        where_clause_self = "layer1.rowid <> layer2.rowid"
+
     # In the query, important to only extract the geometry types that are expected
-    # TODO: test for geometrycollection, line, point,...
+    if input1_layer is None:
+        input1_layer = gfo.get_only_layer(input1_path)
+    if input2_layer is None:
+        input2_layer = gfo.get_only_layer(input2_path)
     input1_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
     input2_layer_info = gfo.get_layerinfo(input2_path, input2_layer)
     primitivetype_to_extract = PrimitiveType(
@@ -1426,7 +1462,7 @@ def intersection(
                 JOIN {{input2_databasename}}."{{input2_layer}}" layer2
                 JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
                   ON layer2.fid = layer2tree.id
-               WHERE 1=1
+               WHERE {where_clause_self}
                  {{batch_filter}}
                  AND layer1tree.minx <= layer2tree.maxx
                  AND layer1tree.maxx >= layer2tree.minx
@@ -1864,6 +1900,7 @@ def identity(
     input1_path: Path,
     input2_path: Path,
     output_path: Path,
+    overlay_self: bool,
     input1_layer: Optional[str] = None,
     input1_columns: Optional[List[str]] = None,
     input1_columns_prefix: str = "l1_",
@@ -1904,6 +1941,7 @@ def identity(
             input1_path=input1_path,
             input2_path=input2_path,
             output_path=intersection_output_path,
+            overlay_self=overlay_self,
             input1_layer=input1_layer,
             input1_columns=input1_columns,
             input1_columns_prefix=input1_columns_prefix,
@@ -1928,6 +1966,7 @@ def identity(
             input_path=input1_path,
             erase_path=input2_path,
             output_path=erase_output_path,
+            overlay_self=overlay_self,
             input_layer=input1_layer,
             input_columns=input1_columns,
             input_columns_prefix=input1_columns_prefix,
@@ -1977,6 +2016,7 @@ def symmetric_difference(
     input1_path: Path,
     input2_path: Path,
     output_path: Path,
+    overlay_self: bool,
     input1_layer: Optional[str] = None,
     input1_columns: Optional[List[str]] = None,
     input1_columns_prefix: str = "l1_",
@@ -2018,6 +2058,7 @@ def symmetric_difference(
             input_path=input1_path,
             erase_path=input2_path,
             output_path=erase1_output_path,
+            overlay_self=overlay_self,
             input_layer=input1_layer,
             input_columns=input1_columns,
             input_columns_prefix=input1_columns_prefix,
@@ -2053,6 +2094,7 @@ def symmetric_difference(
             input_path=input2_path,
             erase_path=input1_path,
             output_path=erase2_output_path,
+            overlay_self=overlay_self,
             input_layer=input2_layer,
             input_columns=input2_columns,
             input_columns_prefix=input2_columns_prefix,
@@ -2104,6 +2146,7 @@ def union(
     input1_path: Path,
     input2_path: Path,
     output_path: Path,
+    overlay_self: bool,
     input1_layer: Optional[str] = None,
     input1_columns: Optional[List[str]] = None,
     input1_columns_prefix: str = "l1_",
@@ -2125,6 +2168,7 @@ def union(
     # Because the calculations of the intermediate results will be towards temp files,
     # we need to do some additional init + checks here...
     logger = logging.getLogger("geofileops.union")
+
     if output_path.exists():
         if force is False:
             logger.info(f"Stop, output exists already {output_path}")
@@ -2144,6 +2188,7 @@ def union(
             input1_path=input1_path,
             input2_path=input2_path,
             output_path=intersection_output_path,
+            overlay_self=overlay_self,
             input1_layer=input1_layer,
             input1_columns=input1_columns,
             input1_columns_prefix=input1_columns_prefix,
@@ -2161,13 +2206,14 @@ def union(
             operation_prefix="union/",
         )
 
-        # Now erase input1 from input2 to another temporary output gfo...
+        # Erase input1 from input2 to another temporary output gfo.
         logger.info("Step 2 of 4: erase input 1 from input 2")
         erase1_output_path = tempdir / "erase_input1_from_input2_output.gpkg"
         erase(
             input_path=input2_path,
             erase_path=input1_path,
             output_path=erase1_output_path,
+            overlay_self=overlay_self,
             input_layer=input2_layer,
             input_columns=input2_columns,
             input_columns_prefix=input2_columns_prefix,
@@ -2183,14 +2229,24 @@ def union(
             output_with_spatial_index=False,
             operation_prefix="union/",
         )
+        # Note: append will never create an index on an already existing layer.
+        _append_to_nolock(
+            src=erase1_output_path,
+            dst=intersection_output_path,
+            src_layer=output_layer,
+            dst_layer=output_layer,
+        )
+        gfo.remove(erase1_output_path)
 
-        # Now erase input2 from input1 to another temporary output gfo...
+        # Erase input1 from input2 to and add to temporary output file.
         logger.info("Step 3 of 4: erase input 2 from input 1")
         erase2_output_path = tempdir / "erase_input2_from_input1_output.gpkg"
+
         erase(
             input_path=input1_path,
             erase_path=input2_path,
             output_path=erase2_output_path,
+            overlay_self=overlay_self,
             input_layer=input1_layer,
             input_columns=input1_columns,
             input_columns_prefix=input1_columns_prefix,
@@ -2206,24 +2262,17 @@ def union(
             output_with_spatial_index=False,
             operation_prefix="union/",
         )
-
-        # Now append
-        logger.info("Step 4 of 4: finalize")
-        # Note: append will never create an index on an already existing layer.
-        _append_to_nolock(
-            src=erase1_output_path,
-            dst=intersection_output_path,
-            src_layer=output_layer,
-            dst_layer=output_layer,
-        )
         _append_to_nolock(
             src=erase2_output_path,
             dst=intersection_output_path,
             src_layer=output_layer,
             dst_layer=output_layer,
         )
+        gfo.remove(erase2_output_path)
 
         # Convert or add spatial index
+        logger.info("Step 4 of 4: finalize")
+
         tmp_output_path = intersection_output_path
         if intersection_output_path.suffix != output_path.suffix:
             # Output file should be in different format, so convert
