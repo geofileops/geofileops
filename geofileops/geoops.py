@@ -2178,6 +2178,7 @@ def split(
         input1_path=Path(input1_path),
         input2_path=Path(input2_path),
         output_path=Path(output_path),
+        overlay_self=False,
         input1_layer=input1_layer,
         input1_columns=input1_columns,
         input1_columns_prefix=input1_columns_prefix,

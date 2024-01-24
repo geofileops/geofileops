@@ -621,28 +621,32 @@ def test_intersection_input_no_index(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "expected_error, input1_path, input2_path, output_path",
+    "expected_error, expected_exception, input1_path, input2_path, output_path",
     [
         (
             "intersection: output_path must not equal one of input paths",
+            ValueError,
             test_helper.get_testfile("polygon-parcel"),
             test_helper.get_testfile("polygon-zone"),
             test_helper.get_testfile("polygon-parcel"),
         ),
         (
             "intersection: output_path must not equal one of input paths",
+            ValueError,
             test_helper.get_testfile("polygon-parcel"),
             test_helper.get_testfile("polygon-zone"),
             test_helper.get_testfile("polygon-zone"),
         ),
         (
-            "input_path doesn't exist: ",
+            "not_existing_path: No such file or directory",
+            RuntimeError,
             "not_existing_path",
             test_helper.get_testfile("polygon-zone"),
             "output.gpkg",
         ),
         (
-            "input_path doesn't exist: ",
+            "not_existing_path: No such file or directory",
+            RuntimeError,
             test_helper.get_testfile("polygon-zone"),
             "not_existing_path",
             "output.gpkg",
@@ -650,15 +654,11 @@ def test_intersection_input_no_index(tmp_path):
     ],
 )
 def test_intersection_invalid_params(
-    tmp_path, input1_path, input2_path, output_path, expected_error
+    tmp_path, input1_path, input2_path, output_path, expected_exception, expected_error
 ):
-    """
-    Test if intersection works if the input gpkg files don't have a spatial index.
-    """
-    # Now run test
     if isinstance(output_path, str):
         output_path = tmp_path / output_path
-    with pytest.raises(ValueError, match=expected_error):
+    with pytest.raises(expected_exception, match=expected_error):
         gfo.intersection(
             input1_path=input1_path,
             input2_path=input2_path,

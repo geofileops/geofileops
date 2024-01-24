@@ -1071,7 +1071,7 @@ def erase(
                 # The original fid column will be saved in a new fid_1 column
                 where_clause_self = "layer1.rowid <> layer2_sub.fid_1"
             else:
-                []
+                columns = []
 
             tmp_dir = _io_util.create_tempdir("geofileops/erase_input")
             erase_subdidided_path = tmp_dir / f"{erase_path.stem}_subdivided.gpkg"
