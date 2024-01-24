@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 0.9.0 (???)
+
+### Improvements
+
+- ENH: Add support for self-overlays in overlay operations (#468)
+
 ## 0.8.1 (2024-01-13)
 
 ### Bugs fixed
@@ -12,7 +18,7 @@
 
 ## 0.8.0 (2023-11-24)
 
-## Improvements
+### Improvements
 
 - Add support to read/add/remove embedded layer styles in gpkg (#263)
 - Add `gridsize` parameter to most spatial operations (#261, #407, #413)
