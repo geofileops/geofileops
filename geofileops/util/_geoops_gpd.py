@@ -949,7 +949,7 @@ def _apply_geooperation(
 
     # Set empty geometries to null/None
     assert data_gdf.geometry is not None
-    data_gdf.loc[data_gdf.geometry.is_empty, ["geometry"]] = None
+    data_gdf.loc[data_gdf.geometry.is_empty, data_gdf.geometry.name] = None
 
     # If there is an fid column in the dataset, rename it, because the fid column is a
     # "special case" in gdal that should not be written.
