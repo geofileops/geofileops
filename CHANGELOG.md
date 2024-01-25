@@ -8,7 +8,8 @@
 
 ### Deprecations and compatibility notes
 
-- The default value for `keep_empty_geoms` is now always False for consistency (#472)
+- The default value for `keep_empty_geoms` is now always False for consistency. A change
+  of behaviour is explicitly expected in `select` (#472)
 
 ## 0.8.1 (2024-01-13)
 
