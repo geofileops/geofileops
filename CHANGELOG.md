@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## ??? (???)
+
+### Improvements
+
+- Make the default value for `keep_empty_geoms` always False for consistency (#472)
+
+### Deprecations and compatibility notes
+
+- The default value for `keep_empty_geoms` is now always False for consistency (#472)
+
 ## 0.8.1 (2024-01-13)
 
 ### Bugs fixed
@@ -12,7 +22,7 @@
 
 ## 0.8.0 (2023-11-24)
 
-## Improvements
+### Improvements
 
 - Add support to read/add/remove embedded layer styles in gpkg (#263)
 - Add `gridsize` parameter to most spatial operations (#261, #407, #413)
