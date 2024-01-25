@@ -9,8 +9,8 @@ methods implemented in GeofileOps.
 
 .. _API-reference-single-layer:
 
-Spatial operations on a single layer
-------------------------------------
+Geometry tools
+--------------
 
 .. autosummary::
    :toctree: api/
@@ -31,8 +31,8 @@ Spatial operations on a single layer
 
 .. _API-reference-two-layers:
 
-Spatial operations on two layers
---------------------------------
+Spatial overlays and joins
+--------------------------
 
 .. autosummary::
    :toctree: api/

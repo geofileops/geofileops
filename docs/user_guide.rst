@@ -7,12 +7,13 @@ User guide
 The main objective of geofileops is to provide a simple to use but powerful API to do
 fast spatial operations on large vector GIS files.
 
+
 General  
 -------
 
-Because geofileops uses multiprocessing under the hood, it is a good idea to always use
-the ``if __name__ == "__main__":`` block in standalone Python scripts to avoid errors.
-More information in :ref:`FAQ - Standalone scripts<FAQ-standalone-scripts>`
+Because geofileops uses multiprocessing under the hood to speedup processing, it is a
+good idea to always use the ``if __name__ == "__main__":`` block in standalone Python
+scripts to avoid errors. More information: :ref:`FAQ - Standalone scripts<FAQ-standalone-scripts>`
 
 Also interesting to know: because processing large files can take some time, geofileops
 logs progress info.
@@ -29,20 +30,27 @@ Combining both, a basic standalone script using geofileops can looks like this:
         gfo.buffer(input_path="input.gpkg", output_path="output.gpkg", distance=2)
 
 
+Finally, for all spatial tools GeoPackages and Shapefiles are supported, but GeoPackage
+is **very** recommended. Most general file/layer operations can be used on any file
+format supported by GDAL.
+
+
 Geometry tools  
 --------------
 
 The typical geometry operations are directly supported, eg. :meth:`~buffer`,
-:meth:`~simplify`, :meth:`~convexhull`, ...
+:meth:`~simplify`, :meth:`~convexhull`, :meth:`~dissolve`...
 
 .. code-block:: python
 
-    gfo.simplify(input_path="...", output_path="...", tolerance=1)
+    gfo.simplify(input_path="...", output_path="...", algorythm="vw", tolerance=1)
 
 
-For more advanced uses, you can execute any sqlite sql statement on an input file using
+Some more exotic ones are e.g. :meth:`dissolve_within_distance` and :meth:`warp`.
+
+For more advanced uses, you can execute any sqlite SQL statement on an input file using
 :meth:`~select`. Because |spatialite_reference_link| functions are also supported, this
-is quite powerful. To simplify the sql statements, there are some placeholders you can
+is quite powerful. To simplify the SQL statements, there are some placeholders you can
 use that will be filled out by geofileops:
 
 .. code-block:: python
@@ -52,7 +60,7 @@ use that will be filled out by geofileops:
         SELECT ST_OrientedEnvelope({{geometrycolumn}}) AS geom
               {{columns_to_select_str}}
           FROM "{{input_layer}}" layer
-         WHERE city_name = {city}"
+         WHERE city_name = '{city}'"
     """
     gfo.select(
         input_path="...",
@@ -77,7 +85,7 @@ Finally, you can apply any python function on the geometry column using :meth:`~
         func=lambda geom: cleanup(geom, min_area_to_keep=1),
     )
 
-Most spatial operations in geofileops have the same optional parameters. These are the
+Most functions in geofileops have some similar optional parameters. These are the
 most interesting ones:
 
 * **columns**: if not specified, all standard attribute columns will be retained in the
@@ -92,21 +100,12 @@ most interesting ones:
 * **force**: by default, if the ``output_path`` already exists, geofileops will just log
   this and return. To overwrite the existing ``output_path``, specify ``force=True``.
     
-Spatial operations between two files/layers
--------------------------------------------
 
-For operations between two layers, obviously 2 input files/layers need to be 
-specified.
+Spatial overlays
+----------------
 
-The standard spatial operations are supported, eg. :meth:`~intersection`, 
-:meth:`~erase`, :meth:`~union`,...
-
-More specific features are:
-
-* :meth:`~select_two_layers`: execute a select statement (including  
-  |spatialite_reference_link|) on the input files. 
-* :meth:`~join_nearest`: find the n nearest features from one layer 
-  compared the other.
+The typical spatial overlays are supported: :meth:`~intersection`, :meth:`~erase`,
+:meth:`~clip`, :meth:`~identity`, :meth:`~union`, ...
 
 This is a code example for the intersection operation:
 
@@ -115,15 +114,38 @@ This is a code example for the intersection operation:
     gfo.intersection(input1_path="...", input2_path="...", output_path="...")
 
 
-The two-layer operations will have about the same optional parameters as the single
-layer operations, but where applicable they are duplicated for input1 and input2.
+In addition, if you specify ``input2_path=None``, the result will be a self-overlay of
+the 1st input layer. E.g. for ``intersection`` this will result in an output with all
+pairwise intersections between the features in this layer. The intersection of features
+with itself is omitted.
+
+
+Spatial joins
+-------------
+
+There are several options available to do spatial joins.
+
+The most typical one is :meth:`~join_by_location`. This allows you to join the features
+in two layers with either "named spatial predicates" (e.g. equals, touches,
+intersects,...) or with a "spatial mask" as defined by the
+`DE-9IM <https://en.wikipedia.org/wiki/DE-9IM>` model.
+
+Another option is to look for the n nearest features from one layer compared the other
+using :meth:`~join_nearest`.
+
+If you only want to export rows from a layer that have some spatial relationship with
+features in another layer you can use :meth:`~export_by_location` or
+:meth:`~export_by_distance`.
+
+Finally, if you want full control, you can use SQL statements to build your own logic.
+Check out the examples for :meth:`~select_two_layers` to get some inspiration.
 
 
 General file/layer operations
 -----------------------------
 
-Finally there are also some functions available to manipulate geo files or 
-layers. Eg. :meth:`~copy`, :meth:`~move`, :meth:`~get_layerinfo`, 
+Finally there are also some general functions available to manipulate geo files or
+layers. Eg. :meth:`~copy`, :meth:`~move`, :meth:`~get_layerinfo`,
 :meth:`~add_column`,...
 
 This is an example to get information about the (only) layer in a geo file: 
@@ -133,7 +155,8 @@ This is an example to get information about the (only) layer in a geo file:
     layerinfo = gfo.get_layerinfo(path='...')
     print(f"Layer {layerinfo.name} contains {layerinfo.featurecount} features")
 
-Remark: some functions might only work on Geopackage files, not on shapefiles.
+
+Remark: most general functions can be used on all file types supported by GDAL.
 
 .. |spatialite_reference_link| raw:: html
 
