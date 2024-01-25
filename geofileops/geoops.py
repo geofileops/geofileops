@@ -1382,7 +1382,7 @@ def select(
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
     gridsize: float = 0.0,
-    keep_empty_geoms: bool = False,
+    keep_empty_geoms: bool = True,
     nb_parallel: int = 1,
     batchsize: int = -1,
     force: bool = False,
