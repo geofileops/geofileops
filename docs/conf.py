@@ -88,8 +88,7 @@ html_theme_options = {
             "url": "https://github.com/geofileops/geofileops",
             "icon": "fab fa-github-square fa-xl",
         }
-    ],
-    "navbar_start": ["navbar-logo", "version-switcher"],
+    ]
 }
 
 html_sidebars = {
