@@ -2,16 +2,21 @@
 
 ## ??? (???)
 
-### Improvements
-
-- Make the default value for `keep_empty_geoms` always False for consistency (#472)
-
 ### Deprecations and compatibility notes
 
 - The default value for `keep_empty_geoms` is now always False for consistency. 
   Explicitly for `select` and `dissolve` this will switch the default, so if you want to
   keep empty results (NULL, None, empty), you should specify `keep_empty_geoms=True`.
   (#472)
+
+### Improvements
+
+- Make the default value for `keep_empty_geoms` always False for consistency (#472)
+
+### Bugs fixed
+
+- Fix crash when using e.g. `erase` with `gridsize` specified on input file containing
+  an EMPTY geometry (#470)
 
 ## 0.8.1 (2024-01-13)
 
