@@ -23,3 +23,10 @@ been made to start a new process before the current process has finished its
 bootstrapping phase.`
 You can find more details on why this is needed in the 
 `python multiprocessing docs <https://docs.python.org/3/library/multiprocessing.html#the-spawn-and-forkserver-start-methods>`_
+
+Supported file formats
+----------------------
+All functionalities of geofileops are tested on geopackage and shapefile input/output
+files. However, geopackage is highly recommended because it will offer better
+performance in geofileops as well as for the reasons listed here: 
+`www.switchfromshapefile.org <http://www.switchfromshapefile.org>`.
