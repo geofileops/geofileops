@@ -1,3 +1,4 @@
+.. currentmodule:: geofileops
 
 ===
 FAQ

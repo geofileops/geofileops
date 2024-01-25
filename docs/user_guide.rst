@@ -11,14 +11,14 @@ fast spatial operations on large vector GIS files.
 General  
 -------
 
-Because geofileops uses multiprocessing under the hood to speedup processing, it is a
-good idea to always use the ``if __name__ == "__main__":`` block in standalone Python
+To speed up processing, geofileops uses multiprocessing under the hood. Because of that,
+you should always use the ``if __name__ == "__main__":`` block in standalone Python
 scripts. More information: :ref:`FAQ - Standalone scripts<FAQ-standalone-scripts>`
 
 Also interesting to know: because processing large files can take some time, geofileops
 logs progress info using the standard logging module.
 
-Combining both, a basic standalone script using geofileops can look like this:
+Combining both, a basic script using geofileops can look like this:
 
 .. code-block:: python
 
@@ -39,7 +39,7 @@ Geometry tools
 --------------
 
 The typical geometry operations are directly supported, eg. :meth:`~buffer`,
-:meth:`~simplify`, :meth:`~convexhull`, :meth:`~dissolve`...
+:meth:`~simplify`, :meth:`~convexhull`, :meth:`~dissolve`, ...
 
 .. code-block:: python
 
@@ -49,9 +49,10 @@ The typical geometry operations are directly supported, eg. :meth:`~buffer`,
 Some more exotic ones are e.g. :meth:`dissolve_within_distance` and :meth:`warp`.
 
 For more advanced uses, you can execute any sqlite SQL statement on an input file using
-:meth:`~select`. Because |spatialite_reference_link| functions are also supported, this
-is quite powerful. To simplify the SQL statements, there are some placeholders you can
-use that will be filled out by geofileops:
+:meth:`~select`. Because 
+`spatialite functions <https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html>`_ 
+are also supported, this is quite powerful. To simplify the SQL statements, there are
+some placeholders you can use that will be filled out by geofileops:
 
 .. code-block:: python
 
@@ -114,7 +115,7 @@ An example:
     gfo.identity(input1_path="...", input2_path="...", output_path="...")
 
 
-In addition, if you specify ``input2_path=None``, the result will be a self-overlay of
+In addition, if you specify ``input2_path=None``, the result will be the self-overlay of
 the 1st input layer. E.g. for ``intersection`` this will result in an output with all
 pairwise intersections between the features in this layer. The intersection of features
 with itself is omitted.
@@ -127,18 +128,19 @@ There are several options available to do spatial joins.
 
 The most typical one is :meth:`~join_by_location`. This allows you to join the features
 in two layers with either "named spatial predicates" (e.g. equals, touches,
-intersects,...) or with a "spatial mask" as defined by the
+intersects, ...) or with a "spatial mask" as defined by the
 `DE-9IM <https://en.wikipedia.org/wiki/DE-9IM>`_ model.
 
-Another option is to look for the n nearest features from one layer compared the other
-using :meth:`~join_nearest`.
+Another option is to look for the n nearest features for all features from one layer
+compared to all features from the second layer using :meth:`~join_nearest`.
 
 If you only want to export rows from a layer that have some spatial relationship with
 features in another layer you can use :meth:`~export_by_location` or
 :meth:`~export_by_distance`.
 
-Finally, if you want full control, you can use SQL statements to build your own logic.
-Check out the examples for :meth:`~select_two_layers` to get some inspiration.
+Finally, if you want full control, you can use SQL statements to build your own overlay
+and/or join logic. Check out the examples for :meth:`~select_two_layers` to get some
+inspiration.
 
 
 General file/layer operations
@@ -146,16 +148,13 @@ General file/layer operations
 
 Finally there are also some general functions available to manipulate geo files or
 layers. Eg. :meth:`~copy`, :meth:`~move`, :meth:`~get_layerinfo`,
-:meth:`~add_column`,...
+:meth:`~add_column`, ...
 
-This is an example to get information about the (only) layer in a geo file: 
+This is an example to get information like the number of features, the columns,...
+of the layer in a file:
 
 .. code-block:: python
 
-    layerinfo = gfo.get_layerinfo(path='...')
+    layerinfo = gfo.get_layerinfo(path="...")
     print(f"Layer {layerinfo.name} contains {layerinfo.featurecount} features")
 
-
-.. |spatialite_reference_link| raw:: html
-
-   <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite</a>
