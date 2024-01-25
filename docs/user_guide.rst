@@ -13,12 +13,12 @@ General
 
 Because geofileops uses multiprocessing under the hood to speedup processing, it is a
 good idea to always use the ``if __name__ == "__main__":`` block in standalone Python
-scripts to avoid errors. More information: :ref:`FAQ - Standalone scripts<FAQ-standalone-scripts>`
+scripts. More information: :ref:`FAQ - Standalone scripts<FAQ-standalone-scripts>`
 
 Also interesting to know: because processing large files can take some time, geofileops
-logs progress info.
+logs progress info using the standard logging module.
 
-Combining both, a basic standalone script using geofileops can looks like this:
+Combining both, a basic standalone script using geofileops can look like this:
 
 .. code-block:: python
 
@@ -107,11 +107,11 @@ Spatial overlays
 The typical spatial overlays are supported: :meth:`~intersection`, :meth:`~erase`,
 :meth:`~clip`, :meth:`~identity`, :meth:`~union`, ...
 
-This is a code example for the intersection operation:
+An example:
 
 .. code-block:: python
 
-    gfo.intersection(input1_path="...", input2_path="...", output_path="...")
+    gfo.identity(input1_path="...", input2_path="...", output_path="...")
 
 
 In addition, if you specify ``input2_path=None``, the result will be a self-overlay of
@@ -128,7 +128,7 @@ There are several options available to do spatial joins.
 The most typical one is :meth:`~join_by_location`. This allows you to join the features
 in two layers with either "named spatial predicates" (e.g. equals, touches,
 intersects,...) or with a "spatial mask" as defined by the
-`DE-9IM <https://en.wikipedia.org/wiki/DE-9IM>` model.
+`DE-9IM <https://en.wikipedia.org/wiki/DE-9IM>`_ model.
 
 Another option is to look for the n nearest features from one layer compared the other
 using :meth:`~join_nearest`.
@@ -155,8 +155,6 @@ This is an example to get information about the (only) layer in a geo file:
     layerinfo = gfo.get_layerinfo(path='...')
     print(f"Layer {layerinfo.name} contains {layerinfo.featurecount} features")
 
-
-Remark: most general functions can be used on all file types supported by GDAL.
 
 .. |spatialite_reference_link| raw:: html
 
