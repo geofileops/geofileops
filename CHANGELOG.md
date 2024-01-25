@@ -5,7 +5,7 @@
 ### Improvements
 
 - Several improvements to documentation: new FAQ, improved user guide,...
-  (#465, #469, )
+  (#465, #469, #474)
 
 ### Bugs fixed
 
