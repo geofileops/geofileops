@@ -971,8 +971,11 @@ def _apply_geooperation(
         data_gdf = data_gdf.explode(ignore_index=True)
 
     # Remove rows where geom is None/null/empty
-    if not keep_empty_geoms:
-        assert isinstance(data_gdf, gpd.GeoDataFrame)
+    if keep_empty_geoms:
+        # If we want to keep empty geoms, set the EMPTY ones to None as we want to have
+        # NULL results in the file.
+        data_gdf[data_gdf.geometry.is_empty, data_gdf.geometry.name] = None
+    else:
         data_gdf = data_gdf[~data_gdf.geometry.isna()]
         data_gdf = data_gdf[~data_gdf.geometry.is_empty]
 
