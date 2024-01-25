@@ -28,7 +28,7 @@ devdir = "./"
 # -- Project information -----------------------------------------------------
 
 project = "geofileops"
-copyright = "2022, Pieter Roggemans"
+copyright = "2024, Pieter Roggemans"
 author = "Pieter Roggemans"
 
 # The full version, including alpha/beta/rc tags
@@ -88,10 +88,17 @@ html_theme_options = {
             "url": "https://github.com/geofileops/geofileops",
             "icon": "fab fa-github-square fa-xl",
         }
-    ]
+    ],
+    "navbar_start": ["navbar-logo", "version-switcher"],
 }
 
-html_sidebars = {"getting_started": [], "user_guide": [], "development": []}
+html_sidebars = {
+    "getting_started": [],
+    "user_guide": [],
+    "reference": [],
+    "faq": [],
+    "development": [],
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
