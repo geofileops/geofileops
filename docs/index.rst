@@ -43,4 +43,5 @@ ran on a Windows PC with 12 cores and include I/O.
    Getting started <getting_started>
    User guide <user_guide>
    API reference <reference>
+   FAQ <faq>
    Development <development>
