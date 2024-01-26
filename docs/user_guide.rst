@@ -38,7 +38,7 @@ geopackage is **very** recommended for :ref:`many reasons <FAQ-supported-file-fo
 Geometry tools  
 --------------
 
-The typical :ref:`geometry tools <API-geometry-tools>` are directly
+The typical :ref:`geometry tools <reference-geometry-tools>` are directly
 supported, eg. :meth:`~buffer`, :meth:`~simplify`, :meth:`~convexhull`,
 :meth:`~dissolve`, ...
 
@@ -106,7 +106,7 @@ most interesting ones:
 Spatial overlays
 ----------------
 
-The standard :ref:`spatial overlays <API-spatial-overlays-joins>` are
+The standard :ref:`spatial overlays <reference-spatial-overlays-joins>` are
 available: :meth:`~intersection`, :meth:`~erase`, :meth:`~clip`, :meth:`~identity`,
 :meth:`~union`, ...
 
