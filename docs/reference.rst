@@ -79,7 +79,7 @@ General layer operations
    update_column
    to_file
 
-.. _API-general-file-ops:
+.. _reference-general-file-ops:
 
 General file operations
 -----------------------

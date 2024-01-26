@@ -127,7 +127,7 @@ Spatial joins
 -------------
 
 There are several options available to do
-:ref:`spatial joins <API-reference-spatial-overlays-joins>`.
+:ref:`spatial joins <reference-spatial-overlays-joins>`.
 
 The most typical one is :meth:`~join_by_location`. This allows you to join the features
 in two layers with either "named spatial predicates" (e.g. equals, touches,
@@ -149,15 +149,15 @@ inspiration.
 General file/layer operations
 -----------------------------
 
-Finally there are also some general functions available to manipulate geo files or
-layers. Eg. :meth:`~copy`, :meth:`~move`, :meth:`~get_layerinfo`,
-:meth:`~add_column`, ...
+Finally there are also some :ref:`general functions <reference-general-layer-ops>`
+available to manipulate geo files or layers. Eg. :meth:`~copy`, :meth:`~move`,
+:meth:`~get_layerinfo`, :meth:`~add_column`, ...
 
-This is an example to get information like the number of features, the columns,...
-of the layer in a file:
+This is an example to get information like the number of features, the columns, ...
+of a layer. If there is only one layer in the file, the `layer` doesn't need
+to be specified:
 
 .. code-block:: python
 
     layerinfo = gfo.get_layerinfo(path="...")
     print(f"Layer {layerinfo.name} contains {layerinfo.featurecount} features")
-
