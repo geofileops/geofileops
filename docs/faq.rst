@@ -25,6 +25,8 @@ bootstrapping phase.`
 You can find more details on why this is needed in the 
 `python multiprocessing docs <https://docs.python.org/3/library/multiprocessing.html#the-spawn-and-forkserver-start-methods>`_
 
+.. _FAQ-supported-file-formats:
+
 Supported file formats
 ----------------------
 

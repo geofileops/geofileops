@@ -13,7 +13,7 @@ General
 
 To speed up processing, geofileops uses multiprocessing under the hood. Because of that,
 you should always use the ``if __name__ == "__main__":`` block in standalone Python
-scripts. More information: :ref:`FAQ - Standalone scripts<FAQ-standalone-scripts>`
+scripts. More information: :ref:`FAQ - Standalone scripts<FAQ-standalone-scripts>`.
 
 Also interesting to know: because processing large files can take some time, geofileops
 logs progress info using the standard logging module.
@@ -30,16 +30,17 @@ Combining both, a basic script using geofileops can look like this:
         gfo.buffer(input_path="input.gpkg", output_path="output.gpkg", distance=2)
 
 
-Finally, for all spatial tools GeoPackages and Shapefiles are supported, but GeoPackage
-is **very** recommended. Most general file/layer operations can be used on any file
-format supported by GDAL.
+Finally, most general file/layer operations can be used on any file format supported by
+GDAL. For the spatial tools, only geopackages and shapefiles are supported but
+geopackage is **very** recommended for :ref:`many reasons <FAQ-supported-file-formats>`.
 
 
 Geometry tools  
 --------------
 
-The typical geometry operations are directly supported, eg. :meth:`~buffer`,
-:meth:`~simplify`, :meth:`~convexhull`, :meth:`~dissolve`, ...
+The typical :ref:`geometry tools <API-reference-geometry-tools>` are directly
+supported, eg. :meth:`~buffer`, :meth:`~simplify`, :meth:`~convexhull`,
+:meth:`~dissolve`, ...
 
 .. code-block:: python
 
@@ -105,8 +106,9 @@ most interesting ones:
 Spatial overlays
 ----------------
 
-The typical spatial overlays are supported: :meth:`~intersection`, :meth:`~erase`,
-:meth:`~clip`, :meth:`~identity`, :meth:`~union`, ...
+The standard :ref:`spatial overlays <API-reference-spatial-overlays-joins>` are
+available: :meth:`~intersection`, :meth:`~erase`, :meth:`~clip`, :meth:`~identity`,
+:meth:`~union`, ...
 
 An example:
 
@@ -124,7 +126,8 @@ with itself is omitted.
 Spatial joins
 -------------
 
-There are several options available to do spatial joins.
+There are several options available to do
+:ref:`spatial joins <API-reference-spatial-overlays-joins>`.
 
 The most typical one is :meth:`~join_by_location`. This allows you to join the features
 in two layers with either "named spatial predicates" (e.g. equals, touches,

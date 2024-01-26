@@ -7,7 +7,7 @@ API Reference
 The API Reference provides an overview of all public objects, functions and 
 methods implemented in GeofileOps.
 
-.. _API-reference-single-layer:
+.. _API-reference-geometry-tools:
 
 Geometry tools
 --------------
@@ -29,7 +29,7 @@ Geometry tools
    simplify
    warp
 
-.. _API-reference-two-layers:
+.. _API-reference-spatial-overlays-joins:
 
 Spatial overlays and joins
 --------------------------
