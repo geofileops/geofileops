@@ -236,7 +236,7 @@ def get_columns(
                 # If PRAGMA TABLE_INFO doesn't specify the datatype, determine based
                 # on data.
                 if columntype is None or columntype == "":
-                    sql = f"SELECT typeof({columnname}) FROM tmp;"
+                    sql = f'SELECT typeof("{columnname}") FROM tmp;'
                     result = conn.execute(sql).fetchall()
                     if len(result) > 0 and result[0][0] is not None:
                         columns[columnname] = result[0][0]
