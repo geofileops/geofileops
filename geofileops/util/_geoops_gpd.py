@@ -379,7 +379,7 @@ def apply(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-    parallelization_config: ParallelizationConfig = None,
+    parallelization_config: Optional[ParallelizationConfig] = None,
 ):
     # Init
     operation_params = {
@@ -512,7 +512,7 @@ def makevalid(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
-    force_output_geometrytype: Optional[GeometryType] = None,
+    force_output_geometrytype: Union[str, None, GeometryType] = None,
     gridsize: float = 0.0,
     keep_empty_geoms: bool = True,
     where_post: Optional[str] = None,
@@ -615,7 +615,7 @@ def _apply_geooperation_to_layer(
     nb_parallel: int,  # = -1
     batchsize: int,  # = -1
     force: bool,  # = False
-    parallelization_config: ParallelizationConfig = None,
+    parallelization_config: Optional[ParallelizationConfig] = None,
 ):
     """
     Applies a geo operation on a layer.
@@ -981,7 +981,6 @@ def _apply_geooperation(
         force_output_geometrytype = input_layerinfo.geometrytype
         if not explodecollections:
             force_output_geometrytype = force_output_geometrytype.to_multitype
-        force_output_geometrytype = force_output_geometrytype.name
 
     # If the index is still unique, save it to fid column so to_file can save it
     if preserve_fid:

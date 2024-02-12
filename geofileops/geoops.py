@@ -350,7 +350,7 @@ def apply(
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
     gridsize: float = 0.0,
-    keep_empty_geoms: Optional[bool] = None,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -472,7 +472,7 @@ def buffer(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    keep_empty_geoms: Optional[bool] = None,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -733,7 +733,7 @@ def convexhull(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    keep_empty_geoms: Optional[bool] = None,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -808,7 +808,7 @@ def delete_duplicate_geometries(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
-    keep_empty_geoms: Optional[bool] = None,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     force: bool = False,
 ):
@@ -1189,7 +1189,7 @@ def makevalid(
     explodecollections: bool = False,
     force_output_geometrytype: Union[str, None, GeometryType] = None,
     gridsize: float = 0.0,
-    keep_empty_geoms: Optional[bool] = None,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     precision: Optional[float] = None,
     validate_attribute_data: bool = False,
@@ -1253,6 +1253,8 @@ def makevalid(
     """  # noqa: E501
     logger = logging.getLogger("geofileops.makevalid")
     logger.info(f"Start, on {input_path}")
+    input_path = Path(input_path)
+    output_path = Path(output_path)
 
     if gridsize is None:
         gridsize = 0.0
@@ -1274,8 +1276,8 @@ def makevalid(
         # Only use this version if gridsize is 0.0, because when gridsize applied it is
         # less robust than the gpd implementation.
         _geoops_sql.makevalid(
-            input_path=Path(input_path),
-            output_path=Path(output_path),
+            input_path=input_path,
+            output_path=output_path,
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
@@ -1290,8 +1292,8 @@ def makevalid(
         )
     else:
         _geoops_gpd.makevalid(
-            input_path=Path(input_path),
-            output_path=Path(output_path),
+            input_path=input_path,
+            output_path=output_path,
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
@@ -1546,7 +1548,7 @@ def simplify(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    keep_empty_geoms: Optional[bool] = None,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
