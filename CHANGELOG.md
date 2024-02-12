@@ -6,7 +6,7 @@
 
 - Several improvements to documentation: new FAQ, improved user guide,...
   (#465, #469, #474)
-- General improvements to linting, ... (#)
+- General improvements to comply to mypy, ... (#)
 
 ### Bugs fixed
 
