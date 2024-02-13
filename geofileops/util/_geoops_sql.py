@@ -1515,13 +1515,32 @@ def join_by_location(
             )
 
     # Prepare spatial relations filter
-    if spatial_relations_query != "intersects is True":
+    if spatial_relations_query == "intersects is True":
+        spatial_relation_column = """
+            ,ST_intersects(
+                layer1.{input1_geometrycolumn},
+                layer2.{input2_geometrycolumn}
+             ) AS "GFO_$TEMP$_SPATIAL_RELATION"
+        """
+        spatial_relation_column = ""
+        spatial_relation_filter = 'sub_filter."GFO_$TEMP$_SPATIAL_RELATION" = 1'
+        spatial_relation_filter = "1=1"
+    else:
         # joining should only be possible on features that at least have an
         # interaction! So, add "intersects is True" to query to avoid errors!
         spatial_relations_query = f"({spatial_relations_query}) and intersects is True"
-    spatial_relations_filter = _prepare_spatial_relations_filter(
-        spatial_relations_query
-    )
+        spatial_relations_filter = _prepare_spatial_relations_filter(
+            spatial_relations_query
+        )
+        spatial_relation_column = """
+            ,ST_relate(
+                layer1.{input1_geometrycolumn},
+                layer2.{input2_geometrycolumn}
+             ) AS "GFO_$TEMP$_SPATIAL_RELATION"
+        """
+        spatial_relation_filter = spatial_relations_filter.format(
+            spatial_relation='sub_filter."GFO_$TEMP$_SPATIAL_RELATION"'
+        )
 
     # Prepare sql template
     #
@@ -1538,14 +1557,9 @@ def join_by_location(
                     {area_inters_column_expression}
                 FROM (
                   SELECT layer1.{{input1_geometrycolumn}} AS geom
-                        ,layer1.fid l1_fid
-                        ,layer2.{{input2_geometrycolumn}} AS l2_geom
                         {{layer1_columns_prefix_alias_str}}
                         {{layer2_columns_prefix_alias_str}}
-                        ,ST_relate(
-                            layer1.{{input1_geometrycolumn}},
-                            layer2.{{input2_geometrycolumn}}
-                         ) AS "GFO_$TEMP$_SPATIAL_RELATION"
+                        {spatial_relation_column}
                     FROM {{input1_databasename}}."{{input1_layer}}" layer1
                     JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
                       ON layer1.fid = layer1tree.id
@@ -1560,16 +1574,15 @@ def join_by_location(
                      AND layer1tree.maxy >= layer2tree.miny
                    LIMIT -1 OFFSET 0
                   ) sub_filter
-               WHERE {spatial_relations_filter.format(
-                    spatial_relation='sub_filter."GFO_$TEMP$_SPATIAL_RELATION"')}
+               WHERE {spatial_relation_filter}
                LIMIT -1 OFFSET 0
               ) sub_area
            {area_inters_filter}
+           LIMIT -1 OFFSET 0
           )
         SELECT sub.geom
               {{layer1_columns_from_subselect_str}}
               {{layer2_columns_from_subselect_str}}
-              ,sub."GFO_$TEMP$_SPATIAL_RELATION" AS spatial_relation
               {area_inters_column_in_output}
           FROM layer1_relations_filtered sub
     """
