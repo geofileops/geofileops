@@ -6,7 +6,8 @@
 
 - Several improvements to documentation: new FAQ, improved user guide,...
   (#465, #469, #474)
-- General improvements to comply to mypy, ... (#)
+- Linting improvements: use mypy + use ruff-format instead of black for formatting
+  (#478, #479)
 
 ### Bugs fixed
 
