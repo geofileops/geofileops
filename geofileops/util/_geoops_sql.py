@@ -305,6 +305,7 @@ def makevalid(
         input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
         force_output_geometrytype = input_layerinfo.geometrytype
         if not explodecollections:
+            assert isinstance(force_output_geometrytype, GeometryType)
             force_output_geometrytype = force_output_geometrytype.to_multitype
     if isinstance(force_output_geometrytype, str):
         force_output_geometrytype = GeometryType[force_output_geometrytype]
