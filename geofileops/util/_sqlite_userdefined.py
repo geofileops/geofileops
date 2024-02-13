@@ -200,8 +200,7 @@ def gfo_split(
     try:
         # Apply split. Only supports single geometries, so explode twice to be sure.
         result = geom
-        output_primitivetype_id = pygeoops.get_primitivetype_id(geom)
-        assert isinstance(output_primitivetype_id, int)
+        output_primitivetype_id = int(pygeoops.get_primitivetype_id(geom))
         for blade_part in shapely.get_parts(blade):
             for blade_part2 in shapely.get_parts(blade_part):
                 result = shapely.ops.split(result, blade_part2)
