@@ -31,9 +31,9 @@ def test_clip(tmp_path, testfile, suffix):
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
     gfo.clip(
-        input_path=input_path,
-        clip_path=clip_path,
-        output_path=output_path,
+        input_path=str(input_path),
+        clip_path=str(clip_path),
+        output_path=str(output_path),
         where_post=None,
         batchsize=batchsize,
     )
@@ -119,10 +119,10 @@ def test_erase(tmp_path, suffix, testfile, gridsize, where_post):
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
 
     gfo.erase(
-        input_path=input_path,
-        erase_path=erase_path,
+        input_path=str(input_path),
+        erase_path=str(erase_path),
         erase_layer=erase_layer,
-        output_path=output_path,
+        output_path=str(output_path),
         gridsize=gridsize,
         where_post=where_post,
         batchsize=batchsize,
@@ -309,9 +309,9 @@ def test_export_by_location(
 
     # Test
     gfo.export_by_location(
-        input_to_select_from_path=input_to_select_from_path,
-        input_to_compare_with_path=input_to_compare_with_path,
-        output_path=output_path,
+        input_to_select_from_path=str(input_to_select_from_path),
+        input_to_compare_with_path=str(input_to_compare_with_path),
+        output_path=str(output_path),
         area_inters_column_name=area_inters_column_name,
         gridsize=gridsize,
         where_post=where_post,
@@ -346,10 +346,10 @@ def test_export_by_distance(tmp_path, testfile, suffix):
 
     # Test
     gfo.export_by_distance(
-        input_to_select_from_path=input_to_select_from_path,
-        input_to_compare_with_path=input_to_compare_with_path,
+        input_to_select_from_path=str(input_to_select_from_path),
+        input_to_compare_with_path=str(input_to_compare_with_path),
         max_distance=10,
-        output_path=output_path,
+        output_path=str(output_path),
         batchsize=batchsize,
     )
 
@@ -381,9 +381,9 @@ def test_identity(tmp_path, suffix, epsg, gridsize):
 
     # Test
     gfo.identity(
-        input1_path=input1_path,
-        input2_path=input2_path,
-        output_path=output_path,
+        input1_path=str(input1_path),
+        input2_path=str(input2_path),
+        output_path=str(output_path),
         gridsize=gridsize,
         batchsize=batchsize,
     )
@@ -476,9 +476,9 @@ def test_intersection(
     if nb_parallel > 1:
         batchsize = math.ceil(input1_layerinfo.featurecount / 2)
     gfo.intersection(
-        input1_path=input1_path,
-        input2_path=input2_path,
-        output_path=output_path,
+        input1_path=str(input1_path),
+        input2_path=str(input2_path),
+        output_path=str(output_path),
         gridsize=gridsize,
         explodecollections=explodecollections,
         nb_parallel=nb_parallel,
@@ -817,15 +817,15 @@ def test_prepare_spatial_relations_filter():
     "suffix, epsg, spatial_relations_query, discard_nonmatching, "
     "min_area_intersect, area_inters_column_name, expected_featurecount",
     [
-        (".gpkg", 31370, "intersects is False", False, None, None, 46),
+        (".gpkg", 31370, "intersects is False", False, None, None, 47),
         (".gpkg", 31370, "intersects is False", True, None, None, 0),
-        (".gpkg", 31370, "intersects is True", False, 1000, "area_test", 48),
-        (".gpkg", 31370, "intersects is True", False, None, None, 49),
+        (".gpkg", 31370, "intersects is True", False, 1000, "area_test", 49),
+        (".gpkg", 31370, "intersects is True", False, None, None, 50),
         (".gpkg", 31370, "intersects is True", True, 1000, None, 26),
         (".gpkg", 31370, "intersects is True", True, None, None, 30),
         (".gpkg", 4326, "T******** is True or *T******* is True", True, None, None, 30),
-        (".gpkg", 4326, "intersects is True", False, None, None, 49),
-        (".shp", 31370, "intersects is True", False, None, None, 49),
+        (".gpkg", 4326, "intersects is True", False, None, None, 50),
+        (".shp", 31370, "intersects is True", False, None, None, 50),
     ],
 )
 def test_join_by_location(
@@ -846,9 +846,9 @@ def test_join_by_location(
     output_path = tmp_path / name
 
     gfo.join_by_location(
-        input1_path=input1_path,
-        input2_path=input2_path,
-        output_path=output_path,
+        input1_path=str(input1_path),
+        input2_path=str(input2_path),
+        output_path=str(output_path),
         spatial_relations_query=spatial_relations_query,
         discard_nonmatching=discard_nonmatching,
         min_area_intersect=min_area_intersect,
@@ -895,10 +895,10 @@ def test_join_nearest(tmp_path, suffix, epsg):
     nb_nearest = 2
     input1_columns = ["OIDN", "UIDN", "HFDTLT", "fid"]
     gfo.join_nearest(
-        input1_path=input1_path,
+        input1_path=str(input1_path),
         input1_columns=input1_columns,
-        input2_path=input2_path,
-        output_path=output_path,
+        input2_path=str(input2_path),
+        output_path=str(output_path),
         nb_nearest=nb_nearest,
         distance=1000,
         expand=True,
@@ -911,7 +911,8 @@ def test_join_nearest(tmp_path, suffix, epsg):
     assert gfo.has_spatial_index(output_path)
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert output_layerinfo.featurecount == nb_nearest * input1_layerinfo.featurecount
+    expected_featurecount = nb_nearest * (input1_layerinfo.featurecount - 1)
+    assert output_layerinfo.featurecount == expected_featurecount
     exp_columns = len(input1_columns) + len(input2_layerinfo.columns) + 2
     if SPATIALITE_GTE_51:
         exp_columns += 1
@@ -1009,9 +1010,9 @@ def test_select_two_layers(tmp_path, suffix, epsg, gridsize):
                   layer2.{{input2_geometrycolumn}}) = 0
     """
     gfo.select_two_layers(
-        input1_path=input1_path,
-        input2_path=input2_path,
-        output_path=output_path,
+        input1_path=str(input1_path),
+        input2_path=str(input2_path),
+        output_path=str(output_path),
         gridsize=gridsize,
         sql_stmt=sql_stmt,
     )
@@ -1058,22 +1059,25 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
         input1_path = input_nogeom_path
         input2_path = input_geom_path
         geom_column = '"{input2_geometrycolumn}" AS geom'
+        order_by_geom = "ORDER BY geom IS NULL"
         layer1 = "input_nogeom layer1"
         layer2 = '"{input2_layer}" layer2'
         exp_output_geom = True
-        exp_featurecount = 35
+        exp_featurecount = 36
     elif input_nogeom == "input2":
         input1_path = input_geom_path
         input2_path = input_nogeom_path
         geom_column = '"{input1_geometrycolumn}" AS geom'
+        order_by_geom = "ORDER BY geom IS NULL"
         layer1 = '"{input1_layer}" layer1'
         layer2 = "input_nogeom layer2"
         exp_output_geom = True
-        exp_featurecount = 35
+        exp_featurecount = 36
     elif input_nogeom == "both":
         input1_path = input_nogeom_path
         input2_path = input_nogeom_path
-        geom_column = "NULL AS test"
+        geom_column = "NULL AS TEST"
+        order_by_geom = ""
         layer1 = "input_nogeom layer1"
         layer2 = "input_nogeom layer2"
         exp_output_geom = False
@@ -1086,6 +1090,8 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
         output_path = tmp_path / f"{input1_path.stem}-output{suffix}"
 
     # Prepare query to execute.
+    # order_by_geom is needed to avoid creating GEOMETRY type output, as a NULL geometry
+    # value will be the first to be returned by this query.
     sql_stmt = f"""
         SELECT {geom_column}
               {{layer1_columns_prefix_alias_str}}
@@ -1095,6 +1101,7 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
             ON layer2.gewasgroep = layer1.gewasgroep
          WHERE 1=1
            {{batch_filter}}
+         {order_by_geom}
     """
     gfo.select_two_layers(
         input1_path=input1_path,
@@ -1425,9 +1432,9 @@ def test_split(tmp_path):
 
     # Test
     gfo.split(
-        input1_path=input1_path,
-        input2_path=input2_path,
-        output_path=output_path,
+        input1_path=str(input1_path),
+        input2_path=str(input2_path),
+        output_path=str(output_path),
         batchsize=batchsize,
     )
 
@@ -1476,9 +1483,9 @@ def test_symmetric_difference(tmp_path, suffix, epsg, gridsize):
     # Test
     output_path = tmp_path / f"{input1_path.stem}_symmdiff_{input2_path.stem}{suffix}"
     gfo.symmetric_difference(
-        input1_path=input1_path,
-        input2_path=input2_path,
-        output_path=output_path,
+        input1_path=str(input1_path),
+        input2_path=str(input2_path),
+        output_path=str(output_path),
         gridsize=gridsize,
         batchsize=batchsize,
     )
@@ -1554,9 +1561,9 @@ def test_union(
 
     # Test
     gfo.union(
-        input1_path=input1_path,
-        input2_path=input2_path,
-        output_path=output_path,
+        input1_path=str(input1_path),
+        input2_path=str(input2_path),
+        output_path=str(output_path),
         input1_columns=input1_columns,
         input2_columns=input2_columns,
         gridsize=gridsize,

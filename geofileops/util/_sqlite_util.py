@@ -225,7 +225,7 @@ def get_columns(
                 # Use ST_GeometryType to get the type
                 # based on the data + apply to_multitype to be sure
                 if output_geometrytype is None:
-                    sql = f"SELECT ST_GeometryType({columnname}) FROM tmp;"
+                    sql = f'SELECT ST_GeometryType("{columnname}") FROM tmp;'
                     result = conn.execute(sql).fetchall()
                     if len(result) > 0 and result[0][0] is not None:
                         output_geometrytype = GeometryType[result[0][0]].to_multitype
@@ -236,7 +236,7 @@ def get_columns(
                 # If PRAGMA TABLE_INFO doesn't specify the datatype, determine based
                 # on data.
                 if columntype is None or columntype == "":
-                    sql = f"SELECT typeof({columnname}) FROM tmp;"
+                    sql = f'SELECT typeof("{columnname}") FROM tmp;'
                     result = conn.execute(sql).fetchall()
                     if len(result) > 0 and result[0][0] is not None:
                         columns[columnname] = result[0][0]
@@ -571,7 +571,7 @@ def create_table_as_sql(
                                 ,ST_MaxY(geom)
                             FROM "{output_layer}"
                            WHERE geom IS NOT NULL
-                             AND NOT ST_IsEmpty(geom)
+                             AND ST_IsEmpty(geom) = 0
                     """
                     conn.execute(sql)
                 elif output_suffix_lower == ".sqlite":

@@ -1,5 +1,5 @@
 """
-Module exposing all supported operations on geomatries in geofiles.
+Module exposing all supported operations on geometries in geofiles.
 """
 
 from datetime import datetime
@@ -33,8 +33,8 @@ logger = logging.getLogger(__name__)
 
 
 def dissolve_within_distance(
-    input_path: Path,
-    output_path: Path,
+    input_path: Union[str, "os.PathLike[Any]"],
+    output_path: Union[str, "os.PathLike[Any]"],
     distance: float,
     gridsize: float,
     close_internal_gaps: bool = False,
@@ -90,6 +90,9 @@ def dissolve_within_distance(
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
+    input_path = Path(input_path)
+    output_path = Path(output_path)
+
     start_time = datetime.now()
     operation_name = "dissolve_within_distance"
     logger = logging.getLogger(f"geofileops.{operation_name}")
@@ -1310,8 +1313,8 @@ def makevalid(
 
 
 def warp(
-    input_path: Path,
-    output_path: Path,
+    input_path: Union[str, "os.PathLike[Any]"],
+    output_path: Union[str, "os.PathLike[Any]"],
     gcps: List[Tuple[float, float, float, float, Optional[float]]],
     algorithm: str = "polynomial",
     order: Optional[int] = None,
@@ -1554,23 +1557,26 @@ def simplify(
 
     The result is written to the output file specified.
 
+    Several `algorithm`s are available.
+
     If ``explodecollections`` is False and the input and output file type is GeoPackage,
     the fid will be preserved. In other cases this will typically not be the case.
 
     Args:
         input_path (PathLike): the input file
         output_path (PathLike): the file to write the result to
-        tolerance (float): mandatory for the following algorithms:
-
-                * RAMER_DOUGLAS_PEUCKER: distance to use as tolerance.
-                * LANG: distance to use as tolerance.
-                * VISVALINGAM_WHYATT: area to use as tolerance.
-
+        tolerance (float): tolerance to use for the simplification. Depends on the
+            ``algorithm`` specified.
             In projected coordinate systems this tolerance will typically be
             in meter, in geodetic systems this is typically in degrees.
-        algorithm (str, optional): algorithm to use. Defaults to "rdp"
-            (Ramer Douglas Peucker).
-        lookahead (int, optional): used for LANG algorithm. Defaults to 8.
+        algorithm (str, optional): algorithm to use. Defaults to "rdp".
+
+                * **"rdp"**: Ramer Douglas Peucker: tolerance is a distance
+                * **"lang"**: Lang: tolerance is a distance
+                * **"lang+"**: Lang, with extensions to increase number of points reduced.
+                * **"vw"**: Visvalingam Whyatt: tolerance is an area.
+
+        lookahead (int, optional): used for Lang algorithms. Defaults to 8.
         input_layer (str, optional): input layer name. Optional if the input
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input
@@ -2848,9 +2854,9 @@ def symmetric_difference(
 
 
 def union(
-    input1_path: Path,
-    input2_path: Path,
-    output_path: Path,
+    input1_path: Union[str, "os.PathLike[Any]"],
+    input2_path: Union[str, "os.PathLike[Any]"],
+    output_path: Union[str, "os.PathLike[Any]"],
     input1_layer: Optional[str] = None,
     input1_columns: Optional[List[str]] = None,
     input1_columns_prefix: str = "l1_",

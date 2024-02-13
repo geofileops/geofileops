@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## ??? (???)
+
+### Improvements
+
+- Several improvements to documentation: new FAQ, improved user guide,...
+  (#465, #469, #474)
+- Use ruff-format instead of black for formatting (#479)
+
+### Bugs fixed
+
+- Fix crash when using e.g. `erase` with `gridsize <> 0.0` specified on input file
+  containing an EMPTY geometry (#470)
+- Fix `dissolve` possibly having EMPTY geometries as output if `gridsize <> 0.0` (#473)
+- Fix wrong results from `join_by_location` if ran on result of `join_by_location`
+  with `column_prefixes=""` (#475)
+- Fix error in two layer operations if equal column aliases used based on a constant or
+  a function result (#477)
+
 ## 0.8.1 (2024-01-13)
 
 ### Bugs fixed
@@ -12,7 +30,7 @@
 
 ## 0.8.0 (2023-11-24)
 
-## Improvements
+### Improvements
 
 - Add support to read/add/remove embedded layer styles in gpkg (#263)
 - Add `gridsize` parameter to most spatial operations (#261, #407, #413)

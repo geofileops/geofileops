@@ -75,8 +75,8 @@ def test_apply(
         )
 
     gfo.apply(
-        input_path=input_path,
-        output_path=output_path,
+        input_path=str(input_path),
+        output_path=str(output_path),
         func=func,
         only_geom_input=only_geom_input,
         gridsize=gridsize,
@@ -237,8 +237,8 @@ def test_buffer_styles(tmp_path, suffix, epsg):
 
     # Run standard buffer to compare with
     gfo.buffer(
-        input_path=input_path,
-        output_path=output_path,
+        input_path=str(input_path),
+        output_path=str(output_path),
         distance=distance,
         batchsize=batchsize,
     )
@@ -264,7 +264,7 @@ def test_buffer_styles(tmp_path, suffix, epsg):
     # Now check if the output file is correctly created
     assert output_path.exists()
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert input_layerinfo.featurecount == output_layerinfo.featurecount
+    assert input_layerinfo.featurecount == output_layerinfo.featurecount + 1
     assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
 
@@ -301,8 +301,8 @@ def test_dissolve_linestrings(
         output_basepath.parent / f"{output_basepath.stem}_expl{output_basepath.suffix}"
     )
     gfo.dissolve(
-        input_path=input_path,
-        output_path=output_path,
+        input_path=str(input_path),
+        output_path=str(output_path),
         explodecollections=explodecollections,
         gridsize=gridsize,
         where_post=where_post,
@@ -364,8 +364,8 @@ def test_dissolve_linestrings_groupby(tmp_path, suffix, epsg):
     )
     groupby_columns = ["NiScoDe"]
     gfo.dissolve(
-        input_path=input_path,
-        output_path=output_path,
+        input_path=str(input_path),
+        output_path=str(output_path),
         groupby_columns=groupby_columns,
         explodecollections=False,
         batchsize=batchsize,
@@ -1124,8 +1124,8 @@ def test_simplify_lang(tmp_path, suffix, epsg, testfile, gridsize):
     # Test lang algorithm
     output_path = tmp_path / f"{input_path.stem}-output_lang{suffix}"
     gfo.simplify(
-        input_path=input_path,
-        output_path=output_path,
+        input_path=str(input_path),
+        output_path=str(output_path),
         tolerance=tolerance,
         algorithm=_geometry_util.SimplifyAlgorithm.LANG,
         lookahead=8,
@@ -1137,8 +1137,11 @@ def test_simplify_lang(tmp_path, suffix, epsg, testfile, gridsize):
     assert output_path.exists()
     assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert input_layerinfo.featurecount == output_layerinfo.featurecount
-    assert len(input_layerinfo.columns) == len(output_layerinfo.columns)
+    expected_featurecount = input_layerinfo.featurecount
+    if testfile == "polygon-parcel":
+        expected_featurecount -= 1
+    assert output_layerinfo.featurecount == expected_featurecount
+    assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
     assert output_layerinfo.geometrytype == input_layerinfo.geometrytype
 
     # Check the contents of the result file
@@ -1190,7 +1193,10 @@ def test_simplify_vw(tmp_path, suffix, epsg, testfile, gridsize):
     assert output_path.exists()
     assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert input_layerinfo.featurecount == output_layerinfo.featurecount
+    expected_featurecount = input_layerinfo.featurecount
+    if testfile == "polygon-parcel":
+        expected_featurecount -= 1
+    assert output_layerinfo.featurecount == expected_featurecount
     assert len(input_layerinfo.columns) == len(output_layerinfo.columns)
     assert output_layerinfo.geometrytype == input_layerinfo.geometrytype
 
