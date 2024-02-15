@@ -284,7 +284,7 @@ def makevalid(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
-    force_output_geometrytype: Optional[GeometryType] = None,
+    force_output_geometrytype: Union[str, None, GeometryType] = None,
     gridsize: float = 0.0,
     keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
@@ -305,7 +305,11 @@ def makevalid(
         input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
         force_output_geometrytype = input_layerinfo.geometrytype
         if not explodecollections:
+            assert isinstance(force_output_geometrytype, GeometryType)
             force_output_geometrytype = force_output_geometrytype.to_multitype
+    if isinstance(force_output_geometrytype, str):
+        force_output_geometrytype = GeometryType[force_output_geometrytype]
+    assert force_output_geometrytype is not None
 
     # Init + prepare sql template for this operation
     # ----------------------------------------------
@@ -632,6 +636,7 @@ def _single_layer_vector_operation(
 
         # Add application of gridsize around sql_template if specified
         if geom_selected and gridsize != 0.0:
+            assert force_output_geometrytype is not None
             gridsize_op = _format_apply_gridsize_operation(
                 geometrycolumn=f"sub_gridsize.{input_layerinfo.geometrycolumn}",
                 gridsize=gridsize,
@@ -1686,8 +1691,8 @@ def join_nearest(
     input2_path: Path,
     output_path: Path,
     nb_nearest: int,
-    distance: float,
-    expand: bool,
+    distance: Optional[float],
+    expand: Optional[bool],
     input1_layer: Optional[str] = None,
     input1_columns: Optional[List[str]] = None,
     input1_columns_prefix: str = "l1_",

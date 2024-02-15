@@ -1253,6 +1253,8 @@ def makevalid(
     """  # noqa: E501
     logger = logging.getLogger("geofileops.makevalid")
     logger.info(f"Start, on {input_path}")
+    input_path = Path(input_path)
+    output_path = Path(output_path)
 
     if gridsize is None:
         gridsize = 0.0
@@ -1274,8 +1276,8 @@ def makevalid(
         # Only use this version if gridsize is 0.0, because when gridsize applied it is
         # less robust than the gpd implementation.
         _geoops_sql.makevalid(
-            input_path=Path(input_path),
-            output_path=Path(output_path),
+            input_path=input_path,
+            output_path=output_path,
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
@@ -1290,8 +1292,8 @@ def makevalid(
         )
     else:
         _geoops_gpd.makevalid(
-            input_path=Path(input_path),
-            output_path=Path(output_path),
+            input_path=input_path,
+            output_path=output_path,
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
