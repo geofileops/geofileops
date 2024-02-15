@@ -4,7 +4,21 @@
 
 ### Improvements
 
-- ENH: Add support for self-overlays in overlay operations (#468)
+- Add support for self-overlays in overlay operations (#468)
+- Several improvements to documentation: new FAQ, improved user guide,...
+  (#465, #469, #474)
+- Linting improvements: use mypy + use ruff-format instead of black for formatting
+  (#478, #479)
+
+### Bugs fixed
+
+- Fix crash when using e.g. `erase` with `gridsize <> 0.0` specified on input file
+  containing an EMPTY geometry (#470)
+- Fix `dissolve` possibly having EMPTY geometries as output if `gridsize <> 0.0` (#473)
+- Fix wrong results from `join_by_location` if ran on result of `join_by_location`
+  with `column_prefixes=""` (#475)
+- Fix error in two layer operations if equal column aliases used based on a constant or
+  a function result (#477)
 
 ## 0.8.1 (2024-01-13)
 

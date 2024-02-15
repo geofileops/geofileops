@@ -5,7 +5,7 @@ Tests for operations that are executed using a sql statement on one layer.
 from importlib import import_module
 import logging
 import math
-from typing import List
+from typing import Any, List
 
 import geopandas as gpd
 import pytest
@@ -55,7 +55,7 @@ def basic_combinations_to_test(
     testfiles: List[str] = TESTFILES,
     epsgs: List[int] = EPSGS,
     suffixes: List[str] = SUFFIXES_GEOOPS,
-) -> list:
+) -> List[Any]:
     """
     Return sensible combinations of parameters to be used in tests for following params:
         suffix, epsg, geoops_module, testfile, empty_input, gridsize, where_post
@@ -71,6 +71,7 @@ def basic_combinations_to_test(
             for testfile in testfiles:
                 where_post = None
                 keep_empty_geoms = None
+                dimensions = None
                 gridsize = 0.001 if epsg == 31370 else GRIDSIZE_DEFAULT
                 if testfile == "polygon-parcel":
                     dimensions = "XYZ"
@@ -580,6 +581,7 @@ def test_buffer_preserve_fid_gpkg(tmp_path, geoops_module):
     # Prepare expected result to compare with
     expected_gdf = fileops.read_file(input_full_path, fid_as_index=True)
     expected_gdf = expected_gdf[~expected_gdf.index.isin([5, 6])]
+    expected_gdf = expected_gdf[~expected_gdf.geometry.is_empty]
 
     # Check if the output file with the expected result
     assert output_path.exists()
@@ -613,12 +615,13 @@ def test_buffer_shp_to_gpkg(
     input_layerinfo = fileops.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
     distance = 1
+    keep_empty_geoms = False
 
     # Prepare expected result
     expected_gdf = fileops.read_file(input_path)
     expected_gdf.geometry = expected_gdf.geometry.buffer(distance, resolution=5)
     expected_gdf = test_helper.prepare_expected_result(
-        expected_gdf, keep_empty_geoms=True
+        expected_gdf, keep_empty_geoms=keep_empty_geoms
     )
 
     # Test positive buffer
@@ -628,6 +631,7 @@ def test_buffer_shp_to_gpkg(
         distance=distance,
         nb_parallel=2,
         batchsize=batchsize,
+        keep_empty_geoms=keep_empty_geoms,
     )
 
     # Now check if the output file is correctly created

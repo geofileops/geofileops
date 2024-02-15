@@ -352,7 +352,7 @@ def apply(
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
     gridsize: float = 0.0,
-    keep_empty_geoms: Optional[bool] = None,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -474,7 +474,7 @@ def buffer(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    keep_empty_geoms: Optional[bool] = None,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -735,7 +735,7 @@ def convexhull(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    keep_empty_geoms: Optional[bool] = None,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -810,7 +810,7 @@ def delete_duplicate_geometries(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
-    keep_empty_geoms: Optional[bool] = None,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     force: bool = False,
 ):
@@ -1191,7 +1191,7 @@ def makevalid(
     explodecollections: bool = False,
     force_output_geometrytype: Union[str, None, GeometryType] = None,
     gridsize: float = 0.0,
-    keep_empty_geoms: Optional[bool] = None,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     precision: Optional[float] = None,
     validate_attribute_data: bool = False,
@@ -1255,6 +1255,8 @@ def makevalid(
     """  # noqa: E501
     logger = logging.getLogger("geofileops.makevalid")
     logger.info(f"Start, on {input_path}")
+    input_path = Path(input_path)
+    output_path = Path(output_path)
 
     if gridsize is None:
         gridsize = 0.0
@@ -1276,8 +1278,8 @@ def makevalid(
         # Only use this version if gridsize is 0.0, because when gridsize applied it is
         # less robust than the gpd implementation.
         _geoops_sql.makevalid(
-            input_path=Path(input_path),
-            output_path=Path(output_path),
+            input_path=input_path,
+            output_path=output_path,
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
@@ -1292,8 +1294,8 @@ def makevalid(
         )
     else:
         _geoops_gpd.makevalid(
-            input_path=Path(input_path),
-            output_path=Path(output_path),
+            input_path=input_path,
+            output_path=output_path,
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
@@ -1548,7 +1550,7 @@ def simplify(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    keep_empty_geoms: Optional[bool] = None,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -1559,23 +1561,26 @@ def simplify(
 
     The result is written to the output file specified.
 
+    Several `algorithm`s are available.
+
     If ``explodecollections`` is False and the input and output file type is GeoPackage,
     the fid will be preserved. In other cases this will typically not be the case.
 
     Args:
         input_path (PathLike): the input file
         output_path (PathLike): the file to write the result to
-        tolerance (float): mandatory for the following algorithms:
-
-                * RAMER_DOUGLAS_PEUCKER: distance to use as tolerance.
-                * LANG: distance to use as tolerance.
-                * VISVALINGAM_WHYATT: area to use as tolerance.
-
+        tolerance (float): tolerance to use for the simplification. Depends on the
+            ``algorithm`` specified.
             In projected coordinate systems this tolerance will typically be
             in meter, in geodetic systems this is typically in degrees.
-        algorithm (str, optional): algorithm to use. Defaults to "rdp"
-            (Ramer Douglas Peucker).
-        lookahead (int, optional): used for LANG algorithm. Defaults to 8.
+        algorithm (str, optional): algorithm to use. Defaults to "rdp".
+
+                * **"rdp"**: Ramer Douglas Peucker: tolerance is a distance
+                * **"lang"**: Lang: tolerance is a distance
+                * **"lang+"**: Lang, with extensions to increase number of points reduced.
+                * **"vw"**: Visvalingam Whyatt: tolerance is an area.
+
+        lookahead (int, optional): used for Lang algorithms. Defaults to 8.
         input_layer (str, optional): input layer name. Optional if the input
             file only contains one layer.
         output_layer (str, optional): input layer name. Optional if the input

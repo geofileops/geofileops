@@ -374,12 +374,12 @@ def apply(
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
     gridsize: float = 0.0,
-    keep_empty_geoms: bool = True,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-    parallelization_config: ParallelizationConfig = None,
+    parallelization_config: Optional[ParallelizationConfig] = None,
 ):
     # Init
     operation_params = {
@@ -424,7 +424,7 @@ def buffer(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    keep_empty_geoms: bool = True,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -476,7 +476,7 @@ def convexhull(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    keep_empty_geoms: bool = True,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -512,9 +512,9 @@ def makevalid(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
-    force_output_geometrytype: Optional[GeometryType] = None,
+    force_output_geometrytype: Union[str, None, GeometryType] = None,
     gridsize: float = 0.0,
-    keep_empty_geoms: bool = True,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     validate_attribute_data: bool = False,
     nb_parallel: int = -1,
@@ -566,7 +566,7 @@ def simplify(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    keep_empty_geoms: bool = True,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -610,12 +610,12 @@ def _apply_geooperation_to_layer(
     explodecollections: bool,  # = False
     force_output_geometrytype: Union[GeometryType, str, None],  # = None
     gridsize: float,  # = 0.0
-    keep_empty_geoms: bool,  # = True
+    keep_empty_geoms: bool,  # = False
     where_post: Optional[str],  # = None
     nb_parallel: int,  # = -1
     batchsize: int,  # = -1
     force: bool,  # = False
-    parallelization_config: ParallelizationConfig = None,
+    parallelization_config: Optional[ParallelizationConfig] = None,
 ):
     """
     Applies a geo operation on a layer.
@@ -670,7 +670,7 @@ def _apply_geooperation_to_layer(
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
-            in the output. Defaults to True.
+            in the output. Defaults to False.
         where_post (str, optional): sql filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
@@ -896,7 +896,7 @@ def _apply_geooperation(
     where=None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    keep_empty_geoms: bool = True,
+    keep_empty_geoms: bool = False,
     preserve_fid: bool = False,
     force: bool = False,
 ) -> str:
@@ -947,10 +947,6 @@ def _apply_geooperation(
         else:
             raise ValueError(f"operation not supported: {operation}")
 
-    # Set empty geometries to null/None
-    assert data_gdf.geometry is not None
-    data_gdf.loc[data_gdf.geometry.is_empty, ["geometry"]] = None
-
     # If there is an fid column in the dataset, rename it, because the fid column is a
     # "special case" in gdal that should not be written.
     assert isinstance(data_gdf, gpd.GeoDataFrame)
@@ -970,11 +966,12 @@ def _apply_geooperation(
     if explodecollections:
         data_gdf = data_gdf.explode(ignore_index=True)
 
-    # Remove rows where geom is None/null/empty
+    # Set empty geometries to None
+    data_gdf.loc[data_gdf.geometry.is_empty, data_gdf.geometry.name] = None
+
     if not keep_empty_geoms:
-        assert isinstance(data_gdf, gpd.GeoDataFrame)
+        # Remove rows where geometry is None
         data_gdf = data_gdf[~data_gdf.geometry.isna()]
-        data_gdf = data_gdf[~data_gdf.geometry.is_empty]
 
     # If the result is empty, and no output geometrytype specified, use input
     # geometrytype
@@ -984,7 +981,6 @@ def _apply_geooperation(
         force_output_geometrytype = input_layerinfo.geometrytype
         if not explodecollections:
             force_output_geometrytype = force_output_geometrytype.to_multitype
-        force_output_geometrytype = force_output_geometrytype.name
 
     # If the index is still unique, save it to fid column so to_file can save it
     if preserve_fid:
@@ -1873,16 +1869,19 @@ def _dissolve_polygons(
 
         perfinfo["time_clip"] = (datetime.now() - start_clip).total_seconds()
 
-    # Set empty geometries to null/None
-    assert diss_gdf.geometry is not None
-    diss_gdf.loc[
-        diss_gdf.geometry.is_empty, ["geometry"]  # type: ignore[union-attr]
-    ] = None
+    if gridsize != 0.0:
+        diss_gdf.geometry = _geoseries_util.set_precision(
+            diss_gdf.geometry, grid_size=gridsize, raise_on_topoerror=False
+        )
+        assert isinstance(diss_gdf.geometry, gpd.GeoSeries)
 
-    # Remove rows where geom is None/null/empty
+    # Set empty geometries to None
+    diss_gdf.loc[diss_gdf.geometry.is_empty, diss_gdf.geometry.name] = None
+
     if not keep_empty_geoms:
+        # Remove rows where geom is None
         assert isinstance(diss_gdf, gpd.GeoDataFrame)
-        diss_gdf = diss_gdf[~diss_gdf.geometry.isna()]  # type: ignore[union-attr]
+        diss_gdf = diss_gdf[~diss_gdf.geometry.isna()]
 
     # If there is no result, return
     if len(diss_gdf) == 0:
@@ -1896,11 +1895,6 @@ def _dissolve_polygons(
     assert isinstance(diss_gdf, gpd.GeoDataFrame)
     if tile_id is not None:
         diss_gdf["tile_id"] = tile_id
-
-    if gridsize != 0.0:
-        diss_gdf.geometry = _geoseries_util.set_precision(
-            diss_gdf.geometry, grid_size=gridsize, raise_on_topoerror=False
-        )
 
     # Save the result to destination file(s)
     start_to_file = datetime.now()
@@ -2081,9 +2075,7 @@ def _dissolve(
         agg_columns = list(set(aggfunc["to_json"]))
         agg_data = (
             data.groupby(**groupby_kwargs)
-            .apply(
-                lambda g: g[agg_columns].to_json(orient="records")
-            )  # type: ignore[index]
+            .apply(lambda g: g[agg_columns].to_json(orient="records"))
             .to_frame(name="__DISSOLVE_TOJSON")
         )
     elif isinstance(aggfunc, str) and aggfunc == "merge_json_lists":
