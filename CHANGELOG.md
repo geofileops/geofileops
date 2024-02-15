@@ -5,6 +5,8 @@
 ### Improvements
 
 - Add support for self-overlays in overlay operations (#468)
+- Add configuration option GFO_REMOVE_TEMP_FILES that can be used to avoid temp files
+  being removed for debugging purposes (#480)
 - Several improvements to documentation: new FAQ, improved user guide,...
   (#465, #469, #474)
 - Linting improvements: use mypy + use ruff-format instead of black for formatting
