@@ -38,6 +38,17 @@ def test_get_bool(value, default, expected):
     assert result is expected
 
 
+def test_get_bool_invalidvalue():
+    test_key = "GFO_TEST_BOOL"
+    os.environ[test_key] = "INVALID"
+
+    try:
+        with pytest.raises(ValueError, match="invalid value for bool configoption"):
+            _ = _configoptions_helper.get_bool(test_key, default="")
+    finally:
+        del os.environ[test_key]
+
+
 @pytest.mark.parametrize(
     "value, expected",
     [("TRUE", True), ("FALSE", False), (None, True)],
