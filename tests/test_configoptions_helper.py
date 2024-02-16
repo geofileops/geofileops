@@ -3,7 +3,10 @@ Tests for functionalities in _configoptions_helper.
 """
 
 import os
+
 import pytest
+
+import geofileops as gfo
 from geofileops.helpers import _configoptions_helper
 from geofileops.helpers._configoptions_helper import ConfigOptions
 
@@ -40,13 +43,9 @@ def test_get_bool(value, default, expected):
 
 def test_get_bool_invalidvalue():
     test_key = "GFO_TEST_BOOL"
-    os.environ[test_key] = "INVALID"
-
-    try:
+    with gfo.TempEnv({test_key: "INVALID"}):
         with pytest.raises(ValueError, match="invalid value for bool configoption"):
             _ = _configoptions_helper.get_bool(test_key, default="")
-    finally:
-        del os.environ[test_key]
 
 
 @pytest.mark.parametrize(
