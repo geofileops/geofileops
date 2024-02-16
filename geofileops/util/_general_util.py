@@ -186,7 +186,7 @@ def prepare_for_serialize(data: dict) -> dict:
 
 class TempEnv:
     """
-    Context manager to temporaroly set/change environment variables.
+    Context manager to temporarily set/change environment variables.
 
     Existing values for variables are backed up and reset when the scope is left,
     variables that didn't exist before are deleted again.
