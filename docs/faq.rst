@@ -48,3 +48,14 @@ variables:
   options are "pyogrio" and "fiona". Defaults to "pyogrio".
 - `GFO_REMOVE_TEMP_FILES`: whether to remove temp files being created after use, e.g. 
   for debugging purposes. Valid values are e.g. "TRUE" or "FALSE". Defaults to True.
+
+You can use the :class:`.TempEnv` context manager if you want to set a configuration
+option temporarily:
+
+.. code-block:: python
+
+    import geofileops as gfo
+
+    if __name__ == "__main__":
+        with gfo.TempEnv("GFO_REMOVE_TEMP_FILES", "False"):
+            gfo. ...
