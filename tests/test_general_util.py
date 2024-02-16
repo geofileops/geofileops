@@ -1,91 +1,54 @@
-# -*- coding: utf-8 -*-
 """
-Tests for functionalities in ogr_util.
+Tests for functionalities in _general_util.
 """
 
 import datetime
 import os
-from pathlib import Path
-import sys
-import time 
+import time
 
-# Add path so the local geofileops packages are found 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from geofileops.util import _general_util
+
 
 def test_formatbytes():
     bytes_str = _general_util.formatbytes(1)
-    assert bytes_str == '1.0 Byte'
+    assert bytes_str == "1.0 Byte"
     bytes_str = _general_util.formatbytes(2)
-    assert bytes_str == '2.0 Bytes'
+    assert bytes_str == "2.0 Bytes"
     bytes_str = _general_util.formatbytes(1024.0)
-    assert bytes_str == '1.00 KB'
-    bytes_str = _general_util.formatbytes(1024.0 ** 2)
-    assert bytes_str == '1.00 MB'
-    bytes_str = _general_util.formatbytes(1024.0 ** 3)
-    assert bytes_str == '1.00 GB'
-    bytes_str = _general_util.formatbytes(1024.0 ** 4)
-    assert bytes_str == '1.00 TB'
+    assert bytes_str == "1.00 KB"
+    bytes_str = _general_util.formatbytes(1024.0**2)
+    assert bytes_str == "1.00 MB"
+    bytes_str = _general_util.formatbytes(1024.0**3)
+    assert bytes_str == "1.00 GB"
+    bytes_str = _general_util.formatbytes(1024.0**4)
+    assert bytes_str == "1.00 TB"
+
 
 def test_format_progress():
     start_time = datetime.datetime.now()
     nb_todo = 10000
-    for nb_done in range(0, nb_todo+1, 2000):
+    for nb_done in range(0, nb_todo + 1, 2000):
         message = _general_util.format_progress(
-                start_time=start_time, 
-                nb_done=nb_done, 
-                nb_todo=nb_todo, 
-                operation="test", 
-                nb_parallel=2)
+            start_time=start_time,
+            nb_done=nb_done,
+            nb_todo=nb_todo,
+            operation="test",
+            nb_parallel=2,
+        )
         time.sleep(0.5)
         if message is not None:
             print(message)
 
-def test_processnice():
-    # Test setting and getting some values for nice 
-    # Remark: the nice values tests are spcifically written to accomodate for
-    # windows specificalities: 
-    #     - windows only supports 6 niceness classes. setprocessnice en 
-    #       getprocessnice maps niceness values to these classes.
-    #     - when setting REALTIME priority (-20 niceness) apparently this 
-    #       results only to HIGH priority. 
-    nice_orig = _general_util.getprocessnice()
-    for niceness in [-15, -10, 0, 10, 19]: 
-        # Decreasing niceness (sometimes) isn't possible on linux, so skip 
-        if os.name != 'nt':
-            continue
 
-        # Test!
-        _general_util.setprocessnice(niceness)
-        nice = _general_util.getprocessnice()
-        assert nice == niceness
-
-    # Test invalid values for nice value
-    try:
-        _general_util.setprocessnice(20)    
-        exception_raised = False
-    except ValueError:
-        exception_raised = True
-    assert exception_raised is True
-    try:
-        _general_util.setprocessnice(-21)    
-        exception_raised = False
-    except ValueError:
-        exception_raised = True
-    assert exception_raised is True
-    
-    # Reset niceness to original value before test
-    _general_util.setprocessnice(nice_orig)
-
-def test_set_env_variables():
+def test_TempEnv():
     test_var1 = "TEST_ENV_VARIABLE1"
     test_var2 = "TEST_ENV_VARIABLE2"
     assert test_var1 not in os.environ
     assert test_var2 not in os.environ
     os.environ[test_var2] = "test2_original_value"
-    with _general_util.set_env_variables(
-            {   test_var1: "test1_context_value",
-                test_var2: "test2_context_value"} ):
+    with _general_util.TempEnv(
+        {test_var1: "test1_context_value", test_var2: "test2_context_value"}
+    ):
         assert os.environ[test_var1] == "test1_context_value"
         assert os.environ[test_var2] == "test2_context_value"
 

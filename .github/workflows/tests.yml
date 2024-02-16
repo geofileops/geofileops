@@ -5,18 +5,31 @@ name: Tests
 
 on:
   push:
-    branches: [ master, 0.** ]
+    branches: [ main, v0.** ]
   pull_request:
-    branches: [ master, 0.** ]
+    branches: [ main, v0.** ]
+  schedule:
+    - cron: "0 0 * * *"
 
-#concurrency: 
-#  group: ${{ github.workflow }}-${{ github.ref }}
-#  cancel-in-progress: true
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  Linting:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - uses: pre-commit/action@v3.0.0
 
   Test:
-    name: ${{ matrix.os }}, ${{ matrix.env }}
+    needs: Linting
+    name: ${{ matrix.env }}, python ${{ matrix.python }}, ${{ matrix.os }}
+    timeout-minutes: 30
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -26,28 +39,39 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         dev: [false]
-        env:
-          - ci/envs/38-latest-conda-forge.yaml
-          - ci/envs/39-latest-conda-forge.yaml
+        python: ["3.9", "3.10", "3.11", "3.12"]
+        env: ["latest"]
+        # Use openblas instead of mkl saves 600 MB. Linux OK, 50% slower on Windows and OSX!
+        extra: ["nomkl"]
         include:
-          - env: ci/envs/39-latest-conda-forge.yaml
+          - env: minimal
+            os: ubuntu-latest
+            dev: false
+            python: "3.9"
+          - env: latest
             os: macos-latest
             dev: false
-          - env: ci/envs/38-latest-conda-forge.yaml
+            python: "3.11"
+          - env: latest
             os: windows-latest
             dev: false
+            python: "3.11"
             
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
-      - name: Setup Conda
-        uses: conda-incubator/setup-miniconda@v2
+      - name: Install Conda environment with Micromamba
+        uses: mamba-org/setup-micromamba@v1
         with:
-          environment-file: ${{ matrix.env }}
-
+          micromamba-version: '1.5.1-0'
+          environment-file: ci/envs/${{ matrix.env }}.yml
+          create-args: >-
+            python=${{ matrix.python }}
+            ${{ matrix.extra }}
+        
       - name: Test
         run: |
           pytest --color=yes --cov=geofileops --cov-append --cov-report term-missing --cov-report xml tests/
 
-      - uses: codecov/codecov-action@v2
+      - uses: codecov/codecov-action@v3
       

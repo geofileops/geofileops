@@ -1,16 +1,38 @@
-# geofileops [![Actions Status](https://github.com/geofileops/geofileops/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/geofileops/geofileops/actions?query=workflow%3ATests) [![Coverage Status](https://codecov.io/gh/geofileops/geofileops/branch/master/graph/badge.svg)](https://codecov.io/gh/geofileops/geofileops)
-Library to make spatial operations on large geo files fast(er) and easy.
+# geofileops 
 
-Remarks: 
-* Most typical operations are available: buffer, simplify, dissolve, union, erase, intersect,...
-* The speed (improvement) depends on the number of available cores, the size of the input files and whether the operation is CPU intensive.
-  * For CPU bound operations (eg. intersects,... between large input files) the processing time will decrease depending on the number of available CPU cores. In extreme cases (very large files) the processing time can be divided by the number of available cores.
-  * For dissolve on (very) large files, the speed improvement might be a lot faster, even more than the processing time divided by the available cores.
-  * For small files and/or computationally easy operations (eg. buffer) geofileops might be slower than other libraries.
-* Tested on geopackage and shapefile input files.
+[![Actions Status](https://github.com/geofileops/geofileops/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/geofileops/geofileops/actions/workflows/tests.yml?query=workflow%3ATests) 
+[![Coverage Status](https://codecov.io/gh/geofileops/geofileops/branch/main/graph/badge.svg)](https://codecov.io/gh/geofileops/geofileops)
+[![PyPI version](https://img.shields.io/pypi/v/geofileops.svg)](https://pypi.org/project/geofileops)
+[![Conda version](https://anaconda.org/conda-forge/geofileops/badges/version.svg)](https://anaconda.org/conda-forge/geofileops)
+[![DOI](https://zenodo.org/badge/203202318.svg)](https://zenodo.org/doi/10.5281/zenodo.10340100)
 
-Documentation on how to use geofileops can be found [here](https://geofileops.readthedocs.io).
+Geofileops is a python toolbox to process large vector files faster.
 
-The following chart gives an impression of the speed improvement that can be expected when processing larger files (including I/O!). More information about this benchmark can be found [here](https://github.com/geofileops/geobenchmark).
+Most typical GIS operations are available: e.g.
+[buffer](https://geofileops.readthedocs.io/en/stable/api/geofileops.apply.html#geofileops.buffer), 
+[dissolve](https://geofileops.readthedocs.io/en/stable/api/geofileops.apply.html#geofileops.dissolve),
+[erase](https://geofileops.readthedocs.io/en/stable/api/geofileops.apply.html#geofileops.erase)/difference, 
+[intersection](https://geofileops.readthedocs.io/en/stable/api/geofileops.apply.html#geofileops.intersection), 
+[union](https://geofileops.readthedocs.io/en/stable/api/geofileops.apply.html#geofileops.union),... 
 
-![Geo benchmark](https://github.com/geofileops/geobenchmark/blob/main/results/GeoBenchmark.png)
+The spatial operations are tested on geopackage and shapefile input files, but
+geopackage is recommended as it will give better performance. General 
+[layer](https://geofileops.readthedocs.io/en/stable/reference.html#general-layer-operations)
+and [file operations](https://geofileops.readthedocs.io/en/stable/reference.html#general-file-operations) can be used on the file formats supported by 
+[GDAL](https://gdal.org/).
+
+The full documentation is available on [readthedocs](https://geofileops.readthedocs.io).
+
+Different techniques are used under the hood to be able to process large files as fast
+as possible:
+
+* process data in batches
+* subdivide/merge complex geometries on the fly
+* process data in different passes
+* use all available CPUs
+
+The following chart gives an impression of the speed improvement that can be expected
+when processing larger files. The [benchmarks](https://github.com/geofileops/geobenchmark)
+typically use input file(s) with 500K polygons, ran on a Windows PC with 12 cores and include I/O.
+
+![Geo benchmark](https://github.com/geofileops/geobenchmark/blob/main/results_vector_ops/GeoBenchmark.png)

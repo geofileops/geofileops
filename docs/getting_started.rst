@@ -1,4 +1,5 @@
 
+===============
 Getting started
 ===============
 
@@ -11,22 +12,29 @@ alternative.
 
 The easy way
 ------------
-If you don't have miniconda or anaconda installed yet, here is a link to the 
-`miniconda installer`_
+If you don't have conda installed yet, you can install it using the
+`miniforge installer`_.
 
-Typically, the next step will be to create a new conda environment. The  
-conda-forge channel is added here, as this channel contains the most recent 
-versions of the dependencies::
+Now start the conda prompt and create a new conda environment with the following
+commands: ::
 
     conda create -n geo
     conda activate geo
+
+
+If you use e.g. anaconda or miniconda instead of a miniforge installation, also run
+following commands to specify that all depencencies should be installed from the
+conda-forge channel. Mixing packages from multiple channels is bound to give problems
+sooner or later: ::
+
     conda config --env --add channels conda-forge
     conda config --env --set channel_priority strict
 
-Now the conda environment is prepared, you can install the geofileops 
-dependencies that are available as conda packages::
 
-    conda install --channel conda-forge python=3.9 geofileops
+Finally, you can install geofileops: ::
+
+    conda install python=3.10 geofileops
+
 
 The hard way
 ------------
@@ -35,5 +43,5 @@ follow the instructions to `install GeoPandas`_.
 
 Afterwards you can install geofileops with pip.
 
-.. _miniconda installer : https://conda.io/projects/conda/en/latest/user-guide/install/index.html
+.. _miniforge installer : https://github.com/conda-forge/miniforge#miniforge3
 .. _install GeoPandas : https://geopandas.org/install.html

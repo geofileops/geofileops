@@ -1,8 +1,12 @@
 
 .coverage*
+*.tmp
 *.log
 *.pyc
 *.gpkg-*
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
 .vscode/
 tests/data/testdata.qgz
 
@@ -13,4 +17,4 @@ docs/_build
 docs/api
 geofileops.egg-info/
 htmlcov/
-tmp/
+local_ignore/
