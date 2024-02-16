@@ -188,33 +188,34 @@ class TempEnv:
     """
     Context manager to temporaroly set/change environment variables.
 
-    Existing values for variables are backed up and reset when the scope is left.
+    Existing values for variables are backed up and reset when the scope is left,
+    variables that didn't exist before are deleted again.
 
     Args:
-        envs (dict): dict with environment variables to set.
+        envs (Dict[str, Any]): dict with environment variables to set.
     """
 
-    def __init__(self, envs: dict):
-        self.env_variables_backup = {}
-        self.env_variables_to_set = envs
+    def __init__(self, envs: Dict[str, Any]):
+        self._envs_backup: Dict[str, str] = {}
+        self._envs = envs
 
     def __enter__(self):
         # Only if a name and value is specified...
-        for name, value in self.env_variables_to_set.items():
+        for name, value in self._envs.items():
             # If the environment variable is already defined, make backup
             if name in os.environ:
-                self.env_variables_backup[name] = os.environ[name]
+                self._envs_backup[name] = os.environ[name]
 
             # Set env variable to value
-            os.environ[name] = value
+            os.environ[name] = str(value)
 
     def __exit__(self, type, value, traceback):
         # Set variables that were backed up back to original value
-        for name, value in self.env_variables_backup.items():
+        for name, value in self._envs_backup.items():
             # Recover backed up value
             os.environ[name] = value
         # For variables without backup, remove them
-        for name, value in self.env_variables_to_set.items():
-            if name not in self.env_variables_backup:
+        for name, value in self._envs.items():
+            if name not in self._envs_backup:
                 if name in os.environ:
                     del os.environ[name]
