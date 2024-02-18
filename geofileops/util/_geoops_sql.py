@@ -994,6 +994,10 @@ def erase(
     output_with_spatial_index: bool = True,
     operation_prefix: str = "",
 ):
+    # Check input params
+    if subdivide_coords < 0:
+        raise ValueError("subdivide_coords < 0 is not allowed")
+
     # Because there might be extra preparation of the erase layer before going ahead
     # with the real calculation, do some additional init + checks here...
     operation = f"{operation_prefix}erase"
@@ -1130,8 +1134,9 @@ def erase(
         SELECT * FROM (
           SELECT IFNULL(
                    ( SELECT IFNULL(
-                               IIF(ST_NPoints(layer1.{{input1_geometrycolumn}})
-                                        < {subdivide_coords},
+                               IIF({subdivide_coords} <= 0
+                                      OR ST_NPoints(layer1.{{input1_geometrycolumn}})
+                                             < {subdivide_coords},
                                    IIF(ST_Union(layer2_sub.{{input2_geometrycolumn}})
                                             IS NULL,
                                        layer1.{{input1_geometrycolumn}},

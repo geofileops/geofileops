@@ -95,18 +95,18 @@ def test_clip_resultempty(tmp_path, suffix, clip_empty):
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize(
-    "testfile, gridsize, where_post",
+    "testfile, gridsize, where_post, subdivide_coords",
     [
-        ("linestring-row-trees", 0.0, "ST_Length(geom) > 100"),
-        ("linestring-row-trees", 0.001, None),
-        ("point", 0.0, None),
-        ("point", 0.001, None),
-        ("polygon-parcel", 0.0, None),
-        ("polygon-parcel", 0.0, "ST_Area(geom) > 2000"),
-        ("polygon-parcel", 0.001, None),
+        ("linestring-row-trees", 0.0, "ST_Length(geom) > 100", None),
+        ("linestring-row-trees", 0.001, None, 0),
+        ("point", 0.0, None, None),
+        ("point", 0.001, None, 0),
+        ("polygon-parcel", 0.0, None, None),
+        ("polygon-parcel", 0.0, "ST_Area(geom) > 2000", 0),
+        ("polygon-parcel", 0.001, None, 0),
     ],
 )
-def test_erase(tmp_path, suffix, testfile, gridsize, where_post):
+def test_erase(tmp_path, suffix, testfile, gridsize, where_post, subdivide_coords):
     input_path = test_helper.get_testfile(testfile, suffix=suffix)
     if suffix == ".shp":
         erase_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
@@ -118,6 +118,10 @@ def test_erase(tmp_path, suffix, testfile, gridsize, where_post):
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
 
+    kwargs = {}
+    if subdivide_coords is not None:
+        kwargs["subdivide_coords"] = subdivide_coords
+
     gfo.erase(
         input_path=str(input_path),
         erase_path=str(erase_path),
@@ -126,6 +130,7 @@ def test_erase(tmp_path, suffix, testfile, gridsize, where_post):
         gridsize=gridsize,
         where_post=where_post,
         batchsize=batchsize,
+        **kwargs,
     )
 
     # Compare result with geopandas
@@ -252,15 +257,22 @@ def test_erase_self(tmp_path, subdivide_coords):
     assert output_layerinfo.featurecount == 3
 
 
-def test_erase_self_invalid_params():
-    with pytest.raises(
-        ValueError, match="erase_layer must be None if erase_path is None"
-    ):
+@pytest.mark.parametrize(
+    "kwargs, expected_error",
+    [
+        ({"erase_path": None}, "erase_layer must be None if erase_path is None"),
+        ({"subdivide_coords": -1}, "subdivide_coords < 0 is not allowed"),
+    ],
+)
+def test_erase_self_invalid_params(kwargs, expected_error):
+    if "erase_path" not in kwargs:
+        kwargs["erase_path"] = "erase.gpkg"
+    with pytest.raises(ValueError, match=expected_error):
         gfo.erase(
             input_path="input.gpkg",
-            erase_path=None,
             output_path="output.gpkg",
             erase_layer="invalid",
+            **kwargs,
         )
 
 
