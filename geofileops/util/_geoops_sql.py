@@ -988,6 +988,9 @@ def erase(
 ):
     # Because there might be extra preparation of the erase layer before going ahead
     # with the real calculation, do some additional init + checks here...
+    if subdivide_coords < 0:
+        raise ValueError("subdivide_coords < 0 is not allowed")
+
     operation = f"{operation_prefix}erase"
     logger = logging.getLogger(f"geofileops.{operation}")
     if output_path.exists():
@@ -1097,8 +1100,9 @@ def erase(
         SELECT * FROM (
           SELECT IFNULL(
                    ( SELECT IFNULL(
-                               IIF(ST_NPoints(layer1.{{input1_geometrycolumn}})
-                                        < {subdivide_coords},
+                               IIF({subdivide_coords} <= 0
+                                      OR ST_NPoints(layer1.{{input1_geometrycolumn}})
+                                             < {subdivide_coords},
                                    IIF(ST_Union(layer2_sub.{{input2_geometrycolumn}})
                                             IS NULL,
                                        layer1.{{input1_geometrycolumn}},
@@ -1887,6 +1891,8 @@ def identity(
 
     # Because the calculations of the intermediate results will be towards temp files,
     # we need to do some additional init + checks here...
+    if subdivide_coords < 0:
+        raise ValueError("subdivide_coords < 0 is not allowed")
     logger = logging.getLogger("geofileops.identity")
     if output_path.exists():
         if force is False:
@@ -2001,6 +2007,8 @@ def symmetric_difference(
 
     # Because both erase calculations will be towards temp files,
     # we need to do some additional init + checks here...
+    if subdivide_coords < 0:
+        raise ValueError("subdivide_coords < 0 is not allowed")
     if force is False and output_path.exists():
         return
     if output_layer is None:
@@ -2127,6 +2135,9 @@ def union(
 
     # Because the calculations of the intermediate results will be towards temp files,
     # we need to do some additional init + checks here...
+    if subdivide_coords < 0:
+        raise ValueError("subdivide_coords < 0 is not allowed")
+
     logger = logging.getLogger("geofileops.union")
     if output_path.exists():
         if force is False:

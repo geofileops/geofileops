@@ -95,18 +95,18 @@ def test_clip_resultempty(tmp_path, suffix, clip_empty):
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize(
-    "testfile, gridsize, where_post",
+    "testfile, gridsize, where_post, subdivide_coords",
     [
-        ("linestring-row-trees", 0.0, "ST_Length(geom) > 100"),
-        ("linestring-row-trees", 0.001, None),
-        ("point", 0.0, None),
-        ("point", 0.001, None),
-        ("polygon-parcel", 0.0, None),
-        ("polygon-parcel", 0.0, "ST_Area(geom) > 2000"),
-        ("polygon-parcel", 0.001, None),
+        ("linestring-row-trees", 0.0, "ST_Length(geom) > 100", None),
+        ("linestring-row-trees", 0.001, None, 0),
+        ("point", 0.0, None, None),
+        ("point", 0.001, None, 0),
+        ("polygon-parcel", 0.0, None, None),
+        ("polygon-parcel", 0.0, "ST_Area(geom) > 2000", 0),
+        ("polygon-parcel", 0.001, None, 0),
     ],
 )
-def test_erase(tmp_path, suffix, testfile, gridsize, where_post):
+def test_erase(tmp_path, suffix, testfile, gridsize, where_post, subdivide_coords):
     input_path = test_helper.get_testfile(testfile, suffix=suffix)
     if suffix == ".shp":
         erase_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
@@ -118,6 +118,10 @@ def test_erase(tmp_path, suffix, testfile, gridsize, where_post):
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
 
+    kwargs = {}
+    if subdivide_coords is not None:
+        kwargs["subdivide_coords"] = subdivide_coords
+
     gfo.erase(
         input_path=str(input_path),
         erase_path=str(erase_path),
@@ -126,6 +130,7 @@ def test_erase(tmp_path, suffix, testfile, gridsize, where_post):
         gridsize=gridsize,
         where_post=where_post,
         batchsize=batchsize,
+        **kwargs,
     )
 
     # Compare result with geopandas
@@ -225,6 +230,24 @@ def test_erase_force(tmp_path):
         force=True,
     )
     assert output_path.stat().st_mtime != mtime_orig
+
+
+@pytest.mark.parametrize(
+    "kwargs, expected_error",
+    [
+        ({"subdivide_coords": -1}, "subdivide_coords < 0 is not allowed"),
+    ],
+)
+def test_erase_invalid_params(kwargs, expected_error):
+    if "erase_path" not in kwargs:
+        kwargs["erase_path"] = "erase.gpkg"
+    with pytest.raises(ValueError, match=expected_error):
+        gfo.erase(
+            input_path="input.gpkg",
+            output_path="output.gpkg",
+            erase_layer="invalid",
+            **kwargs,
+        )
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
@@ -449,6 +472,23 @@ def test_identity_force(tmp_path):
     assert output_path.stat().st_mtime != mtime_orig
 
 
+@pytest.mark.parametrize(
+    "kwargs, expected_error",
+    [
+        ({"subdivide_coords": -1}, "subdivide_coords < 0 is not allowed"),
+    ],
+)
+def test_identity_invalid_params(kwargs, expected_error):
+    if "input2_path" not in kwargs:
+        kwargs["input2_path"] = "input2.gpkg"
+    with pytest.raises(ValueError, match=expected_error):
+        gfo.identity(
+            input1_path="input1.gpkg",
+            output_path="output.gpkg",
+            **kwargs,
+        )
+
+
 @pytest.mark.parametrize("testfile", ["polygon-parcel"])
 @pytest.mark.parametrize(
     "suffix, epsg, gridsize, explodecollections, nb_parallel",
@@ -591,6 +631,26 @@ def test_intersection_invalid_params(
             input1_path=input1_path,
             input2_path=input2_path,
             output_path=output_path,
+        )
+
+
+@pytest.mark.parametrize(
+    "kwargs, expected_error",
+    [
+        (
+            {"input2_path": None, "input2_layer": "invalid"},
+            "input2_layer must be None if input2_path is None",
+        )
+    ],
+)
+def test_intersection_invalid_params2(kwargs, expected_error):
+    if "input2_path" not in kwargs:
+        kwargs["input2_path"] = "input2.gpkg"
+    with pytest.raises(ValueError, match=expected_error):
+        gfo.intersection(
+            input1_path="input1.gpkg",
+            output_path="output.gpkg",
+            **kwargs,
         )
 
 
@@ -1519,6 +1579,23 @@ def test_symmetric_difference(tmp_path, suffix, epsg, gridsize):
 
 
 @pytest.mark.parametrize(
+    "kwargs, expected_error",
+    [
+        ({"subdivide_coords": -1}, "subdivide_coords < 0 is not allowed"),
+    ],
+)
+def test_symmetric_difference_invalid_params(kwargs, expected_error):
+    if "input2_path" not in kwargs:
+        kwargs["input2_path"] = "input2.gpkg"
+    with pytest.raises(ValueError, match=expected_error):
+        gfo.symmetric_difference(
+            input1_path="input1.gpkg",
+            output_path="output.gpkg",
+            **kwargs,
+        )
+
+
+@pytest.mark.parametrize(
     "suffix, epsg, gridsize, where_post, explodecollections, keep_fid, "
     "exp_featurecount",
     [
@@ -1751,3 +1828,20 @@ def test_union_force(tmp_path):
         force=True,
     )
     assert output_path.stat().st_mtime != mtime_orig
+
+
+@pytest.mark.parametrize(
+    "kwargs, expected_error",
+    [
+        ({"subdivide_coords": -1}, "subdivide_coords < 0 is not allowed"),
+    ],
+)
+def test_union_invalid_params(kwargs, expected_error):
+    if "input2_path" not in kwargs:
+        kwargs["input2_path"] = "input2.gpkg"
+    with pytest.raises(ValueError, match=expected_error):
+        gfo.union(
+            input1_path="input.gpkg",
+            output_path="output.gpkg",
+            **kwargs,
+        )
