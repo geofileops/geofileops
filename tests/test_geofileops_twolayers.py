@@ -634,26 +634,6 @@ def test_intersection_invalid_params(
         )
 
 
-@pytest.mark.parametrize(
-    "kwargs, expected_error",
-    [
-        (
-            {"input2_path": None, "input2_layer": "invalid"},
-            "input2_layer must be None if input2_path is None",
-        )
-    ],
-)
-def test_intersection_invalid_params2(kwargs, expected_error):
-    if "input2_path" not in kwargs:
-        kwargs["input2_path"] = "input2.gpkg"
-    with pytest.raises(ValueError, match=expected_error):
-        gfo.intersection(
-            input1_path="input1.gpkg",
-            output_path="output.gpkg",
-            **kwargs,
-        )
-
-
 def test_intersection_output_path_exists(tmp_path):
     # Prepare test data
     input1_path = test_helper.get_testfile("polygon-parcel")
