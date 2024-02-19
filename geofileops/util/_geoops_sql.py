@@ -994,12 +994,11 @@ def erase(
     output_with_spatial_index: bool = True,
     operation_prefix: str = "",
 ):
-    # Check input params
+    # Because there might be extra preparation of the erase layer before going ahead
+    # with the real calculation, do some additional init + checks here...
     if subdivide_coords < 0:
         raise ValueError("subdivide_coords < 0 is not allowed")
 
-    # Because there might be extra preparation of the erase layer before going ahead
-    # with the real calculation, do some additional init + checks here...
     operation = f"{operation_prefix}erase"
     logger = logging.getLogger(f"geofileops.{operation}")
 
@@ -1936,6 +1935,8 @@ def identity(
 
     # Because the calculations of the intermediate results will be towards temp files,
     # we need to do some additional init + checks here...
+    if subdivide_coords < 0:
+        raise ValueError("subdivide_coords < 0 is not allowed")
     logger = logging.getLogger("geofileops.identity")
     if output_path.exists():
         if force is False:
@@ -2054,6 +2055,8 @@ def symmetric_difference(
 
     # Because both erase calculations will be towards temp files,
     # we need to do some additional init + checks here...
+    if subdivide_coords < 0:
+        raise ValueError("subdivide_coords < 0 is not allowed")
     if force is False and output_path.exists():
         return
     if output_layer is None:
@@ -2184,6 +2187,9 @@ def union(
 
     # Because the calculations of the intermediate results will be towards temp files,
     # we need to do some additional init + checks here...
+    if subdivide_coords < 0:
+        raise ValueError("subdivide_coords < 0 is not allowed")
+
     logger = logging.getLogger("geofileops.union")
 
     if output_path.exists():
