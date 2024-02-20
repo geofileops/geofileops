@@ -314,7 +314,8 @@ def makevalid(
 
     # Init + prepare sql template for this operation
     # ----------------------------------------------
-    # Only apply makevalid if the geometry is truly invalid, this is faster
+    # Only apply makevalid if the geometry is truly invalid, this is faster.
+    # GEOSMakeValid crashes with EMPTY input, so check this first.
     if SPATIALITE_GTE_51:
         operation = """
             IIF({geometrycolumn} IS NULL OR ST_IsEmpty({geometrycolumn}) <> 0,
