@@ -317,9 +317,12 @@ def makevalid(
     # Only apply makevalid if the geometry is truly invalid, this is faster
     if SPATIALITE_GTE_51:
         operation = """
-            IIF(ST_IsValid({geometrycolumn}) = 1,
-                {geometrycolumn},
-                GEOSMakeValid({geometrycolumn}, 0)
+            IIF({geometrycolumn} IS NULL OR ST_IsEmpty({geometrycolumn}) <> 0,
+                NULL,
+                IIF(ST_IsValid({geometrycolumn}) = 1,
+                    {geometrycolumn},
+                    GEOSMakeValid({geometrycolumn}, 0)
+               )
             )"""
     else:
         # Prepare sql template for this operation
