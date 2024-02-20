@@ -2583,11 +2583,15 @@ def _two_layer_vector_operation(
             cols = [col for col in column_datatypes if col.lower() != "geom"]
             columns_to_select = _ogr_sql_util.columns_quoted(cols)
             sql_template = f"""
-                SELECT {gridsize_op} AS geom
-                        {columns_to_select}
-                  FROM ( {sql_template}
-                         LIMIT -1 OFFSET 0
-                  ) sub_gridsize
+                SELECT * FROM
+                  ( SELECT {gridsize_op} AS geom
+                          {columns_to_select}
+                      FROM ( {sql_template}
+                              LIMIT -1 OFFSET 0
+                      ) sub_gridsize
+                     LIMIT -1 OFFSET 0
+                  ) sub_gridsize2
+                 WHERE sub_gridsize2.geom IS NOT NULL
             """
 
         # Prepare/apply where_post parameter
