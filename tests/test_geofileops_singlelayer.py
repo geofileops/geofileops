@@ -72,7 +72,7 @@ def basic_combinations_to_test(
                 where_post = None
                 keep_empty_geoms = None
                 dimensions = None
-                gridsize = 0.1 if epsg == 31370 else GRIDSIZE_DEFAULT
+                gridsize = 0.01 if epsg == 31370 else GRIDSIZE_DEFAULT
                 if testfile == "polygon-parcel":
                     dimensions = "XYZ"
                     keep_empty_geoms = False
@@ -104,7 +104,7 @@ def basic_combinations_to_test(
             for testfile in testfiles:
                 where_post = ""
                 keep_empty_geoms = False
-                gridsize = 0.1 if testfile == "polygon-parcel" else GRIDSIZE_DEFAULT
+                gridsize = 0.01 if testfile == "polygon-parcel" else GRIDSIZE_DEFAULT
                 if testfile == "polygon-parcel":
                     where_post = WHERE_AREA_GT_400
                 else:
@@ -129,7 +129,7 @@ def basic_combinations_to_test(
     #   - fixed epsg, testfile and empty_input
     for geoops_module in geoops_modules:
         for suffix in suffixes:
-            gridsize = 0.1 if suffix == ".gpkg" else GRIDSIZE_DEFAULT
+            gridsize = 0.01 if suffix == ".gpkg" else GRIDSIZE_DEFAULT
             keep_empty_geoms = False
             where_post = None
             dimensions = None
@@ -222,6 +222,7 @@ def test_buffer(
     assert_geodataframe_equal(
         output_gdf,
         expected_gdf,
+        normalize=True,
         promote_to_multi=True,
         check_less_precise=check_less_precise,
         sort_values=True,
@@ -655,7 +656,7 @@ def test_buffer_shp_to_gpkg(
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize(
     "empty_input, gridsize, keep_empty_geoms, where_post",
-    [(True, 0.0, True, None), (False, 0.1, None, WHERE_AREA_GT_400)],
+    [(True, 0.0, True, None), (False, 0.01, None, WHERE_AREA_GT_400)],
 )
 def test_convexhull(
     tmp_path, geoops_module, suffix, empty_input, gridsize, keep_empty_geoms, where_post
@@ -949,7 +950,7 @@ def test_makevalid_gridsize_topoerror(tmp_path, geoops_module):
     input_path = tmp_path / "input.gpkg"
     fileops.to_file(test_gdf, input_path)
 
-    gridsize = 0.1
+    gridsize = 0.01
 
     # Prepare expected result
     expected_data = {

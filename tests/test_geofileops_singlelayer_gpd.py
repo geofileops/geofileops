@@ -279,9 +279,9 @@ def test_buffer_styles(tmp_path, suffix, epsg):
 @pytest.mark.parametrize(
     "epsg, gridsize, explodecollections, where_post",
     [
-        (31370, 0.1, True, WHERE_LENGTH_GT_1000),
-        (31370, 0.1, False, WHERE_LENGTH_GT_200000),
-        (31370, 0.1, True, ""),
+        (31370, 0.01, True, WHERE_LENGTH_GT_1000),
+        (31370, 0.01, False, WHERE_LENGTH_GT_200000),
+        (31370, 0.01, True, ""),
         (4326, 0.0, False, None),
     ],
 )
@@ -635,8 +635,8 @@ def test_dissolve_polygons(
 
     # Small differences with the geopandas result are expected, because gfo
     # adds points in the tiling process. So only basic checks possible.
-    # output_gdf.geometry = output_gdf.geometry.simplify(0.1)
-    # expected_gdf.geometry = expected_gdf.geometry.simplify(0.1)
+    # output_gdf.geometry = output_gdf.geometry.simplify(0.01)
+    # expected_gdf.geometry = expected_gdf.geometry.simplify(0.01)
     # assert_geodataframe_equal(
     #     output_gdf, expected_gdf, promote_to_multi=True, sort_values=True,
     #     normalize=True, check_less_precise=True
@@ -1104,10 +1104,10 @@ def test_dissolve_polygons_aggcolumns_json(tmp_path, agg_columns):
 @pytest.mark.parametrize(
     "suffix, epsg, testfile, gridsize",
     [
-        (".gpkg", 31370, "polygon-parcel", 0.1),
-        (".gpkg", 31370, "linestring-row-trees", 0.1),
+        (".gpkg", 31370, "polygon-parcel", 0.01),
+        (".gpkg", 31370, "linestring-row-trees", 0.01),
         (".gpkg", 4326, "polygon-parcel", 0.0),
-        (".shp", 31370, "polygon-parcel", 0.1),
+        (".shp", 31370, "polygon-parcel", 0.01),
         (".shp", 4326, "polygon-parcel", 0.0),
     ],
 )
@@ -1156,10 +1156,10 @@ def test_simplify_lang(tmp_path, suffix, epsg, testfile, gridsize):
 @pytest.mark.parametrize(
     "suffix, epsg, testfile, gridsize",
     [
-        (".gpkg", 31370, "polygon-parcel", 0.1),
-        (".gpkg", 31370, "linestring-row-trees", 0.1),
+        (".gpkg", 31370, "polygon-parcel", 0.01),
+        (".gpkg", 31370, "linestring-row-trees", 0.01),
         (".gpkg", 4326, "polygon-parcel", 0.0),
-        (".shp", 31370, "polygon-parcel", 0.1),
+        (".shp", 31370, "polygon-parcel", 0.01),
         (".shp", 4326, "polygon-parcel", 0.0),
     ],
 )

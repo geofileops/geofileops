@@ -98,12 +98,12 @@ def test_clip_resultempty(tmp_path, suffix, clip_empty):
     "testfile, gridsize, where_post, subdivide_coords",
     [
         ("linestring-row-trees", 0.0, "ST_Length(geom) > 100", None),
-        ("linestring-row-trees", 0.1, None, 0),
+        ("linestring-row-trees", 0.01, None, 0),
         ("point", 0.0, None, None),
-        ("point", 0.1, None, 0),
+        ("point", 0.01, None, 0),
         ("polygon-parcel", 0.0, None, None),
         ("polygon-parcel", 0.0, "ST_Area(geom) > 2000", 0),
-        ("polygon-parcel", 0.1, None, 0),
+        ("polygon-parcel", 0.01, None, 0),
     ],
 )
 def test_erase(tmp_path, suffix, testfile, gridsize, where_post, subdivide_coords):
@@ -343,7 +343,7 @@ def test_erase_subdivide_multipolygons(tmp_path, suffix):
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize(
     "area_inters_column_name, gridsize, where_post, exp_featurecount",
-    [("area_inters", 0.0, "ST_Area(geom) > 2000", 25), (None, 0.1, None, 27)],
+    [("area_inters", 0.0, "ST_Area(geom) > 2000", 25), (None, 0.01, None, 27)],
 )
 def test_export_by_location(
     tmp_path, suffix, area_inters_column_name, gridsize, where_post, exp_featurecount
@@ -418,7 +418,7 @@ def test_export_by_distance(tmp_path, testfile, suffix):
 
 @pytest.mark.parametrize(
     "suffix, epsg, gridsize",
-    [(".gpkg", 31370, 0.1), (".gpkg", 4326, 0.0), (".shp", 31370, 0.1)],
+    [(".gpkg", 31370, 0.01), (".gpkg", 4326, 0.0), (".shp", 31370, 0.01)],
 )
 def test_identity(tmp_path, suffix, epsg, gridsize):
     # Prepare test data
@@ -1111,7 +1111,7 @@ def test_join_nearest_invalid_params(
 
 @pytest.mark.parametrize(
     "suffix, epsg, gridsize",
-    [(".gpkg", 31370, 0.1), (".gpkg", 4326, 0.0), (".shp", 31370, 0.1)],
+    [(".gpkg", 31370, 0.01), (".gpkg", 4326, 0.0), (".shp", 31370, 0.01)],
 )
 def test_select_two_layers(tmp_path, suffix, epsg, gridsize):
     # Prepare test data
@@ -1608,7 +1608,7 @@ def test_split(tmp_path):
 
 @pytest.mark.parametrize(
     "suffix, epsg, gridsize",
-    [(".gpkg", 31370, 0.1), (".gpkg", 4326, 0.0), (".shp", 31370, 0.0)],
+    [(".gpkg", 31370, 0.01), (".gpkg", 4326, 0.0), (".shp", 31370, 0.0)],
 )
 def test_symmetric_difference(tmp_path, suffix, epsg, gridsize):
     input1_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
@@ -1702,7 +1702,7 @@ def test_symmetric_difference_self(tmp_path):
     "suffix, epsg, gridsize, where_post, explodecollections, keep_fid, "
     "exp_featurecount",
     [
-        (".gpkg", 31370, 0.1, "ST_Area(geom) > 1000", True, True, 62),
+        (".gpkg", 31370, 0.01, "ST_Area(geom) > 1000", True, True, 62),
         (".shp", 31370, 0.0, "ST_Area(geom) > 1000", False, True, 59),
         (".gpkg", 4326, 0.0, None, False, False, 72),
     ],
