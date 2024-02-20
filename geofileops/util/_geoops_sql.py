@@ -24,6 +24,7 @@ from geofileops import GeometryType, PrimitiveType
 from geofileops import fileops
 
 from geofileops._compat import SPATIALITE_GTE_51
+from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.fileops import _append_to_nolock
 from geofileops.util import _general_util
 from geofileops.util import _geofileinfo
@@ -52,7 +53,7 @@ def buffer(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    keep_empty_geoms: bool = True,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -115,7 +116,7 @@ def convexhull(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    keep_empty_geoms: bool = False,  # Should become True
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -163,7 +164,7 @@ def delete_duplicate_geometries(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
-    keep_empty_geoms: bool = True,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     force: bool = False,
 ):
@@ -284,9 +285,9 @@ def makevalid(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
-    force_output_geometrytype: Optional[GeometryType] = None,
+    force_output_geometrytype: Union[str, None, GeometryType] = None,
     gridsize: float = 0.0,
-    keep_empty_geoms: bool = True,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -305,7 +306,11 @@ def makevalid(
         input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
         force_output_geometrytype = input_layerinfo.geometrytype
         if not explodecollections:
+            assert isinstance(force_output_geometrytype, GeometryType)
             force_output_geometrytype = force_output_geometrytype.to_multitype
+    if isinstance(force_output_geometrytype, str):
+        force_output_geometrytype = GeometryType[force_output_geometrytype]
+    assert force_output_geometrytype is not None
 
     # Init + prepare sql template for this operation
     # ----------------------------------------------
@@ -374,7 +379,7 @@ def select(
     explodecollections: bool = False,
     force_output_geometrytype: Optional[GeometryType] = None,
     gridsize: float = 0.0,
-    keep_empty_geoms: bool = True,
+    keep_empty_geoms: bool = False,
     nb_parallel: int = 1,
     batchsize: int = -1,
     force: bool = False,
@@ -432,7 +437,7 @@ def simplify(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    keep_empty_geoms: bool = True,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -636,6 +641,7 @@ def _single_layer_vector_operation(
 
         # Add application of gridsize around sql_template if specified
         if geom_selected and gridsize != 0.0:
+            assert force_output_geometrytype is not None
             gridsize_op = _format_apply_gridsize_operation(
                 geometrycolumn=f"sub_gridsize.{input_layerinfo.geometrycolumn}",
                 gridsize=gridsize,
@@ -857,7 +863,8 @@ def _single_layer_vector_operation(
 
     finally:
         # Clean tmp dir
-        shutil.rmtree(tempdir, ignore_errors=True)
+        if ConfigOptions.remove_temp_files:
+            shutil.rmtree(tempdir, ignore_errors=True)
 
     logger.info(f"Ready, took {datetime.now()-start_time}")
 
@@ -975,6 +982,7 @@ def erase(
     input_path: Path,
     erase_path: Path,
     output_path: Path,
+    overlay_self: bool,
     input_layer: Optional[str] = None,
     input_columns: Optional[List[str]] = None,
     erase_layer: Optional[str] = None,
@@ -997,6 +1005,18 @@ def erase(
 
     operation = f"{operation_prefix}erase"
     logger = logging.getLogger(f"geofileops.{operation}")
+
+    # If we are doing a self overlay, we need to filter out rows with the same rowid.
+    where_clause_self = "1=1"
+    if overlay_self:
+        where_clause_self = "layer1.rowid <> layer2_sub.rowid"
+
+    # Get layer names
+    if input_layer is None:
+        input_layer = gfo.get_only_layer(input_path)
+    if erase_layer is None:
+        erase_layer = gfo.get_only_layer(erase_path)
+
     if output_path.exists():
         if force is False:
             logger.info(f"Stop, output exists already {output_path}")
@@ -1004,7 +1024,6 @@ def erase(
         else:
             gfo.remove(output_path)
 
-    # Init
     start_time = datetime.now()
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
     primitivetypeid = input_layer_info.geometrytype.to_primitivetype.value
@@ -1059,6 +1078,15 @@ def erase(
                 #     to handle nested collections well.
                 return shapely.GeometryCollection(shapely.get_parts(result).tolist())
 
+            # If we are self-erasing the layer, we need to retain the fid to be able to
+            # know which row the subdivided geometries belonged to originally.
+            if overlay_self:
+                columns = ["fid"]
+                # The original fid column will be saved in a new fid_1 column
+                where_clause_self = "layer1.rowid <> layer2_sub.fid_1"
+            else:
+                columns = []
+
             tmp_dir = _io_util.create_tempdir("geofileops/erase_input")
             erase_subdidided_path = tmp_dir / f"{erase_path.stem}_subdivided.gpkg"
             _geoops_gpd.apply(
@@ -1068,7 +1096,7 @@ def erase(
                 output_layer=erase_layer,
                 func=lambda geom: subdivide(geom, num_coords_max=subdivide_coords),
                 operation_name="erase/subdivide",
-                columns=[],
+                columns=columns,
                 explodecollections=True,
                 nb_parallel=nb_parallel,
                 batchsize=batchsize,
@@ -1076,6 +1104,11 @@ def erase(
                     bytes_per_row=2000, max_rows_per_batch=50000
                 ),
             )
+            if overlay_self:
+                sql_create_index = (
+                    f'CREATE INDEX "IDX_{erase_layer}_fid_1" ON "{erase_layer}"(fid_1)'
+                )
+                fileops.execute_sql(erase_subdidided_path, sql_stmt=sql_create_index)
 
             erase_path = erase_subdidided_path
 
@@ -1134,7 +1167,8 @@ def erase(
                        JOIN {{input2_databasename}}."{{input2_layer}}" layer2_sub
                        JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
                          ON layer2_sub.rowid = layer2tree.id
-                      WHERE layer1tree.id = layer1.rowid
+                      WHERE {where_clause_self}
+                        AND layer1tree.id = layer1.rowid
                         AND layer1tree.minx <= layer2tree.maxx
                         AND layer1tree.maxx >= layer2tree.minx
                         AND layer1tree.miny <= layer2tree.maxy
@@ -1182,7 +1216,7 @@ def erase(
             output_with_spatial_index=output_with_spatial_index,
         )
     finally:
-        if tmp_dir is not None:
+        if ConfigOptions.remove_temp_files and tmp_dir is not None:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
     # Print time taken
@@ -1374,6 +1408,7 @@ def intersection(
     input1_path: Path,
     input2_path: Path,
     output_path: Path,
+    overlay_self: bool,
     input1_layer: Optional[str] = None,
     input1_columns: Optional[List[str]] = None,
     input1_columns_prefix: str = "l1_",
@@ -1390,8 +1425,16 @@ def intersection(
     output_with_spatial_index: bool = True,
     operation_prefix: str = "",
 ):
+    # If we are doing a self overlay, we need to filter out rows with the same rowid.
+    where_clause_self = "1=1"
+    if overlay_self:
+        where_clause_self = "layer1.rowid <> layer2.rowid"
+
     # In the query, important to only extract the geometry types that are expected
-    # TODO: test for geometrycollection, line, point,...
+    if input1_layer is None:
+        input1_layer = gfo.get_only_layer(input1_path)
+    if input2_layer is None:
+        input2_layer = gfo.get_only_layer(input2_path)
     input1_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
     input2_layer_info = gfo.get_layerinfo(input2_path, input2_layer)
     primitivetype_to_extract = PrimitiveType(
@@ -1435,7 +1478,7 @@ def intersection(
                 JOIN {{input2_databasename}}."{{input2_layer}}" layer2
                 JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
                   ON layer2.fid = layer2tree.id
-               WHERE 1=1
+               WHERE {where_clause_self}
                  {{batch_filter}}
                  AND layer1tree.minx <= layer2tree.maxx
                  AND layer1tree.maxx >= layer2tree.minx
@@ -1694,8 +1737,8 @@ def join_nearest(
     input2_path: Path,
     output_path: Path,
     nb_nearest: int,
-    distance: float,
-    expand: bool,
+    distance: Optional[float],
+    expand: Optional[bool],
     input1_layer: Optional[str] = None,
     input1_columns: Optional[List[str]] = None,
     input1_columns_prefix: str = "l1_",
@@ -1875,6 +1918,7 @@ def identity(
     input1_path: Path,
     input2_path: Path,
     output_path: Path,
+    overlay_self: bool,
     input1_layer: Optional[str] = None,
     input1_columns: Optional[List[str]] = None,
     input1_columns_prefix: str = "l1_",
@@ -1917,6 +1961,7 @@ def identity(
             input1_path=input1_path,
             input2_path=input2_path,
             output_path=intersection_output_path,
+            overlay_self=overlay_self,
             input1_layer=input1_layer,
             input1_columns=input1_columns,
             input1_columns_prefix=input1_columns_prefix,
@@ -1941,6 +1986,7 @@ def identity(
             input_path=input1_path,
             erase_path=input2_path,
             output_path=erase_output_path,
+            overlay_self=overlay_self,
             input_layer=input1_layer,
             input_columns=input1_columns,
             input_columns_prefix=input1_columns_prefix,
@@ -1981,7 +2027,8 @@ def identity(
         gfo.move(tmp_output_path, output_path)
 
     finally:
-        shutil.rmtree(tempdir, ignore_errors=True)
+        if ConfigOptions.remove_temp_files:
+            shutil.rmtree(tempdir, ignore_errors=True)
 
     logger.info(f"Ready, full identity took {datetime.now()-start_time}")
 
@@ -1990,6 +2037,7 @@ def symmetric_difference(
     input1_path: Path,
     input2_path: Path,
     output_path: Path,
+    overlay_self: bool,
     input1_layer: Optional[str] = None,
     input1_columns: Optional[List[str]] = None,
     input1_columns_prefix: str = "l1_",
@@ -2033,6 +2081,7 @@ def symmetric_difference(
             input_path=input1_path,
             erase_path=input2_path,
             output_path=erase1_output_path,
+            overlay_self=overlay_self,
             input_layer=input1_layer,
             input_columns=input1_columns,
             input_columns_prefix=input1_columns_prefix,
@@ -2068,6 +2117,7 @@ def symmetric_difference(
             input_path=input2_path,
             erase_path=input1_path,
             output_path=erase2_output_path,
+            overlay_self=overlay_self,
             input_layer=input2_layer,
             input_columns=input2_columns,
             input_columns_prefix=input2_columns_prefix,
@@ -2110,7 +2160,8 @@ def symmetric_difference(
         gfo.move(tmp_output_path, output_path)
 
     finally:
-        shutil.rmtree(tempdir, ignore_errors=True)
+        if ConfigOptions.remove_temp_files:
+            shutil.rmtree(tempdir, ignore_errors=True)
 
     logger.info(f"Ready, full symmetric_difference took {datetime.now()-start_time}")
 
@@ -2119,6 +2170,7 @@ def union(
     input1_path: Path,
     input2_path: Path,
     output_path: Path,
+    overlay_self: bool,
     input1_layer: Optional[str] = None,
     input1_columns: Optional[List[str]] = None,
     input1_columns_prefix: str = "l1_",
@@ -2143,6 +2195,7 @@ def union(
         raise ValueError("subdivide_coords < 0 is not allowed")
 
     logger = logging.getLogger("geofileops.union")
+
     if output_path.exists():
         if force is False:
             logger.info(f"Stop, output exists already {output_path}")
@@ -2162,6 +2215,7 @@ def union(
             input1_path=input1_path,
             input2_path=input2_path,
             output_path=intersection_output_path,
+            overlay_self=overlay_self,
             input1_layer=input1_layer,
             input1_columns=input1_columns,
             input1_columns_prefix=input1_columns_prefix,
@@ -2179,13 +2233,14 @@ def union(
             operation_prefix="union/",
         )
 
-        # Now erase input1 from input2 to another temporary output gfo...
+        # Erase input1 from input2 to another temporary output gfo.
         logger.info("Step 2 of 4: erase input 1 from input 2")
         erase1_output_path = tempdir / "erase_input1_from_input2_output.gpkg"
         erase(
             input_path=input2_path,
             erase_path=input1_path,
             output_path=erase1_output_path,
+            overlay_self=overlay_self,
             input_layer=input2_layer,
             input_columns=input2_columns,
             input_columns_prefix=input2_columns_prefix,
@@ -2201,14 +2256,24 @@ def union(
             output_with_spatial_index=False,
             operation_prefix="union/",
         )
+        # Note: append will never create an index on an already existing layer.
+        _append_to_nolock(
+            src=erase1_output_path,
+            dst=intersection_output_path,
+            src_layer=output_layer,
+            dst_layer=output_layer,
+        )
+        gfo.remove(erase1_output_path)
 
-        # Now erase input2 from input1 to another temporary output gfo...
+        # Erase input1 from input2 to and add to temporary output file.
         logger.info("Step 3 of 4: erase input 2 from input 1")
         erase2_output_path = tempdir / "erase_input2_from_input1_output.gpkg"
+
         erase(
             input_path=input1_path,
             erase_path=input2_path,
             output_path=erase2_output_path,
+            overlay_self=overlay_self,
             input_layer=input1_layer,
             input_columns=input1_columns,
             input_columns_prefix=input1_columns_prefix,
@@ -2224,24 +2289,17 @@ def union(
             output_with_spatial_index=False,
             operation_prefix="union/",
         )
-
-        # Now append
-        logger.info("Step 4 of 4: finalize")
-        # Note: append will never create an index on an already existing layer.
-        _append_to_nolock(
-            src=erase1_output_path,
-            dst=intersection_output_path,
-            src_layer=output_layer,
-            dst_layer=output_layer,
-        )
         _append_to_nolock(
             src=erase2_output_path,
             dst=intersection_output_path,
             src_layer=output_layer,
             dst_layer=output_layer,
         )
+        gfo.remove(erase2_output_path)
 
         # Convert or add spatial index
+        logger.info("Step 4 of 4: finalize")
+
         tmp_output_path = intersection_output_path
         if intersection_output_path.suffix != output_path.suffix:
             # Output file should be in different format, so convert
@@ -2255,7 +2313,8 @@ def union(
         gfo.move(tmp_output_path, output_path)
 
     finally:
-        shutil.rmtree(tempdir, ignore_errors=True)
+        if ConfigOptions.remove_temp_files:
+            shutil.rmtree(tempdir, ignore_errors=True)
 
     logger.info(f"Ready, full union took {datetime.now()-start_time}")
 
@@ -2712,11 +2771,14 @@ def _two_layer_vector_operation(
             logger.debug("Result was empty!")
 
         logger.info(f"Ready, took {datetime.now()-start_time}")
-        shutil.rmtree(tempdir, ignore_errors=True)
+
     except Exception:
         gfo.remove(output_path, missing_ok=True)
         gfo.remove(tmp_output_path, missing_ok=True)
         raise
+    finally:
+        if ConfigOptions.remove_temp_files:
+            shutil.rmtree(tempdir, ignore_errors=True)
 
 
 def calculate_two_layers(
@@ -3098,7 +3160,7 @@ def dissolve_singlethread(
     agg_columns: Optional[dict] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    keep_empty_geoms: bool = True,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
@@ -3367,7 +3429,8 @@ def dissolve_singlethread(
         gfo.move(tmp_output_path, output_path)
 
     finally:
-        shutil.rmtree(tempdir, ignore_errors=True)
+        if ConfigOptions.remove_temp_files:
+            shutil.rmtree(tempdir, ignore_errors=True)
 
     logger.info(f"Ready, took {datetime.now()-start_time}")
 
