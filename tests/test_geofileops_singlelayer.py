@@ -868,6 +868,36 @@ def test_makevalid_exploded_input(tmp_path, suffix, geoops_module, explodecollec
         assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
 
 
+@pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
+@pytest.mark.parametrize("gridsize", [0.0, 0.01])
+def test_makevalid_gridsize(tmp_path, geoops_module, gridsize):
+    """
+    Apply gridsize on the default test file to make it removes sliver polygon.
+    """
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel")
+    input_info = fileops.get_layerinfo(input_path)
+    # The NULL polygon is always removed
+    expected_featurecount = input_info.featurecount - 1
+    # With gridsize specified, a sliver polygon is removed as well
+    if gridsize > 0.0:
+        expected_featurecount -= 1
+
+    set_geoops_module(geoops_module)
+
+    # Do operation
+    output_path = tmp_path / f"{input_path.stem}-output-{gridsize}.gpkg"
+    geoops.makevalid(
+        input_path=input_path,
+        output_path=output_path,
+        gridsize=gridsize,
+        nb_parallel=2,
+    )
+
+    output_info = fileops.get_layerinfo(output_path)
+    assert output_info.featurecount == expected_featurecount
+
+
 @pytest.mark.parametrize(
     "descr, geometry, expected_geometry",
     [
@@ -885,7 +915,7 @@ def test_makevalid_exploded_input(tmp_path, suffix, geoops_module, explodecollec
     ],
 )
 @pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
-def test_makevalid_gridsize(
+def test_makevalid_gridsize_extra(
     tmp_path, descr: str, geometry, geoops_module, expected_geometry
 ):
     # Prepare test data
