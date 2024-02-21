@@ -897,6 +897,7 @@ def test_makevalid_gridsize(tmp_path, geoops_module, gridsize):
         output_path=output_path,
         gridsize=gridsize,
         nb_parallel=2,
+        keep_empty_geoms=False,
     )
 
     output_info = fileops.get_layerinfo(output_path)
