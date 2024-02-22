@@ -1630,10 +1630,9 @@ def join_by_location(
         sql_template = f"""
             {sql_template}
             UNION ALL
-            SELECT layer1.{{input1_geometrycolumn}} as geom
+            SELECT layer1.{{input1_geometrycolumn}} AS geom
                   {{layer1_columns_prefix_alias_str}}
                   {{layer2_columns_prefix_alias_null_str}}
-                  ,NULL AS spatial_relation
                   {area_inters_column_0_in_output}
               FROM {{input1_databasename}}."{{input1_layer}}" layer1
              WHERE 1=1
