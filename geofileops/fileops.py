@@ -1801,6 +1801,7 @@ def _to_file_pyogrio(
             del kwargs["SPATIAL_INDEX"]
         pyogrio.write_dataframe(gdf, str(path), **kwargs)
     else:
+        kwargs["engine"] = "pyogrio"
         gdf.to_file(str(path), **kwargs)
 
 
