@@ -48,10 +48,10 @@ jobs:
             os: ubuntu-latest
             dev: false
             python: "3.9"
-          - env: minimal-nofiona
+          - env: latest-nofiona
             os: ubuntu-latest
             dev: false
-            python: "3.9"
+            python: "3.11"
           - env: latest
             os: macos-latest
             dev: false
