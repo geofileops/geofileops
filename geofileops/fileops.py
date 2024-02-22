@@ -40,6 +40,7 @@ from geofileops.util import _geoseries_util
 from geofileops.util import _io_util
 from geofileops.util import _ogr_util
 from geofileops.util import _ogr_sql_util
+from geofileops._compat import PYOGRIO_GTE_07
 from geofileops.helpers._configoptions_helper import ConfigOptions
 
 if TYPE_CHECKING:
@@ -1532,19 +1533,16 @@ def to_file(
     if force_output_geometrytype is not None and force_output_geometrytype.is_multitype:
         force_multitype = True
 
-    # If there is no geometry column in the input, always use fiona, as pyogrio doesn't
-    # support that yet at time of writing.
-    if isinstance(gdf, gpd.GeoDataFrame) is False or (
-        isinstance(gdf, gpd.GeoDataFrame) and "geometry" not in gdf.columns
-    ):
-        engine = "fiona"
-        create_spatial_index = False
-    else:
-        engine = ConfigOptions.io_engine
+    engine = ConfigOptions.io_engine
+    # pyogrio < 0.7 doesn't support writing without geometry, so in that case use fiona.
+    if not PYOGRIO_GTE_07:
+        if isinstance(gdf, gpd.GeoDataFrame) is False or (
+            isinstance(gdf, gpd.GeoDataFrame) and "geometry" not in gdf.columns
+        ):
+            engine = "fiona"
 
-    # Now write with the correct engine
+    # Write file with the correct engine
     if engine == "pyogrio":
-        assert isinstance(gdf, gpd.GeoDataFrame)
         return _to_file_pyogrio(
             gdf=gdf,
             path=path,
@@ -1614,6 +1612,7 @@ def _to_file_fiona(
 
         schema = gpd_io_file.infer_schema(gdf)
         schema["geometry"] = "None"
+        create_spatial_index = None
     elif (
         len(gdf) == 0
         and force_output_geometrytype is not None
@@ -1749,19 +1748,21 @@ def _to_file_pyogrio(
 ):
     """
     Writes a pandas dataframe to file using pyogrio.
-
-    Remark: this function only supports writing GeoDataFrames at the moment.
     """
     # Prepare args for write_dataframe
     kwargs: Dict[str, Any] = {}
-    kwargs["engine"] = "pyogrio"
 
     # Check upfront if append is going to work to give nice error
     if append is True and path.exists():
         kwargs["append"] = True
-        layerinfo = get_layerinfo(path, layer)
+        layerinfo = get_layerinfo(path, layer, raise_on_nogeom=False)
+
+        # Determine columns and compare them
         file_cols = [col.upper() for col in layerinfo.columns]
-        gdf_cols = [col.upper() for col in gdf.columns if col != gdf.geometry.name]
+        if layerinfo.geometrycolumn is not None:
+            gdf_cols = [col.upper() for col in gdf.columns if col != gdf.geometry.name]
+        else:
+            gdf_cols = [col.upper() for col in gdf.columns]
         if gdf_cols != file_cols:
             raise ValueError(
                 "destination layer doesn't have the same columns as gdf: "
@@ -1782,6 +1783,8 @@ def _to_file_pyogrio(
         kwargs["geometry_type"] = force_output_geometrytype
     if force_multitype:
         kwargs["promote_to_multi"] = True
+    if not path_info.is_singlelayer:
+        kwargs["layer"] = layer
 
     # Temp fix for bug in pyogrio 0.7.2 (https://github.com/geopandas/pyogrio/pull/324)
     # Logic based on geopandas.to_file
@@ -1789,10 +1792,16 @@ def _to_file_pyogrio(
         gdf = gdf.reset_index(drop=True)
 
     # Now we can write
-    if path_info.is_singlelayer:
-        gdf.to_file(str(path), **kwargs)
+    # If there is no geometry column in the input, never create a spatial index.
+    if isinstance(gdf, gpd.GeoDataFrame) is False or (
+        isinstance(gdf, gpd.GeoDataFrame) and "geometry" not in gdf.columns
+    ):
+        # If geometry column should be written, specifying SPATIAL INDEX is not allowed.
+        if "SPATIAL_INDEX" in kwargs:
+            del kwargs["SPATIAL_INDEX"]
+        pyogrio.write_dataframe(gdf, str(path), **kwargs)
     else:
-        gdf.to_file(str(path), layer=layer, **kwargs)
+        gdf.to_file(str(path), **kwargs)
 
 
 def get_crs(
