@@ -1585,6 +1585,8 @@ def join_by_location(
                     {area_inters_column_expression}
                 FROM (
                   SELECT layer1.{{input1_geometrycolumn}} AS geom
+                        ,layer1.fid l1_fid
+                        ,layer2.{{input2_geometrycolumn}} AS l2_geom
                         {{layer1_columns_prefix_alias_str}}
                         {{layer2_columns_prefix_alias_str}}
                         {spatial_relation_column}
