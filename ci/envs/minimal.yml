@@ -6,6 +6,7 @@ dependencies:
   - pip
   # required
   - cloudpickle
+  - fiona >=1.8.21  # release 2022-01-07, pinning this specific version is not compatible with gdal version
   - gdal =3.6.3  # released 2023-03-13
   - geopandas-base =0.12  # released 2022-10-24
   - libspatialite =5.0  #  knn index replaced by knn2 in 5.1
