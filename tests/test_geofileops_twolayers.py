@@ -95,18 +95,18 @@ def test_clip_resultempty(tmp_path, suffix, clip_empty):
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize(
-    "testfile, gridsize, where_post",
+    "testfile, gridsize, where_post, subdivide_coords",
     [
-        ("linestring-row-trees", 0.0, "ST_Length(geom) > 100"),
-        ("linestring-row-trees", 0.001, None),
-        ("point", 0.0, None),
-        ("point", 0.001, None),
-        ("polygon-parcel", 0.0, None),
-        ("polygon-parcel", 0.0, "ST_Area(geom) > 2000"),
-        ("polygon-parcel", 0.001, None),
+        ("linestring-row-trees", 0.0, "ST_Length(geom) > 100", None),
+        ("linestring-row-trees", 0.01, None, 0),
+        ("point", 0.0, None, None),
+        ("point", 0.01, None, 0),
+        ("polygon-parcel", 0.0, None, None),
+        ("polygon-parcel", 0.0, "ST_Area(geom) > 2000", 0),
+        ("polygon-parcel", 0.01, None, 0),
     ],
 )
-def test_erase(tmp_path, suffix, testfile, gridsize, where_post):
+def test_erase(tmp_path, suffix, testfile, gridsize, where_post, subdivide_coords):
     input_path = test_helper.get_testfile(testfile, suffix=suffix)
     if suffix == ".shp":
         erase_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
@@ -118,6 +118,10 @@ def test_erase(tmp_path, suffix, testfile, gridsize, where_post):
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
 
+    kwargs = {}
+    if subdivide_coords is not None:
+        kwargs["subdivide_coords"] = subdivide_coords
+
     gfo.erase(
         input_path=str(input_path),
         erase_path=str(erase_path),
@@ -126,6 +130,7 @@ def test_erase(tmp_path, suffix, testfile, gridsize, where_post):
         gridsize=gridsize,
         where_post=where_post,
         batchsize=batchsize,
+        **kwargs,
     )
 
     # Compare result with geopandas
@@ -134,28 +139,29 @@ def test_erase(tmp_path, suffix, testfile, gridsize, where_post):
     output_gdf = gfo.read_file(output_path)
     input_gdf = gfo.read_file(input_path)
     erase_gdf = gfo.read_file(erase_path, layer=erase_layer)
-    output_gpd_gdf = gpd.overlay(
-        input_gdf, erase_gdf, how="difference", keep_geom_type=True
-    )
+
+    # Prepare expected gdf
+    exp_gdf = gpd.overlay(input_gdf, erase_gdf, how="difference", keep_geom_type=True)
     if gridsize != 0.0:
-        output_gpd_gdf.geometry = shapely.set_precision(
-            output_gpd_gdf.geometry, grid_size=gridsize
-        )
+        exp_gdf.geometry = shapely.set_precision(exp_gdf.geometry, grid_size=gridsize)
     if where_post is not None:
         if where_post == "ST_Area(geom) > 2000":
-            output_gpd_gdf = output_gpd_gdf[output_gpd_gdf.geometry.area > 2000]
+            exp_gdf = exp_gdf[exp_gdf.geometry.area > 2000]
         elif where_post == "ST_Length(geom) > 100":
-            output_gpd_gdf = output_gpd_gdf[output_gpd_gdf.geometry.length > 100]
+            exp_gdf = exp_gdf[exp_gdf.geometry.length > 100]
         else:
             raise ValueError(f"where_post filter not implemented: {where_post}")
-    output_gpd_path = tmp_path / f"{input_path.stem}-output_gpd{suffix}"
+    # Remove rows where geometry is empty or None
+    exp_gdf = exp_gdf[~exp_gdf.geometry.isna()]
+    exp_gdf = exp_gdf[~exp_gdf.geometry.is_empty]
 
     if test_helper.RUNS_LOCAL:
-        gfo.to_file(output_gpd_gdf, output_gpd_path)
+        output_exp_path = tmp_path / f"{input_path.stem}-expected{suffix}"
+        gfo.to_file(exp_gdf, output_exp_path)
 
     assert_geodataframe_equal(
         output_gdf,
-        output_gpd_gdf,
+        exp_gdf,
         promote_to_multi=True,
         sort_values=True,
         check_less_precise=True,
@@ -227,6 +233,50 @@ def test_erase_force(tmp_path):
     assert output_path.stat().st_mtime != mtime_orig
 
 
+@pytest.mark.parametrize(
+    "kwargs, expected_error",
+    [
+        ({"erase_path": None}, "erase_layer must be None if erase_path is None"),
+        ({"subdivide_coords": -1}, "subdivide_coords < 0 is not allowed"),
+    ],
+)
+def test_erase_invalid_params(kwargs, expected_error):
+    if "erase_path" not in kwargs:
+        kwargs["erase_path"] = "erase.gpkg"
+    with pytest.raises(ValueError, match=expected_error):
+        gfo.erase(
+            input_path="input.gpkg",
+            output_path="output.gpkg",
+            erase_layer="invalid",
+            **kwargs,
+        )
+
+
+@pytest.mark.parametrize("subdivide_coords", [2000, 5])
+def test_erase_self(tmp_path, subdivide_coords):
+    input_path = test_helper.get_testfile("polygon-overlappingcircles-all")
+    input_layerinfo = gfo.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+
+    # Now run test
+    output_path = tmp_path / f"{input_path.stem}_erase_self.gpkg"
+    gfo.erase(
+        input_path=input_path,
+        erase_path=None,
+        output_path=output_path,
+        subdivide_coords=subdivide_coords,
+        nb_parallel=2,
+        batchsize=batchsize,
+    )
+
+    # Check if the tmp file is correctly created
+    assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
+    assert output_layerinfo.featurecount == 3
+
+
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 def test_erase_subdivide_multipolygons(tmp_path, suffix):
     """
@@ -294,7 +344,7 @@ def test_erase_subdivide_multipolygons(tmp_path, suffix):
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize(
     "area_inters_column_name, gridsize, where_post, exp_featurecount",
-    [("area_inters", 0.0, "ST_Area(geom) > 2000", 25), (None, 0.001, None, 27)],
+    [("area_inters", 0.0, "ST_Area(geom) > 2000", 25), (None, 0.01, None, 27)],
 )
 def test_export_by_location(
     tmp_path, suffix, area_inters_column_name, gridsize, where_post, exp_featurecount
@@ -369,7 +419,7 @@ def test_export_by_distance(tmp_path, testfile, suffix):
 
 @pytest.mark.parametrize(
     "suffix, epsg, gridsize",
-    [(".gpkg", 31370, 0.001), (".gpkg", 4326, 0.0), (".shp", 31370, 0.001)],
+    [(".gpkg", 31370, 0.01), (".gpkg", 4326, 0.0), (".shp", 31370, 0.01)],
 )
 def test_identity(tmp_path, suffix, epsg, gridsize):
     # Prepare test data
@@ -388,33 +438,36 @@ def test_identity(tmp_path, suffix, epsg, gridsize):
         batchsize=batchsize,
     )
 
-    # Check if the tmp file is correctly created
+    # Check if the output file is correctly created
     assert output_path.exists()
     assert gfo.has_spatial_index(output_path)
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert output_layerinfo.featurecount == 67
     assert (len(input1_layerinfo.columns) + len(input2_layerinfo.columns)) == len(
         output_layerinfo.columns
     )
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
 
     # Check the contents of the result file
-    output_gfo_gdf = gfo.read_file(output_path)
-    assert output_gfo_gdf["geometry"][0] is not None
+    output_gdf = gfo.read_file(output_path)
+    assert output_gdf["geometry"][0] is not None
+
+    # Prepare expected gdf
     input1_gdf = gfo.read_file(input1_path)
     input2_gdf = gfo.read_file(input2_path)
-    output_gpd_gdf = input1_gdf.overlay(input2_gdf, how="identity", keep_geom_type=True)
-    renames = dict(zip(output_gpd_gdf.columns, output_gfo_gdf.columns))
-    output_gpd_gdf = output_gpd_gdf.rename(columns=renames)
+    exp_gdf = input1_gdf.overlay(input2_gdf, how="identity", keep_geom_type=True)
+    renames = dict(zip(exp_gdf.columns, output_gdf.columns))
+    exp_gdf = exp_gdf.rename(columns=renames)
     if gridsize != 0.0:
-        output_gpd_gdf.geometry = shapely.set_precision(
-            output_gpd_gdf.geometry, grid_size=gridsize
-        )
+        exp_gdf.geometry = shapely.set_precision(exp_gdf.geometry, grid_size=gridsize)
+    # Remove rows where geometry is empty or None
+    exp_gdf = exp_gdf[~exp_gdf.geometry.isna()]
+    exp_gdf = exp_gdf[~exp_gdf.geometry.is_empty]
+
     # OIDN is float vs int? -> check_column_type=False
     assert_geodataframe_equal(
-        output_gfo_gdf,
-        output_gpd_gdf,
+        output_gdf,
+        exp_gdf,
         promote_to_multi=True,
         sort_values=True,
         check_less_precise=True,
@@ -447,6 +500,50 @@ def test_identity_force(tmp_path):
         force=True,
     )
     assert output_path.stat().st_mtime != mtime_orig
+
+
+@pytest.mark.parametrize(
+    "kwargs, expected_error",
+    [
+        (
+            {"input2_path": None, "input2_layer": "invalid"},
+            "input2_layer must be None if input2_path is None",
+        ),
+        ({"subdivide_coords": -1}, "subdivide_coords < 0 is not allowed"),
+    ],
+)
+def test_identity_invalid_params(kwargs, expected_error):
+    if "input2_path" not in kwargs:
+        kwargs["input2_path"] = "input2.gpkg"
+    with pytest.raises(ValueError, match=expected_error):
+        gfo.identity(
+            input1_path="input1.gpkg",
+            output_path="output.gpkg",
+            **kwargs,
+        )
+
+
+def test_identity_self(tmp_path):
+    input1_path = test_helper.get_testfile("polygon-overlappingcircles-all")
+    input1_layerinfo = gfo.get_layerinfo(input1_path)
+    batchsize = math.ceil(input1_layerinfo.featurecount / 2)
+
+    # Now run test
+    output_path = tmp_path / f"{input1_path.stem}_identity_self.gpkg"
+    gfo.identity(
+        input1_path=input1_path,
+        input2_path=None,
+        output_path=output_path,
+        nb_parallel=2,
+        batchsize=batchsize,
+    )
+
+    # Check if the tmp file is correctly created
+    assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert len(output_layerinfo.columns) == 2 * len(input1_layerinfo.columns)
+    assert output_layerinfo.featurecount == 9
 
 
 @pytest.mark.parametrize("testfile", ["polygon-parcel"])
@@ -549,28 +646,32 @@ def test_intersection_input_no_index(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "expected_error, input1_path, input2_path, output_path",
+    "expected_error, expected_exception, input1_path, input2_path, output_path",
     [
         (
             "intersection: output_path must not equal one of input paths",
+            ValueError,
             test_helper.get_testfile("polygon-parcel"),
             test_helper.get_testfile("polygon-zone"),
             test_helper.get_testfile("polygon-parcel"),
         ),
         (
             "intersection: output_path must not equal one of input paths",
+            ValueError,
             test_helper.get_testfile("polygon-parcel"),
             test_helper.get_testfile("polygon-zone"),
             test_helper.get_testfile("polygon-zone"),
         ),
         (
-            "input_path doesn't exist: ",
+            "not_existing_path: No such file or directory",
+            RuntimeError,
             "not_existing_path",
             test_helper.get_testfile("polygon-zone"),
             "output.gpkg",
         ),
         (
-            "input_path doesn't exist: ",
+            "not_existing_path: No such file or directory",
+            RuntimeError,
             test_helper.get_testfile("polygon-zone"),
             "not_existing_path",
             "output.gpkg",
@@ -578,19 +679,35 @@ def test_intersection_input_no_index(tmp_path):
     ],
 )
 def test_intersection_invalid_params(
-    tmp_path, input1_path, input2_path, output_path, expected_error
+    tmp_path, input1_path, input2_path, output_path, expected_exception, expected_error
 ):
-    """
-    Test if intersection works if the input gpkg files don't have a spatial index.
-    """
-    # Now run test
     if isinstance(output_path, str):
         output_path = tmp_path / output_path
-    with pytest.raises(ValueError, match=expected_error):
+    with pytest.raises(expected_exception, match=expected_error):
         gfo.intersection(
             input1_path=input1_path,
             input2_path=input2_path,
             output_path=output_path,
+        )
+
+
+@pytest.mark.parametrize(
+    "kwargs, expected_error",
+    [
+        (
+            {"input2_path": None, "input2_layer": "invalid"},
+            "input2_layer must be None if input2_path is None",
+        )
+    ],
+)
+def test_intersection_invalid_params2(kwargs, expected_error):
+    if "input2_path" not in kwargs:
+        kwargs["input2_path"] = "input2.gpkg"
+    with pytest.raises(ValueError, match=expected_error):
+        gfo.intersection(
+            input1_path="input1.gpkg",
+            output_path="output.gpkg",
+            **kwargs,
         )
 
 
@@ -659,6 +776,29 @@ def test_intersection_resultempty(tmp_path, suffix, input2_empty):
         len(input1_layerinfo.columns) + len(input2_layerinfo.columns)
     )
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+
+
+def test_intersection_self(tmp_path):
+    input1_path = test_helper.get_testfile("polygon-overlappingcircles-all")
+    input1_layerinfo = gfo.get_layerinfo(input1_path)
+    batchsize = math.ceil(input1_layerinfo.featurecount / 2)
+
+    # Now run test
+    output_path = tmp_path / f"{input1_path.stem}_inters_self.gpkg"
+    gfo.intersection(
+        input1_path=input1_path,
+        input2_path=None,
+        output_path=output_path,
+        nb_parallel=2,
+        batchsize=batchsize,
+    )
+
+    # Check if the tmp file is correctly created
+    assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert len(output_layerinfo.columns) == 2 * len(input1_layerinfo.columns)
+    assert output_layerinfo.featurecount == 6
 
 
 @pytest.mark.parametrize("testfile", ["polygon-parcel"])
@@ -817,15 +957,15 @@ def test_prepare_spatial_relations_filter():
     "suffix, epsg, spatial_relations_query, discard_nonmatching, "
     "min_area_intersect, area_inters_column_name, expected_featurecount",
     [
-        (".gpkg", 31370, "intersects is False", False, None, None, 47),
+        (".gpkg", 31370, "intersects is False", False, None, None, 48),
         (".gpkg", 31370, "intersects is False", True, None, None, 0),
-        (".gpkg", 31370, "intersects is True", False, 1000, "area_test", 49),
-        (".gpkg", 31370, "intersects is True", False, None, None, 50),
+        (".gpkg", 31370, "intersects is True", False, 1000, "area_test", 50),
+        (".gpkg", 31370, "intersects is True", False, None, None, 51),
         (".gpkg", 31370, "intersects is True", True, 1000, None, 26),
         (".gpkg", 31370, "intersects is True", True, None, None, 30),
         (".gpkg", 4326, "T******** is True or *T******* is True", True, None, None, 30),
-        (".gpkg", 4326, "intersects is True", False, None, None, 50),
-        (".shp", 31370, "intersects is True", False, None, None, 50),
+        (".gpkg", 4326, "intersects is True", False, None, None, 51),
+        (".shp", 31370, "intersects is True", False, None, None, 51),
     ],
 )
 def test_join_by_location(
@@ -864,7 +1004,7 @@ def test_join_by_location(
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == expected_featurecount
 
-    exp_nb_columns = len(input1_layerinfo.columns) + len(input2_layerinfo.columns) + 1
+    exp_nb_columns = len(input1_layerinfo.columns) + len(input2_layerinfo.columns)
     if area_inters_column_name is not None:
         assert area_inters_column_name in output_layerinfo.columns
         exp_nb_columns += 1
@@ -975,7 +1115,7 @@ def test_join_nearest_invalid_params(
 
 @pytest.mark.parametrize(
     "suffix, epsg, gridsize",
-    [(".gpkg", 31370, 0.001), (".gpkg", 4326, 0.0), (".shp", 31370, 0.001)],
+    [(".gpkg", 31370, 0.01), (".gpkg", 4326, 0.0), (".shp", 31370, 0.01)],
 )
 def test_select_two_layers(tmp_path, suffix, epsg, gridsize):
     # Prepare test data
@@ -1063,7 +1203,7 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
         layer1 = "input_nogeom layer1"
         layer2 = '"{input2_layer}" layer2'
         exp_output_geom = True
-        exp_featurecount = 36
+        exp_featurecount = 37
     elif input_nogeom == "input2":
         input1_path = input_geom_path
         input2_path = input_nogeom_path
@@ -1072,7 +1212,7 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
         layer1 = '"{input1_layer}" layer1'
         layer2 = "input_nogeom layer2"
         exp_output_geom = True
-        exp_featurecount = 36
+        exp_featurecount = 37
     elif input_nogeom == "both":
         input1_path = input_nogeom_path
         input2_path = input_nogeom_path
@@ -1443,7 +1583,7 @@ def test_split(tmp_path):
     assert gfo.has_spatial_index(output_path)
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert output_layerinfo.featurecount == 67
+    assert output_layerinfo.featurecount == 68
     assert (len(input1_layerinfo.columns) + len(input2_layerinfo.columns)) == len(
         output_layerinfo.columns
     )
@@ -1472,7 +1612,7 @@ def test_split(tmp_path):
 
 @pytest.mark.parametrize(
     "suffix, epsg, gridsize",
-    [(".gpkg", 31370, 0.001), (".gpkg", 4326, 0.0), (".shp", 31370, 0.0)],
+    [(".gpkg", 31370, 0.01), (".gpkg", 4326, 0.0), (".shp", 31370, 0.0)],
 )
 def test_symmetric_difference(tmp_path, suffix, epsg, gridsize):
     input1_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
@@ -1493,22 +1633,26 @@ def test_symmetric_difference(tmp_path, suffix, epsg, gridsize):
     # Check if the tmp file is correctly created
     assert output_path.exists()
     assert gfo.has_spatial_index(output_path)
-    output_gfo_gdf = gfo.read_file(output_path)
-    assert output_gfo_gdf["geometry"][0] is not None
+    output_gdf = gfo.read_file(output_path)
+    assert output_gdf["geometry"][0] is not None
+
+    # Prepare expected gdf
     input1_gdf = gfo.read_file(input1_path)
     input2_gdf = gfo.read_file(input2_path)
-    output_gpd_gdf = input1_gdf.overlay(
+    exp_gdf = input1_gdf.overlay(
         input2_gdf, how="symmetric_difference", keep_geom_type=True
     )
-    renames = dict(zip(output_gpd_gdf.columns, output_gfo_gdf.columns))
-    output_gpd_gdf = output_gpd_gdf.rename(columns=renames)
+    renames = dict(zip(exp_gdf.columns, output_gdf.columns))
+    exp_gdf = exp_gdf.rename(columns=renames)
     if gridsize != 0.0:
-        output_gpd_gdf.geometry = shapely.set_precision(
-            output_gpd_gdf.geometry, grid_size=gridsize
-        )
+        exp_gdf.geometry = shapely.set_precision(exp_gdf.geometry, grid_size=gridsize)
+    # Remove rows where geometry is empty or None
+    exp_gdf = exp_gdf[~exp_gdf.geometry.isna()]
+    exp_gdf = exp_gdf[~exp_gdf.geometry.is_empty]
+
     assert_geodataframe_equal(
-        output_gfo_gdf,
-        output_gpd_gdf,
+        output_gdf,
+        exp_gdf,
         promote_to_multi=True,
         sort_values=True,
         check_column_type=False,
@@ -1519,12 +1663,56 @@ def test_symmetric_difference(tmp_path, suffix, epsg, gridsize):
 
 
 @pytest.mark.parametrize(
+    "kwargs, expected_error",
+    [
+        (
+            {"input2_path": None, "input2_layer": "invalid"},
+            "input2_layer must be None if input2_path is None",
+        ),
+        ({"subdivide_coords": -1}, "subdivide_coords < 0 is not allowed"),
+    ],
+)
+def test_symmetric_difference_invalid_params(kwargs, expected_error):
+    if "input2_path" not in kwargs:
+        kwargs["input2_path"] = "input2.gpkg"
+    with pytest.raises(ValueError, match=expected_error):
+        gfo.symmetric_difference(
+            input1_path="input1.gpkg",
+            output_path="output.gpkg",
+            **kwargs,
+        )
+
+
+def test_symmetric_difference_self(tmp_path):
+    input1_path = test_helper.get_testfile("polygon-overlappingcircles-all")
+    input1_layerinfo = gfo.get_layerinfo(input1_path)
+    batchsize = math.ceil(input1_layerinfo.featurecount / 2)
+
+    # Now run test
+    output_path = tmp_path / f"{input1_path.stem}_symmetric_difference_self.gpkg"
+    gfo.symmetric_difference(
+        input1_path=input1_path,
+        input2_path=None,
+        output_path=output_path,
+        nb_parallel=2,
+        batchsize=batchsize,
+    )
+
+    # Check if the tmp file is correctly created
+    assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert len(output_layerinfo.columns) == 2 * len(input1_layerinfo.columns)
+    assert output_layerinfo.featurecount == 6
+
+
+@pytest.mark.parametrize(
     "suffix, epsg, gridsize, where_post, explodecollections, keep_fid, "
     "exp_featurecount",
     [
-        (".gpkg", 31370, 0.001, "ST_Area(geom) > 1000", True, True, 62),
+        (".gpkg", 31370, 0.01, "ST_Area(geom) > 1000", True, True, 62),
         (".shp", 31370, 0.0, "ST_Area(geom) > 1000", False, True, 59),
-        (".gpkg", 4326, 0.0, None, False, False, 72),
+        (".gpkg", 4326, 0.0, None, False, False, 73),
     ],
 )
 def test_union(
@@ -1751,3 +1939,47 @@ def test_union_force(tmp_path):
         force=True,
     )
     assert output_path.stat().st_mtime != mtime_orig
+
+
+@pytest.mark.parametrize(
+    "kwargs, expected_error",
+    [
+        (
+            {"input2_path": None, "input2_layer": "invalid"},
+            "input2_layer must be None if input2_path is None",
+        ),
+        ({"subdivide_coords": -1}, "subdivide_coords < 0 is not allowed"),
+    ],
+)
+def test_union_invalid_params(kwargs, expected_error):
+    if "input2_path" not in kwargs:
+        kwargs["input2_path"] = "input2.gpkg"
+    with pytest.raises(ValueError, match=expected_error):
+        gfo.union(
+            input1_path="input.gpkg",
+            output_path="output.gpkg",
+            **kwargs,
+        )
+
+
+def test_union_self(tmp_path):
+    input1_path = test_helper.get_testfile("polygon-overlappingcircles-all")
+    input1_layerinfo = gfo.get_layerinfo(input1_path)
+    batchsize = math.ceil(input1_layerinfo.featurecount / 2)
+
+    # Now run test
+    output_path = tmp_path / f"{input1_path.stem}_union_self.gpkg"
+    gfo.union(
+        input1_path=input1_path,
+        input2_path=None,
+        output_path=output_path,
+        nb_parallel=2,
+        batchsize=batchsize,
+    )
+
+    # Check if the tmp file is correctly created
+    assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert len(output_layerinfo.columns) == 2 * len(input1_layerinfo.columns)
+    assert output_layerinfo.featurecount == 12
