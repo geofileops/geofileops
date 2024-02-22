@@ -21,8 +21,12 @@ from tests import test_helper
 from tests.test_helper import SUFFIXES_FILEOPS
 from tests.test_helper import assert_geodataframe_equal
 
+try:
+    import fiona  # noqa: F401
 
-ENGINES = ["fiona", "pyogrio"]
+    ENGINES = ["fiona", "pyogrio"]
+except ImportError:
+    ENGINES = ["pyogrio"]
 
 
 @pytest.fixture(scope="module", params=ENGINES)
