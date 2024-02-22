@@ -18,6 +18,8 @@ dependencies:
   - pyogrio >=0.5
   - pyproj
   - shapely >=2,<2.1
+  # optional
+  - fiona
   # testing
   - pytest
   - pytest-cov

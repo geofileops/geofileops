@@ -6,7 +6,6 @@ dependencies:
   - pip
   # required
   - cloudpickle
-  - fiona
   - gdal >=3.6.3
   - geopandas-base >=0.12
   - libspatialite >=5.0
@@ -19,6 +18,8 @@ dependencies:
   - pyogrio >=0.5
   - pyproj
   - shapely >=2,<2.1
+  # optional
+  # - fiona  # Not needed anymore except if pyogio < 0.7 is used. 
   # testing
   - pytest
   - pytest-cov
