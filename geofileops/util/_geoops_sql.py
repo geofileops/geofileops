@@ -1620,7 +1620,6 @@ def join_by_location(
         SELECT sub.geom
               {{layer1_columns_from_subselect_str}}
               {{layer2_columns_from_subselect_str}}
-              ,sub."GFO_$TEMP$_SPATIAL_RELATION" AS spatial_relation
               {area_inters_column_in_output}
           FROM layer1_relations_filtered sub
     """
