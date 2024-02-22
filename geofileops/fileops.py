@@ -1534,11 +1534,21 @@ def to_file(
         force_multitype = True
 
     engine = ConfigOptions.io_engine
+
     # pyogrio < 0.7 doesn't support writing without geometry, so in that case use fiona.
     if not PYOGRIO_GTE_07:
         if isinstance(gdf, gpd.GeoDataFrame) is False or (
             isinstance(gdf, gpd.GeoDataFrame) and "geometry" not in gdf.columns
         ):
+            # Give a clear error if fiona isn't installed.
+            try:
+                import fiona  # noqa: F401
+            except ImportError as ex:
+                raise RuntimeError(
+                    "to write dataframes without geometry either pyogrio >= 0.7 "
+                    "(recommended) or fiona needs to be installed."
+                ) from ex
+
             engine = "fiona"
 
     # Write file with the correct engine
