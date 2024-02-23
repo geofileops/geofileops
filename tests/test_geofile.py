@@ -1262,9 +1262,10 @@ def test_to_file(tmp_path, suffix, dimensions, engine_setter):
     )
     output_path = tmp_path / f"{src.stem}-output{suffix}"
     uidn = str(2318781) if suffix == ".csv" else 2318781
+    encoding = "utf-8" if suffix == ".csv" else None
 
     # Read test file and write to tmppath
-    read_gdf = gfo.read_file(src)
+    read_gdf = gfo.read_file(src, encoding=encoding)
 
     # Validate if string (encoding) is correct for data read.
     assert read_gdf.loc[read_gdf["UIDN"] == uidn]["LBLHFDTLT"].item() == "Silomaïs"
