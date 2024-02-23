@@ -3,6 +3,7 @@ Tests for functionalities in geofileops.general.
 """
 
 import os
+import shutil
 
 import geopandas as gpd
 import pandas as pd
@@ -507,6 +508,28 @@ def test_get_crs(suffix):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     crs = gfo.get_crs(str(src))
     assert crs.to_epsg() == 31370
+
+
+def test_get_crs_invalid_params():
+    src = test_helper.get_testfile("polygon-parcel")
+    with pytest.raises(ValueError, match="Layer not_existing not found in file"):
+        _ = gfo.get_crs(str(src), layer="not_existing")
+
+
+def test_get_crs_bad_prj(tmp_path):
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=".shp")
+    bad_prj_src = test_helper._data_dir / "crs_custom_match" / "31370_no_epsg.prj"
+    bad_prj_dst = src.with_suffix(".prj")
+    shutil.copy(bad_prj_src, bad_prj_dst)
+    with open(bad_prj_src) as prj_bad:
+        assert prj_bad.read() != fileops.PRJ_EPSG_31370
+
+    crs = fileops.get_crs(src)
+    assert crs.to_epsg() == 31370
+    assert bad_prj_dst.exists()
+    with open(bad_prj_dst) as file_corrected:
+        assert file_corrected.read() == fileops.PRJ_EPSG_31370
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)

@@ -383,7 +383,7 @@ def get_layerinfo(
 
                 # If spatial ref has no epsg, try to find corresponding one
                 if crs.to_epsg() is None:
-                    crs = _custom_find_crs(crs, path)
+                    crs = _crs_custom_match(crs, path)
 
         elif raise_on_nogeom:
             errors.append("Layer doesn't have a geometry column!")
@@ -1543,7 +1543,7 @@ def to_file(
             # Give a clear error if fiona isn't installed.
             try:
                 import fiona  # noqa: F401
-            except ImportError as ex:
+            except ImportError as ex:  # pragma: no cover
                 raise RuntimeError(
                     "to write dataframes without geometry either pyogrio >= 0.7 "
                     "(recommended) or fiona needs to be installed."
@@ -1816,18 +1816,23 @@ def _to_file_pyogrio(
 
 
 def get_crs(
-    path: Union[str, "os.PathLike[Any]"], layer: Optional[str] = None
+    path: Union[str, "os.PathLike[Any]"],
+    layer: Optional[str] = None,
+    min_confidence: int = 70,
 ) -> Optional[pyproj.CRS]:
     """
     Get the CRS (projection) of the file.
 
     Args:
-        path (PathLike): Path to the file.
+        path (PathLike): path to the file.
         layer (Optional[str]): layer name. If not specified, and there is only
             one layer in the file, this layer is used. Otherwise exception.
+        min_confidence (int): a value between 0-100 where 100 is the most confident.
+            It is used to match the crs info found in the file to a crs defined by
+            EPSG.
 
     Returns:
-        pyproj.CRS: The projection of the file
+        pyproj.CRS: The projection of the file.
     """
     # Check input parameters
     path = Path(path)
@@ -1851,8 +1856,8 @@ def get_crs(
             crs = pyproj.CRS(spatialref.ExportToWkt())
 
             # If spatial ref has no epsg, try to find corresponding one
-            if crs.to_epsg() is None:
-                crs = _custom_find_crs(crs, path)
+            if crs.to_epsg(min_confidence=min_confidence) is None:
+                crs = _crs_custom_match(crs, path)
 
     except ValueError:
         raise
@@ -1865,14 +1870,17 @@ def get_crs(
     return crs
 
 
-def _custom_find_crs(crs: pyproj.CRS, path: Optional[Path]) -> pyproj.CRS:
+def _crs_custom_match(crs: pyproj.CRS, path_to_fix: Optional[Path]) -> pyproj.CRS:
     """
-    Custom matching of crs based on name.
+    Custom matching of crs's not matched automatically, based on name.
+
+    If path_to_fix is specified, the corresponding .prj file located on the path will be
+    replaced by a conforming .prj file if a match is found.
 
     Args:
         crs (pyproj.CRS): the crs to find a match for.
-        path (Optional[Path]): path to the geofile. If the file is a shapefile and a
-            crs is found, the prj file will be replaced by one of the crs found.
+        path_to_fix (Optional[Path]): path to the geofile. If the file is a shapefile
+            and a crs is found, the prj file will be replaced by one of the crs found.
 
     Returns:
         pyproj.CRS: the crs found.
@@ -1887,12 +1895,14 @@ def _custom_find_crs(crs: pyproj.CRS, path: Optional[Path]) -> pyproj.CRS:
         crs = pyproj.CRS.from_epsg(31370)
 
         # If path is specified and it is a shapefile, add correct 31370 .prj file
-        if path is not None:
-            driver = _geofileinfo.get_driver(path)
+        if path_to_fix is not None:
+            driver = _geofileinfo.get_driver(path_to_fix)
             if driver == "ESRI Shapefile":
-                prj_path = path.parent / f"{path.stem}.prj"
+                prj_path = path_to_fix.parent / f"{path_to_fix.stem}.prj"
                 if prj_path.exists():
-                    prj_rename_path = path.parent / f"{path.stem}_orig.prj"
+                    prj_rename_path = (
+                        path_to_fix.parent / f"{path_to_fix.stem}_orig.prj"
+                    )
                     if not prj_rename_path.exists():
                         prj_path.rename(prj_rename_path)
                     else:
