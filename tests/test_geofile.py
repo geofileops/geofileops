@@ -1263,9 +1263,9 @@ def test_to_file(tmp_path, suffix, dimensions, engine_setter):
     output_path = tmp_path / f"{src.stem}-output{suffix}"
 
     # Read test file and write to tmppath
-    read_gdf = gfo.read_file(src)
+    read_gdf = gfo.read_file(src, encoding="utf-8")
     gfo.to_file(read_gdf, str(output_path), encoding="utf-8")
-    written_gdf = gfo.read_file(output_path)
+    written_gdf = gfo.read_file(output_path, encoding="utf-8")
     assert len(read_gdf) == len(written_gdf)
     if engine_setter == "pyogrio" and suffix == ".csv":
         # pyogrio returns a pd.Dataframe if no geometry column
