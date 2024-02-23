@@ -1264,7 +1264,7 @@ def test_to_file(tmp_path, suffix, dimensions, engine_setter):
 
     # Read test file and write to tmppath
     read_gdf = gfo.read_file(src)
-    gfo.to_file(read_gdf, str(output_path))
+    gfo.to_file(read_gdf, str(output_path), encoding="utf-8")
     written_gdf = gfo.read_file(output_path)
     assert len(read_gdf) == len(written_gdf)
     if engine_setter == "pyogrio" and suffix == ".csv":
