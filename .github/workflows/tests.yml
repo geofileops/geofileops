@@ -49,15 +49,11 @@ jobs:
             dev: false
             python: "3.9"
           - env: latest-fiona
-            os: ubuntu-latest
+            os: windows-latest
             dev: false
             python: "3.11"
           - env: latest
             os: macos-latest
-            dev: false
-            python: "3.11"
-          - env: latest
-            os: windows-latest
             dev: false
             python: "3.11"
             
