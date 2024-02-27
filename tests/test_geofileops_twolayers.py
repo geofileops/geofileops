@@ -391,15 +391,18 @@ def test_export_by_location(
 
 
 @pytest.mark.parametrize(
-    "area_inters_column_name, min_area_intersect, exp_featurecount",
+    "query, area_inters_column_name, min_area_intersect, exp_featurecount",
     [
-        (None, None, 27),
-        ("area_custom", None, 27),
-        (None, 1000, 24),
+        (None, None, None, 27),
+        (None, "area_custom", None, 27),
+        ("within is False", "area_custom", None, 39),
+        (None, None, 1000, 24),
+        ("within is False", None, 1000, 15),
     ],
 )
 def test_export_by_location_area(
     tmp_path,
+    query,
     area_inters_column_name,
     min_area_intersect,
     exp_featurecount,
@@ -411,6 +414,9 @@ def test_export_by_location_area(
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
     # Test
+    kwargs = {}
+    if query is not None:
+        kwargs["spatial_relations_query"] = query
     gfo.export_by_location(
         input_to_select_from_path=str(input_to_select_from_path),
         input_to_compare_with_path=str(input_to_compare_with_path),
@@ -418,6 +424,7 @@ def test_export_by_location_area(
         area_inters_column_name=area_inters_column_name,
         min_area_intersect=min_area_intersect,
         batchsize=batchsize,
+        **kwargs,
     )
 
     # Check if the output file is correctly created
@@ -425,11 +432,12 @@ def test_export_by_location_area(
     assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     exp_columns = len(input_layerinfo.columns)
-    if area_inters_column_name is None and min_area_intersect is not None:
-        area_inters_column_name = "area_inters"
-    if area_inters_column_name is not None:
+    exp_area_inters_column_name = area_inters_column_name
+    if exp_area_inters_column_name is None and min_area_intersect is not None:
+        exp_area_inters_column_name = "area_inters"
+    if exp_area_inters_column_name is not None:
         exp_columns += 1
-        assert area_inters_column_name in output_layerinfo.columns
+        assert exp_area_inters_column_name in output_layerinfo.columns
     assert len(output_layerinfo.columns) == exp_columns
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
     assert output_layerinfo.featurecount == exp_featurecount
@@ -437,6 +445,12 @@ def test_export_by_location_area(
     # Check the contents of the result file
     output_gdf = gfo.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
+
+    # If an area column name is specified, check the number of None values
+    # (= number features without intersection)
+    if area_inters_column_name is not None:
+        exp_nb_None = 21 if query == "within is False" else 0
+        assert len(output_gdf[output_gdf.area_custom.isna()]) == exp_nb_None
 
 
 @pytest.mark.parametrize(
@@ -478,28 +492,6 @@ def test_export_by_location_query(tmp_path, query, exp_featurecount):
     # Check the contents of the result file
     output_gdf = gfo.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
-
-
-def test_export_by_location_invalid_params(tmp_path):
-    input_to_select_from_path = test_helper.get_testfile("polygon-parcel")
-    input_to_compare_with_path = test_helper.get_testfile("polygon-zone")
-    output_path = tmp_path / f"{input_to_select_from_path.stem}-output.gpkg"
-
-    # Test
-    with pytest.raises(
-        ValueError,
-        match=(
-            "using area_inters_column_name and/or min_area_intersect is not supported "
-            "for spatial_relations_query"
-        ),
-    ):
-        gfo.export_by_location(
-            input_to_select_from_path=str(input_to_select_from_path),
-            input_to_compare_with_path=str(input_to_compare_with_path),
-            output_path=str(output_path),
-            spatial_relations_query="intersects is False",
-            min_area_intersect=1,
-        )
 
 
 @pytest.mark.parametrize("testfile", ["polygon-parcel"])
