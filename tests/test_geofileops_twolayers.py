@@ -343,11 +343,19 @@ def test_erase_subdivide_multipolygons(tmp_path, suffix):
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize(
-    "area_inters_column_name, gridsize, where_post, exp_featurecount",
-    [("area_inters", 0.0, "ST_Area(geom) > 2000", 25), (None, 0.01, None, 27)],
+    "columns, gridsize, where_post, exp_featurecount",
+    [
+        (["OIDN", "UIDN"], 0.0, "ST_Area(geom) > 2000", 25),
+        (None, 0.01, None, 27),
+    ],
 )
 def test_export_by_location(
-    tmp_path, suffix, area_inters_column_name, gridsize, where_post, exp_featurecount
+    tmp_path,
+    suffix,
+    columns,
+    gridsize,
+    where_post,
+    exp_featurecount,
 ):
     input_to_select_from_path = test_helper.get_testfile(
         "polygon-parcel", suffix=suffix
@@ -362,7 +370,7 @@ def test_export_by_location(
         input_to_select_from_path=str(input_to_select_from_path),
         input_to_compare_with_path=str(input_to_compare_with_path),
         output_path=str(output_path),
-        area_inters_column_name=area_inters_column_name,
+        input1_columns=columns,
         gridsize=gridsize,
         where_post=where_post,
         batchsize=batchsize,
@@ -372,9 +380,56 @@ def test_export_by_location(
     assert output_path.exists()
     assert gfo.has_spatial_index(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
+    exp_columns = len(input_layerinfo.columns) if columns is None else len(columns)
+    assert len(output_layerinfo.columns) == exp_columns
+    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+    assert output_layerinfo.featurecount == exp_featurecount
+
+    # Check the contents of the result file
+    output_gdf = gfo.read_file(output_path)
+    assert output_gdf["geometry"][0] is not None
+
+
+@pytest.mark.parametrize(
+    "area_inters_column_name, min_area_intersect, exp_featurecount",
+    [
+        (None, None, 27),
+        ("area_custom", None, 27),
+        (None, 1000, 24),
+    ],
+)
+def test_export_by_location_area(
+    tmp_path,
+    area_inters_column_name,
+    min_area_intersect,
+    exp_featurecount,
+):
+    input_to_select_from_path = test_helper.get_testfile("polygon-parcel")
+    input_to_compare_with_path = test_helper.get_testfile("polygon-zone")
+    output_path = tmp_path / f"{input_to_select_from_path.stem}-output.gpkg"
+    input_layerinfo = gfo.get_layerinfo(input_to_select_from_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+
+    # Test
+    gfo.export_by_location(
+        input_to_select_from_path=str(input_to_select_from_path),
+        input_to_compare_with_path=str(input_to_compare_with_path),
+        output_path=str(output_path),
+        area_inters_column_name=area_inters_column_name,
+        min_area_intersect=min_area_intersect,
+        batchsize=batchsize,
+    )
+
+    # Check if the output file is correctly created
+    assert output_path.exists()
+    assert gfo.has_spatial_index(output_path)
+    output_layerinfo = gfo.get_layerinfo(output_path)
     exp_columns = len(input_layerinfo.columns)
-    if area_inters_column_name:
+    if area_inters_column_name is None and min_area_intersect is not None:
+        area_inters_column_name = "area_inters"
+    if area_inters_column_name is not None:
         exp_columns += 1
+        assert area_inters_column_name in output_layerinfo.columns
     assert len(output_layerinfo.columns) == exp_columns
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
     assert output_layerinfo.featurecount == exp_featurecount
