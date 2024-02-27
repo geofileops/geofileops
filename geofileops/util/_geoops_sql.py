@@ -1321,10 +1321,8 @@ def export_by_location(
             if area_inters_column_name is None:
                 area_inters_column_name = "area_inters"
             area_inters_column_expression = (
-                f",ST_area(ST_intersection(geom1, geom2)) AS {area_inters_column_name}"
+                f",ST_area(ST_intersection(geom, geom2)) AS {area_inters_column_name}"
             )
-        else:
-            area_inters_column_name = ""
 
         (
             spatial_relation_column,
@@ -1336,10 +1334,13 @@ def export_by_location(
 
         if include_disjoint:
             spatial_relation_filter = f"geom2 IS NULL OR ({spatial_relation_filter})"
+        area_inters_column = (
+            f",{area_inters_column_name}" if area_inters_column_name is not None else ""
+        )
         sql_template = f"""
             SELECT sub.geom
                   {{layer1_columns_from_subselect_str}}
-                  {area_inters_column_name}
+                  {area_inters_column}
               FROM (
                 SELECT sub_union.*
                       {spatial_relation_column}
