@@ -2,6 +2,16 @@
 
 ## 0.9.0 (???)
 
+### Deprecations and compatibility notes
+
+- Set the default value of `keep_empty_geoms` to `False` for all standard operations.
+  This changes the default for `make_valid` and in some cases for `simplify`. The only
+  exception is `select`, where the default stays `True`. (#472, #499)
+- The default filter clause for `export_by_location` is now "intersects is True" while 
+  in previous versions it was "intersects is True and touches is False", to be in line with `join_by_location`, other libraries and use for non-polygon data. (#508)
+- When `join_by_location` was applied, a column "spatial_relation" with the spatial
+  relation between the geometries was added. This is no longer the case. (#475)
+
 ### Improvements
 
 - Add support for self-overlays in overlay operations (#468)
@@ -28,14 +38,6 @@
 - Fix `erase` (and depending two layer operations like `union`,...) giving wrong results
   if `subdivide_coords` < 1 (#489)
 - Fix two-layer operations with `gridsize` sometimes outputting NULL geometries (#495)
-
-### Deprecations and compatibility notes
-
-- Set the default value of `keep_empty_geoms` to `False` for all standard operations.
-  This changes the default for `make_valid` and in some cases for `simplify`. The only
-  exception is `select`, where the default stays `True`. (#472, #499)
-- When `join_by_location` was applied, a column "spatial_relation" with the spatial
-  relation between the geometries was added. This is no longer the case. (#475)
 
 ## 0.8.1 (2024-01-13)
 
