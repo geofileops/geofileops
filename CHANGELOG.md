@@ -18,6 +18,7 @@
 - Add support for a spatial query in `export_by_location` (#508)
 - Improve `dissolve_within_distance` results (#494)
 - Improve performance of `join_by_location` for relation "intersects is True" (#502)
+- Improve handling of disjoint queries in `join_by_location` (#510)
 - Add configuration option GFO_REMOVE_TEMP_FILES that can be used to avoid temp files
   being removed for debugging purposes (#480)
 - Add a context manager, TempEnv, to set temporary env variables (#481)
