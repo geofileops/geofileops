@@ -1927,10 +1927,11 @@ def export_by_location(
     force: bool = False,
 ):
     """
-    Exports all features filtered by the specified spatial relation.
+    Exports all features filtered by the specified spatial query.
 
-    All features in ``input_to_select_from_path`` that have the spatial relation
-    specified with the features in ``input_to_compare_with_path`` are exported.
+    All features in ``input_to_select_from_path`` that comply to the
+    ``spatial_relations_query`` compared with the features in
+    ``input_to_compare_with_path`` are exported.
 
     The ``spatial_relations_query`` is a filter string where you can use the following
     "named spatial predicates": contains, coveredby, covers, crosses, disjoint, equals,
@@ -1941,7 +1942,8 @@ def export_by_location(
 
     Examples for valid ``spatial_relations_query`` values:
 
-        - "overlaps is True and contains is False"
+        - "touches is True or within is True"
+        - "intersect is True and touches is False"
         - "(T*T***T** is True or 1*T***T** is True) and T*****FF* is False"
 
 
