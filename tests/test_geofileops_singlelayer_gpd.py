@@ -15,6 +15,7 @@ import shapely.geometry as sh_geom
 import geofileops as gfo
 from geofileops import GeometryType
 from geofileops.util import _geofileinfo
+from geofileops.util._geofileinfo import GeofileInfo
 from geofileops.util import _geometry_util
 from geofileops.util import _geoops_gpd as geoops_gpd
 from tests import test_helper
@@ -311,7 +312,8 @@ def test_dissolve_linestrings(
 
     # Check if the result file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.geometrytype in [
         GeometryType.LINESTRING,

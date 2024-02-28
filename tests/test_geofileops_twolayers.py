@@ -17,6 +17,7 @@ import geofileops as gfo
 from geofileops import GeometryType
 from geofileops._compat import SPATIALITE_GTE_51
 from geofileops.util import _geofileinfo
+from geofileops.util._geofileinfo import GeofileInfo
 from geofileops.util import _geoops_sql as geoops_sql
 from tests import test_helper
 from tests.test_helper import SUFFIXES_GEOOPS, TESTFILES
@@ -550,7 +551,8 @@ def test_identity(tmp_path, suffix, epsg, gridsize):
 
     # Check if the output file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert (len(input1_layerinfo.columns) + len(input2_layerinfo.columns)) == len(
@@ -1761,7 +1763,8 @@ def test_symmetric_difference(tmp_path, suffix, epsg, gridsize):
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_gdf = gfo.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
 
@@ -1891,7 +1894,8 @@ def test_union(
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
     exp_columns = len(input1_layerinfo.columns) + len(input2_layerinfo.columns)
     if keep_fid:
@@ -1965,7 +1969,8 @@ def test_union_circles(tmp_path, suffix, epsg):
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == 5
