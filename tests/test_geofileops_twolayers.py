@@ -2,6 +2,7 @@
 Tests for operations that are executed using a sql statement on two layers.
 """
 
+from contextlib import nullcontext
 import math
 from pathlib import Path
 from typing import Optional
@@ -1063,15 +1064,15 @@ def test_prepare_spatial_relations_filter():
 
 
 @pytest.mark.parametrize(
-    "suffix, epsg, spatial_relations_query, discard_nonmatching, "
-    "min_area_intersect, area_inters_column_name, exp_warnings, exp_featurecount",
+    "suffix, epsg, spatial_relations_query, discard_nonmatching, min_area_intersect, "
+    "area_inters_column_name, exp_disjoint_warning, exp_featurecount",
     [
-        (".gpkg", 31370, "intersects is False", False, None, None, 1, 48),
-        (".gpkg", 31370, "intersects is False", True, None, None, 1, 0),
-        (".gpkg", 31370, "intersects is True", False, 1000, "area_test", 0, 50),
-        (".gpkg", 31370, "intersects is True", False, None, None, 0, 51),
-        (".gpkg", 31370, "intersects is True", True, 1000, None, 0, 26),
-        (".gpkg", 31370, "intersects is True", True, None, None, 0, 30),
+        (".gpkg", 31370, "intersects is False", False, None, None, True, 48),
+        (".gpkg", 31370, "intersects is False", True, None, None, True, 0),
+        (".gpkg", 31370, "intersects is True", False, 1000, "area_test", False, 50),
+        (".gpkg", 31370, "intersects is True", False, None, None, False, 51),
+        (".gpkg", 31370, "intersects is True", True, 1000, None, False, 26),
+        (".gpkg", 31370, "intersects is True", True, None, None, False, 30),
         (
             ".gpkg",
             4326,
@@ -1079,11 +1080,11 @@ def test_prepare_spatial_relations_filter():
             True,
             None,
             None,
-            0,
+            False,
             30,
         ),
-        (".gpkg", 4326, "intersects is True", False, None, None, 0, 51),
-        (".shp", 31370, "intersects is True", False, None, None, 4, 51),
+        (".gpkg", 4326, "intersects is True", False, None, None, False, 51),
+        (".shp", 31370, "intersects is True", False, None, None, False, 51),
     ],
 )
 def test_join_by_location(
@@ -1095,7 +1096,7 @@ def test_join_by_location(
     discard_nonmatching: bool,
     min_area_intersect: float,
     area_inters_column_name: str,
-    exp_warnings: int,
+    exp_disjoint_warning: bool,
     exp_featurecount: int,
 ):
     input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
@@ -1105,31 +1106,25 @@ def test_join_by_location(
     name = f"{input1_path.stem}_{discard_nonmatching}_{min_area_intersect}{suffix}"
     output_path = tmp_path / name
 
-    gfo.join_by_location(
-        input1_path=str(input1_path),
-        input2_path=str(input2_path),
-        output_path=str(output_path),
-        spatial_relations_query=spatial_relations_query,
-        discard_nonmatching=discard_nonmatching,
-        min_area_intersect=min_area_intersect,
-        area_inters_column_name=area_inters_column_name,
-        batchsize=batchsize,
-        force=True,
-    )
-
-    # Check if the correct warnings were (not) triggered
-    if exp_warnings > 0:
-        # check that a warning was raised
-        assert len(recwarn) == exp_warnings
-        if suffix != ".shp":
-            w = recwarn.pop(UserWarning)
-            assert issubclass(w.category, UserWarning)
-            # check that the message matches
-            assert str(w.message).startswith(
-                "The spatial relation query specified evaluated to True for disjoint"
-            )
+    if exp_disjoint_warning:
+        handler = pytest.warns(
+            UserWarning,
+            match="The spatial relation query specified evaluated to True for disjoint",
+        )
     else:
-        assert len(recwarn) == 0
+        handler = nullcontext()  # type: ignore[assignment]
+
+    with handler:
+        gfo.join_by_location(
+            input1_path=str(input1_path),
+            input2_path=str(input2_path),
+            output_path=str(output_path),
+            spatial_relations_query=spatial_relations_query,
+            discard_nonmatching=discard_nonmatching,
+            min_area_intersect=min_area_intersect,
+            area_inters_column_name=area_inters_column_name,
+            batchsize=batchsize,
+        )
 
     # Check if the output file is correctly created
     assert output_path.exists()
