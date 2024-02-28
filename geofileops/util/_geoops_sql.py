@@ -1761,12 +1761,9 @@ def _prepare_filter_by_location_fields(
     # Add a specific optimisation for "intersects is True" as it is the most used
     # filtering and it is very optimised in GEOS.
     if query.lower() == "intersects is true":
-        spatial_relation_column = f"""
-            ,ST_intersects(
-                {geom1},
-                {geom2}
-             ) AS "GFO_$TEMP$_SPATIAL_RELATION"
-        """
+        spatial_relation_column = (
+            f',ST_intersects({geom1}, {geom2}) AS "GFO_$TEMP$_SPATIAL_RELATION"'
+        )
         spatial_relation_filter = f'{subquery_alias}."GFO_$TEMP$_SPATIAL_RELATION" = 1'
         true_for_disjoint = False
 
@@ -1774,12 +1771,9 @@ def _prepare_filter_by_location_fields(
 
     # It is a more complex query, so some more processing needed
     spatial_relations_filter = _prepare_spatial_relations_filter(query)
-    spatial_relation_column = """
-        ,ST_relate(
-            {input1},
-            {input2}
-         ) AS "GFO_$TEMP$_SPATIAL_RELATION"
-    """
+    spatial_relation_column = (
+        ',ST_relate({input1}, {input2}) AS "GFO_$TEMP$_SPATIAL_RELATION"'
+    )
     spatial_relation_filter = spatial_relations_filter.format(
         spatial_relation=f'{subquery_alias}."GFO_$TEMP$_SPATIAL_RELATION"'
     )
