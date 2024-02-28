@@ -7,6 +7,7 @@
 - Set the default value of `keep_empty_geoms` to `False` for all standard operations.
   This changes the default for `make_valid` and in some cases for `simplify`. The only
   exception is `select`, where the default stays `True`. (#472, #499)
+- Use the GDAL default to create a spatial index or not for output files. (#511)
 - The default filter clause for `export_by_location` is now "intersects is True" while 
   in previous versions it was "intersects is True and touches is False", to be in line with `join_by_location`, other libraries and use for non-polygon data. (#508)
 - When `join_by_location` was applied, a column "spatial_relation" with the spatial
