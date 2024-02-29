@@ -42,7 +42,8 @@ def test_clip(tmp_path, testfile, suffix):
 
     # Compare result with geopandas
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_gdf = gfo.read_file(output_path)
     input_gdf = gfo.read_file(input_path)
     clip_gdf = gfo.read_file(clip_path)
@@ -88,7 +89,8 @@ def test_clip_resultempty(tmp_path, suffix, clip_empty):
 
     # Check if the output file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == 0
     assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
@@ -137,7 +139,8 @@ def test_erase(tmp_path, suffix, testfile, gridsize, where_post, subdivide_coord
 
     # Compare result with geopandas
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_gdf = gfo.read_file(output_path)
     input_gdf = gfo.read_file(input_path)
     erase_gdf = gfo.read_file(erase_path, layer=erase_layer)
@@ -191,7 +194,8 @@ def test_erase_explodecollections(tmp_path):
 
     # Compare result with geopandas
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_gdf = gfo.read_file(output_path)
     input_gdf = gfo.read_file(input_path)
     erase_gdf = gfo.read_file(erase_path)
@@ -273,7 +277,8 @@ def test_erase_self(tmp_path, subdivide_coords):
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
     assert output_layerinfo.featurecount == 3
@@ -326,7 +331,8 @@ def test_erase_subdivide_multipolygons(tmp_path, suffix):
 
     # Compare result with geopandas
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_gdf = gfo.read_file(output_path)
     input_gdf = gfo.read_file(input_path)
     output_gpd_gdf = gpd.overlay(
@@ -380,7 +386,8 @@ def test_export_by_location(
 
     # Check if the output file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
     exp_columns = len(input_layerinfo.columns) if columns is None else len(columns)
     assert len(output_layerinfo.columns) == exp_columns
@@ -431,7 +438,8 @@ def test_export_by_location_area(
 
     # Check if the output file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
     exp_columns = len(input_layerinfo.columns)
     exp_area_inters_column_name = area_inters_column_name
@@ -484,7 +492,8 @@ def test_export_by_location_query(tmp_path, query, exp_featurecount):
 
     # Check if the output file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
     exp_columns = len(input_layerinfo.columns)
     assert len(output_layerinfo.columns) == exp_columns
@@ -516,7 +525,8 @@ def test_export_by_distance(tmp_path, testfile, suffix):
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(input_to_select_from_path)
     assert input_layerinfo.featurecount == output_layerinfo.featurecount
     assert len(input_layerinfo.columns) == len(output_layerinfo.columns)
@@ -652,7 +662,8 @@ def test_identity_self(tmp_path):
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert len(output_layerinfo.columns) == 2 * len(input1_layerinfo.columns)
     assert output_layerinfo.featurecount == 9
@@ -696,7 +707,8 @@ def test_intersection(
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert len(output_layerinfo.columns) == (
@@ -880,7 +892,8 @@ def test_intersection_resultempty(tmp_path, suffix, input2_empty):
 
     # Check if the output file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == 0
     input2_layerinfo = gfo.get_layerinfo(input2_path)
@@ -907,7 +920,8 @@ def test_intersection_self(tmp_path):
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert len(output_layerinfo.columns) == 2 * len(input1_layerinfo.columns)
     assert output_layerinfo.featurecount == 6
@@ -940,7 +954,8 @@ def test_intersection_columns_fid(tmp_path, testfile, suffix):
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert len(output_layerinfo.columns) == len(input1_columns) + len(input2_columns)
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
@@ -996,7 +1011,8 @@ def test_intersection_where_post(
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert len(output_layerinfo.columns) == (
@@ -1130,7 +1146,8 @@ def test_join_by_location(
 
     # Check if the output file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == exp_featurecount
@@ -1179,7 +1196,8 @@ def test_join_nearest(tmp_path, suffix, epsg):
 
     # Check if the output file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     expected_featurecount = nb_nearest * (input1_layerinfo.featurecount - 1)
@@ -1290,7 +1308,8 @@ def test_select_two_layers(tmp_path, suffix, epsg, gridsize):
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
@@ -1385,7 +1404,8 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
     # Check if the tmp file is correctly created
     assert output_path.exists()
     if exp_output_geom:
-        assert gfo.has_spatial_index(output_path)
+        exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+        assert gfo.has_spatial_index(output_path) is exp_spatial_index
 
     input1_layerinfo = gfo.get_layerinfo(input1_path, raise_on_nogeom=False)
     input2_layerinfo = gfo.get_layerinfo(input2_path, raise_on_nogeom=False)
@@ -1574,7 +1594,8 @@ def test_select_two_layers_no_databasename_placeholder(tmp_path):
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
@@ -1711,7 +1732,8 @@ def test_split(tmp_path):
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == 68
@@ -1832,7 +1854,8 @@ def test_symmetric_difference_self(tmp_path):
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert len(output_layerinfo.columns) == 2 * len(input1_layerinfo.columns)
     assert output_layerinfo.featurecount == 6
@@ -2113,7 +2136,8 @@ def test_union_self(tmp_path):
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert len(output_layerinfo.columns) == 2 * len(input1_layerinfo.columns)
     assert output_layerinfo.featurecount == 12

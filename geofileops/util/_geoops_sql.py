@@ -893,7 +893,7 @@ def clip(
     batchsize: int = -1,
     force: bool = False,
     input_columns_prefix: str = "",
-    output_with_spatial_index: bool = True,
+    output_with_spatial_index: Optional[bool] = None,
 ):
     # Init
     # In the query, important to only extract the geometry types that are expected
@@ -999,7 +999,7 @@ def erase(
     subdivide_coords: int = 2000,
     force: bool = False,
     input_columns_prefix: str = "",
-    output_with_spatial_index: bool = True,
+    output_with_spatial_index: Optional[bool] = None,
     operation_prefix: str = "",
 ):
     # Because there might be extra preparation of the erase layer before going ahead
@@ -1495,7 +1495,7 @@ def intersection(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-    output_with_spatial_index: bool = True,
+    output_with_spatial_index: Optional[bool] = None,
     operation_prefix: str = "",
 ):
     # If we are doing a self overlay, we need to filter out rows with the same rowid.
@@ -2041,7 +2041,7 @@ def select_two_layers(
     batchsize: int = -1,
     force: bool = False,
     operation_prefix: str = "",
-    output_with_spatial_index: bool = True,
+    output_with_spatial_index: Optional[bool] = None,
 ):
     # Go!
     return _two_layer_vector_operation(
