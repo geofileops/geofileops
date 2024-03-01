@@ -2,14 +2,33 @@
 
 ## 0.9.0 (???)
 
+### Deprecations and compatibility notes
+
+- Set the default value of `keep_empty_geoms` to `False` for all standard operations.
+  This changes the default for `make_valid` and in some cases for `simplify`. The only
+  exception is `select`, where the default stays `True`. (#472, #499)
+- Up to now, geofileops always tried to create spatial indexes on output files. For some
+  formats this has disadvantages thought. Hence, and for consistency, from now on the
+  default behaviour regarding spatial index creation of GDAL will be followed. E.g.
+  default a spatial index for "GPKG", but no index for "ESRI Shapefile". (#511)
+- The default filter clause for `export_by_location` is now "intersects is True" while 
+  in previous versions it was "intersects is True and touches is False", to be in line with `join_by_location`, other libraries and use for non-polygon data. (#508)
+- When `join_by_location` was applied, a column "spatial_relation" with the spatial
+  relation between the geometries was added. This is no longer the case. (#475)
+
 ### Improvements
 
 - Add support for self-overlays in overlay operations (#468)
+- Add support for a spatial query in `export_by_location` (#508)
 - Improve `dissolve_within_distance` results (#494)
 - Improve performance of `join_by_location` for relation "intersects is True" (#502)
+- Improve handling of queries evaluating to True for disjoint features in
+  `join_by_location` (#509)
 - Add configuration option GFO_REMOVE_TEMP_FILES that can be used to avoid temp files
   being removed for debugging purposes (#480)
 - Add a context manager, TempEnv, to set temporary env variables (#481)
+- Don't copy both input files if only one is not spatialite based in two layer
+  operations (#247)
 - Several improvements to documentation: new FAQ, improved user guide,...
   (#465, #469, #474)
 - Linting improvements: use mypy + use ruff-format instead of black for formatting
@@ -27,14 +46,6 @@
 - Fix `erase` (and depending two layer operations like `union`,...) giving wrong results
   if `subdivide_coords` < 1 (#489)
 - Fix two-layer operations with `gridsize` sometimes outputting NULL geometries (#495)
-
-### Deprecations and compatibility notes
-
-- Set the default value of `keep_empty_geoms` to `False` for all standard operations.
-  This changes the default for `make_valid` and in some cases for `simplify`. The only
-  exception is `select`, where the default stays `True`. (#472, #499)
-- When `join_by_location` was applied, a column "spatial_relation" with the spatial
-  relation between the geometries was added. This is no longer the case. (#475)
 
 ## 0.8.1 (2024-01-13)
 

@@ -25,14 +25,15 @@ from geofileops import fileops
 
 from geofileops._compat import SPATIALITE_GTE_51
 from geofileops.helpers._configoptions_helper import ConfigOptions
+from geofileops.helpers import _parameter_helper
 from geofileops.fileops import _append_to_nolock
 from geofileops.util import _general_util
 from geofileops.util import _geofileinfo
+from geofileops.util._geofileinfo import GeofileInfo
 from geofileops.util import _geoops_gpd
 from geofileops.util import _io_util
 from geofileops.util import _ogr_sql_util
 from geofileops.util import _ogr_util
-from geofileops.helpers import _parameter_helper
 from geofileops.util import _processing_util
 from geofileops.util import _sqlite_util
 
@@ -745,9 +746,11 @@ def _single_layer_vector_operation(
                 # If there is only one batch, it is faster to create the spatial index
                 # immediately. Otherwise no index needed, because partial files still
                 # need to be merged to one file later on.
-                create_spatial_index = False
-                if nb_batches == 1:
-                    create_spatial_index = True
+                create_spatial_index = (
+                    GeofileInfo(tmp_partial_output_path).default_spatial_index
+                    if nb_batches == 1
+                    else False
+                )
                 translate_info = _ogr_util.VectorTranslateInfo(
                     input_path=processing_params.batches[batch_id]["input1_path"],
                     output_path=tmp_partial_output_path,
@@ -838,7 +841,8 @@ def _single_layer_vector_operation(
         # Now create spatial index and move to output location
         if tmp_output_path.exists():
             if (
-                gfo.get_layerinfo(
+                GeofileInfo(tmp_output_path).default_spatial_index
+                and gfo.get_layerinfo(
                     path=tmp_output_path, layer=output_layer, raise_on_nogeom=False
                 ).geometrycolumn
                 is not None
@@ -889,7 +893,7 @@ def clip(
     batchsize: int = -1,
     force: bool = False,
     input_columns_prefix: str = "",
-    output_with_spatial_index: bool = True,
+    output_with_spatial_index: Optional[bool] = None,
 ):
     # Init
     # In the query, important to only extract the geometry types that are expected
@@ -995,7 +999,7 @@ def erase(
     subdivide_coords: int = 2000,
     force: bool = False,
     input_columns_prefix: str = "",
-    output_with_spatial_index: bool = True,
+    output_with_spatial_index: Optional[bool] = None,
     operation_prefix: str = "",
 ):
     # Because there might be extra preparation of the erase layer before going ahead
@@ -1227,6 +1231,7 @@ def export_by_location(
     input_path: Path,
     input_to_compare_with_path: Path,
     output_path: Path,
+    spatial_relations_query: str,
     min_area_intersect: Optional[float] = None,
     area_inters_column_name: Optional[str] = None,
     input_layer: Optional[str] = None,
@@ -1244,73 +1249,141 @@ def export_by_location(
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
     input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
 
-    # If intersect area needs to be calculated, other query needed
-    if area_inters_column_name is None and min_area_intersect is None:
-        sql_template = f"""
-            SELECT layer1.{{input1_geometrycolumn}} AS geom
-                  {{layer1_columns_prefix_alias_str}}
-              FROM {{input1_databasename}}."{{input1_layer}}" layer1
-              JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
-                ON layer1.fid = layer1tree.id
-             WHERE 1=1
-               {{batch_filter}}
-               AND EXISTS (
-                  SELECT 1
-                    FROM {{input2_databasename}}."{{input2_layer}}" layer2
-                    JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
-                      ON layer2.fid = layer2tree.id
-                   WHERE layer1tree.minx <= layer2tree.maxx
-                     AND layer1tree.maxx >= layer2tree.minx
-                     AND layer1tree.miny <= layer2tree.maxy
-                     AND layer1tree.maxy >= layer2tree.miny
-                     AND ST_intersects(layer1.{{input1_geometrycolumn}},
-                                       layer2.{{input2_geometrycolumn}}) = 1
-                     AND ST_touches(layer1.{{input1_geometrycolumn}},
-                                    layer2.{{input2_geometrycolumn}}) = 0)
-            """
-    else:
-        # Intersect area needs to be calculated
-        if area_inters_column_name is None:
-            area_inters_column_name = "area_inters"
-        area_inters_column_expression = f"""
-            ,ST_area(ST_intersection(
-                    ST_union(layer1.{{input1_geometrycolumn}}),
-                    ST_union(layer2.{{input2_geometrycolumn}})
-                )) AS {area_inters_column_name}
-        """
+    # Prepare spatial relation column and filter
+    (
+        spatial_relation_column,
+        spatial_relation_filter,
+        true_for_disjoint,
+    ) = _prepare_filter_by_location_fields(spatial_relations_query)
 
-        # Prepare sql template with intersect area calculation
+    # Different query if intersecting features need to be unioned...
+    if (
+        true_for_disjoint is False
+        and area_inters_column_name is None
+        and min_area_intersect is None
+    ):
+        # No union needed.
         sql_template = f"""
-            SELECT ST_union(layer1.{{input1_geometrycolumn}}) as geom
-                  {{layer1_columns_prefix_str}}
-                  {area_inters_column_expression}
-              FROM {{input1_databasename}}."{{input1_layer}}" layer1
-              JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
-                ON layer1.fid = layer1tree.id
-              JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-              JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
-                ON layer2.fid = layer2tree.id
-             WHERE 1=1
-               {{batch_filter}}
-               AND layer1tree.minx <= layer2tree.maxx
-               AND layer1tree.maxx >= layer2tree.minx
-               AND layer1tree.miny <= layer2tree.maxy
-               AND layer1tree.maxy >= layer2tree.miny
-               AND ST_Intersects(layer1.{{input1_geometrycolumn}},
-                                 layer2.{{input2_geometrycolumn}}) = 1
-               AND ST_Touches(layer1.{{input1_geometrycolumn}},
-                              layer2.{{input2_geometrycolumn}}) = 0
-             GROUP BY layer1.rowid {{layer1_columns_prefix_str}}
-        """
+            WITH layer1_intersecting_filtered AS (
+              SELECT layer1.{{input1_geometrycolumn}} AS geom
+                    {{layer1_columns_prefix_alias_str}}
+                FROM {{input1_databasename}}."{{input1_layer}}" layer1
+               WHERE 1=1
+                 {{batch_filter}}
+                 AND EXISTS (
+                      SELECT 1 FROM (
+                        SELECT 1
+                              {spatial_relation_column}
+                          FROM {{input2_databasename}}."{{input2_layer}}" layer2
+                          JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                            ON layer2.fid = layer2tree.id
+                         WHERE ST_MinX(layer1.{{input1_geometrycolumn}}) <= layer2tree.maxx
+                           AND ST_MaxX(layer1.{{input1_geometrycolumn}}) >= layer2tree.minx
+                           AND ST_MinY(layer1.{{input1_geometrycolumn}}) <= layer2tree.maxy
+                           AND ST_MaxY(layer1.{{input1_geometrycolumn}}) >= layer2tree.miny
+                           --LIMIT -1 OFFSET 0
+                        ) sub_filter
+                       WHERE {spatial_relation_filter}
+                      )
+            )
+            SELECT sub.geom
+                  {{layer1_columns_from_subselect_str}}
+                  {{layer2_columns_from_subselect_str}}
+              FROM layer1_intersecting_filtered sub
+        """  # noqa: E501
+
+        # If disjoint is True according to the query, include features that don't match
+        # the spatial index.
+        if true_for_disjoint:
+            sql_template = f"""
+                {sql_template}
+                UNION ALL
+                SELECT layer1.{{input1_geometrycolumn}} AS geom
+                      {{layer1_columns_prefix_alias_str}}
+                      {{layer2_columns_prefix_alias_null_str}}
+                  FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                  WHERE 1=1
+                   {{batch_filter}}
+                   AND NOT EXISTS (
+                        SELECT 1
+                          FROM {{input2_databasename}}."{{input2_layer}}" layer2
+                          JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                            ON layer2.fid = layer2tree.id
+                         WHERE ST_MinX(layer1.{{input1_geometrycolumn}}) <= layer2tree.maxx
+                           AND ST_MaxX(layer1.{{input1_geometrycolumn}}) >= layer2tree.minx
+                           AND ST_MinY(layer1.{{input1_geometrycolumn}}) <= layer2tree.maxy
+                           AND ST_MaxY(layer1.{{input1_geometrycolumn}}) >= layer2tree.miny
+                       )
+        """  # noqa: E501
+    else:
+        # Union needed to calculate intersection area or because spatial_relation_query
+        # returns True for disjoint features.
+
+        # Prepare area calculation is relevant
+        area_inters_column_expression = ""
+        if area_inters_column_name is not None or min_area_intersect is not None:
+            if area_inters_column_name is None:
+                area_inters_column_name = "area_inters"
+            area_inters_column_expression = (
+                f",ST_area(ST_intersection(geom, geom2)) AS {area_inters_column_name}"
+            )
+
+        (
+            spatial_relation_column,
+            spatial_relation_filter,
+            true_for_disjoint,
+        ) = _prepare_filter_by_location_fields(
+            spatial_relations_query, geom1="geom", geom2="geom2", subquery_alias="sub"
+        )
+
+        if true_for_disjoint:
+            spatial_relation_filter = f"geom2 IS NULL OR ({spatial_relation_filter})"
+        area_inters_column = (
+            f",{area_inters_column_name}" if area_inters_column_name is not None else ""
+        )
+        sql_template = f"""
+            SELECT sub.geom
+                  {{layer1_columns_from_subselect_str}}
+                  {area_inters_column}
+              FROM (
+                SELECT sub_union.*
+                      {spatial_relation_column}
+                      {area_inters_column_expression}
+                  FROM (
+                    SELECT layer1.*
+                          ,(SELECT ST_Union(layer2_sub.{{input2_geometrycolumn}}) AS geom2
+                              FROM {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                              JOIN {{input2_databasename}}."{{input2_layer}}" layer2_sub
+                              JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                                ON layer2_sub.rowid = layer2tree.id
+                             WHERE layer1tree.id = layer1.rowid
+                               AND layer1tree.minx <= layer2tree.maxx
+                               AND layer1tree.maxx >= layer2tree.minx
+                               AND layer1tree.miny <= layer2tree.maxy
+                               AND layer1tree.maxy >= layer2tree.miny
+                               AND ST_intersects(
+                                        layer1.{{input1_geometrycolumn}},
+                                        layer2_sub.{{input2_geometrycolumn}}
+                                   ) = 1
+                             LIMIT -1 OFFSET 0
+                           ) AS geom2
+                      FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                     WHERE 1=1
+                       {{batch_filter}}
+                     LIMIT -1 OFFSET 0
+                ) sub_union
+              ) sub
+             WHERE {spatial_relation_filter}
+        """  # noqa: E501
 
         # Filter on intersect area if necessary
         if min_area_intersect is not None:
             sql_template = f"""
-                SELECT sub.* FROM
+                SELECT * FROM
                   ( {sql_template}
                      LIMIT -1 OFFSET 0
-                  ) sub
-                WHERE sub.{area_inters_column_name} >= {min_area_intersect}
+                  ) sub_area
+                WHERE sub_area.{area_inters_column_name} >= {min_area_intersect}
             """
 
     # Go!
@@ -1422,7 +1495,7 @@ def intersection(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-    output_with_spatial_index: bool = True,
+    output_with_spatial_index: Optional[bool] = None,
     operation_prefix: str = "",
 ):
     # If we are doing a self overlay, we need to filter out rows with the same rowid.
@@ -1566,9 +1639,13 @@ def join_by_location(
             )
 
     # Prepare spatial relation column and filter
-    spatial_relation_column, spatial_relation_filter = _prepare_join_by_location_fields(
-        spatial_relations_query
-    )
+    # As the query is used as the join criterium, it should not evaluate to True for
+    # disjoint features. So specify avoid_disjoint=True.
+    (
+        spatial_relation_column,
+        spatial_relation_filter,
+        _,
+    ) = _prepare_filter_by_location_fields(spatial_relations_query, avoid_disjoint=True)
 
     # Prepare sql template
     #
@@ -1659,38 +1736,93 @@ def join_by_location(
     )
 
 
-def _prepare_join_by_location_fields(query) -> Tuple[str, str]:
+def _prepare_filter_by_location_fields(
+    query: str,
+    geom1: str = "layer1.{input1_geometrycolumn}",
+    geom2: str = "layer2.{input2_geometrycolumn}",
+    subquery_alias: str = "sub_filter",
+    avoid_disjoint: bool = False,
+) -> Tuple[str, str, bool]:
+    """
+    Prepare the fields needed to prepare a select to filter by location.
+
+    Args:
+        query (str): the spatial relations query that should be filtered on.
+        geom1 (str): the 1st geom in the spatial_relation_column.
+        geom2 (str): the 2nd geom in the spatial_relation_column.
+        subquery_alias (str): the alias tha will be used for the subquery to filter on.
+            Defaults to "sub_filter".
+        avoid_disjoint (bool): avoid that the query evaluates disjoint featurs to True.
+            If it does, "intersects is True" is added to the input query.
+
+    Returns:
+        Tuple[str, str, bool]: returns a tuple with the following values:
+            - spatial_relation_column: the string to use as column to filter on
+            - spatial_relation_filter: the string to use as filter
+            - true_for_disjoint: True if the query returns True for disjoint features.
+                  If `avoid_disjoint` is True, `includes_disjoint` is always False.
+    """
     # Add a specific optimisation for "intersects is True" as it is the most used
     # filtering and it is very optimised in GEOS.
     if query.lower() == "intersects is true":
-        spatial_relation_column = """
-            ,ST_intersects(
-                layer1.{input1_geometrycolumn},
-                layer2.{input2_geometrycolumn}
-             ) AS "GFO_$TEMP$_SPATIAL_RELATION"
-        """
-        spatial_relation_filter = 'sub_filter."GFO_$TEMP$_SPATIAL_RELATION" = 1'
-    else:
-        # joining should only be possible on features that at least have an
-        # interaction! So, add "intersects is True" to query to avoid errors!
+        spatial_relation_column = (
+            f',ST_intersects({geom1}, {geom2}) AS "GFO_$TEMP$_SPATIAL_RELATION"'
+        )
+        spatial_relation_filter = f'{subquery_alias}."GFO_$TEMP$_SPATIAL_RELATION" = 1'
+        true_for_disjoint = False
+
+        return (spatial_relation_column, spatial_relation_filter, true_for_disjoint)
+
+    # It is a more complex query, so some more processing needed
+    spatial_relations_filter = _prepare_spatial_relations_filter(query)
+    spatial_relation_column = (
+        ',ST_relate({input1}, {input2}) AS "GFO_$TEMP$_SPATIAL_RELATION"'
+    )
+    spatial_relation_filter = spatial_relations_filter.format(
+        spatial_relation=f'{subquery_alias}."GFO_$TEMP$_SPATIAL_RELATION"'
+    )
+
+    # Determine of the spatial_relations_query returns True for disjoint features
+    spatial_relation_column_disjoint = spatial_relation_column.format(
+        input1="ST_GeomFromText('POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))')",
+        input2="ST_GeomFromText('POLYGON((5 0, 5 1, 6 1, 6 0, 5 0))')",
+    )
+    test_path = Path(__file__).resolve().parent / "test.gpkg"
+    sql_stmt = f"""
+        SELECT * FROM (
+            SELECT NULL AS ignore
+                  {spatial_relation_column_disjoint}
+            ) {subquery_alias}
+         WHERE {spatial_relation_filter}
+    """
+    df = fileops.read_file(test_path, sql_stmt=sql_stmt)
+    true_for_disjoint = True if len(df) > 0 else False
+
+    if true_for_disjoint and avoid_disjoint:
+        # Avoid the query evaluating to True for disjoint features by adding
+        # "intersects is True"
         query = f"({query}) and intersects is True"
         spatial_relations_filter = _prepare_spatial_relations_filter(query)
-        spatial_relation_column = """
-            ,ST_relate(
-                layer1.{input1_geometrycolumn},
-                layer2.{input2_geometrycolumn}
-             ) AS "GFO_$TEMP$_SPATIAL_RELATION"
-        """
         spatial_relation_filter = spatial_relations_filter.format(
-            spatial_relation='sub_filter."GFO_$TEMP$_SPATIAL_RELATION"'
+            spatial_relation=f'{subquery_alias}."GFO_$TEMP$_SPATIAL_RELATION"'
+        )
+        true_for_disjoint = False
+
+        warnings.warn(
+            "The spatial relation query specified evaluated to True for disjoint "
+            f"features. To avoid this, 'intersects is True' was added: {query}",
+            stacklevel=2,
         )
 
-    return (spatial_relation_column, spatial_relation_filter)
+    # Fill out input columns of the spatial_relation_column
+    spatial_relation_column = spatial_relation_column.format(input1=geom1, input2=geom2)
+
+    return (spatial_relation_column, spatial_relation_filter, true_for_disjoint)
 
 
 def _prepare_spatial_relations_filter(query: str) -> str:
     named_spatial_relations = {
-        # "disjoint": ["FF*FF****"],
+        "disjoint": ["FF*FF****"],
         "equals": ["TFFF*FFF*"],
         "touches": ["FT*******", "F**T*****", "F***T****"],
         "within": ["T*F**F***"],
@@ -1909,7 +2041,7 @@ def select_two_layers(
     batchsize: int = -1,
     force: bool = False,
     operation_prefix: str = "",
-    output_with_spatial_index: bool = True,
+    output_with_spatial_index: Optional[bool] = None,
 ):
     # Go!
     return _two_layer_vector_operation(
@@ -2041,8 +2173,7 @@ def identity(
             # Output file should be in different format, so convert
             tmp_output_path = tempdir / output_path.name
             gfo.copy_layer(src=intersection_output_path, dst=tmp_output_path)
-        else:
-            # Create spatial index
+        elif GeofileInfo(tmp_output_path).default_spatial_index:
             gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
 
         # Now we are ready to move the result to the final spot...
@@ -2172,8 +2303,7 @@ def symmetric_difference(
             # Output file should be in diffent format, so convert
             tmp_output_path = tempdir / output_path.name
             gfo.copy_layer(src=erase1_output_path, dst=tmp_output_path)
-        else:
-            # Create spatial index
+        elif GeofileInfo(tmp_output_path).default_spatial_index:
             gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
 
         # Now we are ready to move the result to the final spot...
@@ -2327,8 +2457,7 @@ def union(
             # Output file should be in different format, so convert
             tmp_output_path = tempdir / output_path.name
             gfo.copy_layer(src=intersection_output_path, dst=tmp_output_path)
-        else:
-            # Create spatial index
+        elif GeofileInfo(tmp_output_path).default_spatial_index:
             gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
 
         # Now we are ready to move the result to the final spot...
@@ -2362,7 +2491,7 @@ def _two_layer_vector_operation(
     batchsize: int,
     force: bool,
     use_ogr: bool = False,
-    output_with_spatial_index: bool = True,
+    output_with_spatial_index: Optional[bool] = None,
 ):
     """
     Executes an operation that needs 2 input files.
@@ -2408,7 +2537,7 @@ def _two_layer_vector_operation(
             NOT supported. If False, sqlite3 is used directly.
             Defaults to False.
         output_with_spatial_index (bool, optional): True to create output file with
-            spatial index. Defaults to True.
+            spatial index. None to use the GDAL default. Defaults to None.
 
     Raises:
         ValueError: [description]
@@ -2439,6 +2568,8 @@ def _two_layer_vector_operation(
             return
         else:
             gfo.remove(output_path)
+    if output_with_spatial_index is None:
+        output_with_spatial_index = GeofileInfo(output_path).default_spatial_index
 
     # Check if spatialite is properly installed to execute this query
     _sqlite_util.spatialite_version_info()
@@ -2752,9 +2883,9 @@ def _two_layer_vector_operation(
                 else:
                     # If there is only one batch, it is faster to create the spatial
                     # index immediately
-                    create_spatial_index = False
-                    if nb_batches == 1 and output_with_spatial_index:
-                        create_spatial_index = True
+                    create_spatial_index = (
+                        True if nb_batches == 1 and output_with_spatial_index else False
+                    )
 
                     fileops._append_to_nolock(
                         src=tmp_partial_output_path,
@@ -2905,33 +3036,33 @@ def _prepare_processing_params(
     input2_path: Optional[Path] = None,
     input2_layer: Optional[str] = None,
 ) -> Optional[ProcessingParams]:
-    # Init
-    input1_layerinfo = gfo.get_layerinfo(
-        input1_path, input1_layer, raise_on_nogeom=False
-    )
-
     # Prepare input files for the calculation
     if convert_to_spatialite_based:
-        # Check if the input files are of the correct geofiletype
+        # The input files should be spatialite based, and should be of the same type:
+        # either both GPKG, or both SQLite.
         input1_info = _geofileinfo.get_geofileinfo(input1_path)
         input2_info = (
             None if input2_path is None else _geofileinfo.get_geofileinfo(input2_path)
         )
 
-        # If input files are of the same format + are spatialite compatible,
-        # just use them
+        # If input1 is spatialite based and compatible with input2, no conversion.
         if input1_info.is_spatialite_based and (
-            input2_info is None or input1_info.driver == input2_info.driver
+            input1_info.driver == "GPKG"
+            or input2_info is None
+            or input2_info.driver == input2_info.driver
         ):
-            if (
-                input1_info.driver == "GPKG"
-                and input1_layerinfo.geometrycolumn is not None
-            ):
-                # HasSpatialindex doesn't work for spatialite file
-                gfo.create_spatial_index(input1_path, input1_layer, exist_ok=True)
+            if input1_info.driver == "GPKG":
+                # HasSpatialindex doesn't work for spatialite files.
+                gfo.create_spatial_index(
+                    input1_path, input1_layer, exist_ok=True, no_geom_ok=True
+                )
         else:
-            # If not ok, copy the input layer to gpkg
-            input1_tmp_path = tempdir / f"{input1_path.stem}.gpkg"
+            # input1 is not spatialite compatible, so convert it.
+            # If input2 is "Sqlite", convert input1 to SQLite as well.
+            suffix = ".gpkg"
+            if input2_info is not None and input2_info.driver == "SQLite":
+                suffix = ".sqlite"
+            input1_tmp_path = tempdir / f"{input1_path.stem}{suffix}"
             gfo.copy_layer(
                 src=input1_path,
                 src_layer=input1_layer,
@@ -2940,24 +3071,33 @@ def _prepare_processing_params(
                 preserve_fid=True,
             )
             input1_path = input1_tmp_path
+            input1_info = _geofileinfo.get_geofileinfo(input1_path)
+            if input1_info.driver == "SQLite":
+                # In sqlite, the layer name is sometimes changed...
+                input1_layer = gfo.get_only_layer(input1_path)
 
+        # If input2 is spatialite_based and compatible with input1, no conversion.
         if input2_path is not None and input2_info is not None:
             if (
-                input2_info.driver == input1_info.driver
-                and input2_info.is_spatialite_based
+                input2_info.is_spatialite_based
+                and input2_info.driver == input1_info.driver
             ):
-                input2_layerinfo = gfo.get_layerinfo(
-                    input2_path, input2_layer, raise_on_nogeom=False
-                )
-                if (
-                    input2_info.driver == "GPKG"
-                    and input2_layerinfo.geometrycolumn is not None
-                ):
-                    # HasSpatialindex doesn't work for spatialite file
-                    gfo.create_spatial_index(input2_path, input2_layer, exist_ok=True)
+                if input2_info.driver == "GPKG":
+                    # HasSpatialindex doesn't work for spatialite files.
+                    gfo.create_spatial_index(
+                        input2_path, input2_layer, exist_ok=True, no_geom_ok=True
+                    )
             else:
-                # If not spatialite compatible, copy the input layer to gpkg
-                input2_tmp_path = tempdir / f"{input2_path.stem}.gpkg"
+                # input2 is not spatialite compatible, so convert it.
+                # If input1 is "Sqlite", convert input2 to SQLite as well.
+                suffix = ".gpkg"
+                if input1_info is not None and input1_info.driver == "SQLite":
+                    suffix = ".sqlite"
+                input2_tmp_path = tempdir / f"{input2_path.stem}{suffix}"
+
+                # Make sure the copy is taken to a separate file.
+                if input2_tmp_path.exists():
+                    input2_tmp_path = tempdir / f"{input2_path.stem}2{suffix}"
                 gfo.copy_layer(
                     src=input2_path,
                     src_layer=input2_layer,
@@ -2966,6 +3106,10 @@ def _prepare_processing_params(
                     preserve_fid=True,
                 )
                 input2_path = input2_tmp_path
+                input2_info = _geofileinfo.get_geofileinfo(input2_path)
+                if input2_info.driver == "SQLite":
+                    # In sqlite, the layer name is sometimes changed...
+                    input2_layer = gfo.get_only_layer(input2_path)
 
     # Prepare batches to process
     layer1_info = gfo.get_layerinfo(input1_path, input1_layer, raise_on_nogeom=False)
@@ -3361,10 +3505,10 @@ def dissolve_singlethread(
     # Now the sql query can be assembled
     sql_stmt = f"""
         SELECT {operation} AS geom
-            {groupby_columns_for_select_str}
-            {agg_columns_str}
-        FROM "{input_layer}" layer
-        GROUP BY {groupby_columns_for_groupby_str}
+              {groupby_columns_for_select_str}
+              {agg_columns_str}
+          FROM "{input_layer}" layer
+         GROUP BY {groupby_columns_for_groupby_str}
     """
 
     # If empty/null geometries don't need to be kept, filter them away
@@ -3387,7 +3531,7 @@ def dissolve_singlethread(
             SELECT * FROM
                 ( {sql_stmt}
                 )
-                WHERE {where_post}
+             WHERE {where_post}
         """
         # where_post has been applied already so set to None.
         where_post = None
@@ -3406,11 +3550,11 @@ def dissolve_singlethread(
     # Now we can really start
     tempdir = _io_util.create_tempdir("geofileops/dissolve_singlethread")
     try:
-        create_spatial_index = True
         suffix = output_path.suffix
+        options = {}
         if where_post is not None:
             # where_post needs to be applied still, so no spatial index needed
-            create_spatial_index = False
+            options["LAYER_CREATION.SPATIAL_INDEX"] = False
             suffix = ".gpkg"
         tmp_output_path = tempdir / f"output_tmp{suffix}"
 
@@ -3422,7 +3566,7 @@ def dissolve_singlethread(
             sql_dialect="SQLITE",
             force_output_geometrytype=force_output_geometrytype,
             explodecollections=explodecollections,
-            options={"LAYER_CREATION.SPATIAL_INDEX": create_spatial_index},
+            options=options,
         )
 
         # We still need to apply the where_post filter
@@ -3443,7 +3587,6 @@ def dissolve_singlethread(
                 force_output_geometrytype=force_output_geometrytype,
                 sql_stmt=sql_stmt,
                 sql_dialect="SQLITE",
-                options={"LAYER_CREATION.SPATIAL_INDEX": True},
             )
             tmp_output_path = tmp_output_where_path
 

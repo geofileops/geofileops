@@ -673,7 +673,7 @@ def remove_spatial_index(
         elif path_info.driver == "ESRI Shapefile":
             # DROP SPATIAL INDEX ON ... command gives an error, so just remove .qix
             index_path = path.parent / f"{path.stem}.qix"
-            index_path.unlink()
+            index_path.unlink(missing_ok=True)
         else:
             raise ValueError(
                 f"remove_spatial_index not supported for {path_info.driver}: {path}"
@@ -1473,7 +1473,7 @@ def to_file(
     append: bool = False,
     append_timeout_s: int = 600,
     index: Optional[bool] = None,
-    create_spatial_index: Optional[bool] = True,
+    create_spatial_index: Optional[bool] = None,
     **kwargs,
 ):
     """
@@ -1512,7 +1512,7 @@ def to_file(
             If False, no index is written. Defaults to None.
         create_spatial_index (bool, optional): True to force creation of spatial index,
             False to avoid creation. None leads to the default behaviour of gdal.
-            Defaults to True.
+            Defaults to None.
         **kwargs: All additional parameters will be passed on to the io-engine used
             ("pyogrio" or "fiona").
 
@@ -1604,7 +1604,7 @@ def _to_file_fiona(
     append: bool = False,
     append_timeout_s: int = 600,
     index: Optional[bool] = None,
-    create_spatial_index: Optional[bool] = True,
+    create_spatial_index: Optional[bool] = None,
     **kwargs,
 ):
     """
@@ -1667,7 +1667,7 @@ def _to_file_fiona(
         force_multitype: bool = False,
         append: bool = False,
         schema: Optional[dict] = None,
-        create_spatial_index: Optional[bool] = True,
+        create_spatial_index: Optional[bool] = None,
         **kwargs,
     ):
         # Prepare args for to_file
@@ -1772,7 +1772,7 @@ def _to_file_pyogrio(
     append: bool = False,
     append_timeout_s: int = 600,
     index: Optional[bool] = None,
-    create_spatial_index: Optional[bool] = True,
+    create_spatial_index: Optional[bool] = None,
     **kwargs,
 ):
     """
@@ -1801,8 +1801,6 @@ def _to_file_pyogrio(
     path_info = _geofileinfo.get_geofileinfo(path)
     kwargs["driver"] = path_info.driver
     kwargs["index"] = index
-    if create_spatial_index is not None:
-        kwargs["SPATIAL_INDEX"] = create_spatial_index
     if force_output_geometrytype is not None:
         if isinstance(force_output_geometrytype, GeometryType):
             force_output_geometrytype = force_output_geometrytype.name_camelcase
@@ -2120,7 +2118,7 @@ def append_to(
     reproject: bool = False,
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
-    create_spatial_index: Optional[bool] = True,
+    create_spatial_index: Optional[bool] = None,
     append_timeout_s: int = 600,
     transaction_size: int = 50000,
     preserve_fid: Optional[bool] = None,
@@ -2199,7 +2197,7 @@ def append_to(
             that file type is respected. If the `LAYER_CREATION.SPATIAL_INDEX`
             parameter is specified in options, `create_spatial_index` is ignored. If the
             destination layer exists already, `create_spatial_index` is also ignored.
-            Defaults to True.
+            Defaults to None.
         append_timeout_s (int, optional): timeout to use if the output file is
             being written to by another process already. Defaults to 600.
         transaction_size (int, optional): Transaction size. Defaults to 50000.
@@ -2299,7 +2297,7 @@ def _append_to_nolock(
     sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     reproject: bool = False,
     explodecollections: bool = False,
-    create_spatial_index: Optional[bool] = True,
+    create_spatial_index: Optional[bool] = None,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
     transaction_size: int = 50000,
     preserve_fid: Optional[bool] = None,
@@ -2411,7 +2409,7 @@ def convert(
     reproject: bool = False,
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
-    create_spatial_index: Optional[bool] = True,
+    create_spatial_index: Optional[bool] = None,
     preserve_fid: Optional[bool] = None,
     options: dict = {},
     append: bool = False,
@@ -2454,7 +2452,7 @@ def copy_layer(
     reproject: bool = False,
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
-    create_spatial_index: Optional[bool] = True,
+    create_spatial_index: Optional[bool] = None,
     preserve_fid: Optional[bool] = None,
     dst_dimensions: Optional[str] = None,
     options: dict = {},
@@ -2521,7 +2519,7 @@ def copy_layer(
             on the destination file/layer. If None, the default behaviour by gdal for
             that file type is respected. If the LAYER_CREATION.SPATIAL_INDEX
             parameter is specified in options, create_spatial_index is ignored.
-            Defaults to True.
+            Defaults to None.
         preserve_fid (bool, optional): True to make an extra effort to preserve fid's of
             the source layer to the destination layer. False not to do any effort. None
             to use the default behaviour of gdal, that already preserves in some cases.
