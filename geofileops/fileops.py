@@ -3,17 +3,26 @@ Module with helper functions for geo files.
 """
 
 import enum
-import datetime
+from datetime import date, datetime
 import filecmp
 import logging
-import os
 from pathlib import Path
 import pprint
 import shutil
 import string
 import tempfile
 import time
-from typing import Any, Dict, Iterable, List, Literal, Optional, Tuple, Union
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Union,
+    TYPE_CHECKING,
+)
 import warnings
 
 import fiona
@@ -32,6 +41,10 @@ from geofileops.util import _geoseries_util
 from geofileops.util import _io_util
 from geofileops.util import _ogr_util
 from geofileops.util import _ogr_sql_util
+from geofileops.helpers._configoptions_helper import ConfigOptions
+
+if TYPE_CHECKING:
+    import os
 
 #####################################################################
 # First define/init some general variables/constants
@@ -347,6 +360,7 @@ def get_layerinfo(
             if driver == "ESRI Shapefile":
                 geometrytype = geometrytype.to_multitype
 
+            assert geometrytype is not None
             geometrytypename = geometrytype.name
 
         # If the geometry type is not None, fill out the extra properties
@@ -677,7 +691,7 @@ def remove_spatial_index(
         elif path_info.driver == "ESRI Shapefile":
             # DROP SPATIAL INDEX ON ... command gives an error, so just remove .qix
             index_path = path.parent / f"{path.stem}.qix"
-            index_path.unlink()
+            index_path.unlink(missing_ok=True)
         else:
             raise ValueError(
                 f"remove_spatial_index not supported for {path_info.driver}: {path}"
@@ -826,7 +840,7 @@ def add_column(
         path (PathLike): Path to the geofile.
         name (str): Name for the new column.
         type (str): Column type of the new column.
-        expression (str, optional): SQLite expression to use to update
+        expression (str; int or float, optional): SQLite expression to use to update
             the value. Defaults to None.
         expression_dialect (str, optional): SQL dialect used for the expression.
         layer (str, optional): The layer name. If None and the geofile
@@ -1139,7 +1153,7 @@ def _read_file_base(
             fid_as_column = True
 
     # Read with the engine specified
-    engine = _get_engine()
+    engine = ConfigOptions.io_engine
     if engine == "pyogrio":
         gdf = _read_file_base_pyogrio(
             path=path,
@@ -1225,7 +1239,7 @@ def _read_file_base_fiona(
 
             path = tmp_fid_path
         finally:
-            if tmp_fid_path.parent.exists():
+            if ConfigOptions.remove_temp_files and tmp_fid_path.parent.exists():
                 shutil.rmtree(tmp_fid_path, ignore_errors=True)
 
     # Checking if field/column names should be read is case sensitive in fiona, so
@@ -1366,6 +1380,13 @@ def _read_file_base_pyogrio(
         result_gdf = result_gdf[columns_to_keep]
         result_gdf = result_gdf.rename(columns=columns_prepared)
 
+    # Cast columns that are of object type, but contain datetime.date or datetime.date
+    # to proper datetime64 columns.
+    if len(result_gdf) > 0:
+        for column in result_gdf.select_dtypes(include=["object"]):
+            if isinstance(result_gdf[column].iloc[0], (date, datetime)):
+                result_gdf[column] = pd.to_datetime(result_gdf[column])
+
     assert isinstance(result_gdf, (gpd.GeoDataFrame, pd.DataFrame))
     return result_gdf
 
@@ -1459,7 +1480,7 @@ def to_file(
     append: bool = False,
     append_timeout_s: int = 600,
     index: Optional[bool] = None,
-    create_spatial_index: Optional[bool] = True,
+    create_spatial_index: Optional[bool] = None,
 ):
     """
     Writes a pandas dataframe to file.
@@ -1497,7 +1518,7 @@ def to_file(
             If False, no index is written. Defaults to None.
         create_spatial_index (bool, optional): True to force creation of spatial index,
             False to avoid creation. None leads to the default behaviour of gdal.
-            Defaults to True.
+            Defaults to None.
 
     Raises:
         ValueError: an invalid parameter value was passed.
@@ -1537,7 +1558,7 @@ def to_file(
         engine = "fiona"
         create_spatial_index = False
     else:
-        engine = _get_engine()
+        engine = ConfigOptions.io_engine
 
     # Now write with the correct engine
     if engine == "pyogrio":
@@ -1569,10 +1590,6 @@ def to_file(
         raise ValueError(f"Unsupported engine: {engine}")
 
 
-def _get_engine():
-    return os.environ.get("GFO_IO_ENGINE", "pyogrio")
-
-
 def _to_file_fiona(
     gdf: Union[pd.DataFrame, gpd.GeoDataFrame],
     path: Path,
@@ -1582,7 +1599,7 @@ def _to_file_fiona(
     append: bool = False,
     append_timeout_s: int = 600,
     index: Optional[bool] = None,
-    create_spatial_index: Optional[bool] = True,
+    create_spatial_index: Optional[bool] = None,
 ):
     """
     Writes a pandas dataframe to file using fiona.
@@ -1598,7 +1615,7 @@ def _to_file_fiona(
         # type data instead of strings.
         if len(gdf) > 0:
             for column in gdf.select_dtypes(include=["object"]):
-                if isinstance(gdf[column][0], (datetime.date, datetime.datetime)):
+                if isinstance(gdf[column][0], (date, datetime)):
                     gdf[column] = gdf[column].astype(str)
 
     # Handle some specific cases where the file schema needs to be manipulated.
@@ -1643,7 +1660,7 @@ def _to_file_fiona(
         force_multitype: bool = False,
         append: bool = False,
         schema: Optional[dict] = None,
-        create_spatial_index: Optional[bool] = True,
+        create_spatial_index: Optional[bool] = None,
     ):
         # Prepare args for to_file
         if append is True:
@@ -1724,7 +1741,7 @@ def _to_file_fiona(
         # Files don't typically support having multiple processes writing
         # simultanously to them, so use lock file to synchronize access.
         lockfile = Path(f"{str(path)}.lock")
-        start_time = datetime.datetime.now()
+        start_time = datetime.now()
         ready = False
         while not ready:
             if _io_util.create_file_atomic(lockfile) is True:
@@ -1765,7 +1782,7 @@ def _to_file_fiona(
                     ready = True
                     lockfile.unlink()
             else:
-                time_waiting = (datetime.datetime.now() - start_time).total_seconds()
+                time_waiting = (datetime.now() - start_time).total_seconds()
                 if time_waiting > append_timeout_s:
                     raise RuntimeError(
                         f"to_file timeout of {append_timeout_s} reached, stop append "
@@ -1785,7 +1802,7 @@ def _to_file_pyogrio(
     append: bool = False,
     append_timeout_s: int = 600,
     index: Optional[bool] = None,
-    create_spatial_index: Optional[bool] = True,
+    create_spatial_index: Optional[bool] = None,
 ):
     """
     Writes a pandas dataframe to file using pyogrio.
@@ -1814,8 +1831,6 @@ def _to_file_pyogrio(
     path_info = _geofileinfo.get_geofileinfo(path)
     kwargs["driver"] = path_info.driver
     kwargs["index"] = index
-    if create_spatial_index is not None:
-        kwargs["SPATIAL_INDEX"] = create_spatial_index
     if force_output_geometrytype is not None:
         if isinstance(force_output_geometrytype, GeometryType):
             force_output_geometrytype = force_output_geometrytype.name_camelcase
@@ -1952,18 +1967,17 @@ def copy(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
 
     # For some file types, extra files need to be copied
     # If dest is a dir, just use move. Otherwise concat dest filepaths
-    if src_info.suffixes_extrafiles is not None:
-        if dst.is_dir():
-            for suffix in src_info.suffixes_extrafiles:
-                srcfile = src.parent / f"{src.stem}{suffix}"
-                if srcfile.exists():
-                    shutil.copy(str(srcfile), dst)
-        else:
-            for suffix in src_info.suffixes_extrafiles:
-                srcfile = src.parent / f"{src.stem}{suffix}"
-                dstfile = dst.parent / f"{dst.stem}{suffix}"
-                if srcfile.exists():
-                    shutil.copy(str(srcfile), dstfile)
+    if dst.is_dir():
+        for suffix in src_info.suffixes_extrafiles:
+            srcfile = src.parent / f"{src.stem}{suffix}"
+            if srcfile.exists():
+                shutil.copy(str(srcfile), dst)
+    else:
+        for suffix in src_info.suffixes_extrafiles:
+            srcfile = src.parent / f"{src.stem}{suffix}"
+            dstfile = dst.parent / f"{dst.stem}{suffix}"
+            if srcfile.exists():
+                shutil.copy(str(srcfile), dstfile)
 
 
 def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]):
@@ -1987,18 +2001,17 @@ def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
 
     # For some file types, extra files need to be moved
     # If dest is a dir, just use move. Otherwise concat dest filepaths
-    if src_info.suffixes_extrafiles is not None:
-        if dst.is_dir():
-            for suffix in src_info.suffixes_extrafiles:
-                srcfile = src.parent / f"{src.stem}{suffix}"
-                if srcfile.exists():
-                    shutil.move(str(srcfile), dst)
-        else:
-            for suffix in src_info.suffixes_extrafiles:
-                srcfile = src.parent / f"{src.stem}{suffix}"
-                dstfile = dst.parent / f"{dst.stem}{suffix}"
-                if srcfile.exists():
-                    shutil.move(str(srcfile), dstfile)
+    if dst.is_dir():
+        for suffix in src_info.suffixes_extrafiles:
+            srcfile = src.parent / f"{src.stem}{suffix}"
+            if srcfile.exists():
+                shutil.move(str(srcfile), dst)
+    else:
+        for suffix in src_info.suffixes_extrafiles:
+            srcfile = src.parent / f"{src.stem}{suffix}"
+            dstfile = dst.parent / f"{dst.stem}{suffix}"
+            if srcfile.exists():
+                shutil.move(str(srcfile), dstfile)
 
 
 def remove(path: Union[str, "os.PathLike[Any]"], missing_ok: bool = False):
@@ -2026,10 +2039,9 @@ def remove(path: Union[str, "os.PathLike[Any]"], missing_ok: bool = False):
         path.unlink(missing_ok=missing_ok)
 
     # For some file types, extra files need to be removed
-    if path_info.suffixes_extrafiles is not None:
-        for suffix in path_info.suffixes_extrafiles:
-            curr_path = path.parent / f"{path.stem}{suffix}"
-            curr_path.unlink(missing_ok=True)
+    for suffix in path_info.suffixes_extrafiles:
+        curr_path = path.parent / f"{path.stem}{suffix}"
+        curr_path.unlink(missing_ok=True)
 
 
 def append_to(
@@ -2046,7 +2058,7 @@ def append_to(
     reproject: bool = False,
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
-    create_spatial_index: Optional[bool] = True,
+    create_spatial_index: Optional[bool] = None,
     append_timeout_s: int = 600,
     transaction_size: int = 50000,
     preserve_fid: Optional[bool] = None,
@@ -2125,7 +2137,7 @@ def append_to(
             that file type is respected. If the `LAYER_CREATION.SPATIAL_INDEX`
             parameter is specified in options, `create_spatial_index` is ignored. If the
             destination layer exists already, `create_spatial_index` is also ignored.
-            Defaults to True.
+            Defaults to None.
         append_timeout_s (int, optional): timeout to use if the output file is
             being written to by another process already. Defaults to 600.
         transaction_size (int, optional): Transaction size. Defaults to 50000.
@@ -2171,7 +2183,7 @@ def append_to(
             _ = None
 
     # Creating lockfile and append
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
     ready = False
     while not ready:
         if _io_util.create_file_atomic(lockfile) is True:
@@ -2201,7 +2213,7 @@ def append_to(
                 ready = True
                 lockfile.unlink()
         else:
-            time_waiting = (datetime.datetime.now() - start_time).total_seconds()
+            time_waiting = (datetime.now() - start_time).total_seconds()
             if time_waiting > append_timeout_s:
                 raise RuntimeError(
                     f"append_to timeout of {append_timeout_s} reached, so stop write "
@@ -2225,7 +2237,7 @@ def _append_to_nolock(
     sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     reproject: bool = False,
     explodecollections: bool = False,
-    create_spatial_index: Optional[bool] = True,
+    create_spatial_index: Optional[bool] = None,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
     transaction_size: int = 50000,
     preserve_fid: Optional[bool] = None,
@@ -2337,7 +2349,7 @@ def convert(
     reproject: bool = False,
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
-    create_spatial_index: Optional[bool] = True,
+    create_spatial_index: Optional[bool] = None,
     preserve_fid: Optional[bool] = None,
     options: dict = {},
     append: bool = False,
@@ -2380,7 +2392,7 @@ def copy_layer(
     reproject: bool = False,
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
-    create_spatial_index: Optional[bool] = True,
+    create_spatial_index: Optional[bool] = None,
     preserve_fid: Optional[bool] = None,
     dst_dimensions: Optional[str] = None,
     options: dict = {},
@@ -2447,7 +2459,7 @@ def copy_layer(
             on the destination file/layer. If None, the default behaviour by gdal for
             that file type is respected. If the LAYER_CREATION.SPATIAL_INDEX
             parameter is specified in options, create_spatial_index is ignored.
-            Defaults to True.
+            Defaults to None.
         preserve_fid (bool, optional): True to make an extra effort to preserve fid's of
             the source layer to the destination layer. False not to do any effort. None
             to use the default behaviour of gdal, that already preserves in some cases.

@@ -14,6 +14,7 @@ from pygeoops import GeometryType
 
 from geofileops._compat import SPATIALITE_GTE_51
 from geofileops import fileops
+from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import _geofileinfo
 from geofileops.util import _geoops_gpd
 from geofileops.util import _geoops_sql
@@ -96,10 +97,7 @@ def dissolve_within_distance(
     start_time = datetime.now()
     operation_name = "dissolve_within_distance"
     logger = logging.getLogger(f"geofileops.{operation_name}")
-    nb_steps = 4
-    if not close_internal_gaps:
-        # 3 extra steps if boundary gaps not to be closed.
-        nb_steps += 3
+    nb_steps = 9
 
     # Already check here if it is useful to continue
     if output_path.exists():
@@ -116,6 +114,7 @@ def dissolve_within_distance(
         # Note: this reduces the complexity of operations to be executed later on.
         # Note2: this already applies the gridsize, which needs to be applied anyway to
         # avoid issues when determining the addedpieces_1neighbour later on.
+        # Note2: don' apply gridsize yet
         logger.info(f"Start, with input file {input_path}")
         step = 1
         logger.info(f"Step {step} of {nb_steps}")
@@ -125,7 +124,7 @@ def dissolve_within_distance(
             output_path=diss_path,
             explodecollections=True,
             input_layer=input_layer,
-            gridsize=gridsize,
+            gridsize=0.0,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             operation_prefix=f"{operation_name}-",
@@ -133,29 +132,29 @@ def dissolve_within_distance(
 
         # Positive buffer of distance / 2 to close all gaps.
         #
-        # Note: gridsize is not applied to preserve all possible accuracy for these
+        # Note: no gridsize is applied to preserve all possible accuracy for these
         # temporary boundaries, otherwise the polygons are sometimes enlarged slightly,
         # which isn't wanted + creates issues when determining the
         # addedpieces_1neighbour later on.
         step += 1
         logger.info(f"Step {step} of {nb_steps}")
-        buff_path = tempdir / "110_diss_bufp.gpkg"
+        bufp_path = tempdir / "110_diss_bufp.gpkg"
         _geoops_gpd.buffer(
             input_path=diss_path,
-            output_path=buff_path,
+            output_path=bufp_path,
             distance=distance / 2,
             endcap_style=BufferEndCapStyle.SQUARE,
             join_style=BufferJoinStyle.MITRE,
             mitre_limit=1.25,
-            # gridsize=gridsize,
+            gridsize=0.0,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             operation_prefix=f"{operation_name}-",
         )
 
-        # Dissolve the buffered input
+        # Dissolve the buffered input.
         #
-        # Note: gridsize is not applied to preserve all possible accuracy for these
+        # Note: no gridsize is applied to preserve all possible accuracy for these
         # temporary boundaries, otherwise the polygons are sometimes enlarged slightly,
         # which isn't wanted + creates issues when determining the
         # addedpieces_1neighbour later on.
@@ -163,10 +162,10 @@ def dissolve_within_distance(
         logger.info(f"Step {step} of {nb_steps}")
         buff_diss_path = tempdir / "120_diss_bufp_diss.gpkg"
         _geoops_gpd.dissolve(
-            input_path=buff_path,
+            input_path=bufp_path,
             output_path=buff_diss_path,
             explodecollections=True,
-            # gridsize=gridsize,
+            gridsize=0.0,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             operation_prefix=f"{operation_name}-",
@@ -177,48 +176,82 @@ def dissolve_within_distance(
         # don't dissappear again.
         step += 1
         logger.info(f"Step {step} of {nb_steps}")
-        buff_diss_bufm_path = tempdir / "130_diss_bufp_diss_bufm.gpkg"
+        bufp_diss_bufm_path = tempdir / "130_diss_bufp_diss_bufm.gpkg"
         _geoops_gpd.buffer(
             input_path=buff_diss_path,
-            output_path=buff_diss_bufm_path,
+            output_path=bufp_diss_bufm_path,
             distance=-(distance / 2),
             endcap_style=BufferEndCapStyle.SQUARE,
             join_style=BufferJoinStyle.MITRE,
             mitre_limit=2,
-            gridsize=gridsize,
+            explodecollections=True,
+            gridsize=0.0,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             operation_prefix=f"{operation_name}-",
         )
 
-        # Determine which parts that were added were actually gaps within 'distance' in
-        # the original polygons, so they can be removed again.
+        # We want to keep the original boundaries as identical as possible. However,
+        # when the same positive and negative buffer is applied on a polygon, even if no
+        # dissolve is happening with neighbouring polygons, the result won't be exactly
+        # the same as the input. Small differences will appear, e.g.:
+        #   - with a "standard" buffer, internal corners will be rounded afterwards
+        #   - with a "mitre" buffer the internal corners will in many cases stay the
+        #     same, but for external corners where the mitre kicks in, the boundaries of
+        #     the result will move slightly so the end result is smaller.
+        #
+        # To minimize changes to original boundaries, determine which parts are actually
+        # gaps "within distance" between original features that need to be filled. Then,
+        # those features can be added and dissolved into the original polygons.
+        # Note: no gridsize is applied to preserve all possible accuracy for these
+        # temporary boundariesstep += 1
+        logger.info(f"Step {step} of {nb_steps}")
+        parts_to_add_path = tempdir / "200_parts_to_add.gpkg"
+        _geoops_sql.erase(
+            input_path=bufp_diss_bufm_path,
+            erase_path=diss_path,
+            output_path=parts_to_add_path,
+            overlay_self=False,
+            explodecollections=True,
+            gridsize=0.0,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+            operation_prefix=f"{operation_name}-",
+        )
 
-        # Determine all pieces added to the input in the process above.
+        # To avoid parts not being detected as touching to 2 neighbours because of
+        # rounding issues, apply a small buffer to them.
+        if gridsize > 0.0:
+            distance_parts_to_add = gridsize / 10
+        else:
+            distance_parts_to_add = 0.0000000001
         step += 1
         logger.info(f"Step {step} of {nb_steps}")
-        added_pieces_path = tempdir / "200_addedpieces.gpkg"
-        _geoops_sql.erase(
-            input_path=buff_diss_bufm_path,
-            erase_path=diss_path,
-            output_path=added_pieces_path,
-            explodecollections=True,
-            gridsize=gridsize,
+        parts_to_add_bufp_path = tempdir / "200_parts_to_add_bufp.gpkg"
+        bufp_path = tempdir / "110_diss_bufp.gpkg"
+        _geoops_gpd.buffer(
+            input_path=parts_to_add_path,
+            output_path=parts_to_add_bufp_path,
+            distance=distance_parts_to_add,
+            endcap_style=BufferEndCapStyle.SQUARE,
+            join_style=BufferJoinStyle.MITRE,
+            mitre_limit=1.25,
+            gridsize=0.0,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             operation_prefix=f"{operation_name}-",
         )
 
-        # Build a filter to select the pieces that we want to erase again from the
-        # result because they were incorrectly added.
+        # Build a filter to only keep the pieces that actually need to be added to the
+        # input layer.
         # The filter will depend on input parameters.
         if close_internal_gaps:
             # True, so also gaps in the original input boundaries should be closed.
             # This means that in theory all pieces can be retained, but in practice
-            # there are some cases where the above algorithm adds unwanted area, so that
-            # needs to be erased again.
+            # there are some cases where unwanted area would be added anyway, so remove
+            # it from the area to be added.
             #
-            # Parameters that indicate that added pieces won't need to be erased:
+            # Parameters that indicate that added pieces should be added:
             #   - large areas (>= distance²) seem OK.
             #   - if > 1 neighbour, seems OK.
             #
@@ -229,15 +262,15 @@ def dissolve_within_distance(
             #   - pieces can be spikes. E.g. when a "road" of ~ 'distance' width is not
             #     filled up between two input geometries has a bend. Depending on the
             #     angle, the mitre of the negative buffer can leave a spike in place.
-            pieces_to_erase_filter = f"""
-                neighbours_count_distinct <= 1
-                AND geom_area < {distance} * {distance}
-                AND neighbours_perimeter/2 + neighbours_length <= 0.8 * geom_perimeter
+            parts_to_add_filter = f"""
+                neighbours_count_distinct > 1
+                OR geom_area > {distance} * {distance}
+                OR neighbours_perimeter/2 + neighbours_length > 0.8 * geom_perimeter
             """
         else:
-            # False, so we want to keep all pieces that intersect with only 1 neighbour
-            # in the input, so they can be remove again from the result.
-            pieces_to_erase_filter = "neighbours_count_distinct <= 1"
+            # False, so we only want to add yhe pieces that intersect with > 1 neighbour
+            # in the input.
+            parts_to_add_filter = "neighbours_count_distinct > 1"
 
         # Notes:
         # - The conversion to json followed by extraction from json allows to use a
@@ -300,41 +333,53 @@ def dissolve_within_distance(
                   LIMIT -1 OFFSET 0
                )
              WHERE geom IS NOT NULL
-               AND ({pieces_to_erase_filter})
+               AND ({parts_to_add_filter})
         """
 
+        # Note: no gridsize is applied to preserve all possible accuracy for these
+        # temporary boundariesstep += 1
         step += 1
         logger.info(f"Step {step} of {nb_steps}")
-        added_pieces_to_be_erased_input = tempdir / "210_addedpieces_to_be_erased.gpkg"
+        parts_to_add_filtered_path = tempdir / "210_parts_to_add_filtered.gpkg"
         _geoops_sql.select_two_layers(
-            input1_path=added_pieces_path,
+            input1_path=parts_to_add_bufp_path,
             input2_path=input_path,
-            output_path=added_pieces_to_be_erased_input,
+            output_path=parts_to_add_filtered_path,
             sql_stmt=sql_stmt,
             input2_layer=input_layer,
-            # gridsize=gridsize,
+            gridsize=0.0,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             operation_prefix=f"{operation_name}-",
+            output_with_spatial_index=False,
+        )
+
+        # Note: no gridsize is applied to preserve all possible accuracy for these
+        # temporary boundariesstep += 1
+        step += 1
+        logger.info(f"Step {step} of {nb_steps}")
+        dst_layer = fileops.get_only_layer(diss_path)
+        fileops.append_to(
+            src=parts_to_add_filtered_path, dst=diss_path, dst_layer=dst_layer
         )
 
         step += 1
         logger.info(f"Step {step} of {nb_steps}")
-        _geoops_sql.erase(
-            input_path=buff_diss_bufm_path,
-            erase_path=added_pieces_to_be_erased_input,
+        # Apply gridsize for output
+        _geoops_gpd.dissolve(
+            input_path=diss_path,
             output_path=output_path,
-            output_layer=output_layer,
             explodecollections=True,
+            output_layer=output_layer,
             gridsize=gridsize,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
-            force=force,
             operation_prefix=f"{operation_name}-",
         )
 
     finally:
-        shutil.rmtree(tempdir, ignore_errors=True)
+        if ConfigOptions.remove_temp_files:
+            shutil.rmtree(tempdir, ignore_errors=True)
 
     logger.info(f"Ready, took {datetime.now()-start_time}")
 
@@ -350,7 +395,7 @@ def apply(
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
     gridsize: float = 0.0,
-    keep_empty_geoms: Optional[bool] = None,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -472,7 +517,7 @@ def buffer(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    keep_empty_geoms: Optional[bool] = None,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -733,7 +778,7 @@ def convexhull(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    keep_empty_geoms: Optional[bool] = None,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -808,7 +853,7 @@ def delete_duplicate_geometries(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
-    keep_empty_geoms: Optional[bool] = None,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     force: bool = False,
 ):
@@ -1189,7 +1234,7 @@ def makevalid(
     explodecollections: bool = False,
     force_output_geometrytype: Union[str, None, GeometryType] = None,
     gridsize: float = 0.0,
-    keep_empty_geoms: Optional[bool] = None,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     precision: Optional[float] = None,
     validate_attribute_data: bool = False,
@@ -1253,6 +1298,8 @@ def makevalid(
     """  # noqa: E501
     logger = logging.getLogger("geofileops.makevalid")
     logger.info(f"Start, on {input_path}")
+    input_path = Path(input_path)
+    output_path = Path(output_path)
 
     if gridsize is None:
         gridsize = 0.0
@@ -1274,8 +1321,8 @@ def makevalid(
         # Only use this version if gridsize is 0.0, because when gridsize applied it is
         # less robust than the gpd implementation.
         _geoops_sql.makevalid(
-            input_path=Path(input_path),
-            output_path=Path(output_path),
+            input_path=input_path,
+            output_path=output_path,
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
@@ -1290,8 +1337,8 @@ def makevalid(
         )
     else:
         _geoops_gpd.makevalid(
-            input_path=Path(input_path),
-            output_path=Path(output_path),
+            input_path=input_path,
+            output_path=output_path,
             input_layer=input_layer,
             output_layer=output_layer,
             columns=columns,
@@ -1546,7 +1593,7 @@ def simplify(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    keep_empty_geoms: Optional[bool] = None,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -1676,7 +1723,7 @@ def clip(
     The resulting layer will contain the parts of the geometries in the
     input layer that overlap with the dissolved geometries in the clip layer.
 
-    Clarifications:
+    Notes:
         - every row in the input layer will result in maximum one row in the
           output layer.
         - geometries in the input layer that overlap with multiple adjacent
@@ -1755,7 +1802,7 @@ def clip(
 
 def erase(
     input_path: Union[str, "os.PathLike[Any]"],
-    erase_path: Union[str, "os.PathLike[Any]"],
+    erase_path: Union[str, "os.PathLike[Any]", None],
     output_path: Union[str, "os.PathLike[Any]"],
     input_layer: Optional[str] = None,
     input_columns: Optional[List[str]] = None,
@@ -1770,20 +1817,30 @@ def erase(
     force: bool = False,
 ):
     """
-    Erase all geometries in the erase layer from the input layer.
+    Erase all features in the erase layer from the features in the input layer.
 
-    Clarifications:
-        - every row in the input layer will result in maximum one row in the
+    Notes:
+        - Every row in the input layer will result in maximum one row in the
           output layer.
-        - columns from the erase layer cannot be retained.
+        - The output will contain the columns from the input layer, no columns from the
+          erase layer. The attribute values wont't be changed, so columns like area,...
+          will have to be recalculated manually.
+        - If ``erase_path`` is None, the 1st input layer is used for both inputs but
+          interactions between the same rows in this layer will be ignored. The output
+          will be the (pieces of) features in this layer that don't have any
+          intersections with other features in this layer.
 
     Alternative names:
         - QGIS: difference
 
     Args:
         input_path (PathLike): The file to erase from.
-        erase_path (PathLike): The file with the geometries to erase with.
-        output_path (PathLike): the file to write the result to
+        erase_path (PathLike, optional): The file with the geometries to erase with. If
+            None, the 1st input layer is used for both inputs but interactions between
+            the same rows in this layer will be ignored. The output will be the (pieces
+            of) features in this layer that don't have any intersections with other
+            features in this layer.
+        output_path (PathLike): the file to write the result to.
         input_layer (str, optional): input layer name. Optional if the
             file only contains one layer.
         input_columns (List[str], optional): list of columns to retain. If None, all
@@ -1811,8 +1868,8 @@ def erase(
         subdivide_coords (int, optional): the input geometries will be subdivided to
             parts with about ``subdivide_coords`` coordinates during processing which
             can offer a large speed up for complex geometries. Subdividing can result in
-            extra collinear points being added to the boundaries of the output. If < 0,
-            no subdividing is applied. Defaults to 2000.
+            extra collinear points being added to the boundaries of the output. If 0, no
+            subdividing is applied. Defaults to 2000.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
@@ -1823,10 +1880,21 @@ def erase(
     """  # noqa: E501
     logger = logging.getLogger("geofileops.erase")
     logger.info(f"Start, on {input_path} with {erase_path} to {output_path}")
+
+    # In erase_path is None, we are doing a self-overlay
+    overlay_self = False
+    if erase_path is None:
+        if erase_layer is not None:
+            raise ValueError("erase_layer must be None if erase_path is None")
+        erase_path = input_path
+        erase_layer = input_layer
+        overlay_self = True
+
     return _geoops_sql.erase(
         input_path=Path(input_path),
         erase_path=Path(erase_path),
         output_path=Path(output_path),
+        overlay_self=overlay_self,
         input_layer=input_layer,
         input_columns=input_columns,
         erase_layer=erase_layer,
@@ -1845,6 +1913,7 @@ def export_by_location(
     input_to_select_from_path: Union[str, "os.PathLike[Any]"],
     input_to_compare_with_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
+    spatial_relations_query: str = "intersects is True",
     min_area_intersect: Optional[float] = None,
     area_inters_column_name: Optional[str] = None,
     input1_layer: Optional[str] = None,
@@ -1858,10 +1927,24 @@ def export_by_location(
     force: bool = False,
 ):
     """
-    Exports all intersecting features.
+    Exports all features filtered by the specified spatial query.
 
-    All features in ``input_to_select_from_path`` that intersect with any features in
+    All features in ``input_to_select_from_path`` that comply to the
+    ``spatial_relations_query`` compared with the features in
     ``input_to_compare_with_path`` are exported.
+
+    The ``spatial_relations_query`` has a specific format. For most cases can use the
+    following "named spatial predicates": contains, coveredby, covers, crosses,
+    disjoint, equals, intersects, overlaps, touches and within.
+    If you want even more control, you can also use "spatial masks" as defined by the
+    |DE-9IM| model.
+
+    Some examples of valid ``spatial_relations_query`` values:
+
+        - "touches is True or within is True"
+        - "intersect is True and touches is False"
+        - "(T*T***T** is True or 1*T***T** is True) and T*****FF* is False"
+
 
     Alternative names:
         - QGIS: extract by location
@@ -1870,6 +1953,8 @@ def export_by_location(
         input_to_select_from_path (PathLike): the 1st input file
         input_to_compare_with_path (PathLike): the 2nd input file
         output_path (PathLike): the file to write the result to
+        spatial_relations_query (str, optional): a query that specifies the spatial
+            relations to match between the 2 layers. Defaults to "intersects is True".
         min_area_intersect (float, optional): minimum area of the intersection.
             Defaults to None.
         area_inters_column_name (str, optional): column name of the intersect
@@ -1904,6 +1989,10 @@ def export_by_location(
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
 
+    .. |DE-9IM| raw:: html
+
+        <a href="https://en.wikipedia.org/wiki/DE-9IM" target="_blank">DE-9IM</a>
+
     """  # noqa: E501
     logger = logging.getLogger("geofileops.export_by_location")
     logger.info(
@@ -1914,6 +2003,7 @@ def export_by_location(
         input_path=Path(input_to_select_from_path),
         input_to_compare_with_path=Path(input_to_compare_with_path),
         output_path=Path(output_path),
+        spatial_relations_query=spatial_relations_query,
         min_area_intersect=min_area_intersect,
         area_inters_column_name=area_inters_column_name,
         input_layer=input1_layer,
@@ -2009,7 +2099,7 @@ def export_by_distance(
 
 def identity(
     input1_path: Union[str, "os.PathLike[Any]"],
-    input2_path: Union[str, "os.PathLike[Any]"],
+    input2_path: Union[str, "os.PathLike[Any]", None],
     output_path: Union[str, "os.PathLike[Any]"],
     input1_layer: Optional[str] = None,
     input1_columns: Optional[List[str]] = None,
@@ -2027,14 +2117,23 @@ def identity(
     force: bool = False,
 ):
     r"""
-    Intersection of the input layers, but retain the non-intersecting parts of input1.
+    Calculates the pairwise identity of the two input layers.
 
-    The result is the equivalent of an intersect between the two layers + layer
-    1 erased with layer 2.
+    The result is the equivalent of the intersection between the two layers + layer 1
+    erased with layer 2.
+
+    Notes:
+        - The result will contain the attribute columns from both input layers. The
+          attribute values wont't be changed, so columns like area,... will have to be
+          recalculated manually if this is wanted.
+        - If ``input2_path`` is None, the 1st input layer is used for both inputs but
+          interactions between the same rows in this layer will be ignored.
 
     Args:
-        input1_path (PathLike): the 1st input file
-        input2_path (PathLike): the 2nd input file
+        input1_path (PathLike): the 1st input file.
+        input2_path (PathLike, optional): the 2nd input file. If None, the 1st input
+            layer is used for both inputs but interactions between the same rows in this
+            layer will be ignored.
         output_path (PathLike): the file to write the result to
         input1_layer (str, optional): input layer name. Optional if the
             file only contains one layer. Defaults to None.
@@ -2071,8 +2170,8 @@ def identity(
         subdivide_coords (int, optional): the input geometries will be subdivided to
             parts with about ``subdivide_coords`` coordinates during processing which
             can offer a large speed up for complex geometries. Subdividing can result in
-            extra collinear points being added to the boundaries of the output. If < 0,
-            no subdividing is applied. Defaults to 2000.
+            extra collinear points being added to the boundaries of the output. If 0, no
+            subdividing is applied. Defaults to 2000.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
@@ -2083,10 +2182,21 @@ def identity(
     """  # noqa: E501
     logger = logging.getLogger("geofileops.identity")
     logger.info(f"Start, between {input1_path} and {input2_path} to {output_path}")
+
+    # In input2_path is None, we are doing a self-overlay
+    overlay_self = False
+    if input2_path is None:
+        if input2_layer is not None:
+            raise ValueError("input2_layer must be None if input2_path is None")
+        input2_path = input1_path
+        input2_layer = input1_layer
+        overlay_self = True
+
     return _geoops_sql.identity(
         input1_path=Path(input1_path),
         input2_path=Path(input2_path),
         output_path=Path(output_path),
+        overlay_self=overlay_self,
         input1_layer=input1_layer,
         input1_columns=input1_columns,
         input1_columns_prefix=input1_columns_prefix,
@@ -2138,6 +2248,7 @@ def split(
         input1_path=Path(input1_path),
         input2_path=Path(input2_path),
         output_path=Path(output_path),
+        overlay_self=False,
         input1_layer=input1_layer,
         input1_columns=input1_columns,
         input1_columns_prefix=input1_columns_prefix,
@@ -2202,7 +2313,7 @@ def intersect(
 
 def intersection(
     input1_path: Union[str, "os.PathLike[Any]"],
-    input2_path: Union[str, "os.PathLike[Any]"],
+    input2_path: Union[str, "os.PathLike[Any]", None],
     output_path: Union[str, "os.PathLike[Any]"],
     input1_layer: Optional[str] = None,
     input1_columns: Optional[List[str]] = None,
@@ -2219,14 +2330,24 @@ def intersection(
     force: bool = False,
 ):
     r"""
-    Calculate the pairwise intersection of alle features.
+    Calculates the pairwise intersection of the two input layers.
+
+    Notes:
+        - The result will contain the attribute columns from both input layers. The
+          attribute values wont't be changed, so columns like area,... will have to be
+          recalculated manually if this is wanted.
+        - If ``input2_path`` is None, the 1st input layer is used for both inputs but
+          intersections between the same rows in this layer will be omitted from the
+          result.
 
     Alternative names:
         - GeoPandas: overlay(how="intersection")
 
     Args:
         input1_path (PathLike): the 1st input file
-        input2_path (PathLike): the 2nd input file
+        input2_path (PathLike): the 2nd input file. If None, the 1st input layer is used
+            for both inputs but intersections between the same rows in this layer will
+            be omitted from the result.
         output_path (PathLike): the file to write the result to
         input1_layer (str, optional): input layer name. Optional if the
             file only contains one layer. Defaults to None.
@@ -2270,10 +2391,21 @@ def intersection(
     """  # noqa: E501
     logger = logging.getLogger("geofileops.intersection")
     logger.info(f"Start, between {input1_path} and {input2_path} to {output_path}")
+
+    # In input2_path is None, we are doing a self-overlay
+    overlay_self = False
+    if input2_path is None:
+        if input2_layer is not None:
+            raise ValueError("input2_layer must be None if input2_path is None")
+        input2_path = input1_path
+        input2_layer = input1_layer
+        overlay_self = True
+
     return _geoops_sql.intersection(
         input1_path=Path(input1_path),
         input2_path=Path(input2_path),
         output_path=Path(output_path),
+        overlay_self=overlay_self,
         input1_layer=input1_layer,
         input1_columns=input1_columns,
         input1_columns_prefix=input1_columns_prefix,
@@ -2318,16 +2450,20 @@ def join_by_location(
     and ``min_area_intersect`` parameters will determine which geometries of input1 will
     be matched with input2.
 
-    The ``spatial_relations_query`` is a filter string where you can use the following
-    "named spatial predicates": equals, touches, within, overlaps, crosses, intersects,
-    contains, covers, coveredby.
-
+    The ``spatial_relations_query`` has a specific format. Most cases can be covered
+    using the following "named spatial predicates": contains, coveredby, covers,
+    crosses, equals, intersects, overlaps, touches and within.
     If you want even more control, you can also use "spatial masks" as defined by the
     |DE-9IM| model.
+    It is important to note that the query is used as the matching criterium for the
+    join. Hence, it should not evaluate to True for disjoint features, as this would
+    lead to a cartesian product of both layers. If it does, a warning will be triggered
+    and "intersects is True" is added to the query.
 
-    Examples for valid ``spatial_relations_query`` values:
+    Some examples of valid ``spatial_relations_query`` values:
 
-        - "overlaps is True and contains is False"
+        - "intersects is True and touches is False"
+        - "within is True or contains is True"
         - "(T*T***T** is True or 1*T***T** is True) and T*****FF* is False"
 
 
@@ -2342,10 +2478,9 @@ def join_by_location(
         spatial_relations_query (str, optional): a query that specifies the
             spatial relations to match between the 2 layers.
             Defaults to "intersects is True".
-        discard_nonmatching (bool, optional): True to only keep rows that
-            match with the spatial_relations_query. False to keep rows all
-            rows in the ``input1_layer`` (=left outer join). Defaults to True
-            (=inner join).
+        discard_nonmatching (bool, optional): True to only keep rows that match with the
+            spatial_relations_query. False to keep rows all rows in the ``input1_layer``
+            (=left outer join). Defaults to True (=inner join).
         min_area_intersect (float, optional): minimum area of the intersection
             to match. Defaults to None.
         area_inters_column_name (str, optional): column name of the intersect
@@ -2754,7 +2889,7 @@ def select_two_layers(
 
 def symmetric_difference(
     input1_path: Union[str, "os.PathLike[Any]"],
-    input2_path: Union[str, "os.PathLike[Any]"],
+    input2_path: Union[str, "os.PathLike[Any]", None],
     output_path: Union[str, "os.PathLike[Any]"],
     input1_layer: Optional[str] = None,
     input1_columns: Optional[List[str]] = None,
@@ -2772,15 +2907,28 @@ def symmetric_difference(
     force: bool = False,
 ):
     r"""
-    Calculates the "symmetric difference" of the two input layers.
+    Calculates the pairwise symmetric difference of the two input layers.
+
+    The result will be a layer containing features from both the input and overlay
+    layers but with the overlapping areas between the two layers removed.
+
+    Notes:
+        - The result will contain the attribute columns from both input layers. The
+          attribute values wont't be changed, so columns like area,... will have to be
+          recalculated manually if this is wanted.
+        - If ``input2_path`` is None, the 1st input layer is used for both inputs but
+          interactions between the same rows in this layer will be ignored.
+
 
     Alternative names:
         - GeoPandas: overlay(how="symmetric_difference")
         - QGIS, ArcMap: symmetrical difference
 
     Args:
-        input1_path (PathLike): the 1st input file
-        input2_path (PathLike): the 2nd input file
+        input1_path (PathLike): the 1st input file.
+        input2_path (PathLike): the 2nd input file. If None, the 1st input layer is used
+          for both inputs but interactions between the same rows in this layer will be
+          ignored.
         output_path (PathLike): the file to write the result to
         input1_layer (str, optional): input layer name. Optional if the
             file only contains one layer. Defaults to None.
@@ -2817,8 +2965,8 @@ def symmetric_difference(
         subdivide_coords (int, optional): the input geometries will be subdivided to
             parts with about ``subdivide_coords`` coordinates during processing which
             can offer a large speed up for complex geometries. Subdividing can result in
-            extra collinear points being added to the boundaries of the output. If < 0,
-            no subdividing is applied. Defaults to 2000.
+            extra collinear points being added to the boundaries of the output. If 0, no
+            subdividing is applied. Defaults to 2000.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
@@ -2832,10 +2980,21 @@ def symmetric_difference(
         f"Start, with input1: {input1_path}, "
         f"input2 {input2_path}, output: {output_path}"
     )
+
+    # In input2_path is None, we are doing a self-overlay
+    overlay_self = False
+    if input2_path is None:
+        if input2_layer is not None:
+            raise ValueError("input2_layer must be None if input2_path is None")
+        input2_path = input1_path
+        input2_layer = input1_layer
+        overlay_self = True
+
     return _geoops_sql.symmetric_difference(
         input1_path=Path(input1_path),
         input2_path=Path(input2_path),
         output_path=Path(output_path),
+        overlay_self=overlay_self,
         input1_layer=input1_layer,
         input1_columns=input1_columns,
         input1_columns_prefix=input1_columns_prefix,
@@ -2855,7 +3014,7 @@ def symmetric_difference(
 
 def union(
     input1_path: Union[str, "os.PathLike[Any]"],
-    input2_path: Union[str, "os.PathLike[Any]"],
+    input2_path: Union[str, "os.PathLike[Any]", None],
     output_path: Union[str, "os.PathLike[Any]"],
     input1_layer: Optional[str] = None,
     input1_columns: Optional[List[str]] = None,
@@ -2873,14 +3032,32 @@ def union(
     force: bool = False,
 ):
     r"""
-    Calculates the pairwise "union" of the two input layers.
+    Calculates the pairwise union of the two input layers.
+
+    Union needs to be interpreted here as such: the output layer will contain the
+    combination of all of the following operations:
+        - The pairwise intersection between the two layers.
+        - The (parts of) features of layer 1 that don't have any intersection with layer
+          2.
+        - The (parts of) features of layer 2 that don't have any intersection with layer
+          1.
+
+    Notes:
+        - The result will contain the attribute columns from both input layers. The
+          attribute values wont't be changed, so columns like area,... will have to be
+          recalculated manually if this is wanted.
+        - If ``input2_path`` is None, the 1st input layer is used for both inputs but
+          interactions between the same rows in this layer will be ignored.
+
 
     Alternative names:
         - GeoPandas: overlay(how="union")
 
     Args:
-        input1_path (PathLike): the 1st input file
-        input2_path (PathLike): the 2nd input file
+        input1_path (PathLike): the 1st input file.
+        input2_path (PathLike, optional): the 2nd input file. If None, the 1st input
+            layer is used for both inputs but interactions between the same rows in this
+            layer will be ignored.
         output_path (PathLike): the file to write the result to
         input1_layer (str, optional): input layer name. Optional if the
             file only contains one layer. Defaults to None.
@@ -2917,8 +3094,8 @@ def union(
         subdivide_coords (int, optional): the input geometries will be subdivided to
             parts with about ``subdivide_coords`` coordinates during processing which
             can offer a large speed up for complex geometries. Subdividing can result in
-            extra collinear points being added to the boundaries of the output. If < 0,
-            no subdividing is applied. Defaults to 2000.
+            extra collinear points being added to the boundaries of the output. If 0, no
+            subdividing is applied. Defaults to 2000.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
@@ -2932,10 +3109,21 @@ def union(
         f"Start, with input1: {input1_path}, input2: {input2_path}, output: "
         f"{output_path}"
     )
+
+    # In input2_path is None, we are doing a self-overlay
+    overlay_self = False
+    if input2_path is None:
+        if input2_layer is not None:
+            raise ValueError("input2_layer must be None if input2_path is None")
+        input2_path = input1_path
+        input2_layer = input1_layer
+        overlay_self = True
+
     return _geoops_sql.union(
         input1_path=Path(input1_path),
         input2_path=Path(input2_path),
         output_path=Path(output_path),
+        overlay_self=overlay_self,
         input1_layer=input1_layer,
         input1_columns=input1_columns,
         input1_columns_prefix=input1_columns_prefix,
