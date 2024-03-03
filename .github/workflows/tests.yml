@@ -72,9 +72,9 @@ jobs:
       - name: Test
         run: >-
           pytest
-              --numprocesses auto --color=yes 
-              --cov=geofileops --cov-append --cov-report term-missing --cov-report 
-              xml tests/
+          --numprocesses auto --color=yes 
+          --cov=geofileops --cov-append --cov-report term-missing --cov-report 
+          xml tests/
 
       - uses: codecov/codecov-action@v4
       
