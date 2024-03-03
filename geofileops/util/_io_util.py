@@ -5,6 +5,7 @@ Module containing some utilities regarding io.
 import os
 from pathlib import Path
 import tempfile
+import time
 from typing import Optional, Tuple
 
 
@@ -104,6 +105,20 @@ def get_tempfile_locked(
         f"Wasn't able to create a temporary file with base_filename: {base_filename}, "
         f"dir: {dir}"
     )
+
+
+def create_file_atomic_wait(filename):
+    """
+    Create a lock file in an atomic way and wait till it can be created.
+
+    Returns once the file was created.
+    """
+    while True:
+        if create_file_atomic(filename):
+            return
+
+        # Wait 100ms
+        time.sleep(0.1)
 
 
 def create_file_atomic(filename) -> bool:
