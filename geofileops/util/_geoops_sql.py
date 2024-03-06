@@ -1460,35 +1460,32 @@ def export_by_location(
             """
 
     # Go!
-    try:
-        input_layer_info = gfo.get_layerinfo(input_path, input_layer)
-        _two_layer_vector_operation(
-            input1_path=input_path,
-            input2_path=input_to_compare_with_path,
-            output_path=output_path,
-            sql_template=sql_template,
-            operation_name=operation_name,
-            input1_layer=input_layer,
-            input1_columns=input_columns,
-            input1_columns_prefix="",
-            input2_layer=input_to_compare_with_layer,
-            input2_columns=[],
-            input2_columns_prefix="",
-            output_layer=output_layer,
-            explodecollections=False,
-            force_output_geometrytype=input_layer_info.geometrytype,
-            gridsize=gridsize,
-            where_post=where_post,
-            nb_parallel=nb_parallel,
-            batchsize=batchsize,
-            force=force,
-        )
-    finally:
-        if ConfigOptions.remove_temp_files and tmp_dir is not None:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
+    input_layer_info = gfo.get_layerinfo(input_path, input_layer)
+    _two_layer_vector_operation(
+        input1_path=input_path,
+        input2_path=input_to_compare_with_path,
+        output_path=output_path,
+        sql_template=sql_template,
+        operation_name=operation_name,
+        input1_layer=input_layer,
+        input1_columns=input_columns,
+        input1_columns_prefix="",
+        input2_layer=input_to_compare_with_layer,
+        input2_columns=[],
+        input2_columns_prefix="",
+        output_layer=output_layer,
+        explodecollections=False,
+        force_output_geometrytype=input_layer_info.geometrytype,
+        gridsize=gridsize,
+        where_post=where_post,
+        nb_parallel=nb_parallel,
+        batchsize=batchsize,
+        force=force,
+        tmp_dir=tmp_dir,
+    )
 
     # Print time taken
-    logger.info(f"Ready, full erase took {datetime.now()-start_time}")
+    logger.info(f"Ready, full export_by_location took {datetime.now()-start_time}")
 
 
 def export_by_distance(
