@@ -468,6 +468,48 @@ def test_export_by_location_area(
         assert len(output_gdf[output_gdf.area_custom.isna()]) == exp_nb_None
 
 
+def test_export_by_location_force(tmp_path):
+    # Prepare test data
+    input1_path = test_helper.get_testfile("polygon-parcel")
+    input2_path = test_helper.get_testfile("polygon-zone")
+    output_path = tmp_path / f"output{input1_path.suffix}"
+    output_path.touch()
+
+    # Test with force False (the default): existing output file should stay the same
+    mtime_orig = output_path.stat().st_mtime
+    gfo.export_by_location(
+        input_to_select_from_path=input1_path,
+        input_to_compare_with_path=input2_path,
+        output_path=output_path,
+    )
+    assert output_path.stat().st_mtime == mtime_orig
+
+    # With force=True
+    gfo.export_by_location(
+        input_to_select_from_path=input1_path,
+        input_to_compare_with_path=input2_path,
+        output_path=output_path,
+        force=True,
+    )
+    assert output_path.stat().st_mtime != mtime_orig
+
+
+@pytest.mark.parametrize(
+    "kwargs, expected_error",
+    [
+        ({"subdivide_coords": -1}, "subdivide_coords < 0 is not allowed"),
+    ],
+)
+def test_export_by_location_invalid_params(kwargs, expected_error):
+    with pytest.raises(ValueError, match=expected_error):
+        gfo.export_by_location(
+            input_to_select_from_path="input.gpkg",
+            input_to_compare_with_path="input2.gpkg",
+            output_path="output.gpkg",
+            **kwargs,
+        )
+
+
 @pytest.mark.parametrize(
     "query, subdivide_coords, exp_featurecount",
     [
