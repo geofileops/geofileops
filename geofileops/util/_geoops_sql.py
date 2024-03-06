@@ -1336,6 +1336,12 @@ def export_by_location(
             spatial_relations_query, geom1="geom", geom2="geom2", subquery_alias="sub"
         )
 
+        # Optimize special case: geom2 is already filtered on intersects in the query,
+        # so for "intersects is True" we can avoid calculating intersects again:
+        if spatial_relations_query.lower() == "intersects is true":
+            spatial_relation_column = ""
+            spatial_relation_filter = "geom2 IS NOT NULL"
+
         if true_for_disjoint:
             spatial_relation_filter = f"geom2 IS NULL OR ({spatial_relation_filter})"
         area_inters_column = (
