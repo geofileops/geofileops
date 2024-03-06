@@ -1924,6 +1924,7 @@ def export_by_location(
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
+    subdivide_coords: int = 10000,
     force: bool = False,
 ):
     """
@@ -1982,6 +1983,10 @@ def export_by_location(
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
+        subdivide_coords (int, optional): the input geometries in the input to compare
+            with layer will be subdivided to parts with about ``subdivide_coords``
+            coordinates during processing which can offer a large speed up for complex
+            geometries. If 0, no subdividing is applied. Defaults to 10000.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
@@ -2014,6 +2019,7 @@ def export_by_location(
         where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
+        subdivide_coords=subdivide_coords,
         force=force,
     )
 
