@@ -255,6 +255,8 @@ def isvalid(
         if nb_invalid_geoms == 0:
             # Empty result, so everything was valid: remove output file
             gfo.remove(output_path)
+    elif not output_path.parent.exists():
+        raise ValueError("isvalid: output_path doesn't exist")
 
     # If output is sqlite based, check if all data can be read
     logger = logging.getLogger("geofileops.isvalid")
@@ -392,6 +394,8 @@ def select(
         if force is False:
             logger.info(f"Stop, output exists already {output_path}")
             return
+    elif not output_path.parent.exists():
+        raise ValueError(f"{operation_prefix}select: output_path doesn't exist")
     logger.debug(f"  -> select to execute:\n{sql_stmt}")
 
     # If no output geometrytype is specified, use the geometrytype of the input layer
@@ -552,6 +556,8 @@ def _single_layer_vector_operation(
             return
         else:
             gfo.remove(output_path)
+    elif not output_path.parent.exists():
+        raise ValueError(f"{operation_name}: output_path doesn't exist")
 
     # Determine if fid can be preserved
     preserve_fid = False
@@ -1027,6 +1033,8 @@ def erase(
             return
         else:
             gfo.remove(output_path)
+    elif not output_path.parent.exists():
+        raise ValueError(f"{operation}: output_path doesn't exist")
 
     start_time = datetime.now()
     input_layer_info = gfo.get_layerinfo(input_path, input_layer)
@@ -2102,6 +2110,9 @@ def identity(
             return
         else:
             gfo.remove(output_path)
+    elif not output_path.parent.exists():
+        raise ValueError("identity: output_path doesn't exist")
+
     if output_layer is None:
         output_layer = gfo.get_default_layer(output_path)
 
@@ -2309,6 +2320,8 @@ def symmetric_difference(
         # Now we are ready to move the result to the final spot...
         if output_path.exists():
             gfo.remove(output_path)
+        elif not output_path.parent.exists():
+            raise ValueError("symmetric_difference: output_path doesn't exist")
         gfo.move(tmp_output_path, output_path)
 
     finally:
@@ -2354,6 +2367,9 @@ def union(
             return
         else:
             gfo.remove(output_path)
+    elif not output_path.parent.exists():
+        raise ValueError("union: output_path doesn't exist")
+
     if output_layer is None:
         output_layer = gfo.get_default_layer(output_path)
 
@@ -2568,6 +2584,9 @@ def _two_layer_vector_operation(
             return
         else:
             gfo.remove(output_path)
+    elif not output_path.parent.exists():
+        raise ValueError(f"{operation_name}: output_path doesn't exist")
+
     if output_with_spatial_index is None:
         output_with_spatial_index = GeofileInfo(output_path).default_spatial_index
 
@@ -3210,9 +3229,9 @@ def _prepare_processing_params(
                     f"AND {layer_alias_d}rowid <= {batch_info.end_rowid}) "
                 )
             else:
-                batches[batch_info.id][
-                    "batch_filter"
-                ] = f"AND {layer_alias_d}rowid >= {batch_info.start_rowid} "
+                batches[batch_info.id]["batch_filter"] = (
+                    f"AND {layer_alias_d}rowid >= {batch_info.start_rowid} "
+                )
 
     # No use starting more processes than the number of batches...
     if len(batches) < nb_parallel:
@@ -3474,6 +3493,8 @@ def dissolve_singlethread(
             return
         else:
             gfo.remove(output_path)
+    elif not output_path.parent.exists():
+        raise ValueError("dissolve: output_path doesn't exist")
 
     # Now prepare the sql statement
     # Remark: calculating the area in the enclosing selects halves the processing time

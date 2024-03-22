@@ -129,6 +129,8 @@ def _run_ogr(
         else:
             logger.info(f"Stop, output exists already {output_path}")
             return True
+    elif not output_path.parent.exists():
+        raise ValueError(f"{operation}: output_path doesn't exist")
 
     if input_layer is None:
         input_layer = gfo.get_only_layer(input_path)

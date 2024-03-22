@@ -800,6 +800,13 @@ def test_intersection_input_no_index(tmp_path):
             "not_existing_path",
             "output.gpkg",
         ),
+        (
+            "intersection: output_path doesn't exist",
+            ValueError,
+            test_helper.get_testfile("polygon-parcel"),
+            test_helper.get_testfile("polygon-zone"),
+            "output/output.gpkg",
+        ),
     ],
 )
 def test_intersection_invalid_params(
