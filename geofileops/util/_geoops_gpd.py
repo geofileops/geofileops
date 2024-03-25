@@ -1112,9 +1112,9 @@ def dissolve(
     # Now input parameters are checked, check if we need to calculate anyway
     if output_path.exists():
         if force is False:
-            result_info["message"] = (
-                f"Stop, output exists already {output_path} and force is false"
-            )
+            result_info[
+                "message"
+            ] = f"Stop, output exists already {output_path} and force is false"
             logger.info(result_info["message"])
             return result_info
         else:
@@ -1619,14 +1619,14 @@ def _dissolve_polygons_pass(
             suffix = output_notonborder_path.suffix
             name = f"{output_notonborder_path.stem}_{batch_id}{suffix}"
             output_notonborder_tmp_partial_path = tempdir / name
-            batches[batch_id]["output_notonborder_tmp_partial_path"] = (
-                output_notonborder_tmp_partial_path
-            )
+            batches[batch_id][
+                "output_notonborder_tmp_partial_path"
+            ] = output_notonborder_tmp_partial_path
             name = f"{output_onborder_path.stem}_{batch_id}{suffix}"
             output_onborder_tmp_partial_path = tempdir / name
-            batches[batch_id]["output_onborder_tmp_partial_path"] = (
-                output_onborder_tmp_partial_path
-            )
+            batches[batch_id][
+                "output_onborder_tmp_partial_path"
+            ] = output_onborder_tmp_partial_path
 
             # Get tile_id if present
             tile_id = tile_row.tile_id if "tile_id" in tile_row._fields else None
