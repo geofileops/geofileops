@@ -2,6 +2,7 @@
 Module containing some utilities regarding io.
 """
 
+import logging
 import os
 from pathlib import Path
 import tempfile
@@ -130,3 +131,28 @@ def with_stem(path: Path, new_stem) -> Path:
     # Remark: from python 3.9 this is available on any Path, but to avoid
     # having to require 3.9 for this, this hack...
     return path.parent / f"{new_stem}{path.suffix}"
+
+
+def output_exists(path: Path, force: bool) -> bool:
+    """
+    Check if the output file exists already. If force is True, the file is removed.
+
+    Args:
+        path (Path): Output file path to check.
+        force (bool): If True, remove the output file if it exists.
+
+    Raises:
+        ValueError: raised when the output directory does not exist.
+
+    Returns:
+        bool: True if the output file exists already.
+    """
+    if not path.parent.exists():
+        raise ValueError(f"Output directory does not exist: {path.parent}")
+    if path.exists():
+        if force:
+            return True
+        else:
+            logging.info(msg=f"Stop, output exists already {path}", stacklevel=2)
+
+    return False

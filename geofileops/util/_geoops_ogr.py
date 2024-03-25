@@ -8,6 +8,7 @@ from shapely import wkt
 
 import geofileops as gfo
 from geofileops.util import _ogr_util
+from geofileops.util import _io_util
 
 logger = logging.getLogger(__name__)
 
@@ -123,15 +124,8 @@ def _run_ogr(
     start_time = datetime.now()
     if input_layer is None:
         input_layer = gfo.get_only_layer(input_path)
-    if output_path.exists():
-        if force:
-            gfo.remove(output_path)
-        else:
-            logger.info(f"Stop, output exists already {output_path}")
-            return True
-    elif not output_path.parent.exists():
-        raise ValueError(f"{operation}: output_path doesn't exist")
-
+    if _io_util.output_exists(path=output_path, force=force):
+        gfo.remove(output_path)
     if input_layer is None:
         input_layer = gfo.get_only_layer(input_path)
     if output_layer is None:

@@ -711,15 +711,8 @@ def _apply_geooperation_to_layer(
         raise ValueError(f"{operation_name}: output_path must not equal input_path")
     if input_layer is None:
         input_layer = gfo.get_only_layer(input_path)
-    if output_path.exists():
-        if force is False:
-            logger.info(f"Stop, output exists already {output_path}")
-            return
-        else:
-            gfo.remove(output_path)
-    elif not output_path.parent.exists():
-        raise ValueError(f"{operation_name}: output_path doesn't exist")
-
+    if _io_util.output_exists(path=output_path, force=force):
+        fileops.remove(output_path)
     if input_layer is None:
         input_layer = gfo.get_only_layer(input_path)
     if output_layer is None:
@@ -909,14 +902,8 @@ def _apply_geooperation(
     force: bool = False,
 ) -> str:
     # Init
-    if output_path.exists():
-        if force is False:
-            message = f"Stop, output exists already {output_path}"
-            return message
-        else:
-            gfo.remove(output_path)
-    elif not output_path.parent.exists():
-        raise ValueError(f"{operation}: output_path doesn't exist")
+    if _io_util.output_exists(path=output_path, force=force):
+        fileops.remove(output_path)
 
     # Now go!
     start_time = datetime.now()
@@ -1110,17 +1097,8 @@ def dissolve(
                 )
 
     # Now input parameters are checked, check if we need to calculate anyway
-    if output_path.exists():
-        if force is False:
-            result_info[
-                "message"
-            ] = f"Stop, output exists already {output_path} and force is false"
-            logger.info(result_info["message"])
-            return result_info
-        else:
-            gfo.remove(output_path)
-    elif not output_path.parent.exists():
-        raise ValueError(f"{operation_name}: output_path doesn't exist")
+    if _io_util.output_exists(path=output_path, force=force):
+        gfo.remove(output_path)
 
     # Now start dissolving
     # --------------------
@@ -1619,14 +1597,14 @@ def _dissolve_polygons_pass(
             suffix = output_notonborder_path.suffix
             name = f"{output_notonborder_path.stem}_{batch_id}{suffix}"
             output_notonborder_tmp_partial_path = tempdir / name
-            batches[batch_id][
-                "output_notonborder_tmp_partial_path"
-            ] = output_notonborder_tmp_partial_path
+            batches[batch_id]["output_notonborder_tmp_partial_path"] = (
+                output_notonborder_tmp_partial_path
+            )
             name = f"{output_onborder_path.stem}_{batch_id}{suffix}"
             output_onborder_tmp_partial_path = tempdir / name
-            batches[batch_id][
-                "output_onborder_tmp_partial_path"
-            ] = output_onborder_tmp_partial_path
+            batches[batch_id]["output_onborder_tmp_partial_path"] = (
+                output_onborder_tmp_partial_path
+            )
 
             # Get tile_id if present
             tile_id = tile_row.tile_id if "tile_id" in tile_row._fields else None

@@ -801,7 +801,7 @@ def test_intersection_input_no_index(tmp_path):
             "output.gpkg",
         ),
         (
-            "intersection: output_path doesn't exist",
+            "Output directory does not exist:",
             ValueError,
             test_helper.get_testfile("polygon-parcel"),
             test_helper.get_testfile("polygon-zone"),

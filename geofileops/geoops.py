@@ -100,14 +100,8 @@ def dissolve_within_distance(
     nb_steps = 9
 
     # Already check here if it is useful to continue
-    if output_path.exists():
-        if force is False:
-            logger.info(f"Stop, output exists already {output_path}")
-            return
-        else:
-            fileops.remove(output_path)
-    elif not output_path.parent.exists():
-        raise ValueError(f"{operation_name}: output_path doesn't exist")
+    if _io_util.output_exists(path=output_path, force=force):
+        fileops.remove(output_path)
 
     tempdir = _io_util.create_tempdir(f"geofileops/{operation_name}")
     try:
