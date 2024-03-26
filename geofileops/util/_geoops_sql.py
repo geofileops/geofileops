@@ -3192,9 +3192,9 @@ def _prepare_processing_params(
                     f"AND {layer_alias_d}rowid <= {batch_info.end_rowid}) "
                 )
             else:
-                batches[batch_info.id]["batch_filter"] = (
-                    f"AND {layer_alias_d}rowid >= {batch_info.start_rowid} "
-                )
+                batches[batch_info.id][
+                    "batch_filter"
+                ] = f"AND {layer_alias_d}rowid >= {batch_info.start_rowid} "
 
     # No use starting more processes than the number of batches...
     if len(batches) < nb_parallel:
