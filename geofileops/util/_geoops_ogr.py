@@ -125,7 +125,7 @@ def _run_ogr(
     if input_layer is None:
         input_layer = gfo.get_only_layer(input_path)
     if _io_util.output_exists(path=output_path, force=force):
-        gfo.remove(output_path)
+        return True
     if input_layer is None:
         input_layer = gfo.get_only_layer(input_path)
     if output_layer is None:

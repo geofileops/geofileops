@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import tempfile
 from typing import Optional, Tuple
+import geofileops as gfo
 
 
 def create_tempdir(base_dirname: str, parent_dir: Optional[Path] = None) -> Path:
@@ -151,8 +152,10 @@ def output_exists(path: Path, force: bool) -> bool:
         raise ValueError(f"Output directory does not exist: {path.parent}")
     if path.exists():
         if force:
-            return True
+            gfo.remove(path)
+            return False
         else:
             logging.info(msg=f"Stop, output exists already {path}", stacklevel=2)
+            return True
 
     return False
