@@ -146,7 +146,7 @@ def output_exists(path: Path, remove_if_exists: bool) -> bool:
         ValueError: raised when the output directory does not exist.
 
     Returns:
-        bool: True if the output file exists already.
+        bool: True if the output file exists. False if the file didn't exist or if it was removed because `remove_if_exists` is True.
     """
     if not path.parent.exists():
         raise ValueError(f"Output directory does not exist: {path.parent}")
