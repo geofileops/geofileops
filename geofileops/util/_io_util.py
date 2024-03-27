@@ -134,7 +134,7 @@ def with_stem(path: Path, new_stem) -> Path:
     return path.parent / f"{new_stem}{path.suffix}"
 
 
-def output_exists(path: Path, force: bool) -> bool:
+def output_exists(path: Path, remove_if_exists: bool) -> bool:
     """
     Check if the output file exists already. If force is True, the file is removed.
 
