@@ -101,7 +101,7 @@ def dissolve_within_distance(
 
     # Already check here if it is useful to continue
     if _io_util.output_exists(path=output_path, force=force):
-        return True
+        return
 
     tempdir = _io_util.create_tempdir(f"geofileops/{operation_name}")
     try:

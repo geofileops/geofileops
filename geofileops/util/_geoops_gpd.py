@@ -712,7 +712,7 @@ def _apply_geooperation_to_layer(
     if input_layer is None:
         input_layer = gfo.get_only_layer(input_path)
     if _io_util.output_exists(path=output_path, force=force):
-        return True
+        return
     if input_layer is None:
         input_layer = gfo.get_only_layer(input_path)
     if output_layer is None:
@@ -902,8 +902,14 @@ def _apply_geooperation(
     force: bool = False,
 ) -> str:
     # Init
-    if _io_util.output_exists(path=output_path, force=force):
-        return True
+    if not output_path.parent.exists():
+        raise ValueError(f"Output directory does not exist: {output_path.parent}")
+    if output_path.exists():
+        if force is False:
+            message = f"Stop, output exists already {output_path}"
+            return message
+        else:
+            gfo.remove(output_path)
 
     # Now go!
     start_time = datetime.now()
@@ -1097,8 +1103,18 @@ def dissolve(
                 )
 
     # Now input parameters are checked, check if we need to calculate anyway
-    if _io_util.output_exists(path=output_path, force=force):
-        return True
+    # Now input parameters are checked, check if we need to calculate anyway
+    if not output_path.parent.exists():
+        raise ValueError(f"Output directory does not exist: {output_path.parent}")
+    if output_path.exists():
+        if force is False:
+            result_info[
+                "message"
+            ] = f"Stop, output exists already {output_path} and force is false"
+            logger.info(result_info["message"])
+            return result_info
+        else:
+            gfo.remove(output_path)
 
     # Now start dissolving
     # --------------------
@@ -1597,14 +1613,14 @@ def _dissolve_polygons_pass(
             suffix = output_notonborder_path.suffix
             name = f"{output_notonborder_path.stem}_{batch_id}{suffix}"
             output_notonborder_tmp_partial_path = tempdir / name
-            batches[batch_id]["output_notonborder_tmp_partial_path"] = (
-                output_notonborder_tmp_partial_path
-            )
+            batches[batch_id][
+                "output_notonborder_tmp_partial_path"
+            ] = output_notonborder_tmp_partial_path
             name = f"{output_onborder_path.stem}_{batch_id}{suffix}"
             output_onborder_tmp_partial_path = tempdir / name
-            batches[batch_id]["output_onborder_tmp_partial_path"] = (
-                output_onborder_tmp_partial_path
-            )
+            batches[batch_id][
+                "output_onborder_tmp_partial_path"
+            ] = output_onborder_tmp_partial_path
 
             # Get tile_id if present
             tile_id = tile_row.tile_id if "tile_id" in tile_row._fields else None
