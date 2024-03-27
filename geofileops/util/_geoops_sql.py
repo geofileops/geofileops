@@ -250,8 +250,6 @@ def isvalid(
 
     # Check the number of invalid files
     nb_invalid_geoms = 0
-    if not output_path.parent.exists():
-        raise ValueError(f"Output directory does not exist: {output_path.parent}")
     if output_path.exists():
         nb_invalid_geoms = gfo.get_layerinfo(output_path).featurecount
         if nb_invalid_geoms == 0:
