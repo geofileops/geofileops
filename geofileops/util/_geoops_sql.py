@@ -388,7 +388,7 @@ def select(
 ):
     # Check if output exists already here, to avoid to much logging to be written
     logger = logging.getLogger(f"geofileops.{operation_prefix}select")
-    if _io_util.output_exists(path=output_path, force=force):
+    if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
     logger.debug(f"  -> select to execute:\n{sql_stmt}")
 
@@ -544,7 +544,7 @@ def _single_layer_vector_operation(
         output_layer = gfo.get_default_layer(output_path)
 
     # If output file exists already, either clean up or return...
-    if _io_util.output_exists(path=output_path, force=force):
+    if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
     # Determine if fid can be preserved
@@ -1015,7 +1015,7 @@ def erase(
     if erase_layer is None:
         erase_layer = gfo.get_only_layer(erase_path)
 
-    if _io_util.output_exists(path=output_path, force=force):
+    if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
     start_time = datetime.now()
@@ -2086,7 +2086,7 @@ def identity(
     if subdivide_coords < 0:
         raise ValueError("subdivide_coords < 0 is not allowed")
     logger = logging.getLogger("geofileops.identity")
-    if _io_util.output_exists(path=output_path, force=force):
+    if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
     if output_layer is None:
@@ -2210,7 +2210,7 @@ def symmetric_difference(
         f"Start, with input1: {input1_path}, "
         f"input2: {input2_path}, output: {output_path}"
     )
-    if _io_util.output_exists(path=output_path, force=force):
+    if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
     tempdir = _io_util.create_tempdir("geofileops/symmdiff")
@@ -2334,7 +2334,7 @@ def union(
 
     logger = logging.getLogger("geofileops.union")
 
-    if _io_util.output_exists(path=output_path, force=force):
+    if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
     if output_layer is None:
@@ -2545,7 +2545,7 @@ def _two_layer_vector_operation(
         raise ValueError(
             f"{operation_name}: if use_ogr True, input1_path should equal input2_path!"
         )
-    if _io_util.output_exists(path=output_path, force=force):
+    if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
     if output_with_spatial_index is None:
@@ -3448,7 +3448,7 @@ def dissolve_singlethread(
                 )
 
     # Check output path
-    if _io_util.output_exists(path=output_path, force=force):
+    if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
     # Now prepare the sql statement

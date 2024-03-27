@@ -100,7 +100,7 @@ def dissolve_within_distance(
     nb_steps = 9
 
     # Already check here if it is useful to continue
-    if _io_util.output_exists(path=output_path, force=force):
+    if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
     tempdir = _io_util.create_tempdir(f"geofileops/{operation_name}")

@@ -137,23 +137,25 @@ def with_stem(path: Path, new_stem) -> Path:
 def output_exists(path: Path, remove_if_exists: bool) -> bool:
     """
     Checks and returns whether the file specified exists.
-    
+
     If remove_if_exists is True, the file is removed and False is returned.
 
     Args:
         path (Path): Output file path to check.
-        force (bool): If True, remove the output file if it exists.
+        remove_if_exists (bool): If True, remove the output file if it exists.
 
     Raises:
         ValueError: raised when the output directory does not exist.
 
     Returns:
-        bool: True if the output file exists. False if the file didn't exist or if it was removed because `remove_if_exists` is True.
+        bool: True if the output file exists.
+              False if the file didn't exist or if it was removed
+              because `remove_if_exists` is True.
     """
     if not path.parent.exists():
         raise ValueError(f"Output directory does not exist: {path.parent}")
     if path.exists():
-        if force:
+        if remove_if_exists:
             gfo.remove(path)
             return False
         else:
