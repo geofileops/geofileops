@@ -136,7 +136,9 @@ def with_stem(path: Path, new_stem) -> Path:
 
 def output_exists(path: Path, remove_if_exists: bool) -> bool:
     """
-    Check if the output file exists already. If force is True, the file is removed.
+    Checks and returns whether the file specified exists.
+    
+    If remove_if_exists is True, the file is removed and False is returned.
 
     Args:
         path (Path): Output file path to check.
