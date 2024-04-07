@@ -1,6 +1,7 @@
 """
 Module to benchmark geofileops operations.
 """
+# ruff: noqa: D103
 
 from datetime import datetime
 import logging
