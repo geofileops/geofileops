@@ -261,7 +261,7 @@ def export_by_location_intersects_complexpoly(tmp_dir: Path) -> RunResult:
 
     input1_path, _ = testdata.TestFile.AGRIPRC_2018.get_file(tmp_dir)
     input2_path, input1_descr = testdata.TestFile.COMPLEX_POLYS.get_file(
-        tmp_dir, nb_points=100_000
+        tmp_dir, nb_points=300_000
     )
 
     # Go!
@@ -275,7 +275,7 @@ def export_by_location_intersects_complexpoly(tmp_dir: Path) -> RunResult:
         input_to_compare_with_path=input2_path,
         output_path=output_path,
         nb_parallel=nb_parallel,
-        # subdivide_coords=7500,
+        # subdivide_coords=0,
         force=True,
     )
     result = RunResult(
