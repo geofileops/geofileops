@@ -230,7 +230,7 @@ def _estimate_line_distance(nb_points: float) -> int:
         )
         if nb_points >= nb_points_min and nb_points <= nb_points_max:
             distance = dist_min + (
-                (nb_points_max - nb_points_min) / (nb_points - nb_points_min) - 1
+                (nb_points - nb_points_min) / (nb_points_max - nb_points_min)
             ) * (dist_max - dist_min)
             break
 
