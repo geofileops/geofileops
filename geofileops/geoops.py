@@ -1920,7 +1920,7 @@ def export_by_location(
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    subdivide_coords: int = 10000,
+    subdivide_coords: int = 7500,
     force: bool = False,
 ):
     """

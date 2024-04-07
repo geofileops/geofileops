@@ -275,7 +275,7 @@ def export_by_location_intersects_complexpoly(tmp_dir: Path) -> RunResult:
         input_to_compare_with_path=input2_path,
         output_path=output_path,
         nb_parallel=nb_parallel,
-        subdivide_coords=7500,
+        # subdivide_coords=7500,
         force=True,
     )
     result = RunResult(
