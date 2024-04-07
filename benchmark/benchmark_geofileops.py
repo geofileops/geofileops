@@ -10,8 +10,8 @@ def main():
     """
     functions_to_run = [
         "export_by_location_intersects",
-        #"join_by_location_intersects",
-        #"clip",
+        # "join_by_location_intersects",
+        # "clip",
         # "intersection",
         # "intersection_complexpoly_agri",
         # "intersection_gridsize",
