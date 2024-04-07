@@ -1982,7 +1982,7 @@ def export_by_location(
         subdivide_coords (int, optional): the input geometries in the input to compare
             with layer will be subdivided to parts with about ``subdivide_coords``
             coordinates during processing which can offer a large speed up for complex
-            geometries. If 0, no subdividing is applied. Defaults to 10000.
+            geometries. If 0, no subdividing is applied. Defaults to 7.500.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
