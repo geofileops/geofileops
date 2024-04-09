@@ -100,12 +100,8 @@ def dissolve_within_distance(
     nb_steps = 9
 
     # Already check here if it is useful to continue
-    if output_path.exists():
-        if force is False:
-            logger.info(f"Stop, output exists already {output_path}")
-            return
-        else:
-            fileops.remove(output_path)
+    if _io_util.output_exists(path=output_path, remove_if_exists=force):
+        return
 
     tempdir = _io_util.create_tempdir(f"geofileops/{operation_name}")
     try:
@@ -1924,6 +1920,7 @@ def export_by_location(
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
+    subdivide_coords: int = 7500,
     force: bool = False,
 ):
     """
@@ -1982,6 +1979,10 @@ def export_by_location(
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
+        subdivide_coords (int, optional): the input geometries in the input to compare
+            with layer will be subdivided to parts with about ``subdivide_coords``
+            coordinates during processing which can offer a large speed up for complex
+            geometries. If 0, no subdividing is applied. Defaults to 7.500.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
@@ -2014,6 +2015,7 @@ def export_by_location(
         where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
+        subdivide_coords=subdivide_coords,
         force=force,
     )
 
