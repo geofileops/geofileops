@@ -7,7 +7,7 @@ import csv
 from dataclasses import dataclass
 import enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
+from typing import Any, Dict, List, Union, TYPE_CHECKING
 
 from osgeo import gdal
 from osgeo_utils.auxiliary.util import GetOutputDriversFor
@@ -28,10 +28,11 @@ class GeofileTypeInfo:
 
     geofiletype: str
     ogrdriver: str
-    suffixes: Optional[List[str]]
+    suffixes: List[str]
     is_fid_zerobased: bool
     is_spatialite_based: bool
-    suffixes_extrafiles: Optional[List[str]]
+    default_spatial_index: bool
+    suffixes_extrafiles: List[str]
 
 
 geofiletypes: Dict[str, GeofileTypeInfo] = {}
@@ -45,16 +46,20 @@ def _init_geofiletypes():
         reader = csv.DictReader(file, dialect="geofiletype_dialect")
 
         for row in reader:
-            # Prepare optional values that need eval first
-            suffixes = None
+            # Determine suffixes
             if row["suffixes"] is not None and row["suffixes"] != "":
                 suffixes = ast.literal_eval(row["suffixes"])
-            suffixes_extrafiles = None
+            else:
+                suffixes = []
+
+            # Determine suffixes_extrafiles
             if (
                 row["suffixes_extrafiles"] is not None
                 and row["suffixes_extrafiles"] != ""
             ):
                 suffixes_extrafiles = ast.literal_eval(row["suffixes_extrafiles"])
+            else:
+                suffixes_extrafiles = []
 
             # Add geofiletype
             geofiletypes[row["geofiletype"]] = GeofileTypeInfo(
@@ -63,6 +68,7 @@ def _init_geofiletypes():
                 suffixes=suffixes,
                 is_fid_zerobased=ast.literal_eval(row["is_fid_zerobased"]),
                 is_spatialite_based=ast.literal_eval(row["is_spatialite_based"]),
+                default_spatial_index=ast.literal_eval(row["default_spatial_index"]),
                 suffixes_extrafiles=suffixes_extrafiles,
             )
 
@@ -97,8 +103,7 @@ class GeofileType(enum.Enum):
         def get_geofiletype_for_suffix(suffix: str):
             suffix_lower = suffix.lower()
             for geofiletype in geofiletypes:
-                suffixes = geofiletypes[geofiletype].suffixes
-                if suffixes is not None and suffix_lower in suffixes:
+                if suffix_lower in geofiletypes[geofiletype].suffixes:
                     return GeofileType[geofiletype]
             raise ValueError(f"Unknown extension {suffix}")
 
@@ -146,10 +151,7 @@ class GeofileType(enum.Enum):
     @property
     def suffixes_extrafiles(self) -> List[str]:
         """Returns a list of suffixes for the extra files for this GeofileType."""
-        suffixes = geofiletypes[self.name].suffixes_extrafiles
-        if suffixes is None:
-            return []
-        return suffixes
+        return geofiletypes[self.name].suffixes_extrafiles
 
     @property
     def is_singlelayer(self) -> bool:
@@ -214,6 +216,14 @@ class GeofileInfo:
             return False
         else:
             return True
+
+    @property
+    def default_spatial_index(self) -> bool:
+        """Returns True if this geofile can only have one layer."""
+        if self.geofiletype_info is not None:
+            return self.geofiletype_info.default_spatial_index
+        else:
+            return False
 
     @property
     def suffixes_extrafiles(self) -> List[str]:
@@ -286,4 +296,4 @@ def get_geofileinfo(path: Union[str, "os.PathLike[Any]"]) -> GeofileInfo:
     Returns:
         GeofileInfo: _description_
     """
-    return GeofileInfo(path=path)
+    return GeofileInfo(path=Path(path))

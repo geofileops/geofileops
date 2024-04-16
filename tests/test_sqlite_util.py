@@ -10,6 +10,7 @@ import pytest
 from geofileops import fileops
 import geofileops as gfo
 from geofileops.util import _sqlite_util as sqlite_util
+from geofileops.util._geofileinfo import GeofileInfo
 from tests import test_helper
 from tests.test_helper import assert_geodataframe_equal
 
@@ -111,7 +112,8 @@ def test_create_table_as_sql_invalidparams(kwargs, expected_error):
 
 def test_execute_sql(tmp_path):
     test_path = test_helper.get_testfile(testfile="polygon-parcel", dst_dir=tmp_path)
-    assert gfo.has_spatial_index(test_path)
+    exp_spatial_index = GeofileInfo(test_path).default_spatial_index
+    assert gfo.has_spatial_index(test_path) is exp_spatial_index
     info_input = gfo.get_layerinfo(test_path)
     nb_deleted = 0
 
@@ -136,8 +138,10 @@ def test_get_columns():
 
     input1_info = gfo.get_layerinfo(input1_path)
     input2_info = gfo.get_layerinfo(input2_path)
+    # Also include an identical column name aliasing a constant, is special case that
+    # was a bug (https://github.com/geofileops/geofileops/pull/477).
     sql_stmt = f"""
-        SELECT layer1.OIDN, layer1.UIDN, layer1.datum, layer2.naam
+        SELECT layer1.OIDN, layer1.UIDN, layer1.datum, layer2.naam, 'test' AS naam
           FROM {{input1_databasename}}."{input1_info.name}" layer1
           CROSS JOIN {{input2_databasename}}."{input2_info.name}" layer2
          WHERE 1=1
@@ -152,7 +156,7 @@ def test_get_columns():
         sql_stmt=sql_stmt, input1_path=input1_path, input2_path=input2_path
     )
 
-    assert len(columns) == 4
+    assert len(columns) == 5
 
 
 def test_create_table_as_sql_single_input(tmp_path):
@@ -185,4 +189,7 @@ def test_create_table_as_sql_single_input(tmp_path):
 
     assert output_path.exists()
     output_gdf = fileops.read_file(output_path)
+
+    # EMPTY geometry becomes NULL/None...
+    expected_gdf.loc[expected_gdf.geometry.is_empty, "geometry"] = None
     assert_geodataframe_equal(output_gdf, expected_gdf)

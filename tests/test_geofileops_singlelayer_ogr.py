@@ -1,11 +1,12 @@
 """
-Tests for operations using GeoPandas.
+Tests for operations using only gdal.
 """
 
 import pytest
 
 import geofileops as gfo
 from geofileops import GeometryType
+from geofileops.util._geofileinfo import GeofileInfo
 from tests import test_helper
 from tests.test_helper import SUFFIXES_GEOOPS
 
@@ -30,7 +31,8 @@ def test_clip_by_geometry(tmp_path, suffix):
 
     # Now check if the output file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     layerinfo_orig = gfo.get_layerinfo(input_path)
     layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 22
@@ -57,11 +59,14 @@ def test_export_by_bounds(tmp_path, suffix):
     # Do operation
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
     filter = (156036, 196691, 156368, 196927)
-    gfo.export_by_bounds(input_path=input_path, output_path=output_path, bounds=filter)
+    gfo.export_by_bounds(
+        input_path=str(input_path), output_path=str(output_path), bounds=filter
+    )
 
     # Now check if the output file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     layerinfo_orig = gfo.get_layerinfo(input_path)
     layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == 25
@@ -95,8 +100,8 @@ def test_warp(tmp_path):
     output_path = tmp_path / f"{input_path.stem}-output.gpkg"
     output_path.touch()
     gfo.warp(
-        input_path=input_path,
-        output_path=output_path,
+        input_path=str(input_path),
+        output_path=str(output_path),
         gcps=gcps,
         algorithm="tps",
     )
@@ -114,7 +119,8 @@ def test_warp(tmp_path):
 
     # Now check if the output file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     layerinfo_orig = gfo.get_layerinfo(input_path)
     layerinfo_output = gfo.get_layerinfo(output_path)
     assert layerinfo_output.featurecount == layerinfo_orig.featurecount
