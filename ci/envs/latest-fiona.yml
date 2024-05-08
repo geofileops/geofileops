@@ -1,8 +1,8 @@
-name: geofileops-dev
+name: geofileops-latest-nofiona
 channels:
   - conda-forge
 dependencies:
-  - python =3.10
+  - python
   - pip
   # required
   - cloudpickle
@@ -14,24 +14,14 @@ dependencies:
   - packaging
   - pandas
   - psutil
-  - pyarrow
   - pygeoops >=0.4,<0.5
   - pyogrio >=0.5
   - pyproj
   - shapely >=2,<2.1
   # optional
-  # - fiona  # Not needed anymore except if pyogio < 0.7 is used. 
+  - fiona
   # testing
   - pytest
   - pytest-cov
-  # linting
-  - pandas-stubs
-  - pre-commit
-  - ruff
-  - types-pillow
-  # docs
-  - pydata-sphinx-theme
   - pip:
-    - sphinx-automodapi==0.13
-    # optional
     - simplification
