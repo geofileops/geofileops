@@ -20,15 +20,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - uses: pre-commit/action@v3.0.0
+      - uses: pre-commit/action@v3.0.1
 
   Test:
     needs: Linting
-    name: ${{ matrix.env }} - python ${{ matrix.python }} - ${{ matrix.os }}
+    name: ${{ matrix.env }}, python ${{ matrix.python }}, ${{ matrix.os }}
     timeout-minutes: 30
     runs-on: ${{ matrix.os }}
     defaults:
@@ -44,21 +44,21 @@ jobs:
         # Use openblas instead of mkl saves 600 MB. Linux OK, 50% slower on Windows and OSX!
         extra: ["nomkl"]
         include:
-          - env: minimal
+          - env: minimal-fiona
             os: ubuntu-latest
             dev: false
             python: "3.9"
+          - env: latest-fiona
+            os: windows-latest
+            dev: false
+            python: "3.11"
           - env: latest
             os: macos-latest
             dev: false
             python: "3.11"
-          - env: latest
-            os: windows-latest
-            dev: false
-            python: "3.11"
             
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install Conda environment with Micromamba
         uses: mamba-org/setup-micromamba@v1
@@ -73,5 +73,5 @@ jobs:
         run: |
           pytest --color=yes --cov=geofileops --cov-append --cov-report term-missing --cov-report xml tests/
 
-      - uses: codecov/codecov-action@v3
+      - uses: codecov/codecov-action@v4
       

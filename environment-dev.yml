@@ -6,7 +6,6 @@ dependencies:
   - pip
   # required
   - cloudpickle
-  - fiona
   - gdal >=3.6.3
   - geopandas-base >=0.12
   - libspatialite >=5.0
@@ -15,17 +14,16 @@ dependencies:
   - packaging
   - pandas
   - psutil
-  # - pygeoops >=0.4,<0.5
+  - pygeoops >=0.4,<0.5
   - pyogrio >=0.5
   - pyproj
   - shapely >=2,<2.1
   # optional
-  - topojson
+  # - fiona  # Not needed anymore except if pyogio < 0.7 is used. 
   # testing
   - pytest
   - pytest-cov
   # linting
-  - black >=23,<24
   - pandas-stubs
   - pre-commit
   - ruff
@@ -33,7 +31,6 @@ dependencies:
   # docs
   - pydata-sphinx-theme
   - pip:
-    - pygeoops ==0.4.0a2
     - sphinx-automodapi==0.13
     # optional
     - simplification

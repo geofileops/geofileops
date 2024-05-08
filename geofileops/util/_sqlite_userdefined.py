@@ -3,10 +3,9 @@ import logging
 from typing import Optional
 
 import pygeoops
-
-# from pygeoops import _difference as _difference
-# from pygeoops import _paramvalidation as paramvalidation
 import shapely
+from shapely.geometry.base import BaseGeometry
+import shapely.ops
 
 from geofileops.util import _geoseries_util
 
@@ -18,7 +17,7 @@ def gfo_difference_collection(
     geom_wkb: bytes,
     geom_to_subtract_wkb: bytes,
     keep_geom_type: int = 0,
-    subdivide_coords: int = 1000,
+    subdivide_coords: int = 2000,
 ) -> Optional[bytes]:
     """
     Applies the difference of geom_to_subtract on geom.
@@ -43,7 +42,7 @@ def gfo_difference_collection(
             subdivided to parts with about this number of points which can speed up
             processing for complex geometries. Subdividing can result in extra collinear
             points being added to the boundaries of the output. If <= 0, no subdividing
-            is applied. Defaults to 1000.
+            is applied. Defaults to 2000.
 
     Returns:
         Optional[bytes]: return the difference. If geom was completely removed due to
@@ -54,6 +53,8 @@ def gfo_difference_collection(
         if geom_wkb is None:
             return None
         if geom_to_subtract_wkb is None:
+            return geom_wkb
+        if subdivide_coords <= 0:
             return geom_wkb
 
         # Extract wkb's, and return if empty
@@ -143,6 +144,7 @@ def gfo_reduceprecision(geom_wkb: bytes, gridsize: int) -> Optional[bytes]:
         result = _geoseries_util.set_precision(
             geom, grid_size=gridsize, raise_on_topoerror=False
         )
+        assert isinstance(result, BaseGeometry)
 
         # If an empty result, return None
         # Remark: apparently ST_IsEmpty of spatialite doesn't work (in combination with
@@ -158,7 +160,67 @@ def gfo_reduceprecision(geom_wkb: bytes, gridsize: int) -> Optional[bytes]:
         return None
 
 
-def gfo_subdivide(geom_wkb: bytes, coords: int = 1000):
+def gfo_split(
+    geom_wkb: bytes,
+    blade_wkb: bytes,
+) -> Optional[bytes]:
+    """
+    Applies a split in the geom using the blade specified.
+
+    Args:
+        geom_wkb (bytes): geometry to substract geom_to_subtract_wkb from in wkb format.
+        blade_wkb (bytes): geometry to use as a blade in wkb format.
+
+    Returns:
+        Optional[bytes]: return the geopetry split by the blade. If geom was completely
+            removed due to the split being applied, NULL is returned.
+    """
+    try:
+        # Check/prepare input
+        if geom_wkb is None:
+            return None
+        if blade_wkb is None:
+            return geom_wkb
+
+        # Extract wkb's, and return if empty
+        geom = shapely.from_wkb(geom_wkb)
+        if geom.is_empty:
+            return geom_wkb
+        blade = shapely.from_wkb(blade_wkb)
+        if blade.is_empty:
+            return geom_wkb
+        del geom_wkb
+        del blade_wkb
+
+    except Exception as ex:  # pragma: no cover
+        # ex.with_traceback()
+        logger.exception(f"Error in gfo_difference_collection: {ex}")
+        raise
+
+    try:
+        # Apply split. Only supports single geometries, so explode twice to be sure.
+        result = geom
+        output_primitivetype_id = int(pygeoops.get_primitivetype_id(geom))
+        for blade_part in shapely.get_parts(blade):
+            for blade_part2 in shapely.get_parts(blade_part):
+                result = shapely.ops.split(result, blade_part2)
+                result = pygeoops.collection_extract(result, output_primitivetype_id)
+
+        # If an empty result, return None
+        # Remark: tried to return empty geometry an empty GeometryCollection, but
+        # apparentle ST_IsEmpty of spatialite doesn't work (in combination with gpkg
+        # and/or wkb?).
+        if result is None or result.is_empty:
+            return None
+
+        return shapely.to_wkb(result)
+    except Exception as ex:  # pragma: no cover
+        # ex.with_traceback()
+        logger.exception(f"Error in gfo_split: {ex}")
+        return None
+
+
+def gfo_subdivide(geom_wkb: bytes, coords: int = 2000):
     """
     Divide the input geometry to smaller parts using rectilinear lines.
 
@@ -167,7 +229,7 @@ def gfo_subdivide(geom_wkb: bytes, coords: int = 1000):
         coords (int): number of coordinates per subdivision to aim for. In the current
             implementation, coords will be the average number of coordinates the
             subdividions will consist of. If <= 0, no subdividing is applied.
-            Defaults to 1000.
+            Defaults to 2000.
 
     Returns:
         geometry wkb: if geometry has < coords coordinates, the input geometry is

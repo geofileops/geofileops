@@ -3,20 +3,28 @@ Module with helper functions for geo files.
 """
 
 import enum
-import datetime
+from datetime import date, datetime
 import filecmp
 import logging
-import os
 from pathlib import Path
 import pprint
 import shutil
 import string
 import tempfile
 import time
-from typing import Any, Dict, Iterable, List, Literal, Optional, Tuple, Union
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Union,
+    TYPE_CHECKING,
+)
 import warnings
 
-import fiona
 import geopandas as gpd
 from geopandas.io import file as gpd_io_file
 import numpy as np
@@ -32,6 +40,11 @@ from geofileops.util import _geoseries_util
 from geofileops.util import _io_util
 from geofileops.util import _ogr_util
 from geofileops.util import _ogr_sql_util
+from geofileops._compat import PYOGRIO_GTE_07
+from geofileops.helpers._configoptions_helper import ConfigOptions
+
+if TYPE_CHECKING:
+    import os
 
 #####################################################################
 # First define/init some general variables/constants
@@ -303,7 +316,7 @@ def get_layerinfo(
         )
         datasource_layer = datasource.GetLayer(layer)
 
-        # If the layer doesn't exist, return
+        # If the layer doesn't exist, raise
         if datasource_layer is None:
             raise ValueError(f"Layer {layer} not found in file: {path}")
 
@@ -347,6 +360,7 @@ def get_layerinfo(
             if driver == "ESRI Shapefile":
                 geometrytype = geometrytype.to_multitype
 
+            assert geometrytype is not None
             geometrytypename = geometrytype.name
 
         # If the geometry type is not None, fill out the extra properties
@@ -368,27 +382,9 @@ def get_layerinfo(
                 crs = pyproj.CRS(spatialref.ExportToWkt())
 
                 # If spatial ref has no epsg, try to find corresponding one
-                crs_epsg = crs.to_epsg()
-                if crs_epsg is None:
-                    if crs.name in [
-                        "Belge 1972 / Belgian Lambert 72",
-                        "Belge_1972_Belgian_Lambert_72",
-                        "Belge_Lambert_1972",
-                        "BD72 / Belgian Lambert 72",
-                    ]:
-                        # Belgian Lambert in name, so assume 31370
-                        crs = pyproj.CRS.from_epsg(31370)
+                if crs.to_epsg() is None:
+                    crs = _crs_custom_match(crs, path)
 
-                        # If shapefile, add correct 31370 .prj file
-                        if driver == "ESRI Shapefile":
-                            prj_path = path.parent / f"{path.stem}.prj"
-                            if prj_path.exists():
-                                prj_rename_path = path.parent / f"{path.stem}_orig.prj"
-                                if not prj_rename_path.exists():
-                                    prj_path.rename(prj_rename_path)
-                                else:
-                                    prj_path.unlink()
-                                prj_path.write_text(PRJ_EPSG_31370)
         elif raise_on_nogeom:
             errors.append("Layer doesn't have a geometry column!")
 
@@ -452,7 +448,9 @@ def get_only_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
             if len(layers) == 1:
                 datasource_layer = datasource.GetLayer(layers[0])
             else:
-                raise ValueError(f"Layer has > 1 layer: {path}: {layers}")
+                raise ValueError(
+                    f"input has > 1 layer, but no layer specified: {path}: {layers}"
+                )
 
         return datasource_layer.GetName()
 
@@ -484,14 +482,14 @@ def execute_sql(
     sql_dialect: Optional[str] = None,
 ):
     """
-    Execute a sql statement (DML or DDL) on the file.
+    Execute a SQL statement (DML or DDL) on the file.
 
-    To run SELECT sql statements on a file, use :meth:`~read_file`.
+    To run SELECT SQL statements on a file, use :meth:`~read_file`.
 
     Args:
         path (PathLike): The path to the file.
-        sql_stmt (str): The sql statement to execute.
-        sql_dialect (str): The sql dialect to use:
+        sql_stmt (str): The SQL statement to execute.
+        sql_dialect (str): The SQL dialect to use:
             * None: use the native SQL dialect of the geofile.
             * 'OGRSQL': force the use of the OGR SQL dialect.
             * 'SQLITE': force the use of the SQLITE dialect.
@@ -675,7 +673,7 @@ def remove_spatial_index(
         elif path_info.driver == "ESRI Shapefile":
             # DROP SPATIAL INDEX ON ... command gives an error, so just remove .qix
             index_path = path.parent / f"{path.stem}.qix"
-            index_path.unlink()
+            index_path.unlink(missing_ok=True)
         else:
             raise ValueError(
                 f"remove_spatial_index not supported for {path_info.driver}: {path}"
@@ -737,10 +735,10 @@ def rename_column(
     Rename the column specified.
 
     Args:
-        path (PathLike): The file path.
-        column_name (str): the current column name.
-        new_column_name (str): the new column name.
-        layer (Optional[str]): The layer name. If not specified, and there is only
+        path (PathLike): the file path.
+        column_name (str): current column name.
+        new_column_name (str): new column name.
+        layer (Optional[str]): layer name. If not specified, and there is only
             one layer in the file, this layer is used. Otherwise exception.
     """
     # Check input parameters
@@ -811,7 +809,7 @@ def add_column(
     path: Union[str, "os.PathLike[Any]"],
     name: str,
     type: Union[DataType, str],
-    expression: Union[str, int, float, None] = None,
+    expression: Union[str, float, None] = None,
     expression_dialect: Optional[str] = None,
     layer: Optional[str] = None,
     force_update: bool = False,
@@ -824,7 +822,7 @@ def add_column(
         path (PathLike): Path to the geofile.
         name (str): Name for the new column.
         type (str): Column type of the new column.
-        expression (str, optional): SQLite expression to use to update
+        expression (str; int or float, optional): SQLite expression to use to update
             the value. Defaults to None.
         expression_dialect (str, optional): SQL dialect used for the expression.
         layer (str, optional): The layer name. If None and the geofile
@@ -848,6 +846,8 @@ def add_column(
             type_str = "BLOB"
         elif type_lower == "time":
             type_str = "DATETIME"
+        elif type_lower == "integer64":
+            type_str = "INTEGER"
         else:
             type_str = type
     path = Path(path)
@@ -938,8 +938,7 @@ def update_column(
     Args:
         path (PathLike): Path to the geofile
         name (str): Name for the new column
-        expression (str): SQLite expression to use to update
-            the value.
+        expression (str): SQLite expression to use to update the value.
         layer (str, optional): The layer name. If None and the geofile
             has only one layer, that layer is used. Defaults to None.
         where (str, optional): SQL where clause to restrict the rows that will
@@ -988,21 +987,22 @@ def read_file(
     sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     ignore_geometry: bool = False,
     fid_as_index: bool = False,
+    **kwargs,
 ) -> gpd.GeoDataFrame:
     """
     Reads a file to a geopandas GeoDataframe.
 
     The file format is detected based on the filepath extension.
 
-    If an sql_stmt is specified, the sqlite query can contain following placeholders
+    If ``sql_stmt`` is specified, the sqlite query can contain following placeholders
     that will be automatically replaced for you:
 
       * {geometrycolumn}: the column where the primary geometry is stored.
-      * {columns_to_select_str}: if 'columns' is not None, those columns,
+      * {columns_to_select_str}: if ``columns`` is not None, those columns,
         otherwise all columns of the layer.
       * {input_layer}: the layer name of the input layer.
 
-    Example sql statement with placeholders:
+    Example SQL statement with placeholders:
     ::
 
         SELECT {geometrycolumn}
@@ -1017,8 +1017,8 @@ def read_file(
 
     Args:
         path (file path): path to the file to read from
-        layer (str, optional): The layer to read. Defaults to None,
-            then reads the only layer in the file or throws error.
+        layer (str, optional): The layer to read. If None and there is only one layer in
+            the file it is read, otherwise an error is thrown. Defaults to None.
         columns (Iterable[str], optional): The (non-geometry) columns to read will
             be returned in the order specified. If None, all standard columns are read.
             In addition to standard columns, it is also possible
@@ -1030,14 +1030,14 @@ def read_file(
             (e.g. Geopackage) this is slow, so using e.g. a where filter instead is
             recommended. Defaults to None, then all rows are returned.
         where (str, optional): where clause to filter features in layer by attribute
-            values. If the datasource natively supports sql, its specific sql dialect
+            values. If the datasource natively supports sql, its specific SQL dialect
             should be used (eg. SQLite and GeoPackage: `SQLITE`_, PostgreSQL). If it
             doesn't, the `OGRSQL WHERE`_ syntax should be used. Note that it is not
-            possible to overrule the sql dialect, this is only possible when you use the
-            sql parameter. Examples: ``"ISO_A3 = 'CAN'"``,
+            possible to overrule the SQL dialect, this is only possible when you use the
+            SQL parameter. Examples: ``"ISO_A3 = 'CAN'"``,
             ``"POP_EST > 10000000 AND POP_EST < 100000000"``. Defaults to None.
-        sql_stmt (str): sql statement to use. Only supported with "pyogrio" engine.
-        sql_dialect (str, optional): Sql dialect used. Options are None, "SQLITE" or
+        sql_stmt (str): SQL statement to use. Only supported with "pyogrio" engine.
+        sql_dialect (str, optional): SQL dialect used. Options are None, "SQLITE" or
             "OGRSQL". If None, for data sources with explicit SQL support the statement
             is processed by the default SQL engine (e.g. for Geopackage and Spatialite
             this is "SQLITE"). For data sources without native SQL support (e.g. .shp),
@@ -1048,6 +1048,8 @@ def read_file(
         fid_as_index (bool, optional): If True, will use the FIDs of the features that
             were read as the index of the GeoDataFrame. May start at 0 or 1 depending on
             the driver. Defaults to False.
+        **kwargs: All additional parameters will be passed on to the io-engine used
+            ("pyogrio" or "fiona").
 
     Raises:
         ValueError: an invalid parameter value was passed.
@@ -1075,6 +1077,7 @@ def read_file(
         sql_dialect=sql_dialect,
         ignore_geometry=ignore_geometry,
         fid_as_index=fid_as_index,
+        **kwargs,
     )
 
     # No assert to keep backwards compatibility
@@ -1125,6 +1128,7 @@ def _read_file_base(
     sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     ignore_geometry: bool = False,
     fid_as_index: bool = False,
+    **kwargs,
 ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
     """
     Reads a file to a pandas Dataframe.
@@ -1136,7 +1140,7 @@ def _read_file_base(
             fid_as_column = True
 
     # Read with the engine specified
-    engine = _get_engine()
+    engine = ConfigOptions.io_engine
     if engine == "pyogrio":
         gdf = _read_file_base_pyogrio(
             path=path,
@@ -1149,6 +1153,7 @@ def _read_file_base(
             sql_dialect=sql_dialect,
             ignore_geometry=ignore_geometry,
             fid_as_index=fid_as_index or fid_as_column,
+            **kwargs,
         )
     elif engine == "fiona":
         gdf = _read_file_base_fiona(
@@ -1162,6 +1167,7 @@ def _read_file_base(
             sql_dialect=sql_dialect,
             ignore_geometry=ignore_geometry,
             fid_as_index=fid_as_index or fid_as_column,
+            **kwargs,
         )
     else:
         raise ValueError(f"Unsupported engine: {engine}")
@@ -1186,6 +1192,7 @@ def _read_file_base_fiona(
     sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     ignore_geometry: bool = False,
     fid_as_index: bool = False,
+    **kwargs,
 ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
     """
     Reads a file to a pandas Dataframe using fiona.
@@ -1222,7 +1229,7 @@ def _read_file_base_fiona(
 
             path = tmp_fid_path
         finally:
-            if tmp_fid_path.parent.exists():
+            if ConfigOptions.remove_temp_files and tmp_fid_path.parent.exists():
                 shutil.rmtree(tmp_fid_path, ignore_errors=True)
 
     # Checking if field/column names should be read is case sensitive in fiona, so
@@ -1249,6 +1256,7 @@ def _read_file_base_fiona(
         sql=sql_stmt,
         sql_dialect=sql_dialect,
         ignore_geometry=ignore_geometry,
+        **kwargs,
     )
 
     # Set the index to the backed-up fid
@@ -1269,6 +1277,8 @@ def _read_file_base_fiona(
     float_cols = list(result_gdf.select_dtypes(["float64"]).columns)
     if len(float_cols) > 0:
         # Check for all float columns found if they should be object columns instead
+        import fiona
+
         with fiona.open(path, layer=layer) as collection:
             assert collection.schema is not None
             properties = collection.schema["properties"]
@@ -1292,6 +1302,7 @@ def _read_file_base_pyogrio(
     sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     ignore_geometry: bool = False,
     fid_as_index: bool = False,
+    **kwargs,
 ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
     """
     Reads a file to a pandas Dataframe using pyogrio.
@@ -1334,6 +1345,8 @@ def _read_file_base_pyogrio(
         sql_stmt = _fill_out_sql_placeholders(
             path=path, layer=layer, sql_stmt=sql_stmt, columns=columns
         )
+        # Specifying a layer as well as an SQL statement in pyogrio is not supported.
+        layer = None
 
     # Read!
     columns_list = None if columns_prepared is None else list(columns_prepared)
@@ -1349,7 +1362,7 @@ def _read_file_base_pyogrio(
         sql_dialect=sql_dialect,
         read_geometry=not ignore_geometry,
         fid_as_index=fid_as_index,
-        # use_arrow=use_arrow,
+        **kwargs,
     )
 
     # Reorder columns + change casing so they are the same as columns parameter
@@ -1364,9 +1377,7 @@ def _read_file_base_pyogrio(
     # to proper datetime64 columns.
     if len(result_gdf) > 0:
         for column in result_gdf.select_dtypes(include=["object"]):
-            if isinstance(
-                result_gdf[column].iloc[0], (datetime.date, datetime.datetime)
-            ):
+            if isinstance(result_gdf[column].iloc[0], (date, datetime)):
                 result_gdf[column] = pd.to_datetime(result_gdf[column])
 
     assert isinstance(result_gdf, (gpd.GeoDataFrame, pd.DataFrame))
@@ -1386,6 +1397,7 @@ def _fill_out_sql_placeholders(
     for placeholder in placeholders:
         if layer_tmp is None:
             layer_tmp = get_only_layer(path)
+
         if placeholder == "input_layer":
             format_kwargs[placeholder] = layer_tmp
         elif placeholder == "geometrycolumn":
@@ -1421,12 +1433,12 @@ def read_file_sql(
     ignore_geometry: bool = False,
 ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
     """
-    DEPRECATED: Reads a file using an sql statement.
+    DEPRECATED: Reads a file using an SQL statement.
 
     Args:
         path (file path): path to the file to read from
-        sql_stmt (str): sql statement to use
-        sql_dialect (str, optional): Sql dialect used. Defaults to 'SQLITE'.
+        sql_stmt (str): SQL statement to use
+        sql_dialect (str, optional): SQL dialect used. Defaults to 'SQLITE'.
         layer (str, optional): The layer to read. If no layer is specified,
             reads the only layer in the file or throws an Exception.
         ignore_geometry (bool, optional): True not to read/return the geomatry.
@@ -1461,7 +1473,8 @@ def to_file(
     append: bool = False,
     append_timeout_s: int = 600,
     index: Optional[bool] = None,
-    create_spatial_index: Optional[bool] = True,
+    create_spatial_index: Optional[bool] = None,
+    **kwargs,
 ):
     """
     Writes a pandas dataframe to file.
@@ -1499,7 +1512,9 @@ def to_file(
             If False, no index is written. Defaults to None.
         create_spatial_index (bool, optional): True to force creation of spatial index,
             False to avoid creation. None leads to the default behaviour of gdal.
-            Defaults to True.
+            Defaults to None.
+        **kwargs: All additional parameters will be passed on to the io-engine used
+            ("pyogrio" or "fiona").
 
     Raises:
         ValueError: an invalid parameter value was passed.
@@ -1531,19 +1546,26 @@ def to_file(
     if force_output_geometrytype is not None and force_output_geometrytype.is_multitype:
         force_multitype = True
 
-    # If there is no geometry column in the input, always use fiona, as pyogrio doesn't
-    # support that yet at time of writing.
-    if isinstance(gdf, gpd.GeoDataFrame) is False or (
-        isinstance(gdf, gpd.GeoDataFrame) and "geometry" not in gdf.columns
-    ):
-        engine = "fiona"
-        create_spatial_index = False
-    else:
-        engine = _get_engine()
+    engine = ConfigOptions.io_engine
 
-    # Now write with the correct engine
+    # pyogrio < 0.7 doesn't support writing without geometry, so in that case use fiona.
+    if not PYOGRIO_GTE_07:
+        if isinstance(gdf, gpd.GeoDataFrame) is False or (
+            isinstance(gdf, gpd.GeoDataFrame) and "geometry" not in gdf.columns
+        ):
+            # Give a clear error if fiona isn't installed.
+            try:
+                import fiona  # noqa: F401
+            except ImportError as ex:  # pragma: no cover
+                raise RuntimeError(
+                    "to write dataframes without geometry either pyogrio >= 0.7 "
+                    "(recommended) or fiona needs to be installed."
+                ) from ex
+
+            engine = "fiona"
+
+    # Write file with the correct engine
     if engine == "pyogrio":
-        assert isinstance(gdf, gpd.GeoDataFrame)
         return _to_file_pyogrio(
             gdf=gdf,
             path=path,
@@ -1554,6 +1576,7 @@ def to_file(
             append_timeout_s=append_timeout_s,
             index=index,
             create_spatial_index=create_spatial_index,
+            **kwargs,
         )
     elif engine == "fiona":
         return _to_file_fiona(
@@ -1566,13 +1589,10 @@ def to_file(
             append_timeout_s=append_timeout_s,
             index=index,
             create_spatial_index=create_spatial_index,
+            **kwargs,
         )
     else:
         raise ValueError(f"Unsupported engine: {engine}")
-
-
-def _get_engine():
-    return os.environ.get("GFO_IO_ENGINE", "pyogrio")
 
 
 def _to_file_fiona(
@@ -1584,7 +1604,8 @@ def _to_file_fiona(
     append: bool = False,
     append_timeout_s: int = 600,
     index: Optional[bool] = None,
-    create_spatial_index: Optional[bool] = True,
+    create_spatial_index: Optional[bool] = None,
+    **kwargs,
 ):
     """
     Writes a pandas dataframe to file using fiona.
@@ -1600,7 +1621,7 @@ def _to_file_fiona(
         # type data instead of strings.
         if len(gdf) > 0:
             for column in gdf.select_dtypes(include=["object"]):
-                if isinstance(gdf[column][0], (datetime.date, datetime.datetime)):
+                if isinstance(gdf[column][0], (date, datetime)):
                     gdf[column] = gdf[column].astype(str)
 
     # Handle some specific cases where the file schema needs to be manipulated.
@@ -1617,6 +1638,7 @@ def _to_file_fiona(
 
         schema = gpd_io_file.infer_schema(gdf)
         schema["geometry"] = "None"
+        create_spatial_index = None
     elif (
         len(gdf) == 0
         and force_output_geometrytype is not None
@@ -1645,7 +1667,8 @@ def _to_file_fiona(
         force_multitype: bool = False,
         append: bool = False,
         schema: Optional[dict] = None,
-        create_spatial_index: Optional[bool] = True,
+        create_spatial_index: Optional[bool] = None,
+        **kwargs,
     ):
         # Prepare args for to_file
         if append is True:
@@ -1656,7 +1679,6 @@ def _to_file_fiona(
         else:
             mode = "w"
 
-        kwargs: Dict[str, Any] = {}
         kwargs["engine"] = "fiona"
         kwargs["mode"] = mode
         drivername = _geofileinfo.get_driver(path)
@@ -1694,68 +1716,31 @@ def _to_file_fiona(
             append=append,
             schema=schema,
             create_spatial_index=create_spatial_index,
+            **kwargs,
         )
     else:
-        # Append is asked, check if the fiona driver supports appending. If
-        # not, write to temporary output file
-
-        # Remark: fiona pre-1.8.14 didn't support appending to geopackage. Once
-        # older versions becomes rare, dependency can be put to this version, and
-        # this code can be cleaned up...
         path_info = _geofileinfo.get_geofileinfo(path)
-        gdftemp_path = None
-        gdftemp_lockpath = None
-        if "a" not in fiona.supported_drivers[path_info.driver]:
-            # Get a unique temp file path. The file cannot be created yet, so
-            # only create a lock file to avoid other processes using the same
-            # temp file name
-            gdftemp_path, gdftemp_lockpath = _io_util.get_tempfile_locked(
-                base_filename="gdftemp", suffix=path.suffix, dirname="geofile_to_file"
-            )
-            write_to_file(
-                gdf,
-                path=gdftemp_path,
-                layer=layer,
-                index=index,
-                force_output_geometrytype=force_output_geometrytype,
-                force_multitype=force_multitype,
-                schema=schema,
-                create_spatial_index=create_spatial_index,
-            )
 
         # Files don't typically support having multiple processes writing
         # simultanously to them, so use lock file to synchronize access.
         lockfile = Path(f"{str(path)}.lock")
-        start_time = datetime.datetime.now()
+        start_time = datetime.now()
         ready = False
         while not ready:
             if _io_util.create_file_atomic(lockfile) is True:
                 try:
-                    # If gdf wasn't written to temp file, use standard write-to-file
-                    if gdftemp_path is None:
-                        write_to_file(
-                            gdf=gdf,
-                            path=path,
-                            layer=layer,
-                            index=index,
-                            force_output_geometrytype=force_output_geometrytype,
-                            force_multitype=force_multitype,
-                            append=True,
-                            schema=schema,
-                            create_spatial_index=create_spatial_index,
-                        )
-                    else:
-                        # If gdf written to temp file, use append_to_nolock + cleanup
-                        _append_to_nolock(
-                            src=gdftemp_path,
-                            dst=path,
-                            dst_layer=layer,
-                            force_output_geometrytype=force_output_geometrytype,
-                            create_spatial_index=create_spatial_index,
-                        )
-                        remove(gdftemp_path)
-                        if gdftemp_lockpath is not None:
-                            gdftemp_lockpath.unlink()
+                    write_to_file(
+                        gdf=gdf,
+                        path=path,
+                        layer=layer,
+                        index=index,
+                        force_output_geometrytype=force_output_geometrytype,
+                        force_multitype=force_multitype,
+                        append=True,
+                        schema=schema,
+                        create_spatial_index=create_spatial_index,
+                        **kwargs,
+                    )
                 except Exception as ex:
                     # If sqlite output file locked, also retry
                     if path_info.is_spatialite_based and str(ex) not in [
@@ -1767,7 +1752,7 @@ def _to_file_fiona(
                     ready = True
                     lockfile.unlink()
             else:
-                time_waiting = (datetime.datetime.now() - start_time).total_seconds()
+                time_waiting = (datetime.now() - start_time).total_seconds()
                 if time_waiting > append_timeout_s:
                     raise RuntimeError(
                         f"to_file timeout of {append_timeout_s} reached, stop append "
@@ -1787,23 +1772,23 @@ def _to_file_pyogrio(
     append: bool = False,
     append_timeout_s: int = 600,
     index: Optional[bool] = None,
-    create_spatial_index: Optional[bool] = True,
+    create_spatial_index: Optional[bool] = None,
+    **kwargs,
 ):
     """
     Writes a pandas dataframe to file using pyogrio.
-
-    Remark: this function only supports writing GeoDataFrames at the moment.
     """
-    # Prepare args for write_dataframe
-    kwargs: Dict[str, Any] = {}
-    kwargs["engine"] = "pyogrio"
-
     # Check upfront if append is going to work to give nice error
     if append is True and path.exists():
         kwargs["append"] = True
-        layerinfo = get_layerinfo(path, layer)
+        layerinfo = get_layerinfo(path, layer, raise_on_nogeom=False)
+
+        # Determine columns and compare them
         file_cols = [col.upper() for col in layerinfo.columns]
-        gdf_cols = [col.upper() for col in gdf.columns if col != gdf.geometry.name]
+        if layerinfo.geometrycolumn is not None:
+            gdf_cols = [col.upper() for col in gdf.columns if col != gdf.geometry.name]
+        else:
+            gdf_cols = [col.upper() for col in gdf.columns]
         if gdf_cols != file_cols:
             raise ValueError(
                 "destination layer doesn't have the same columns as gdf: "
@@ -1816,14 +1801,14 @@ def _to_file_pyogrio(
     path_info = _geofileinfo.get_geofileinfo(path)
     kwargs["driver"] = path_info.driver
     kwargs["index"] = index
-    if create_spatial_index is not None:
-        kwargs["SPATIAL_INDEX"] = create_spatial_index
     if force_output_geometrytype is not None:
         if isinstance(force_output_geometrytype, GeometryType):
             force_output_geometrytype = force_output_geometrytype.name_camelcase
         kwargs["geometry_type"] = force_output_geometrytype
     if force_multitype:
         kwargs["promote_to_multi"] = True
+    if not path_info.is_singlelayer:
+        kwargs["layer"] = layer
 
     # Temp fix for bug in pyogrio 0.7.2 (https://github.com/geopandas/pyogrio/pull/324)
     # Logic based on geopandas.to_file
@@ -1831,26 +1816,114 @@ def _to_file_pyogrio(
         gdf = gdf.reset_index(drop=True)
 
     # Now we can write
-    if path_info.is_singlelayer:
-        gdf.to_file(str(path), **kwargs)
+    # If there is no geometry column in the input, never create a spatial index.
+    if isinstance(gdf, gpd.GeoDataFrame) is False or (
+        isinstance(gdf, gpd.GeoDataFrame) and "geometry" not in gdf.columns
+    ):
+        # If geometry column should be written, specifying SPATIAL INDEX is not allowed.
+        if "SPATIAL_INDEX" in kwargs:
+            del kwargs["SPATIAL_INDEX"]
+        pyogrio.write_dataframe(gdf, str(path), **kwargs)
     else:
-        gdf.to_file(str(path), layer=layer, **kwargs)
+        kwargs["engine"] = "pyogrio"
+        gdf.to_file(str(path), **kwargs)
 
 
-def get_crs(path: Union[str, "os.PathLike[Any]"]) -> pyproj.CRS:
+def get_crs(
+    path: Union[str, "os.PathLike[Any]"],
+    layer: Optional[str] = None,
+    min_confidence: int = 70,
+) -> Optional[pyproj.CRS]:
     """
     Get the CRS (projection) of the file.
 
     Args:
-        path (PathLike): Path to the file.
+        path (PathLike): path to the file.
+        layer (Optional[str]): layer name. If not specified, and there is only
+            one layer in the file, this layer is used. Otherwise exception.
+        min_confidence (int): a value between 0-100 where 100 is the most confident.
+            It is used to match the crs info found in the file to a crs defined by
+            EPSG.
 
     Returns:
-        pyproj.CRS: The projection of the file
+        pyproj.CRS: The projection of the file.
     """
-    # TODO: seems like support for multiple layers in the file isn't here yet???
-    with fiona.open(str(path), "r") as geofile:
-        assert geofile is not None
-        return pyproj.CRS(geofile.crs)
+    # Check input parameters
+    path = Path(path)
+    if layer is None:
+        layer = get_only_layer(path)
+
+    crs = None
+    try:
+        datasource = gdal.OpenEx(
+            str(path), nOpenFlags=gdal.OF_VECTOR | gdal.OF_READONLY | gdal.OF_SHARED
+        )
+        datasource_layer = datasource.GetLayer(layer)
+
+        # If the layer doesn't exist, raise
+        if datasource_layer is None:
+            raise ValueError(f"Layer {layer} not found in file: {path}")
+
+        # Get the crs
+        spatialref = datasource_layer.GetSpatialRef()
+        if spatialref is not None:
+            crs = pyproj.CRS(spatialref.ExportToWkt())
+
+            # If spatial ref has no epsg, try to find corresponding one
+            if crs.to_epsg(min_confidence=min_confidence) is None:
+                crs = _crs_custom_match(crs, path)
+
+    except ValueError:
+        raise
+    except Exception as ex:
+        ex.args = (f"get_crs error: {ex} for {path}.{layer}",)
+        raise
+    finally:
+        datasource = None
+
+    return crs
+
+
+def _crs_custom_match(crs: pyproj.CRS, path_to_fix: Optional[Path]) -> pyproj.CRS:
+    """
+    Custom matching of crs's not matched automatically, based on name.
+
+    If path_to_fix is specified, the corresponding .prj file located on the path will be
+    replaced by a conforming .prj file if a match is found.
+
+    Args:
+        crs (pyproj.CRS): the crs to find a match for.
+        path_to_fix (Optional[Path]): path to the geofile. If the file is a shapefile
+            and a crs is found, the prj file will be replaced by one of the crs found.
+
+    Returns:
+        pyproj.CRS: the crs found.
+    """
+    if crs.name in [
+        "Belge 1972 / Belgian Lambert 72",
+        "Belge_1972_Belgian_Lambert_72",
+        "Belge_Lambert_1972",
+        "BD72 / Belgian Lambert 72",
+    ]:
+        # Belgian Lambert in name, so assume 31370
+        crs = pyproj.CRS.from_epsg(31370)
+
+        # If path is specified and it is a shapefile, add correct 31370 .prj file
+        if path_to_fix is not None:
+            driver = _geofileinfo.get_driver(path_to_fix)
+            if driver == "ESRI Shapefile":
+                prj_path = path_to_fix.parent / f"{path_to_fix.stem}.prj"
+                if prj_path.exists():
+                    prj_rename_path = (
+                        path_to_fix.parent / f"{path_to_fix.stem}_orig.prj"
+                    )
+                    if not prj_rename_path.exists():
+                        prj_path.rename(prj_rename_path)
+                    else:
+                        prj_path.unlink()
+                    prj_path.write_text(PRJ_EPSG_31370)
+
+    return crs
 
 
 def is_geofile(path: Union[str, "os.PathLike[Any]"]) -> bool:
@@ -1954,18 +2027,17 @@ def copy(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
 
     # For some file types, extra files need to be copied
     # If dest is a dir, just use move. Otherwise concat dest filepaths
-    if src_info.suffixes_extrafiles is not None:
-        if dst.is_dir():
-            for suffix in src_info.suffixes_extrafiles:
-                srcfile = src.parent / f"{src.stem}{suffix}"
-                if srcfile.exists():
-                    shutil.copy(str(srcfile), dst)
-        else:
-            for suffix in src_info.suffixes_extrafiles:
-                srcfile = src.parent / f"{src.stem}{suffix}"
-                dstfile = dst.parent / f"{dst.stem}{suffix}"
-                if srcfile.exists():
-                    shutil.copy(str(srcfile), dstfile)
+    if dst.is_dir():
+        for suffix in src_info.suffixes_extrafiles:
+            srcfile = src.parent / f"{src.stem}{suffix}"
+            if srcfile.exists():
+                shutil.copy(str(srcfile), dst)
+    else:
+        for suffix in src_info.suffixes_extrafiles:
+            srcfile = src.parent / f"{src.stem}{suffix}"
+            dstfile = dst.parent / f"{dst.stem}{suffix}"
+            if srcfile.exists():
+                shutil.copy(str(srcfile), dstfile)
 
 
 def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]):
@@ -1989,18 +2061,17 @@ def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
 
     # For some file types, extra files need to be moved
     # If dest is a dir, just use move. Otherwise concat dest filepaths
-    if src_info.suffixes_extrafiles is not None:
-        if dst.is_dir():
-            for suffix in src_info.suffixes_extrafiles:
-                srcfile = src.parent / f"{src.stem}{suffix}"
-                if srcfile.exists():
-                    shutil.move(str(srcfile), dst)
-        else:
-            for suffix in src_info.suffixes_extrafiles:
-                srcfile = src.parent / f"{src.stem}{suffix}"
-                dstfile = dst.parent / f"{dst.stem}{suffix}"
-                if srcfile.exists():
-                    shutil.move(str(srcfile), dstfile)
+    if dst.is_dir():
+        for suffix in src_info.suffixes_extrafiles:
+            srcfile = src.parent / f"{src.stem}{suffix}"
+            if srcfile.exists():
+                shutil.move(str(srcfile), dst)
+    else:
+        for suffix in src_info.suffixes_extrafiles:
+            srcfile = src.parent / f"{src.stem}{suffix}"
+            dstfile = dst.parent / f"{dst.stem}{suffix}"
+            if srcfile.exists():
+                shutil.move(str(srcfile), dstfile)
 
 
 def remove(path: Union[str, "os.PathLike[Any]"], missing_ok: bool = False):
@@ -2028,10 +2099,9 @@ def remove(path: Union[str, "os.PathLike[Any]"], missing_ok: bool = False):
         path.unlink(missing_ok=missing_ok)
 
     # For some file types, extra files need to be removed
-    if path_info.suffixes_extrafiles is not None:
-        for suffix in path_info.suffixes_extrafiles:
-            curr_path = path.parent / f"{path.stem}{suffix}"
-            curr_path.unlink(missing_ok=True)
+    for suffix in path_info.suffixes_extrafiles:
+        curr_path = path.parent / f"{path.stem}{suffix}"
+        curr_path.unlink(missing_ok=True)
 
 
 def append_to(
@@ -2041,11 +2111,14 @@ def append_to(
     dst_layer: Optional[str] = None,
     src_crs: Union[int, str, None] = None,
     dst_crs: Union[int, str, None] = None,
+    columns: Optional[Iterable[str]] = None,
     where: Optional[str] = None,
+    sql_stmt: Optional[str] = None,
+    sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     reproject: bool = False,
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
-    create_spatial_index: Optional[bool] = True,
+    create_spatial_index: Optional[bool] = None,
     append_timeout_s: int = 600,
     transaction_size: int = 50000,
     preserve_fid: Optional[bool] = None,
@@ -2055,8 +2128,20 @@ def append_to(
     """
     Append src file to the dst file.
 
-    Remark: append is not supported for all filetypes in fiona/geopandas (0.8)
-    so workaround via gdal needed.
+    If an sql_stmt is specified, the sqlite query can contain following placeholders
+    that will be automatically replaced for you:
+
+      * {geometrycolumn}: the column where the primary geometry is stored.
+      * {columns_to_select_str}: if 'columns' is not None, those columns,
+        otherwise all columns of the layer.
+      * {input_layer}: the layer name of the input layer.
+
+    Example SQL statement with placeholders:
+    ::
+
+        SELECT {geometrycolumn}
+              {columns_to_select_str}
+          FROM "{input_layer}" layer
 
     The options parameter can be used to pass any type of options to GDAL in
     the following form:
@@ -2069,8 +2154,7 @@ def append_to(
         - DESTINATION_OPEN: destination dataset open option (doo)
         - CONFIG: config option (config)
 
-    The options can be found in the [GDAL vector driver documentation]
-    (https://gdal.org/drivers/vector/index.html).
+    The options can be found in the |GDAL_vector_driver_documentation|.
 
     Args:
         src (Union[str,): source file path.
@@ -2085,11 +2169,23 @@ def append_to(
             by the OGRSpatialReference.SetFromUserInput() call, which includes
             an EPSG string (eg. "EPSG:4326"), a well known text (WKT) CRS
             definition,... Defaults to None.
+        columns (Iterable[str], optional): The (non-geometry) columns to read will
+            be returned in the order specified. If None, all standard columns are read.
+            In addition to standard columns, it is also possible
+            to specify "fid", a unique index available in all input files. Note that the
+            "fid" will be aliased eg. to "fid_1". Defaults to None.
         where (str, optional): only append the rows from src that comply to the filter
             specified. Applied before explodecollections. Filter should be in sqlite
             SQL WHERE syntax and |spatialite_reference_link| functions can be used. If
             where contains the {geometrycolumn} placeholder, it is filled out with the
             geometry column name of the src file. Defaults to None.
+        sql_stmt (str): SQL statement to use. Only supported with "pyogrio" engine.
+        sql_dialect (str, optional): SQL dialect used. Options are None, "SQLITE" or
+            "OGRSQL". If None, for data sources with explicit SQL support the statement
+            is processed by the default SQL engine (e.g. for Geopackage and Spatialite
+            this is "SQLITE"). For data sources without native SQL support (e.g. .shp),
+            the "OGRSQL" dialect is the default. If the "SQLITE" dialect is specified,
+            |spatialite_reference_link| functions can also be used. Defaults to None.
         reproject (bool, optional): True to reproject while converting the
             file. Defaults to False.
         explodecollections (bool), optional): True to output only simple geometries.
@@ -2098,9 +2194,10 @@ def append_to(
             to (try to) force the output to. Defaults to None.
         create_spatial_index (bool, optional): True to create a spatial index
             on the destination file/layer. If None, the default behaviour by gdal for
-            that file type is respected. If the LAYER_CREATION.SPATIAL_INDEX
-            parameter is specified in options, create_spatial_index is ignored.
-            Defaults to True.
+            that file type is respected. If the `LAYER_CREATION.SPATIAL_INDEX`
+            parameter is specified in options, `create_spatial_index` is ignored. If the
+            destination layer exists already, `create_spatial_index` is also ignored.
+            Defaults to None.
         append_timeout_s (int, optional): timeout to use if the output file is
             being written to by another process already. Defaults to 600.
         transaction_size (int, optional): Transaction size. Defaults to 50000.
@@ -2122,6 +2219,10 @@ def append_to(
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
 
+    .. |GDAL_vector_driver_documentation| raw:: html
+
+        <a href="https://gdal.org/drivers/vector/index.html" target="_blank">GDAL vector driver documentation</a>
+
     """  # noqa: E501
     # Check/clean input params
     src = Path(src)
@@ -2142,7 +2243,7 @@ def append_to(
             _ = None
 
     # Creating lockfile and append
-    start_time = datetime.datetime.now()
+    start_time = datetime.now()
     ready = False
     while not ready:
         if _io_util.create_file_atomic(lockfile) is True:
@@ -2155,7 +2256,10 @@ def append_to(
                     dst_layer=dst_layer,
                     src_crs=src_crs,
                     dst_crs=dst_crs,
+                    columns=columns,
                     where=where,
+                    sql_stmt=sql_stmt,
+                    sql_dialect=sql_dialect,
                     reproject=reproject,
                     explodecollections=explodecollections,
                     force_output_geometrytype=force_output_geometrytype,
@@ -2169,7 +2273,7 @@ def append_to(
                 ready = True
                 lockfile.unlink()
         else:
-            time_waiting = (datetime.datetime.now() - start_time).total_seconds()
+            time_waiting = (datetime.now() - start_time).total_seconds()
             if time_waiting > append_timeout_s:
                 raise RuntimeError(
                     f"append_to timeout of {append_timeout_s} reached, so stop write "
@@ -2187,10 +2291,13 @@ def _append_to_nolock(
     dst_layer: Optional[str] = None,
     src_crs: Union[int, str, None] = None,
     dst_crs: Union[int, str, None] = None,
+    columns: Optional[Iterable[str]] = None,
     where: Optional[str] = None,
+    sql_stmt: Optional[str] = None,
+    sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     reproject: bool = False,
     explodecollections: bool = False,
-    create_spatial_index: Optional[bool] = True,
+    create_spatial_index: Optional[bool] = None,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
     transaction_size: int = 50000,
     preserve_fid: Optional[bool] = None,
@@ -2211,9 +2318,14 @@ def _append_to_nolock(
         src_layerinfo = get_layerinfo(src, src_layer, raise_on_nogeom=False)
         where = where.format(geometrycolumn=src_layerinfo.geometrycolumn)
 
+    if sql_stmt is not None:
+        # Fill out placeholders.
+        sql_stmt = _fill_out_sql_placeholders(
+            path=src, layer=src_layer, sql_stmt=sql_stmt, columns=columns
+        )
+
     # When creating/appending to a shapefile, some extra things need to be done/checked.
-    sql_stmt = None
-    if dst.suffix.lower() == ".shp":
+    if sql_stmt is None and dst.suffix.lower() == ".shp":
         # If the destination file doesn't exist yet, and the source file has
         # geometrytype "Geometry", raise because type is not supported by shp (and will
         # default to linestring).
@@ -2230,10 +2342,11 @@ def _append_to_nolock(
                 "which is not supported in .shp. Maybe use force_output_geometrytype?"
             )
 
-        # Launder the columns names via a sql statement, otherwise when appending the
+        # Launder the columns names via a SQL statement, otherwise when appending the
         # laundered columns will get NULL values instead of the data.
-        src_columns = src_layerinfo.columns
-        columns_laundered = _launder_column_names(src_columns)
+        if columns is None:
+            columns = src_layerinfo.columns
+        columns_laundered = _launder_column_names(columns)
         columns_aliased = [
             f'"{column}" AS "{laundered}"' for column, laundered in columns_laundered
         ]
@@ -2250,6 +2363,8 @@ def _append_to_nolock(
               FROM "{src_layer}"
              {where_clause}
         """
+        sql_dialect = "SQLITE"
+        columns = None
 
     # When dst file doesn't exist and src is empty force_output_geometrytype should be
     # specified, otherwise invalid output.
@@ -2266,8 +2381,9 @@ def _append_to_nolock(
         output_layer=dst_layer,
         input_srs=src_crs,
         output_srs=dst_crs,
+        columns=columns,
         sql_stmt=sql_stmt,
-        sql_dialect="SQLITE",
+        sql_dialect=sql_dialect,
         where=where,
         reproject=reproject,
         transaction_size=transaction_size,
@@ -2293,7 +2409,7 @@ def convert(
     reproject: bool = False,
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
-    create_spatial_index: Optional[bool] = True,
+    create_spatial_index: Optional[bool] = None,
     preserve_fid: Optional[bool] = None,
     options: dict = {},
     append: bool = False,
@@ -2329,11 +2445,14 @@ def copy_layer(
     dst_layer: Optional[str] = None,
     src_crs: Union[str, int, None] = None,
     dst_crs: Union[str, int, None] = None,
+    columns: Optional[Iterable[str]] = None,
     where: Optional[str] = None,
+    sql_stmt: Optional[str] = None,
+    sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     reproject: bool = False,
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
-    create_spatial_index: Optional[bool] = True,
+    create_spatial_index: Optional[bool] = None,
     preserve_fid: Optional[bool] = None,
     dst_dimensions: Optional[str] = None,
     options: dict = {},
@@ -2356,8 +2475,7 @@ def copy_layer(
         - DESTINATION_OPEN: destination dataset open option (doo)
         - CONFIG: config option (config)
 
-    The options can be found in the [GDAL vector driver documentation]
-    (https://gdal.org/drivers/vector/index.html).
+    The options can be found in the |GDAL_vector_driver_documentation|.
 
     Args:
         src (PathLike): The source file path.
@@ -2374,11 +2492,23 @@ def copy_layer(
             by the OGRSpatialReference.SetFromUserInput() call, which includes
             an EPSG string (eg. "EPSG:4326"), a well known text (WKT) CRS
             definition,... Defaults to None.
+        columns (Iterable[str], optional): The (non-geometry) columns to read will
+            be returned in the order specified. If None, all standard columns are read.
+            In addition to standard columns, it is also possible
+            to specify "fid", a unique index available in all input files. Note that the
+            "fid" will be aliased eg. to "fid_1". Defaults to None.
         where (str, optional): only append the rows from src that comply to the filter
-            specified. Applied before explodecollections. Filter should be in sqlite
+            specified. Applied before ``explodecollections``. Filter should be in sqlite
             SQL WHERE syntax and |spatialite_reference_link| functions can be used. If
             where contains the {geometrycolumn} placeholder, it is filled out with the
             geometry column name of the src file. Defaults to None.
+        sql_stmt (str): SQL statement to use. Only supported with "pyogrio" engine.
+        sql_dialect (str, optional): SQL dialect used. Options are None, "SQLITE" or
+            "OGRSQL". If None, for data sources with explicit SQL support the statement
+            is processed by the default SQL engine (e.g. for Geopackage and Spatialite
+            this is "SQLITE"). For data sources without native SQL support (e.g. .shp),
+            the "OGRSQL" dialect is the default. If the "SQLITE" dialect is specified,
+            |spatialite_reference_link| functions can also be used. Defaults to None.
         reproject (bool, optional): True to reproject while converting the
             file. Defaults to False.
         explodecollections (bool, optional): True to output only simple
@@ -2389,7 +2519,7 @@ def copy_layer(
             on the destination file/layer. If None, the default behaviour by gdal for
             that file type is respected. If the LAYER_CREATION.SPATIAL_INDEX
             parameter is specified in options, create_spatial_index is ignored.
-            Defaults to True.
+            Defaults to None.
         preserve_fid (bool, optional): True to make an extra effort to preserve fid's of
             the source layer to the destination layer. False not to do any effort. None
             to use the default behaviour of gdal, that already preserves in some cases.
@@ -2407,6 +2537,10 @@ def copy_layer(
     .. |spatialite_reference_link| raw:: html
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    .. |GDAL_vector_driver_documentation| raw:: html
+
+        <a href="https://gdal.org/drivers/vector/index.html" target="_blank">GDAL vector driver documentation</a>
 
     """  # noqa: E501
     # Init
@@ -2433,7 +2567,10 @@ def copy_layer(
         dst_layer,
         src_crs=src_crs,
         dst_crs=dst_crs,
+        columns=columns,
         where=where,
+        sql_stmt=sql_stmt,
+        sql_dialect=sql_dialect,
         reproject=reproject,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,

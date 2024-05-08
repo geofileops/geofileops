@@ -32,6 +32,8 @@ import shapely.geometry as sh_geom
 
 import geofileops as gfo
 from geofileops import fileops
+from geofileops.helpers._configoptions_helper import ConfigOptions
+
 from geofileops.helpers import _parameter_helper
 from geofileops.util import _general_util
 from geofileops.util import _geoops_sql
@@ -39,6 +41,7 @@ from geofileops.util import _geoseries_util
 from geofileops.util import _io_util
 from geofileops.util import _ogr_util
 from geofileops.util import _processing_util
+from geofileops.util._geofileinfo import GeofileInfo
 from geofileops.util._geometry_util import SimplifyAlgorithm
 from geofileops.util._geometry_util import BufferEndCapStyle, BufferJoinStyle
 
@@ -374,11 +377,12 @@ def apply(
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, None] = None,
     gridsize: float = 0.0,
-    keep_empty_geoms: bool = True,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
+    parallelization_config: Optional[ParallelizationConfig] = None,
 ):
     # Init
     operation_params = {
@@ -405,6 +409,7 @@ def apply(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        parallelization_config=parallelization_config,
     )
 
 
@@ -422,7 +427,7 @@ def buffer(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    keep_empty_geoms: bool = True,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -474,7 +479,7 @@ def convexhull(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    keep_empty_geoms: bool = True,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -510,9 +515,9 @@ def makevalid(
     output_layer: Optional[str] = None,
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
-    force_output_geometrytype: Optional[GeometryType] = None,
+    force_output_geometrytype: Union[str, None, GeometryType] = None,
     gridsize: float = 0.0,
-    keep_empty_geoms: bool = True,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     validate_attribute_data: bool = False,
     nb_parallel: int = -1,
@@ -564,7 +569,7 @@ def simplify(
     columns: Optional[List[str]] = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    keep_empty_geoms: bool = True,
+    keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
@@ -608,11 +613,12 @@ def _apply_geooperation_to_layer(
     explodecollections: bool,  # = False
     force_output_geometrytype: Union[GeometryType, str, None],  # = None
     gridsize: float,  # = 0.0
-    keep_empty_geoms: bool,  # = True
+    keep_empty_geoms: bool,  # = False
     where_post: Optional[str],  # = None
     nb_parallel: int,  # = -1
     batchsize: int,  # = -1
     force: bool,  # = False
+    parallelization_config: Optional[ParallelizationConfig] = None,
 ):
     """
     Applies a geo operation on a layer.
@@ -667,7 +673,7 @@ def _apply_geooperation_to_layer(
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
-            in the output. Defaults to True.
+            in the output. Defaults to False.
         where_post (str, optional): sql filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
@@ -677,6 +683,7 @@ def _apply_geooperation_to_layer(
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): [description]. Defaults to False.
+        parallelization_config (ParallelizationConfig, optional): Defaults to None.
 
     Technical remarks:
         - Retaining None geometry values in the output files is hard, because when
@@ -704,12 +711,8 @@ def _apply_geooperation_to_layer(
         raise ValueError(f"{operation_name}: output_path must not equal input_path")
     if input_layer is None:
         input_layer = gfo.get_only_layer(input_path)
-    if output_path.exists():
-        if force is False:
-            logger.info(f"Stop, output exists already {output_path}")
-            return
-        else:
-            gfo.remove(output_path)
+    if _io_util.output_exists(path=output_path, remove_if_exists=force):
+        return
     if input_layer is None:
         input_layer = gfo.get_only_layer(input_path)
     if output_layer is None:
@@ -743,7 +746,7 @@ def _apply_geooperation_to_layer(
             input_layer=input_layer,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
-            parallelization_config=None,
+            parallelization_config=parallelization_config,
             tmp_dir=tmp_dir,
         )
         assert processing_params.batches is not None
@@ -766,8 +769,6 @@ def _apply_geooperation_to_layer(
 
             batches: Dict[int, dict] = {}
             future_to_batch_id = {}
-            nb_batches = len(processing_params.batches)
-            nb_done = 0
 
             for batch_id, batch_filter in enumerate(processing_params.batches):
                 batches[batch_id] = {}
@@ -808,6 +809,8 @@ def _apply_geooperation_to_layer(
             # Remark: calculating can be done in parallel, but only one process
             # can write to the same output file at the time...
             start_time = datetime.now()
+            nb_done = 0
+            nb_batches = len(processing_params.batches)
             _general_util.report_progress(
                 start_time,
                 nb_done,
@@ -860,19 +863,25 @@ def _apply_geooperation_to_layer(
                 # Log the progress and prediction speed
                 nb_done += 1
                 _general_util.report_progress(
-                    start_time, nb_done, nb_batches, operation.value, nb_parallel
+                    start_time,
+                    nb_done,
+                    nb_todo=nb_batches,
+                    operation=operation.value,
+                    nb_parallel=processing_params.nb_parallel,
                 )
 
         # Round up and clean up
         # Now create spatial index and move to output location
         if tmp_output_path.exists():
-            gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
+            if GeofileInfo(tmp_output_path).default_spatial_index:
+                gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
             gfo.move(tmp_output_path, output_path)
         else:
             logger.debug("Result was empty")
 
     finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
+        if ConfigOptions.remove_temp_files:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
     logger.info(f"Ready, took {datetime.now()-start_time_global}")
 
@@ -888,11 +897,13 @@ def _apply_geooperation(
     where=None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    keep_empty_geoms: bool = True,
+    keep_empty_geoms: bool = False,
     preserve_fid: bool = False,
     force: bool = False,
 ) -> str:
     # Init
+    if not output_path.parent.exists():
+        raise ValueError(f"Output directory does not exist: {output_path.parent}")
     if output_path.exists():
         if force is False:
             message = f"Stop, output exists already {output_path}"
@@ -939,10 +950,6 @@ def _apply_geooperation(
         else:
             raise ValueError(f"operation not supported: {operation}")
 
-    # Set empty geometries to null/None
-    assert data_gdf.geometry is not None
-    data_gdf.loc[data_gdf.geometry.is_empty, ["geometry"]] = None
-
     # If there is an fid column in the dataset, rename it, because the fid column is a
     # "special case" in gdal that should not be written.
     assert isinstance(data_gdf, gpd.GeoDataFrame)
@@ -953,40 +960,44 @@ def _apply_geooperation(
             new_name = f"{fid_column}_{fid_number}"
             if new_name not in columns_lower_lookup:
                 data_gdf = data_gdf.rename(columns={fid_column: new_name}, copy=False)
-    if explodecollections:
-        data_gdf = data_gdf.explode(ignore_index=True)
 
     if gridsize != 0.0:
         data_gdf.geometry = _geoseries_util.set_precision(
             data_gdf.geometry, grid_size=gridsize, raise_on_topoerror=False
         )
 
-    # Remove rows where geom is None/null/empty
+    if explodecollections:
+        data_gdf = data_gdf.explode(ignore_index=True)
+
+    # Set empty geometries to None
+    data_gdf.loc[data_gdf.geometry.is_empty, data_gdf.geometry.name] = None
+
     if not keep_empty_geoms:
-        assert isinstance(data_gdf, gpd.GeoDataFrame)
+        # Remove rows where geometry is None
         data_gdf = data_gdf[~data_gdf.geometry.isna()]
-        data_gdf = data_gdf[~data_gdf.geometry.is_empty]
 
     # If the result is empty, and no output geometrytype specified, use input
     # geometrytype
     force_output_geometrytype = None
     if len(data_gdf) == 0:
         input_layerinfo = gfo.get_layerinfo(input_path, input_layer)
-        force_output_geometrytype = input_layerinfo.geometrytype.to_multitype.name
+        force_output_geometrytype = input_layerinfo.geometrytype
+        if not explodecollections:
+            force_output_geometrytype = force_output_geometrytype.to_multitype
 
     # If the index is still unique, save it to fid column so to_file can save it
     if preserve_fid:
         data_gdf = data_gdf.reset_index(drop=False)
 
-    # Use force_multitype, to avoid warnings when some batches contain
-    # singletype and some contain multitype geometries
+    # Use force_multitype if explodecollections=False to avoid warnings/issues when some
+    # batches contain singletype and some contain multitype geometries
     gfo.to_file(
         gdf=data_gdf,
         path=output_path,
         layer=output_layer,
         index=False,
         force_output_geometrytype=force_output_geometrytype,
-        force_multitype=True,
+        force_multitype=not explodecollections,
         create_spatial_index=False,
     )
 
@@ -1010,7 +1021,7 @@ def dissolve(
     batchsize: int = -1,
     force: bool = False,
     operation_prefix: str = "",
-) -> dict:
+):
     """
     Function that applies a dissolve.
 
@@ -1022,10 +1033,8 @@ def dissolve(
     """
     # Init and validate input parameters
     # ----------------------------------
-    start_time = datetime.now()
     operation_name = f"{operation_prefix}dissolve"
     logger = logging.getLogger(f"geofileops.{operation_name}")
-    result_info = {}
 
     # Check input parameters
     if groupby_columns is not None and len(list(groupby_columns)) == 0:
@@ -1052,15 +1061,17 @@ def dissolve(
         output_layer = gfo.get_default_layer(output_path)
 
     # Check columns in groupby_columns
+    columns_available = list(input_layerinfo.columns) + ["fid"]
     if groupby_columns is not None:
-        columns_in_layer_upper = [
-            column.upper() for column in list(input_layerinfo.columns) + ["fid"]
-        ]
+        columns_in_layer_upper = [column.upper() for column in columns_available]
         for column in groupby_columns:
             if column.upper() not in columns_in_layer_upper:
                 raise ValueError(
                     f"column in groupby_columns not available in layer: {column}"
                 )
+        columns_available = _general_util.align_casing_list(
+            columns_available, groupby_columns, raise_on_missing=False
+        )
 
     # Check agg_columns param
     if agg_columns is not None:
@@ -1074,31 +1085,24 @@ def dissolve(
         if "json" in agg_columns:
             if agg_columns["json"] is None:
                 agg_columns["json"] = [
-                    col for col in input_layerinfo.columns if col.upper() != "INDEX"
+                    c for c in columns_available if c.lower() not in ("index", "fid")
                 ]
             else:
                 # Align casing of column names to data
                 agg_columns["json"] = _general_util.align_casing_list(
-                    agg_columns["json"], list(input_layerinfo.columns) + ["fid"]
+                    agg_columns["json"], columns_available
                 )
         elif "columns" in agg_columns:
             # Loop through all rows
             for agg_column in agg_columns["columns"]:
                 # Check if column exists + set casing same as in data
                 agg_column["column"] = _general_util.align_casing(
-                    agg_column["column"], list(input_layerinfo.columns) + ["fid"]
+                    agg_column["column"], columns_available
                 )
 
     # Now input parameters are checked, check if we need to calculate anyway
-    if output_path.exists():
-        if force is False:
-            result_info[
-                "message"
-            ] = f"Stop, output exists already {output_path} and force is false"
-            logger.info(result_info["message"])
-            return result_info
-        else:
-            gfo.remove(output_path)
+    if _io_util.output_exists(path=output_path, remove_if_exists=force):
+        return
 
     # Now start dissolving
     # --------------------
@@ -1195,6 +1199,11 @@ def dissolve(
             logger.info(f"Start, with input {input_path}")
             input_pass_layer: Optional[str] = input_layer
             while True:
+                # If input_path does not exist, the last pass didn't have any onborder
+                # polygons as result, so we are ready dissolving...
+                if not input_path.exists():
+                    break
+
                 # Get info of the current file that needs to be dissolved
                 input_pass_layerinfo = gfo.get_layerinfo(input_path, input_pass_layer)
                 nb_rows_total = input_pass_layerinfo.featurecount
@@ -1225,9 +1234,15 @@ def dissolve(
                     if prev_nb_batches is not None:
                         nb_squarish_tiles_max = max(prev_nb_batches - 1, 1)
                         nb_batches = min(nb_batches, nb_squarish_tiles_max)
+                    grid_total_bounds = (
+                        input_pass_layerinfo.total_bounds[0] - 0.000001,
+                        input_pass_layerinfo.total_bounds[1] - 0.000001,
+                        input_pass_layerinfo.total_bounds[2] + 0.000001,
+                        input_pass_layerinfo.total_bounds[3] + 0.000001,
+                    )
                     tiles_gdf = gpd.GeoDataFrame(
                         geometry=pygeoops.create_grid2(
-                            total_bounds=input_pass_layerinfo.total_bounds,
+                            total_bounds=grid_total_bounds,
                             nb_squarish_tiles=nb_batches,
                             nb_squarish_tiles_max=nb_squarish_tiles_max,
                         ),
@@ -1294,6 +1309,7 @@ def dissolve(
                     break
 
             # Calculation ready! Now finalise output!
+            logger.info("Finalize result")
             # If there is a result on border, append it to the rest
             if (
                 str(output_tmp_onborder_path) != str(output_tmp_path)
@@ -1399,7 +1415,6 @@ def dissolve(
                 # All tiles are already dissolved to groups, but now the
                 # results from all tiles still need to be
                 # grouped/collected together.
-                logger.info("Finalize result")
                 if agg_columns is None:
                     # If there are no aggregation columns, things are not too
                     # complicated.
@@ -1476,14 +1491,24 @@ def dissolve(
                 sql_stmt = sql_stmt.format(
                     geometrycolumn="geom", input_layer=output_layer
                 )
-                create_spatial_index = True if where_post is None else False
+
+                create_spatial_index = (
+                    GeofileInfo(output_tmp2_final_path).default_spatial_index
+                    if where_post is None
+                    else False
+                )
+                output_geometrytype = (
+                    input_layerinfo.geometrytype.to_singletype
+                    if explodecollections
+                    else input_layerinfo.geometrytype.to_multitype
+                )
                 _ogr_util.vector_translate(
                     input_path=output_tmp_path,
                     output_path=output_tmp2_final_path,
                     output_layer=output_layer,
                     sql_stmt=sql_stmt,
                     sql_dialect="SQLITE",
-                    force_output_geometrytype=input_layerinfo.geometrytype,
+                    force_output_geometrytype=output_geometrytype,
                     explodecollections=explodecollections,
                     options={"LAYER_CREATION.SPATIAL_INDEX": create_spatial_index},
                 )
@@ -1506,10 +1531,9 @@ def dissolve(
                         input_path=output_tmp2_final_path,
                         output_path=output_tmp3_where_path,
                         output_layer=output_layer,
-                        force_output_geometrytype=input_layerinfo.geometrytype,
+                        force_output_geometrytype=output_geometrytype,
                         sql_stmt=sql_stmt,
                         sql_dialect="SQLITE",
-                        options={"LAYER_CREATION.SPATIAL_INDEX": True},
                     )
                     output_tmp2_final_path = output_tmp3_where_path
 
@@ -1517,16 +1541,12 @@ def dissolve(
                 gfo.move(output_tmp2_final_path, output_path)
 
         finally:
-            shutil.rmtree(tempdir, ignore_errors=True)
+            if ConfigOptions.remove_temp_files:
+                shutil.rmtree(tempdir, ignore_errors=True)
     else:
         raise NotImplementedError(
             f"Unsupported input geometrytype: {input_layerinfo.geometrytype}"
         )
-
-    # Return result info
-    result_info["message"] = f"Ready, took {datetime.now()-start_time}"
-    logger.info(result_info["message"])
-    return result_info
 
 
 def _dissolve_polygons_pass(
@@ -1842,16 +1862,19 @@ def _dissolve_polygons(
 
         perfinfo["time_clip"] = (datetime.now() - start_clip).total_seconds()
 
-    # Set empty geometries to null/None
-    assert diss_gdf.geometry is not None
-    diss_gdf.loc[
-        diss_gdf.geometry.is_empty, ["geometry"]  # type: ignore[union-attr]
-    ] = None
+    if gridsize != 0.0:
+        diss_gdf.geometry = _geoseries_util.set_precision(
+            diss_gdf.geometry, grid_size=gridsize, raise_on_topoerror=False
+        )
+        assert isinstance(diss_gdf.geometry, gpd.GeoSeries)
 
-    # Remove rows where geom is None/null/empty
+    # Set empty geometries to None
+    diss_gdf.loc[diss_gdf.geometry.is_empty, diss_gdf.geometry.name] = None
+
     if not keep_empty_geoms:
+        # Remove rows where geom is None
         assert isinstance(diss_gdf, gpd.GeoDataFrame)
-        diss_gdf = diss_gdf[~diss_gdf.geometry.isna()]  # type: ignore[union-attr]
+        diss_gdf = diss_gdf[~diss_gdf.geometry.isna()]
 
     # If there is no result, return
     if len(diss_gdf) == 0:
@@ -1865,11 +1888,6 @@ def _dissolve_polygons(
     assert isinstance(diss_gdf, gpd.GeoDataFrame)
     if tile_id is not None:
         diss_gdf["tile_id"] = tile_id
-
-    if gridsize != 0.0:
-        diss_gdf.geometry = _geoseries_util.set_precision(
-            diss_gdf.geometry, grid_size=gridsize, raise_on_topoerror=False
-        )
 
     # Save the result to destination file(s)
     start_to_file = datetime.now()
@@ -2050,9 +2068,7 @@ def _dissolve(
         agg_columns = list(set(aggfunc["to_json"]))
         agg_data = (
             data.groupby(**groupby_kwargs)
-            .apply(
-                lambda g: g[agg_columns].to_json(orient="records")
-            )  # type: ignore[index]
+            .apply(lambda g: g[agg_columns].to_json(orient="records"))
             .to_frame(name="__DISSOLVE_TOJSON")
         )
     elif isinstance(aggfunc, str) and aggfunc == "merge_json_lists":

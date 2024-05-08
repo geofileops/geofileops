@@ -12,8 +12,10 @@ import sqlite3
 import tempfile
 from typing import Dict, List, Optional, Union
 
+from pygeoops import GeometryType
+
 import geofileops as gfo
-from geofileops import GeometryType
+from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util._general_util import MissingRuntimeDependencyError
 from geofileops.util import _sqlite_userdefined as sqlite_userdefined
 
@@ -54,6 +56,9 @@ def spatialite_version_info() -> Dict[str, str]:
         result = conn.execute(sql).fetchall()
         spatialite_version = result[0][0]
         geos_version = result[0][1]
+    except MissingRuntimeDependencyError:
+        conn.rollback()
+        raise
     except Exception as ex:
         conn.rollback()
         raise RuntimeError(f"Error {ex} executing {sql}") from ex
@@ -222,7 +227,7 @@ def get_columns(
                 # Use ST_GeometryType to get the type
                 # based on the data + apply to_multitype to be sure
                 if output_geometrytype is None:
-                    sql = f"SELECT ST_GeometryType({columnname}) FROM tmp;"
+                    sql = f'SELECT ST_GeometryType("{columnname}") FROM tmp;'
                     result = conn.execute(sql).fetchall()
                     if len(result) > 0 and result[0][0] is not None:
                         output_geometrytype = GeometryType[result[0][0]].to_multitype
@@ -233,7 +238,7 @@ def get_columns(
                 # If PRAGMA TABLE_INFO doesn't specify the datatype, determine based
                 # on data.
                 if columntype is None or columntype == "":
-                    sql = f"SELECT typeof({columnname}) FROM tmp;"
+                    sql = f'SELECT typeof("{columnname}") FROM tmp;'
                     result = conn.execute(sql).fetchall()
                     if len(result) > 0 and result[0][0] is not None:
                         columns[columnname] = result[0][0]
@@ -266,7 +271,8 @@ def get_columns(
         raise RuntimeError(f"Error {ex} executing {sql}") from ex
     finally:
         conn.close()
-        shutil.rmtree(tmp_dir, ignore_errors=True)
+        if ConfigOptions.remove_temp_files:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
     return columns
 
@@ -508,6 +514,7 @@ def create_table_as_sql(
 
                 # If there is a geometry column, register it
                 if "geom" in column_types:
+                    assert output_geometrytype is not None
                     sql = f"""
                         INSERT INTO {output_databasename}.gpkg_geometry_columns (
                             table_name, column_name, geometry_type_name, srs_id, z, m)
@@ -523,6 +530,7 @@ def create_table_as_sql(
             elif output_suffix_lower == ".sqlite":
                 # Create geom metadata if there is one
                 if "geom" in column_types:
+                    assert output_geometrytype is not None
                     sql = f"""
                         SELECT RecoverGeometryColumn(
                           '{output_layer}', 'geom',
@@ -568,7 +576,7 @@ def create_table_as_sql(
                                 ,ST_MaxY(geom)
                             FROM "{output_layer}"
                            WHERE geom IS NOT NULL
-                             AND NOT ST_IsEmpty(geom)
+                             AND ST_IsEmpty(geom) = 0
                     """
                     conn.execute(sql)
                 elif output_suffix_lower == ".sqlite":
@@ -691,6 +699,13 @@ def load_spatialite(conn):
         "GFO_ReducePrecision",
         -1,
         sqlite_userdefined.gfo_reduceprecision,
+        deterministic=True,
+    )
+
+    conn.create_function(
+        "GFO_Split",
+        -1,
+        sqlite_userdefined.gfo_split,
         deterministic=True,
     )
 

@@ -4,6 +4,7 @@ Module containing some general utilities.
 
 import datetime
 import logging
+import os
 from typing import Any, Dict, Iterable, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -42,17 +43,20 @@ def align_casing(string_to_align: str, strings_to_align_to: Iterable) -> str:
 
 
 def align_casing_list(
-    strings_to_align: List[str], strings_to_align_to: Iterable
+    strings_to_align: List[str],
+    strings_to_align_to: Iterable,
+    raise_on_missing: bool = True,
 ) -> List[str]:
     """
     Search the string caseintensitive in a list of strings.
-
-    If a string is not found in strings_to_align_to, a ValueError is thrown.
 
     Args:
         strings_to_align (List[str]): strings to align the casing of to
             strings_to_align_to.
         strings_to_align_to (Iterable): strings to align the casing with.
+        raise_on_missing (bool, optional): if True, a ValueError is raised if a string
+            in ``strings_to_align`` is not found in ``strings_to_align_to``. If False,
+            the casing in ``strings_to_align`` is retained in the output.
 
     Raises:
         ValueError: a string in strings_to_align was nog found in strings_to_align_to.
@@ -68,8 +72,11 @@ def align_casing_list(
         string_aligned = strings_to_align_to_upper_dict.get(string.upper())
         if string_aligned is not None:
             strings_aligned.append(string_aligned)
-        else:
+        elif raise_on_missing:
             raise ValueError(f"{string} not available in: {strings_to_align_to}")
+        else:
+            strings_aligned.append(string)
+
     return strings_aligned
 
 
@@ -175,3 +182,40 @@ def prepare_for_serialize(data: dict) -> dict:
             prepared[key] = str(value)
 
     return prepared
+
+
+class TempEnv:
+    """
+    Context manager to temporarily set/change environment variables.
+
+    Existing values for variables are backed up and reset when the scope is left,
+    variables that didn't exist before are deleted again.
+
+    Args:
+        envs (Dict[str, Any]): dict with environment variables to set.
+    """
+
+    def __init__(self, envs: Dict[str, Any]):
+        self._envs_backup: Dict[str, str] = {}
+        self._envs = envs
+
+    def __enter__(self):
+        # Only if a name and value is specified...
+        for name, value in self._envs.items():
+            # If the environment variable is already defined, make backup
+            if name in os.environ:
+                self._envs_backup[name] = os.environ[name]
+
+            # Set env variable to value
+            os.environ[name] = str(value)
+
+    def __exit__(self, type, value, traceback):
+        # Set variables that were backed up back to original value
+        for name, value in self._envs_backup.items():
+            # Recover backed up value
+            os.environ[name] = value
+        # For variables without backup, remove them
+        for name, value in self._envs.items():
+            if name not in self._envs_backup:
+                if name in os.environ:
+                    del os.environ[name]

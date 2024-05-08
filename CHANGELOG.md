@@ -1,15 +1,75 @@
 # CHANGELOG
 
-## 0.8.0 (???)
+## 0.9.0 (???)
 
-## Improvements
+### Deprecations and compatibility notes
+
+- Set the default value of `keep_empty_geoms` to `False` for all standard operations.
+  This changes the default for `make_valid` and in some cases for `simplify`. The only
+  exception is `select`, where the default stays `True`. (#472, #499)
+- Up to now, geofileops always tried to create spatial indexes on output files. For some
+  formats this has disadvantages thought. Hence, and for consistency, from now on the
+  default behaviour regarding spatial index creation of GDAL will be followed. E.g.
+  default a spatial index for "GPKG", but no index for "ESRI Shapefile". (#511)
+- The default filter clause for `export_by_location` is now "intersects is True" while 
+  in previous versions it was "intersects is True and touches is False", to be in line with `join_by_location`, other libraries and use for non-polygon data. (#508)
+- When `join_by_location` was applied, a column "spatial_relation" with the spatial
+  relation between the geometries was added. This is no longer the case. (#475)
+
+### Improvements
+
+- Add support for self-overlays in overlay operations (#468)
+- Add support for a spatial query in `export_by_location` (#508)
+- Improve `dissolve_within_distance` results (#494)
+- Improve performance of `join_by_location` for relation "intersects is True" and for 
+  complex polygon features in layer to compare with (#502, #519)
+- Improve handling of queries evaluating to True for disjoint features in
+  `join_by_location` (#509)
+- Make fiona an optional depencency (#301)
+- Add configuration option GFO_REMOVE_TEMP_FILES that can be used to avoid temp files
+  being removed for debugging purposes (#480)
+- Add a context manager, TempEnv, to set temporary env variables (#481)
+- Don't copy both input files if only one is not spatialite based in two layer
+  operations (#247)
+- Several improvements to documentation: new FAQ, improved user guide,...
+  (#465, #469, #474)
+- Linting improvements: use mypy + use ruff-format instead of black for formatting
+  (#478, #479)
+- If an output_dir doesn't exist yet, avoid processing being done before an error is raised... (#518)
+
+### Bugs fixed
+
+- Fix crash when using e.g. `erase` with `gridsize <> 0.0` specified on input file
+  containing an EMPTY geometry (#470)
+- Fix `dissolve` possibly having EMPTY geometries as output if `gridsize <> 0.0` (#473)
+- Fix wrong results from `join_by_location` if ran on result of `join_by_location`
+  with `column_prefixes=""` (#475)
+- Fix error in two layer operations if equal column aliases used based on a constant or
+  a function result (#477)
+- Fix `erase` (and depending two layer operations like `union`,...) giving wrong results
+  if `subdivide_coords` < 1 (#489)
+- Fix two-layer operations with `gridsize` sometimes outputting NULL geometries (#495)
+
+## 0.8.1 (2024-01-13)
+
+### Bugs fixed
+
+- Fix error in `erase` if `erase_path` countains multiple layers (#451)
+- Fix error in `dissolve` on polygon input if a pass that is not the last one has 0 
+  onborder polygons in its result (#459, #461)
+- Fix `groupby` parameter becoming case sensitive in `dissolve` when `agg_columns` is
+  also specified (#462)
+
+## 0.8.0 (2023-11-24)
+
+### Improvements
 
 - Add support to read/add/remove embedded layer styles in gpkg (#263)
 - Add `gridsize` parameter to most spatial operations (#261, #407, #413)
 - Add `keep_empty_geoms` and `where_post` parameters to many single layer spatial operations
   (#262, #398)
 - Add `where_post` parameter to many two layer spatial operations (#312)
-- Add `where` parameter to `copy_layer` and `append_to` (#311)
+- Add `columns`, `sql` and `where` parameters to `copy_layer` and `append_to` (#311, #432)
 - Add `dissolve_within_distance` operation (#409)
 - Add support for lang+ algorithm in `simplify` (#334)
 - Add support to use `select` and `select_two_layers` on attribute tables (= tables
@@ -28,7 +88,7 @@
   applying on-the-fly subdividing of complex geometries to speed up processing. The new
   parameter `subdivide_coords` can be used to control the feature. For files with very
   large input geometries, up to 100x faster + 10x less memory usage.
-  (#329, #330, #331, #357, #396)
+  (#329, #330, #331, #357, #396, #427, #438, #446)
 - Improve performance of spatial operations when only one batch is used (#271)
 - Improve performance of single layer operations (#375)
 - Improve performance of some geopandas/shapely based operations (#342, #408)
@@ -41,7 +101,7 @@
 - Improve handling + tests regarding empty input layers/NULL geometries (#320)
 - Improve logging: use geo operation being executed as `logger name` (#410)
 - Many small improvements to logging, documentation, (gdal)error messages,...
-  (#321, #366, #394,...)
+  (#321, #366, #394, #439,...)
 - Use smaller footprint conda packages for tests (use `geopandas-base`, `nomkl`) (#377)
 - Use ruff instead of flake8 for linting (#317)
 
@@ -54,6 +114,7 @@
 - Fix error in `read_file` when `read_geometry=False` and `columns` specified (#393)
 - Fix error in `copy_layer`/`convert` with `explodecollections` on some input files
   (#395)
+- Fix dissolve forcing output to wrong geometrytype in some cases (#424)
 
 ### Deprecations and compatibility notes
 

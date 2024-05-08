@@ -15,6 +15,7 @@ import shapely.geometry as sh_geom
 import geofileops as gfo
 from geofileops import GeometryType
 from geofileops.util import _geofileinfo
+from geofileops.util._geofileinfo import GeofileInfo
 from geofileops.util import _geometry_util
 from geofileops.util import _geoops_gpd as geoops_gpd
 from tests import test_helper
@@ -25,6 +26,7 @@ from tests.test_helper import (
     WHERE_LENGTH_GT_1000,
     WHERE_LENGTH_GT_200000,
     WHERE_AREA_GT_5000,
+    assert_geodataframe_equal,
 )
 
 
@@ -42,8 +44,16 @@ def test_apply(
     # Prepare test data
     test_gdf = gpd.GeoDataFrame(
         data=[
-            {"uidn": 1, "geometry": test_helper.TestData.polygon_small_island},
-            {"uidn": 2, "geometry": test_helper.TestData.polygon_with_island},
+            {
+                "uidn": 1,
+                "min_area": 2,
+                "geometry": test_helper.TestData.polygon_small_island,
+            },
+            {
+                "uidn": 2,
+                "min_area": 2,
+                "geometry": test_helper.TestData.polygon_with_island,
+            },
         ],
         crs=31370,
     )
@@ -55,35 +65,31 @@ def test_apply(
 
     # Run test
     if only_geom_input:
-        gfo.apply(
-            input_path=input_path,
-            output_path=output_path,
-            func=lambda geom: pygeoops.remove_inner_rings(
-                geometry=geom, min_area_to_keep=2, crs=input_layerinfo.crs
-            ),
-            only_geom_input=True,
-            gridsize=gridsize,
-            keep_empty_geoms=keep_empty_geoms,
-            where_post=where_post,
-            batchsize=batchsize,
+        func = lambda geom: pygeoops.remove_inner_rings(
+            geometry=geom, min_area_to_keep=2, crs=input_layerinfo.crs
         )
     else:
-        gfo.apply(
-            input_path=input_path,
-            output_path=output_path,
-            func=lambda row: pygeoops.remove_inner_rings(
-                row.geometry, min_area_to_keep=2, crs=input_layerinfo.crs
-            ),
-            only_geom_input=False,
-            gridsize=gridsize,
-            keep_empty_geoms=keep_empty_geoms,
-            where_post=where_post,
-            batchsize=batchsize,
+        func = lambda row: pygeoops.remove_inner_rings(
+            row.geometry,
+            min_area_to_keep=row.min_area,
+            crs=input_layerinfo.crs,
         )
+
+    gfo.apply(
+        input_path=str(input_path),
+        output_path=str(output_path),
+        func=func,
+        only_geom_input=only_geom_input,
+        gridsize=gridsize,
+        keep_empty_geoms=keep_empty_geoms,
+        where_post=where_post,
+        batchsize=batchsize,
+    )
 
     # Now check if the output file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
 
     # Read result for some more detailed checks
     output_gdf = gfo.read_file(output_path).sort_values("uidn").reset_index(drop=True)
@@ -130,9 +136,17 @@ def test_apply_None(tmp_path, suffix, only_geom_input, force_output_geometrytype
     # Prepare test data
     test_gdf = gpd.GeoDataFrame(
         data=[
-            {"id": 1, "geometry": test_helper.TestData.polygon_small_island},
-            {"id": 2, "geometry": test_helper.TestData.polygon_with_island},
-            {"id": 3, "geometry": None},
+            {
+                "id": 1,
+                "min_area": 2,
+                "geometry": test_helper.TestData.polygon_small_island,
+            },
+            {
+                "id": 2,
+                "min_area": 2,
+                "geometry": test_helper.TestData.polygon_with_island,
+            },
+            {"id": 3, "min_area": 2, "geometry": None},
         ],
         crs=31370,
     )
@@ -143,31 +157,27 @@ def test_apply_None(tmp_path, suffix, only_geom_input, force_output_geometrytype
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
     if only_geom_input:
-        gfo.apply(
-            input_path=input_path,
-            output_path=output_path,
-            func=lambda geom: pygeoops.remove_inner_rings(
-                geometry=geom, min_area_to_keep=2, crs=input_layerinfo.crs
-            ),
-            only_geom_input=True,
-            force_output_geometrytype=force_output_geometrytype,
-            batchsize=batchsize,
+        func = lambda geom: pygeoops.remove_inner_rings(
+            geometry=geom, min_area_to_keep=2, crs=input_layerinfo.crs
         )
     else:
-        gfo.apply(
-            input_path=input_path,
-            output_path=output_path,
-            func=lambda row: pygeoops.remove_inner_rings(
-                row.geometry, min_area_to_keep=2, crs=input_layerinfo.crs
-            ),
-            only_geom_input=False,
-            force_output_geometrytype=force_output_geometrytype,
-            batchsize=batchsize,
+        func = lambda row: pygeoops.remove_inner_rings(
+            row.geometry, min_area_to_keep=row.min_area, crs=input_layerinfo.crs
         )
+
+    gfo.apply(
+        input_path=input_path,
+        output_path=output_path,
+        func=func,
+        only_geom_input=only_geom_input,
+        force_output_geometrytype=force_output_geometrytype,
+        batchsize=batchsize,
+    )
 
     # Now check if the output file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
 
     # Read result for some more detailed checks
     output_gdf = gfo.read_file(output_path).sort_values("id").reset_index(drop=True)
@@ -230,8 +240,8 @@ def test_buffer_styles(tmp_path, suffix, epsg):
 
     # Run standard buffer to compare with
     gfo.buffer(
-        input_path=input_path,
-        output_path=output_path,
+        input_path=str(input_path),
+        output_path=str(output_path),
         distance=distance,
         batchsize=batchsize,
     )
@@ -257,7 +267,7 @@ def test_buffer_styles(tmp_path, suffix, epsg):
     # Now check if the output file is correctly created
     assert output_path.exists()
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert input_layerinfo.featurecount == output_layerinfo.featurecount
+    assert input_layerinfo.featurecount == output_layerinfo.featurecount + 1
     assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
 
@@ -272,9 +282,9 @@ def test_buffer_styles(tmp_path, suffix, epsg):
 @pytest.mark.parametrize(
     "epsg, gridsize, explodecollections, where_post",
     [
-        (31370, 0.001, True, WHERE_LENGTH_GT_1000),
-        (31370, 0.001, False, WHERE_LENGTH_GT_200000),
-        (31370, 0.001, True, ""),
+        (31370, 0.01, True, WHERE_LENGTH_GT_1000),
+        (31370, 0.01, False, WHERE_LENGTH_GT_200000),
+        (31370, 0.01, True, ""),
         (4326, 0.0, False, None),
     ],
 )
@@ -294,8 +304,8 @@ def test_dissolve_linestrings(
         output_basepath.parent / f"{output_basepath.stem}_expl{output_basepath.suffix}"
     )
     gfo.dissolve(
-        input_path=input_path,
-        output_path=output_path,
+        input_path=str(input_path),
+        output_path=str(output_path),
         explodecollections=explodecollections,
         gridsize=gridsize,
         where_post=where_post,
@@ -304,7 +314,8 @@ def test_dissolve_linestrings(
 
     # Check if the result file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.geometrytype in [
         GeometryType.LINESTRING,
@@ -355,10 +366,10 @@ def test_dissolve_linestrings_groupby(tmp_path, suffix, epsg):
         output_basepath.parent
         / f"{output_basepath.stem}_groupby_noexpl{output_basepath.suffix}"
     )
-    groupby_columns = ["NISCODE"]
+    groupby_columns = ["NiScoDe"]
     gfo.dissolve(
-        input_path=input_path,
-        output_path=output_path,
+        input_path=str(input_path),
+        output_path=str(output_path),
         groupby_columns=groupby_columns,
         explodecollections=False,
         batchsize=batchsize,
@@ -516,24 +527,27 @@ def test_dissolve_linestrings_aggcolumns_json(tmp_path, agg_columns):
 
 
 @pytest.mark.parametrize(
-    "suffix, epsg, groupby_columns, explode, gridsize, where_post, "
+    "suffix, epsg, explode_input, groupby_columns, explode, gridsize, where_post, "
     "expected_featurecount",
     [
-        (".gpkg", 31370, ["GEWASGROEP"], True, 0.0, "", 25),
-        (".gpkg", 31370, ["GEWASGROEP"], False, 0.0, "", 6),
-        (".gpkg", 31370, ["gewasGROEP"], False, 0.01, WHERE_AREA_GT_5000, 4),
-        (".gpkg", 31370, ["gewasGROEP"], True, 0.01, WHERE_AREA_GT_5000, 13),
-        (".gpkg", 31370, [], True, 0.0, None, 23),
-        (".gpkg", 31370, None, False, 0.0, None, 1),
-        (".gpkg", 4326, ["GEWASGROEP"], True, 0.0, None, 25),
-        (".shp", 31370, ["GEWASGROEP"], True, 0.0, None, 25),
-        (".shp", 31370, [], True, 0.0, None, 23),
+        (".gpkg", 31370, False, ["GEWASgroep"], True, 0.0, "", 26),
+        (".gpkg", 31370, False, ["GEWASgroep"], True, 0.01, "", 25),
+        (".gpkg", 31370, False, ["GEWASGROEP"], False, 0.0, "", 6),
+        (".gpkg", 31370, True, ["GEWASGROEP"], False, 0.0, "", 6),
+        (".gpkg", 31370, False, ["gewasGROEP"], False, 0.01, WHERE_AREA_GT_5000, 4),
+        (".gpkg", 31370, False, ["gewasGROEP"], True, 0.01, WHERE_AREA_GT_5000, 13),
+        (".gpkg", 31370, False, [], True, 0.0, None, 24),
+        (".gpkg", 31370, False, None, False, 0.0, None, 1),
+        (".gpkg", 4326, False, ["GEWASGROEP"], True, 0.0, None, 26),
+        (".shp", 31370, False, ["GEWASGROEP"], True, 0.0, None, 26),
+        (".shp", 31370, False, [], True, 0.0, None, 24),
     ],
 )
 def test_dissolve_polygons(
     tmp_path,
     suffix,
     epsg,
+    explode_input,
     groupby_columns,
     explode,
     gridsize,
@@ -541,7 +555,21 @@ def test_dissolve_polygons(
     expected_featurecount,
 ):
     # Prepare test data
-    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
+    test_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
+    if explode_input:
+        # A bug caused in the past that the output was forced to the same type as the
+        # input. If input was simple Polygon, this cause invalid output because
+        # MultiPolygons were forced to Simple Polygons.
+        input_path = tmp_path / f"input{suffix}"
+        gfo.copy_layer(
+            src=test_path,
+            dst=input_path,
+            explodecollections=True,
+            force_output_geometrytype=GeometryType.POLYGON,
+        )
+    else:
+        input_path = test_path
+
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
@@ -563,7 +591,9 @@ def test_dissolve_polygons(
 
     # Now check if the tmp file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
+    assert gfo.isvalid(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == expected_featurecount
     if groupby is True:
@@ -575,7 +605,12 @@ def test_dissolve_polygons(
             assert len(output_layerinfo.columns) == 0
     else:
         assert len(output_layerinfo.columns) == len(groupby_columns)
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+
+    if not explode or suffix == ".shp":
+        # Shapefile always returns MultiPolygon
+        assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+    else:
+        assert output_layerinfo.geometrytype == GeometryType.POLYGON
 
     # Now check the contents of the result file
     input_gdf = gfo.read_file(input_path)
@@ -606,8 +641,8 @@ def test_dissolve_polygons(
 
     # Small differences with the geopandas result are expected, because gfo
     # adds points in the tiling process. So only basic checks possible.
-    # output_gdf.geometry = output_gdf.geometry.simplify(0.1)
-    # expected_gdf.geometry = expected_gdf.geometry.simplify(0.1)
+    # output_gdf.geometry = output_gdf.geometry.simplify(0.01)
+    # expected_gdf.geometry = expected_gdf.geometry.simplify(0.01)
     # assert_geodataframe_equal(
     #     output_gdf, expected_gdf, promote_to_multi=True, sort_values=True,
     #     normalize=True, check_less_precise=True
@@ -619,6 +654,26 @@ def test_dissolve_polygons(
     output_area = output_gdf.geometry.area.sort_values().reset_index(drop=True)
     expected_area = expected_gdf.geometry.area.sort_values().reset_index(drop=True)
     pd.testing.assert_series_equal(output_area, expected_area)
+
+
+def test_dissolve_empty_onborder_result(tmp_path):
+    """
+    Test case where the 1st pass of dissolve does not result in any onborder features.
+    """
+    test_gdf = gpd.GeoDataFrame(
+        geometry=[sh_geom.box(5, 5, 10, 10), sh_geom.box(20, 5, 25, 10)], crs=31370
+    )
+    test_path = tmp_path / "test.gpkg"
+    gfo.to_file(test_gdf, test_path)
+
+    output_path = tmp_path / "output.gpkg"
+    gfo.dissolve(
+        test_path, output_path=output_path, explodecollections=True, batchsize=1
+    )
+
+    assert output_path.exists()
+    output_gdf = gfo.read_file(output_path)
+    assert_geodataframe_equal(test_gdf, output_gdf, normalize=True, sort_values=True)
 
 
 @pytest.mark.parametrize("explodecollections", [True, False])
@@ -769,7 +824,7 @@ def test_dissolve_polygons_groupby_None(tmp_path):
     # Now check if the tmp file is correctly created
     assert output_path.exists()
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+    assert output_layerinfo.geometrytype == GeometryType.POLYGON
     assert (
         output_layerinfo.columns["none_values"].gdal_type
         == input_layerinfo.columns["none_values"].gdal_type
@@ -810,10 +865,10 @@ def test_dissolve_polygons_specialcases(tmp_path, suffix):
     if output_path.suffix.lower() != ".shp":
         assert output_path.exists()
         output_layerinfo = gfo.get_layerinfo(output_path)
-        assert output_layerinfo.featurecount == 25
+        assert output_layerinfo.featurecount == 26
         assert len(output_layerinfo.columns) == 1
         assert output_layerinfo.name == "banana"
-        assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+        assert output_layerinfo.geometrytype == GeometryType.POLYGON
 
         # Now check the contents of the result file
         input_gdf = gfo.read_file(input_path)
@@ -916,9 +971,9 @@ def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
     #       unique values, to be a better test case!
     agg_columns = {
         "columns": [
-            {"column": "lblhfdtlt", "agg": "max", "as": "lbl_max"},
+            {"column": "lblHFDtlt", "agg": "max", "as": "lbl_max"},
             {"column": "GEWASGROEP", "agg": "count", "as": "gwsgrp_cnt"},
-            {"column": "lblhfdtlt", "agg": "count", "as": "lbl_count"},
+            {"column": "lblhfdTLT", "agg": "count", "as": "lbl_count"},
             {
                 "column": "lblhfdtlt",
                 "agg": "count",
@@ -944,7 +999,7 @@ def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
             {"column": "fid", "agg": "concat", "as": "fid_concat"},
         ]
     }
-    groupby_columns = ["GEWASGROEP"]
+    groupby_columns = ["GEWASgroep"]
     gfo.dissolve(
         input_path=input_path,
         output_path=output_path,
@@ -972,10 +1027,10 @@ def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
     assert output_gdf["geometry"][0] is not None
 
     # Check agg_columns results
-    grasland_idx = output_gdf[output_gdf["GEWASGROEP"] == "Grasland"].index.to_list()[0]
+    grasland_idx = output_gdf[output_gdf["GEWASgroep"] == "Grasland"].index.to_list()[0]
     assert output_gdf["lbl_max"][grasland_idx] == "Grasland"
-    assert output_gdf["gwsgrp_cnt"][grasland_idx] == 30
-    assert output_gdf["lbl_count"][grasland_idx] == 30
+    assert output_gdf["gwsgrp_cnt"][grasland_idx] == 31
+    assert output_gdf["lbl_count"][grasland_idx] == 31
     print(f"output_gdf.lbl_concat_distinct: {output_gdf['lbl_conc_d'][grasland_idx]}")
     assert output_gdf["lbl_cnt_d"][grasland_idx] == 1
     assert output_gdf["lbl_conc"][grasland_idx].startswith("Grasland,Grasland,")
@@ -983,10 +1038,10 @@ def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
     assert output_gdf["lbl_conc_d"][grasland_idx] == "Grasland"
     assert output_gdf["tlt_mea"][grasland_idx] == 60
     assert int(output_gdf["tlt_min"][grasland_idx]) == 60
-    assert output_gdf["tlt_sum"][grasland_idx] == 1800
+    assert output_gdf["tlt_sum"][grasland_idx] == 1860
 
     groenten_idx = output_gdf[
-        output_gdf["GEWASGROEP"] == "Groenten, kruiden en sierplanten"
+        output_gdf["GEWASgroep"] == "Groenten, kruiden en sierplanten"
     ].index.to_list()[0]
     assert output_gdf["lbl_count"][groenten_idx] == 5
     print(
@@ -1021,7 +1076,7 @@ def test_dissolve_polygons_aggcolumns_json(tmp_path, agg_columns):
     gfo.dissolve(
         input_path=input_path,
         output_path=output_path,
-        groupby_columns=["GEWASGROEP"],
+        groupby_columns=["GEWASgroep"],
         agg_columns=agg_columns,
         explodecollections=False,
         nb_parallel=2,
@@ -1042,7 +1097,7 @@ def test_dissolve_polygons_aggcolumns_json(tmp_path, agg_columns):
     assert len(output_gdf) == output_layerinfo.featurecount
     assert output_gdf["geometry"][0] is not None
     grasland_json = json.loads(str(output_gdf["json"][0]))
-    assert len(grasland_json) == 30
+    assert len(grasland_json) == 31
     grasland_json_firstrow = json.loads(str(grasland_json[0]))
     if agg_columns["json"] is None:
         # fid_orig column is added in json, but index column disappeared ???
@@ -1055,10 +1110,10 @@ def test_dissolve_polygons_aggcolumns_json(tmp_path, agg_columns):
 @pytest.mark.parametrize(
     "suffix, epsg, testfile, gridsize",
     [
-        (".gpkg", 31370, "polygon-parcel", 0.001),
-        (".gpkg", 31370, "linestring-row-trees", 0.001),
+        (".gpkg", 31370, "polygon-parcel", 0.01),
+        (".gpkg", 31370, "linestring-row-trees", 0.01),
         (".gpkg", 4326, "polygon-parcel", 0.0),
-        (".shp", 31370, "polygon-parcel", 0.001),
+        (".shp", 31370, "polygon-parcel", 0.01),
         (".shp", 4326, "polygon-parcel", 0.0),
     ],
 )
@@ -1075,8 +1130,8 @@ def test_simplify_lang(tmp_path, suffix, epsg, testfile, gridsize):
     # Test lang algorithm
     output_path = tmp_path / f"{input_path.stem}-output_lang{suffix}"
     gfo.simplify(
-        input_path=input_path,
-        output_path=output_path,
+        input_path=str(input_path),
+        output_path=str(output_path),
         tolerance=tolerance,
         algorithm=_geometry_util.SimplifyAlgorithm.LANG,
         lookahead=8,
@@ -1084,12 +1139,20 @@ def test_simplify_lang(tmp_path, suffix, epsg, testfile, gridsize):
         batchsize=batchsize,
     )
 
-    # Check if the tmp file is correctly created
+    # Check if the output file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert input_layerinfo.featurecount == output_layerinfo.featurecount
-    assert len(input_layerinfo.columns) == len(output_layerinfo.columns)
+    expected_featurecount = input_layerinfo.featurecount
+    if testfile == "polygon-parcel":
+        # The EMPTY geometry will be removed
+        expected_featurecount -= 1
+        if gridsize > 0.0:
+            # The sliver geometry will be removed
+            expected_featurecount -= 1
+    assert output_layerinfo.featurecount == expected_featurecount
+    assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
     assert output_layerinfo.geometrytype == input_layerinfo.geometrytype
 
     # Check the contents of the result file
@@ -1104,10 +1167,10 @@ def test_simplify_lang(tmp_path, suffix, epsg, testfile, gridsize):
 @pytest.mark.parametrize(
     "suffix, epsg, testfile, gridsize",
     [
-        (".gpkg", 31370, "polygon-parcel", 0.001),
-        (".gpkg", 31370, "linestring-row-trees", 0.001),
+        (".gpkg", 31370, "polygon-parcel", 0.01),
+        (".gpkg", 31370, "linestring-row-trees", 0.01),
         (".gpkg", 4326, "polygon-parcel", 0.0),
-        (".shp", 31370, "polygon-parcel", 0.001),
+        (".shp", 31370, "polygon-parcel", 0.01),
         (".shp", 4326, "polygon-parcel", 0.0),
     ],
 )
@@ -1139,9 +1202,17 @@ def test_simplify_vw(tmp_path, suffix, epsg, testfile, gridsize):
 
     # Check if the file is correctly created
     assert output_path.exists()
-    assert gfo.has_spatial_index(output_path)
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert input_layerinfo.featurecount == output_layerinfo.featurecount
+    expected_featurecount = input_layerinfo.featurecount
+    if testfile == "polygon-parcel":
+        # The EMPTY geometry will be removed
+        expected_featurecount -= 1
+        if gridsize > 0.0:
+            # The sliver geometry will be removed
+            expected_featurecount -= 1
+    assert output_layerinfo.featurecount == expected_featurecount
     assert len(input_layerinfo.columns) == len(output_layerinfo.columns)
     assert output_layerinfo.geometrytype == input_layerinfo.geometrytype
 
