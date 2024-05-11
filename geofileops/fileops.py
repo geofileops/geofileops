@@ -14,15 +14,12 @@ import tempfile
 import time
 from typing import (
     Any,
-    Dict,
-    Iterable,
-    List,
     Literal,
     Optional,
-    Tuple,
     Union,
     TYPE_CHECKING,
 )
+from collections.abc import Iterable
 import warnings
 
 import geopandas as gpd
@@ -106,7 +103,7 @@ PRJ_EPSG_31370 = (
 def listlayers(
     path: Union[str, "os.PathLike[Any]"],
     only_spatial_layers: bool = True,
-) -> List[str]:
+) -> list[str]:
     """
     Get the list of layers in a geofile.
 
@@ -210,14 +207,14 @@ class LayerInfo:
         self,
         name: str,
         featurecount: int,
-        total_bounds: Tuple[float, float, float, float],
+        total_bounds: tuple[float, float, float, float],
         geometrycolumn: str,
         geometrytypename: str,
         geometrytype: GeometryType,
-        columns: Dict[str, ColumnInfo],
+        columns: dict[str, ColumnInfo],
         fid_column: str,
         crs: Optional[pyproj.CRS],
-        errors: List[str],
+        errors: list[str],
     ):
         """
         Constructor of Layerinfo.
@@ -252,7 +249,7 @@ class LayerInfo:
 
 def get_layer_geometrytypes(
     path: Union[str, "os.PathLike[Any]"], layer: Optional[str] = None
-) -> List[str]:
+) -> list[str]:
     """
     Get the geometry types in the layer by examining each geometry in the layer.
 
@@ -1393,7 +1390,7 @@ def _fill_out_sql_placeholders(
     ]
     layer_tmp = layer
     layerinfo = None
-    format_kwargs: Dict[str, Any] = {}
+    format_kwargs: dict[str, Any] = {}
     for placeholder in placeholders:
         if layer_tmp is None:
             layer_tmp = get_only_layer(path)
@@ -2581,7 +2578,7 @@ def copy_layer(
     )
 
 
-def _launder_column_names(columns: Iterable) -> List[Tuple[str, str]]:
+def _launder_column_names(columns: Iterable) -> list[tuple[str, str]]:
     """
     Launders the column names passed to comply with shapefile restrictions.
 
