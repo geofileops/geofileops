@@ -7,7 +7,8 @@ dependencies:
   # required
   - cloudpickle
   - gdal >=3.6.3
-  - geopandas-base >=0.12
+  # - geopandas-base >=0.12
+  - geopandas >=0.12  # don't use geopandas-base as geopandas needs to be overridden with pip version
   - libspatialite >=5.0
   # - nomkl  # Use openblas instead of mkl saves 600 MB. Linux OK, 50% slower on Windows and OSX!
   - numpy
