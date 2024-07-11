@@ -6,7 +6,7 @@ dependencies:
   - pip
   # required
   - cloudpickle
-  - gdal =3.6.3  # released 2023-03-13
+  - gdal =3.7.2  # 3.7.0 released 2023-05-03
   - geopandas-base =0.12  # released 2022-10-24
   - libspatialite =5.0  #  knn index replaced by knn2 in 5.1
   - nomkl  # Use openblas instead of mkl saves 600 MB. Linux OK, 50% slower on Windows and OSX!
@@ -16,7 +16,7 @@ dependencies:
   - psutil
   - pygeoops =0.4  # released 2023-11-24
   - pygeos
-  - pyogrio =0.7.2  # released 2023-10-25
+  - pyogrio =0.7.2  # 0.7.0 released 2023-10-25
   - pyproj =3.4  # released 2022-09-10
   - shapely >=2,<2.1  # released 2022-12-12
   # testing
