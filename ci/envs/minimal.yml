@@ -6,7 +6,7 @@ dependencies:
   - pip
   # required
   - cloudpickle
-  - gdal =3.6  # 3.7.0 released 2023-05-03
+  - gdal =3.7  # 3.7.0 released 2023-05-03
   - geopandas-base =0.12  # released 2022-10-24
   - libspatialite =5.0  #  knn index replaced by knn2 in 5.1
   - nomkl  # Use openblas instead of mkl saves 600 MB. Linux OK, 50% slower on Windows and OSX!
