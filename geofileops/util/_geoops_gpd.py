@@ -1600,14 +1600,14 @@ def _dissolve_polygons_pass(
             suffix = output_notonborder_path.suffix
             name = f"{output_notonborder_path.stem}_{batch_id}{suffix}"
             output_notonborder_tmp_partial_path = tempdir / name
-            batches[batch_id]["output_notonborder_tmp_partial_path"] = (
-                output_notonborder_tmp_partial_path
-            )
+            batches[batch_id][
+                "output_notonborder_tmp_partial_path"
+            ] = output_notonborder_tmp_partial_path
             name = f"{output_onborder_path.stem}_{batch_id}{suffix}"
             output_onborder_tmp_partial_path = tempdir / name
-            batches[batch_id]["output_onborder_tmp_partial_path"] = (
-                output_onborder_tmp_partial_path
-            )
+            batches[batch_id][
+                "output_onborder_tmp_partial_path"
+            ] = output_onborder_tmp_partial_path
 
             # Get tile_id if present
             tile_id = tile_row.tile_id if "tile_id" in tile_row._fields else None
@@ -1758,6 +1758,12 @@ def _dissolve_polygons(
                             agg_column["column"]
                             for agg_column in agg_columns["columns"]
                         ]
+
+                        # Avoid reading/saving needed columns multiple times.
+                        # The order of the columns should always be the same in the json
+                        # to be able to filter distinct rows efficiently, so sort them,
+                        # as a set gives a different order from run to run.
+                        agg_columns_needed = sorted(set(agg_columns_needed))
                     if agg_columns_needed is not None:
                         columns_to_read.update(agg_columns_needed)
 
@@ -1769,10 +1775,9 @@ def _dissolve_polygons(
                 fid_as_index=fid_as_index,
             )
 
-            if agg_columns is not None:
+            if agg_columns is not None and agg_columns_needed is not None:
                 input_gdf["fid_orig"] = input_gdf.index
-                if agg_columns_needed is not None:
-                    agg_columns_needed.append("fid_orig")
+                agg_columns_needed.insert(0, "fid_orig")
 
             break
         except Exception as ex:
@@ -1799,7 +1804,7 @@ def _dissolve_polygons(
     aggfunc: Union[str, dict, None] = None
     if agg_columns is not None:
         if "__DISSOLVE_TOJSON" not in input_gdf.columns:
-            # First pass -> put relevant columns in json field
+            # First pass -> put relevant columns in json field.
             aggfunc = {"to_json": agg_columns_needed}
         else:
             # Columns already coded in a json column, so merge json lists
@@ -2069,7 +2074,7 @@ def _dissolve(
     data = pd.DataFrame(df.drop(columns=df.geometry.name))
 
     if aggfunc is not None and isinstance(aggfunc, dict) and "to_json" in aggfunc:
-        agg_columns = list(set(aggfunc["to_json"]))
+        agg_columns = list(aggfunc["to_json"])
         agg_data = (
             data.groupby(**groupby_kwargs)
             .apply(lambda g: g[agg_columns].to_json(orient="records"))
