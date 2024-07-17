@@ -1775,8 +1775,16 @@ def _dissolve_polygons(
             )
 
             if agg_columns is not None and agg_columns_needed is not None:
-                input_gdf["fid_orig"] = input_gdf.index
-                agg_columns_needed.insert(0, "fid_orig")
+                # The fid should be added as well, but make name unique
+                fid_orig_column = "fid_orig"
+                for idx in range(99999):
+                    if idx != 0:
+                        fid_orig_column = f"fid_orig{idx}"
+                    if fid_orig_column not in agg_columns_needed:
+                        break
+
+                input_gdf[fid_orig_column] = input_gdf.index
+                agg_columns_needed.insert(0, fid_orig_column)
 
             break
         except Exception as ex:
