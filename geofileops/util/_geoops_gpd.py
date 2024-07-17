@@ -1749,10 +1749,9 @@ def _dissolve_polygons(
                     # are already in the json column
                     columns_to_read.add("__DISSOLVE_TOJSON")
                 else:
-                    # The first pass, so read all relevant columns to code
-                    # them in json
+                    # The first pass, so read all relevant columns to code them in json
                     if "json" in agg_columns:
-                        agg_columns_needed = agg_columns["json"]
+                        agg_columns_needed = list(agg_columns["json"])
                     elif "columns" in agg_columns:
                         agg_columns_needed = [
                             agg_column["column"]
