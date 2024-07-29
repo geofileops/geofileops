@@ -761,13 +761,16 @@ def rename_column(
 
         # Rename column
         if column_name.lower() == new_column_name.lower():
+            temp_column_name = Path(tempfile.mktemp()).name
+            while temp_column_name in info.columns:
+                temp_column_name = Path(tempfile.mktemp()).name
             sql_stmt = (
                 f'ALTER TABLE "{layer}" '
-                f'RENAME COLUMN "{column_name}" TO "{column_name}_"'
+                f'RENAME COLUMN "{column_name}" TO "{temp_column_name}"'
             )
             result = datasource.ExecuteSQL(sql_stmt)
             datasource.ReleaseResultSet(result)
-            column_name = f"{column_name}_"
+            column_name = f"{temp_column_name}"
 
         sql_stmt = (
             f'ALTER TABLE "{layer}" '
