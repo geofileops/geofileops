@@ -760,6 +760,15 @@ def rename_column(
             raise ValueError(f"rename_column not supported for {path}")
 
         # Rename column
+        if column_name.lower() == new_column_name.lower():
+            sql_stmt = (
+                f'ALTER TABLE "{layer}" '
+                f'RENAME COLUMN "{column_name}" TO "{column_name}_"'
+            )
+            result = datasource.ExecuteSQL(sql_stmt)
+            datasource.ReleaseResultSet(result)
+            column_name = f"{column_name}_"
+
         sql_stmt = (
             f'ALTER TABLE "{layer}" '
             f'RENAME COLUMN "{column_name}" TO "{new_column_name}"'

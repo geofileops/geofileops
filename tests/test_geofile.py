@@ -1071,11 +1071,17 @@ def test_rename_column(tmp_path, suffix):
     assert "OPPERVL" not in result_layerinfo.columns
     assert "area" in result_layerinfo.columns
 
+    # Rename column with different casing
+    gfo.rename_column(str(test_path), "area", "AREA")
+    result_layerinfo = gfo.get_layerinfo(test_path, raise_on_nogeom=raise_on_nogeom)
+    assert "area" not in result_layerinfo.columns
+    assert "AREA" in result_layerinfo.columns
+
     # Rename non-existing column to existing columns doesn't give an error
-    gfo.rename_column(test_path, "OPPERVL", "area")
+    gfo.rename_column(test_path, "OPPERVL", "AREA")
     result_layerinfo = gfo.get_layerinfo(test_path, raise_on_nogeom=raise_on_nogeom)
     assert "OPPERVL" not in result_layerinfo.columns
-    assert "area" in result_layerinfo.columns
+    assert "AREA" in result_layerinfo.columns
 
 
 def test_rename_column_unsupported(tmp_path):
