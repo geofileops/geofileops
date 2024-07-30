@@ -1,6 +1,4 @@
-"""
-Setup file to package geofileops.
-"""
+"""Setup file to package geofileops."""
 
 import setuptools
 
@@ -27,7 +25,7 @@ setuptools.setup(
     install_requires=[
         "cloudpickle",
         "gdal>=3.6,<3.10",
-        "geopandas>=0.12,<1",
+        "geopandas>=0.12,<1.1",
         "numpy",
         "packaging",
         "pandas",

@@ -1,6 +1,4 @@
-"""
-Module containing utilities regarding the usage of ogr/gdal functionalities.
-"""
+"""Module containing utilities regarding the usage of ogr/gdal functionalities."""
 
 import logging
 import os
@@ -111,8 +109,7 @@ def get_drivers() -> dict:
 
 
 def read_cpl_log(path: Path) -> tuple[list[str], list[str]]:
-    """
-    Reads a cpl_log file and returns a list with log lines and errors.
+    """Reads a cpl_log file and returns a list with log lines and errors.
 
     Args:
         path (Path): the file path to the cpl_log file.
@@ -585,8 +582,7 @@ def vector_translate(
 
 
 def _prepare_gdal_options(options: dict, split_by_option_type: bool = False) -> dict:
-    """
-    Prepares the options so they are ready to pass on to gdal.
+    """Prepares the options so they are ready to pass on to gdal.
 
         - Uppercase the option key
         - Check if the option types are on of the supported ones:
@@ -656,8 +652,7 @@ def _prepare_gdal_options(options: dict, split_by_option_type: bool = False) -> 
 
 
 class set_config_options:
-    """
-    Context manager to set config options.
+    """Context manager to set config options.
 
     Args:
         config_options (dict): dict with config options to set.
@@ -683,6 +678,6 @@ class set_config_options:
     def __exit__(self, type, value, traceback):
         # Remove config options that were set
         # TODO: delete loop + uncomment if SetConfigOptions() is supported
-        for name, value in self.config_options.items():
+        for name, _ in self.config_options.items():
             gdal.SetConfigOption(name, None)
         # gdal.SetConfigOptions(self.config_options_backup)
