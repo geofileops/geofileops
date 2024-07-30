@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 0.10 (????-??-??)
+
+### Improvements
+
+- Add support for renaming column with only difference in casing (#549)
+
 ## 0.9.1 (2024-07-18)
 
 ### Bugs fixed
@@ -41,7 +47,6 @@
   raised. (#518)
 - Small changes to support geopandas 1.0 (#529)
 - Linting improvements: ruff version to 0.4.4 + apply import sorting (#531)
-- Add support for renaming column with only difference in casing (#549)
 
 ## 0.8.2 (2024-05-25)
 
