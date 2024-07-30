@@ -761,9 +761,11 @@ def rename_column(
 
         # Rename column
         if column_name.lower() == new_column_name.lower():
+            columns_lower = {column.lower() for column in info.columns}
             for index in range(9999):
                 temp_column_name = f"tmp_{index}"
-                if temp_column_name.lower() not in [c.lower() for c in info.columns]:
+                if temp_column_name not in columns_lower:
+                    break
                     break
             sql_stmt = (
                 f'ALTER TABLE "{layer}" '
