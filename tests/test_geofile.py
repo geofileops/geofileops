@@ -1079,10 +1079,10 @@ def test_rename_column(tmp_path, suffix):
 
     # Rename column with different casing
     gfo.add_column(str(test_path), "TMP_0", "TEXT")
-    gfo.rename_column(str(test_path), "TMP_0", "tmp")
+    gfo.rename_column(str(test_path), "area", "AREA")
     result_layerinfo = gfo.get_layerinfo(test_path, raise_on_nogeom=raise_on_nogeom)
-    assert "TMP_0" not in result_layerinfo.columns
-    assert "tmp" in result_layerinfo.columns
+    assert "area" not in result_layerinfo.columns
+    assert "AREA" in result_layerinfo.columns
 
 
 def test_rename_column_unsupported(tmp_path):
