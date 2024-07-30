@@ -1304,7 +1304,7 @@ def _read_file_base_pyogrio(
         skip_features = 0
         max_features = None
     # Arrow doesn't support filtering rows like this
-    # use_arrow = True if rows is None else False
+    use_arrow = True  # if rows is None else False
 
     # If no sql_stmt specified
     columns_prepared = None
@@ -1346,6 +1346,8 @@ def _read_file_base_pyogrio(
         sql_dialect=sql_dialect,
         read_geometry=not ignore_geometry,
         fid_as_index=fid_as_index,
+        use_arrow=use_arrow,
+        arrow_to_pandas_kwargs={"date_as_object": False},
         **kwargs,
     )
 
