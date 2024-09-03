@@ -717,6 +717,8 @@ def _apply_geooperation_to_layer(
         output_layer = gfo.get_default_layer(output_path)
     if isinstance(force_output_geometrytype, GeometryType):
         force_output_geometrytype = force_output_geometrytype.name
+    if isinstance(columns, str):
+        columns = [columns]
 
     # Check if we want to preserve the fid in the output
     preserve_fid = False
@@ -1075,6 +1077,8 @@ def dissolve(
     logger = logging.getLogger(f"geofileops.{operation_name}")
 
     # Check input parameters
+    if isinstance(groupby_columns, str):
+        groupby_columns = [groupby_columns]
     if groupby_columns is not None and len(list(groupby_columns)) == 0:
         raise ValueError("groupby_columns=[] is not supported. Use None.")
     if not input_path.exists():
@@ -1773,6 +1777,8 @@ def _dissolve_polygons(
         try:
             columns_to_read: set[str] = set()
             info = gfo.get_layerinfo(input_path, input_layer)
+            if isinstance(groupby_columns, str):
+                groupby_columns = [groupby_columns]
             if groupby_columns is not None:
                 columns_to_read.update(groupby_columns)
             fid_as_index = False

@@ -1123,6 +1123,8 @@ def _read_file_base(
     """Reads a file to a pandas Dataframe."""
     # Check if the fid column needs to be read as column via the columns parameter
     fid_as_column = False
+    if isinstance(columns, str):
+        columns = [columns]
     if columns is not None:
         if "fid" in [column.lower() for column in columns]:
             fid_as_column = True
@@ -1183,6 +1185,8 @@ def _read_file_base_fiona(
     **kwargs,
 ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
     """Reads a file to a pandas Dataframe using fiona."""
+    if isinstance(columns, str):
+        columns = [columns]
     if ignore_geometry and columns == []:
         return pd.DataFrame()
     if sql_stmt is not None:
@@ -1295,6 +1299,8 @@ def _read_file_base_pyogrio(
     path = Path(path)
     if path.exists() is False:
         raise ValueError(f"file doesn't exist: {path}")
+    if isinstance(columns, str):
+        columns = [columns]
 
     # Convert rows slice object to pyogrio parameters
     if rows is not None:
@@ -1371,6 +1377,8 @@ def _read_file_base_pyogrio(
 def _fill_out_sql_placeholders(
     path: Path, layer: Optional[str], sql_stmt: str, columns: Optional[Iterable[str]]
 ) -> str:
+    if isinstance(columns, str):
+        columns = [columns]
     # Fill out placeholders in the sql_stmt if needed:
     placeholders = [
         name for _, name, _, _ in string.Formatter().parse(sql_stmt) if name
@@ -2274,6 +2282,9 @@ def _append_to_nolock(
     options: dict = {},
 ):
     # Check/clean input params
+    if isinstance(columns, str):
+        columns = [columns]
+
     options = _ogr_util._prepare_gdal_options(options)
     if (
         create_spatial_index is not None
