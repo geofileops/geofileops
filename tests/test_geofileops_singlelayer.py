@@ -809,6 +809,7 @@ def test_makevalid_single_column_as_string(tmp_path):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=".gpkg")
     output_path = tmp_path / f"{input_path.stem}-output.gpkg"
+    set_geoops_module("geofileops.geoops")
 
     # Now run test
     columns = "OIDN"
@@ -1155,6 +1156,7 @@ def test_simplify_single_column_as_string(tmp_path, algorithm):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=".gpkg")
     output_path = tmp_path / f"{input_path.stem}-output.gpkg"
+    set_geoops_module("geofileops.geoops")
 
     # Now run test
     columns = "OIDN"
