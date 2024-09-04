@@ -1077,8 +1077,6 @@ def dissolve(
     logger = logging.getLogger(f"geofileops.{operation_name}")
 
     # Check input parameters
-    if isinstance(groupby_columns, str):
-        groupby_columns = [groupby_columns]
     if groupby_columns is not None and len(list(groupby_columns)) == 0:
         raise ValueError("groupby_columns=[] is not supported. Use None.")
     if not input_path.exists():

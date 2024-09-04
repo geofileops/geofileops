@@ -280,3 +280,20 @@ def test_vector_translate_sql_input_empty(tmp_path, input_suffix, output_suffix)
     input_layerinfo = gfo.get_layerinfo(input_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert len(input_layerinfo.columns) == len(output_layerinfo.columns)
+
+
+@pytest.mark.parametrize("input_suffix", test_helper.SUFFIXES_GEOOPS)
+@pytest.mark.parametrize("output_suffix", test_helper.SUFFIXES_GEOOPS)
+def test_vector_translate_single_column_as_string(
+    tmp_path, input_suffix, output_suffix
+):
+    input_path = test_helper.get_testfile(
+        "polygon-parcel", suffix=input_suffix, empty=True
+    )
+    output_path = tmp_path / f"output{output_suffix}"
+
+    columns = "OIDN"
+    _ogr_util.vector_translate(input_path, output_path, columns=columns)
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert len(output_layerinfo.columns) == 1
+    assert list(output_layerinfo.columns) == [columns]

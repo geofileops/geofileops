@@ -547,6 +547,24 @@ def test_dissolve_invalid_params(tmp_path, sql_singlethread, invalid_params, exp
             )
 
 
+def test_dissolve_single_groupbycolum_as_string(tmp_path):
+    input_path = test_helper.get_testfile("polygon-parcel")
+    output_path = tmp_path / "output.gpkg"
+    groupby_columns = "GEWASGROEP"
+
+    gfo.dissolve(
+        input_path=input_path,
+        output_path=output_path,
+        groupby_columns=groupby_columns,
+        explodecollections=True,
+    )
+
+    columns = list(gfo.get_layerinfo(output_path).columns)
+    assert output_path.exists()
+    assert len(columns) == 1
+    assert columns[0] == groupby_columns
+
+
 def test_dissolve_polygons_groupby_None(tmp_path):
     """
     Test dissolve polygons with a column with None values. There was once an issue

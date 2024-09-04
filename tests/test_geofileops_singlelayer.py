@@ -805,6 +805,18 @@ def test_makevalid(tmp_path, suffix, input_empty, geoops_module):
     geoops.makevalid(input_path=input_path, output_path=output_path)
 
 
+def test_makevalid_single_column_as_string(tmp_path):
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=".gpkg")
+    output_path = tmp_path / f"{input_path.stem}-output.gpkg"
+
+    # Now run test
+    columns = "OIDN"
+    geoops.makevalid(input_path, output_path, columns=columns)
+    layerinfo = fileops.get_layerinfo(output_path)
+    assert list(layerinfo.columns) == [columns]
+
+
 @pytest.mark.parametrize(
     "descr, geometry, expected_geometry",
     [
@@ -1130,6 +1142,27 @@ def test_simplify(
     assert_geodataframe_equal(
         output_gdf, expected_gdf, sort_values=True, normalize=True
     )
+
+
+@pytest.mark.parametrize(
+    "algorithm",
+    [
+        geoops.SimplifyAlgorithm.LANG,
+        geoops.SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER,
+    ],
+)
+def test_simplify_single_column_as_string(tmp_path, algorithm):
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=".gpkg")
+    output_path = tmp_path / f"{input_path.stem}-output.gpkg"
+
+    # Now run test
+    columns = "OIDN"
+    geoops.simplify(
+        input_path, output_path, tolerance=5, columns=columns, algorithm=algorithm
+    )
+    layerinfo = fileops.get_layerinfo(output_path)
+    assert list(layerinfo.columns) == [columns]
 
 
 @pytest.mark.parametrize(

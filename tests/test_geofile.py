@@ -244,15 +244,28 @@ def test_copy_layer(tmp_path, dimensions, suffix_input, suffix_output):
 
 
 @pytest.mark.parametrize("suffix", [s for s in SUFFIXES_FILEOPS if s != ".csv"])
-def test_copy_layer_columns(tmp_path, suffix):
+@pytest.mark.parametrize("columns", [["OIDN", "UIDN"], "OIDN"])
+def test_copy_layer_columns(tmp_path, suffix, columns):
     # Prepare test data
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
     # Test
     dst = tmp_path / f"output{suffix}"
-    gfo.copy_layer(src, dst, columns=["OIDN", "UIDN"])
+    gfo.copy_layer(src, dst, columns=columns)
     copy_gdf = gfo.read_file(dst)
-    input_gdf = gfo.read_file(src, columns=["OIDN", "UIDN"])
+    input_gdf = gfo.read_file(src, columns=columns)
+    assert_geodataframe_equal(input_gdf, copy_gdf)
+
+
+def test_copy_layer_single_colum_as_string(tmp_path):
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel", suffix=".gpkg")
+
+    # Test
+    dst = tmp_path / "output.gpkg"
+    gfo.copy_layer(src, dst, columns="OIDN")
+    copy_gdf = gfo.read_file(dst)
+    input_gdf = gfo.read_file(src, columns="OIDN")
     assert_geodataframe_equal(input_gdf, copy_gdf)
 
 
@@ -1050,6 +1063,16 @@ def test_read_file_two_layers(engine_setter):
     read_gdf = gfo.read_file(src, layer="parcels")
     assert isinstance(read_gdf, gpd.GeoDataFrame)
     assert len(read_gdf) == 48
+
+
+def test_read_file_single_colum_as_string():
+    src = test_helper.get_testfile("polygon-parcel", suffix=".gpkg")
+
+    # Test reading a file with column parameter equal to a single column as string
+    columns = "OIDN"
+    result = gfo.read_file(src, columns=columns, ignore_geometry=True)
+    assert isinstance(result, pd.DataFrame)
+    assert list(result.columns) == [columns]
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
