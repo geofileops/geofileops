@@ -1768,6 +1768,60 @@ def test_select_two_layers_select_star_fids_unique(tmp_path, suffix):
     assert len(output_layerinfo.columns) == exp_nb_columns
 
 
+@pytest.mark.parametrize(
+    "suffix, epsg, gridsize",
+    [(".gpkg", 31370, 0.01), (".gpkg", 4326, 0.0), (".shp", 31370, 0.01)],
+)
+def test_select_two_layers_single_colum_as_string(tmp_path, suffix, epsg, gridsize):
+    # Prepare test data
+    input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
+    input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
+    output_path = tmp_path / f"{input1_path.stem}-output{suffix}"
+
+    # Prepare query to execute.
+    rtree_layer1 = "rtree_{input1_layer}_{input1_geometrycolumn}"
+    rtree_layer2 = "rtree_{input2_layer}_{input2_geometrycolumn}"
+    sql_stmt = f"""
+        SELECT layer1."{{input1_geometrycolumn}}" AS geom
+              {{layer1_columns_prefix_alias_str}}
+              {{layer2_columns_prefix_alias_str}}
+          FROM {{input1_databasename}}."{{input1_layer}}" layer1
+          JOIN {{input1_databasename}}."{rtree_layer1}" layer1tree
+            ON layer1.fid = layer1tree.id
+          JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+          JOIN {{input2_databasename}}."{rtree_layer2}" layer2tree
+            ON layer2.fid = layer2tree.id
+         WHERE 1=1
+           {{batch_filter}}
+           AND layer1tree.minx <= layer2tree.maxx
+           AND layer1tree.maxx >= layer2tree.minx
+           AND layer1tree.miny <= layer2tree.maxy
+           AND layer1tree.maxy >= layer2tree.miny
+           AND ST_Intersects(
+                  layer1.{{input1_geometrycolumn}},
+                  layer2.{{input2_geometrycolumn}}) = 1
+           AND ST_Touches(
+                  layer1.{{input1_geometrycolumn}},
+                  layer2.{{input2_geometrycolumn}}) = 0
+    """
+    gfo.select_two_layers(
+        input1_path=str(input1_path),
+        input2_path=str(input2_path),
+        input1_columns="UIDN",
+        input2_columns="OIDN",
+        input1_columns_prefix="",
+        input2_columns_prefix="",
+        output_path=str(output_path),
+        sql_stmt=sql_stmt,
+    )
+
+    # Check if the tmp file is correctly created
+    assert output_path.exists()
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert len(output_layerinfo.columns) == 2
+    assert list(output_layerinfo.columns) == ["UIDN", "OIDN"]
+
+
 def test_split(tmp_path):
     """Is deprecated, but keep minimal test."""
     # Prepare test data

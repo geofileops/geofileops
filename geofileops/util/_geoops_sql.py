@@ -535,6 +535,7 @@ def _single_layer_vector_operation(
     if where_post is not None and where_post == "":
         where_post = None
     if isinstance(columns, str):
+        # If a string is passed, convert to list
         columns = [columns]
 
     # Check/get layer names
@@ -2612,8 +2613,10 @@ def _two_layer_vector_operation(
     logger = logging.getLogger(f"geofileops.{operation_name}")
 
     if isinstance(input1_columns, str):
+        # If a string is passed, convert to list
         input1_columns = [input1_columns]
     if isinstance(input2_columns, str):
+        # If a string is passed, convert to list
         input2_columns = [input2_columns]
 
     if not input1_path.exists():

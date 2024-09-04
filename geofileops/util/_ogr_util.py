@@ -244,6 +244,7 @@ def vector_translate(
     if isinstance(input_path, str):
         input_path = Path(input_path)
     if isinstance(columns, str):
+        # If a string is passed, convert to list
         columns = [columns]
 
     gdal_options = _prepare_gdal_options(options, split_by_option_type=True)

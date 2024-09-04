@@ -718,6 +718,7 @@ def _apply_geooperation_to_layer(
     if isinstance(force_output_geometrytype, GeometryType):
         force_output_geometrytype = force_output_geometrytype.name
     if isinstance(columns, str):
+        # If a string is passed, convert to list
         columns = [columns]
 
     # Check if we want to preserve the fid in the output
@@ -1775,8 +1776,6 @@ def _dissolve_polygons(
         try:
             columns_to_read: set[str] = set()
             info = gfo.get_layerinfo(input_path, input_layer)
-            if isinstance(groupby_columns, str):
-                groupby_columns = [groupby_columns]
             if groupby_columns is not None:
                 columns_to_read.update(groupby_columns)
             fid_as_index = False
