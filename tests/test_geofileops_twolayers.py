@@ -1774,8 +1774,7 @@ def test_select_two_layers_select_star_fids_unique(tmp_path, suffix):
     assert output_path.exists()
     output_layerinfo = gfo.get_layerinfo(output_path)
     # 1 attribute column expected: layer2.fid is aliased
-    exp_nb_columns = 1
-    assert len(output_layerinfo.columns) == exp_nb_columns
+    assert len(output_layerinfo.columns) == 1
 
 
 def test_split(tmp_path):
@@ -1996,7 +1995,7 @@ def test_union(
         batchsize=batchsize,
     )
 
-    # Check if the tmp file is correctly created
+    # Check if the output file is correctly created
     assert output_path.exists()
     exp_spatial_index = GeofileInfo(output_path).default_spatial_index
     assert gfo.has_spatial_index(output_path) is exp_spatial_index
