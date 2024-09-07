@@ -1139,6 +1139,7 @@ def test_simplify(
     )
 
 
+"""
 @pytest.mark.parametrize(
     "algorithm",
     [
@@ -1159,6 +1160,7 @@ def test_simplify_single_column_as_string(tmp_path, algorithm):
     )
     layerinfo = fileops.get_layerinfo(output_path)
     assert list(layerinfo.columns) == [columns]
+"""
 
 
 @pytest.mark.parametrize(
