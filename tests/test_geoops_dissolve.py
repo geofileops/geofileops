@@ -830,7 +830,7 @@ def test_dissolve_polygons_aggcolumns_json(tmp_path, agg_columns):
     gfo.dissolve(
         input_path=input_path,
         output_path=output_path,
-        groupby_columns="GEWASgroep",
+        groupby_columns=["GEWASgroep"],
         agg_columns=agg_columns,
         explodecollections=False,
         nb_parallel=2,
