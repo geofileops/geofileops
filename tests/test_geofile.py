@@ -840,9 +840,10 @@ def test_read_file(suffix, dimensions, engine_setter):
     "columns, geometry",
     [
         ([], "YES"),
-        (["OIDN", "uidn", "HFDTLT", "lblhfdtlt", "GEWASGROEP", "lengte"], "YES"),
-        (["OIDN", "uidn", "HFDTLT", "lblhfdtlt", "GEWASGROEP", "lengte"], "NO"),
-        (["OIDN", "uidn", "HFDTLT", "lblhfdtlt", "GEWASGROEP", "lengte"], "IGNORE"),
+        ("OIDN", "YES"),
+        (["OIDN", "GEWASGROEP", "lengte"], "YES"),
+        (["OIDN", "GEWASGROEP", "lengte"], "NO"),
+        (["OIDN", "GEWASGROEP", "lengte"], "IGNORE"),
     ],
 )
 def test_read_file_columns_geometry(tmp_path, suffix, columns, geometry, engine_setter):
@@ -890,9 +891,9 @@ def test_read_file_columns_geometry(tmp_path, suffix, columns, geometry, engine_
     else:
         expect_geometry = True
 
-    exp_columns = columns
+    exp_columns = list(columns) if isinstance(columns, list) else [columns]
     if expect_geometry:
-        exp_columns = columns + ["geometry"]
+        exp_columns += ["geometry"]
 
     if columns == [] and not expect_geometry:
         exp_featurecount = 0
@@ -1051,16 +1052,6 @@ def test_read_file_two_layers(engine_setter):
     read_gdf = gfo.read_file(src, layer="parcels")
     assert isinstance(read_gdf, gpd.GeoDataFrame)
     assert len(read_gdf) == 48
-
-
-def test_read_file_single_colum_as_string():
-    src = test_helper.get_testfile("polygon-parcel", suffix=".gpkg")
-
-    # Test reading a file with column parameter equal to a single column as string
-    columns = "OIDN"
-    result = gfo.read_file(src, columns=columns, ignore_geometry=True)
-    assert isinstance(result, pd.DataFrame)
-    assert list(result.columns) == [columns]
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
