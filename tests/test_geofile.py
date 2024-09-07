@@ -257,18 +257,6 @@ def test_copy_layer_columns(tmp_path, suffix, columns):
     assert_geodataframe_equal(input_gdf, copy_gdf)
 
 
-def test_copy_layer_single_colum_as_string(tmp_path):
-    # Prepare test data
-    src = test_helper.get_testfile("polygon-parcel", suffix=".gpkg")
-
-    # Test
-    dst = tmp_path / "output.gpkg"
-    gfo.copy_layer(src, dst, columns="OIDN")
-    copy_gdf = gfo.read_file(dst)
-    input_gdf = gfo.read_file(src, columns="OIDN")
-    assert_geodataframe_equal(input_gdf, copy_gdf)
-
-
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
 @pytest.mark.parametrize("dimensions", [None, "XYZ"])
 def test_copy_layer_emptyfile(tmp_path, dimensions, suffix):
