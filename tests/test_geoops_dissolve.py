@@ -101,7 +101,8 @@ def test_dissolve_linestrings(
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize("epsg", EPSGS)
-def test_dissolve_linestrings_groupby(tmp_path, suffix, epsg):
+@pytest.mark.parametrize("groupby_columns", [["NiScoDe"], "NiScoDe"])
+def test_dissolve_linestrings_groupby(tmp_path, suffix, epsg, groupby_columns):
     # Prepare test data
     input_path = test_helper.get_testfile(
         "linestring-watercourse", suffix=suffix, epsg=epsg
@@ -116,7 +117,6 @@ def test_dissolve_linestrings_groupby(tmp_path, suffix, epsg):
         output_basepath.parent
         / f"{output_basepath.stem}_groupby_noexpl{output_basepath.suffix}"
     )
-    groupby_columns = ["NiScoDe"]
     gfo.dissolve(
         input_path=str(input_path),
         output_path=str(output_path),
@@ -281,6 +281,7 @@ def test_dissolve_linestrings_aggcolumns_json(tmp_path, agg_columns):
     "expected_featurecount",
     [
         (".gpkg", 31370, False, ["GEWASgroep"], True, 0.0, "", 26),
+        (".gpkg", 31370, False, "GEWASgroep", True, 0.0, "", 26),
         (".gpkg", 31370, False, ["GEWASgroep"], True, 0.01, "", 25),
         (".gpkg", 31370, False, ["GEWASGROEP"], False, 0.0, "", 6),
         (".gpkg", 31370, True, ["GEWASGROEP"], False, 0.0, "", 6),
@@ -346,7 +347,10 @@ def test_dissolve_polygons(
     assert gfo.isvalid(output_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == expected_featurecount
-    if groupby is True:
+
+    if groupby_columns is not None and isinstance(groupby_columns, str):
+        groupby_columns = [groupby_columns]
+    if groupby:
         # No groupby -> normally no columns.
         # Shapefile needs at least one column, if no columns: fid
         if suffix == ".shp":
@@ -545,24 +549,6 @@ def test_dissolve_invalid_params(tmp_path, sql_singlethread, invalid_params, exp
                 nb_squarish_tiles=nb_squarish_tiles,
                 agg_columns=agg_columns,
             )
-
-
-def test_dissolve_single_groupbycolum_as_string(tmp_path):
-    input_path = test_helper.get_testfile("polygon-parcel")
-    output_path = tmp_path / "output.gpkg"
-    groupby_columns = "GEWASGROEP"
-
-    gfo.dissolve(
-        input_path=input_path,
-        output_path=output_path,
-        groupby_columns=groupby_columns,
-        explodecollections=True,
-    )
-
-    columns = list(gfo.get_layerinfo(output_path).columns)
-    assert output_path.exists()
-    assert len(columns) == 1
-    assert columns[0] == groupby_columns
 
 
 def test_dissolve_polygons_groupby_None(tmp_path):
@@ -844,7 +830,7 @@ def test_dissolve_polygons_aggcolumns_json(tmp_path, agg_columns):
     gfo.dissolve(
         input_path=input_path,
         output_path=output_path,
-        groupby_columns=["GEWASgroep"],
+        groupby_columns="GEWASgroep",
         agg_columns=agg_columns,
         explodecollections=False,
         nb_parallel=2,
