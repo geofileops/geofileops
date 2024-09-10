@@ -7,6 +7,8 @@
 - Add support for renaming column with only difference in casing (#549)
 - Improve handling of string passed for columns parameter in e.g. copy_layer (#523)
   Single string is also supported and is treated that there is only one column to be retained
+- Add support to use non-spatial functions (e.g. copy_layer) on "curve..." geometrytype
+  files (#)
 
 ## 0.9.1 (2024-07-18)
 
