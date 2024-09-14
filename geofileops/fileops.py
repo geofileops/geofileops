@@ -2342,16 +2342,6 @@ def _append_to_nolock(
         sql_dialect = "SQLITE"
         columns = None
 
-    # When dst file doesn't exist and src is empty force_output_geometrytype should be
-    # specified, otherwise invalid output.
-    logger.debug(f"input {force_output_geometrytype=}")
-    if force_output_geometrytype is None and not dst.exists():
-        if src_layerinfo is None:
-            src_layerinfo = get_layerinfo(src, src_layer, raise_on_nogeom=False)
-        force_output_geometrytype2 = src_layerinfo.geometrytype
-        logger.debug(f"bypassed {force_output_geometrytype2=}")
-    logger.debug(f"used {force_output_geometrytype=}")
-
     # Go!
     translate_info = _ogr_util.VectorTranslateInfo(
         input_path=src,
