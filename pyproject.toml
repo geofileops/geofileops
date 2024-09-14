@@ -10,7 +10,7 @@ module = "cloudpickle.*,fiona.*,geopandas.*,matplotlib.*,osgeo.*,osgeo_utils.*,p
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-log_level = "INFO"
+log_level = "DEBUG"
 
 [tool.ruff]
 line-length = 88

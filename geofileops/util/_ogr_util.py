@@ -339,6 +339,7 @@ def vector_translate(
     if explodecollections is True:
         args.append("-explodecollections")
     output_geometrytypes = []
+    logger.debug(f"input {force_output_geometrytype=}")
     if force_output_geometrytype is not None:
         if isinstance(force_output_geometrytype, GeometryType):
             output_geometrytypes.append(force_output_geometrytype.name)
@@ -347,6 +348,7 @@ def vector_translate(
     else:
         if not explodecollections:
             output_geometrytypes.append("PROMOTE_TO_MULTI")
+    logger.debug(f"used {force_output_geometrytype=}")
     if transaction_size is not None:
         args.extend(["-gt", str(transaction_size)])
     if preserve_fid is None:
