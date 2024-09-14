@@ -4,6 +4,7 @@ Tests for functionalities in geofileops.general.
 
 import os
 import shutil
+from itertools import product
 
 import geopandas as gpd
 import pandas as pd
@@ -167,7 +168,8 @@ def test_append_different_columns(tmp_path, suffix):
     assert len(src_info.columns) == len(res_info.columns) + 1
 
 
-def test_append_shp_laundered_columns(tmp_path):
+@pytest.mark.parametrize("testfile", ["polygon-parcel", "curvepolygon"])
+def test_append_shp_laundered_columns(tmp_path, testfile):
     # GDAL doesn't seem to handle appending to a shapefile where column laundering is
     # needed very well: all laundered columns get NULL values instead of the actual
     # values.
@@ -175,9 +177,7 @@ def test_append_shp_laundered_columns(tmp_path):
     # statement so gdal doesn't need to do laundering.
     # Start from a gpkg test file, because that can have long column names that need
     # laundering.
-    src_path = test_helper.get_testfile(
-        "polygon-parcel", dst_dir=tmp_path, suffix=".gpkg"
-    )
+    src_path = test_helper.get_testfile(testfile, dst_dir=tmp_path, suffix=".gpkg")
     gfo.add_column(
         src_path, name="extra_long_columnname", type="TEXT", expression="'TEST VALUE'"
     )
@@ -214,14 +214,16 @@ def test_cmp(tmp_path, suffix):
     assert gfo.cmp(src2, dst) is False
 
 
-@pytest.mark.parametrize("suffix_input", SUFFIXES_FILEOPS)
-@pytest.mark.parametrize("suffix_output", SUFFIXES_FILEOPS)
-@pytest.mark.parametrize("dimensions", [None, "XYZ"])
-def test_copy_layer(tmp_path, dimensions, suffix_input, suffix_output):
+@pytest.mark.parametrize(
+    "testfile, suffix_input, suffix_output, dimensions",
+    [
+        *product(["polygon-parcel"], SUFFIXES_FILEOPS, SUFFIXES_FILEOPS, [None, "XYZ"]),
+        ["curvepolygon", ".gpkg", ".gpkg", None],
+    ],
+)
+def test_copy_layer(tmp_path, testfile, dimensions, suffix_input, suffix_output):
     # Prepare test data
-    src = test_helper.get_testfile(
-        "polygon-parcel", suffix=suffix_input, dimensions=dimensions
-    )
+    src = test_helper.get_testfile(testfile, suffix=suffix_input, dimensions=dimensions)
     if suffix_input == ".csv" or suffix_output == ".csv":
         raise_on_nogeom = False
     else:
@@ -611,6 +613,14 @@ def test_get_layerinfo(suffix, dimensions):
     with pytest.raises(ValueError, match="input_path doesn't exist"):
         not_existing_path = _io_util.with_stem(src, "not_existing_layer")
         layerinfo = gfo.get_layerinfo(not_existing_path)
+
+
+def test_get_layerinfo_curve():
+    src = test_helper.get_testfile("curvepolygon")
+
+    # Test
+    layerinfo = gfo.get_layerinfo(str(src))
+    assert layerinfo.geometrytypename == "MULTISURFACE"
 
 
 def test_get_layerinfo_nogeom(tmp_path):

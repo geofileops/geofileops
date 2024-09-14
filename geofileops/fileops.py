@@ -206,7 +206,6 @@ class LayerInfo:
         total_bounds: tuple[float, float, float, float],
         geometrycolumn: str,
         geometrytypename: str,
-        geometrytype: GeometryType,
         columns: dict[str, ColumnInfo],
         fid_column: str,
         crs: Optional[pyproj.CRS],
@@ -220,7 +219,6 @@ class LayerInfo:
             total_bounds (Tuple[float, float, float, float]): the bounds of the layer.
             geometrycolumn (str): the name of the geometry column.
             geometrytypename (str): the name of the geometry column type.
-            geometrytype (GeometryType): the type of the geometry column.
             columns (Dict[str, ColumnInfo]): the attribute columns of the layer.
             fid_column (str): the name of the fid column.
             crs (Optional[pyproj.CRS]): the crs of the layer.
@@ -231,11 +229,18 @@ class LayerInfo:
         self.total_bounds = total_bounds
         self.geometrycolumn = geometrycolumn
         self.geometrytypename = geometrytypename
-        self.geometrytype = geometrytype
         self.columns = columns
         self.fid_column = fid_column
         self.crs = crs
         self.errors = errors
+
+    @property
+    def geometrytype(self):
+        """The geometry type of the geometrycolumn."""
+        if self.geometrytypename == "NONE":
+            return None
+
+        return GeometryType(self.geometrytypename)
 
     def __repr__(self):
         """Overrides the representation property of LayerInfo."""
@@ -340,25 +345,21 @@ def get_layerinfo(
                         "An attribute column 'geometry' is not supported in a shapefile"
                     )
 
-        # Get geometry column info...
-        geometrytype = _ogr_util.ogrtype_to_geometrytype[datasource_layer.GetGeomType()]
-        if geometrytype is None:
-            geometrytypename = "NONE"
-        else:
-            # For shape files, the difference between the 'MULTI' variant and the
-            # single one doesn't exists... so always report MULTI variant by convention.
-            if driver == "ESRI Shapefile":
-                geometrytype = geometrytype.to_multitype
+        # Get geometry column name.
+        geometrytypename = _ogr_util.ogrtype_to_name(datasource_layer.GetGeomType())
 
-            assert geometrytype is not None
-            geometrytypename = geometrytype.name
+        # For shape files, the difference between the 'MULTI' variant and the
+        # single one doesn't exists... so always report MULTI variant by convention.
+        if geometrytypename != "NONE" and driver == "ESRI Shapefile":
+            if not geometrytypename.startswith("MULTI"):
+                geometrytypename = f"MULTI{geometrytypename}"
 
         # If the geometry type is not None, fill out the extra properties
         geometrycolumn = None
         extent = None
         crs = None
         total_bounds = None
-        if geometrytype is not None:
+        if geometrytypename != "NONE":
             # Geometry column name
             geometrycolumn = datasource_layer.GetGeometryColumn()
             if geometrycolumn == "":
@@ -386,7 +387,6 @@ def get_layerinfo(
                 total_bounds=total_bounds,  # type: ignore[arg-type]
                 geometrycolumn=geometrycolumn,  # type: ignore[arg-type]
                 geometrytypename=geometrytypename,
-                geometrytype=geometrytype,  # type: ignore[arg-type]
                 columns=columns,
                 fid_column=datasource_layer.GetFIDColumn(),
                 crs=crs,
@@ -2309,8 +2309,7 @@ def _append_to_nolock(
             src_layerinfo = get_layerinfo(src, src_layer, raise_on_nogeom=False)
         if (
             force_output_geometrytype is None
-            and src_layerinfo.geometrytype
-            in [GeometryType.GEOMETRY, GeometryType.GEOMETRYCOLLECTION]
+            and src_layerinfo.geometrytypename in ["GEOMETRY", "GEOMETRYCOLLECTION"]
             and not dst.exists()
         ):
             raise ValueError(
