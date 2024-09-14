@@ -1,6 +1,6 @@
 [tool.pyright]
 exclude = ["local_ignore"]
-ignore = [*]
+ignore = ["*"]
 
 [tool.mypy]
 exclude = ["local_ignore"]
