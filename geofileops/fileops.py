@@ -2344,10 +2344,12 @@ def _append_to_nolock(
 
     # When dst file doesn't exist and src is empty force_output_geometrytype should be
     # specified, otherwise invalid output.
+    """
     if force_output_geometrytype is None and not dst.exists():
         if src_layerinfo is None:
             src_layerinfo = get_layerinfo(src, src_layer, raise_on_nogeom=False)
         force_output_geometrytype = src_layerinfo.geometrytype
+    """
 
     # Go!
     translate_info = _ogr_util.VectorTranslateInfo(
