@@ -243,6 +243,8 @@ def test_copy_layer(tmp_path, testfile, dimensions, suffix_input, suffix_output)
     dst_layerinfo = gfo.get_layerinfo(dst, raise_on_nogeom=raise_on_nogeom)
     assert src_layerinfo.featurecount == dst_layerinfo.featurecount
     assert len(src_layerinfo.columns) == len(dst_layerinfo.columns)
+    if not (suffix_input != ".csv" and suffix_output == ".csv"):
+        assert src_layerinfo.geometrytypename == dst_layerinfo.geometrytypename
 
 
 @pytest.mark.parametrize("suffix", [s for s in SUFFIXES_FILEOPS if s != ".csv"])
