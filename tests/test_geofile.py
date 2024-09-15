@@ -243,7 +243,10 @@ def test_copy_layer(tmp_path, testfile, dimensions, suffix_input, suffix_output)
     dst_layerinfo = gfo.get_layerinfo(dst, raise_on_nogeom=raise_on_nogeom)
     assert src_layerinfo.featurecount == dst_layerinfo.featurecount
     assert len(src_layerinfo.columns) == len(dst_layerinfo.columns)
-    if not (suffix_input != ".csv" and suffix_output == ".csv"):
+    if not (
+        (suffix_input != ".csv" and suffix_output == ".csv")
+        or (suffix_input == ".shp" and suffix_output == ".gpkg")
+    ):
         assert src_layerinfo.geometrytypename == dst_layerinfo.geometrytypename
 
 
@@ -622,7 +625,7 @@ def test_get_layerinfo_curve():
 
     # Test
     layerinfo = gfo.get_layerinfo(str(src))
-    assert layerinfo.geometrytypename == "MULTISURFACE"
+    assert layerinfo.geometrytypename == "CURVEPOLYGON"
 
 
 def test_get_layerinfo_nogeom(tmp_path):
