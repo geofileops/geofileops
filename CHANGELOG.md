@@ -7,8 +7,8 @@
 - Add support for renaming column with only difference in casing (#549)
 - Add support to pass a single string for all `column` type parameters if a single
   column should be retained (#523)
-- Add support for "CURVE" geometrytype files in the general file and layer operations
-  (#558)
+- Don't stop "CURVE" geometrytype files to be processed in the general file and
+  layer operations (#558)
 
 ## 0.9.1 (2024-07-18)
 

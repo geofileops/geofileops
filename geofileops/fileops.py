@@ -1007,6 +1007,9 @@ def read_file(
     gives issues, so please report issues if they are encountered. In the future support
     for the "fiona" engine most likely will be removed. Default engine is "pyogrio".
 
+    When a file with CURVE geometries is read, they are transformed on the fly to LINEAR
+    geometries, as shapely/geopandas doesn't support CURVE geometries.
+
     Args:
         path (file path): path to the file to read from
         layer (str, optional): The layer to read. If None and there is only one layer in
@@ -2479,7 +2482,10 @@ def copy_layer(
         explodecollections (bool, optional): True to output only simple
             geometries. Defaults to False.
         force_output_geometrytype (Union[GeometryType, str], optional): Geometry type.
-            to (try to) force the output to. Defaults to None.
+            to (try to) force the output to. In addition to geometry types, it is also
+            possible to specify PROMOTE_TO_MULTI to convert all geometries to
+            multigeometries or CONVERT_TO_LINEAR to convert CURVE geometries to linear.
+            Defaults to None.
         create_spatial_index (bool, optional): True to create a spatial index
             on the destination file/layer. If None, the default behaviour by gdal for
             that file type is respected. If the LAYER_CREATION.SPATIAL_INDEX

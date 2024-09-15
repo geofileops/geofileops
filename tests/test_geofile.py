@@ -930,6 +930,20 @@ def test_read_file_columns_geometry(tmp_path, suffix, columns, geometry, engine_
     assert len(read_gdf) == exp_featurecount
 
 
+def test_read_file_curve():
+    """Test reading a curve file.
+
+    The geometry type is automatically converted to a linear one in read_file.
+    """
+    # Prepare test data
+    src = test_helper.get_testfile("curvepolygon")
+
+    # Test
+    read_gdf = gfo.read_file(src)
+    assert isinstance(read_gdf, gpd.GeoDataFrame)
+    assert isinstance(read_gdf.geometry[0], sh_geom.MultiPolygon)
+
+
 def test_read_file_invalid_params(tmp_path, engine_setter):
     src = tmp_path / "nonexisting_file.gpkg"
 
