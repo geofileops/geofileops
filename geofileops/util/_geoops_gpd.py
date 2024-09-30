@@ -1876,7 +1876,7 @@ def _dissolve_polygons(
         # If a GEOS exception occurs, it is probably due to invalid geometries.
         # Try to fix them and try again.
         if on_data_error == "warn":
-            message = f"Error processing tile, DATA LOST!!!: {ex}"
+            message = f"Error processing tile, ENTIRE TILE LOST!!!: {ex}"
             warnings.warn(message, UserWarning, stacklevel=3)
 
             # Return
