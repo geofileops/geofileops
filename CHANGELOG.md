@@ -10,6 +10,7 @@
 - Enable "CURVE" geometrytype files to be processed in the general file and
   layer operations (#558)
 - Add configuration option to only warn on dissolve errors (#561)
+- For `dissolve`, apply `grid_size` within `union_all` (#566)
 
 ## 0.9.1 (2024-07-18)
 
