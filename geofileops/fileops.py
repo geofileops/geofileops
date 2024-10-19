@@ -1002,10 +1002,11 @@ def read_file(
           FROM "{input_layer}" layer
 
     The underlying library used to read the file can be choosen using the
-    "GFO_IO_ENGINE" environment variable. Possible values are "fiona" and "pyogrio".
-    This option is created as a temporary fallback to "fiona" for cases where "pyogrio"
-    gives issues, so please report issues if they are encountered. In the future support
-    for the "fiona" engine most likely will be removed. Default engine is "pyogrio".
+    "GFO_IO_ENGINE" environment variable. Possible values are "pyogrio", "pyogrio-arrow"
+    and "fiona". This option is created so it can be uses as a temporary fallback for
+    cases where "pyogrio-arrow" gives issues, so please report issues if they are
+    encountered. In the future support for the "fiona" engine most likely will be
+    removed. Default engine is "pyogrio-arrow".
 
     When a file with CURVE geometries is read, they are transformed on the fly to LINEAR
     geometries, as shapely/geopandas doesn't support CURVE geometries.
@@ -1135,7 +1136,8 @@ def _read_file_base(
 
     # Read with the engine specified
     engine = ConfigOptions.io_engine
-    if engine == "pyogrio":
+    if engine.startswith("pyogrio"):
+        use_arrow = True if engine.endswith("-arrow") else False
         gdf = _read_file_base_pyogrio(
             path=path,
             layer=layer,
@@ -1147,6 +1149,7 @@ def _read_file_base(
             sql_dialect=sql_dialect,
             ignore_geometry=ignore_geometry,
             fid_as_index=fid_as_index or fid_as_column,
+            use_arrow=use_arrow,
             **kwargs,
         )
     elif engine == "fiona":
@@ -1294,11 +1297,11 @@ def _read_file_base_pyogrio(
     sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     ignore_geometry: bool = False,
     fid_as_index: bool = False,
+    use_arrow: bool = True,
     **kwargs,
 ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
     """Reads a file to a pandas Dataframe using pyogrio."""
     # Init
-    use_arrow = True
     path = Path(path)
     if path.exists() is False:
         raise ValueError(f"file doesn't exist: {path}")
@@ -1310,8 +1313,6 @@ def _read_file_base_pyogrio(
     else:
         skip_features = 0
         max_features = None
-    # Arrow doesn't support filtering rows like this
-    use_arrow = True  # if rows is None else False
 
     # If no sql_stmt specified
     columns_prepared = None
@@ -1480,8 +1481,8 @@ def to_file(
     The fileformat is detected based on the filepath extension.
 
     The underlying library used to write the file can be choosen using the
-    "GFO_IO_ENGINE" environment variable. Possible values are "fiona" and "pyogrio".
-    Default engine is "pyogrio".
+    "GFO_IO_ENGINE" environment variable. Possible values are "pyogrio", "pyogrio-arrow"
+    and "fiona". Default engine is "pyogrio-arrow".
 
     Args:
         gdf (gpd.GeoDataFrame): The GeoDataFrame to export to file.
