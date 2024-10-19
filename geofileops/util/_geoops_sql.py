@@ -534,6 +534,9 @@ def _single_layer_vector_operation(
         raise ValueError(f"{operation_name}: output_path must not equal input_path")
     if where_post is not None and where_post == "":
         where_post = None
+    if isinstance(columns, str):
+        # If a string is passed, convert to list
+        columns = [columns]
 
     # Check/get layer names
     if input_layer is None:
@@ -1036,6 +1039,7 @@ def erase(
         overlay_self=overlay_self,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
+        operation_prefix=f"{operation_name}/",
     )
     if erase_subdivided_path is not None:
         erase_path = erase_subdivided_path
@@ -1160,6 +1164,7 @@ def _subdivide_layer(
     overlay_self: bool,
     nb_parallel: int = -1,
     batchsize: int = -1,
+    operation_prefix: str = "",
 ) -> Optional[Path]:
     """Subdivide a layer if applicable.
 
@@ -1172,6 +1177,7 @@ def _subdivide_layer(
         overlay_self (bool): _description_
         nb_parallel (int, optional): _description_. Defaults to -1.
         batchsize (int, optional): _description_. Defaults to -1.
+        operation_prefix (str, optional): Prefix to use in logging,... Defaults to "".
 
     Returns:
         Optional[Path]: path to the result or None if it didn't need subdivision.
@@ -1193,7 +1199,8 @@ def _subdivide_layer(
          LIMIT 1
     """
     logger.info(
-        f"Check if complex geometries in erase layer (> {subdivide_coords} coords)"
+        f"Check if complex geometries in {path.name}/{layer} (> {subdivide_coords} "
+        "coords)"
     )
     complexgeom_df = gfo.read_file(path, sql_stmt=complexgeom_sql, sql_dialect="SQLITE")
     if len(complexgeom_df) <= 0:
@@ -1235,7 +1242,7 @@ def _subdivide_layer(
         output_path=subdidided_path,
         output_layer=layer,
         func=lambda geom: subdivide(geom, num_coords_max=subdivide_coords),
-        operation_name="erase/subdivide",
+        operation_name=f"{operation_prefix}subdivide",
         columns=columns,
         explodecollections=True,
         nb_parallel=nb_parallel,
@@ -1306,6 +1313,7 @@ def export_by_location(
         overlay_self=False,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
+        operation_prefix=f"{operation_name}/",
     )
     if input_to_compare_with_subdivided_path is not None:
         input_to_compare_with_path = input_to_compare_with_subdivided_path
@@ -1845,7 +1853,7 @@ def _prepare_filter_by_location_fields(
         spatial_relation=f'{subquery_alias}."GFO_$TEMP$_SPATIAL_RELATION"'
     )
 
-    # Determine of the spatial_relations_query returns True for disjoint features
+    # Determine if the spatial_relations_query returns True for disjoint features
     spatial_relation_column_disjoint = spatial_relation_column.format(
         input1="ST_GeomFromText('POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))')",
         input2="ST_GeomFromText('POLYGON((5 0, 5 1, 6 1, 6 0, 5 0))')",
@@ -2608,6 +2616,13 @@ def _two_layer_vector_operation(
     """  # noqa: E501
     # Init
     logger = logging.getLogger(f"geofileops.{operation_name}")
+
+    if isinstance(input1_columns, str):
+        # If a string is passed, convert to list
+        input1_columns = [input1_columns]
+    if isinstance(input2_columns, str):
+        # If a string is passed, convert to list
+        input2_columns = [input2_columns]
 
     if not input1_path.exists():
         raise ValueError(f"{operation_name}: input1_path doesn't exist: {input1_path}")
