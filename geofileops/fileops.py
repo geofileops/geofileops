@@ -1305,6 +1305,8 @@ def _read_file_base_pyogrio(
     path = Path(path)
     if path.exists() is False:
         raise ValueError(f"file doesn't exist: {path}")
+    if columns is not None:
+        columns = list(columns)
 
     # Convert rows slice object to pyogrio parameters
     if rows is not None:
@@ -1325,27 +1327,42 @@ def _read_file_base_pyogrio(
         # make sure the column names specified have the same casing.
         if columns is not None:
             layerinfo = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
+
             columns_upper_lookup = {column.upper(): column for column in columns}
             columns_prepared = {
                 column: columns_upper_lookup[column.upper()]
                 for column in layerinfo.columns
                 if column.upper() in columns_upper_lookup
             }
+
+            # When reading datetime columns, don't use arrow as this can give issues.
+            # See https://github.com/geopandas/pyogrio/issues/487
+            if use_arrow:
+                for column in layerinfo.columns.values():
+                    if columns is None or column in columns:
+                        if column.gdal_type == "DateTime":
+                            use_arrow = False
+                            break
+
     else:
         # Fill out placeholders, keep columns_prepared None because column filtering
         # should happen in sql_stmt.
         sql_stmt = _fill_out_sql_placeholders(
             path=path, layer=layer, sql_stmt=sql_stmt, columns=columns
         )
+
+        # When reading datetime columns, don't use arrow as this can give issues.
+        # See https://github.com/geopandas/pyogrio/issues/487
+        if use_arrow and (columns is not None and len(columns) > 0):
+            layerinfo = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
+            for column in layerinfo.columns.values():
+                if columns is None or column in list(columns):
+                    if column.gdal_type == "DateTime":
+                        use_arrow = False
+                        break
+
         # Specifying a layer as well as an SQL statement in pyogrio is not supported.
         layer = None
-
-    if use_arrow:
-        layerinfo = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
-        for column in layerinfo.columns.values():
-            if column.gdal_type == "DateTime":
-                use_arrow = False
-                break
 
     # Read!
     columns_list = None if columns_prepared is None else list(columns_prepared)
@@ -1564,7 +1581,8 @@ def to_file(
             engine = "fiona"
 
     # Write file with the correct engine
-    if engine == "pyogrio":
+    if engine.startswith("pyogrio"):
+        use_arrow = True if engine.endswith("-arrow") else False
         return _to_file_pyogrio(
             gdf=gdf,
             path=path,
@@ -1575,6 +1593,7 @@ def to_file(
             append_timeout_s=append_timeout_s,
             index=index,
             create_spatial_index=create_spatial_index,
+            use_arrow=use_arrow,
             **kwargs,
         )
     elif engine == "fiona":
@@ -1770,6 +1789,7 @@ def _to_file_pyogrio(
     append_timeout_s: int = 600,
     index: Optional[bool] = None,
     create_spatial_index: Optional[bool] = None,
+    use_arrow: bool = True,
     **kwargs,
 ):
     """Writes a pandas dataframe to file using pyogrio."""
@@ -1804,6 +1824,8 @@ def _to_file_pyogrio(
         kwargs["promote_to_multi"] = True
     if not path_info.is_singlelayer:
         kwargs["layer"] = layer
+    if use_arrow:
+        kwargs["use_arrow"] = False
 
     # Temp fix for bug in pyogrio 0.7.2 (https://github.com/geopandas/pyogrio/pull/324)
     # Logic based on geopandas.to_file

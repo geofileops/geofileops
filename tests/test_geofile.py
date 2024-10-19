@@ -412,7 +412,7 @@ def test_copy_layer_sql(tmp_path, suffix):
     sql_stmt = f'SELECT * FROM "{src_layer}"'
     dst = tmp_path / f"output{suffix}"
     gfo.copy_layer(src, dst, src_layer=src_layer, sql_stmt=sql_stmt)
-    read_gdf = gfo.read_file(src, sql_stmt=sql_stmt)
+    read_gdf = gfo.read_file(src, sql_stmt=sql_stmt, layer=src_layer)
     assert isinstance(read_gdf, pd.DataFrame)
     if not suffix == ".csv":
         assert isinstance(read_gdf, gpd.GeoDataFrame)
