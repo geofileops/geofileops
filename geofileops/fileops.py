@@ -1292,6 +1292,7 @@ def _read_file_base_pyogrio(
 ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
     """Reads a file to a pandas Dataframe using pyogrio."""
     # Init
+    use_arrow = True
     path = Path(path)
     if path.exists() is False:
         raise ValueError(f"file doesn't exist: {path}")
@@ -1331,6 +1332,13 @@ def _read_file_base_pyogrio(
         )
         # Specifying a layer as well as an SQL statement in pyogrio is not supported.
         layer = None
+
+    if use_arrow:
+        layerinfo = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
+        for column in layerinfo.columns.values():
+            if column.gdal_type == "DateTime":
+                use_arrow = False
+                break
 
     # Read!
     columns_list = None if columns_prepared is None else list(columns_prepared)
