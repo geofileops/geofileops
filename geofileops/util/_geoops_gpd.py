@@ -2195,7 +2195,7 @@ def _dissolve(
 
     # Process spatial component
     def merge_geometries(block):
-        merged_geom = block.unary_union
+        merged_geom = block.union_all()
         return merged_geom
 
     g = df.groupby(group_keys=False, **groupby_kwargs)[df.geometry.name].agg(
