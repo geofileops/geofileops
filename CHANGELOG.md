@@ -4,6 +4,8 @@
 
 ### Improvements
 
+- Use `use_arrow=True` for reading and writing dataframes when possible to
+  improve performance (#392)
 - Add support for renaming column with only difference in casing (#549)
 - Add support to pass a single string for all `column` type parameters if a single
   column should be retained (#523)
