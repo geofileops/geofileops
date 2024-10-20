@@ -44,7 +44,7 @@ class ConfigOptions:
     @classproperty
     def io_engine(cls):
         """The IO engine to use."""
-        return os.environ.get("GFO_IO_ENGINE", "pyogrio-arrow").strip().lower()
+        return os.environ.get("GFO_IO_ENGINE", default="pyogrio-arrow").strip().lower()
 
     @classproperty
     def remove_temp_files(cls) -> bool:
