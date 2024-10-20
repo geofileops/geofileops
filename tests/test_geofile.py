@@ -1042,7 +1042,9 @@ def test_read_file_sql_no_geom(suffix, engine_setter):
     assert read_df.aantal.item() == 48
 
 
-@pytest.mark.parametrize("columns", [["OIDN", "UIDN"], ["OidN", "UidN"]])
+@pytest.mark.parametrize(
+    "columns", [["OIDN", "UIDN", "DATUM"], ["OidN", "UidN", "DatuM"]]
+)
 @pytest.mark.parametrize(
     "suffix, testfile, layer",
     [
