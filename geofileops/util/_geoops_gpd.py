@@ -30,6 +30,7 @@ from pygeoops import GeometryType, PrimitiveType
 
 import geofileops as gfo
 from geofileops import fileops
+from geofileops._compat import GEOPANDAS_GTE_10
 from geofileops.helpers import _parameter_helper
 from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import (
@@ -2195,7 +2196,11 @@ def _dissolve(
 
     # Process spatial component
     def merge_geometries(block):
-        merged_geom = block.union_all()
+        if GEOPANDAS_GTE_10:
+            merged_geom = block.union_all()
+        else:
+            merged_geom = block.unary_union
+
         return merged_geom
 
     g = df.groupby(group_keys=False, **groupby_kwargs)[df.geometry.name].agg(
