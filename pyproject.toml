@@ -12,6 +12,15 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 log_level = "DEBUG"
 
+filterwarnings = [
+    "ignore: The output driver does not natively support DateTime type",
+    "ignore: Field DATUM create as date field, though DateTime requested",
+    "ignore: Geometry is in a geographic CRS",
+    "ignore: is_geofile is deprecated and will be removed in a future version",
+    "ignore: is_geofile_ext is deprecated and will be removed in a future version",
+    "ignore: read_file_sql is deprecated",
+]
+
 [tool.ruff]
 line-length = 88
 target-version = "py39"
