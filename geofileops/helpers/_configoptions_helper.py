@@ -1,6 +1,6 @@
 import os
 
-from geofileops import _compat
+from geofileops._compat import HAS_PYARROW, PYOGRIO_GTE_08
 
 
 class classproperty(property):
@@ -49,7 +49,7 @@ class ConfigOptions:
         engine = os.environ.get("GFO_IO_ENGINE")
 
         if engine is None:
-            if _compat.HAS_PYARROW:
+            if PYOGRIO_GTE_08 and HAS_PYARROW:
                 return "pyogrio-arrow"
             else:
                 return "pyogrio"

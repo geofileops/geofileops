@@ -14,6 +14,7 @@ except ImportError:
     HAS_PYARROW = False
 
 PYOGRIO_GTE_07 = version.parse(pyogrio.__version__) >= version.parse("0.7")
+PYOGRIO_GTE_08 = version.parse(pyogrio.__version__) >= version.parse("0.8")
 SHAPELY_GTE_20 = version.parse(shapely.__version__) >= version.parse("2")
 
 # Check what version of spatialite we are dealing with
