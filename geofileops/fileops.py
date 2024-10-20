@@ -1335,14 +1335,15 @@ def _read_file_base_pyogrio(
                 if column.upper() in columns_upper_lookup
             }
 
-            # When reading datetime columns, don't use arrow as this can give issues.
-            # See https://github.com/geopandas/pyogrio/issues/487
-            if use_arrow:
-                for column in layerinfo.columns.values():
-                    if columns is None or column in columns:
-                        if column.gdal_type == "DateTime":
-                            use_arrow = False
-                            break
+        # When reading datetime columns, don't use arrow as this can give issues.
+        # See https://github.com/geopandas/pyogrio/issues/487
+        if use_arrow and (columns is None or len(columns) > 0):
+            layerinfo = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
+            for column in layerinfo.columns.values():
+                if columns is None or column in columns:
+                    if column.gdal_type in ("Date", "Time", "DateTime"):
+                        use_arrow = False
+                        break
 
     else:
         # Fill out placeholders, keep columns_prepared None because column filtering
@@ -1357,7 +1358,7 @@ def _read_file_base_pyogrio(
             layerinfo = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
             for column in layerinfo.columns.values():
                 if columns is None or column in list(columns):
-                    if column.gdal_type == "DateTime":
+                    if column.gdal_type in ("Date", "Time", "DateTime"):
                         use_arrow = False
                         break
 
