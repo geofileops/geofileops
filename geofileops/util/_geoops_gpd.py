@@ -1178,6 +1178,8 @@ def dissolve(
         )
 
     elif input_layerinfo.geometrytype.to_primitivetype is PrimitiveType.POLYGON:
+        start_time = datetime.now()
+
         # Prepare where_post
         if where_post is not None:
             if where_post == "":
@@ -1588,6 +1590,9 @@ def dissolve(
         finally:
             if ConfigOptions.remove_temp_files:
                 shutil.rmtree(tempdir, ignore_errors=True)
+
+        logger.info(f"Ready, full dissolve took {datetime.now()-start_time}")
+
     else:
         raise NotImplementedError(
             f"Unsupported input geometrytype: {input_layerinfo.geometrytype}"
@@ -1871,10 +1876,10 @@ def _dissolve_polygons(
             aggfunc=aggfunc,
             as_index=False,
             dropna=False,
+            grid_size=gridsize,
         )
     except Exception as ex:
-        # If a GEOS exception occurs, it is probably due to invalid geometries.
-        # Try to fix them and try again.
+        # If a GEOS exception occurs, check on_data_error on how to proceed.
         if on_data_error == "warn":
             message = f"Error processing tile, ENTIRE TILE LOST!!!: {ex}"
             warnings.warn(message, UserWarning, stacklevel=3)
@@ -1942,13 +1947,8 @@ def _dissolve_polygons(
 
         perfinfo["time_clip"] = (datetime.now() - start_clip).total_seconds()
 
-    if gridsize != 0.0:
-        diss_gdf.geometry = _geoseries_util.set_precision(
-            diss_gdf.geometry, grid_size=gridsize, raise_on_topoerror=False
-        )
-        assert isinstance(diss_gdf.geometry, gpd.GeoSeries)
-
     # Set empty geometries to None
+    assert isinstance(diss_gdf.geometry, gpd.GeoSeries)
     diss_gdf.loc[diss_gdf.geometry.is_empty, diss_gdf.geometry.name] = None
 
     if not keep_empty_geoms:
@@ -2052,6 +2052,7 @@ def _dissolve(
     sort=True,
     observed=False,
     dropna=True,
+    grid_size: float = 0.0,
 ) -> gpd.GeoDataFrame:
     """Dissolve geometries within `groupby` into single observation.
 
@@ -2195,7 +2196,7 @@ def _dissolve(
 
     # Process spatial component
     def merge_geometries(block):
-        merged_geom = block.unary_union
+        merged_geom = shapely.union_all(block, grid_size=grid_size)
         return merged_geom
 
     g = df.groupby(group_keys=False, **groupby_kwargs)[df.geometry.name].agg(
