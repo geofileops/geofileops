@@ -5,6 +5,14 @@ from packaging import version
 
 from geofileops.util import _sqlite_util
 
+# detect optional dependencies
+try:
+    import pyarrow  # noqa: F401
+
+    HAS_PYARROW = True
+except ImportError:
+    HAS_PYARROW = False
+
 PYOGRIO_GTE_07 = version.parse(pyogrio.__version__) >= version.parse("0.7")
 SHAPELY_GTE_20 = version.parse(shapely.__version__) >= version.parse("2")
 

@@ -1,5 +1,7 @@
 import os
 
+from geofileops import _compat
+
 
 class classproperty(property):
     def __get__(self, owner_self, owner_cls):
@@ -44,7 +46,15 @@ class ConfigOptions:
     @classproperty
     def io_engine(cls):
         """The IO engine to use."""
-        return os.environ.get("GFO_IO_ENGINE", default="pyogrio-arrow").strip().lower()
+        engine = os.environ.get("GFO_IO_ENGINE")
+
+        if engine is None:
+            if _compat.HAS_PYARROW:
+                return "pyogrio-arrow"
+            else:
+                return "pyogrio"
+
+        return engine.strip().lower()
 
     @classproperty
     def remove_temp_files(cls) -> bool:
