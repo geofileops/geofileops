@@ -30,7 +30,7 @@ from osgeo import gdal
 from pandas.api.types import is_integer_dtype
 from pygeoops import GeometryType, PrimitiveType  # noqa: F401
 
-from geofileops._compat import PYOGRIO_GTE_07
+from geofileops._compat import PYOGRIO_GTE_07, PYOGRIO_GTE_08
 from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import (
     _geofileinfo,
@@ -1597,7 +1597,8 @@ def to_file(
 
     # Write file with the correct engine
     if engine.startswith("pyogrio"):
-        use_arrow = True if engine.endswith("-arrow") else False
+        # Writing with pyarrow only supported since pyogrio 0.8
+        use_arrow = True if engine.endswith("-arrow") and PYOGRIO_GTE_08 else False
         return _to_file_pyogrio(
             gdf=gdf,
             path=path,
