@@ -27,7 +27,7 @@ try:
 except ImportError:
     ENGINES = ["pyogrio"]
 
-if _compat.HAS_PYARROW:
+if _compat.PYOGRIO_GTE_08 and _compat.HAS_PYARROW:
     ENGINES.append("pyogrio-arrow")
 
 
