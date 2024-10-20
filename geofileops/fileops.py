@@ -1305,6 +1305,7 @@ def _read_file_base_pyogrio(
     path = Path(path)
     if path.exists() is False:
         raise ValueError(f"file doesn't exist: {path}")
+    columns_upper_lookup = None
     if columns is not None:
         columns = list(columns)
 
@@ -1339,9 +1340,15 @@ def _read_file_base_pyogrio(
         # See https://github.com/geopandas/pyogrio/issues/487
         if use_arrow and (columns is None or len(columns) > 0):
             layerinfo = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
+
+            # Convert column names to upper to be able to check them case insensitive
+            columns_upper = None
+            if columns is not None:
+                columns_upper = {column.upper() for column in columns}
+
             for column in layerinfo.columns.values():
-                if columns is None or column in columns:
-                    if column.gdal_type in ("Date", "Time", "DateTime"):
+                if columns_upper is None or column.name.upper() in columns_upper:
+                    if column.gdal_type in {"Date", "Time", "DateTime"}:
                         use_arrow = False
                         break
 
@@ -1354,11 +1361,18 @@ def _read_file_base_pyogrio(
 
         # When reading datetime columns, don't use arrow as this can give issues.
         # See https://github.com/geopandas/pyogrio/issues/487
+        # Remark: is only checked if columns is not None, because otherwise the layer
+        # name needs to become mandatory without column names being specified, which
+        # would be a breaking and really wanted change.
         if use_arrow and (columns is not None and len(columns) > 0):
             layerinfo = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
+
+            # Convert column names to upper to be able to check them case insensitive
+            columns_upper = {column.upper() for column in columns}
+
             for column in layerinfo.columns.values():
-                if columns is None or column in list(columns):
-                    if column.gdal_type in ("Date", "Time", "DateTime"):
+                if columns is None or column.name.upper() in columns_upper:
+                    if column.gdal_type in {"Date", "Time", "DateTime"}:
                         use_arrow = False
                         break
 
