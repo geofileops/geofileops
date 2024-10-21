@@ -1528,7 +1528,8 @@ def test_to_file_geomempty(tmp_path, suffix, engine_setter):
         geometry=[
             sh_geom.GeometryCollection(),
             test_helper.TestData.polygon_with_island,
-        ]
+        ],
+        crs=31370,
     )
     # By default, get_geometrytypes ignores the type of empty geometries.
     test_geometrytypes = _geoseries_util.get_geometrytypes(test_gdf.geometry)
