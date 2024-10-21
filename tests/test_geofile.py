@@ -1574,8 +1574,7 @@ def test_to_file_geomempty(tmp_path, suffix, engine_setter):
 def test_to_file_geomnone(tmp_path, suffix, engine_setter):
     # Test for gdf with a None geometry + a polygon
     test_gdf = gpd.GeoDataFrame(
-        geometry=[None, test_helper.TestData.polygon_with_island],
-        crs=31370
+        geometry=[None, test_helper.TestData.polygon_with_island], crs=31370
     )
     test_geometrytypes = _geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 1
