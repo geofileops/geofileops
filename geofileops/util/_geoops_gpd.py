@@ -30,7 +30,7 @@ from pygeoops import GeometryType, PrimitiveType
 
 import geofileops as gfo
 from geofileops import fileops
-from geofileops._compat import GEOPANDAS_GTE_10
+from geofileops._compat import GEOPANDAS_GTE_10, PANDAS_GTE_22
 from geofileops.helpers import _parameter_helper
 from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import (
@@ -2176,9 +2176,12 @@ def _dissolve(
             # Return as json string
             return json.dumps(json_distinct)
 
+        # Starting from pandas 2.2, include_groups=False should be passed to avoid
+        # warnings
+        kwargs = {"include_groups": False} if PANDAS_GTE_22 else {}
         agg_data = (
             data.groupby(**groupby_kwargs)
-            .apply(lambda g: group_flatten_json_list(g), include_groups=False)
+            .apply(lambda g: group_flatten_json_list(g), **kwargs)
             .to_frame(name="__DISSOLVE_TOJSON")
         )
     else:
