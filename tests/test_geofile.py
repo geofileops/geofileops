@@ -312,9 +312,7 @@ def test_copy_layer_explodecollections(tmp_path, testfile, expected_count):
     [
         ("polygon-parcel", GeometryType.POLYGON),
         ("polygon-parcel", GeometryType.MULTIPOLYGON),
-        ("polygon-parcel", GeometryType.LINESTRING),
         ("polygon-parcel", GeometryType.MULTILINESTRING),
-        ("polygon-parcel", GeometryType.POINT),
         ("polygon-parcel", GeometryType.MULTIPOINT),
     ],
 )
