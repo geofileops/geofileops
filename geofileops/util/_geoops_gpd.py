@@ -2147,7 +2147,7 @@ def _dissolve(
     if aggfunc is not None and isinstance(aggfunc, dict) and "to_json" in aggfunc:
         agg_columns = list(aggfunc["to_json"])
         agg_data = (
-            data.groupby(**groupby_kwargs)
+            data.groupby(**groupby_kwargs)[agg_columns]
             .apply(lambda g: g[agg_columns].to_json(orient="records"))
             .to_frame(name="__DISSOLVE_TOJSON")
         )
@@ -2178,7 +2178,7 @@ def _dissolve(
 
         agg_data = (
             data.groupby(**groupby_kwargs)
-            .apply(lambda g: group_flatten_json_list(g))
+            .apply(lambda g: group_flatten_json_list(g), include_groups=False)
             .to_frame(name="__DISSOLVE_TOJSON")
         )
     else:
