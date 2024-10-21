@@ -1738,15 +1738,14 @@ def test_to_file_index(tmp_path, points_gdf, suffix, engine_setter):
     # index as string
     p_gdf = points_gdf.copy()
     gdf = gpd.GeoDataFrame(p_gdf["value1"], geometry=p_gdf.geometry)
-    gdf.index = pd.TimedeltaIndex(range(len(gdf)), "days")
-    # TODO: TimedeltaIndex is an invalid field type
+    gdf.index = pd.to_timedelta(range(len(gdf)), "days")
     gdf.index = gdf.index.astype(str)
     do_checks(gdf, index_is_used=True)
 
     # unnamed DatetimeIndex
     p_gdf = points_gdf.copy()
     gdf = gpd.GeoDataFrame(p_gdf["value1"], geometry=p_gdf.geometry)
-    gdf.index = pd.TimedeltaIndex(range(len(gdf)), "days") + pd.DatetimeIndex(
+    gdf.index = pd.to_timedelta(range(len(gdf)), "days") + pd.DatetimeIndex(
         ["1999-12-27"] * len(gdf)
     )
     if suffix == ".shp":
