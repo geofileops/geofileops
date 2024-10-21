@@ -149,7 +149,7 @@ def test_append_different_columns(tmp_path, suffix):
     )
     dst_path = tmp_path / f"dst{suffix}"
     gfo.copy(src_path, dst_path)
-    gfo.add_column(src_path, name="extra_column", type=gfo.DataType.INTEGER)
+    gfo.add_column(src_path, name="extra_col", type=gfo.DataType.INTEGER)
 
     # For CSV files, the append fails
     if suffix == ".csv":
