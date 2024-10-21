@@ -290,15 +290,21 @@ def test_copy_layer_emptyfile(tmp_path, dimensions, suffix):
     assert src_layerinfo.geometrytypename == dst_layerinfo.geometrytypename
 
 
-def test_copy_layer_explodecollections(tmp_path):
+@pytest.mark.parametrize(
+    "testfile, expected_count", [("polygon-parcel", 50), ("point", 50)]
+)
+def test_copy_layer_explodecollections(tmp_path, testfile, expected_count):
     # Prepare test data
-    src = test_helper.get_testfile("polygon-parcel")
+    src = test_helper.get_testfile(testfile)
     dst = tmp_path / f"{src.stem}.gpkg"
 
     # copy_layer, with explodecollections. Default behaviour of gdal was to try to
     # preserve the fids, but this didn't work with explodecolledtions, this was
     # overruled in #395
     gfo.copy_layer(src, dst, explodecollections=True)
+
+    result_gdf = gfo.read_file(dst)
+    assert len(result_gdf) == expected_count
 
 
 @pytest.mark.parametrize(
@@ -321,6 +327,9 @@ def test_copy_layer_force_output_geometrytype(tmp_path, testfile, force_geometry
     dst = tmp_path / f"{src.stem}_to_{force_geometrytype}.gpkg"
     gfo.copy_layer(src, dst, force_output_geometrytype=force_geometrytype)
     assert gfo.get_layerinfo(dst).geometrytype == force_geometrytype
+
+    result_gdf = gfo.read_file(dst)
+    assert len(result_gdf) == 48
 
 
 def test_copy_layer_invalid_params(tmp_path):
@@ -1565,7 +1574,8 @@ def test_to_file_geomempty(tmp_path, suffix, engine_setter):
 def test_to_file_geomnone(tmp_path, suffix, engine_setter):
     # Test for gdf with a None geometry + a polygon
     test_gdf = gpd.GeoDataFrame(
-        geometry=[None, test_helper.TestData.polygon_with_island]
+        geometry=[None, test_helper.TestData.polygon_with_island],
+        crs=31370
     )
     test_geometrytypes = _geoseries_util.get_geometrytypes(test_gdf.geometry)
     assert len(test_geometrytypes) == 1

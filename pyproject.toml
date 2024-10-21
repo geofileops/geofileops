@@ -19,7 +19,7 @@ filterwarnings = [
     "ignore: is_geofile is deprecated and will be removed in a future version",
     "ignore: is_geofile_ext is deprecated and will be removed in a future version",
     "ignore: read_file_sql is deprecated",
-    "ignore: split() is deprecated because it was renamed to identity()",
+    "ignore: split is deprecated because it was renamed to identity",
     "ignore: Normalized/laundered field name",
     "ignore: Non-conformant content for record 0 in column",
     "ignore: Non-conformant content for record 1 in column",
