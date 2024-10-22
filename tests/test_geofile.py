@@ -715,7 +715,13 @@ def test_get_only_layer_two_layers():
         _ = gfo.get_only_layer(src)
 
 
-def test_is_geofile():
+@pytest.mark.filterwarnings(
+    "ignore: is_geofile is deprecated and will be removed in a future version"
+)
+@pytest.mark.filterwarnings(
+    "ignore: is_geofile_ext is deprecated and will be removed in a future version"
+)
+def test_is_geofile_deprecated():
     assert gfo.is_geofile(test_helper.get_testfile("polygon-parcel"))
     assert gfo.is_geofile(
         test_helper.get_testfile("polygon-parcel").with_suffix(".shp")
@@ -1015,6 +1021,7 @@ def test_read_file_sql(suffix, engine_setter):
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
+@pytest.mark.filterwarnings("ignore: read_file_sql is deprecated")
 def test_read_file_sql_deprecated(suffix, engine_setter):
     if engine_setter == "fiona":
         pytest.skip("sql_stmt param not supported for fiona engine")

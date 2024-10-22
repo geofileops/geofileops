@@ -1781,6 +1781,9 @@ def test_select_two_layers_select_star_fids_unique(tmp_path, suffix):
     assert len(output_layerinfo.columns) == 1
 
 
+@pytest.mark.filterwarnings(
+    "ignore: split is deprecated because it was renamed to identity"
+)
 def test_split(tmp_path):
     """Is deprecated, but keep minimal test."""
     # Prepare test data
@@ -1836,9 +1839,6 @@ def test_split(tmp_path):
 @pytest.mark.parametrize(
     "suffix, epsg, gridsize",
     [(".gpkg", 31370, 0.01), (".gpkg", 4326, 0.0), (".shp", 31370, 0.0)],
-)
-@pytest.mark.filterwarnings(
-    "ignore: Non-conformant content for record 1 in column l2_DATUM"
 )
 def test_symmetric_difference(tmp_path, request, suffix, epsg, gridsize):
     if epsg == 4326 and sys.platform in ("darwin", "linux"):
