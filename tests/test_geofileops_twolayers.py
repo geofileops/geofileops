@@ -2156,11 +2156,17 @@ def test_union_circles(tmp_path, suffix, epsg):
     # Check the contents of the result file
     output_gdf = gfo.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
+
+    # Prepare expected result
     input1_gdf = gfo.read_file(input1_path)
     input2_gdf = gfo.read_file(input2_path)
     exp_gdf = input1_gdf.overlay(input2_gdf, how="union", keep_geom_type=True)
     renames = dict(zip(exp_gdf.columns, output_gdf.columns))
     exp_gdf = exp_gdf.rename(columns=renames)
+    # For text columns, gfo gives None rather than np.nan for missing values.
+    for column in exp_gdf.select_dtypes(include="O").columns:
+        exp_gdf[column] = exp_gdf[column].replace({np.nan: None})
+
     assert_geodataframe_equal(
         output_gdf,
         exp_gdf,
