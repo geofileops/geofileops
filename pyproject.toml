@@ -10,7 +10,10 @@ module = "cloudpickle.*,fiona.*,geopandas.*,matplotlib.*,osgeo.*,osgeo_utils.*,p
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
+log_cli = true
+log_cli_level = "INFO"
 log_level = "DEBUG"
+addopts = "--disable-warnings"
 
 # Some filters that apply to warnings that can be ignored for any test.
 filterwarnings = [

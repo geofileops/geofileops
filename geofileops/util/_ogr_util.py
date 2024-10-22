@@ -133,7 +133,7 @@ class VectorTranslateInfo:
         append: bool = False,
         update: bool = False,
         explodecollections: bool = False,
-        force_output_geometrytype: Union[GeometryType, str, None] = None,
+        force_output_geometrytype: Union[GeometryType, str, Iterable[str], None] = None,
         options: dict = {},
         columns: Optional[Iterable[str]] = None,
         warp: Optional[dict] = None,
@@ -208,7 +208,7 @@ def vector_translate(
     append: bool = False,
     update: bool = False,
     explodecollections: bool = False,
-    force_output_geometrytype: Union[GeometryType, str, None] = None,
+    force_output_geometrytype: Union[GeometryType, str, Iterable[str], None] = None,
     options: dict = {},
     columns: Optional[Iterable[str]] = None,
     warp: Optional[dict] = None,
@@ -319,11 +319,19 @@ def vector_translate(
     if force_output_geometrytype is not None:
         if isinstance(force_output_geometrytype, GeometryType):
             output_geometrytypes.append(force_output_geometrytype.name)
-        else:
+        elif isinstance(force_output_geometrytype, str):
             output_geometrytypes.append(force_output_geometrytype)
-    else:
-        if not explodecollections:
-            output_geometrytypes.append("PROMOTE_TO_MULTI")
+        elif isinstance(force_output_geometrytype, Iterable):
+            for geotype in output_geometrytypes:
+                if isinstance(geotype, GeometryType):
+                    output_geometrytypes.append(geotype.name)
+                elif isinstance(geotype, str):
+                    output_geometrytypes.extend(geotype)
+                else:
+                    raise ValueError(f"invalid type in {force_output_geometrytype=}")
+        else:
+            raise ValueError(f"invalid type for {force_output_geometrytype=}")
+
     if transaction_size is not None:
         args.extend(["-gt", str(transaction_size)])
     if preserve_fid is None:
