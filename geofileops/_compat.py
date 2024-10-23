@@ -1,3 +1,5 @@
+import geopandas as gpd
+import pandas as pd
 import pyogrio
 import shapely
 from osgeo import gdal
@@ -6,6 +8,8 @@ from packaging import version
 from geofileops.util import _sqlite_util
 
 # Check what version of pyogrio we are working with
+GEOPANDAS_GTE_10 = version.parse(gpd.__version__) >= version.parse("1.0")
+PANDAS_GTE_22 = version.parse(pd.__version__) >= version.parse("2.2")
 PYOGRIO_GTE_07 = version.parse(pyogrio.__version__) >= version.parse("0.7")
 PYOGRIO_GTE_08 = version.parse(pyogrio.__version__) >= version.parse("0.8")
 SHAPELY_GTE_20 = version.parse(shapely.__version__) >= version.parse("2")
