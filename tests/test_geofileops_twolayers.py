@@ -2,7 +2,6 @@
 Tests for operations that are executed using a sql statement on two layers.
 """
 
-import logging
 import math
 import sys
 from contextlib import nullcontext
@@ -1966,7 +1965,6 @@ def test_union(
     keep_fid: bool,
     exp_featurecount: int,
 ):
-    logging.captureWarnings(True)
     if epsg == 4326 and sys.platform in ("darwin", "linux"):
         request.node.add_marker(
             pytest.mark.xfail(
