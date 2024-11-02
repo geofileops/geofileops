@@ -331,6 +331,14 @@ def vector_translate(
                     raise ValueError(f"invalid type in {force_output_geometrytype=}")
         else:
             raise ValueError(f"invalid type for {force_output_geometrytype=}")
+    else:
+        if (
+            input_info.driver == "ESRI Shapefile"
+            and output_info.driver != "ESRI Shapefile"
+        ):
+            # Shapefiles are always reported as singlepart type but can also contain
+            # multiparts geometries, so promote to multi
+            output_geometrytypes.append("PROMOTE_TO_MULTI")
 
     if transaction_size is not None:
         args.extend(["-gt", str(transaction_size)])
