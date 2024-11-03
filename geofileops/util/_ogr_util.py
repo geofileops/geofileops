@@ -326,7 +326,7 @@ def vector_translate(
                 if isinstance(geotype, GeometryType):
                     output_geometrytypes.append(geotype.name)
                 elif isinstance(geotype, str):
-                    output_geometrytypes.extend(geotype)
+                    output_geometrytypes.append(geotype)
                 else:
                     raise ValueError(f"invalid type in {force_output_geometrytype=}")
         else:
