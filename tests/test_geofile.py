@@ -954,7 +954,7 @@ def test_read_file_curve():
     # Test
     read_gdf = gfo.read_file(src)
     assert isinstance(read_gdf, gpd.GeoDataFrame)
-    assert isinstance(read_gdf.geometry[0], sh_geom.MultiPolygon)
+    assert isinstance(read_gdf.geometry[0], sh_geom.Polygon)
 
 
 def test_read_file_invalid_params(tmp_path, engine_setter):
