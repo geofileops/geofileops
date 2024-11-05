@@ -1,6 +1,7 @@
 """Module with compatibility and dependency availability checks."""
 
 import warnings
+from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
@@ -13,17 +14,35 @@ from geofileops.util import _ogr_util, _sqlite_util
 
 gdal.UseExceptions()
 
+
 # Do some pre-flight checks to ensure mandatory runtime dependencies are available.
+def _pyogrio_spatialite_version_info() -> dict[str, str]:
+    test_path = Path(__file__).resolve().parent / "util/test.gpkg"
+
+    sql = "SELECT spatialite_version(), geos_version()"
+    result = pyogrio.read_dataframe(test_path, sql=sql)
+    spatialite_version = result.iloc[0][0]
+    geos_version = result.iloc[0][1]
+
+    versions = {
+        "spatialite_version": spatialite_version,
+        "geos_version": geos_version,
+    }
+    return versions
+
+
+pyogrio_spatialite_version_info = _pyogrio_spatialite_version_info()
 sqlite3_spatialite_version_info = _sqlite_util.spatialite_version_info()
 gdal_spatialite_version_info = _ogr_util.spatialite_version_info()
 
+pyogrio_spatialite_version = pyogrio_spatialite_version_info["spatialite_version"]
 sqlite3_spatialite_version = sqlite3_spatialite_version_info["spatialite_version"]
 gdal_spatialite_version = gdal_spatialite_version_info["spatialite_version"]
-if (
-    sqlite3_spatialite_version is None or sqlite3_spatialite_version == ""
-):  # pragma: no cover
+if not pyogrio_spatialite_version:  # pragma: no cover
+    warnings.warn("pyogrio spatialite version could not be determined", stacklevel=1)
+if not sqlite3_spatialite_version:  # pragma: no cover
     warnings.warn("sqlite3 spatialite version could not be determined", stacklevel=1)
-if gdal_spatialite_version is None or gdal_spatialite_version == "":  # pragma: no cover
+if not gdal_spatialite_version:  # pragma: no cover
     warnings.warn("gdal spatialite version could not be determined", stacklevel=1)
 if sqlite3_spatialite_version != gdal_spatialite_version:  # pragma: no cover
     warnings.warn(
