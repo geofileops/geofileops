@@ -21,8 +21,21 @@ def _pyogrio_spatialite_version_info() -> dict[str, str]:
 
     sql = "SELECT spatialite_version(), geos_version()"
     result = pyogrio.read_dataframe(test_path, sql=sql)
-    spatialite_version = result.iloc[0][0]
-    geos_version = result.iloc[0][1]
+    spatialite_version = result.iloc[0, 0]
+    geos_version = result.iloc[0, 1]
+
+    if not spatialite_version:  # pragma: no cover
+        warnings.warn(
+            "empty pyogrio spatialite version: probably a geofileops dependency "
+            "was not installed correctly, check the geofileops FAQ for more info",
+            stacklevel=1,
+        )
+    if not geos_version:  # pragma: no cover
+        warnings.warn(
+            "empty pyogrio spatialite GEOS version: probably a geofileops dependency "
+            "was not installed correctly, check the geofileops FAQ for more info",
+            stacklevel=1,
+        )
 
     versions = {
         "spatialite_version": spatialite_version,
@@ -35,18 +48,16 @@ pyogrio_spatialite_version_info = _pyogrio_spatialite_version_info()
 sqlite3_spatialite_version_info = _sqlite_util.spatialite_version_info()
 gdal_spatialite_version_info = _ogr_util.spatialite_version_info()
 
+# Check that the spatialite versions are the same
 pyogrio_spatialite_version = pyogrio_spatialite_version_info["spatialite_version"]
 sqlite3_spatialite_version = sqlite3_spatialite_version_info["spatialite_version"]
 gdal_spatialite_version = gdal_spatialite_version_info["spatialite_version"]
-if not pyogrio_spatialite_version:  # pragma: no cover
-    warnings.warn("pyogrio spatialite version could not be determined", stacklevel=1)
-if not sqlite3_spatialite_version:  # pragma: no cover
-    warnings.warn("sqlite3 spatialite version could not be determined", stacklevel=1)
-if not gdal_spatialite_version:  # pragma: no cover
-    warnings.warn("gdal spatialite version could not be determined", stacklevel=1)
-if sqlite3_spatialite_version != gdal_spatialite_version:  # pragma: no cover
+if (
+    pyogrio_spatialite_version != sqlite3_spatialite_version
+    or pyogrio_spatialite_version != gdal_spatialite_version
+):  # pragma: no cover
     warnings.warn(
-        "different spatialite versions loaded: "
+        f"different spatialite versions loaded: {pyogrio_spatialite_version=} vs "
         f"{sqlite3_spatialite_version=} vs {gdal_spatialite_version=}",
         stacklevel=1,
     )

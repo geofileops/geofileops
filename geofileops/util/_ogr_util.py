@@ -3,6 +3,7 @@
 import logging
 import os
 import tempfile
+import warnings
 from collections.abc import Iterable
 from pathlib import Path
 from threading import Lock
@@ -82,6 +83,19 @@ def spatialite_version_info() -> dict[str, str]:
 
     finally:
         datasource = None
+
+    if not spatialite_version:  # pragma: no cover
+        warnings.warn(
+            "empty gdal spatialite version: probably a geofileops dependency "
+            "was not installed correctly, check the geofileops FAQ for more info",
+            stacklevel=1,
+        )
+    if not geos_version:  # pragma: no cover
+        warnings.warn(
+            "empty gdal spatialite GEOS version: probably a geofileops dependency "
+            "was not installed correctly, check the geofileops FAQ for more info",
+            stacklevel=1,
+        )
 
     versions = {
         "spatialite_version": spatialite_version,

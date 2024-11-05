@@ -9,7 +9,7 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 
-class MissingRuntimeDependencyError(Exception):
+class MissingRuntimeDependencyError(RuntimeError):
     """Exception raised when a geofileops runtime dependency is missing.
 
     Attributes:
