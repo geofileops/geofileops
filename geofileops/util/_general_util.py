@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class MissingRuntimeDependencyError(Exception):
-    """Exception raised when an unsupported SQL statement is passed.
+    """Exception raised when a geofileops runtime dependency is missing.
 
     Attributes:
         message (str): Exception message

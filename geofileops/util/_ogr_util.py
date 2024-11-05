@@ -13,6 +13,7 @@ from pygeoops import GeometryType
 
 import geofileops as gfo
 from geofileops import fileops
+from geofileops.util._general_util import MissingRuntimeDependencyError
 
 # Make sure only one instance per process is running
 lock = Lock()
@@ -52,6 +53,41 @@ class GDALError(Exception):
             return f"{retstring}\n{super().__str__()}"
         else:
             return super().__str__()
+
+
+def spatialite_version_info() -> dict[str, str]:
+    """Returns the versions of the spatialite module used in gdal.
+
+    Versions returned: spatialite_version, geos_version.
+
+    Raises:
+        RuntimeError: if a runtime dependency is not available.
+
+    Returns:
+        Dict[str, str]: a dict with the version of the runtime dependencies.
+    """
+    datasource = None
+    try:
+        test_path = Path(__file__).resolve().parent / "test.gpkg"
+        datasource = gdal.OpenEx(str(test_path))
+        result = datasource.ExecuteSQL("SELECT spatialite_version(), geos_version()")
+        row = result.GetNextFeature()
+        spatialite_version = row.GetField(0)
+        geos_version = row.GetField(1)
+        datasource.ReleaseResultSet(result)
+
+    except Exception as ex:
+        message = f"error getting spatialite_version: {ex}"
+        raise MissingRuntimeDependencyError(message)
+
+    finally:
+        datasource = None
+
+    versions = {
+        "spatialite_version": spatialite_version,
+        "geos_version": geos_version,
+    }
+    return versions
 
 
 def ogrtype_to_name(ogrtype: Optional[int]) -> str:
