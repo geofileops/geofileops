@@ -76,7 +76,7 @@ def spatialite_version_info() -> dict[str, str]:
         geos_version = row.GetField(1)
         datasource.ReleaseResultSet(result)
 
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
         message = f"error getting spatialite_version: {ex}"
         raise MissingRuntimeDependencyError(message)
 

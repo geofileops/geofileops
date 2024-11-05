@@ -19,11 +19,13 @@ gdal_spatialite_version_info = _ogr_util.spatialite_version_info()
 
 sqlite3_spatialite_version = sqlite3_spatialite_version_info["spatialite_version"]
 gdal_spatialite_version = gdal_spatialite_version_info["spatialite_version"]
-if sqlite3_spatialite_version is None or sqlite3_spatialite_version == "":
+if (
+    sqlite3_spatialite_version is None or sqlite3_spatialite_version == ""
+):  # pragma: no cover
     warnings.warn("sqlite3 spatialite version could not be determined", stacklevel=1)
-if gdal_spatialite_version is None or gdal_spatialite_version == "":
+if gdal_spatialite_version is None or gdal_spatialite_version == "":  # pragma: no cover
     warnings.warn("gdal spatialite version could not be determined", stacklevel=1)
-if sqlite3_spatialite_version != gdal_spatialite_version:
+if sqlite3_spatialite_version != gdal_spatialite_version:  # pragma: no cover
     warnings.warn(
         "different spatialite versions loaded: "
         f"{sqlite3_spatialite_version=} vs {gdal_spatialite_version=}",

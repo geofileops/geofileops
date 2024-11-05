@@ -52,10 +52,10 @@ def spatialite_version_info() -> dict[str, str]:
         result = conn.execute(sql).fetchall()
         spatialite_version = result[0][0]
         geos_version = result[0][1]
-    except MissingRuntimeDependencyError:
+    except MissingRuntimeDependencyError:  # pragma: no cover
         conn.rollback()
         raise
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
         conn.rollback()
         raise RuntimeError(f"Error {ex} executing {sql}") from ex
     finally:
