@@ -45,9 +45,9 @@ Notes
 -----
 
 - If you want to use a system version of gdal or if you include gdal directly
-  in a docker image, you should install geopandas/pyogrio with pip without
-  binaries. Otherwise you will get a conflict between the system gdal and the
-  gdal that is included in the geopandas/pyogrio wheels.
+  in a docker image, you should install pyogrio with pip without binaries.
+  Otherwise you will get a conflict between the system gdal and the gdal that
+  is included in the pyogrio wheels.
   E.g. `pip install pyogrio --no-binary pyogrio`
 
 
