@@ -413,6 +413,7 @@ def test_export_by_location(
         ("within is False", None, 1000, 0, 15),
     ],
 )
+@pytest.mark.filterwarnings("ignore:.*Field format '' not supported.*")
 def test_export_by_location_area(
     tmp_path,
     query,
