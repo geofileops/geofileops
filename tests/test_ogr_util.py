@@ -6,6 +6,7 @@ import os
 
 import pytest
 from osgeo import gdal
+from pygeoops import GeometryType
 
 import geofileops as gfo
 from geofileops._compat import GDAL_GTE_38
@@ -153,7 +154,9 @@ def test_set_config_options():
     [
         (None, "POLYGON"),
         ("MULTIPOLYGON", "MULTIPOLYGON"),
+        (GeometryType.MULTIPOLYGON, "MULTIPOLYGON"),
         (["MULTIPOLYGON"], "MULTIPOLYGON"),
+        ([GeometryType.MULTIPOLYGON], "MULTIPOLYGON"),
         (["PROMOTE_TO_MULTI"], "MULTIPOLYGON"),
     ],
 )
