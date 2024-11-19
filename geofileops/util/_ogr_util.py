@@ -322,7 +322,7 @@ def vector_translate(
         elif isinstance(force_output_geometrytype, str):
             output_geometrytypes.append(force_output_geometrytype)
         elif isinstance(force_output_geometrytype, Iterable):
-            for geotype in output_geometrytypes:
+            for geotype in force_output_geometrytype:
                 if isinstance(geotype, GeometryType):
                     output_geometrytypes.append(geotype.name)
                 elif isinstance(geotype, str):

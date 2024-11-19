@@ -148,6 +148,47 @@ def test_set_config_options():
     assert gdal.GetConfigOption(test3_config_envset) == "test3_new_env_value"
 
 
+@pytest.mark.parametrize(
+    "output_geometrytype, exp_geometrytype",
+    [
+        (None, "POLYGON"),
+        ("MULTIPOLYGON", "MULTIPOLYGON"),
+        (["MULTIPOLYGON"], "MULTIPOLYGON"),
+        (["PROMOTE_TO_MULTI"], "MULTIPOLYGON"),
+    ],
+)
+def test_vector_translate_geometrytype(tmp_path, output_geometrytype, exp_geometrytype):
+    input_path = test_helper.get_testfile(
+        "polygon-parcel", dst_dir=tmp_path, explodecollections=True
+    )
+    output_path = tmp_path / f"output{input_path.suffix}"
+
+    _ogr_util.vector_translate(
+        str(input_path), output_path, force_output_geometrytype=output_geometrytype
+    )
+    output_info = gfo.get_layerinfo(output_path)
+    assert output_info.geometrytypename == exp_geometrytype
+
+
+@pytest.mark.parametrize(
+    "output_geometrytype, exp_error",
+    [
+        (1, "invalid type for"),
+        ([1], "invalid type in"),
+    ],
+)
+def test_vector_translate_geometrytype_error(tmp_path, output_geometrytype, exp_error):
+    input_path = test_helper.get_testfile(
+        "polygon-parcel", dst_dir=tmp_path, explodecollections=True
+    )
+    output_path = tmp_path / f"output{input_path.suffix}"
+
+    with pytest.raises(ValueError, match=exp_error):
+        _ogr_util.vector_translate(
+            str(input_path), output_path, force_output_geometrytype=output_geometrytype
+        )
+
+
 def test_vector_translate_input_nolayer(tmp_path):
     input_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
     output_path = tmp_path / f"output{input_path.suffix}"
