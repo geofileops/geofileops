@@ -64,14 +64,16 @@ def spatialite_version_info() -> dict[str, str]:
 
     if not spatialite_version:  # pragma: no cover
         warnings.warn(
-            "empty sqlite3 spatialite version: probably a geofileops dependency "
-            "was not installed correctly, check the geofileops FAQ for more info",
+            "empty sqlite3 spatialite version: probably a geofileops dependency was "
+            "not installed correctly: check the installation instructions in the "
+            "geofileops docs.",
             stacklevel=1,
         )
     if not geos_version:  # pragma: no cover
         warnings.warn(
             "empty sqlite3 spatialite GEOS version: probably a geofileops dependency "
-            "was not installed correctly, check the geofileops FAQ for more info",
+            "was not installed correctly: check the installation instructions in the "
+            "geofileops docs.",
             stacklevel=1,
         )
 
