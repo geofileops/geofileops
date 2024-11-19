@@ -10,6 +10,7 @@
 - Enable "CURVE" geometrytype files to be processed in the general file and
   layer operations (#558)
 - Add configuration option to only warn on dissolve errors (#561)
+- Add some pre-flight checks when geofileops is imported (#573)
 
 ## 0.9.1 (2024-07-18)
 
