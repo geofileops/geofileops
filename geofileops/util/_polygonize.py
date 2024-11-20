@@ -61,8 +61,8 @@ def polygonize(
     Args:
         input_path (PathLike): the input file.
         output_path (PathLike): the file to write the result to.
-        output_layer (str, optional): output layer name. If None, output_path.stem is
-            used.
+        output_layer (str, optional): output layer name. If None, the ``output_path``
+            stem is used. Defaults to None.
         value_column (str, optional): the column name to use for the values in the
             output file. Defaults to "DN".
         dissolve (bool, optional): True to disolve the result, grouped on the
