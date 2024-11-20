@@ -13,9 +13,12 @@ gdal.UseExceptions()
 def test_polygonize(tmp_path, nb_tiles):
     """Test polygonize for a simple case both with and without tiling."""
     # Prepare base vector
+    value_column = "value_column"
     input_vector_path = tmp_path / "input.gpkg"
     input_gdf = gpd.GeoDataFrame(
-        data={"DN": [1, 2]}, geometry=[box(0, 0, 5, 5), box(10, 0, 15, 5)], crs=31370
+        data={value_column: [1, 2]},
+        geometry=[box(0, 0, 5, 5), box(10, 0, 15, 5)],
+        crs=31370,
     )
     input_gdf.to_file(input_vector_path)
 
@@ -28,7 +31,7 @@ def test_polygonize(tmp_path, nb_tiles):
         xRes=1,
         yRes=1,
         targetAlignedPixels=True,
-        attribute="DN",
+        attribute=value_column,
     )
     gdal.Rasterize(
         srcDS=input_vector_path, destNameOrDestDS=input_raster_path, options=options
@@ -46,16 +49,17 @@ def test_polygonize(tmp_path, nb_tiles):
     gfo.polygonize(
         input_path=input_raster_path,
         output_path=output_path,
+        value_column=value_column,
         simplify_tolerance=1,
-        dissolve_result=False,
-        max_tile_size_mb=max_tile_size_mb,
+        dissolve=False,
+        max_tile_size_mp=max_tile_size_mb,
     )
 
     # Validate
     output_gdf = gpd.read_file(output_path)
 
     # Ignore the background polygon in the output
-    output_gdf = output_gdf[output_gdf["DN"] != 0]
+    output_gdf = output_gdf[output_gdf[value_column] != 0]
 
     assert_geodataframe_equal(
         output_gdf, input_gdf, sort_values=True, check_dtype=False, normalize=True

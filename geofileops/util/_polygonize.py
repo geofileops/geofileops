@@ -37,16 +37,61 @@ def polygonize(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
     output_layer: Optional[str] = None,
-    max_tile_size_mb: int = 500,
-    simplify_algorithm: Union[SimplifyAlgorithm, str] = "rdp",
+    value_column: str = "DN",
+    dissolve: bool = True,
     simplify_tolerance: float = 0.0,
+    simplify_algorithm: Union[SimplifyAlgorithm, str] = "rdp",
     simplify_lookahead: int = 8,
     simplify_preserve_common_boundaries: bool = False,
-    dissolve_result: bool = True,
     dst_tiles_path: Union[str, "os.PathLike[Any]", None] = None,
+    max_tile_size_mp: int = 500,
     nb_parallel: int = -1,
     force: bool = False,
 ):
+    """Polygonize a raster file to a vector file.
+
+    Based on the `max_tile_size_mb` parameter, the raster file will be processed tile by
+    tile. If `dissolve_result` is True, the result will be dissolved based on the DN
+    column.
+
+    When a `simplify_tolerance` is specified, the result will be simplified. This will
+    also be applied per tile to avoid huge temporary file storage requirements and to
+    improve performance when `simplify_preserve_common_boundaries=True`.
+
+    Args:
+        input_path (PathLike): the input file.
+        output_path (PathLike): the file to write the result to.
+        output_layer (str, optional): output layer name. If None, output_path.stem is
+            used.
+        value_column (str, optional): the column name to use for the values in the
+            output file. Defaults to "DN".
+        dissolve (bool, optional): True to disolve the result, grouped on the
+            `value_column`. Defaults to True.
+        simplify_tolerance (float): tolerance to use for the simplification. Defaults to
+            0.0, so no simplification. Depends on the ``algorithm`` specified.
+            In projected coordinate systems this tolerance will typically be
+            in meter, in geodetic systems this is typically in degrees.
+        simplify_algorithm (str, optional): algorithm to use. Defaults to "rdp".
+
+                * **"rdp"**: Ramer Douglas Peucker: tolerance is a distance
+                * **"lang"**: Lang: tolerance is a distance
+                * **"lang+"**: Lang, with extensions to further reduce number of points
+                * **"vw"**: Visvalingam Whyatt: tolerance is an area
+
+        simplify_lookahead (int, optional): used for Lang algorithms. Defaults to 8.
+        simplify_preserve_common_boundaries (bool, optional): True to (try to) maintain
+            common boundaries between all geometries in the input geometry list.
+            Defaults to False.
+        dst_tiles_path (PathLike, optional): the path to write the tiling scheme used
+            to. Defaults to None, which avoids the tiles to be written.
+        max_tile_size_mp (int, optional): to determine the number of tiles: the maximum
+            number of pixels per tile in megapixels. Defaults to 500.
+        nb_parallel (int, optional): the number of parallel processes to use.
+            Defaults to -1: use all available CPUs.
+        force (bool, optional): overwrite existing output file(s).
+            Defaults to False.
+
+    """
     # If output file exists already, either clean up or return...
     input_path = Path(input_path)
     output_path = Path(output_path)
@@ -71,7 +116,7 @@ def polygonize(
     xmax = xmin + (input.RasterXSize * xres)
     ymin = ymax + (input.RasterYSize * yres)
     total_nb_pixels = input.RasterXSize * input.RasterYSize
-    nb_squarish_tiles = total_nb_pixels // (max_tile_size_mb * 1024 * 1024)
+    nb_squarish_tiles = total_nb_pixels // (max_tile_size_mp * 1024 * 1024)
 
     # Create temporary and output directory
     tmp_dir = _io_util.create_tempdir("geofileops/polygonize")
@@ -82,6 +127,7 @@ def polygonize(
         _polygonize_bbox(
             input_path=input_path,
             output_path=output_path,
+            value_column=value_column,
             bbox=None,
             simplify_algorithm=simplify_algorithm,
             simplify_tolerance=simplify_tolerance,
@@ -124,6 +170,7 @@ def polygonize(
                     _polygonize_bbox,
                     input_path=input_path,
                     output_path=polygonize_part_path,
+                    value_column=value_column,
                     bbox=tile_bbox,
                     simplify_algorithm=simplify_algorithm,
                     simplify_tolerance=simplify_tolerance,
@@ -133,10 +180,10 @@ def polygonize(
                 )
                 batches[future] = polygonize_part_path
 
-            # Loop till all parallel processes are ready, but process each one
-            # that is ready already
-            # Remark: calculating can be done in parallel, but only one process
-            # can write to the same output file at the time...
+            # Loop till all parallel processes are ready, but process each one that is
+            # ready already.
+            # Remark: calculating can be done in parallel, but only one process can
+            # write to the same output file at the time...
             start_time = datetime.now()
             nb_done = 0
             nb_batches = len(tiles)
@@ -196,12 +243,12 @@ def polygonize(
             )
 
         # Dissolve the result if asked for
-        if dissolve_result:
+        if dissolve:
             geoops.dissolve(
                 polygonized_path,
                 output_path,
                 explodecollections=True,
-                groupby_columns="DN",
+                groupby_columns=value_column,
             )
         else:
             fileops.move(polygonized_path, output_path)
@@ -221,6 +268,7 @@ def polygonize(
 def _polygonize_bbox(
     input_path: Path,
     output_path: Path,
+    value_column: str,
     bbox: Optional[tuple[float, float, float, float]],
     simplify_algorithm: SimplifyAlgorithm,
     simplify_tolerance: float,
@@ -248,6 +296,7 @@ def _polygonize_bbox(
     gdal_polygonize.gdal_polygonize(
         src_filename=str(input_path),
         dst_filename=str(output_poly_path),
+        dst_fieldname=value_column,
         quiet=True,
         layer_creation_options=["SPATIAL_INDEX=NO"],
     )
