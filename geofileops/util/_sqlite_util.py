@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class EmptyResultError(Exception):
-    """Exception raised when the SQL statement disn't return any rows.
+    """Exception raised when the SQL statement didn't return any rows.
 
     Attributes:
         message (str): Exception message
