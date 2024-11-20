@@ -34,7 +34,9 @@ def test_polygonize(tmp_path, nb_tiles):
         attribute=value_column,
     )
     gdal.Rasterize(
-        srcDS=input_vector_path, destNameOrDestDS=input_raster_path, options=options
+        srcDS=str(input_vector_path),
+        destNameOrDestDS=str(input_raster_path),
+        options=options,
     )
 
     # Determine max_tile_size_mb to get the desired number of tiles
