@@ -111,12 +111,17 @@ def polygonize(
         nb_parallel = nb_cpu
 
     # Determine the bounding box of the input raster + the number of tiles to create
-    input = gdal.OpenEx(input_path)
+    input = gdal.OpenEx(str(input_path), flags=gdal.OF_RASTER)
     xmin, xres, xskew, ymax, yskew, yres = input.GetGeoTransform()
     xmax = xmin + (input.RasterXSize * xres)
     ymin = ymax + (input.RasterYSize * yres)
     total_nb_pixels = input.RasterXSize * input.RasterYSize
     nb_squarish_tiles = total_nb_pixels // (max_tile_size_mp * 1024 * 1024)
+
+    # Determine crs of the input file
+    spatialref = input.GetSpatialRef()
+    crs = pyproj.CRS(spatialref.ExportToWkt()) if spatialref is not None else None
+    input = None
 
     # Create temporary and output directory
     tmp_dir = _io_util.create_tempdir("geofileops/polygonize")
@@ -136,10 +141,6 @@ def polygonize(
             tmp_dir=tmp_dir,
         )
         return
-
-    # Determine crs of the input file
-    spatialref = input.GetSpatialRef()
-    crs = pyproj.CRS(spatialref.ExportToWkt()) if spatialref is not None else None
 
     # Create a grid with the number of tiles as determined above
     tiles = gpd.GeoDataFrame(
