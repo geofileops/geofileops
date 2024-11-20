@@ -111,7 +111,7 @@ def polygonize(
         nb_parallel = nb_cpu
 
     # Determine the bounding box of the input raster + the number of tiles to create
-    input = gdal.OpenEx(str(input_path), flags=gdal.OF_RASTER)
+    input = gdal.OpenEx(str(input_path), gdal.OF_RASTER)
     xmin, xres, xskew, ymax, yskew, yres = input.GetGeoTransform()
     xmax = xmin + (input.RasterXSize * xres)
     ymin = ymax + (input.RasterYSize * yres)
