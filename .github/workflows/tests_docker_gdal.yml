@@ -29,32 +29,32 @@ jobs:
       image: ${{ matrix.container }}
 
     steps:
-      - name: Install packages
-        run: |
-          apt-get update && apt-get install -y build-essential git python3-dev
+      # - name: Install packages
+      #   run: |
+      #     apt-get update && apt-get install -y build-essential git python3-dev
 
-      - uses: actions/checkout@v4
+      # - uses: actions/checkout@v4
 
-      - name: Create virtual environment
-        # install uv and use it to create a virtual environment, then add it to
-        # environment variables so that it is automatically activated and can be
-        # used for tests below
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          . $HOME/.local/bin/env
-          uv venv .venv
-          echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
-          echo "$PWD/.venv/bin" >> $GITHUB_PATH
+      # - name: Create virtual environment
+      #   # install uv and use it to create a virtual environment, then add it to
+      #   # environment variables so that it is automatically activated and can be
+      #   # used for tests below
+      #   run: |
+      #     curl -LsSf https://astral.sh/uv/install.sh | sh
+      #     . $HOME/.local/bin/env
+      #     uv venv .venv
+      #     echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
+      #     echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
       - name: Install Python Dependencies
         run: |
           # Install dependencies, excluding gdal and pyogrio binaries
           # uv pip install -e .[test,full]
-          uv pip install cloudpickle "geopandas<1.1" numpy packaging pandas psutil "pygeoops<0.5" pyogrio pyproj "shapely<2.1" pytest pytest-cov --no-binary pyogrio
+          pip install cloudpickle "geopandas<1.1" numpy packaging pandas psutil "pygeoops<0.5" pyogrio pyproj "shapely<2.1" pytest pytest-cov --no-binary pyogrio
 
       - name: Install pyarrow
         run: |
-          uv pip install pyarrow
+          pip install pyarrow
 
       - name: Test with pytest
         # run: |  
