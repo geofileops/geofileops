@@ -37,26 +37,26 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      # - name: Create virtual environment
-      #   # install uv and use it to create a virtual environment, then add it to
-      #   # environment variables so that it is automatically activated and can be
-      #   # used for tests below
-      #   run: |
-      #     curl -LsSf https://astral.sh/uv/install.sh | sh
-      #     . $HOME/.local/bin/env
-      #     uv venv .venv
-      #     echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
-      #     echo "$PWD/.venv/bin" >> $GITHUB_PATH
+      - name: Create virtual environment
+        # install uv and use it to create a virtual environment, then add it to
+        # environment variables so that it is automatically activated and can be
+        # used for tests below
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          . $HOME/.local/bin/env
+          uv venv .venv
+          echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
+          echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
       - name: Install Python Dependencies
         run: |
           # Install dependencies, excluding gdal and pyogrio binaries
           # uv pip install -e .[test,full]
-          pip install --no-cache-dir cloudpickle "geopandas<1.1" numpy packaging pandas psutil "pygeoops<0.5" pyogrio pyproj "shapely<2.1" pytest pytest-cov --no-binary pyogrio
+          uv pip install cloudpickle gdal "geopandas<1.1" numpy packaging pandas psutil "pygeoops<0.5" pyogrio pyproj "shapely<2.1" pytest pytest-cov --no-binary pyogrio
 
       - name: Install pyarrow
         run: |
-          pip install --no-cache-dir pyarrow
+          uv pip install pyarrow
 
       - name: Test with pytest
         # run: |  
