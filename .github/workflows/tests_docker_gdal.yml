@@ -48,9 +48,9 @@ jobs:
 
       - name: Install Python Dependencies
         run: |
-          # uv pip install -e .[test,full]
           # Install dependencies, excluding gdal and pyogrio binaries
-          uv pip install cloudpickle geopandas<1.1 numpy packaging pandas psutil pygeoops<0.5 pyogrio pyproj shapely<2.1 --no-binary pyogrio
+          # uv pip install -e .[test,full]
+          uv pip install cloudpickle "geopandas<1.1" numpy packaging pandas psutil "pygeoops<0.5" pyogrio pyproj "shapely<2.1" --no-binary pyogrio
 
       - name: Install pyarrow
         run: |
