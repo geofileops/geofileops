@@ -52,11 +52,11 @@ jobs:
         run: |
           # Install dependencies, excluding gdal and pyogrio binaries
           # uv pip install -e .[test,full]
-          uv install cloudpickle gdal "geopandas<1.1" numpy packaging pandas psutil "pygeoops<0.5" pyogrio pyproj "shapely<2.1" pytest pytest-cov --no-binary pyogrio
+          uv pip install cloudpickle gdal "geopandas<1.1" numpy packaging pandas psutil "pygeoops<0.5" pyogrio pyproj "shapely<2.1" pytest pytest-cov --no-binary pyogrio
 
       - name: Install pyarrow
         run: |
-          uv install pyarrow
+          uv pip install pyarrow
 
       - name: Test with pytest
         # run: |  
