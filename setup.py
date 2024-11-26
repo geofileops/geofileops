@@ -35,7 +35,7 @@ setuptools.setup(
         "pyproj",
         "shapely>=2,<2.1",
     ],
-    extras_require={"full": ["simplification"]},
+    extras_require={"full": ["simplification"], "test": ["pytest", "pytest-cov"]},
     classifiers=[
         "Intended Audience :: Science/Research",
         "License :: OSI Approved :: BSD License",

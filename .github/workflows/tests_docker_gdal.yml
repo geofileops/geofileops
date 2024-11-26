@@ -1,0 +1,61 @@
+name: Docker GDAL Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+# cancel running jobs on new commit to PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  TestLinux:
+    name: GDAL ${{ matrix.container }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        container:
+          - "ghcr.io/osgeo/gdal:ubuntu-small-latest" # >= python 3.12.3
+          # - "ghcr.io/osgeo/gdal:ubuntu-small-3.9.3" # python 3.12.3
+          # - "ghcr.io/osgeo/gdal:ubuntu-small-3.8.5" # python 3.10.12
+          - "ghcr.io/osgeo/gdal:ubuntu-small-3.7.3" # python 3.10.12
+
+    container:
+      image: ${{ matrix.container }}
+
+    steps:
+      - name: Install packages
+        run: |
+          apt-get update && apt-get install -y build-essential git python3-dev
+
+      - uses: actions/checkout@v4
+
+      - name: Create virtual environment
+        # install uv and use it to create a virtual environment, then add it to
+        # environment variables so that it is automatically activated and can be
+        # used for tests below
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          . $HOME/.local/bin/env
+          uv venv .venv
+          echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
+          echo "$PWD/.venv/bin" >> $GITHUB_PATH
+
+      - name: Install Python Dependencies
+        run: |
+          uv pip install -e .[test,full]
+
+      - name: Install pyarrow
+        run: |
+          uv pip install pyarrow
+
+      - name: Test with pytest
+        # run: |  
+        #   pytest --cov=geofileops --cov-report term-missing tests
+        run: |
+          pytest --color=yes --cov=geofileops --cov-append --cov-report term-missing --cov-report xml tests/
