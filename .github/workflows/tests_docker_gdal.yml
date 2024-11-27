@@ -29,34 +29,39 @@ jobs:
       image: ${{ matrix.container }}
 
     steps:
-      - name: Install packages
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+          # cache-dependency-path: 'requirements.txt'
+
+          # - name: Install python
       #   run: |
       #     apt-get update && apt-get install -y build-essential git python3-dev
-        run: |
-            apt-get update && apt-get -y install python3-pip --fix-missing
+      #  run: |
+      #      apt-get update && apt-get -y install python3-pip --fix-missing
 
       - uses: actions/checkout@v4
 
-      - name: Create virtual environment
+      #- name: Create virtual environment
         # install uv and use it to create a virtual environment, then add it to
         # environment variables so that it is automatically activated and can be
         # used for tests below
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          . $HOME/.local/bin/env
-          uv venv .venv
-          echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
-          echo "$PWD/.venv/bin" >> $GITHUB_PATH
+        # run: |
+        #   curl -LsSf https://astral.sh/uv/install.sh | sh
+        #   . $HOME/.local/bin/env
+        #   uv venv .venv
+        #   echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
+        #   echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
       - name: Install Python Dependencies
         run: |
           # Install dependencies, excluding gdal and pyogrio binaries
           # uv pip install -e .[test,full]
-          uv pip install cloudpickle "geopandas<1.1" numpy packaging pandas psutil "pygeoops<0.5" pyogrio pyproj "shapely<2.1" pytest pytest-cov --no-binary pyogrio
-
-      - name: Install pyarrow
-        run: |
-          uv pip install pyarrow
+          # uv pip install cloudpickle "geopandas<1.1" numpy packaging pandas psutil pyarrow "pygeoops<0.5" pyogrio pyproj "shapely<2.1" pytest pytest-cov --no-binary pyogrio
+          python -m pip install --upgrade pip
+          pip install cloudpickle "geopandas<1.1" numpy packaging pandas psutil pyarrow "pygeoops<0.5" pyogrio pyproj "shapely<2.1" pytest pytest-cov --no-binary pyogrio
 
       - name: Test with pytest
         # run: |  
