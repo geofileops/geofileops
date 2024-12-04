@@ -8,6 +8,9 @@ on:
   #  branches: [ main, v0.** ]
   schedule:
     - cron: "0 0 * * *"
+  push:
+    paths:
+      - ".github/workflows/tests_installed.yml"
 
 concurrency: 
   group: ${{ github.workflow }}-${{ github.ref }}
