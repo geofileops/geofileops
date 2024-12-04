@@ -11,6 +11,9 @@ on:
   push:
     paths:
       - ".github/workflows/tests_installed.yml"
+  pull_request:
+    paths: 
+      - ".github/workflows/tests_installed.yml"
 
 concurrency: 
   group: ${{ github.workflow }}-${{ github.ref }}
