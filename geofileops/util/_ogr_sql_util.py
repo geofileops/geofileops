@@ -1,30 +1,27 @@
-"""
-Module with utilities to format sql statements meant for use with ogr.
-"""
+"""Module with utilities to format sql statements meant for use with ogr."""
 
-from typing import Iterable, List, Optional
+from collections.abc import Iterable
+from typing import Optional
 
 
 class ColumnFormatter:
-    """
-    Format strings with the columns for use in sql statements.
+    """Format strings with the columns for use in sql statements.
 
     There are some specific hacks that are related to specific behaviours of ogr, mainly
     regarding the handling of the special "fid" column.
     """
 
-    _aliases_cache: Optional[List[str]] = None
+    _aliases_cache: Optional[list[str]] = None
 
     def __init__(
         self,
-        columns_asked: Optional[List[str]],
+        columns_asked: Optional[list[str]],
         columns_in_layer: Iterable[str],
         fid_column: str,
         table_alias: str = "",
         column_alias_prefix: str = "",
     ):
-        """
-        Format strings with column names for use in sql statements.
+        """Format strings with column names for use in sql statements.
 
         Args:
             columns_asked (Optional[List[str]]): the column names to read from the
@@ -79,16 +76,15 @@ class ColumnFormatter:
         self._columns = columns
         self._columns_asked = columns_asked
 
-    def _columns_prefixed(self) -> List[str]:
+    def _columns_prefixed(self) -> list[str]:
         columns_prefixed = [
             f'{self._table_prefix}"{column}"' for column in self._columns
         ]
         columns_prefixed = self._fix_fid_columns(columns_prefixed)
         return columns_prefixed
 
-    def _fix_fid_columns(self, columns: List[str]) -> List[str]:
-        """
-        Fix the fid columns.
+    def _fix_fid_columns(self, columns: list[str]) -> list[str]:
+        """Fix the fid columns.
 
         Useful if the "fid" special column needs some extra treatment:
             - if the fid_column name as reported by gdal is "", this means that the file
@@ -121,7 +117,7 @@ class ColumnFormatter:
 
         return columns
 
-    def _aliases(self) -> List[str]:
+    def _aliases(self) -> list[str]:
         if self._aliases_cache is not None:
             return self._aliases_cache
 
@@ -185,7 +181,7 @@ class ColumnFormatter:
         return f",{', '.join(columns_from_subselect)}"
 
 
-def columns_quoted(columns: List[str]):
+def columns_quoted(columns: list[str]):
     if len(columns) == 0:
         return ""
     columns_quoted = [f'"{column}"' for column in columns]

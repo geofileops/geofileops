@@ -1,23 +1,21 @@
-"""
-Module containing utilities regarding operations on geoseries.
-"""
+"""Module containing utilities regarding operations on geoseries."""
 
 import logging
-from typing import List, Union
 import warnings
+from typing import Union
 
 import geopandas as gpd
 import geopandas._compat as gpd_compat
 import numpy as np
-from numpy.typing import NDArray
 import pandas as pd
-from pygeoops import GeometryType
-from pygeoops._general import _extract_0dim_ndarray
 import pygeoops
 import shapely
+from numpy.typing import NDArray
+from pygeoops import GeometryType
+from pygeoops._general import _extract_0dim_ndarray
 from shapely.geometry.base import BaseGeometry
 
-if gpd_compat.USE_PYGEOS:
+if hasattr(gpd_compat, "USE_PYGEOS") and gpd_compat.USE_PYGEOS:
     import pygeos as shapely2_or_pygeos
 else:
     import shapely as shapely2_or_pygeos
@@ -28,9 +26,8 @@ logger = logging.getLogger(__name__)
 
 def get_geometrytypes(
     geoseries: gpd.GeoSeries, ignore_empty_geometries: bool = True
-) -> List[GeometryType]:
-    """
-    Determine the geometry types in the GeoDataFrame.
+) -> list[GeometryType]:
+    """Determine the geometry types in the GeoDataFrame.
 
     Args:
         geoseries (gpd.GeoSeries): input geoseries.
@@ -60,8 +57,7 @@ def get_geometrytypes(
 def harmonize_geometrytypes(
     geoseries: gpd.GeoSeries, force_multitype: bool = False
 ) -> gpd.GeoSeries:
-    """
-    Tries to harmonize the geometries in the geoseries to one type.
+    """Tries to harmonize the geometries in the geoseries to one type.
 
     Eg. if Polygons and MultiPolygons are present in the geoseries, all
     geometries are converted to MultiPolygons.
@@ -117,7 +113,7 @@ def _harmonize_to_multitype(
     geoseries: gpd.GeoSeries, dest_geometrytype: GeometryType
 ) -> gpd.GeoSeries:
     # Copy geoseries data to new array
-    if gpd_compat.USE_PYGEOS:
+    if hasattr(gpd_compat, "USE_PYGEOS") and gpd_compat.USE_PYGEOS:
         geometries_arr = geoseries.array.data.copy()
     else:
         geometries_arr = geoseries.copy()
@@ -173,8 +169,7 @@ def set_precision(
     mode: str = "valid_output",
     raise_on_topoerror: bool = True,
 ) -> Union[BaseGeometry, NDArray[BaseGeometry], None]:
-    """
-    Returns geometry with the precision set to a precision grid size.
+    """Returns geometry with the precision set to a precision grid size.
 
     By default, geometries use double precision coordinates (grid_size = 0).
 

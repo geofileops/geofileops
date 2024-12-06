@@ -1,13 +1,11 @@
-"""
-Module with information about geofile types.
-"""
+"""Module with information about geofile types."""
 
 import ast
 import csv
-from dataclasses import dataclass
 import enum
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Union
 
 from osgeo import gdal
 from osgeo_utils.auxiliary.util import GetOutputDriversFor
@@ -22,20 +20,18 @@ gdal.ogr.UseExceptions()
 
 @dataclass
 class GeofileTypeInfo:
-    """
-    Class with properties of a GeofileType.
-    """
+    """Class with properties of a GeofileType."""
 
     geofiletype: str
     ogrdriver: str
-    suffixes: List[str]
+    suffixes: list[str]
     is_fid_zerobased: bool
     is_spatialite_based: bool
     default_spatial_index: bool
-    suffixes_extrafiles: List[str]
+    suffixes_extrafiles: list[str]
 
 
-geofiletypes: Dict[str, GeofileTypeInfo] = {}
+geofiletypes: dict[str, GeofileTypeInfo] = {}
 
 
 def _init_geofiletypes():
@@ -74,9 +70,7 @@ def _init_geofiletypes():
 
 
 class GeofileType(enum.Enum):
-    """
-    DEPRECATED Enumeration of relevant geo file types and their properties.
-    """
+    """DEPRECATED Enumeration of relevant geo file types and their properties."""
 
     ESRIShapefile = enum.auto()
     GeoJSON = enum.auto()
@@ -86,8 +80,7 @@ class GeofileType(enum.Enum):
 
     @classmethod
     def _missing_(cls, value):
-        """
-        Expand options in the GeofileType() constructor.
+        """Expand options in the GeofileType() constructor.
 
         Args:
             value (Union[str, int, Driver, Path]):
@@ -149,7 +142,7 @@ class GeofileType(enum.Enum):
         return geofiletypes[self.name].ogrdriver
 
     @property
-    def suffixes_extrafiles(self) -> List[str]:
+    def suffixes_extrafiles(self) -> list[str]:
         """Returns a list of suffixes for the extra files for this GeofileType."""
         return geofiletypes[self.name].suffixes_extrafiles
 
@@ -167,16 +160,14 @@ _init_geofiletypes()
 
 
 class GeofileInfo:
-    """
-    A data object containing meta-information about a geofile.
+    """A data object containing meta-information about a geofile.
 
     Attributes:
         driver (str): the relevant gdal driver for the file.
     """
 
     def __init__(self, path: Path):
-        """
-        Constructor of Layerinfo.
+        """Constructor of Layerinfo.
 
         Args:
             path (Path): the path to the file.
@@ -226,7 +217,7 @@ class GeofileInfo:
             return False
 
     @property
-    def suffixes_extrafiles(self) -> List[str]:
+    def suffixes_extrafiles(self) -> list[str]:
         """Returns a list of suffixes for the extra files for this GeofileType."""
         if self.geofiletype_info is not None:
             return self.geofiletype_info.suffixes_extrafiles
@@ -235,8 +226,7 @@ class GeofileInfo:
 
 
 def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
-    """
-    Get the gdal driver name for the file specified.
+    """Get the gdal driver name for the file specified.
 
     Args:
         path (PathLike): The file path.
@@ -284,8 +274,7 @@ def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
 
 
 def get_geofileinfo(path: Union[str, "os.PathLike[Any]"]) -> GeofileInfo:
-    """
-    Get information about a geofile.
+    """Get information about a geofile.
 
     Not a public function, as the properties are for internal use and might change in
     the future.

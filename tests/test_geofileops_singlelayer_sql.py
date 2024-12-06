@@ -11,8 +11,7 @@ import geofileops as gfo
 from geofileops import GeometryType
 from geofileops.util import _geoops_sql as geoops_sql
 from tests import test_helper
-from tests.test_helper import EPSGS, SUFFIXES_GEOOPS
-from tests.test_helper import assert_geodataframe_equal
+from tests.test_helper import EPSGS, SUFFIXES_GEOOPS, assert_geodataframe_equal
 
 
 def test_delete_duplicate_geometries(tmp_path):
@@ -73,6 +72,9 @@ def test_dissolve_singlethread_output_exists(tmp_path):
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize("epsg", EPSGS)
+@pytest.mark.filterwarnings(
+    "ignore: The default date converter is deprecated as of Python 3.12"
+)
 def test_isvalid(tmp_path, suffix, epsg):
     # Prepare test data
     input_path = test_helper.get_testfile(

@@ -4,8 +4,9 @@ Tests for functionalities in ogr_util.
 
 import os
 
-from osgeo import gdal
 import pytest
+from osgeo import gdal
+from pygeoops import GeometryType
 
 import geofileops as gfo
 from geofileops._compat import GDAL_GTE_38
@@ -148,6 +149,49 @@ def test_set_config_options():
     assert gdal.GetConfigOption(test3_config_envset) == "test3_new_env_value"
 
 
+@pytest.mark.parametrize(
+    "output_geometrytype, exp_geometrytype",
+    [
+        (None, "POLYGON"),
+        ("MULTIPOLYGON", "MULTIPOLYGON"),
+        (GeometryType.MULTIPOLYGON, "MULTIPOLYGON"),
+        (["MULTIPOLYGON"], "MULTIPOLYGON"),
+        ([GeometryType.MULTIPOLYGON], "MULTIPOLYGON"),
+        (["PROMOTE_TO_MULTI"], "MULTIPOLYGON"),
+    ],
+)
+def test_vector_translate_geometrytype(tmp_path, output_geometrytype, exp_geometrytype):
+    input_path = test_helper.get_testfile(
+        "polygon-parcel", dst_dir=tmp_path, explodecollections=True
+    )
+    output_path = tmp_path / f"output{input_path.suffix}"
+
+    _ogr_util.vector_translate(
+        str(input_path), output_path, force_output_geometrytype=output_geometrytype
+    )
+    output_info = gfo.get_layerinfo(output_path)
+    assert output_info.geometrytypename == exp_geometrytype
+
+
+@pytest.mark.parametrize(
+    "output_geometrytype, exp_error",
+    [
+        (1, "invalid type for"),
+        ([1], "invalid type in"),
+    ],
+)
+def test_vector_translate_geometrytype_error(tmp_path, output_geometrytype, exp_error):
+    input_path = test_helper.get_testfile(
+        "polygon-parcel", dst_dir=tmp_path, explodecollections=True
+    )
+    output_path = tmp_path / f"output{input_path.suffix}"
+
+    with pytest.raises(ValueError, match=exp_error):
+        _ogr_util.vector_translate(
+            str(input_path), output_path, force_output_geometrytype=output_geometrytype
+        )
+
+
 def test_vector_translate_input_nolayer(tmp_path):
     input_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
     output_path = tmp_path / f"output{input_path.suffix}"
@@ -155,7 +199,7 @@ def test_vector_translate_input_nolayer(tmp_path):
     gfo.execute_sql(input_path, sql_stmt=f'DROP TABLE "{layer}"')
 
     with pytest.raises(
-        Exception, match="Error .* not recognized as a supported file format"
+        Exception, match="Error .* not recognized as .*a supported file format"
     ):
         _ogr_util.vector_translate(str(input_path), output_path)
 
@@ -280,3 +324,22 @@ def test_vector_translate_sql_input_empty(tmp_path, input_suffix, output_suffix)
     input_layerinfo = gfo.get_layerinfo(input_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert len(input_layerinfo.columns) == len(output_layerinfo.columns)
+
+
+@pytest.mark.parametrize("input_suffix", test_helper.SUFFIXES_GEOOPS)
+@pytest.mark.parametrize("output_suffix", test_helper.SUFFIXES_GEOOPS)
+@pytest.mark.parametrize("columns", [["OIDN"], "OIDN"])
+def test_vector_translate_columns(tmp_path, input_suffix, output_suffix, columns):
+    # Prepare test data
+    input_path = test_helper.get_testfile(
+        "polygon-parcel", suffix=input_suffix, empty=True
+    )
+    output_path = tmp_path / f"output{output_suffix}"
+    exp_columns = columns if isinstance(columns, list) else [columns]
+
+    _ogr_util.vector_translate(input_path, output_path, columns=columns)
+
+    # Check result
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert len(output_layerinfo.columns) == 1
+    assert list(output_layerinfo.columns) == exp_columns

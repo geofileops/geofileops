@@ -1,6 +1,24 @@
 # CHANGELOG
 
-## 0.9.0 (???)
+## 0.10 (????-??-??)
+
+### Improvements
+
+- Add support for renaming column with only difference in casing (#549)
+- Add support to pass a single string for all `column` type parameters if a single
+  column should be retained (#523)
+- Enable "CURVE" geometrytype files to be processed in the general file and
+  layer operations (#558)
+- Don't convert to multi-part geometries by default in `copy_layer`,... (#570)
+- Add configuration option to only warn on dissolve errors (#561)
+
+## 0.9.1 (2024-07-18)
+
+### Bugs fixed
+
+- For `dissolve`, `agg_columns` aggregations sometimes give wrong results (#541)
+
+## 0.9.0 (2024-05-26)
 
 ### Deprecations and compatibility notes
 
@@ -21,14 +39,26 @@
 - Add support for self-overlays in overlay operations (#468)
 - Add support for a spatial query in `export_by_location` (#508)
 - Improve `dissolve_within_distance` results (#494)
-- Improve performance of `join_by_location` for relation "intersects is True" (#502)
+- Improve performance of `join_by_location` for relation "intersects is True" and for 
+  complex polygon features in layer to compare with (#502, #519)
 - Improve handling of queries evaluating to True for disjoint features in
   `join_by_location` (#509)
+- Make fiona an optional depencency (#301)
 - Add configuration option GFO_REMOVE_TEMP_FILES that can be used to avoid temp files
   being removed for debugging purposes (#480)
 - Add a context manager, TempEnv, to set temporary env variables (#481)
 - Don't copy both input files if only one is not spatialite based in two layer
   operations (#247)
+- If an output_dir doesn't exist yet, avoid processing being done before an error is
+  raised. (#518)
+- Small changes to support geopandas 1.0 (#529)
+- Linting improvements: ruff version to 0.4.4 + apply import sorting (#531)
+
+## 0.8.2 (2024-05-25)
+
+### Improvements
+
+- Small changes to support gdal 3.9 (#528)
 - Several improvements to documentation: new FAQ, improved user guide,...
   (#465, #469, #474)
 - Linting improvements: use mypy + use ruff-format instead of black for formatting

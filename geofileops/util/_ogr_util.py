@@ -1,20 +1,18 @@
-"""
-Module containing utilities regarding the usage of ogr/gdal functionalities.
-"""
+"""Module containing utilities regarding the usage of ogr/gdal functionalities."""
 
 import logging
 import os
-from pathlib import Path
 import tempfile
+from collections.abc import Iterable
+from pathlib import Path
 from threading import Lock
-from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union
+from typing import Literal, Optional, Union
 
-from osgeo import gdal
-from osgeo import ogr
+from osgeo import gdal, ogr
 from pygeoops import GeometryType
 
 import geofileops as gfo
-from geofileops import fileops
+from geofileops import _compat, fileops
 
 # Make sure only one instance per process is running
 lock = Lock()
@@ -29,8 +27,8 @@ class GDALError(Exception):
     def __init__(
         self,
         message: str,
-        log_details: List[str] = [],
-        error_details: List[str] = [],
+        log_details: list[str] = [],
+        error_details: list[str] = [],
     ):
         self.message = message
         self.log_details = log_details
@@ -56,50 +54,27 @@ class GDALError(Exception):
             return super().__str__()
 
 
-ogrtype_to_geometrytype = {
-    ogr.wkbNone: None,
-    ogr.wkbUnknown: GeometryType.GEOMETRY,
-    ogr.wkbPoint: GeometryType.POINT,
-    ogr.wkbLineString: GeometryType.LINESTRING,
-    ogr.wkbPolygon: GeometryType.POLYGON,
-    ogr.wkbTriangle: GeometryType.TRIANGLE,
-    ogr.wkbMultiPoint: GeometryType.MULTIPOINT,
-    ogr.wkbMultiLineString: GeometryType.MULTILINESTRING,
-    ogr.wkbMultiPolygon: GeometryType.MULTIPOLYGON,
-    ogr.wkbGeometryCollection: GeometryType.GEOMETRYCOLLECTION,
-    ogr.wkbPolyhedralSurface: GeometryType.POLYHEDRALSURFACE,
-    ogr.wkbTIN: GeometryType.TIN,
-    ogr.wkbPoint25D: GeometryType.POINTZ,
-    ogr.wkbLineString25D: GeometryType.LINESTRINGZ,
-    ogr.wkbPolygon25D: GeometryType.POLYGONZ,
-    ogr.wkbTriangleZ: GeometryType.TRIANGLEZ,
-    ogr.wkbMultiPoint25D: GeometryType.MULTIPOINTZ,
-    ogr.wkbMultiLineString25D: GeometryType.MULTILINESTRINGZ,
-    ogr.wkbMultiPolygon25D: GeometryType.MULTIPOLYGONZ,
-    ogr.wkbGeometryCollection25D: GeometryType.GEOMETRYCOLLECTIONZ,
-    ogr.wkbPolyhedralSurfaceZ: GeometryType.POLYHEDRALSURFACEZ,
-    ogr.wkbTINZ: GeometryType.TINZ,
-    ogr.wkbPointM: GeometryType.POINTM,
-    ogr.wkbLineStringM: GeometryType.LINESTRINGM,
-    ogr.wkbPolygonM: GeometryType.POLYGONM,
-    ogr.wkbTriangleM: GeometryType.TRIANGLEM,
-    ogr.wkbMultiPointM: GeometryType.MULTIPOINTM,
-    ogr.wkbMultiLineStringM: GeometryType.MULTILINESTRINGM,
-    ogr.wkbMultiPolygonM: GeometryType.MULTIPOLYGONM,
-    ogr.wkbGeometryCollectionM: GeometryType.GEOMETRYCOLLECTIONM,
-    ogr.wkbPolyhedralSurfaceM: GeometryType.POLYHEDRALSURFACEM,
-    ogr.wkbTINM: GeometryType.TINM,
-    ogr.wkbPointZM: GeometryType.POINTZM,
-    ogr.wkbLineStringZM: GeometryType.LINESTRINGZM,
-    ogr.wkbPolygonZM: GeometryType.POLYGONZM,
-    ogr.wkbTriangleZM: GeometryType.TRIANGLEZM,
-    ogr.wkbMultiPointZM: GeometryType.MULTIPOINTZM,
-    ogr.wkbMultiLineStringZM: GeometryType.MULTILINESTRINGZM,
-    ogr.wkbMultiPolygonZM: GeometryType.MULTIPOLYGONZM,
-    ogr.wkbGeometryCollectionZM: GeometryType.GEOMETRYCOLLECTIONZM,
-    ogr.wkbPolyhedralSurfaceZM: GeometryType.POLYHEDRALSURFACEZM,
-    ogr.wkbTINZM: GeometryType.TINZM,
-}
+def ogrtype_to_name(ogrtype: Optional[int]) -> str:
+    if ogrtype is None:
+        return "NONE"
+    else:
+        geometrytypename = ogr.GeometryTypeToName(ogrtype).replace(" ", "").upper()
+
+    if geometrytypename == "NONE":
+        return geometrytypename
+
+    if geometrytypename == "UNKNOWN(ANY)":
+        return "GEOMETRY"
+
+    if geometrytypename.startswith("3D"):
+        geometrytypename = geometrytypename[2:]
+        geometrytypename = f"{geometrytypename}Z"
+
+    if geometrytypename.startswith("MEASURED"):
+        geometrytypename = geometrytypename[8:]
+        geometrytypename = f"{geometrytypename}M"
+
+    return geometrytypename
 
 
 def get_drivers() -> dict:
@@ -110,9 +85,8 @@ def get_drivers() -> dict:
     return drivers
 
 
-def read_cpl_log(path: Path) -> Tuple[List[str], List[str]]:
-    """
-    Reads a cpl_log file and returns a list with log lines and errors.
+def read_cpl_log(path: Path) -> tuple[list[str], list[str]]:
+    """Reads a cpl_log file and returns a list with log lines and errors.
 
     Args:
         path (Path): the file path to the cpl_log file.
@@ -145,13 +119,13 @@ class VectorTranslateInfo:
         self,
         input_path: Path,
         output_path: Path,
-        input_layers: Union[List[str], str, None] = None,
+        input_layers: Union[list[str], str, None] = None,
         output_layer: Optional[str] = None,
         input_srs: Union[int, str, None] = None,
         output_srs: Union[int, str, None] = None,
         reproject: bool = False,
-        spatial_filter: Optional[Tuple[float, float, float, float]] = None,
-        clip_geometry: Optional[Union[Tuple[float, float, float, float], str]] = None,
+        spatial_filter: Optional[tuple[float, float, float, float]] = None,
+        clip_geometry: Optional[Union[tuple[float, float, float, float], str]] = None,
         sql_stmt: Optional[str] = None,
         sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
         where: Optional[str] = None,
@@ -159,7 +133,7 @@ class VectorTranslateInfo:
         append: bool = False,
         update: bool = False,
         explodecollections: bool = False,
-        force_output_geometrytype: Union[GeometryType, str, None] = None,
+        force_output_geometrytype: Union[GeometryType, str, Iterable[str], None] = None,
         options: dict = {},
         columns: Optional[Iterable[str]] = None,
         warp: Optional[dict] = None,
@@ -220,13 +194,13 @@ def vector_translate_by_info(info: VectorTranslateInfo):
 def vector_translate(
     input_path: Union[Path, str],
     output_path: Path,
-    input_layers: Union[List[str], str, None] = None,
+    input_layers: Union[list[str], str, None] = None,
     output_layer: Optional[str] = None,
     input_srs: Union[int, str, None] = None,
     output_srs: Union[int, str, None] = None,
     reproject: bool = False,
-    spatial_filter: Optional[Tuple[float, float, float, float]] = None,
-    clip_geometry: Optional[Union[Tuple[float, float, float, float], str]] = None,
+    spatial_filter: Optional[tuple[float, float, float, float]] = None,
+    clip_geometry: Optional[Union[tuple[float, float, float, float], str]] = None,
     sql_stmt: Optional[str] = None,
     sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     where: Optional[str] = None,
@@ -234,7 +208,7 @@ def vector_translate(
     append: bool = False,
     update: bool = False,
     explodecollections: bool = False,
-    force_output_geometrytype: Union[GeometryType, str, None] = None,
+    force_output_geometrytype: Union[GeometryType, str, Iterable[str], None] = None,
     options: dict = {},
     columns: Optional[Iterable[str]] = None,
     warp: Optional[dict] = None,
@@ -246,6 +220,10 @@ def vector_translate(
     args = []
     if isinstance(input_path, str):
         input_path = Path(input_path)
+    if isinstance(columns, str):
+        # If a string is passed, convert to list
+        columns = [columns]
+
     gdal_options = _prepare_gdal_options(options, split_by_option_type=True)
 
     # Input file parameters
@@ -266,10 +244,6 @@ def vector_translate(
         input_srs = f"EPSG:{input_srs}"
 
     # Sql'ing, Filtering, clipping
-    if spatial_filter is not None:
-        args.extend(["-spat"])
-        bounds = [str(coord) for coord in spatial_filter]
-        args.extend(bounds)
     if sql_stmt is not None:
         # If sql_stmt starts with "\n" or "\t" for gpkg or with " " for a shp,
         # VectorTranslate outputs no or an invalid file if the statement doesn't return
@@ -345,11 +319,27 @@ def vector_translate(
     if force_output_geometrytype is not None:
         if isinstance(force_output_geometrytype, GeometryType):
             output_geometrytypes.append(force_output_geometrytype.name)
-        else:
+        elif isinstance(force_output_geometrytype, str):
             output_geometrytypes.append(force_output_geometrytype)
-    else:
-        if not explodecollections:
-            output_geometrytypes.append("PROMOTE_TO_MULTI")
+        elif isinstance(force_output_geometrytype, Iterable):
+            for geotype in force_output_geometrytype:
+                if isinstance(geotype, GeometryType):
+                    output_geometrytypes.append(geotype.name)
+                elif isinstance(geotype, str):
+                    output_geometrytypes.append(geotype)
+                else:
+                    raise ValueError(f"invalid type in {force_output_geometrytype=}")
+        else:
+            raise ValueError(f"invalid type for {force_output_geometrytype=}")
+    elif (
+        not explodecollections
+        and input_info.driver == "ESRI Shapefile"
+        and output_info.driver != "ESRI Shapefile"
+    ):
+        # Shapefiles are always reported as singlepart type but can also contain
+        # multiparts geometries, so promote to multi
+        output_geometrytypes.append("PROMOTE_TO_MULTI")
+
     if transaction_size is not None:
         args.extend(["-gt", str(transaction_size)])
     if preserve_fid is None:
@@ -406,6 +396,10 @@ def vector_translate(
     # Now we can really get to work
     output_ds = None
     try:
+        # Till gdal 3.10 datetime columns can be interpreted wrongly with arrow.
+        if _compat.GDAL_STE_310:
+            config_options["OGR2OGR_USE_ARROW_API"] = False
+
         # Go!
         with set_config_options(config_options):
             # Open input datasource already
@@ -589,8 +583,7 @@ def vector_translate(
 
 
 def _prepare_gdal_options(options: dict, split_by_option_type: bool = False) -> dict:
-    """
-    Prepares the options so they are ready to pass on to gdal.
+    """Prepares the options so they are ready to pass on to gdal.
 
         - Uppercase the option key
         - Check if the option types are on of the supported ones:
@@ -621,7 +614,7 @@ def _prepare_gdal_options(options: dict, split_by_option_type: bool = False) -> 
         "DESTINATION_OPEN",
         "CONFIG",
     ]
-    prepared_options: Dict[str, dict] = {
+    prepared_options: dict[str, dict] = {
         option_type: {} for option_type in option_types
     }
 
@@ -660,8 +653,7 @@ def _prepare_gdal_options(options: dict, split_by_option_type: bool = False) -> 
 
 
 class set_config_options:
-    """
-    Context manager to set config options.
+    """Context manager to set config options.
 
     Args:
         config_options (dict): dict with config options to set.
@@ -687,6 +679,6 @@ class set_config_options:
     def __exit__(self, type, value, traceback):
         # Remove config options that were set
         # TODO: delete loop + uncomment if SetConfigOptions() is supported
-        for name, value in self.config_options.items():
+        for name, _ in self.config_options.items():
             gdal.SetConfigOption(name, None)
         # gdal.SetConfigOptions(self.config_options_backup)

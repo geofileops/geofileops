@@ -1,4 +1,4 @@
-name: geofileops-latest
+name: geofileops-latest-nofiona
 channels:
   - conda-forge
 dependencies:
@@ -19,8 +19,8 @@ dependencies:
   - pyproj
   - shapely >=2,<2.1
   # optional
+  - fiona
   - simplification
   # testing
   - pytest
   - pytest-cov
-  - pytest-xdist

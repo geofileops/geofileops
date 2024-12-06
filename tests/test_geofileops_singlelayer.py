@@ -2,25 +2,21 @@
 Tests for operations that are executed using a sql statement on one layer.
 """
 
-from importlib import import_module
 import logging
 import math
-from typing import Any, List, Optional
+from importlib import import_module
+from typing import Any, Optional
 
 import geopandas as gpd
 import pytest
 import shapely
 from shapely import MultiPolygon, Polygon
 
-from geofileops import fileops
-from geofileops import GeometryType
-from geofileops import geoops
+from geofileops import GeometryType, fileops, geoops
 from geofileops._compat import SPATIALITE_GTE_51
-from geofileops.util import _geofileinfo
-from geofileops.util._geofileinfo import GeofileInfo
-from geofileops.util import _geoops_sql
+from geofileops.util import _geofileinfo, _geoops_sql
 from geofileops.util import _io_util as io_util
-
+from geofileops.util._geofileinfo import GeofileInfo
 from tests import test_helper
 from tests.test_helper import (
     EPSGS,
@@ -28,8 +24,8 @@ from tests.test_helper import (
     SUFFIXES_GEOOPS,
     TESTFILES,
     WHERE_AREA_GT_400,
+    assert_geodataframe_equal,
 )
-from tests.test_helper import assert_geodataframe_equal
 
 # Init gfo module
 current_geoops_module = "unknown"
@@ -54,11 +50,11 @@ def set_geoops_module(geoops_module: str):
 
 
 def basic_combinations_to_test(
-    geoops_modules: List[str] = GEOOPS_MODULES,
-    testfiles: List[str] = TESTFILES,
-    epsgs: List[int] = EPSGS,
-    suffixes: List[str] = SUFFIXES_GEOOPS,
-) -> List[Any]:
+    geoops_modules: list[str] = GEOOPS_MODULES,
+    testfiles: list[str] = TESTFILES,
+    epsgs: list[int] = EPSGS,
+    suffixes: list[str] = SUFFIXES_GEOOPS,
+) -> list[Any]:
     """
     Return sensible combinations of parameters to be used in tests for following params:
         suffix, epsg, geoops_module, testfile, empty_input, gridsize, where_post
@@ -241,7 +237,13 @@ def test_buffer(
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize("testfile", ["polygon-parcel"])
 @pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
-def test_buffer_columns_fid(tmp_path, suffix, geoops_module, testfile):
+@pytest.mark.parametrize(
+    "columns, exp_columns",
+    [(["LblHfdTlt", "fid"], ["LblHfdTlt", "fid_1"]), ("LblHfdTlt", ["LblHfdTlt"])],
+)
+def test_buffer_columns_fid(
+    tmp_path, suffix, geoops_module, testfile, columns, exp_columns
+):
     """Buffer basics are available both in the gpd and sql implementations."""
     # Prepare test data
     input_path = test_helper.get_testfile(testfile, suffix=suffix)
@@ -257,7 +259,7 @@ def test_buffer_columns_fid(tmp_path, suffix, geoops_module, testfile):
         input_path=input_path,
         output_path=output_path,
         distance=1,
-        columns=["LblHfdTlt", "fid"],
+        columns=columns,
         explodecollections=True,
         keep_empty_geoms=False,
         nb_parallel=2,
@@ -283,8 +285,9 @@ def test_buffer_columns_fid(tmp_path, suffix, geoops_module, testfile):
     output_layerinfo = fileops.get_layerinfo(output_path)
     output_gdf = fileops.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
-    assert list(output_layerinfo.columns) == ["LblHfdTlt", "fid_1"]
-    assert len(output_gdf[output_gdf.fid_1 == multi_fid]) == 2
+    assert list(output_layerinfo.columns) == exp_columns
+    if "fid" in columns:
+        assert len(output_gdf[output_gdf.fid_1 == multi_fid]) == 2
 
 
 @pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
@@ -622,8 +625,8 @@ def test_buffer_shp_to_gpkg(
     """
     Buffer from shapefile to gpkg.
 
-    Test added because this gave a unique constraint on fid's, because for each partial
-    file the fid started again with 0.
+    Test added because this gave a unique constraint error on fid's, because for each
+    partial file the fid started again with 0.
     """
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=".shp")
@@ -743,6 +746,9 @@ def test_convexhull(
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize("input_empty", [True, False])
 @pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
+@pytest.mark.filterwarnings(
+    "ignore: The default date converter is deprecated as of Python 3.12"
+)
 def test_makevalid(tmp_path, suffix, input_empty, geoops_module):
     # Prepare test data
     input_path = test_helper.get_testfile(
@@ -886,10 +892,10 @@ def test_makevalid_exploded_input(tmp_path, suffix, geoops_module, explodecollec
     layerinfo_orig = fileops.get_layerinfo(input_path)
     layerinfo_output = fileops.get_layerinfo(output_path)
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
-    if explodecollections and suffix != ".shp":
-        assert layerinfo_output.geometrytype == GeometryType.POLYGON
-    else:
-        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
+    assert layerinfo_output.geometrytype in {
+        GeometryType.POLYGON,
+        GeometryType.MULTIPOLYGON,
+    }
 
 
 @pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)

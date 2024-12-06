@@ -1,18 +1,16 @@
-"""
-Module containing some general utilities.
-"""
+"""Module containing some general utilities."""
 
 import datetime
 import logging
 import os
-from typing import Any, Dict, Iterable, List, Optional
+from collections.abc import Iterable
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class MissingRuntimeDependencyError(Exception):
-    """
-    Exception raised when an unsupported SQL statement is passed.
+    """Exception raised when an unsupported SQL statement is passed.
 
     Attributes:
         message (str): Exception message
@@ -24,8 +22,7 @@ class MissingRuntimeDependencyError(Exception):
 
 
 def align_casing(string_to_align: str, strings_to_align_to: Iterable) -> str:
-    """
-    Search a string case-insentive in a list of string to align its casing.
+    """Search a string case-insentive in a list of string to align its casing.
 
     If the string is not found in strings_to_align_to, a ValueError is thrown.
 
@@ -43,12 +40,11 @@ def align_casing(string_to_align: str, strings_to_align_to: Iterable) -> str:
 
 
 def align_casing_list(
-    strings_to_align: List[str],
+    strings_to_align: list[str],
     strings_to_align_to: Iterable,
     raise_on_missing: bool = True,
-) -> List[str]:
-    """
-    Search the string caseintensitive in a list of strings.
+) -> list[str]:
+    """Search the string caseintensitive in a list of strings.
 
     Args:
         strings_to_align (List[str]): strings to align the casing of to
@@ -150,9 +146,7 @@ def format_progress(
 
 
 def formatbytes(bytes: float):
-    """
-    Return the given bytes as a human friendly KB, MB, GB, or TB string.
-    """
+    """Return the given bytes as a human friendly KB, MB, GB, or TB string."""
     bytes_float = float(bytes)
     KB = float(1024)
     MB = float(KB**2)  # 1,048,576
@@ -172,7 +166,7 @@ def formatbytes(bytes: float):
 
 
 def prepare_for_serialize(data: dict) -> dict:
-    prepared: Dict[str, Any] = {}
+    prepared: dict[str, Any] = {}
     for key, value in data.items():
         if isinstance(value, (dict)):
             prepared[key] = prepare_for_serialize(value)
@@ -185,8 +179,7 @@ def prepare_for_serialize(data: dict) -> dict:
 
 
 class TempEnv:
-    """
-    Context manager to temporarily set/change environment variables.
+    """Context manager to temporarily set/change environment variables.
 
     Existing values for variables are backed up and reset when the scope is left,
     variables that didn't exist before are deleted again.
@@ -195,8 +188,8 @@ class TempEnv:
         envs (Dict[str, Any]): dict with environment variables to set.
     """
 
-    def __init__(self, envs: Dict[str, Any]):
-        self._envs_backup: Dict[str, str] = {}
+    def __init__(self, envs: dict[str, Any]):
+        self._envs_backup: dict[str, str] = {}
         self._envs = envs
 
     def __enter__(self):
@@ -211,11 +204,11 @@ class TempEnv:
 
     def __exit__(self, type, value, traceback):
         # Set variables that were backed up back to original value
-        for name, value in self._envs_backup.items():
+        for name, env_value in self._envs_backup.items():
             # Recover backed up value
-            os.environ[name] = value
+            os.environ[name] = env_value
         # For variables without backup, remove them
-        for name, value in self._envs.items():
+        for name, _ in self._envs.items():
             if name not in self._envs_backup:
                 if name in os.environ:
                     del os.environ[name]

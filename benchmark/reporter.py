@@ -1,14 +1,11 @@
-"""
-Module to generate reports for benchmarks.
-"""
+"""Module to generate reports for benchmarks."""
 
 import ast
 import math
-import os
-from pathlib import Path
 import shutil
 import tempfile
-from typing import Literal, Optional, Tuple
+from pathlib import Path
+from typing import Literal, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -21,6 +18,12 @@ A4_SHORT_SIDE = 8.27
 
 
 def generate_reports(results_path: Path, output_dir: Path):
+    """Generate the benchmarking reports.
+
+    Args:
+        results_path (Path): the result path to find the results to report on.
+        output_dir (Path): directory to write the reports to.
+    """
     benchmark_df = pd.read_csv(results_path)
 
     def format_run_details(input: dict) -> str:
@@ -109,7 +112,7 @@ def save_chart(
     yscale: Optional[Literal["linear", "log", "symlog", "logit"]] = None,
     y_value_formatter: Optional[str] = None,
     print_labels_on_points: bool = False,
-    size: Tuple[float, float] = (8, 4),
+    size: tuple[float, float] = (8, 4),
     plot_kind: Literal[
         "line",
         "bar",
@@ -126,8 +129,7 @@ def save_chart(
     gridlines: Optional[Literal["both", "x", "y"]] = None,
     linestyle: Optional[str] = None,
 ):
-    """
-    Render and save a chart.
+    """Render and save a chart.
 
     Args:
         df (pd.DataFrame): _description_
@@ -153,7 +155,6 @@ def save_chart(
     Raises:
         Exception: _description_
     """
-
     # Init
     # Check input
     non_numeric_columns = [
@@ -198,7 +199,7 @@ def save_chart(
 
         label_above_line = True
         for index, row in enumerate(df.itertuples()):
-            for row_fieldname, row_fieldvalue in row._asdict().items():
+            for row_fieldname, row_fieldvalue in row._asdict().items():  # type: ignore
                 if row_fieldname != "Index":
                     if max_y_value is None or row_fieldvalue > max_y_value:
                         max_y_value = row_fieldvalue

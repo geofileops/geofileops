@@ -1,18 +1,17 @@
-"""
-Module containing some utilities regarding io.
-"""
+"""Module containing some utilities regarding io."""
 
-from datetime import datetime
+import logging
 import os
-from pathlib import Path
 import tempfile
 import time
-from typing import Any, Optional, Tuple, Union
+from pathlib import Path
+from typing import Any, Optional, Union
+
+import geofileops as gfo
 
 
 def create_tempdir(base_dirname: str, parent_dir: Optional[Path] = None) -> Path:
-    """
-    Creates a new tempdir in the default temp location.
+    """Creates a new tempdir in the default temp location.
 
     Remark: the temp dir won't be cleaned up automatically!
 
@@ -56,9 +55,8 @@ def get_tempfile_locked(
     suffix: str = ".tmp",
     dirname: Optional[str] = None,
     tempdir: Optional[Path] = None,
-) -> Tuple[Path, Path]:
-    """
-    Formats a temp file path, and creates a corresponding lock file.
+) -> tuple[Path, Path]:
+    """Formats a temp file path, and creates a corresponding lock file.
 
     This way you can treat it immediately as being locked.
 
@@ -113,8 +111,9 @@ def create_file_atomic_wait(
     time_between_attempts: float = 1,
     timeout: float = 0,
 ):
-    """
-    Create a file in an atomic way. If it exists already, wait till it can be created.
+    """Create a file in an atomic way.
+
+    If it exists already, wait till it can be created.
 
     Returns once the file is created.
 
@@ -143,8 +142,7 @@ def create_file_atomic_wait(
 
 
 def create_file_atomic(path: Union[str, "os.PathLike[Any]"]) -> bool:
-    """
-    Create a lock file in an atomic way or return False if it exists already.
+    """Create a file in an atomic way.
 
     Returns True if the file was created by this thread, False if the file existed
     already.
@@ -166,3 +164,33 @@ def with_stem(path: Path, new_stem) -> Path:
     # Remark: from python 3.9 this is available on any Path, but to avoid
     # having to require 3.9 for this, this hack...
     return path.parent / f"{new_stem}{path.suffix}"
+
+
+def output_exists(path: Path, remove_if_exists: bool) -> bool:
+    """Checks and returns whether the file specified exists.
+
+    If remove_if_exists is True, the file is removed and False is returned.
+
+    Args:
+        path (Path): Output file path to check.
+        remove_if_exists (bool): If True, remove the output file if it exists.
+
+    Raises:
+        ValueError: raised when the output directory does not exist.
+
+    Returns:
+        bool: True if the output file exists.
+              False if the file didn't exist or if it was removed
+              because `remove_if_exists` is True.
+    """
+    if not path.parent.exists():
+        raise ValueError(f"Output directory does not exist: {path.parent}")
+    if path.exists():
+        if remove_if_exists:
+            gfo.remove(path)
+            return False
+        else:
+            logging.info(msg=f"Stop, output exists already {path}", stacklevel=2)
+            return True
+
+    return False

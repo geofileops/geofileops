@@ -8,8 +8,15 @@ on:
     branches: [ main, v0.** ]
   pull_request:
     branches: [ main, v0.** ]
+    paths-ignore:
+      - "docs/**"
+      - "benchmark/**"
+      - ".github/workflows/tests_installed.yml"
+      - "*.md"
+      - "*.yml"
   schedule:
-    - cron: "0 0 * * *"
+    # every Wednesday at 3:40 AM
+    - cron: "40 3 * * 3"
 
 concurrency: 
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -39,7 +46,7 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         dev: [false]
-        python: ["3.9", "3.10", "3.11", "3.12"]
+        python: ["3.9", "3.10", "3.11", "3.12", "3.13"]
         env: ["latest"]
         # Use openblas instead of mkl saves 600 MB. Linux OK, 50% slower on Windows and OSX!
         extra: ["nomkl"]
@@ -48,12 +55,12 @@ jobs:
             os: ubuntu-latest
             dev: false
             python: "3.9"
-          - env: latest
-            os: macos-latest
+          - env: latest-fiona
+            os: windows-latest
             dev: false
             python: "3.11"
           - env: latest
-            os: windows-latest
+            os: macos-latest
             dev: false
             python: "3.11"
             
@@ -61,7 +68,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Conda environment with Micromamba
-        uses: mamba-org/setup-micromamba@v1
+        uses: mamba-org/setup-micromamba@v2
         with:
           micromamba-version: '1.5.1-0'
           environment-file: ci/envs/${{ matrix.env }}.yml
@@ -76,5 +83,5 @@ jobs:
           --cov=geofileops --cov-append --cov-report term-missing --cov-report 
           xml tests/
 
-      - uses: codecov/codecov-action@v4
+      - uses: codecov/codecov-action@v5
       

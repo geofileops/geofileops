@@ -1,13 +1,14 @@
-from datetime import datetime
 import logging
+from collections.abc import Iterable
+from datetime import datetime
 from pathlib import Path
-from typing import List, Literal, Optional, Tuple, Union
+from typing import Literal, Optional, Union
 
 from pygeoops import GeometryType
 from shapely import wkt
 
 import geofileops as gfo
-from geofileops.util import _ogr_util
+from geofileops.util import _io_util, _ogr_util
 
 logger = logging.getLogger(__name__)
 
@@ -15,10 +16,10 @@ logger = logging.getLogger(__name__)
 def clip_by_geometry(
     input_path: Path,
     output_path: Path,
-    clip_geometry: Union[Tuple[float, float, float, float], str],
+    clip_geometry: Union[tuple[float, float, float, float], str],
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
-    columns: Optional[List[str]] = None,
+    columns: Optional[list[str]] = None,
     explodecollections: bool = False,
     force: bool = False,
 ):
@@ -26,6 +27,15 @@ def clip_by_geometry(
     if isinstance(clip_geometry, str):
         geom = wkt.loads(clip_geometry)
         spatial_filter = tuple(geom.bounds)
+
+    force_output_geometrytype = None
+    if not explodecollections:
+        input_layer_info = gfo.get_layerinfo(input_path, input_layer)
+        if input_layer_info.geometrytype is not GeometryType.POINT:
+            # If explodecollections is False and the input type is not point, force the
+            # output type to multi, because clip can cause eg. polygons to be split to
+            # multipolygons.
+            force_output_geometrytype = "PROMOTE_TO_MULTI"
 
     _run_ogr(
         operation="clip_by_geometry",
@@ -37,6 +47,7 @@ def clip_by_geometry(
         output_layer=output_layer,
         columns=columns,
         explodecollections=explodecollections,
+        force_output_geometrytype=force_output_geometrytype,
         force=force,
     )
 
@@ -44,10 +55,10 @@ def clip_by_geometry(
 def export_by_bounds(
     input_path: Path,
     output_path: Path,
-    bounds: Tuple[float, float, float, float],
+    bounds: tuple[float, float, float, float],
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
-    columns: Optional[List[str]] = None,
+    columns: Optional[list[str]] = None,
     explodecollections: bool = False,
     force: bool = False,
 ):
@@ -67,12 +78,12 @@ def export_by_bounds(
 def warp(
     input_path: Path,
     output_path: Path,
-    gcps: List[Tuple[float, float, float, float, Optional[float]]],
+    gcps: list[tuple[float, float, float, float, Optional[float]]],
     algorithm: str = "polynomial",
     order: Optional[int] = None,
     input_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
-    columns: Optional[List[str]] = None,
+    columns: Optional[list[str]] = None,
     explodecollections: bool = False,
     force: bool = False,
 ):
@@ -104,17 +115,17 @@ def _run_ogr(
     input_srs: Union[int, str, None] = None,
     output_srs: Union[int, str, None] = None,
     reproject: bool = False,
-    spatial_filter: Optional[Tuple[float, float, float, float]] = None,
-    clip_geometry: Optional[Union[Tuple[float, float, float, float], str]] = None,
+    spatial_filter: Optional[tuple[float, float, float, float]] = None,
+    clip_geometry: Optional[Union[tuple[float, float, float, float], str]] = None,
     sql_stmt: Optional[str] = None,
     sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     transaction_size: int = 65536,
     append: bool = False,
     update: bool = False,
     explodecollections: bool = False,
-    force_output_geometrytype: Optional[GeometryType] = None,
+    force_output_geometrytype: Union[GeometryType, str, Iterable[str], None] = None,
     options: dict = {},
-    columns: Optional[List[str]] = None,
+    columns: Optional[list[str]] = None,
     warp: Optional[dict] = None,
     force: bool = False,
 ) -> bool:
@@ -123,13 +134,8 @@ def _run_ogr(
     start_time = datetime.now()
     if input_layer is None:
         input_layer = gfo.get_only_layer(input_path)
-    if output_path.exists():
-        if force:
-            gfo.remove(output_path)
-        else:
-            logger.info(f"Stop, output exists already {output_path}")
-            return True
-
+    if _io_util.output_exists(path=output_path, remove_if_exists=force):
+        return True
     if input_layer is None:
         input_layer = gfo.get_only_layer(input_path)
     if output_layer is None:
