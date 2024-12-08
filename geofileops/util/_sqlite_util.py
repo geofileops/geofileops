@@ -133,7 +133,7 @@ def get_columns(
 ) -> dict[str, str]:
     # Create temp output db to be sure the output DB is writable, even though we only
     # create a temporary table.
-    if isinstance(input_path, str):
+    if isinstance(input_path, (str, Path)):
         input_path = [input_path]
     assert isinstance(input_path, Iterable)
 
@@ -323,7 +323,7 @@ def create_table_as_sql(
         raise ValueError("append=True nor update=True are implemented.")
 
     # All input files and the output file must have the same suffix.
-    if isinstance(input_path, str):
+    if isinstance(input_path, (str, Path)):
         input_path = [input_path]
     assert isinstance(input_path, Iterable)
 
