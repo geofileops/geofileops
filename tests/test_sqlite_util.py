@@ -153,7 +153,7 @@ def test_get_columns():
 
     # Run test
     columns = sqlite_util.get_columns(
-        sql_stmt=sql_stmt, input1_path=input1_path, input2_path=input2_path
+        sql_stmt=sql_stmt, input_path=[input1_path, input2_path]
     )
 
     assert len(columns) == 5
