@@ -3032,7 +3032,7 @@ def _check_crs(
             warnings.warn(
                 "input1 layer doesn't have the same crs as input2 layer: "
                 f"{input1_info.crs} vs {input2_info.crs}",
-                stacklevel=1,
+                stacklevel=5,
             )
     elif input2_info is not None and input2_info.crs is not None:
         crs_epsg2 = input2_info.crs.to_epsg()
