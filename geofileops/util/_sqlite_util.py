@@ -155,7 +155,7 @@ def get_columns(
             db_path_to_placeholder: dict[Path, str] = {}
             db_placeholder_to_value: dict[str, str] = {}
             for index, path in enumerate(input_path):
-                db_placeholder = f"input{index+1}_databasename"
+                db_placeholder = f"input{index + 1}_databasename"
                 if path in db_path_to_placeholder:
                     db_placeholder_to_value[db_placeholder] = db_placeholder_to_value[
                         db_path_to_placeholder[path]
@@ -171,7 +171,7 @@ def get_columns(
 
         # Prepare sql statement for execute
         sql_stmt_prepared = sql_stmt.format(
-            *db_placeholder_to_value.items(),
+            **db_placeholder_to_value,
             batch_filter="",
         )
 
@@ -398,7 +398,7 @@ def create_table_as_sql(
                 # it doesn't hurt and maybe on other platforms...
                 for databasename in [
                     output_databasename,
-                    *db_placeholder_to_value.items(),
+                    *db_placeholder_to_value.values(),
                 ]:
                     conn.execute(f"PRAGMA {databasename}.journal_mode=OFF;")
 
@@ -422,7 +422,7 @@ def create_table_as_sql(
                 output_geometrytype = GeometryType(column_types["geom"])
 
             # Prepare sql statement
-            sql_stmt = sql_stmt.format(*db_placeholder_to_value.items())
+            sql_stmt = sql_stmt.format(**db_placeholder_to_value)
 
             # Now we can create the table
             # Create output table using the gpkgAddGeometryColumn() function
