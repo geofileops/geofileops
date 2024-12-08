@@ -383,6 +383,7 @@ def select(
     nb_parallel: int = 1,
     batchsize: int = -1,
     force: bool = False,
+    output_with_spatial_index=True,
     operation_prefix: str = "",
 ):
     # Check if output exists already here, to avoid to much logging to be written
@@ -423,6 +424,7 @@ def select(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        output_with_spatial_index=output_with_spatial_index,
     )
 
 
@@ -493,6 +495,7 @@ def _single_layer_vector_operation(
     nb_parallel: int,
     batchsize: int,
     force: bool,
+    output_with_spatial_index: bool = True,
 ):
     """Execute a sql query template on the input layer.
 
@@ -516,6 +519,8 @@ def _single_layer_vector_operation(
         nb_parallel (int): _description_
         batchsize (int): _description_
         force (bool): _description_
+        output_with_spatial_index: (bool, optional): True if the output file should have
+            a spatial index. Defaults to True.
 
     Raises:
         ValueError: _description_
@@ -1072,8 +1077,9 @@ def erase(
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
     input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
 
+    diff_empty_constant = "'DIFF_EMPTY'"
     sql_template = f"""
-        SELECT * FROM (
+        SELECT sub.* FROM (
           SELECT IFNULL(
                    ( SELECT IFNULL(
                                IIF({subdivide_coords} <= 0
@@ -1116,7 +1122,7 @@ def erase(
                                           layer2_sub.{{input2_geometrycolumn}}) = 1
                       LIMIT -1 OFFSET 0
                    ),
-                   layer1.{{input1_geometrycolumn}}
+                   layer1.{{input1_geometrycolumn}}  -- No inters with layer2: keep geom
                  ) AS geom
                 {{layer1_columns_prefix_alias_str}}
                 {{layer2_columns_prefix_alias_null_str}}
@@ -1124,11 +1130,21 @@ def erase(
            WHERE 1=1
              {{batch_filter}}
            LIMIT -1 OFFSET 0
-          )
-         WHERE geom IS NOT NULL
-           AND geom <> 'DIFF_EMPTY'
-           AND ST_IsEmpty(geom) = 0
+          ) sub
+         WHERE sub.geom IS NOT NULL
+           AND sub.geom <> {diff_empty_constant}
+           AND ST_IsEmpty(sub.geom) = 0
     """
+
+    # Weird: erase (or the result of GFO_Difference_Collection) sometimes results in
+    # NULL geometries when written in the output, but they still contain polygons
+    # (slivers in the case encountered: the split test of gfo) when the geom is
+    # written as WKT.
+    # So, add `where_post` to remove them
+    if where_post is None:
+        where_post = "geom IS NOT NULL"
+    else:
+        where_post = f"geom IS NOT NULL AND ({where_post})"
 
     # Go!
     _two_layer_vector_operation(
@@ -2161,26 +2177,20 @@ def identity(
     subdivide_coords: int = 2000,
     force: bool = False,
 ):
-    # An identity is the combination of the results of an "intersection" of input1 and
-    # input2 and an erase of input2 with input1.
-
-    # Because the calculations of the intermediate results will be towards temp files,
+    # Because both erase calculations will be towards temp files,
     # we need to do some additional init + checks here...
-    if subdivide_coords < 0:
-        raise ValueError("subdivide_coords < 0 is not allowed")
-    logger = logging.getLogger("geofileops.identity")
-    if _io_util.output_exists(path=output_path, remove_if_exists=force):
+    if force is False and output_path.exists():
         return
-
     if output_layer is None:
         output_layer = gfo.get_default_layer(output_path)
+    input1_path = Path(input1_path)
+    input2_path = Path(input2_path)
 
     start_time = datetime.now()
     tempdir = _io_util.create_tempdir("geofileops/identity")
     try:
-        # First calculate intersection of input1 with input2 to a temporary output file
-        logger.info("Step 1 of 3: intersection")
-        intersection_output_path = tempdir / "intersection_output.gpkg"
+        # First calculate intersection of input1 and input2 to a temporary output file
+        intersection_output_path = tempdir / "layer1_intersection_layer2_output.gpkg"
         intersection(
             input1_path=input1_path,
             input2_path=input2_path,
@@ -2194,21 +2204,18 @@ def identity(
             input2_columns_prefix=input2_columns_prefix,
             output_layer=output_layer,
             explodecollections=explodecollections,
-            gridsize=gridsize,
+            gridsize=0.0,
             where_post=where_post,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             force=force,
-            output_with_spatial_index=False,
-            operation_prefix="identity/",
         )
 
-        # Now erase input1 from input2 to another temporary output gfo...
-        logger.info("Step 2 of 3: erase")
-        erase_output_path = tempdir / "erase_output.gpkg"
+        # Now calculate input1 erased with intersection_output_path
+        erase_output_path = tempdir / "layer1_erase_intersection.gpkg"
         erase(
             input_path=input1_path,
-            erase_path=input2_path,
+            erase_path=intersection_output_path,
             output_path=erase_output_path,
             overlay_self=overlay_self,
             input_layer=input1_layer,
@@ -2224,15 +2231,42 @@ def identity(
             subdivide_coords=subdivide_coords,
             force=force,
             output_with_spatial_index=False,
-            operation_prefix="identity/",
         )
 
-        # Now append
-        logger.info("Step 3 of 3: finalize")
-        # Note: append will never create an index on an already existing layer.
+        """
+        if input2_columns is None or len(input2_columns) > 0:
+            input2_info = gfo.get_layerinfo(input2_path)
+            columns_to_add = (
+                input2_columns if input2_columns is not None else input2_info.columns
+            )
+            for column in columns_to_add:
+                gfo.add_column(
+                    intersection_output_path,
+                    name=f"{input2_columns_prefix}{column}",
+                    type=input2_info.columns[column].gdal_type,
+                )
+        """
+        if gridsize > 0.0:
+            intersection_gridsize_path = (
+                tempdir / "layer1_erase_intersection_gridsize.gpkg"
+            )
+            select(
+                input_path=intersection_output_path,
+                output_path=intersection_gridsize_path,
+                output_layer=output_layer,
+                sql_stmt='SELECT * FROM "{input_layer}"',
+                gridsize=gridsize,
+                keep_empty_geoms=False,
+                output_with_spatial_index=False,
+            )
+            intersection_path = intersection_gridsize_path
+
+        # Now append erase result to intersection result
+        if gfo.has_spatial_index(intersection_path, layer=output_layer):
+            gfo.remove_spatial_index(intersection_path, layer=output_layer)
         _append_to_nolock(
             src=erase_output_path,
-            dst=intersection_output_path,
+            dst=intersection_path,
             src_layer=output_layer,
             dst_layer=output_layer,
         )
