@@ -100,19 +100,27 @@ def test_clip_resultempty(tmp_path, suffix, clip_empty):
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize(
-    "testfile, gridsize, where_post, subdivide_coords",
+    "testfile, gridsize, where_post, subdivide_coords, check_geom_gridsize",
     [
-        ("linestring-row-trees", 0.0, "ST_Length(geom) > 100", None),
-        ("linestring-row-trees", 0.01, None, 0),
-        ("point", 0.0, None, None),
-        ("point", 0.01, None, 0),
-        ("polygon-parcel", 0.0, None, None),
-        ("polygon-parcel", 0.0, "ST_Area(geom) > 2000", 0),
-        ("polygon-parcel", 0.01, None, 0),
-        ("polygon-parcel", 0.01, None, 5),
+        ("linestring-row-trees", 0.0, "ST_Length(geom) > 100", None, 0.0),
+        ("linestring-row-trees", 0.01, None, 0, 0.0),
+        ("point", 0.0, None, None, 0.0),
+        ("point", 0.01, None, 0, 0.0),
+        ("polygon-parcel", 0.0, None, None, 0.0),
+        ("polygon-parcel", 0.0, None, 5, 1e-9),
+        ("polygon-parcel", 0.0, "ST_Area(geom) > 2000", 0, 0.0),
+        ("polygon-parcel", 0.01, None, 0, 0.0),
     ],
 )
-def test_erase(tmp_path, suffix, testfile, gridsize, where_post, subdivide_coords):
+def test_erase(
+    tmp_path,
+    suffix,
+    testfile,
+    gridsize,
+    where_post,
+    subdivide_coords,
+    check_geom_gridsize,
+):
     input_path = test_helper.get_testfile(testfile, suffix=suffix)
     if suffix == ".shp":
         erase_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
@@ -173,7 +181,7 @@ def test_erase(tmp_path, suffix, testfile, gridsize, where_post, subdivide_coord
         sort_values=True,
         check_less_precise=True,
         normalize=True,
-        simplify=0.02,
+        check_geom_gridsize=check_geom_gridsize,
     )
 
     # Make sure the output still has rows, otherwise the test isn't super useful
