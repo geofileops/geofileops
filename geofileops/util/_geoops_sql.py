@@ -566,7 +566,7 @@ def _single_layer_vector_operation(
             True if gridsize != 0.0 or geom_selected is None else False
         )
         if convert_to_spatialite_based:
-            input1_path, input1_layer, _, _ = _convert_to_spatialite_based(
+            input_path, input_layer, _, _ = _convert_to_spatialite_based(
                 input1_path=input_path, input1_layer=input_layer, tempdir=tempdir
             )
         processing_params = _prepare_processing_params(
@@ -583,7 +583,7 @@ def _single_layer_vector_operation(
 
         # Get layer info of the input layer to use
         input_layerinfo = gfo.get_layerinfo(
-            input1_path, input_layer, raise_on_nogeom=False
+            input_path, input_layer, raise_on_nogeom=False
         )
 
         # If multiple batches, there should be a batch_filter placeholder sql_template
@@ -616,7 +616,7 @@ def _single_layer_vector_operation(
         sql_template = sql_template.format(
             geometrycolumn=input_layerinfo.geometrycolumn,
             columns_to_select_str=columns_to_select_str,
-            input_layer=input1_layer,
+            input_layer=input_layer,
             batch_filter="{batch_filter}",
         )
 
@@ -630,7 +630,7 @@ def _single_layer_vector_operation(
                 sql_tmp = sql_template.format(batch_filter="")
                 cols = _sqlite_util.get_columns(
                     sql_stmt=sql_tmp,
-                    input_path=input1_path,
+                    input_path=input_path,
                 )
                 geom_selected = input_layerinfo.geometrycolumn in cols
 
@@ -648,7 +648,7 @@ def _single_layer_vector_operation(
 
             # Get all columns of the sql_template
             sql_tmp = sql_template.format(batch_filter="")
-            cols = _sqlite_util.get_columns(sql_stmt=sql_tmp, input_path=input1_path)
+            cols = _sqlite_util.get_columns(sql_stmt=sql_tmp, input_path=input_path)
             attributes = [
                 col for col in cols if col.lower() != input_layerinfo.geometrycolumn
             ]
@@ -2734,7 +2734,7 @@ def _two_layer_vector_operation(
         # -------------------------
         logger.debug(f"Prepare input (params), tempdir: {tmp_dir}")
         input1_path, input1_layer, input2_path, input2_layer = (
-            _convert_to_spatialite_based(
+            _convert_to_spatialite_based(  # type: ignore[assignment]
                 input1_path=input1_path,
                 input1_layer=input1_layer,
                 tempdir=tmp_dir,
@@ -2742,7 +2742,6 @@ def _two_layer_vector_operation(
                 input2_layer=input2_layer,
             )
         )
-        assert input1_layer is not None
 
         if input1_subdivided_path is not None:
             input1_layer_alias = "layer1_subdiv"
@@ -3227,7 +3226,7 @@ def _convert_to_spatialite_based(
     tempdir: Path,
     input2_path: Optional[Path] = None,
     input2_layer: Optional[str] = None,
-):
+) -> tuple[Path, str, Optional[Path], Optional[str]]:
     """Prepare input files for the calculation.
 
     The input files should be spatialite based, and should be of the same type: either
