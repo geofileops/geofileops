@@ -109,6 +109,7 @@ def test_clip_resultempty(tmp_path, suffix, clip_empty):
         ("polygon-parcel", 0.0, None, None),
         ("polygon-parcel", 0.0, "ST_Area(geom) > 2000", 0),
         ("polygon-parcel", 0.01, None, 0),
+        ("polygon-parcel", 0.01, None, 5),
     ],
 )
 def test_erase(tmp_path, suffix, testfile, gridsize, where_post, subdivide_coords):
@@ -172,6 +173,7 @@ def test_erase(tmp_path, suffix, testfile, gridsize, where_post, subdivide_coord
         sort_values=True,
         check_less_precise=True,
         normalize=True,
+        simplify=0.02,
     )
 
     # Make sure the output still has rows, otherwise the test isn't super useful

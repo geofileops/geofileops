@@ -1861,7 +1861,7 @@ def erase(
     logger = logging.getLogger("geofileops.erase")
     logger.info(f"Start, on {input_path} with {erase_path} to {output_path}")
 
-    # In erase_path is None, we are doing a self-overlay
+    # If erase_path is None, we are doing a self-overlay
     overlay_self = False
     if erase_path is None:
         if erase_layer is not None:

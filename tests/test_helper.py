@@ -280,6 +280,7 @@ def assert_geodataframe_equal(
     promote_to_multi=False,
     sort_columns=False,
     sort_values=False,
+    simplify: Optional[float] = None,
     output_dir: Optional[Path] = None,
 ):
     """
@@ -303,6 +304,8 @@ def assert_geodataframe_equal(
         If True, check that all the geom types are equal.
     check_geom_empty_vs_None : bool, default True
         If False, ignore differences between empty and None geometries.
+    check_geom_equals : bool, default True
+        If False, ignore differences between geometries.
     check_crs: bool, default True
         If `check_frame_type` is True, then also check that the
         crs matches.
@@ -332,6 +335,10 @@ def assert_geodataframe_equal(
         left.loc[left.geometry.is_empty, ["geometry"]] = None
         right = right.copy()
         right.loc[right.geometry.is_empty, ["geometry"]] = None
+
+    if simplify is not None:
+        left.geometry = left.geometry.simplify(simplify)
+        right.geometry = right.geometry.simplify(simplify)
 
     if promote_to_multi:
         left.geometry = _geoseries_util.harmonize_geometrytypes(
