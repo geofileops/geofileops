@@ -82,7 +82,7 @@ def test_prepare_processing_params_filetypes(
         input1_layer=input1_layer,
         input2_path=input2_path,
         input2_layer=input2_layer,
-        tempdir=tmp_path,
+        tmp_dir=tmp_path,
         convert_to_spatialite_based=True,
         nb_parallel=2,
     )
@@ -124,9 +124,9 @@ def test_subdivide_layer(desc, tmp_path, testfile, subdivide_coords, retval_None
     result = _geoops_sql._subdivide_layer(
         path=path,
         layer=None,
-        output_dir=tmp_path,
+        output_path=tmp_path,
         subdivide_coords=subdivide_coords,
-        overlay_self=False,
+        keep_fid=False,
     )
 
     if retval_None:

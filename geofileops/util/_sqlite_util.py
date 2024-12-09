@@ -7,6 +7,7 @@ import pprint
 import shutil
 import sqlite3
 import tempfile
+import time
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Optional, Union
@@ -137,6 +138,7 @@ def get_columns(
         input_path = [input_path]
     assert isinstance(input_path, Iterable)
 
+    start = time.perf_counter()
     tmp_dir = Path(tempfile.mkdtemp(prefix="geofileops/get_columns_"))
     tmp_path = tmp_dir / f"temp{input_path[0].suffix}"
     create_new_spatialdb(path=tmp_path)
@@ -270,6 +272,10 @@ def get_columns(
         conn.close()
         if ConfigOptions.remove_temp_files:
             shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    time_taken = time.perf_counter() - start
+    if time_taken > 5:
+        logger.info(f"get_columns ready, took {time_taken:.2f} seconds")
 
     return columns
 
