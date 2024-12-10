@@ -1007,11 +1007,6 @@ def erase(
     operation_name = f"{operation_prefix}erase"
     logger = logging.getLogger(f"geofileops.{operation_name}")
 
-    # If we are doing a self overlay, we need to filter out rows with the same rowid.
-    where_clause_self = "1=1"
-    if overlay_self:
-        where_clause_self = "layer1.rowid <> layer2_sub.rowid"
-
     # Get layer names
     if input_layer is None:
         input_layer = gfo.get_only_layer(input_path)
@@ -1035,6 +1030,8 @@ def erase(
         force_output_geometrytype = force_output_geometrytype.to_multitype
 
     # Subdivide the input layer if needed to speed up further processing.
+    # Save the original fid column in a new fid_1 column, we will need it to filter on
+    # it later on.
     tmp_dir = _io_util.create_tempdir(f"geofileops/{operation_name}")
     input_subdivided_path = _subdivide_layer(
         path=input_path,
@@ -1047,31 +1044,35 @@ def erase(
         operation_prefix=f"{operation_name}/",
     )
 
-    # If we are self-erasing the layer, we need to retain the fid to be able to
-    # know which row the subdivided geometries belonged to originally.
-    keep_fid = overlay_self
+    where_clause_self = "1=1"
+    if overlay_self:
+        # If we are doing a self overlay, we need to filter out rows with the same rowid
+        if input_subdivided_path is None:
+            where_clause_self = "layer1.rowid <> layer2_sub.rowid"
+        else:
+            # Filter out the same rowids using the original fids!
+            where_clause_self = "layer1_subdiv.fid_1 <> layer2_sub.fid_1"
 
-    # Subdivide the erase layer if needed to speed up further processing.
-    erase_subdivided_path = _subdivide_layer(
-        path=erase_path,
-        layer=erase_layer,
-        output_path=tmp_dir / "subdivided/erase_layer.gpkg",
-        subdivide_coords=subdivide_coords,
-        keep_fid=keep_fid,
-        nb_parallel=nb_parallel,
-        # batchsize=batchsize,
-        operation_prefix=f"{operation_name}/",
-    )
+        # For overlay self, both subdivided layers are equal
+        erase_subdivided_path = input_subdivided_path
+
+    else:
+        # Subdivide the erase layer if needed to speed up further processing.
+        # No self overlay, so we don't need the original fid column for the erase layer.
+        erase_subdivided_path = _subdivide_layer(
+            path=erase_path,
+            layer=erase_layer,
+            output_path=tmp_dir / "subdivided/erase_layer.gpkg",
+            subdivide_coords=subdivide_coords,
+            keep_fid=False,
+            nb_parallel=nb_parallel,
+            # batchsize=batchsize,
+            operation_prefix=f"{operation_name}/",
+        )
+
+    # If the erase layer was subdivided
     if erase_subdivided_path is not None:
         erase_path = erase_subdivided_path
-
-        # _subdivide_layer will save the original fid column in a new fid_1 column
-        if overlay_self:
-            if input_subdivided_path is None:
-                where_clause_self = "layer1.rowid <> layer2_sub.fid_1"
-            else:
-                # If the input layer was subdivided, the original fid is now in fid_1
-                where_clause_self = "layer1_subdiv.fid_1 <> layer2_sub.fid_1"
 
     # Prepare sql template for this operation
     # - WHERE geom IS NOT NULL to avoid rows with a NULL geom, they give issues in
