@@ -17,7 +17,7 @@ import shapely.geometry as sh_geom
 
 import geofileops as gfo
 from geofileops import GeometryType
-from geofileops._compat import SPATIALITE_GTE_51
+from geofileops._compat import GEOPANDAS_GTE_10, SPATIALITE_GTE_51
 from geofileops.util import _geofileinfo
 from geofileops.util import _geoops_sql as geoops_sql
 from geofileops.util._geofileinfo import GeofileInfo
@@ -111,6 +111,10 @@ def test_clip_resultempty(tmp_path, suffix, clip_empty):
         ("polygon-parcel", 0.0, "ST_Area(geom) > 2000", 0, 0.0),
         ("polygon-parcel", 0.01, None, 0, 0.0),
     ],
+)
+@pytest.mark.skipif(
+    not GEOPANDAS_GTE_10,
+    reason="assert_geodataframe_equal with check_geom_gridsize requires gpd >= 1.0",
 )
 def test_erase(
     tmp_path,
