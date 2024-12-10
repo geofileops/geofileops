@@ -14,9 +14,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal, Optional, Union
 
+import numpy as np
 import pandas as pd
 import pygeoops
 import shapely
+import shapely.geometry.base
 
 import geofileops as gfo
 from geofileops import GeometryType, PrimitiveType, fileops
@@ -1150,8 +1152,7 @@ def erase(
                   SELECT fid_1
                         ,IFNULL(
                            ( SELECT IFNULL(
-                                       IIF(ST_Union(layer2_sub.{{input2_geometrycolumn}})
-                                              IS NULL,
+                                       IIF(COUNT(layer2_sub.rowid) = 0,
                                            layer1_subdiv.{{input1_geometrycolumn}},
                                            ST_CollectionExtract(
                                               ST_difference(
@@ -1279,7 +1280,35 @@ def _subdivide_layer(
     # seem to work.
     # Check out commits in https://github.com/geofileops/geofileops/pull/433
     def subdivide(geom, num_coords_max):
-        result = pygeoops.subdivide(geom, num_coords_max=num_coords_max)
+        if geom is None or geom.is_empty:
+            return geom
+
+        if isinstance(geom, shapely.geometry.base.BaseMultipartGeometry):
+            # Simple single geometry
+            result = shapely.get_parts(
+                pygeoops.subdivide(geom, num_coords_max=num_coords_max)
+            )
+        else:
+            geom = shapely.get_parts(geom)
+            if len(geom) == 1:
+                # There was only one geometry in the multigeometry
+                result = shapely.get_parts(
+                    pygeoops.subdivide(geom[0], num_coords_max=num_coords_max)
+                )
+            else:
+                to_subdivide = shapely.get_num_coordinates(geom) > num_coords_max
+                if np.any(to_subdivide):
+                    subdivided = np.concatenate(
+                        [
+                            shapely.get_parts(
+                                pygeoops.subdivide(g, num_coords_max=num_coords_max)
+                            )
+                            for g in geom[to_subdivide]
+                        ]
+                    )
+                    result = np.concatenate([subdivided, geom[~to_subdivide]])
+                else:
+                    result = geom
 
         if result is None:
             return None
@@ -1292,7 +1321,7 @@ def _subdivide_layer(
         #   - they will be exploded anyway by spatialite.ST_Collect
         #   - spatialite.ST_AsBinary and/or spatialite.ST_GeomFromWkb don't seem
         #     to handle nested collections well.
-        return shapely.GeometryCollection(shapely.get_parts(result).tolist())
+        return shapely.geometrycollections(result)
 
     # Keep the fid column if needed
     columns = ["fid"] if keep_fid else []
@@ -2752,6 +2781,7 @@ def _two_layer_vector_operation(
 
         processing_params = _prepare_processing_params(
             input1_path=input1_path,
+            input1_subdivided_path=input1_subdivided_path,
             input1_layer=input1_layer,
             input1_layer_alias=input1_layer_alias,
             filter_column=filter_column,
@@ -3311,11 +3341,14 @@ def _prepare_processing_params(
     batchsize: int = -1,
     input1_layer_alias: Optional[str] = None,
     filter_column: str = "rowid",
+    input1_subdivided_path: Optional[Path] = None,
     input2_path: Optional[Path] = None,
     input2_layer: Optional[str] = None,
 ) -> Optional[ProcessingParams]:
     # Prepare batches to process
-    layer1_info = gfo.get_layerinfo(input1_path, input1_layer, raise_on_nogeom=False)
+    layer1_info = gfo.get_layerinfo(
+        input1_subdivided_path or input1_path, input1_layer, raise_on_nogeom=False
+    )
     nb_rows_input_layer = layer1_info.featurecount
 
     # Determine optimal number of batches
@@ -3336,86 +3369,96 @@ def _prepare_processing_params(
         batches[0]["input2_path"] = input2_path
         batches[0]["input2_layer"] = input2_layer
         batches[0]["batch_filter"] = ""
-    else:
-        # Determine the min_rowid and max_rowid
-        # Remark: SELECT MIN(rowid), MAX(rowid) FROM ... is a lot slower than UNION ALL!
-        sql_stmt = f"""
-            SELECT MIN(rowid) minmax_rowid FROM "{layer1_info.name}"
-            UNION ALL
-            SELECT MAX(rowid) minmax_rowid FROM "{layer1_info.name}"
-        """
-        batch_info_df = gfo.read_file(
-            path=input1_path, sql_stmt=sql_stmt, sql_dialect="SQLITE"
-        )
-        min_rowid = pd.to_numeric(batch_info_df["minmax_rowid"][0]).item()
-        max_rowid = pd.to_numeric(batch_info_df["minmax_rowid"][1]).item()
 
-        # Determine the exact batches to use
-        if ((max_rowid - min_rowid) / nb_rows_input_layer) < 1.1:
-            # If the rowid's are quite consecutive, use an imperfect, but
-            # fast distribution in batches
-            batch_info_list = []
-            nb_rows_per_batch = round(nb_rows_input_layer / nb_batches)
-            start_rowid = min_rowid
-            offset_per_batch = round((max_rowid - min_rowid) / nb_batches)
-            for batch_id in range(nb_batches):
-                if batch_id < (nb_batches - 1):
-                    # End rowid for this batch is the next start_rowid - 1
-                    end_rowid = start_rowid + offset_per_batch - 1
-                else:
-                    # For the last batch, take the max_rowid so no rowid's are
-                    # 'lost' due to rounding errors
-                    end_rowid = max_rowid
-                batch_info_list.append(
-                    (batch_id, nb_rows_per_batch, start_rowid, end_rowid)
-                )
-                start_rowid += offset_per_batch
-            batch_info_df = pd.DataFrame(
-                batch_info_list, columns=["id", "nb_rows", "start_rowid", "end_rowid"]
-            )
-        else:
-            # The rowids are not consecutive, so determine the optimal rowid
-            # ranges for each batch so each batch has same number of elements
-            # Remark: - this might take some seconds for larger datasets!
-            #         - (batch_id - 1) AS id to make the id zero-based
+    else:
+        if input1_subdivided_path is not None:
+            # input1 is subdivided, so determine batches based on the fid_1
+            nb_rows_per_batch = round(nb_rows_input_layer / (nb_batches))
+            # Remark: ROW_NUMBER() is one-based!
             sql_stmt = f"""
-                SELECT (batch_id - 1) AS id
-                      ,COUNT(*) AS nb_rows
-                      ,MIN(rowid) AS start_rowid
-                      ,MAX(rowid) AS end_rowid
-                  FROM
-                    ( SELECT rowid
-                            ,NTILE({nb_batches}) OVER (ORDER BY rowid) batch_id
-                        FROM "{layer1_info.name}"
+                SELECT DISTINCT fid_1 AS start_id FROM (
+                    SELECT ROW_NUMBER() OVER (ORDER BY fid_1) AS rownumber, *
+                      FROM "{layer1_info.name}"
                     )
-                 GROUP BY batch_id;
+                 WHERE (rownumber = 1 OR rownumber % {nb_rows_per_batch} = 0)
             """
-            batch_info_df = gfo.read_file(path=input1_path, sql_stmt=sql_stmt)
+            batch_info_df = gfo.read_file(
+                path=input1_subdivided_path, sql_stmt=sql_stmt, sql_dialect="SQLITE"
+            )
+
+            batch_info_df.reset_index(names=["batch_id"], inplace=True)
+            nb_batches = len(batch_info_df)
+
+        else:
+            # Determine the min_rowid and max_rowid
+            # Remark: SELECT MIN(rowid), MAX(rowid) ... is a lot slower than UNION ALL!
+            sql_stmt = f"""
+                SELECT MIN(rowid) minmax_rowid FROM "{layer1_info.name}"
+                UNION ALL
+                SELECT MAX(rowid) minmax_rowid FROM "{layer1_info.name}"
+            """
+            batch_info_df = gfo.read_file(
+                path=input1_path, sql_stmt=sql_stmt, sql_dialect="SQLITE"
+            )
+            min_rowid = pd.to_numeric(batch_info_df["minmax_rowid"][0]).item()
+            max_rowid = pd.to_numeric(batch_info_df["minmax_rowid"][1]).item()
+
+            # Determine the exact batches to use
+            if ((max_rowid - min_rowid) / nb_rows_input_layer) < 1.1:
+                # If the rowid's are quite consecutive, use an imperfect, but
+                # fast distribution in batches
+                batch_info_list = []
+                start_id = min_rowid
+                offset_per_batch = round((max_rowid - min_rowid) / nb_batches)
+                for batch_id in range(nb_batches):
+                    batch_info_list.append((batch_id, start_id))
+                    start_id += offset_per_batch
+
+                batch_info_df = pd.DataFrame(
+                    batch_info_list, columns=["batch_id", "start_id"]
+                )
+            else:
+                # The rowids are not consecutive, so determine the optimal rowid
+                # ranges for each batch so each batch has same number of elements
+                # Remark: - this might take some seconds for larger datasets!
+                #         - (batch_id - 1) AS id to make the id zero-based
+                sql_stmt = f"""
+                    SELECT (batch_id - 1) AS batch_id
+                        ,MIN(rowid) AS start_id
+                    FROM
+                        ( SELECT rowid
+                                ,NTILE({nb_batches}) OVER (ORDER BY rowid) batch_id
+                            FROM "{layer1_info.name}"
+                        )
+                    GROUP BY batch_id;
+                """
+                batch_info_df = gfo.read_file(path=input1_path, sql_stmt=sql_stmt)
 
         # Prepare the layer alias to use in the batch filter
         layer_alias_d = ""
         if input1_layer_alias is not None:
             layer_alias_d = f"{input1_layer_alias}."
 
-        # Now loop over all batch ranges to build up the necessary filters
-        for batch_info in batch_info_df.itertuples():
-            # Fill out the batch properties
-            batches[batch_info.id] = {}
-            batches[batch_info.id]["input1_path"] = input1_path
-            batches[batch_info.id]["input1_layer"] = input1_layer
-            batches[batch_info.id]["input2_path"] = input2_path
-            batches[batch_info.id]["input2_layer"] = input2_layer
+        # The end_id is the start_id of the next batch - 1
+        batch_info_df["end_id"] = batch_info_df["start_id"].shift(-1) - 1
 
+        # Now loop over all batch ranges to build up the necessary filters
+        for batch_id, start_id, end_id in batch_info_df.itertuples(index=False):
             # The batch filter
-            if batch_info.id < nb_batches - 1:
-                batches[batch_info.id]["batch_filter"] = (
-                    f"AND ({layer_alias_d}{filter_column} >= {batch_info.start_rowid} "
-                    f"AND {layer_alias_d}{filter_column} <= {batch_info.end_rowid}) "
-                )
-            else:
-                batches[batch_info.id]["batch_filter"] = (
-                    f"AND {layer_alias_d}{filter_column} >= {batch_info.start_rowid} "
-                )
+            batch_filter = f"{layer_alias_d}{filter_column} >= {int(start_id)}"
+            if not np.isnan(end_id).item():
+                # There is an end_id specified, so add it to the filter
+                batch_filter += f" AND {layer_alias_d}{filter_column} <= {int(end_id)}"
+            batch_filter = f"AND ({batch_filter}) "
+
+            # Fill out the batch properties
+            batches[batch_id] = {
+                "input1_path": input1_path,
+                "input1_layer": input1_layer,
+                "input2_path": input2_path,
+                "input2_layer": input2_layer,
+                "batch_filter": batch_filter,
+            }
 
     # No use starting more processes than the number of batches...
     nb_parallel = min(len(batches), nb_parallel)
