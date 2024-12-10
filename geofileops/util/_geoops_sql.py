@@ -3015,10 +3015,6 @@ def _two_layer_vector_operation(
 def _prepare_input_db_names(
     input_paths: list[Optional[Path]], use_ogr
 ) -> tuple[dict, dict]:
-    if use_ogr and len(input_paths) != 1:
-        # If use_ogr, only one input file is supported
-        raise ValueError("use_ogr=True only supports one input file")
-
     input_db_placeholders: dict[str, dict[str, Any]] = {}
     input_db_names: dict[str, Path] = {}
     for index, path in enumerate(input_paths):

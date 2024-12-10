@@ -130,24 +130,34 @@ def get_columns(
     use_spatialite: bool = True,
     output_geometrytype: Optional[GeometryType] = None,
 ) -> dict[str, str]:
-    # Create temp output db to be sure the output DB is writable, even though we only
-    # create a temporary table.
-    tmp_dir = Path(tempfile.mkdtemp(prefix="geofileops/get_columns_"))
-    tmp_path = tmp_dir / f"temp{next(iter(input_databases.values())).suffix}"
-    create_new_spatialdb(path=tmp_path)
+    # Connect to/create sqlite main database
+    tmp_dir = None
+    if "main" in input_databases:
+        # If an input database is main, use it as the main database
+        main_db_path = input_databases["main"]
+    else:
+        # Create temp output db to be sure the output DB is writable, even though we
+        # only create a temporary table.
+        tmp_dir = Path(tempfile.mkdtemp(prefix="geofileops/get_columns_"))
+        main_db_path = tmp_dir / f"temp{next(iter(input_databases.values())).suffix}"
+        create_new_spatialdb(path=main_db_path)
 
     sql = None
-    conn = sqlite3.connect(tmp_path, detect_types=sqlite3.PARSE_DECLTYPES)
+    conn = sqlite3.connect(main_db_path, detect_types=sqlite3.PARSE_DECLTYPES)
     try:
         # Load spatialite if asked for
         if use_spatialite:
             load_spatialite(conn)
-            if tmp_path.suffix.lower() == ".gpkg":
+            if main_db_path.suffix.lower() == ".gpkg":
                 sql = "SELECT EnableGpkgMode();"
                 conn.execute(sql)
 
             # Attach to all input databases
             for dbname, path in input_databases.items():
+                # main is already opened, so skip it
+                if dbname == "main":
+                    continue
+
                 sql = f"ATTACH DATABASE ? AS {dbname}"
                 dbSpec = (str(path),)
                 conn.execute(sql, dbSpec)
@@ -249,7 +259,8 @@ def get_columns(
     finally:
         conn.close()
         if ConfigOptions.remove_temp_files:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
+            if tmp_dir is not None:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
 
     return columns
 
