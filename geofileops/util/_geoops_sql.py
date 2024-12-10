@@ -575,7 +575,7 @@ def _single_layer_vector_operation(
             input1_path=input_path,
             input1_layer=input_layer,
             input1_layer_alias="layer",
-            tmp_dir=tempdir,
+            tempdir=tempdir,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
         )
@@ -2786,7 +2786,7 @@ def _two_layer_vector_operation(
             filter_column=filter_column,
             input2_path=input2_path,
             input2_layer=input2_layer,
-            tmp_dir=tmp_dir,
+            tempdir=tmp_dir,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
         )
@@ -3335,7 +3335,7 @@ def _convert_to_spatialite_based(
 def _prepare_processing_params(
     input1_path: Path,
     input1_layer: str,
-    tmp_dir: Path,
+    tempdir: Path,
     nb_parallel: int,
     batchsize: int = -1,
     input1_layer_alias: Optional[str] = None,
@@ -3467,7 +3467,7 @@ def _prepare_processing_params(
         batches=batches,
         batchsize=int(nb_rows_input_layer / len(batches)),
     )
-    returnvalue.to_json(tmp_dir / "processing_params.json")
+    returnvalue.to_json(tempdir / "processing_params.json")
     return returnvalue
 
 

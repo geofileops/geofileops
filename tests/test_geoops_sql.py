@@ -82,7 +82,7 @@ def test_prepare_processing_params_filetypes(
         input1_layer=input1_layer,
         input2_path=input2_path,
         input2_layer=input2_layer,
-        tmp_dir=tmp_path,
+        tempdir=tmp_path,
         convert_to_spatialite_based=True,
         nb_parallel=2,
     )
