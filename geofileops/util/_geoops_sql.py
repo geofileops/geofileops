@@ -1100,8 +1100,7 @@ def erase(
             SELECT * FROM (
               SELECT IFNULL(
                        ( SELECT IFNULL(
-                                   IIF(ST_Union(layer2_sub.{{input2_geometrycolumn}})
-                                            IS NULL,
+                                   IIF(COUNT(layer2_sub.rowid) = 0,
                                        layer1.{{input1_geometrycolumn}},
                                        ST_CollectionExtract(
                                           ST_difference(
