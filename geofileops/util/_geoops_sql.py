@@ -1093,6 +1093,7 @@ def erase(
     # - ST_difference(geometry , NULL) gives NULL as result -> handle explicitly
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
     input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
+    input1_subdiv_layer_rtree = "rtree_{input1_layer}_{input1_subdiv_geometrycolumn}"
 
     if input_subdivided_path is None:
         # The input layer was not subdivided
@@ -1152,10 +1153,10 @@ def erase(
                         ,IFNULL(
                            ( SELECT IFNULL(
                                        IIF(COUNT(layer2_sub.rowid) = 0,
-                                           layer1_subdiv.{{input1_geometrycolumn}},
+                                           layer1_subdiv.{{input1_subdiv_geometrycolumn}},
                                            ST_CollectionExtract(
                                               ST_difference(
-                                                 layer1_subdiv.{{input1_geometrycolumn}},
+                                                 layer1_subdiv.{{input1_subdiv_geometrycolumn}},
                                                  ST_Union(layer2_sub.{{input2_geometrycolumn}})
                                               ),
                                               {primitivetypeid}
@@ -1163,7 +1164,7 @@ def erase(
                                        ),
                                        'DIFF_EMPTY'
                                     ) AS diff_geom
-                               FROM {{input3_databasename}}."{input1_layer_rtree}" layer1tree
+                               FROM {{input1_subdiv_databasename}}."{input1_subdiv_layer_rtree}" layer1tree
                                JOIN {{input2_databasename}}."{{input2_layer}}" layer2_sub
                                JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
                                  ON layer2_sub.rowid = layer2tree.id
@@ -1173,13 +1174,13 @@ def erase(
                                 AND layer1tree.maxx >= layer2tree.minx
                                 AND layer1tree.miny <= layer2tree.maxy
                                 AND layer1tree.maxy >= layer2tree.miny
-                                AND ST_intersects(layer1_subdiv.{{input1_geometrycolumn}},
+                                AND ST_intersects(layer1_subdiv.{{input1_subdiv_geometrycolumn}},
                                                   layer2_sub.{{input2_geometrycolumn}}) = 1
                               LIMIT -1 OFFSET 0
                            ),
-                           layer1_subdiv.{{input1_geometrycolumn}}
+                           layer1_subdiv.{{input1_subdiv_geometrycolumn}}
                          ) AS geom
-                    FROM {{input3_databasename}}."{{input1_layer}}" layer1_subdiv
+                    FROM {{input1_subdiv_databasename}}."{{input1_layer}}" layer1_subdiv
                    WHERE 1=1
                      {{batch_filter}}
                    LIMIT -1 OFFSET 0
@@ -2846,6 +2847,16 @@ def _two_layer_vector_operation(
             column_alias_prefix=input2_columns_prefix,
         )
 
+        input1_subdiv_geometrycolumn = None
+        if input1_subdivided_path is not None:
+            input1_subdiv_info = gfo.get_layerinfo(input1_subdivided_path)
+            input1_subdiv_geometrycolumn = input1_subdiv_info.geometrycolumn
+
+        input2_subdiv_geometrycolumn = None
+        if input2_subdivided_path is not None:
+            input2_subdiv_info = gfo.get_layerinfo(input2_subdivided_path)
+            input2_subdiv_geometrycolumn = input2_subdiv_info.geometrycolumn
+
         # Check input crs'es
         if input1_layerinfo.crs != input2_layerinfo.crs:
             logger.warning(
@@ -2865,12 +2876,19 @@ def _two_layer_vector_operation(
         sql_template = sql_template.format(
             input1_databasename=input_db_placeholders["input1_databasename"]["db_name"],
             input2_databasename=input_db_placeholders["input2_databasename"]["db_name"],
+            input1_subdiv_databasename=input_db_placeholders[
+                "input1_subdiv_databasename"
+            ]["db_name"],
+            input2_subdiv_databasename=input_db_placeholders[
+                "input2_subdiv_databasename"
+            ]["db_name"],
             layer1_columns_from_subselect_str=input1_col_strs.from_subselect(),
             layer1_columns_prefix_alias_str=input1_col_strs.prefixed_aliased(),
             layer1_columns_prefix_str=input1_col_strs.prefixed(),
             input1_layer=input1_layer,
             input1_tmp_layer=input1_layer,
             input1_geometrycolumn=input1_layerinfo.geometrycolumn,
+            input1_subdiv_geometrycolumn=input1_subdiv_geometrycolumn,
             layer2_columns_from_subselect_str=input2_col_strs.from_subselect(),
             layer2_columns_prefix_alias_str=input2_col_strs.prefixed_aliased(),
             layer2_columns_prefix_str=input2_col_strs.prefixed(),
@@ -2878,6 +2896,7 @@ def _two_layer_vector_operation(
             input2_layer=input2_layer,
             input2_tmp_layer=input2_layer,
             input2_geometrycolumn=input2_layerinfo.geometrycolumn,
+            input2_subdiv_geometrycolumn=input2_subdiv_geometrycolumn,
             batch_filter="{batch_filter}",
         )
 
