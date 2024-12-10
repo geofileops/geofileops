@@ -2750,7 +2750,8 @@ def _two_layer_vector_operation(
 
         # Prepare the database names to fill out in the sql_template
         input_db_placeholders, input_db_names = _prepare_input_db_names(
-            [input1_path, input2_path], use_ogr=use_ogr
+            [processing_params.input1_path, processing_params.input2_path],
+            use_ogr=use_ogr,
         )
 
         # Fill out sql_template as much as possible already
