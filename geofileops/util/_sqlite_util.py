@@ -7,7 +7,6 @@ import pprint
 import shutil
 import sqlite3
 import tempfile
-from collections.abc import Iterable
 from pathlib import Path
 from typing import Optional, Union
 
@@ -126,19 +125,15 @@ def create_new_spatialdb(path: Path, crs_epsg: Optional[int] = None):
 
 def get_columns(
     sql_stmt: str,
-    input_path: Union[Path, list[Path]],
+    input_databases: dict[str, Path],
     empty_output_ok: bool = True,
     use_spatialite: bool = True,
     output_geometrytype: Optional[GeometryType] = None,
 ) -> dict[str, str]:
     # Create temp output db to be sure the output DB is writable, even though we only
     # create a temporary table.
-    if isinstance(input_path, (str, Path)):
-        input_path = [input_path]
-    assert isinstance(input_path, Iterable)
-
     tmp_dir = Path(tempfile.mkdtemp(prefix="geofileops/get_columns_"))
-    tmp_path = tmp_dir / f"temp{input_path[0].suffix}"
+    tmp_path = tmp_dir / f"temp{next(iter(input_databases.values())).suffix}"
     create_new_spatialdb(path=tmp_path)
 
     sql = None
@@ -152,28 +147,13 @@ def get_columns(
                 conn.execute(sql)
 
             # Attach to all input databases
-            db_path_to_placeholder: dict[Path, str] = {}
-            db_placeholder_to_value: dict[str, str] = {}
-            for index, path in enumerate(input_path):
-                db_placeholder = f"input{index + 1}_databasename"
-                if path in db_path_to_placeholder:
-                    db_placeholder_to_value[db_placeholder] = db_placeholder_to_value[
-                        db_path_to_placeholder[path]
-                    ]
-                    continue
-
-                input_databasename = f"input{index + 1}"
-                sql = f"ATTACH DATABASE ? AS {input_databasename}"
+            for dbname, path in input_databases.items():
+                sql = f"ATTACH DATABASE ? AS {dbname}"
                 dbSpec = (str(path),)
                 conn.execute(sql, dbSpec)
-                db_path_to_placeholder[path] = db_placeholder
-                db_placeholder_to_value[db_placeholder] = input_databasename
 
         # Prepare sql statement for execute
-        sql_stmt_prepared = sql_stmt.format(
-            **db_placeholder_to_value,
-            batch_filter="",
-        )
+        sql_stmt_prepared = sql_stmt.format(batch_filter="")
 
         # Log explain plan if debug logging enabled.
         if logger.isEnabledFor(logging.DEBUG):
@@ -275,7 +255,7 @@ def get_columns(
 
 
 def create_table_as_sql(
-    input_path: Union[Path, list[Path]],
+    input_databases: dict[str, Path],
     output_path: Path,
     sql_stmt: str,
     output_layer: str,
@@ -291,7 +271,8 @@ def create_table_as_sql(
     """Execute sql statement and save the result in the output file.
 
     Args:
-        input_path (Path or list): the path(s) to the input file(s).
+        input_databases (dict): dict with the database name(s) and path(s) to the input
+            database(s).
         output_path (Path): the path where the output file needs to be created/appended.
         sql_stmt (str): SELECT statement to run on the input files.
         output_layer (str): layer/table name to use.
@@ -323,12 +304,8 @@ def create_table_as_sql(
         raise ValueError("append=True nor update=True are implemented.")
 
     # All input files and the output file must have the same suffix.
-    if isinstance(input_path, (str, Path)):
-        input_path = [input_path]
-    assert isinstance(input_path, Iterable)
-
     output_suffix_lower = output_path.suffix.lower()
-    for path in input_path:
+    for path in input_databases.values():
         if output_suffix_lower != path.suffix.lower():
             raise ValueError(
                 "output_path and all input paths must have the same suffix!"
@@ -371,22 +348,10 @@ def create_table_as_sql(
             conn.execute(sql)
 
             # Attach to all input databases
-            db_path_to_placeholder: dict[Path, str] = {}
-            db_placeholder_to_value: dict[str, str] = {}
-            for index, path in enumerate(input_path):
-                db_placeholder = f"input{index+1}_databasename"
-                if path in db_path_to_placeholder:
-                    db_placeholder_to_value[db_placeholder] = db_placeholder_to_value[
-                        db_path_to_placeholder[path]
-                    ]
-                    continue
-
-                input_databasename = f"input{index + 1}"
-                sql = f"ATTACH DATABASE ? AS {input_databasename}"
+            for dbname, path in input_databases.items():
+                sql = f"ATTACH DATABASE ? AS {dbname}"
                 dbSpec = (str(path),)
                 conn.execute(sql, dbSpec)
-                db_path_to_placeholder[path] = db_placeholder
-                db_placeholder_to_value[db_placeholder] = input_databasename
 
             # Use the sqlite profile specified
             if profile is SqliteProfile.SPEED:
@@ -396,10 +361,7 @@ def create_table_as_sql(
 
                 # These options don't really make a difference on windows, but
                 # it doesn't hurt and maybe on other platforms...
-                for databasename in [
-                    output_databasename,
-                    *db_placeholder_to_value.values(),
-                ]:
+                for databasename in [output_databasename, *input_databases.keys()]:
                     conn.execute(f"PRAGMA {databasename}.journal_mode=OFF;")
 
                     # These pragma's increase speed
@@ -411,7 +373,7 @@ def create_table_as_sql(
             if column_types is None:
                 column_types = get_columns(
                     sql_stmt=sql_stmt,
-                    input_path=input_path,
+                    input_databases=input_databases,
                     empty_output_ok=empty_output_ok,
                     use_spatialite=True,
                     output_geometrytype=output_geometrytype,
@@ -420,9 +382,6 @@ def create_table_as_sql(
             # If geometry type was not specified, look for it in column_types
             if output_geometrytype is None and "geom" in column_types:
                 output_geometrytype = GeometryType(column_types["geom"])
-
-            # Prepare sql statement
-            sql_stmt = sql_stmt.format(**db_placeholder_to_value)
 
             # Now we can create the table
             # Create output table using the gpkgAddGeometryColumn() function
