@@ -12,7 +12,7 @@ from collections.abc import Iterable
 from concurrent import futures
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -630,7 +630,7 @@ def _single_layer_vector_operation(
                 sql_tmp = sql_template.format(batch_filter="")
                 cols = _sqlite_util.get_columns(
                     sql_stmt=sql_tmp,
-                    input_path=input_path,
+                    input_databases={"input_db": input_path},
                 )
                 geom_selected = input_layerinfo.geometrycolumn in cols
 
@@ -648,7 +648,9 @@ def _single_layer_vector_operation(
 
             # Get all columns of the sql_template
             sql_tmp = sql_template.format(batch_filter="")
-            cols = _sqlite_util.get_columns(sql_stmt=sql_tmp, input_path=input_path)
+            cols = _sqlite_util.get_columns(
+                sql_stmt=sql_tmp, input_databases={"input_db": input_path}
+            )
             attributes = [
                 col for col in cols if col.lower() != input_layerinfo.geometrycolumn
             ]
@@ -2723,7 +2725,7 @@ def _two_layer_vector_operation(
         raise ValueError(
             f"{operation_name}: output_path must not equal one of input paths"
         )
-    if use_ogr is True and input1_path != input2_path:
+    if use_ogr and input1_path != input2_path:
         raise ValueError(
             f"{operation_name}: if use_ogr True, input1_path should equal input2_path!"
         )
@@ -2851,14 +2853,18 @@ def _two_layer_vector_operation(
                 f"{input1_layerinfo.crs} \n\tinput2: {input2_layerinfo.crs}"
             )
 
+        # Prepare the database names to fill out in the sql_template
+        input_db_placeholders, input_db_names = _prepare_input_db_names(
+            [input1_path, input2_path, input1_subdivided_path, input2_subdivided_path],
+            use_ogr=use_ogr,
+        )
+
         # Fill out sql_template as much as possible already
         # -------------------------------------------------
         # Keep input1_tmp_layer and input2_tmp_layer for backwards compatibility
         sql_template = sql_template.format(
-            input1_databasename="{input1_databasename}",
-            input2_databasename="{input2_databasename}",
-            input3_databasename="{input3_databasename}",
-            input4_databasename="{input4_databasename}",
+            input1_databasename=input_db_placeholders["input1_databasename"]["db_name"],
+            input2_databasename=input_db_placeholders["input2_databasename"]["db_name"],
             layer1_columns_from_subselect_str=input1_col_strs.from_subselect(),
             layer1_columns_prefix_alias_str=input1_col_strs.prefixed_aliased(),
             layer1_columns_prefix_str=input1_col_strs.prefixed(),
@@ -2879,11 +2885,7 @@ def _two_layer_vector_operation(
         column_datatypes = None
         # Use first batch_filter to improve performance
         sql_stmt = sql_template.format(
-            input1_databasename="{input1_databasename}",
-            input2_databasename="{input2_databasename}",
-            input3_databasename="{input3_databasename}",
-            input4_databasename="{input4_databasename}",
-            batch_filter=processing_params.batches[0]["batch_filter"],
+            batch_filter=processing_params.batches[0]["batch_filter"]
         )
 
         input_paths = [input1_path, input2_path]
@@ -2893,7 +2895,7 @@ def _two_layer_vector_operation(
             input_paths.append(input2_subdivided_path)
 
         column_datatypes = _sqlite_util.get_columns(
-            sql_stmt=sql_stmt, input_path=input_paths
+            sql_stmt=sql_stmt, input_databases=input_db_names
         )
 
         # Apply gridsize if it is specified
@@ -3011,10 +3013,7 @@ def _two_layer_vector_operation(
                 # Remark: this temp file doesn't need spatial index
                 future = calculate_pool.submit(
                     _calculate_two_layers,
-                    input1_path=input1_path,
-                    input2_path=input2_path,
-                    input1_subdivided_path=input1_subdivided_path,
-                    input2_subdivided_path=input2_subdivided_path,
+                    input_databases=input_db_names,
                     output_path=tmp_partial_output_path,
                     sql_stmt=sql_stmt,
                     output_layer=output_layer,
@@ -3125,6 +3124,35 @@ def _two_layer_vector_operation(
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
+def _prepare_input_db_names(
+    input_paths: list[Optional[Path]], use_ogr
+) -> tuple[dict, dict]:
+    input_db_placeholders: dict[str, dict[str, Any]] = {}
+    input_db_names: dict[str, Path] = {}
+    for index, path in enumerate(input_paths):
+        db_placeholder = f"input{index + 1}_databasename"
+
+        # If path is already in input_databases, reuse the db_name
+        db_name = None
+        for _, db_info in input_db_placeholders.items():
+            if db_info["path"] == path:
+                db_name = db_info["db_name"]
+                break
+
+        if db_name is None and path is not None:
+            if use_ogr:
+                # use_ogr needs main as db_name
+                db_name = "main"
+            else:
+                db_name = f"input{index + 1}"
+
+        input_db_placeholders[db_placeholder] = {"db_name": db_name, "path": path}
+        if db_name is not None and path is not None:
+            input_db_names[db_name] = path
+
+    return input_db_placeholders, input_db_names
+
+
 def _check_crs(
     input1_path: Path, input1_layer: str, input2_path: Path, input2_layer: str
 ) -> int:
@@ -3159,10 +3187,7 @@ def _check_crs(
 
 
 def _calculate_two_layers(
-    input1_path: Path,
-    input2_path: Path,
-    input1_subdivided_path: Optional[Path],
-    input2_subdivided_path: Optional[Path],
+    input_databases: dict[str, Path],
     output_path: Path,
     sql_stmt: str,
     output_layer: str,
@@ -3173,7 +3198,7 @@ def _calculate_two_layers(
     column_datatypes: dict,
     use_ogr: bool,
 ):
-    if use_ogr is False:
+    if not use_ogr:
         # If explodecollections, write first to tmp file, then apply explodecollections
         # to the final output file.
         output_tmp_path = output_path
@@ -3181,14 +3206,8 @@ def _calculate_two_layers(
             output_name = f"{output_path.stem}_tmp{output_path.suffix}"
             output_tmp_path = output_path.parent / output_name
 
-        input_paths = [input1_path, input2_path]
-        if input1_subdivided_path is not None:
-            input_paths.append(input1_subdivided_path)
-        if input2_subdivided_path is not None:
-            input_paths.append(input2_subdivided_path)
-
         _sqlite_util.create_table_as_sql(
-            input_path=input_paths,
+            input_databases=input_databases,
             output_path=output_tmp_path,
             sql_stmt=sql_stmt,
             output_layer=output_layer,
@@ -3198,6 +3217,7 @@ def _calculate_two_layers(
             profile=_sqlite_util.SqliteProfile.SPEED,
             column_datatypes=column_datatypes,
         )
+
         if explodecollections:
             _ogr_util.vector_translate(
                 input_path=output_tmp_path,
@@ -3212,15 +3232,12 @@ def _calculate_two_layers(
             gfo.remove(output_tmp_path)
     else:
         # Use ogr to run the query
-        #   * input2 path (= using attach) doesn't seem to work
-        #   * ogr doesn't fill out database names, so do it now
-        sql_stmt = sql_stmt.format(
-            input1_databasename="main",
-            input2_databasename="main",
-        )
+        #   * input2 path (= using attach) doesn't seem to work at time of writing
+        if len(input_databases) != 1:
+            raise ValueError("use_ogr=True only supports one input file")
 
         _ogr_util.vector_translate(
-            input_path=input1_path,
+            input_path=next(iter(input_databases.values())),
             output_path=output_path,
             sql_stmt=sql_stmt,
             output_layer=output_layer,
