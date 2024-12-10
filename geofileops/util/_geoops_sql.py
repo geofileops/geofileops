@@ -564,13 +564,11 @@ def _single_layer_vector_operation(
     try:
         # If gridsize != 0.0 or if geom_selected is None we need an sqlite file to be
         # able to determine the columns later on.
-        convert_to_spatialite_based = (
-            True if gridsize != 0.0 or geom_selected is None else False
-        )
-        if convert_to_spatialite_based:
+        if gridsize != 0.0 or geom_selected is None:
             input_path, input_layer, _, _ = _convert_to_spatialite_based(
                 input1_path=input_path, input1_layer=input_layer, tempdir=tempdir
             )
+
         processing_params = _prepare_processing_params(
             input1_path=input_path,
             input1_layer=input_layer,
