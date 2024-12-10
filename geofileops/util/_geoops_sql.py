@@ -12,7 +12,7 @@ from collections.abc import Iterable
 from concurrent import futures
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal, Optional, Union
+from typing import Literal, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -1071,7 +1071,7 @@ def erase(
                 where_clause_self = "layer1.rowid <> layer2_sub.fid_1"
             else:
                 # If the input layer was subdivided, the original fid is now in fid_1
-                where_clause_self = "layer1.fid_1 <> layer2_sub.fid_1"
+                where_clause_self = "layer1_subdiv.fid_1 <> layer2_sub.fid_1"
 
     # Prepare sql template for this operation
     # - WHERE geom IS NOT NULL to avoid rows with a NULL geom, they give issues in
@@ -2866,7 +2866,12 @@ def _two_layer_vector_operation(
 
         # Prepare the database names to fill out in the sql_template
         input_db_placeholders, input_db_names = _prepare_input_db_names(
-            [input1_path, input2_path, input1_subdivided_path, input2_subdivided_path],
+            {
+                "input1_databasename": input1_path,
+                "input2_databasename": input2_path,
+                "input1_subdiv_databasename": input1_subdivided_path,
+                "input2_subdiv_databasename": input2_subdivided_path,
+            },
             use_ogr=use_ogr,
         )
 
@@ -2874,14 +2879,7 @@ def _two_layer_vector_operation(
         # -------------------------------------------------
         # Keep input1_tmp_layer and input2_tmp_layer for backwards compatibility
         sql_template = sql_template.format(
-            input1_databasename=input_db_placeholders["input1_databasename"]["db_name"],
-            input2_databasename=input_db_placeholders["input2_databasename"]["db_name"],
-            input1_subdiv_databasename=input_db_placeholders[
-                "input1_subdiv_databasename"
-            ]["db_name"],
-            input2_subdiv_databasename=input_db_placeholders[
-                "input2_subdiv_databasename"
-            ]["db_name"],
+            **input_db_placeholders,
             layer1_columns_from_subselect_str=input1_col_strs.from_subselect(),
             layer1_columns_prefix_alias_str=input1_col_strs.prefixed_aliased(),
             layer1_columns_prefix_str=input1_col_strs.prefixed(),
@@ -2906,12 +2904,6 @@ def _two_layer_vector_operation(
         sql_stmt = sql_template.format(
             batch_filter=processing_params.batches[0]["batch_filter"]
         )
-
-        input_paths = [input1_path, input2_path]
-        if input1_subdivided_path is not None:
-            input_paths.append(input1_subdivided_path)
-        if input2_subdivided_path is not None:
-            input_paths.append(input2_subdivided_path)
 
         column_datatypes = _sqlite_util.get_columns(
             sql_stmt=sql_stmt, input_databases=input_db_names
@@ -3144,32 +3136,30 @@ def _two_layer_vector_operation(
 
 
 def _prepare_input_db_names(
-    input_paths: list[Optional[Path]], use_ogr
+    input_paths: dict[str, Optional[Path]], use_ogr: bool
 ) -> tuple[dict, dict]:
-    input_db_placeholders: dict[str, dict[str, Any]] = {}
-    input_db_names: dict[str, Path] = {}
-    for index, path in enumerate(input_paths):
-        db_placeholder = f"input{index + 1}_databasename"
-
+    placeholders_to_name: dict[str, Optional[str]] = {}
+    names_to_path: dict[str, Path] = {}
+    for index, (placeholder, path) in enumerate(input_paths.items()):
         # If path is already in input_databases, reuse the db_name
         db_name = None
-        for _, db_info in input_db_placeholders.items():
-            if db_info["path"] == path:
-                db_name = db_info["db_name"]
+        for name, cur_path in names_to_path.items():
+            if cur_path == path:
+                db_name = name
                 break
 
         if db_name is None and path is not None:
             if use_ogr:
-                # use_ogr needs main as db_name
+                # use_ogr needs main as dbname
                 db_name = "main"
             else:
                 db_name = f"input{index + 1}"
 
-        input_db_placeholders[db_placeholder] = {"db_name": db_name, "path": path}
+        placeholders_to_name[placeholder] = db_name
         if db_name is not None and path is not None:
-            input_db_names[db_name] = path
+            names_to_path[db_name] = path
 
-    return input_db_placeholders, input_db_names
+    return placeholders_to_name, names_to_path
 
 
 def _check_crs(
