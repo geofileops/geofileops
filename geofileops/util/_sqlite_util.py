@@ -267,7 +267,7 @@ def get_columns(
                 shutil.rmtree(tmp_dir, ignore_errors=True)
 
     time_taken = time.perf_counter() - start
-    if time_taken > 5:
+    if time_taken > 5:  # pragma: no cover
         logger.info(f"get_columns ready, took {time_taken:.2f} seconds")
 
     return columns
