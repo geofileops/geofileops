@@ -577,7 +577,7 @@ def apply_vectorized(
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
 
     """  # noqa: E501
-    logger = logging.getLogger("geofileops.apply")
+    logger = logging.getLogger("geofileops.apply_vectorized")
     logger.info(f"Start on {input_path}")
 
     return _geoops_gpd.apply_vectorized(
