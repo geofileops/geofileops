@@ -7,6 +7,7 @@ import pprint
 import shutil
 import sqlite3
 import tempfile
+import time
 from pathlib import Path
 from typing import Optional, Union
 
@@ -130,8 +131,11 @@ def get_columns(
     use_spatialite: bool = True,
     output_geometrytype: Optional[GeometryType] = None,
 ) -> dict[str, str]:
-    # Connect to/create sqlite main database
+    # Init
+    start = time.perf_counter()
     tmp_dir = None
+
+    # Connect to/create sqlite main database
     if "main" in input_databases:
         # If an input database is main, use it as the main database
         main_db_path = input_databases["main"]
@@ -261,6 +265,10 @@ def get_columns(
         if ConfigOptions.remove_temp_files:
             if tmp_dir is not None:
                 shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    time_taken = time.perf_counter() - start
+    if time_taken > 5:  # pragma: no cover
+        logger.info(f"get_columns ready, took {time_taken:.2f} seconds")
 
     return columns
 
