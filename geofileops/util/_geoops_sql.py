@@ -1032,11 +1032,11 @@ def erase(
     # Subdivide the input layer if needed to speed up further processing.
     # Save the original fid column in a new fid_1 column, we will need it to filter on
     # it later on.
-    tmp_dir = _io_util.create_tempdir(f"geofileops/{operation_name}")
+    tempdir = _io_util.create_tempdir(f"geofileops/{operation_name}")
     input_subdivided_path = _subdivide_layer(
         path=input_path,
         layer=input_layer,
-        output_path=tmp_dir / "subdivided/input_layer.gpkg",
+        output_path=tempdir / "subdivided/input_layer.gpkg",
         subdivide_coords=subdivide_coords,
         keep_fid=True,
         nb_parallel=nb_parallel,
@@ -1062,7 +1062,7 @@ def erase(
         erase_subdivided_path = _subdivide_layer(
             path=erase_path,
             layer=erase_layer,
-            output_path=tmp_dir / "subdivided/erase_layer.gpkg",
+            output_path=tempdir / "subdivided/erase_layer.gpkg",
             subdivide_coords=subdivide_coords,
             keep_fid=False,
             nb_parallel=nb_parallel,
@@ -1218,7 +1218,7 @@ def erase(
         batchsize=batchsize,
         force=force,
         output_with_spatial_index=output_with_spatial_index,
-        tmp_dir=tmp_dir,
+        tmp_dir=tempdir,
     )
 
     # Print time taken
