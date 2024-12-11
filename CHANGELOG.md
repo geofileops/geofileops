@@ -5,7 +5,7 @@
 ### Deprecations and compatibility notes
 
 - `erase` was renamed to `difference`, as most other open source applications/libraries
-  use this terminology ()
+  use this terminology (#595)
 
 ### Improvements
 
