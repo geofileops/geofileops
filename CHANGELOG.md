@@ -11,6 +11,7 @@
   layer operations (#558)
 - Don't convert to multi-part geometries by default in `copy_layer`,... (#570)
 - Add configuration option to only warn on dissolve errors (#561)
+- Add support for renaming layer with only difference in casing (#593)
 
 ## 0.9.1 (2024-07-18)
 
