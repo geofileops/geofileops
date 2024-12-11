@@ -301,8 +301,11 @@ def _download_samplefile(
     # just download
     url_path = Path(url)
     if url_path.suffix.lower() == dst_path.suffix.lower():
-        logger.info(f"Download to {dst_path}")
-        urllib.request.urlretrieve(url, dst_path)
+        logger.info(f"Download/copy to {dst_path}")
+        if url.startswith("http"):
+            urllib.request.urlretrieve(url, dst_path)
+        else:
+            shutil.copy(url, dst_path)
     else:
         # The file downloaded is different that the destination wanted, so some
         # converting will need to be done
@@ -316,8 +319,11 @@ def _download_samplefile(
 
             # Download file
             tmp_path = tmp_dir / f"{dst_path.stem}{url_path.suffix.lower()}"
-            logger.info(f"Download tmp data to {tmp_path}")
-            urllib.request.urlretrieve(url, tmp_path)
+            logger.info(f"Download/copy tmp data to {tmp_path}")
+            if url.startswith("http"):
+                urllib.request.urlretrieve(url, tmp_path)
+            else:
+                shutil.copy(url, tmp_path)
 
             # If the temp file is a .zip file, unzip to dir
             if tmp_path.suffix == ".zip":
