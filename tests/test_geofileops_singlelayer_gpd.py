@@ -217,11 +217,11 @@ def test_apply_vectorized(tmp_path, suffix):
     test_gdf = gpd.GeoDataFrame(
         data=[
             {
-                "uidn": 1,
+                "id": 1,
                 "geometry": test_helper.TestData.polygon_small_island,
             },
             {
-                "uidn": 2,
+                "id": 2,
                 "geometry": test_helper.TestData.polygon_with_island,
             },
             {"id": 3, "geometry": None},
