@@ -216,14 +216,8 @@ def test_apply_vectorized(tmp_path, suffix):
     # Prepare test data
     test_gdf = gpd.GeoDataFrame(
         data=[
-            {
-                "id": 1,
-                "geometry": test_helper.TestData.polygon_small_island,
-            },
-            {
-                "id": 2,
-                "geometry": test_helper.TestData.polygon_with_island,
-            },
+            {"id": 1, "geometry": test_helper.TestData.polygon_small_island},
+            {"id": 2, "geometry": test_helper.TestData.polygon_with_island},
             {"id": 3, "geometry": None},
         ],
         crs=31370,
