@@ -26,7 +26,7 @@ import pandas as pd
 import pyogrio
 import pyproj
 from geopandas.io import file as gpd_io_file
-from osgeo import gdal, ogr
+from osgeo import gdal
 from pandas.api.types import is_integer_dtype
 from pygeoops import GeometryType, PrimitiveType  # noqa: F401
 
@@ -761,22 +761,22 @@ def rename_column(
                     break
             field_index = layer_defn.GetFieldIndex(column_name)
             field_defn = layer_defn.GetFieldDefn(field_index)
-            renamed_field = ogr.FieldDefn(temp_column_name, field_defn.GetType())
+            renamed_field = gdal.ogr.FieldDefn(temp_column_name, field_defn.GetType())
             datasource_layer.AlterFieldDefn(
                 field_index,
                 renamed_field,
-                ogr.ALTER_NAME_FLAG,
+                gdal.ogr.ALTER_NAME_FLAG,
             )
             column_name = f"{temp_column_name}"
 
         # Rename column
         field_index = layer_defn.GetFieldIndex(column_name)
         field_defn = layer_defn.GetFieldDefn(field_index)
-        renamed_field = ogr.FieldDefn(new_column_name, field_defn.GetType())
+        renamed_field = gdal.ogr.FieldDefn(new_column_name, field_defn.GetType())
         datasource_layer.AlterFieldDefn(
             field_index,
             renamed_field,
-            ogr.ALTER_NAME_FLAG,
+            gdal.ogr.ALTER_NAME_FLAG,
         )
 
     except Exception as ex:
