@@ -1040,7 +1040,7 @@ def erase(
         subdivide_coords=subdivide_coords,
         keep_fid=True,
         nb_parallel=nb_parallel,
-        # batchsize=batchsize,
+        batchsize=batchsize,
         operation_prefix=f"{operation_name}/",
     )
 
@@ -1066,7 +1066,7 @@ def erase(
             subdivide_coords=subdivide_coords,
             keep_fid=False,
             nb_parallel=nb_parallel,
-            # batchsize=batchsize,
+            batchsize=batchsize,
             operation_prefix=f"{operation_name}/",
         )
 
