@@ -1901,8 +1901,8 @@ def erase(
 ):
     """DEPRECATED: please use difference."""
     warnings.warn(  # pragma: no cover
-        "erase() is deprecated because it was renamed to difference(). "
-        "Will be removed in a future version",
+        "erase is deprecated because it was renamed to difference. "
+        "Will be removed in a (distant) future version",
         FutureWarning,
         stacklevel=2,
     )
@@ -2413,7 +2413,7 @@ def intersect(
 ):
     """DEPRECATED: please use intersection."""
     warnings.warn(  # pragma: no cover
-        "intersect() is deprecated because it was renamed intersection(). "
+        "intersect is deprecated because it was renamed intersection. "
         "Will be removed in a future version",
         FutureWarning,
         stacklevel=2,
