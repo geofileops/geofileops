@@ -316,9 +316,15 @@ def test_copy_layer_explodecollections(tmp_path, testfile, expected_count):
         ("polygon-parcel", GeometryType.MULTIPOINT),
     ],
 )
+@pytest.mark.filterwarnings(
+    "ignore:.*A geometry of type MULTIPOLYGON is inserted into .*"
+)
 def test_copy_layer_force_output_geometrytype(tmp_path, testfile, force_geometrytype):
     # The conversion is done by ogr, and the "test" is rather written to
-    # explore the behaviour of this ogr functionality
+    # explore the behaviour of this ogr functionality:
+    # Single-part polygons are converted to the destination types, but multipolygons
+    # are kept as they are.
+    # Issue opened for this: https://github.com/OSGeo/gdal/issues/11068
 
     # copy_layer on testfile and force to force_geometrytype
     src = test_helper.get_testfile(testfile)
@@ -954,7 +960,7 @@ def test_read_file_curve():
     # Test
     read_gdf = gfo.read_file(src)
     assert isinstance(read_gdf, gpd.GeoDataFrame)
-    assert isinstance(read_gdf.geometry[0], sh_geom.MultiPolygon)
+    assert isinstance(read_gdf.geometry[0], sh_geom.Polygon)
 
 
 def test_read_file_invalid_params(tmp_path, engine_setter):
@@ -1144,10 +1150,17 @@ def test_rename_layer(tmp_path):
     test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
     gfo.add_layerstyle(test_path, layer="parcels", name="stylename", qml="")
 
+    # Rename
     gfo.rename_layer(test_path, new_layer="parcels_renamed")
     layernames_renamed = gfo.listlayers(path=test_path)
     assert layernames_renamed[0] == "parcels_renamed"
     assert len(gfo.get_layerstyles(test_path, layer="parcels_renamed")) == 1
+
+    # # Rename layer with different casing
+    gfo.rename_layer(test_path, new_layer="PARCELS_RENAMED")
+    layernames_renamed = gfo.listlayers(path=test_path)
+    assert layernames_renamed[0] == "PARCELS_RENAMED"
+    assert len(gfo.get_layerstyles(test_path, layer="PARCELS_RENAMED")) == 1
 
 
 def test_rename_layer_unsupported(tmp_path):
