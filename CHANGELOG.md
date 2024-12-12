@@ -2,6 +2,12 @@
 
 ## 0.10 (????-??-??)
 
+### Deprecations and compatibility notes
+
+- `erase` was renamed to `difference`, as most other open source applications/libraries
+  use this terminology. `erase` just keeps existing for backwards compatibility for now,
+  but a warning is shown that it might be removed in the (distant) future. (#595)
+
 ### Improvements
 
 - Add function `apply_vectorized` to apply a vectorized function on a geometry column
