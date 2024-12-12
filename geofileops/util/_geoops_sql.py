@@ -628,7 +628,7 @@ def _single_layer_vector_operation(
                 sql_tmp = sql_template.format(batch_filter="")
                 cols = _sqlite_util.get_columns(
                     sql_stmt=sql_tmp,
-                    input1_path=processing_params.input1_path,
+                    input_path=processing_params.input1_path,
                 )
                 geom_selected = input_layerinfo.geometrycolumn in cols
 
@@ -647,7 +647,7 @@ def _single_layer_vector_operation(
             # Get all columns of the sql_template
             sql_tmp = sql_template.format(batch_filter="")
             cols = _sqlite_util.get_columns(
-                sql_stmt=sql_tmp, input1_path=processing_params.input1_path
+                sql_stmt=sql_tmp, input_path=processing_params.input1_path
             )
             attributes = [
                 col for col in cols if col.lower() != input_layerinfo.geometrycolumn
@@ -1996,9 +1996,8 @@ def join_nearest(
         if expand is None:
             raise ValueError("expand is mandatory with spatialite >= 5.1")
         expand_int = 1 if expand else False
-    else:
-        if expand is not None and not expand:
-            raise ValueError("expand=False is not supported with spatialite < 5.1")
+    elif expand is not None and not expand:
+        raise ValueError("expand=False is not supported with spatialite < 5.1")
 
     # Prepare input files
     # To use knn index, the input layers need to be in sqlite file format
@@ -2659,6 +2658,9 @@ def _two_layer_vector_operation(
     if tmp_dir is None:
         tmp_dir = _io_util.create_tempdir(f"geofileops/{operation_name}")
 
+    # Check if crs are the same in the input layers + use it (if there is one)
+    output_crs = _check_crs(input1_path, input1_layer, input2_path, input2_layer)
+
     # Prepare output filename
     tmp_output_path = tmp_dir / output_path.name
     tmp_output_path.parent.mkdir(exist_ok=True, parents=True)
@@ -2777,8 +2779,7 @@ def _two_layer_vector_operation(
         )
         column_datatypes = _sqlite_util.get_columns(
             sql_stmt=sql_stmt,
-            input1_path=processing_params.input1_path,
-            input2_path=processing_params.input2_path,
+            input_path=[processing_params.input1_path, processing_params.input2_path],
         )
 
         # Apply gridsize if it is specified
@@ -2895,16 +2896,15 @@ def _two_layer_vector_operation(
 
                 # Remark: this temp file doesn't need spatial index
                 future = calculate_pool.submit(
-                    calculate_two_layers,
+                    _calculate_two_layers,
                     input1_path=processing_params.batches[batch_id]["input1_path"],
-                    input1_layer=processing_params.batches[batch_id]["input1_layer"],
                     input2_path=processing_params.batches[batch_id]["input2_path"],
-                    input2_layer=processing_params.batches[batch_id]["input2_layer"],
                     output_path=tmp_partial_output_path,
                     sql_stmt=sql_stmt,
                     output_layer=output_layer,
                     explodecollections=explodecollections_now,
                     force_output_geometrytype=output_geometrytype_now,
+                    output_crs=output_crs,
                     use_ogr=use_ogr,
                     create_spatial_index=False,
                     column_datatypes=column_datatypes,
@@ -3009,16 +3009,48 @@ def _two_layer_vector_operation(
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
-def calculate_two_layers(
+def _check_crs(
+    input1_path: Path, input1_layer: str, input2_path: Path, input2_layer: str
+) -> int:
+    input1_info = gfo.get_layerinfo(input1_path, input1_layer, raise_on_nogeom=False)
+    input2_info = None
+    if input2_path is not None:
+        input2_info = gfo.get_layerinfo(
+            input2_path, input2_layer, raise_on_nogeom=False
+        )
+    crs_epsg = -1
+    if input1_info.crs is not None:
+        crs_epsg1 = input1_info.crs.to_epsg()
+        if crs_epsg1 is not None:
+            crs_epsg = crs_epsg1
+        # If input 2 also has a crs, check if it is the same.
+        if (
+            input2_info is not None
+            and input2_info.crs is not None
+            and crs_epsg1 != input2_info.crs.to_epsg()
+        ):
+            warnings.warn(
+                "input1 layer doesn't have the same crs as input2 layer: "
+                f"{input1_info.crs} vs {input2_info.crs}",
+                stacklevel=5,
+            )
+    elif input2_info is not None and input2_info.crs is not None:
+        crs_epsg2 = input2_info.crs.to_epsg()
+        if crs_epsg2 is not None:
+            crs_epsg = crs_epsg2
+
+    return crs_epsg
+
+
+def _calculate_two_layers(
     input1_path: Path,
-    input1_layer: str,
     input2_path: Path,
-    input2_layer: str,
     output_path: Path,
     sql_stmt: str,
     output_layer: str,
     explodecollections: bool,
     force_output_geometrytype: Optional[GeometryType],
+    output_crs: int,
     create_spatial_index: bool,
     column_datatypes: dict,
     use_ogr: bool,
@@ -3031,14 +3063,12 @@ def calculate_two_layers(
             output_name = f"{output_path.stem}_tmp{output_path.suffix}"
             output_tmp_path = output_path.parent / output_name
         _sqlite_util.create_table_as_sql(
-            input1_path=input1_path,
-            input1_layer=input1_layer,
-            input2_path=input2_path,
-            input2_layer=input2_layer,
+            input_path=[input1_path, input2_path],
             output_path=output_tmp_path,
             sql_stmt=sql_stmt,
             output_layer=output_layer,
             output_geometrytype=force_output_geometrytype,
+            output_crs=output_crs,
             create_spatial_index=create_spatial_index,
             profile=_sqlite_util.SqliteProfile.SPEED,
             column_datatypes=column_datatypes,
@@ -3290,8 +3320,7 @@ def _prepare_processing_params(
                 )
 
     # No use starting more processes than the number of batches...
-    if len(batches) < nb_parallel:
-        nb_parallel = len(batches)
+    nb_parallel = min(len(batches), nb_parallel)
 
     returnvalue = ProcessingParams(
         input1_path=input1_path,
@@ -3384,11 +3413,9 @@ def _determine_nb_batches(
         nb_batches = 1
 
     # If more batches than rows, limit nb batches
-    if nb_batches > nb_rows_input_layer:
-        nb_batches = nb_rows_input_layer
+    nb_batches = min(nb_batches, nb_rows_input_layer)
     # If more parallel than number of batches, limit nb_parallel
-    if nb_parallel > nb_batches:
-        nb_parallel = nb_batches
+    nb_parallel = min(nb_parallel, nb_batches)
 
     return (nb_parallel, nb_batches)
 
