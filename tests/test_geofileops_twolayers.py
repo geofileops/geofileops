@@ -365,7 +365,7 @@ def test_difference_subdivide_multipolygons(tmp_path, suffix):
     )
 
 
-def test_erase(tmp_path):
+def test_erase_deprecated(tmp_path):
     """Minimal test of the deprecated erase function."""
     input1_path = test_helper.get_testfile("polygon-parcel")
     input2_path = test_helper.get_testfile("polygon-twolayers")
@@ -374,9 +374,11 @@ def test_erase(tmp_path):
 
     with pytest.warns(FutureWarning, match="erase is deprecated"):
         gfo.erase(
-            input1_path=str(input1_path),
-            input2_path=str(input2_path),
-            input2_layer=input2_layer,
+            input_path=str(input1_path),
+            erase_path=str(input2_path),
+            input_layer=input2_layer,
+            input_columns=[],
+            erase_layer=None,
             output_path=str(output_path),
             gridsize=0.0,
             where_post=None,
