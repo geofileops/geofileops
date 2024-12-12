@@ -1883,47 +1883,6 @@ def clip(
     )
 
 
-def erase(
-    input_path: Union[str, "os.PathLike[Any]"],
-    erase_path: Union[str, "os.PathLike[Any]", None],
-    output_path: Union[str, "os.PathLike[Any]"],
-    input_layer: Optional[str] = None,
-    input_columns: Optional[list[str]] = None,
-    erase_layer: Optional[str] = None,
-    output_layer: Optional[str] = None,
-    explodecollections: bool = False,
-    gridsize: float = 0.0,
-    where_post: Optional[str] = None,
-    nb_parallel: int = -1,
-    batchsize: int = -1,
-    subdivide_coords: int = 2000,
-    force: bool = False,
-):
-    """DEPRECATED: please use difference."""
-    warnings.warn(  # pragma: no cover
-        "erase is deprecated because it was renamed to difference. "
-        "Will be removed in a (distant) future version",
-        FutureWarning,
-        stacklevel=2,
-    )
-    return difference(
-        input1_path=input_path,
-        input2_path=erase_path,
-        output_path=output_path,
-        input1_layer=input_layer,
-        input1_columns=input_columns,
-        input2_layer=erase_layer,
-        output_layer=output_layer,
-        explodecollections=explodecollections,
-        gridsize=gridsize,
-        where_post=where_post,
-        nb_parallel=nb_parallel,
-        batchsize=batchsize,
-        subdivide_coords=subdivide_coords,
-        force=force,
-    )
-
-
 def difference(
     input1_path: Union[str, "os.PathLike[Any]"],
     input2_path: Union[str, "os.PathLike[Any]", None],
@@ -2021,6 +1980,47 @@ def difference(
         input_layer=input1_layer,
         input1_columns=input1_columns,
         input2_layer=input2_layer,
+        output_layer=output_layer,
+        explodecollections=explodecollections,
+        gridsize=gridsize,
+        where_post=where_post,
+        nb_parallel=nb_parallel,
+        batchsize=batchsize,
+        subdivide_coords=subdivide_coords,
+        force=force,
+    )
+
+
+def erase(
+    input_path: Union[str, "os.PathLike[Any]"],
+    erase_path: Union[str, "os.PathLike[Any]", None],
+    output_path: Union[str, "os.PathLike[Any]"],
+    input_layer: Optional[str] = None,
+    input_columns: Optional[list[str]] = None,
+    erase_layer: Optional[str] = None,
+    output_layer: Optional[str] = None,
+    explodecollections: bool = False,
+    gridsize: float = 0.0,
+    where_post: Optional[str] = None,
+    nb_parallel: int = -1,
+    batchsize: int = -1,
+    subdivide_coords: int = 2000,
+    force: bool = False,
+):
+    """DEPRECATED: please use difference."""
+    warnings.warn(  # pragma: no cover
+        "erase is deprecated because it was renamed to difference. "
+        "Will be removed in a (distant) future version",
+        FutureWarning,
+        stacklevel=2,
+    )
+    return difference(
+        input1_path=input_path,
+        input2_path=erase_path,
+        output_path=output_path,
+        input1_layer=input_layer,
+        input1_columns=input_columns,
+        input2_layer=erase_layer,
         output_layer=output_layer,
         explodecollections=explodecollections,
         gridsize=gridsize,
