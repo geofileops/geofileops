@@ -376,9 +376,9 @@ def test_erase_deprecated(tmp_path):
         gfo.erase(
             input_path=str(input1_path),
             erase_path=str(input2_path),
-            input_layer=input2_layer,
+            input_layer="parcels",
             input_columns=[],
-            erase_layer=None,
+            erase_layer=input2_layer,
             output_path=str(output_path),
             gridsize=0.0,
             where_post=None,
