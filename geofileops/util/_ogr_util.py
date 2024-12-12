@@ -79,7 +79,7 @@ def spatialite_version_info() -> dict[str, str]:
 
     except Exception as ex:  # pragma: no cover
         message = f"error getting spatialite_version: {ex}"
-        raise MissingRuntimeDependencyError(message)
+        raise MissingRuntimeDependencyError(message) from ex
 
     finally:
         datasource = None
