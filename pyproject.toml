@@ -11,6 +11,19 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 log_level = "DEBUG"
+# Write all logging and warnings immediately. Useful for debugging.
+# log_cli = true
+# addopts = "-p no:warnings"
+
+# Some filters that apply to warnings that can be ignored for any test.
+filterwarnings = [
+    "ignore: The output driver does not natively support DateTime type",
+    "ignore: Field .* create as date field, though DateTime requested",
+    "ignore: Geometry is in a geographic CRS",
+    "ignore: Normalized/laundered field name",
+    "ignore: Non-conformant content for record 0 in column",
+    "ignore: Non-conformant content for record 1 in column",
+]
 
 [tool.ruff]
 line-length = 88
@@ -85,18 +98,8 @@ ignore = [
     "PLW0603",
     # compare-to-empty-string
     "PLC1901",
-
-    ### Additional checks that don't pass yet
-    # Useless statement
-    "B018",
-    # Within an except clause, raise exceptions with ...
-    "B904",
-    # Consider `elif` instead of `else` then `if` to remove indentation level
-    "PLR5501",
     # collection-literal-concatenation
     "RUF005",
-    # Mutable class attributes should be annotated with `typing.ClassVar`,
-    "RUF012"
 ]
 
 [tool.ruff.lint.per-file-ignores]

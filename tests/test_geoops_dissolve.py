@@ -80,15 +80,14 @@ def test_dissolve_linestrings(
             assert output_layerinfo.featurecount == 13
         else:
             raise ValueError(f"check for where_post {where_post} not implemented")
+    elif where_post is None or where_post == "":
+        assert output_layerinfo.featurecount == 1
+    elif where_post == WHERE_LENGTH_GT_200000:
+        assert output_layerinfo.featurecount == 0
+        # Output empty, so nothing more to check
+        return
     else:
-        if where_post is None or where_post == "":
-            assert output_layerinfo.featurecount == 1
-        elif where_post == WHERE_LENGTH_GT_200000:
-            assert output_layerinfo.featurecount == 0
-            # Output empty, so nothing more to check
-            return
-        else:
-            raise ValueError(f"check for where_post {where_post} not implemented")
+        raise ValueError(f"check for where_post {where_post} not implemented")
 
     # Check the contents of the result file
     input_gdf = gfo.read_file(input_path)
@@ -707,6 +706,7 @@ def test_dissolve_polygons_tiles_empty(tmp_path, suffix, nb_parallel):
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
+@pytest.mark.filterwarnings("ignore: .* field lbl_conc has been truncated to 254")
 def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
@@ -751,6 +751,7 @@ def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
             {"column": "hfdtlt", "agg": "min", "as": "tlt_min"},
             {"column": "hfdtlt", "agg": "sum", "as": "tlt_sum"},
             {"column": "fid", "agg": "concat", "as": "fid_concat"},
+            {"column": "lblhfdtlt", "agg": "concat", "as": "lblhfdtlt"},
         ]
     }
     groupby_columns = ["GEWASgroep"]
@@ -779,6 +780,7 @@ def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
     assert input_gdf.crs == output_gdf.crs
     assert len(output_gdf) == output_layerinfo.featurecount
     assert output_gdf["geometry"][0] is not None
+    assert "lblhfdtlt" in output_gdf.columns
 
     # Check agg_columns results
     grasland_idx = output_gdf[output_gdf["GEWASgroep"] == "Grasland"].index.to_list()[0]
