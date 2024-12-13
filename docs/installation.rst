@@ -48,7 +48,9 @@ Notes
   in a docker image, you should install pyogrio with pip without binaries.
   Otherwise you will get a conflict between the system gdal and the gdal that
   is included in the pyogrio wheels.
-  E.g. `pip install pyogrio --no-binary pyogrio`
+  E.g. ::
+    
+      pip install pyogrio --no-binary pyogrio
 
 
 .. _miniforge installer : https://github.com/conda-forge/miniforge#miniforge3
