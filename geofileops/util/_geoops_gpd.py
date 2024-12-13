@@ -30,7 +30,7 @@ from pygeoops import GeometryType, PrimitiveType
 
 import geofileops as gfo
 from geofileops import fileops
-from geofileops._compat import GEOPANDAS_GTE_10, PANDAS_GTE_22
+from geofileops._compat import PANDAS_GTE_22
 from geofileops.helpers import _parameter_helper
 from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import (
