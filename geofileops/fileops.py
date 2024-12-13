@@ -1854,7 +1854,7 @@ def _to_file_pyogrio(
     if not path_info.is_singlelayer:
         kwargs["layer"] = layer
     if use_arrow:
-        kwargs["use_arrow"] = False
+        kwargs["use_arrow"] = True
 
     # Temp fix for bug in pyogrio 0.7.2 (https://github.com/geopandas/pyogrio/pull/324)
     # Logic based on geopandas.to_file
