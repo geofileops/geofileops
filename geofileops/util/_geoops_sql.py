@@ -1885,7 +1885,7 @@ def intersection(
         """  # noqa: E501
 
     # Go!
-    return _two_layer_vector_operation(
+    _two_layer_vector_operation(
         input1_path=input1_path,
         input2_path=input2_path,
         output_path=output_path,
