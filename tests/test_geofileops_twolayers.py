@@ -1121,12 +1121,12 @@ def test_intersection_different_crs(tmp_path):
     [
         ("polygon-parcel", "polygon-zone", True, True, ".gpkg", 31370, 0.0),
         ("polygon-parcel", "polygon-zone", True, True, ".gpkg", 31370, 0.01),
-        ("polygon-parcel", "polygon-zone", False, True, ".gpkg", 31370, 0.0),
-        ("polygon-zone", "polygon-parcel", True, False, ".gpkg", 31370, 0.01),
+        ("polygon-zone", "polygon-parcel", False, True, ".gpkg", 31370, 0.0),
+        ("polygon-parcel", "polygon-zone", True, False, ".gpkg", 31370, 0.01),
         ("polygon-parcel", "polygon-zone", True, True, ".gpkg", 4326, 0.0),
         ("polygon-parcel", "polygon-zone", True, True, ".shp", 31370, 0.0),
-        ("polygon-zone", "polygon-parcel", True, False, ".shp", 31370, 0.0),
-        ("polygon-parcel", "polygon-zone", False, True, ".shp", 31370, 0.0),
+        ("polygon-parcel", "polygon-zone", True, False, ".shp", 31370, 0.0),
+        ("polygon-zone", "polygon-parcel", False, True, ".shp", 31370, 0.0),
     ],
 )
 def test_intersection_subdivide(
@@ -1147,11 +1147,11 @@ def test_intersection_subdivide(
     elif subdivide1:
         subdivide_coords = input1_max_coords / 3
         # Make sure subdivide_coords won't trigger subdividing input2 as well
-        assert subdivide_coords < input2_max_coords
+        assert subdivide_coords > input2_max_coords
     elif subdivide2:
         subdivide_coords = input2_max_coords / 3
         # Make sure subdivide_coords won't trigger subdividing input1 as well
-        assert subdivide_coords <= input1_max_coords
+        assert subdivide_coords > input1_max_coords
 
     output_path = tmp_path / f"{input1_path.stem}_inters_{input2_path.stem}{suffix}"
     batchsize = -1

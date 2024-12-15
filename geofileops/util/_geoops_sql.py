@@ -1152,8 +1152,8 @@ def difference(
                   {{layer1_columns_prefix_alias_str}}
                   {{layer2_columns_prefix_alias_null_str}}
               FROM (
-                SELECT fid_1, ST_Union(geom) AS geom FROM (
-                  SELECT fid_1
+                SELECT layer1_fid_orig, ST_Union(geom) AS geom FROM (
+                  SELECT fid_1 AS layer1_fid_orig
                         ,IFNULL(
                            ( SELECT IFNULL(
                                        IIF(COUNT(layer2_sub.rowid) = 0,
@@ -1192,10 +1192,10 @@ def difference(
                  WHERE geom IS NOT NULL
                    AND geom <> 'DIFF_EMPTY'
                    AND ST_IsEmpty(geom) = 0
-                 GROUP BY fid_1
+                 GROUP BY layer1_fid_orig
                 ) differenced
                 JOIN {{input1_databasename}}."{{input1_layer}}" layer1
-                     ON layer1.fid = differenced.fid_1
+                     ON layer1.fid = differenced.layer1_fid_orig
         """  # noqa: E501
 
     # Go!
@@ -2952,6 +2952,9 @@ def _two_layer_vector_operation(
         if input1_subdivided_path is not None:
             input1_layer_alias = "layer1_subdiv"
             filter_column = "fid_1"
+        elif input2_subdivided_path is not None:
+            input1_layer_alias = "layer1_subdiv"
+            filter_column = "fid"
         else:
             input1_layer_alias = "layer1"
             filter_column = "rowid"
