@@ -1001,22 +1001,25 @@ def difference(
 ):
     # Because there might be extra preparation of the input2 layer before going ahead
     # with the real calculation, do some additional init + checks here...
+    start_time = datetime.now()
     if subdivide_coords < 0:
         raise ValueError("subdivide_coords < 0 is not allowed")
 
     operation_name = f"{operation_prefix}difference"
     logger = logging.getLogger(f"geofileops.{operation_name}")
 
-    # Get layer names
-    if input1_layer is None:
-        input1_layer = gfo.get_only_layer(input1_path)
-    if input2_layer is None:
-        input2_layer = gfo.get_only_layer(input2_path)
-
+    input1_layer, input2_layer, output_layer = _validate_params(
+        input1_path=input1_path,
+        input2_path=input2_path,
+        output_path=output_path,
+        input1_layer=input1_layer,
+        input2_layer=input2_layer,
+        output_layer=output_layer,
+        operation_name=operation_name,
+    )
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
-    start_time = datetime.now()
     input_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
     primitivetypeid = input_layer_info.geometrytype.to_primitivetype.value
 
@@ -1679,19 +1682,22 @@ def intersection(
 ):
     # Because there might be extra preparation of the input layers before going ahead
     # with the real calculation, do some additional init + checks here...
+    start_time = datetime.now()
     if subdivide_coords < 0:
         raise ValueError("subdivide_coords < 0 is not allowed")
 
-    start_time = datetime.now()
-    operation_name = f"{operation_prefix}difference"
+    operation_name = f"{operation_prefix}intersection"
     logger = logging.getLogger(f"geofileops.{operation_name}")
 
-    # Get layer names
-    if input1_layer is None:
-        input1_layer = gfo.get_only_layer(input1_path)
-    if input2_layer is None:
-        input2_layer = gfo.get_only_layer(input2_path)
-
+    input1_layer, input2_layer, output_layer = _validate_params(
+        input1_path=input1_path,
+        input2_path=input2_path,
+        output_path=output_path,
+        input1_layer=input1_layer,
+        input2_layer=input2_layer,
+        output_layer=output_layer,
+        operation_name=operation_name,
+    )
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
@@ -2406,16 +2412,24 @@ def identity(
 
     # Because the calculations of the intermediate results will be towards temp files,
     # we need to do some additional init + checks here...
+    start_time = datetime.now()
     if subdivide_coords < 0:
         raise ValueError("subdivide_coords < 0 is not allowed")
+
     logger = logging.getLogger("geofileops.identity")
+
+    input1_layer, input2_layer, output_layer = _validate_params(
+        input1_path=input1_path,
+        input2_path=input2_path,
+        output_path=output_path,
+        input1_layer=input1_layer,
+        input2_layer=input2_layer,
+        output_layer=output_layer,
+        operation_name="identity",
+    )
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
-    if output_layer is None:
-        output_layer = gfo.get_default_layer(output_path)
-
-    start_time = datetime.now()
     tempdir = _io_util.create_tempdir("geofileops/identity")
     try:
         # First calculate intersection of input1 with input2 to a temporary output file
@@ -2522,16 +2536,24 @@ def symmetric_difference(
 
     # Because both difference calculations will be towards temp files,
     # we need to do some additional init + checks here...
+    start_time = datetime.now()
     if subdivide_coords < 0:
         raise ValueError("subdivide_coords < 0 is not allowed")
-    if output_layer is None:
-        output_layer = gfo.get_default_layer(output_path)
 
-    start_time = datetime.now()
     logger = logging.getLogger("geofileops.symmetric_difference")
     logger.info(
         f"Start, with input1: {input1_path}, "
         f"input2: {input2_path}, output: {output_path}"
+    )
+
+    input1_layer, input2_layer, output_layer = _validate_params(
+        input1_path=input1_path,
+        input2_path=input2_path,
+        output_path=output_path,
+        input1_layer=input1_layer,
+        input2_layer=input2_layer,
+        output_layer=output_layer,
+        operation_name="symmetric_difference",
     )
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
@@ -2656,13 +2678,20 @@ def union(
     if subdivide_coords < 0:
         raise ValueError("subdivide_coords < 0 is not allowed")
 
-    logger = logging.getLogger("geofileops.union")
+    operation_name = "union"
+    logger = logging.getLogger(f"geofileops.{operation_name}")
 
+    input1_layer, input2_layer, output_layer = _validate_params(
+        input1_path=input1_path,
+        input2_path=input2_path,
+        output_path=output_path,
+        input1_layer=input1_layer,
+        input2_layer=input2_layer,
+        output_layer=output_layer,
+        operation_name=operation_name,
+    )
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
-
-    if output_layer is None:
-        output_layer = gfo.get_default_layer(output_path)
 
     start_time = datetime.now()
     tempdir = _io_util.create_tempdir("geofileops/union")
@@ -2871,14 +2900,15 @@ def _two_layer_vector_operation(
         # If a string is passed, convert to list
         input2_columns = [input2_columns]
 
-    if not input1_path.exists():
-        raise ValueError(f"{operation_name}: input1_path doesn't exist: {input1_path}")
-    if not input2_path.exists():
-        raise ValueError(f"{operation_name}: input2_path doesn't exist: {input2_path}")
-    if output_path in (input1_path, input2_path):
-        raise ValueError(
-            f"{operation_name}: output_path must not equal one of input paths"
-        )
+    input1_layer, input2_layer, output_layer = _validate_params(
+        input1_path=input1_path,
+        input2_path=input2_path,
+        output_path=output_path,
+        input1_layer=input1_layer,
+        input2_layer=input2_layer,
+        output_layer=output_layer,
+        operation_name=operation_name,
+    )
     if use_ogr and input1_path != input2_path:
         raise ValueError(
             f"{operation_name}: if use_ogr True, input1_path should equal input2_path!"
@@ -2894,19 +2924,13 @@ def _two_layer_vector_operation(
 
     # Init layer info
     start_time = datetime.now()
-    if input1_layer is None:
-        input1_layer = gfo.get_only_layer(input1_path)
-    if input2_layer is None:
-        input2_layer = gfo.get_only_layer(input2_path)
-    if output_layer is None:
-        output_layer = gfo.get_default_layer(output_path)
     if tmp_dir is None:
         tmp_dir = _io_util.create_tempdir(f"geofileops/{operation_name}")
 
     # Check if crs are the same in the input layers + use it (if there is one)
     output_crs = _check_crs(input1_path, input1_layer, input2_path, input2_layer)
 
-    # Prepare output filename
+    # Prepare tmp output filename
     tmp_output_path = tmp_dir / output_path.name
     tmp_output_path.parent.mkdir(exist_ok=True, parents=True)
     gfo.remove(tmp_output_path)
@@ -3286,6 +3310,53 @@ def _two_layer_vector_operation(
     finally:
         if ConfigOptions.remove_temp_files:
             shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def _validate_params(
+    input1_path: Path,
+    input2_path: Path,
+    output_path: Path,
+    input1_layer: Optional[str],
+    input2_layer: Optional[str],
+    output_layer: Optional[str],
+    operation_name: str,
+) -> tuple[str, str, str]:
+    """Validate the input parameters, return the layer names.
+
+    Args:
+        input1_path (Path): _description_
+        input2_path (Path): _description_
+        output_path (Path): _description_
+        input1_layer (Optional[str]): _description_
+        input2_layer (Optional[str]): _description_
+        output_layer (Optional[str]): _description_
+        operation_name (str): _description_
+
+    Raises:
+        ValueError: when an invalid parameter was passed.
+
+    Returns:
+        tuple[str, str, str]: a tuple with the layer names: input1_layer,
+            input2_layer, output_layer
+    """
+    if not input1_path.exists():
+        raise ValueError(f"{operation_name}: input1_path doesn't exist: {input1_path}")
+    if not input2_path.exists():
+        raise ValueError(f"{operation_name}: input2_path doesn't exist: {input2_path}")
+    if output_path in (input1_path, input2_path):
+        raise ValueError(
+            f"{operation_name}: output_path must not equal one of input paths"
+        )
+
+    # Get layer names
+    if input1_layer is None:
+        input1_layer = gfo.get_only_layer(input1_path)
+    if input2_layer is None:
+        input2_layer = gfo.get_only_layer(input2_path)
+    if output_layer is None:
+        output_layer = gfo.get_default_layer(output_path)
+
+    return input1_layer, input2_layer, output_layer
 
 
 def _prepare_input_db_names(
