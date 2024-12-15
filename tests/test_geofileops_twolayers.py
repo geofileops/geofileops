@@ -1016,7 +1016,8 @@ def test_intersection_resultempty(tmp_path, suffix, input2_empty):
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
 
 
-def test_intersection_self(tmp_path):
+@pytest.mark.parametrize("subdivide_coords", [7500, 10])
+def test_intersection_self(tmp_path, subdivide_coords):
     input1_path = test_helper.get_testfile("polygon-overlappingcircles-all")
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input1_layerinfo.featurecount / 2)
