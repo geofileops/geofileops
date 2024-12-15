@@ -874,9 +874,7 @@ def test_intersection_input_no_index(tmp_path):
     # Now run test
     output_path = tmp_path / f"{input1_path.stem}_intersection_{input2_path.stem}.gpkg"
     gfo.intersection(
-        input1_path=input1_path,
-        input2_path=input2_path,
-        output_path=output_path,
+        input1_path=input1_path, input2_path=input2_path, output_path=output_path
     )
 
     # Check if the tmp file is correctly created
@@ -930,9 +928,7 @@ def test_intersection_invalid_params(
         output_path = tmp_path / output_path
     with pytest.raises(expected_exception, match=expected_error):
         gfo.intersection(
-            input1_path=input1_path,
-            input2_path=input2_path,
-            output_path=output_path,
+            input1_path=input1_path, input2_path=input2_path, output_path=output_path
         )
 
 
@@ -949,11 +945,7 @@ def test_intersection_invalid_params2(kwargs, expected_error):
     if "input2_path" not in kwargs:
         kwargs["input2_path"] = "input2.gpkg"
     with pytest.raises(ValueError, match=expected_error):
-        gfo.intersection(
-            input1_path="input1.gpkg",
-            output_path="output.gpkg",
-            **kwargs,
-        )
+        gfo.intersection(input1_path="input1.gpkg", output_path="output.gpkg", **kwargs)
 
 
 def test_intersection_output_path_exists(tmp_path):
@@ -1111,9 +1103,7 @@ def test_intersection_different_crs(tmp_path):
 
     with pytest.warns(match="input1 layer doesn't have the same crs as input2 layer"):
         gfo.intersection(
-            input1_path=input1_path,
-            input2_path=input2_path,
-            output_path=output_path,
+            input1_path=input1_path, input2_path=input2_path, output_path=output_path
         )
 
 
