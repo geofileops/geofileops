@@ -2453,7 +2453,7 @@ def intersection(
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    subdivide_coords: int = 20000,
+    subdivide_coords: int = 7500,
     force: bool = False,
 ):
     r"""Calculates the pairwise intersection of the two input layers.
