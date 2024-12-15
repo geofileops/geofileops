@@ -1016,11 +1016,18 @@ def test_intersection_resultempty(tmp_path, suffix, input2_empty):
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
 
 
-@pytest.mark.parametrize("subdivide_coords", [7500, 10])
-def test_intersection_self(tmp_path, subdivide_coords):
+@pytest.mark.parametrize("subdivide", [False, True])
+def test_intersection_self(tmp_path, subdivide):
     input1_path = test_helper.get_testfile("polygon-overlappingcircles-all")
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input1_layerinfo.featurecount / 2)
+
+    if subdivide:
+        input1_gdf = gfo.read_file(input1_path)
+        max_coords = shapely.get_num_coordinates(input1_gdf.geometry).max().item()
+        subdivide_coords = max_coords / 3
+    else:
+        subdivide_coords = 7500
 
     # Now run test
     output_path = tmp_path / f"{input1_path.stem}_inters_self.gpkg"
@@ -1030,6 +1037,7 @@ def test_intersection_self(tmp_path, subdivide_coords):
         output_path=output_path,
         nb_parallel=2,
         batchsize=batchsize,
+        subdivide_coords=subdivide_coords,
     )
 
     # Check if the tmp file is correctly created
