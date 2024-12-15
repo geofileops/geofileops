@@ -257,8 +257,9 @@ def export_by_location_intersects_complexpoly(tmp_dir: Path) -> RunResult:
     function_name = inspect.currentframe().f_code.co_name  # type: ignore[union-attr]
 
     input1_path, _ = testdata.TestFile.AGRIPRC_2018.get_file(tmp_dir)
-    input2_path, input1_descr = testdata.TestFile.COMPLEX_POLYS.get_file(
-        tmp_dir, nb_points=300_000
+    bbox = gfo.get_layerinfo(input1_path).total_bounds
+    input2_path, input2_descr = testdata.create_testfile(
+        bbox=bbox, nb_points=300_000, dst_dir=tmp_dir
     )
 
     # Go!
@@ -281,7 +282,7 @@ def export_by_location_intersects_complexpoly(tmp_dir: Path) -> RunResult:
         operation=function_name,
         secs_taken=(datetime.now() - start_time).total_seconds(),
         operation_descr=(
-            f"{function_name} between agri parcels (~500k poly) and {input1_descr}"
+            f"{function_name} between agri parcels (~500k poly) and {input2_descr}"
         ),
         run_details={"nb_cpu": nb_parallel},
     )
@@ -325,8 +326,11 @@ def intersection_complexpoly_agri(tmp_dir: Path) -> RunResult:
     # Init
     function_name = inspect.currentframe().f_code.co_name  # type: ignore[union-attr]
 
-    input1_path, input1_descr = testdata.TestFile.COMPLEX_POLYS.get_file(tmp_dir)
     input2_path, _ = testdata.TestFile.AGRIPRC_2018.get_file(tmp_dir)
+    bbox = gfo.get_layerinfo(input2_path).total_bounds
+    input1_path, input1_descr = testdata.create_testfile(
+        bbox=bbox, nb_points=50_000, dst_dir=tmp_dir
+    )
 
     # Go!
     start_time = datetime.now()
@@ -524,8 +528,11 @@ def symmetric_difference_complexpolys_agri(tmp_dir: Path) -> RunResult:
     # Init
     function_name = inspect.currentframe().f_code.co_name  # type: ignore[union-attr]
 
-    input1_path, input1_descr = testdata.TestFile.COMPLEX_POLYS.get_file(tmp_dir)
     input2_path, _ = testdata.TestFile.AGRIPRC_2018.get_file(tmp_dir)
+    bbox = gfo.get_layerinfo(input2_path).total_bounds
+    input1_path, input1_descr = testdata.create_testfile(
+        bbox=bbox, nb_points=50_000, dst_dir=tmp_dir
+    )
 
     # Go!
     start_time = datetime.now()
