@@ -1977,7 +1977,7 @@ def difference(
         input2_path=Path(input2_path),
         output_path=Path(output_path),
         overlay_self=overlay_self,
-        input_layer=input1_layer,
+        input1_layer=input1_layer,
         input1_columns=input1_columns,
         input2_layer=input2_layer,
         output_layer=output_layer,
@@ -2453,6 +2453,7 @@ def intersection(
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
+    subdivide_coords: int = 20000,
     force: bool = False,
 ):
     r"""Calculates the pairwise intersection of the two input layers.
@@ -2506,6 +2507,11 @@ def intersection(
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
+        subdivide_coords (int, optional): the input geometries will be subdivided to
+            parts with about ``subdivide_coords`` coordinates during processing which
+            can offer a large speed up for complex geometries. Subdividing can result in
+            extra collinear points being added to the boundaries of the output. If 0, no
+            subdividing is applied. Defaults to 20000.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
@@ -2543,6 +2549,7 @@ def intersection(
         where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
+        subdivide_coords=subdivide_coords,
         force=force,
     )
 

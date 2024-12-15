@@ -984,7 +984,7 @@ def difference(
     input2_path: Path,
     output_path: Path,
     overlay_self: bool,
-    input_layer: Optional[str] = None,
+    input1_layer: Optional[str] = None,
     input1_columns: Optional[list[str]] = None,
     input2_layer: Optional[str] = None,
     output_layer: Optional[str] = None,
@@ -1008,8 +1008,8 @@ def difference(
     logger = logging.getLogger(f"geofileops.{operation_name}")
 
     # Get layer names
-    if input_layer is None:
-        input_layer = gfo.get_only_layer(input1_path)
+    if input1_layer is None:
+        input1_layer = gfo.get_only_layer(input1_path)
     if input2_layer is None:
         input2_layer = gfo.get_only_layer(input2_path)
 
@@ -1017,7 +1017,7 @@ def difference(
         return
 
     start_time = datetime.now()
-    input_layer_info = gfo.get_layerinfo(input1_path, input_layer)
+    input_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
     primitivetypeid = input_layer_info.geometrytype.to_primitivetype.value
 
     force_output_geometrytype = input_layer_info.geometrytype
@@ -1029,14 +1029,14 @@ def difference(
         # multipolygons.
         force_output_geometrytype = force_output_geometrytype.to_multitype
 
-    # Subdivide the input layer if needed to speed up further processing.
-    # Save the original fid column in a new fid_1 column, we will need it to filter on
-    # it later on.
+    # Subdivide the input1 layer if needed to speed up further processing.
+    # Save the original fid column in a new fid_1 column, we will need to filter/
+    # group by on it later on.
     tempdir = _io_util.create_tempdir(f"geofileops/{operation_name}")
     input1_subdivided_path = _subdivide_layer(
         path=input1_path,
-        layer=input_layer,
-        output_path=tempdir / "subdivided/input_layer.gpkg",
+        layer=input1_layer,
+        output_path=tempdir / "subdivided/input1_layer.gpkg",
         subdivide_coords=subdivide_coords,
         keep_fid=True,
         nb_parallel=nb_parallel,
@@ -1203,7 +1203,7 @@ def difference(
         output_path=output_path,
         sql_template=sql_template,
         operation_name=operation_name,
-        input1_layer=input_layer,
+        input1_layer=input1_layer,
         input1_columns=input1_columns,
         input1_columns_prefix=input_columns_prefix,
         input2_layer=input2_layer,
@@ -1672,20 +1672,30 @@ def intersection(
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
+    subdivide_coords: int = 40000,
     force: bool = False,
     output_with_spatial_index: Optional[bool] = None,
     operation_prefix: str = "",
 ):
-    # If we are doing a self overlay, we need to filter out rows with the same rowid.
-    where_clause_self = "1=1"
-    if overlay_self:
-        where_clause_self = "layer1.rowid <> layer2.rowid"
+    # Because there might be extra preparation of the input layers before going ahead
+    # with the real calculation, do some additional init + checks here...
+    if subdivide_coords < 0:
+        raise ValueError("subdivide_coords < 0 is not allowed")
 
-    # In the query, important to only extract the geometry types that are expected
+    start_time = datetime.now()
+    operation_name = f"{operation_prefix}difference"
+    logger = logging.getLogger(f"geofileops.{operation_name}")
+
+    # Get layer names
     if input1_layer is None:
         input1_layer = gfo.get_only_layer(input1_path)
     if input2_layer is None:
         input2_layer = gfo.get_only_layer(input2_path)
+
+    if _io_util.output_exists(path=output_path, remove_if_exists=force):
+        return
+
+    # In the query, important to only extract the geometry types that are expected
     input1_layer_info = gfo.get_layerinfo(input1_path, input1_layer)
     input2_layer_info = gfo.get_layerinfo(input2_path, input2_layer)
     primitivetype_to_extract = PrimitiveType(
@@ -1701,6 +1711,47 @@ def intersection(
     else:
         force_output_geometrytype = primitivetype_to_extract.to_multitype
 
+    # Subdivide input1 layer if needed to speed up further processing.
+    # Save the original fid column in a new fid_1 column, we will need to filter/
+    # group by on it later on.
+    tempdir = _io_util.create_tempdir(f"geofileops/{operation_name}")
+    input1_subdivided_path = _subdivide_layer(
+        path=input1_path,
+        layer=input1_layer,
+        output_path=tempdir / "subdivided/input1_layer.gpkg",
+        subdivide_coords=subdivide_coords,
+        keep_fid=True,
+        nb_parallel=nb_parallel,
+        batchsize=batchsize,
+        operation_prefix=f"{operation_name}/",
+    )
+
+    # Subdivide input2 layer as well if needed.
+    if overlay_self:
+        # If we are self-overlaying, input2 is the same as input1, so we can reuse the
+        # result of subdividing input1.
+        input2_subdivided_path = input1_subdivided_path
+    else:
+        input2_subdivided_path = _subdivide_layer(
+            path=input2_path,
+            layer=input2_layer,
+            output_path=tempdir / "subdivided/input2_layer.gpkg",
+            subdivide_coords=subdivide_coords,
+            keep_fid=True,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+            operation_prefix=f"{operation_name}/",
+        )
+
+    # If we are doing a self overlay, we need to filter out rows with the same rowid
+    where_clause_self = "1=1"
+    if overlay_self:
+        if input1_subdivided_path is None:
+            where_clause_self = "layer1.rowid <> layer2.rowid"
+        else:
+            # Filter out the same rowids using the original fids!
+            where_clause_self = "layer1_subdiv.fid_1 <> layer2_subdiv.fid_1"
+
     # Prepare sql template for this operation
     #
     # Remarks:
@@ -1711,40 +1762,121 @@ def intersection(
     #   "geom IS NOT NULL" leads to geom operation to be calculated twice!
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
     input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
-    sql_template = f"""
-        SELECT sub.geom
-             {{layer1_columns_from_subselect_str}}
-             {{layer2_columns_from_subselect_str}}
-          FROM
-            ( SELECT ST_CollectionExtract(
-                       ST_Intersection(
+
+    if input1_subdivided_path is None and input2_subdivided_path is None:
+        # No subdividing happened, so we can do a simple intersection
+        sql_template = f"""
+            SELECT sub.geom
+                 {{layer1_columns_from_subselect_str}}
+                 {{layer2_columns_from_subselect_str}}
+              FROM
+                ( SELECT ST_CollectionExtract(
+                           ST_Intersection(
+                                layer1.{{input1_geometrycolumn}},
+                                layer2.{{input2_geometrycolumn}}),
+                                {primitivetype_to_extract.value}) AS geom
+                        {{layer1_columns_prefix_alias_str}}
+                        {{layer2_columns_prefix_alias_str}}
+                    FROM {{input1_databasename}}."{{input1_layer}}" layer1
+                    JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                      ON layer1.fid = layer1tree.id
+                    JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                    JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                      ON layer2.fid = layer2tree.id
+                   WHERE {where_clause_self}
+                     {{batch_filter}}
+                     AND layer1tree.minx <= layer2tree.maxx
+                     AND layer1tree.maxx >= layer2tree.minx
+                     AND layer1tree.miny <= layer2tree.maxy
+                     AND layer1tree.maxy >= layer2tree.miny
+                     AND ST_Intersects(
                             layer1.{{input1_geometrycolumn}},
-                            layer2.{{input2_geometrycolumn}}),
-                            {primitivetype_to_extract.value}) AS geom
-                    {{layer1_columns_prefix_alias_str}}
-                    {{layer2_columns_prefix_alias_str}}
-                FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
-                  ON layer1.fid = layer1tree.id
-                JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
-                  ON layer2.fid = layer2tree.id
-               WHERE {where_clause_self}
-                 {{batch_filter}}
-                 AND layer1tree.minx <= layer2tree.maxx
-                 AND layer1tree.maxx >= layer2tree.minx
-                 AND layer1tree.miny <= layer2tree.maxy
-                 AND layer1tree.maxy >= layer2tree.miny
-                 AND ST_Intersects(
-                        layer1.{{input1_geometrycolumn}},
-                        layer2.{{input2_geometrycolumn}}) = 1
-                 --AND ST_Touches(
-                 --       layer1.{{input1_geometrycolumn}},
-                 --       layer2.{{input2_geometrycolumn}}) = 0
-               LIMIT -1 OFFSET 0
-            ) sub
-         WHERE sub.geom IS NOT NULL
-    """
+                            layer2.{{input2_geometrycolumn}}) = 1
+                     --AND ST_Touches(
+                     --       layer1.{{input1_geometrycolumn}},
+                     --       layer2.{{input2_geometrycolumn}}) = 0
+                   LIMIT -1 OFFSET 0
+                ) sub
+             WHERE sub.geom IS NOT NULL
+        """
+    else:
+        # At lease one input layer was subdivided, so we need to union the result of the
+        # different partial intersections.
+
+        # Depending on which input layers were actually subdivided, we need to adjust
+        # the sql
+        if input1_subdivided_path is None:
+            # input1 layer was not subdivided, so use the original input1 layer
+            input1_subdiv_databasename = "{input1_databasename}"
+            input1_subdiv_fid_orig = "fid"
+            input1_subdiv_geometrycolumn = "{input1_geometrycolumn}"
+            input1_subdiv_layer_rtree = input1_layer_rtree
+        else:
+            input1_subdiv_databasename = "{input1_subdiv_databasename}"
+            input1_subdiv_fid_orig = "fid_1"
+            input1_subdiv_geometrycolumn = "{input1_subdiv_geometrycolumn}"
+            input1_subdiv_layer_rtree = (
+                "rtree_{input1_layer}_{input1_subdiv_geometrycolumn}"
+            )
+
+        if input2_subdivided_path is None:
+            # input2 layer was not subdivided, so use the original input2 layer
+            input2_subdiv_databasename = "{input2_databasename}"
+            input2_subdiv_fid_orig = "fid"
+            input2_subdiv_geometrycolumn = "{input2_geometrycolumn}"
+            input2_subdiv_layer_rtree = input2_layer_rtree
+        else:
+            input2_subdiv_databasename = "{input2_subdiv_databasename}"
+            input2_subdiv_fid_orig = "fid_1"
+            input2_subdiv_geometrycolumn = "{input2_subdiv_geometrycolumn}"
+            input2_subdiv_layer_rtree = (
+                "rtree_{input2_layer}_{input2_subdiv_geometrycolumn}"
+            )
+
+        sql_template = f"""
+            SELECT intersections.geom
+                  {{layer1_columns_prefix_alias_str}}
+                  {{layer2_columns_prefix_alias_str}}
+              FROM (
+                SELECT sub.layer1_fid_orig
+                      ,sub.layer2_fid_orig
+                      ,ST_Union(geom) AS geom
+                  FROM (
+                    SELECT layer1_subdiv.{input1_subdiv_fid_orig} AS layer1_fid_orig
+                          ,layer2_subdiv.{input2_subdiv_fid_orig} AS layer2_fid_orig
+                          ,ST_CollectionExtract(
+                             ST_Intersection(
+                                  layer1_subdiv.{input1_subdiv_geometrycolumn},
+                                  layer2_subdiv.{input2_subdiv_geometrycolumn}),
+                                  {primitivetype_to_extract.value}) AS geom
+                      FROM {input1_subdiv_databasename}."{{input1_layer}}" layer1_subdiv
+                      JOIN {input1_subdiv_databasename}."{input1_subdiv_layer_rtree}" layer1tree
+                        ON layer1_subdiv.fid = layer1tree.id
+                      JOIN {input2_subdiv_databasename}."{{input2_layer}}" layer2_subdiv
+                      JOIN {input2_subdiv_databasename}."{input2_subdiv_layer_rtree}" layer2tree
+                        ON layer2_subdiv.fid = layer2tree.id
+                     WHERE {where_clause_self}
+                       {{batch_filter}}
+                       AND layer1tree.minx <= layer2tree.maxx
+                       AND layer1tree.maxx >= layer2tree.minx
+                       AND layer1tree.miny <= layer2tree.maxy
+                       AND layer1tree.maxy >= layer2tree.miny
+                       AND ST_Intersects(
+                              layer1_subdiv.{input1_subdiv_geometrycolumn},
+                              layer2_subdiv.{input2_subdiv_geometrycolumn}) = 1
+                       --AND ST_Touches(
+                       --       layer1_subdiv.{input1_subdiv_geometrycolumn},
+                       --       layer2_subdiv.{input2_subdiv_geometrycolumn}) = 0
+                     LIMIT -1 OFFSET 0
+                  ) sub
+               WHERE sub.geom IS NOT NULL
+               GROUP BY sub.layer1_fid_orig, sub.layer2_fid_orig
+              ) intersections
+              JOIN {{input1_databasename}}."{{input1_layer}}" layer1
+                   ON layer1.fid = intersections.layer1_fid_orig
+              JOIN {{input2_databasename}}."{{input2_layer}}" layer2
+                   ON layer2.fid = intersections.layer2_fid_orig
+        """  # noqa: E501
 
     # Go!
     return _two_layer_vector_operation(
@@ -1767,8 +1899,13 @@ def intersection(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        input1_subdivided_path=input1_subdivided_path,
+        input2_subdivided_path=input2_subdivided_path,
         output_with_spatial_index=output_with_spatial_index,
     )
+
+    # Print time taken
+    logger.info(f"Ready, full intersection took {datetime.now()-start_time}")
 
 
 def join_by_location(
@@ -2314,7 +2451,7 @@ def identity(
             input2_path=input2_path,
             output_path=difference_output_path,
             overlay_self=overlay_self,
-            input_layer=input1_layer,
+            input1_layer=input1_layer,
             input1_columns=input1_columns,
             input_columns_prefix=input1_columns_prefix,
             input2_layer=input2_layer,
@@ -2409,7 +2546,7 @@ def symmetric_difference(
             input2_path=input2_path,
             output_path=diff1_output_path,
             overlay_self=overlay_self,
-            input_layer=input1_layer,
+            input1_layer=input1_layer,
             input1_columns=input1_columns,
             input_columns_prefix=input1_columns_prefix,
             input2_layer=input2_layer,
@@ -2445,7 +2582,7 @@ def symmetric_difference(
             input2_path=input1_path,
             output_path=diff2_output_path,
             overlay_self=overlay_self,
-            input_layer=input2_layer,
+            input1_layer=input2_layer,
             input1_columns=input2_columns,
             input_columns_prefix=input2_columns_prefix,
             input2_layer=input1_layer,
@@ -2563,7 +2700,7 @@ def union(
             input2_path=input1_path,
             output_path=diff1_output_path,
             overlay_self=overlay_self,
-            input_layer=input2_layer,
+            input1_layer=input2_layer,
             input1_columns=input2_columns,
             input_columns_prefix=input2_columns_prefix,
             input2_layer=input1_layer,
@@ -2596,7 +2733,7 @@ def union(
             input2_path=input2_path,
             output_path=diff2_output_path,
             overlay_self=overlay_self,
-            input_layer=input1_layer,
+            input1_layer=input1_layer,
             input1_columns=input1_columns,
             input_columns_prefix=input1_columns_prefix,
             input2_layer=input2_layer,
