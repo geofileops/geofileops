@@ -93,7 +93,7 @@ def buffer_gridsize_spatialite(tmp_dir: Path) -> RunResult:
         operation_descr=(
             "buffer with gridsize 0.1 on agri parcel layer BEFL (~500.000 polygons)"
         ),
-        run_details={"nb_cpu": multiprocessing.cpu_count()},
+        run_details={"nb_cpu": nb_parallel},
     )
 
     # Cleanup and return
