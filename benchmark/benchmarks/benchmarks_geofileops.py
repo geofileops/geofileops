@@ -163,7 +163,7 @@ def dissolve_groupby(tmp_dir: Path) -> RunResult:
     gfo.dissolve(
         input_path,
         output_path,
-        groupby_columns=["GEWASGROEP"],
+        groupby_columns=["GWSGRPH_LB"],
         explodecollections=True,
         nb_parallel=nb_parallel,
         force=True,
