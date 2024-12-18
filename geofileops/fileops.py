@@ -2084,8 +2084,7 @@ def remove(path: Union[str, "os.PathLike[Any]"], missing_ok: bool = False):
     lockfile_path.unlink(missing_ok=True)
 
     # Remove the main file
-    if path.exists():
-        path.unlink(missing_ok=missing_ok)
+    path.unlink(missing_ok=missing_ok)
 
     # For some file types, extra files need to be removed
     for suffix in path_info.suffixes_extrafiles:
