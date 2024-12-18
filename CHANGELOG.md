@@ -23,6 +23,10 @@
 - Add some pre-flight checks when geofileops is imported (#573)
 - Add support for renaming layer with only difference in casing (#593)
 
+### Bugs fixed
+
+- Fix copy layer to a gpkg.zip file (#604)
+
 ## 0.9.1 (2024-07-18)
 
 ### Bugs fixed
