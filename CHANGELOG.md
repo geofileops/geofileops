@@ -6,6 +6,10 @@
 
 - Fix GDAL input open options being ignored in `copy_layer` (#632)
 
+### Bugs fixed
+
+- Fix `missing_ok` parameter in `remove` being ~ignored (#605)
+
 ## 0.9.1 (2024-07-18)
 
 ### Bugs fixed
