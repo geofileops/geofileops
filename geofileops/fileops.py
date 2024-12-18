@@ -2535,7 +2535,7 @@ def copy_layer(
         raise ValueError(f"src file doesn't exist: {src}")
     # If dest file exists already and no append
     if not append and dst.exists():
-        if force is True:
+        if force:
             remove(dst)
         else:
             logger.info(f"Output file exists already, so stop: {dst}")
