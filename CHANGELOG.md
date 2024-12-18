@@ -25,7 +25,8 @@
 
 ### Bugs fixed
 
-- Fix copy layer to a gpkg.zip file (#604)
+- Fix `copy_layer` to a gpkg.zip file (#604)
+- Fix `missing_ok` parameter in `remove` being ~ignored (#605)
 
 ## 0.9.1 (2024-07-18)
 
