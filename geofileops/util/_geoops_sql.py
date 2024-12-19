@@ -1933,7 +1933,7 @@ def _add_specific_optimisation(
     subquery_alias: str = "sub_filter",
     avoid_disjoint: bool = False,
     subdivide_coords: int = 10000,
-) -> tuple[str | None, str | None, bool, str]:
+) -> tuple[str, str, bool, str]:
     """Add a specific optimisation as it is the most used filtering.
 
         and it is very optimised in GEOS.
@@ -1955,8 +1955,8 @@ def _add_specific_optimisation(
             - true_for_disjoint: True if the query returns True for disjoint features.
                   If `avoid_disjoint` is True, `includes_disjoint` is always False.
     """
-    spatial_relation_column: str | None = None
-    spatial_relation_filter: str | None = None
+    spatial_relation_column: str = ""
+    spatial_relation_filter: str = ""
     true_for_disjoint = False
     groupby = ""
     spatial_relations = [
