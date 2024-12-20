@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 import geofileops as gfo
+import shapely
 from benchmark.benchmarker import RunResult
 from benchmark.benchmarks import testdata
 from geofileops.util import _geoops_gpd, _geoops_sql
@@ -255,10 +256,15 @@ def export_by_location_intersects_complexpoly(tmp_dir: Path) -> RunResult:
 
     input1_path, input1_descr = testdata.TestFile.AGRIPRC_2018.get_file(tmp_dir)
     info1 = gfo.get_layerinfo(input1_path)
-    bbox = info1.total_bounds
+    bbox = shapely.box(*info1.total_bounds).buffer(-10_000, join_style="mitre").bounds
     crs = info1.crs
     input2_path, input2_descr = testdata.create_testfile(
-        bbox=bbox, nb_polygons=12, nb_points=300_000, crs=crs, dst_dir=tmp_dir
+        bbox=bbox,
+        geoms=3,
+        polys_per_geom=4,
+        points_per_poly=300_000,
+        crs=crs,
+        dst_dir=tmp_dir,
     )
 
     # Go!
@@ -325,12 +331,17 @@ def intersection_complexpoly_agri(tmp_dir: Path) -> RunResult:
     # Init
     function_name = inspect.currentframe().f_code.co_name  # type: ignore[union-attr]
 
-    input2_path, input2_descr = testdata.TestFile.AGRIPRC_2018.get_file(tmp_dir)
-    info2 = gfo.get_layerinfo(input2_path)
-    bbox = info2.total_bounds
-    crs = info2.crs
-    input1_path, input1_descr = testdata.create_testfile(
-        bbox=bbox, nb_polygons=12, nb_points=100_000, crs=crs, dst_dir=tmp_dir
+    input1_path, input1_descr = testdata.TestFile.AGRIPRC_2018.get_file(tmp_dir)
+    info1 = gfo.get_layerinfo(input1_path)
+    bbox = shapely.box(*info1.total_bounds).buffer(-10_000, join_style="mitre").bounds
+    crs = info1.crs
+    input2_path, input2_descr = testdata.create_testfile(
+        bbox=bbox,
+        geoms=3,
+        polys_per_geom=4,
+        points_per_poly=30_000,
+        crs=crs,
+        dst_dir=tmp_dir,
     )
 
     # Go!
@@ -363,11 +374,11 @@ def intersection_complexpoly_complexpoly(tmp_dir: Path) -> RunResult:
 
     bbox = (30_000.123, 170_000.123, 250_000, 250_000)
     input1_path, input1_descr = testdata.create_testfile(
-        bbox=bbox, nb_polygons=12, nb_points=100_000, dst_dir=tmp_dir
+        bbox=bbox, geoms=3, polys_per_geom=4, points_per_poly=30_000, dst_dir=tmp_dir
     )
     bbox = (31_000.123, 171_000.123, 250_000, 250_000)
     input2_path, input2_descr = testdata.create_testfile(
-        bbox=bbox, nb_polygons=12, nb_points=100_000, dst_dir=tmp_dir
+        bbox=bbox, geoms=3, polys_per_geom=4, points_per_poly=30_000, dst_dir=tmp_dir
     )
 
     # Go!
@@ -566,10 +577,15 @@ def symmetric_difference_complexpolys_agri(tmp_dir: Path) -> RunResult:
 
     input2_path, input2_descr = testdata.TestFile.AGRIPRC_2018.get_file(tmp_dir)
     info2 = gfo.get_layerinfo(input2_path)
-    bbox = info2.total_bounds
+    bbox = shapely.box(*info2.total_bounds).buffer(-10_000, join_style="mitre").bounds
     crs = info2.crs
     input1_path, input1_descr = testdata.create_testfile(
-        bbox=bbox, nb_polygons=12, nb_points=100_000, crs=crs, dst_dir=tmp_dir
+        bbox=bbox,
+        geoms=3,
+        polys_per_geom=4,
+        points_per_poly=30_000,
+        crs=crs,
+        dst_dir=tmp_dir,
     )
 
     # Go!

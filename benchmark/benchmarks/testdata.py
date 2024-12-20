@@ -93,11 +93,11 @@ class TestFile(enum.Enum):
 
 def create_testfile(
     bbox: tuple[float, float, float, float],
-    nb_polygons: int,
-    nb_points: int,
-    one_multi_poly: bool = True,
-    poly_width: int = 15000,
-    poly_height: int = 15000,
+    geoms: int,
+    polys_per_geom: int,
+    points_per_poly: int,
+    poly_width: float = 15_000,
+    poly_height: float = 15_000,
     crs: Union[int, str, pyproj.CRS, None] = None,
     dst_dir: Optional[Path] = None,
 ) -> tuple[Path, str]:
@@ -105,13 +105,13 @@ def create_testfile(
 
     Args:
         bbox (tuple[float, float, float, float]): the bounding box of the test file.
-        nb_polygons (int): the number of polygons to generate.
-        nb_points (int): indication of the number of points the complex polygons
-            should consist of.
-        one_multi_poly (bool): if True, all polygons will be put in one MultiPolygon.
-            Defaults to True.
-        poly_width (int): the width of the polygons. Defaults to 15000.
-        poly_height (int): the height of the polygons. Defaults to 15000.
+        geoms (int): the number of geometries to generate.
+        polys_per_geom (int): the number of polygons to use per geometry. If > 1,
+            MultiPolygons will be created.
+        points_per_poly (int): indication of the number of points each polygon should
+            consist of.
+        poly_width (float): the width of the polygons. Defaults to 30000.
+        poly_height (float): the height of the polygons. Defaults to 30000.
         crs (str): the crs of the test file. Defaults to None.
         dst_dir (Path): the directory to write the file to.
 
@@ -119,87 +119,116 @@ def create_testfile(
         tuple[Path, str]: The path to the file + a description of the test file.
     """
     # Format file name
-    multi_str = ""
-    if one_multi_poly:
-        multi_str = "onemulti_"
-    basename = (
-        f"custom_polys_{multi_str}{nb_polygons}polys_{nb_points}pnts_"
-        f"{bbox[0]}-{bbox[1]}-{bbox[2]}-{bbox[3]}.gpkg"
-    )
+
+    if polys_per_geom == 1:
+        poly_str = f"{geoms}polys({points_per_poly}pnts)"
+    else:
+        poly_str = f"{geoms}multis({polys_per_geom}polys({points_per_poly}pnts))"
+    basename = f"testfile_{poly_str}_{bbox[0]}-{bbox[1]}-{bbox[2]}-{bbox[3]}.gpkg"
     testfile_path = _prepare_dst_path(basename, dst_dir=dst_dir)
 
     # Format file description
-    if nb_points > 1000:
-        nb_points_str = f"{int(nb_points / 1000)}k"
+    if points_per_poly > 1000:
+        nb_points_str = f"{int(points_per_poly / 1000)}k"
     else:
-        nb_points_str = f"{nb_points}"
+        nb_points_str = f"{points_per_poly}"
 
-    if one_multi_poly:
-        descr = "1 complex multipoly"
+    if polys_per_geom == 1:
+        descr = f"{geoms} polys of {nb_points_str} coords"
     else:
-        descr = "complex polys"
-    descr = f"{descr} ({nb_polygons} * {nb_points_str} coords)"
+        descr = f"{geoms} multipolys of {polys_per_geom} * {nb_points_str} coords"
 
+    # If the files exists already, return
     if testfile_path.exists():
         return (testfile_path, descr)
 
-    # Determine the number of polygons to generate per row and column
+    # Determine the number of polygons we can generate per row and column
+    poly_width_step = poly_width + poly_width * 0.1
+    poly_height_step = poly_height + poly_height * 0.1
+
     bbox_width = bbox[2] - bbox[0]
-    max_poly_x = int(bbox_width // poly_width)
-    if max_poly_x == 0:
+    if poly_width > bbox_width:
         raise ValueError(f"{bbox_width=} is too small for {poly_width=}")
+    max_poly_x = int(bbox_width / poly_width_step)
 
     bbox_height = bbox[3] - bbox[1]
-    max_poly_y = int(bbox_height // poly_height)
-    if max_poly_y == 0:
+    if poly_height > bbox_height:
         raise ValueError(f"{bbox_height=} is too small for {poly_height=}")
+    max_poly_y = int(bbox_height / poly_height_step)
 
-    if nb_polygons > max_poly_x * max_poly_y:
-        raise ValueError(f"{bbox=} is too small for {nb_polygons=}")
-
-    # Determine the number of polygons needed per row to get to nb_polygons
-    if nb_polygons < max_poly_x:
-        nb_polys_per_row = [nb_polygons]
-    else:
-        nb_full_rows = int(nb_polygons // max_poly_x)
-        nb_polys_per_row = [max_poly_x] * nb_full_rows
-        nb_polys_last_row = nb_polygons % max_poly_x
-        if nb_polys_last_row > 0:
-            nb_polys_per_row.append(nb_polys_last_row)
+    if polys_per_geom > max_poly_x * max_poly_y:
+        raise ValueError(
+            f"{polys_per_geom=} is too large for {max_poly_x=} * {max_poly_y=} as "
+            "parts of a multipolygon cannot intersect"
+        )
 
     # Create the polygons asked for
-    logger.info(f"create file with {nb_polygons} polys of ~{nb_points} points")
-    poly_complex = _create_complex_poly_points(
+    logger.info(
+        f"create file with {geoms} (multi)polys of "
+        f"{polys_per_geom} * ~{nb_points_str} points"
+    )
+
+    # Create a single complex polygon that we can reuse to create all others...
+    poly = _create_complex_poly_points(
         xmin=bbox[0],
         ymin=bbox[1],
         width=poly_width,
         height=poly_height,
-        nb_points=nb_points,
+        nb_points=points_per_poly,
     )
 
-    step_x = int(bbox_width // max_poly_x)
-    step_y = int(bbox_height // len(nb_polys_per_row))
-    polys = []
-    for y, nb_polys_in_row in enumerate(nb_polys_per_row):
-        for x in range(nb_polys_in_row):
-            xoff = x * step_x
-            yoff = y * step_y
-            polys.append(shapely.affinity.translate(poly_complex, xoff=xoff, yoff=yoff))
+    # Create the polygons. If many are asked, they can overlap, but for performance
+    # testing that should not matter.
+    result = []
+    x = 0
+    y = 0
+    for _ in range(geoms):
+        if polys_per_geom == 1:
+            xoff = x * poly_width_step
+            yoff = y * poly_height_step
+            result.append(shapely.affinity.translate(poly, xoff=xoff, yoff=yoff))
 
-    # Write the polygons to a file
-    if one_multi_poly:
-        polys = [shapely.MultiPolygon(polys)]
-    complex_gdf = gpd.GeoDataFrame(geometry=polys, crs=crs)
+            x, y = _move_xy(x, y, max_poly_x, max_poly_y)
+            continue
+
+        # Multipolygons asked, so create them
+        polys = []
+        for _ in range(polys_per_geom):
+            xoff = x * poly_width_step
+            yoff = y * poly_height_step
+            polys.append(shapely.affinity.translate(poly, xoff=xoff, yoff=yoff))
+
+            # Move to next polygon
+            x, y = _move_xy(x, y, max_poly_x, max_poly_y)
+
+        result.append(shapely.MultiPolygon(polys))
+
+    # Write all geometries to a file
+    complex_gdf = gpd.GeoDataFrame(geometry=result, crs=crs)
     complex_gdf.to_file(testfile_path, engine="pyogrio")
 
     return (testfile_path, descr)
 
 
+def _move_xy(x, y, max_x, max_y):
+    # Move to next location in the grid
+    if x >= max_x:
+        x = 0
+        y += 1
+    elif y >= max_y:
+        y = 0
+        x = 0
+    else:
+        x += 1
+
+    return x, y
+
+
 def _create_complex_poly_points(
     xmin: float,
     ymin: float,
-    width: int,
-    height: int,
+    width: float,
+    height: float,
     nb_points: int,
     nb_points_tol: float = 0.1,
 ) -> shapely.Polygon:
