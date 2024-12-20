@@ -2041,7 +2041,7 @@ def _prepare_filter_by_location_fields(
         avoid_disjoint,
         subdivide_coords,
     )
-    if spatial_relation_column is not None and spatial_relation_filter is not None:
+    if spatial_relation_column != "" and spatial_relation_filter != "":
         return (
             spatial_relation_column,
             spatial_relation_filter,
