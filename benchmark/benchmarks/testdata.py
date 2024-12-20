@@ -1,7 +1,6 @@
 """Module to prepare test data for benchmarking geo operations."""
 
 import enum
-import itertools
 import logging
 import pprint
 import shutil
@@ -9,9 +8,10 @@ import tempfile
 import urllib.request
 import zipfile
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import geopandas as gpd
+import pyproj
 import shapely
 import shapely.affinity
 
@@ -93,62 +93,82 @@ class TestFile(enum.Enum):
 
 def create_testfile(
     bbox: tuple[float, float, float, float],
-    crs: str = "epsg:31370",
-    nb_points: int = 20_000,
-    nb_polygons_x: int = 10,
-    nb_polygons_y: int = 1,
+    nb_polygons: int,
+    nb_points: int,
+    one_multi_poly: bool = True,
     poly_width: int = 15000,
     poly_height: int = 15000,
+    crs: Union[int, str, pyproj.CRS, None] = None,
     dst_dir: Optional[Path] = None,
 ) -> tuple[Path, str]:
     """Creates a test file.
 
     Args:
         bbox (tuple[float, float, float, float]): the bounding box of the test file.
-        crs (str): the crs of the test file. Defaults to "epsg:31370".
+        nb_polygons (int): the number of polygons to generate.
         nb_points (int): indication of the number of points the complex polygons
-            should consist of. Defaults to 20.000.
-        nb_polygons_x (int): the number of polygons in the x direction. Defaults to 10.
-        nb_polygons_y (int): the number of polygons in the y direction. Defaults to 1.
+            should consist of.
+        one_multi_poly (bool): if True, all polygons will be put in one MultiPolygon.
+            Defaults to True.
         poly_width (int): the width of the polygons. Defaults to 15000.
         poly_height (int): the height of the polygons. Defaults to 15000.
+        crs (str): the crs of the test file. Defaults to None.
         dst_dir (Path): the directory to write the file to.
 
     Returns:
         tuple[Path, str]: The path to the file + a description of the test file.
     """
+    # Format file name
+    multi_str = ""
+    if one_multi_poly:
+        multi_str = "onemulti_"
     basename = (
-        f"custom_polys_{nb_polygons_x*nb_polygons_y}polys_{nb_points}pnts_"
+        f"custom_polys_{multi_str}{nb_polygons}polys_{nb_points}pnts_"
         f"{bbox[0]}-{bbox[1]}-{bbox[2]}-{bbox[3]}.gpkg"
     )
     testfile_path = _prepare_dst_path(basename, dst_dir=dst_dir)
 
-    descr_template = "complex polys ({nb_polys} * {nb_coords_str} coords)"
+    # Format file description
+    if nb_points > 1000:
+        nb_points_str = f"{int(nb_points / 1000)}k"
+    else:
+        nb_points_str = f"{nb_points}"
+
+    if one_multi_poly:
+        descr = "1 complex multipoly"
+    else:
+        descr = "complex polys"
+    descr = f"{descr} ({nb_polygons} * {nb_points_str} coords)"
 
     if testfile_path.exists():
-        polys_gdf = gpd.read_file(testfile_path, engine="pyogrio")
-        nb_coords = shapely.get_num_coordinates(polys_gdf.iloc[0])
-        nb_polys = len(polys_gdf)
-        descr = descr_template.format(nb_polys=nb_polys, nb_coords=nb_coords)
-
         return (testfile_path, descr)
 
-    # Test if the bbox is big enough for the polygons
+    # Determine the number of polygons to generate per row and column
     bbox_width = bbox[2] - bbox[0]
-    if poly_width * nb_polygons_x > bbox_width:
-        raise ValueError(
-            f"{bbox_width=} is too small for {nb_polygons_x=} with {poly_width=}"
-        )
+    max_poly_x = int(bbox_width // poly_width)
+    if max_poly_x == 0:
+        raise ValueError(f"{bbox_width=} is too small for {poly_width=}")
+
     bbox_height = bbox[3] - bbox[1]
-    if poly_height * nb_polygons_y > bbox_height:
-        raise ValueError(
-            f"{bbox_height=} is too small for {nb_polygons_y} with {poly_height=}"
-        )
+    max_poly_y = int(bbox_height // poly_height)
+    if max_poly_y == 0:
+        raise ValueError(f"{bbox_height=} is too small for {poly_height=}")
+
+    if nb_polygons > max_poly_x * max_poly_y:
+        raise ValueError(f"{bbox=} is too small for {nb_polygons=}")
+
+    # Determine the number of polygons needed per row to get to nb_polygons
+    if nb_polygons < max_poly_x:
+        nb_polys_per_row = [nb_polygons]
+    else:
+        nb_full_rows = int(nb_polygons // max_poly_x)
+        nb_polys_per_row = [max_poly_x] * nb_full_rows
+        nb_polys_last_row = nb_polygons % max_poly_x
+        if nb_polys_last_row > 0:
+            nb_polys_per_row.append(nb_polys_last_row)
 
     # Create the polygons asked for
-    logger.info(
-        f"create file with {nb_polygons_x * nb_polygons_y} polys of ~{nb_points} points"
-    )
+    logger.info(f"create file with {nb_polygons} polys of ~{nb_points} points")
     poly_complex = _create_complex_poly_points(
         xmin=bbox[0],
         ymin=bbox[1],
@@ -157,26 +177,20 @@ def create_testfile(
         nb_points=nb_points,
     )
 
-    step_x = int(bbox_width // nb_polygons_x)
-    step_y = int(bbox_height // nb_polygons_y)
-    polys = [
-        shapely.affinity.translate(poly_complex, xoff=xoff, yoff=yoff)
-        for xoff, yoff in itertools.product(
-            range(0, (nb_polygons_x * step_x), step_x),
-            range(0, (nb_polygons_y * step_y), step_y),
-        )
-    ]
-    complex_gdf = gpd.GeoDataFrame(geometry=polys, crs="epsg:31370")
-    complex_gdf.to_file(testfile_path, engine="pyogrio")
-    nb_coords = shapely.get_num_coordinates(polys[0])
-    nb_polys = len(polys)
+    step_x = int(bbox_width // max_poly_x)
+    step_y = int(bbox_height // len(nb_polys_per_row))
+    polys = []
+    for y, nb_polys_in_row in enumerate(nb_polys_per_row):
+        for x in range(nb_polys_in_row):
+            xoff = x * step_x
+            yoff = y * step_y
+            polys.append(shapely.affinity.translate(poly_complex, xoff=xoff, yoff=yoff))
 
-    # Format the description
-    if nb_coords > 1000:
-        nb_coords_str = f"{int(nb_coords / 1000)}k"
-    else:
-        nb_coords_str = f"{nb_coords}"
-    descr = descr_template.format(nb_polys=nb_polys, nb_coords_str=nb_coords_str)
+    # Write the polygons to a file
+    if one_multi_poly:
+        polys = [shapely.MultiPolygon(polys)]
+    complex_gdf = gpd.GeoDataFrame(geometry=polys, crs=crs)
+    complex_gdf.to_file(testfile_path, engine="pyogrio")
 
     return (testfile_path, descr)
 
