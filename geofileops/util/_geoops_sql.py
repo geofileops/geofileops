@@ -998,6 +998,8 @@ def difference(
     input_columns_prefix: str = "",
     output_with_spatial_index: Optional[bool] = None,
     operation_prefix: str = "",
+    input1_subdivided_path: Union[Path, None, bool] = None,
+    input2_subdivided_path: Union[Path, None, bool] = None,
 ):
     # Because there might be extra preparation of the input2 layer before going ahead
     # with the real calculation, do some additional init + checks here...
@@ -1032,24 +1034,32 @@ def difference(
         # multipolygons.
         force_output_geometrytype = force_output_geometrytype.to_multitype
 
-    # Subdivide the input1 layer if needed to speed up further processing.
-    # Save the original fid column in a new fid_1 column, we will need to filter/
-    # group by on it later on.
+    # Subdivide the input layers speeds up further processing if they are complex.
     tempdir = _io_util.create_tempdir(f"geofileops/{operation_name}")
-    input1_subdivided_path = _subdivide_layer(
-        path=input1_path,
-        layer=input1_layer,
-        output_path=tempdir / "subdivided/input1_layer.gpkg",
-        subdivide_coords=subdivide_coords,
-        keep_fid=True,
-        nb_parallel=nb_parallel,
-        batchsize=batchsize,
-        operation_prefix=f"{operation_name}/",
-    )
+
+    if input1_subdivided_path is None:
+        # If input1_subdivided_path is None, try to subdivide. If it is a Path, input1
+        # is already subdivided, if False, input1 doesn't need to be subdivided.
+        # Save the original fid column in a new fid_1 column, we will need to filter/
+        # group by on it later on.
+        input1_subdivided_path = _subdivide_layer(
+            path=input1_path,
+            layer=input1_layer,
+            output_path=tempdir / "subdivided/input1_layer.gpkg",
+            subdivide_coords=subdivide_coords,
+            keep_fid=True,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+            operation_prefix=f"{operation_name}/",
+        )
+    elif isinstance(input1_subdivided_path, bool):
+        input1_subdivided_path = None
 
     where_clause_self = "1=1"
     if overlay_self:
-        # If we are doing a self overlay, we need to filter out rows with the same rowid
+        # If we are doing a self overlay
+        #   - input1 = input2, so if needed, it has already been subdivided
+        #   - we need to filter out rows with the same rowid
         if input1_subdivided_path is None:
             where_clause_self = "layer1.rowid <> layer2_sub.rowid"
         else:
@@ -1059,8 +1069,10 @@ def difference(
         # For overlay self, both subdivided layers are equal
         input2_subdivided_path = input1_subdivided_path
 
-    else:
-        # Subdivide the input2 layer if needed to speed up further processing.
+    elif input2_subdivided_path is None:
+        # If input2_subdivided_path is None, try to subdivide. If it is a Path,
+        # input2 is already subdivided, if False, input2 doesn't need to be
+        # subdivided.
         # No self overlay, so no original fid column for the input2 layer needed.
         input2_subdivided_path = _subdivide_layer(
             path=input2_path,
@@ -1072,6 +1084,9 @@ def difference(
             batchsize=batchsize,
             operation_prefix=f"{operation_name}/",
         )
+
+    if isinstance(input2_subdivided_path, bool):
+        input2_subdivided_path = None
 
     # If the input2 layer was subdivided
     if input2_subdivided_path is not None:
@@ -2560,8 +2575,32 @@ def symmetric_difference(
 
     tempdir = _io_util.create_tempdir("geofileops/symmdiff")
     try:
-        # First difference input2 from input1 to a temporary output file
-        logger.info("Step 1 of 3: difference 1")
+        # Prepare the input files
+        logger.info("Step 1 of 4: prepare input files")
+        input1_subdivided_path = _subdivide_layer(
+            path=input1_path,
+            layer=input1_layer,
+            output_path=tempdir / "subdivided/input1_layer.gpkg",
+            subdivide_coords=subdivide_coords,
+            keep_fid=True,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+            operation_prefix="symmetric_difference/",
+        )
+
+        input2_subdivided_path = _subdivide_layer(
+            path=input2_path,
+            layer=input2_layer,
+            output_path=tempdir / "subdivided/input2_layer.gpkg",
+            subdivide_coords=subdivide_coords,
+            keep_fid=True,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+            operation_prefix="symmetric_difference/",
+        )
+
+        # Difference input2 from input1 to a temporary output file
+        logger.info("Step 2 of 4: difference 1")
         diff1_output_path = tempdir / "layer1_diff_layer2_output.gpkg"
         difference(
             input1_path=input1_path,
@@ -2582,6 +2621,8 @@ def symmetric_difference(
             force=force,
             output_with_spatial_index=False,
             operation_prefix="symmetric_difference/",
+            input1_subdivided_path=input1_subdivided_path,
+            input2_subdivided_path=input2_subdivided_path,
         )
 
         if input2_columns is None or len(input2_columns) > 0:
@@ -2597,7 +2638,7 @@ def symmetric_difference(
                 )
 
         # Now difference input1 from input2 to another temporary output file
-        logger.info("Step 2 of 3: difference 2")
+        logger.info("Step 3 of 4: difference 2")
         diff2_output_path = tempdir / "layer2_diff_layer1_output.gpkg"
         difference(
             input1_path=input2_path,
@@ -2621,7 +2662,7 @@ def symmetric_difference(
         )
 
         # Now append
-        logger.info("Step 3 of 3: finalize")
+        logger.info("Step 4 of 4: finalize")
         # Note: append will never create an index on an already existing layer.
         _append_to_nolock(
             src=diff2_output_path,
