@@ -2672,7 +2672,7 @@ def symmetric_difference(
             operation_prefix="symmetric_difference/",
         )
         if input1_subdivided_path is None:
-            # Hardcoded optimization: root means that no subdivide is needed further on
+            # Hardcoded optimization: root means that no subdivide was needed
             input1_subdivided_path = Path("/")
 
         if overlay_self:
@@ -2689,7 +2689,7 @@ def symmetric_difference(
                 operation_prefix="symmetric_difference/",
             )
             if input2_subdivided_path is None:
-                # Hardcoded optimization: root means that no subdivide is needed further on
+                # Hardcoded optimization: root means that no subdivide was needed
                 input2_subdivided_path = Path("/")
 
         # Difference input2 from input1 to a temporary output file
