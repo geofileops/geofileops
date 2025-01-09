@@ -1477,6 +1477,9 @@ def export_by_location(
         and min_area_intersect is None
     ):
         # No union needed.
+        where_clause = (
+            f"WHERE {spatial_relation_filter}" if spatial_relation_filter != "" else ""
+        )
         sql_template = f"""
             WITH layer1_intersecting_filtered AS (
               SELECT layer1.{{input1_geometrycolumn}} AS geom
@@ -1498,7 +1501,7 @@ def export_by_location(
                          {groupby}
                            --LIMIT -1 OFFSET 0
                         ) sub_filter
-                       WHERE {spatial_relation_filter}
+                       {where_clause}
                       )
             )
             SELECT sub.geom
@@ -1567,6 +1570,9 @@ def export_by_location(
         area_inters_column = (
             f",{area_inters_column_name}" if area_inters_column_name is not None else ""
         )
+        where_clause = (
+            f"WHERE {spatial_relation_filter}" if spatial_relation_filter != "" else ""
+        )
         sql_template = f"""
             SELECT sub.geom
                   {{layer1_columns_from_subselect_str}}
@@ -1599,7 +1605,7 @@ def export_by_location(
                      LIMIT -1 OFFSET 0
                 ) sub_union
               ) sub
-             WHERE {spatial_relation_filter}
+             {where_clause}
         """  # noqa: E501
 
         # Filter on intersect area if necessary
@@ -2185,6 +2191,13 @@ def _add_specific_optimisation(
     ]
 
     # Add a specific optimisation for spatial relations.
+    if query == "":
+        return (
+            spatial_relation_column,
+            spatial_relation_filter,
+            true_for_disjoint,
+            groupby,
+        )
     if query.split()[0] == "disjoint":
         disjoint = True
         relation_is_true = False
@@ -2264,6 +2277,14 @@ def _prepare_filter_by_location_fields(
         avoid_disjoint,
         subdivide_coords,
     )
+    if query == "":
+        return (
+            spatial_relation_column,
+            spatial_relation_filter,
+            true_for_disjoint,
+            groupby,
+        )
+
     if spatial_relation_column == "" and spatial_relation_filter == "":
         # It is a more complex query, so some more processing needed
         spatial_relations_filter = _prepare_spatial_relations_filter(query)

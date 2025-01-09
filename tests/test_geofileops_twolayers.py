@@ -586,7 +586,46 @@ def test_export_by_location_query(tmp_path, query, subdivide_coords, exp_feature
     exp_spatial_index = GeofileInfo(output_path).default_spatial_index
     assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
-    exp_columns = len(input_layerinfo.columns)
+    input_columns = len(input_layerinfo.columns)
+    exp_columns = input_columns if query != "" else input_columns + 1
+    assert len(output_layerinfo.columns) == exp_columns
+    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+    assert output_layerinfo.featurecount == exp_featurecount
+
+    # Check the contents of the result file
+    output_gdf = gfo.read_file(output_path)
+    assert output_gdf["geometry"][0] is not None
+
+
+@pytest.mark.parametrize(
+    "query, exp_featurecount",
+    [
+        ("", 48),
+    ],
+)
+def test_export_by_location_empty_query(tmp_path, query, exp_featurecount):
+    input_to_select_from_path = test_helper.get_testfile("polygon-parcel")
+    input_to_compare_with_path = test_helper.get_testfile("polygon-zone")
+    output_path = tmp_path / f"{input_to_select_from_path.stem}-output.gpkg"
+    input_layerinfo = gfo.get_layerinfo(input_to_select_from_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+
+    # Test
+    gfo.export_by_location(
+        input_to_select_from_path=str(input_to_select_from_path),
+        input_to_compare_with_path=str(input_to_compare_with_path),
+        output_path=str(output_path),
+        spatial_relations_query=query,
+        batchsize=batchsize,
+        area_inters_column_name="area_inters",
+    )
+
+    # Check if the output file is correctly created
+    assert output_path.exists()
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    exp_columns = len(input_layerinfo.columns) + 1
     assert len(output_layerinfo.columns) == exp_columns
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
     assert output_layerinfo.featurecount == exp_featurecount
