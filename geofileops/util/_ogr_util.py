@@ -14,7 +14,7 @@ from osgeo import gdal, ogr
 from pygeoops import GeometryType
 
 import geofileops as gfo
-from geofileops import fileops
+from geofileops import _compat, fileops
 
 # Make sure only one instance per process is running
 lock = Lock()
@@ -403,6 +403,10 @@ def vector_translate(
     # Now we can really get to work
     output_ds = None
     try:
+        # Till gdal 3.10 datetime columns can be interpreted wrongly with arrow.
+        if _compat.GDAL_ST_311 and "OGR2OGR_USE_ARROW_API" not in config_options:
+            config_options["OGR2OGR_USE_ARROW_API"] = False
+
         # Go!
         with set_config_options(config_options):
             # Open input datasource already

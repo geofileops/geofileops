@@ -2016,7 +2016,7 @@ def test_union(
     output_gpd_gdf = input1_gdf.overlay(input2_gdf, how="union", keep_geom_type=True)
     renames = dict(zip(output_gpd_gdf.columns, output_gfo_gdf.columns))
     output_gpd_gdf = output_gpd_gdf.rename(columns=renames)
-    output_gpd_gdf["l1_DATUM"] = pd.to_datetime(output_gpd_gdf["l1_DATUM"])
+    # output_gpd_gdf["l1_DATUM"] = pd.to_datetime(output_gpd_gdf["l1_DATUM"])
     if gridsize != 0.0:
         output_gpd_gdf.geometry = shapely.set_precision(
             output_gpd_gdf.geometry, grid_size=gridsize
