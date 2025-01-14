@@ -2201,6 +2201,7 @@ def _add_specific_optimisation(
     )
     for spatial_relation in spatial_relations:
         if query.lower() == f"{spatial_relation} is {str(relation_is_true).lower()}":
+            # When "contains" is used, geomA and geomB need to be swapped
             geomA = geom2 if spatial_relation == "contains" else geom1
             geomB = geom1 if spatial_relation == "contains" else geom2
             spatial_relation_column = (
@@ -2293,6 +2294,7 @@ def _prepare_filter_by_location_fields(
         # Fill out input columns of the spatial_relation_column
         if groupby != "":
             geom2 = f"ST_union({geom2})"
+        # When "contains" is used, geomA and geomB need to be swapped
         geomA = geom2 if query.startswith("contains") else geom1
         geomB = geom1 if query.startswith("contains") else geom2
         spatial_relation_column = spatial_relation_column.format(
