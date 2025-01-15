@@ -65,8 +65,9 @@ if (
     )
 
 # Determine the versions of the runtime dependencies
-# gdal.__version__ returns a long version name for master/development versions
-GDAL_VERSION = gdal.VersionInfo("RELEASE_NAME")
+# gdal.__version__ returns a long version name for master/development versions. The part
+# after the dash must be dropped to avoid version.parse() errors.
+GDAL_VERSION = gdal.__version__.split("-")[0]
 
 GDAL_GTE_38 = version.parse(GDAL_VERSION) >= version.parse("3.8")
 GEOPANDAS_GTE_10 = version.parse(gpd.__version__) >= version.parse("1.0")
