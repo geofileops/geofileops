@@ -621,7 +621,6 @@ def test_export_by_distance(tmp_path, testfile, suffix):
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
 
     # Check the contents of the result file
-    # TODO: this test should be more elaborate...
     output_gdf = gfo.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
 
@@ -629,8 +628,7 @@ def test_export_by_distance(tmp_path, testfile, suffix):
     # Check CRS consistency
     assert input_gdf.crs == output_gdf.crs
 
-    # Check if the exported geometries are within the specified distance
-    # ... using shapely distance
+    # Check if the exported geometries are within the specified distance using shapely
     input_geometries = input_gdf["geometry"]
     for output_geom in output_gdf["geometry"]:
         min_distance = min(
