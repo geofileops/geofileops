@@ -1449,7 +1449,7 @@ def export_by_location(
         layer=input_to_compare_with_layer,
         output_path=tmp_dir / "subdivided/input_to_compare_with_layer.gpkg",
         subdivide_coords=subdivide_coords,
-        keep_fid=True if subdivide_coords > 0 else False,
+        keep_fid=True,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         operation_prefix=f"{operation_name}/",
@@ -1465,17 +1465,11 @@ def export_by_location(
         groupby,
     ) = _prepare_filter_by_location_fields(
         query=spatial_relations_query,
-        subdivide_coords=subdivide_coords
-        if input_to_compare_with_subdivided_path is not None
-        else 0,
+        subdivided=input_to_compare_with_subdivided_path is not None,
     )
 
     # Different query if intersecting features need to be unioned...
-    if (
-        true_for_disjoint is False
-        and area_inters_column_name is None
-        and min_area_intersect is None
-    ):
+    if area_inters_column_name is None and min_area_intersect is None:
         # No union needed.
         sql_template = f"""
             WITH layer1_intersecting_filtered AS (
@@ -1553,7 +1547,7 @@ def export_by_location(
             geom1="geom",
             geom2="geom2",
             subquery_alias="sub",
-            subdivide_coords=subdivide_coords,
+            subdivided=input_to_compare_with_subdivided_path is not None,
         )
 
         # Optimize special case: geom2 is already filtered on intersects in the query,
@@ -2045,7 +2039,7 @@ def join_by_location(
         _,
         groupby,
     ) = _prepare_filter_by_location_fields(
-        query=spatial_relations_query, avoid_disjoint=True, subdivide_coords=0
+        query=spatial_relations_query, avoid_disjoint=True
     )
 
     # Prepare sql template
@@ -2144,7 +2138,7 @@ def _add_specific_optimisation(
     geom2: str = "layer2.{input2_geometrycolumn}",
     subquery_alias: str = "sub_filter",
     avoid_disjoint: bool = False,
-    subdivide_coords: int = 10000,
+    subdivided: bool = False,
 ) -> tuple[str, str, bool, str]:
     """Add a specific optimisation as it is the most used filtering.
 
@@ -2158,7 +2152,8 @@ def _add_specific_optimisation(
             Defaults to "sub_filter".
         avoid_disjoint (bool): avoid that the query evaluates disjoint featurs to True.
             If it does, "intersects is True" is added to the input query.
-        subdivide_coords (int): number of coordinates to aim for.
+        subdivided (bool): when true the (compare) layer was subdivided.
+            Defaults to False
 
     Returns:
         Tuple[str, str, bool]: returns a tuple with the following values:
@@ -2191,14 +2186,8 @@ def _add_specific_optimisation(
     else:
         disjoint = False
         relation_is_true = query.split()[-1] == "True"
-    groupby = (
-        "GROUP BY layer2.fid_1" if subdivide_coords > 0 and relation_is_true else ""
-    )
-    geom2 = (
-        f"ST_union({geom2})"
-        if subdivide_coords > 0 and relation_is_true
-        else f"{geom2}"
-    )
+    groupby = "GROUP BY layer2.fid_1" if subdivided else ""
+    geom2 = f"ST_union({geom2})" if subdivided else f"{geom2}"
     for spatial_relation in spatial_relations:
         if query.lower() == f"{spatial_relation} is {str(relation_is_true).lower()}":
             # When "contains" is used, geomA and geomB need to be swapped
@@ -2206,13 +2195,14 @@ def _add_specific_optimisation(
             geomB = geom1 if spatial_relation == "contains" else geom2
             spatial_relation_column = (
                 f",ST_{spatial_relation}({geomA}, {geomB})"
-                'AS "GFO_$TEMP$_SPATIAL_RELATION"'
+                ' AS "GFO_$TEMP$_SPATIAL_RELATION"'
             )
             spatial_relation_filter = (
                 f'{subquery_alias}."GFO_$TEMP$_SPATIAL_RELATION" = '
                 f"{int(relation_is_true)}"
             )
             true_for_disjoint = not disjoint if not relation_is_true else disjoint
+
             break
 
     return (
@@ -2229,7 +2219,7 @@ def _prepare_filter_by_location_fields(
     geom2: str = "layer2.{input2_geometrycolumn}",
     subquery_alias: str = "sub_filter",
     avoid_disjoint: bool = False,
-    subdivide_coords: int = 10000,
+    subdivided: bool = False,
 ) -> tuple[str, str, bool, str]:
     """Prepare the fields needed to prepare a select to filter by location.
 
@@ -2239,9 +2229,10 @@ def _prepare_filter_by_location_fields(
         geom2 (str): the 2nd geom in the spatial_relation_column.
         subquery_alias (str): the alias tha will be used for the subquery to filter on.
             Defaults to "sub_filter".
-        avoid_disjoint (bool): avoid that the query evaluates disjoint featurs to True.
+        avoid_disjoint (bool): avoid that the query evaluates disjoint features to True.
             If it does, "intersects is True" is added to the input query.
-        subdivide_coords (int): number of coordinates to aim for.
+        subdivided (bool): when true the (compare) layer was subdivided.
+            Defaults to False
 
     Returns:
         Tuple[str, str, bool]: returns a tuple with the following values:
@@ -2263,8 +2254,9 @@ def _prepare_filter_by_location_fields(
         geom2,
         subquery_alias,
         avoid_disjoint,
-        subdivide_coords,
+        subdivided,
     )
+
     if spatial_relation_column == "" and spatial_relation_filter == "":
         # It is a more complex query, so some more processing needed
         spatial_relations_filter = _prepare_spatial_relations_filter(query)

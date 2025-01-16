@@ -26,7 +26,7 @@ extra_parcels = [
     "spatial_relations, exp_features",
     [("intersects is True", 1), ("intersects is False", 2)],
 )
-def test_intertsects(
+def test_intersects(
     tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
 ):
     _spatial_relation(
@@ -228,7 +228,7 @@ def _spatial_relation(
         subdivide_coords=subdivide_coords,
     )
 
-    # Check if the output file is c1orrectly created
+    # Check if the output file is correctly created
     assert output_path.exists()
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == exp_features
