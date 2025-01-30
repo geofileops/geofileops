@@ -206,6 +206,72 @@ def delete_duplicate_geometries(
     )
 
 
+def find_duplicate_geometries(
+    input_path: Path,
+    output_path: Path,
+    input_layer: Optional[str] = None,
+    output_layer: Optional[str] = None,
+    columns: Optional[list[str]] = None,
+    explodecollections: bool = False,
+    keep_empty_geoms: bool = False,
+    where_post: Optional[str] = None,
+    force: bool = False,
+):
+    # The query as written doesn't give correct results when parallelized,
+    # but it isn't useful to do it for this operation.
+
+    # TODO: doesn't work. The with clause should return a row for every row in the input
+    # that has duplicates, but it returns a row per group of duplicates. Not sure how to
+    # fix this.
+    sql_template = """
+        WITH duplicates AS (
+            SELECT json_group_array(
+                      json_object(
+                          'GFO_$TEMP$_fid_dup', layer_with.rowid,
+                          'GFO_$TEMP$_fid_duplicates', MIN(layer_with.rowid))
+                   ) AS dupl_groups
+              FROM "{input_layer}" layer_with
+             GROUP BY layer_with.{geometrycolumn}
+             HAVING COUNT(*) > 1
+        )
+        SELECT {geometrycolumn} AS {geometrycolumn}
+              {columns_to_select_str}
+              ,dups.GFO_$TEMP$_fid_duplicates AS fid_duplicates
+          FROM "{input_layer}" layer
+          LEFT OUTER JOIN json_each(SELECT json_group_array(dupl_groups) FROM duplicates) dups
+              ON layer.rowid = dups.GFO_$TEMP$_fid_dup
+    """
+
+    # Go!
+    input_layer_info = gfo.get_layerinfo(input_path, input_layer)
+    for column in input_layer_info.columns:
+        if column.lower() == "fid_duplicates":
+            raise ValueError(
+                "Column 'fid_duplicates' is already present in input "
+                f"({input_path=}, {input_layer=})"
+            )
+
+    return _single_layer_vector_operation(
+        input_path=input_path,
+        output_path=output_path,
+        sql_template=sql_template,
+        geom_selected=True,
+        operation_name="find_duplicate_geometries",
+        input_layer=input_layer,
+        output_layer=output_layer,
+        columns=columns,
+        explodecollections=explodecollections,
+        force_output_geometrytype=input_layer_info.geometrytype,
+        gridsize=0.0,
+        keep_empty_geoms=keep_empty_geoms,
+        where_post=where_post,
+        sql_dialect="SQLITE",
+        nb_parallel=1,
+        batchsize=-1,
+        force=force,
+    )
+
+
 def isvalid(
     input_path: Path,
     output_path: Path,

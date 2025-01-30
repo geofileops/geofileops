@@ -46,6 +46,56 @@ def test_delete_duplicate_geometries(tmp_path):
     assert_geodataframe_equal(result_gdf, expected_gdf)
 
 
+def test_find_duplicate_geometries(tmp_path):
+    # Prepare test data
+    test_gdf = gpd.GeoDataFrame(
+        {"fid": [1, 2, 3, 4, 5]},
+        geometry=[
+            test_helper.TestData.polygon_with_island,
+            test_helper.TestData.polygon_with_island,
+            test_helper.TestData.polygon_no_islands,
+            test_helper.TestData.polygon_no_islands,
+            test_helper.TestData.polygon_with_island2,
+        ],
+        crs=test_helper.TestData.crs_epsg,
+    )
+    expected_gdf = test_gdf.set_index("fid")
+    expected_gdf["fid_duplicates"] = [1, 1, 3, 3, None]
+    suffix = ".gpkg"
+    input_path = tmp_path / f"input_test_data{suffix}"
+    gfo.to_file(test_gdf, input_path)
+
+    # Run test
+    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
+    print(f"Run test for suffix {suffix}")
+    # find_duplicate_geometries isn't multiprocess, so no batchsize needed
+    gfo.find_duplicate_geometries(input_path=input_path, output_path=output_path)
+
+    # Check result, 2 duplicates should be marked
+    result_gdf = gfo.read_file(output_path, fid_as_index=True)
+    assert_geodataframe_equal(result_gdf, expected_gdf)
+
+
+def test_find_duplicate_geometries_error(tmp_path):
+    # Prepare test data
+    test_gdf = gpd.GeoDataFrame(
+        {"fid": [1], "fid_duplicates": [1]},
+        geometry=[
+            test_helper.TestData.polygon_with_island,
+        ],
+        crs=test_helper.TestData.crs_epsg,
+    )
+    input_path = tmp_path / "input_test_data.gpkg"
+    gfo.to_file(test_gdf, input_path)
+
+    # Run test
+    output_path = tmp_path / f"{input_path.stem}-output.gpkg"
+    with pytest.raises(
+        ValueError, match="Column 'fid_duplicates' is already present in input"
+    ):
+        gfo.find_duplicate_geometries(input_path=input_path, output_path=output_path)
+
+
 def test_dissolve_singlethread_output_exists(tmp_path):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel")

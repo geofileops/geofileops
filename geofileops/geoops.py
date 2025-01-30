@@ -996,6 +996,70 @@ def delete_duplicate_geometries(
     )
 
 
+def find_duplicate_geometries(
+    input_path: Union[str, "os.PathLike[Any]"],
+    output_path: Union[str, "os.PathLike[Any]"],
+    input_layer: Optional[str] = None,
+    output_layer: Optional[str] = None,
+    columns: Optional[list[str]] = None,
+    explodecollections: bool = False,
+    keep_empty_geoms: bool = False,
+    where_post: Optional[str] = None,
+    force: bool = False,
+):
+    """Find and mark all duplicate geometries in the input file.
+
+    All rows will be copied to the output file and an extra column called
+    "fid_duplicates" will be added. If a row has duplicate geometries in other rows of
+    the input layer, the minimum fid of all these rows is saved in "fid_duplicates".
+    For rows that don't have geometry duplicates in the input file, the value in
+    "fid_duplicates" is NULL.
+
+    If ``explodecollections`` is False and the input and output file type is GeoPackage,
+    the fid will be preserved. In other cases this will typically not be the case.
+
+    Args:
+        input_path (PathLike): the input file
+        output_path (PathLike): the file to write the result to
+        input_layer (str, optional): input layer name. If None, ``input_path`` should
+            contain only one layer. Defaults to None.
+        output_layer (str, optional): output layer name. If None, the ``output_path``
+            stem is used. Defaults to None.
+        columns (List[str], optional): list of columns to retain. If None, all standard
+            columns are retained. In addition to standard columns, it is also possible
+            to specify "fid", a unique index available in all input files. Note that the
+            "fid" will be aliased eg. to "fid_1". Defaults to None.
+        explodecollections (bool, optional): True to output only simple geometries.
+            Defaults to False.
+        keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
+            in the output. Defaults to False.
+        where_post (str, optional): SQL filter to apply after all other processing,
+            including e.g. ``explodecollections``. It should be in sqlite syntax and
+            |spatialite_reference_link| functions can be used. Defaults to None.
+        force (bool, optional): overwrite existing output file(s).
+            Defaults to False.
+
+    .. |spatialite_reference_link| raw:: html
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
+    logger = logging.getLogger("geofileops.find_duplicate_geometries")
+    logger.info(f"Start, on {input_path}")
+
+    return _geoops_sql.find_duplicate_geometries(
+        input_path=Path(input_path),
+        output_path=Path(output_path),
+        input_layer=input_layer,
+        output_layer=output_layer,
+        columns=columns,
+        explodecollections=explodecollections,
+        keep_empty_geoms=keep_empty_geoms,
+        where_post=where_post,
+        force=force,
+    )
+
+
 def dissolve(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
