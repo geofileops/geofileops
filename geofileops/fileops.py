@@ -698,9 +698,17 @@ def rename_layer(
     datasource = None
     try:
         datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
-        sql_stmt = f'ALTER TABLE "{layer}" RENAME TO "{new_layer}"'
-        result = datasource.ExecuteSQL(sql_stmt)
-        datasource.ReleaseResultSet(result)
+        datasource_layer = datasource.GetLayer(layer)
+        if not datasource_layer.TestCapability(gdal.ogr.OLCRename):
+            raise ValueError(f"rename_layer not supported for {path}")
+
+        # If the layer name only differs in case, we need to rename it first to a
+        # temporary layer name to avoid an error.
+        if layer.lower() == new_layer.lower():
+            datasource_layer.Rename(f"tmp_{layer}")
+
+        # Rename layer
+        datasource_layer.Rename(new_layer)
     except Exception as ex:
         ex.args = (f"rename_layer error: {ex}, for {path}.{layer}",)
         raise
@@ -741,6 +749,7 @@ def rename_column(
         datasource_layer = datasource.GetLayer(layer)
         if not datasource_layer.TestCapability(gdal.ogr.OLCAlterFieldDefn):
             raise ValueError(f"rename_column not supported for {path}")
+        layer_defn = datasource_layer.GetLayerDefn()
 
         # If the column name only differs in case, we need to rename it first to a
         # temporary column name to avoid an error.
@@ -750,21 +759,25 @@ def rename_column(
                 temp_column_name = f"tmp_{index}"
                 if temp_column_name not in columns_lower:
                     break
-            sql_stmt = (
-                f'ALTER TABLE "{layer}" '
-                f'RENAME COLUMN "{column_name}" TO "{temp_column_name}"'
+            field_index = layer_defn.GetFieldIndex(column_name)
+            field_defn = layer_defn.GetFieldDefn(field_index)
+            renamed_field = gdal.ogr.FieldDefn(temp_column_name, field_defn.GetType())
+            datasource_layer.AlterFieldDefn(
+                field_index,
+                renamed_field,
+                gdal.ogr.ALTER_NAME_FLAG,
             )
-            result = datasource.ExecuteSQL(sql_stmt)
-            datasource.ReleaseResultSet(result)
             column_name = f"{temp_column_name}"
 
         # Rename column
-        sql_stmt = (
-            f'ALTER TABLE "{layer}" '
-            f'RENAME COLUMN "{column_name}" TO "{new_column_name}"'
+        field_index = layer_defn.GetFieldIndex(column_name)
+        field_defn = layer_defn.GetFieldDefn(field_index)
+        renamed_field = gdal.ogr.FieldDefn(new_column_name, field_defn.GetType())
+        datasource_layer.AlterFieldDefn(
+            field_index,
+            renamed_field,
+            gdal.ogr.ALTER_NAME_FLAG,
         )
-        result = datasource.ExecuteSQL(sql_stmt)
-        datasource.ReleaseResultSet(result)
 
     except Exception as ex:
         # If it is the ValueError thrown above, just raise
@@ -2071,8 +2084,7 @@ def remove(path: Union[str, "os.PathLike[Any]"], missing_ok: bool = False):
     lockfile_path.unlink(missing_ok=True)
 
     # Remove the main file
-    if path.exists():
-        path.unlink(missing_ok=missing_ok)
+    path.unlink(missing_ok=missing_ok)
 
     # For some file types, extra files need to be removed
     for suffix in path_info.suffixes_extrafiles:
@@ -2523,7 +2535,7 @@ def copy_layer(
         raise ValueError(f"src file doesn't exist: {src}")
     # If dest file exists already and no append
     if not append and dst.exists():
-        if force is True:
+        if force:
             remove(dst)
         else:
             logger.info(f"Output file exists already, so stop: {dst}")
