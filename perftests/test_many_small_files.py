@@ -46,6 +46,36 @@ def test_perf_gdal_vectortranslate(tmp_path):
     warnings.warn(f"Elapsed time: {elapsed}", stacklevel=1)
 
 
+def test_perf_gfo_buffer(tmp_path):
+    gfo_uri = "https://github.com/geofileops/geofileops/raw/refs/heads/main"
+    remote_src = f"{gfo_uri}/tests/data/polygon-parcel.gpkg"
+    input = tmp_path / "input.gpkg"
+    urllib.request.urlretrieve(remote_src, input)
+
+    # Test!
+    import cProfile
+    import io
+    import pstats
+    from pstats import SortKey
+
+    output = tmp_path / "output.gpkg"
+    start = perf_counter()
+
+    with cProfile.Profile() as pr:
+        for i in range(100):
+            gfo.buffer(input, output, distance=10)
+            output.unlink()
+
+        s = io.StringIO()
+        sortby = SortKey.CUMULATIVE
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats(30)
+
+    elapsed = perf_counter() - start
+    warnings.warn(f"Elapsed time: {elapsed}", stacklevel=1)
+    warnings.warn(s.getvalue(), stacklevel=1)
+
+
 def test_perf_gfo_intersection(tmp_path):
     gfo_uri = "https://github.com/geofileops/geofileops/raw/refs/heads/main"
     remote_src = f"{gfo_uri}/tests/data/polygon-parcel.gpkg"
