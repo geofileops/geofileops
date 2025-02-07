@@ -9,8 +9,9 @@ on:
   pull_request:
     branches: [ main, v0.** ]
     paths-ignore:
-      - "docs/**"
       - "benchmark/**"
+      - "docs/**"
+      - "perftests/**"
       - ".github/workflows/tests_installed.yml"
       - "*.md"
       - "*.yml"
