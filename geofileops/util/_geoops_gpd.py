@@ -1279,7 +1279,6 @@ def dissolve(
             last_pass = False
             pass_id = 0
             logger.info(f"Start, with input {input_path}")
-            input_layername = input_layer.name
             input_pass_path = input_path
             input_pass_layer = input_layer
             while True:
