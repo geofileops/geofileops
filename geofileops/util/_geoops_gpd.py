@@ -1282,11 +1282,6 @@ def dissolve(
             input_pass_path = input_path
             input_pass_layer = input_layer
             while True:
-                # If input_pass_path does not exist, the last pass didn't have any
-                # onborder polygons as result, so we are ready dissolving...
-                if not input_pass_path.exists():
-                    break
-
                 # Get info of the current file that needs to be dissolved
                 nb_rows_total = input_pass_layer.featurecount
 
@@ -1380,12 +1375,12 @@ def dissolve(
                 )
                 logger.info(f"Pass {pass_id} ready, took {datetime.now()-pass_start}")
 
-                # If this was the last pass... break
-                if last_pass is True:
+                # If this was the last pass, if the last pass didn't have any onborder
+                # polygons as result, we are ready dissolving.
+                if last_pass or not output_tmp_onborder_path.exists():
                     break
 
                 # Prepare the next pass
-                # The input path is the onborder file
                 prev_nb_batches = len(tiles_gdf)
                 input_pass_path = output_tmp_onborder_path
                 input_pass_layer = gfo.get_layerinfo(input_pass_path)
