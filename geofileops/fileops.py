@@ -971,7 +971,7 @@ def add_column(
             datasource.ReleaseResultSet(result)
 
     except Exception as ex:
-        ex.args = (f"add_column error for {path}.{layer}:\n  {ex}",)
+        ex.args = (f"add_column error for {path}#{layer}:\n  {ex}",)
         raise
     finally:
         datasource = None
@@ -1005,7 +1005,7 @@ def drop_column(
         datasource.ReleaseResultSet(result)
 
     except Exception as ex:
-        ex.args = (f"drop_column error for {path}.{layer}:\n  {ex}",)
+        ex.args = (f"drop_column error for {path}#{layer}:\n  {ex}",)
         raise
     finally:
         datasource = None
@@ -1040,7 +1040,7 @@ def update_column(
         columns_upper.append(layerinfo.geometrycolumn.upper())
     if name.upper() not in columns_upper:
         # If column doesn't exist yet, error!
-        raise ValueError(f"Column {name} doesn't exist in {path}.{layerinfo.name}")
+        raise ValueError(f"Column {name} doesn't exist in {path}#{layerinfo.name}")
 
     # Go!
     try:
@@ -1943,7 +1943,7 @@ def get_crs(
     except ValueError:
         raise
     except Exception as ex:
-        ex.args = (f"get_crs error: {ex} for {path}.{layer}",)
+        ex.args = (f"get_crs error: {ex} for {path}#{layer}",)
         raise
     finally:
         datasource = None
