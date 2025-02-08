@@ -548,14 +548,14 @@ def vector_translate(
 
         # Fix invalig files that were written with older versions of GDAL.
         # More info: https://github.com/geofileops/geofileops/issues/313
-        if not _compat.GDAL_GTE_38:
-            output_ds = None
-            _validate_file(
-                output_path,
-                output_layer,
-                input_has_geometry_attribute,
-                input_has_geom_attribute,
-            )
+        # if not _compat.GDAL_GTE_38:
+        output_ds = None
+        _validate_file(
+            output_path,
+            output_layer,
+            input_has_geometry_attribute,
+            input_has_geom_attribute,
+        )
 
     except Exception as ex:
         output_ds = None
