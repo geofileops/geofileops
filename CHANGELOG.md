@@ -10,6 +10,7 @@
 
 ### Improvements
 
+- Add scalable `polygonize` function (#576)
 - Add function `apply_vectorized` to apply a vectorized function on a geometry column
   and use it internally where possible (#588, #594)
 - Add support for renaming column with only difference in casing (#549)
