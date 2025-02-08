@@ -10,6 +10,8 @@
 
 ### Improvements
 
+- Use `use_arrow=True` for reading and writing dataframes when possible to
+  improve performance (#392)
 - Add function `apply_vectorized` to apply a vectorized function on a geometry column
   and use it internally where possible (#588, #594)
 - Add support for renaming column with only difference in casing (#549)
