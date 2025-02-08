@@ -26,7 +26,8 @@
 - Add some pre-flight checks when geofileops is imported (#573)
 - Add support for renaming layer with only difference in casing (#593)
 - Avoid integer overflow when gpkg written by geofileops is read from .NET (#612)
-- Speed up processing many small files (#622)
+- Speed up processing many small files: reduce calls to `gdal.OpenEx` (#622, #625)
+- Speed up on windows: explicitly start transactions in sqlite3 code (#626)
 
 ### Bugs fixed
 
