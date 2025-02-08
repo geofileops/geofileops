@@ -8,6 +8,7 @@ on:
     branches: [ main, v0.** ]
     paths:
       - "perftests/**"
+      - ".github/workflows/perftests.yml"
 
 concurrency: 
   group: ${{ github.workflow }}-${{ github.ref }}
