@@ -69,7 +69,7 @@ def test_perf_gfo_buffer(tmp_path):
         s = io.StringIO()
         sortby = SortKey.CUMULATIVE
         ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-        ps.print_stats(30)
+        ps.print_stats(50)
 
     elapsed = perf_counter() - start
     warnings.warn(f"Elapsed time: {elapsed}", stacklevel=1)
