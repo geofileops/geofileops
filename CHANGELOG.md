@@ -20,10 +20,16 @@
 - Enable "CURVE" geometrytype files to be processed in the general file and
   layer operations (#558)
 - Don't convert to multi-part geometries by default in `copy_layer`,... (#570)
-- Improve performance of erase for very complex input geometries (#585)
+- Improve performance of `erase` and `intersection` for very complex input geometries.
+  This gives similar improvements for such datasets to `identity`,
+  `symmetric_difference` and `union`. (#585, #601, #591)
+- Enable subdividing of linestring layers as well (#614)
 - Add configuration option to only warn on dissolve errors (#561)
-- Add some pre-flight checks when geofileops is imported (#573)
+- Add some pre-flight checks when geofileops is imported (#573, #627)
 - Add support for renaming layer with only difference in casing (#593)
+- Avoid integer overflow when gpkg written by geofileops is read from .NET (#612)
+- Speed up processing many small files: reduce calls to `gdal.OpenEx` (#622, #625)
+- Speed up on windows: explicitly start transactions in sqlite3 code (#626)
 
 ### Bugs fixed
 
