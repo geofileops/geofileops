@@ -566,10 +566,11 @@ def create_table_as_sql(
                     """
                     conn.execute(sql)
 
-                    # Now add geom triggers
+                    # Geometry triggers were removed from the GPKG specs in 1.2!
                     # Remark: this only works on the main database!
-                    sql = f"SELECT gpkgAddGeometryTriggers('{output_layer}', 'geom');"
-                    conn.execute(sql)
+                    # sql = f"SELECT gpkgAddGeometryTriggers('{output_layer}', 'geom');"
+                    # conn.execute(sql)
+
             elif output_suffix_lower == ".sqlite":
                 # Create geom metadata if there is one
                 if "geom" in column_types:
