@@ -17,7 +17,8 @@
   `symmetric_difference` and `union`. (#585, #601, #591, #614)
 - Add support to rename columns and layers with only a difference in casing (#549, #593)
 - Avoid integer overflow when gpkg written by geofileops is read from .NET (#612)
-- Speed up on windows: explicitly start transactions in sqlite3 code (#626, #628, #630)
+- Speed up two layer operations: explicitly start transactions in sqlite3 code, don't 
+  create obsolete triggers and use a memory temp file where possible (#626, #628, #630)
 - Speed up processing many small files: reduce calls to `gdal.OpenEx` (#622, #625)
 - Add support to pass a single string for all `column` type parameters if a single
   column should be retained (#523)
