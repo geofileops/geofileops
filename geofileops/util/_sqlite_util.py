@@ -131,14 +131,6 @@ def create_new_spatialdb(
     if crs_epsg is not None and not isinstance(crs_epsg, int):
         raise ValueError(f"Invalid {crs_epsg=}")
 
-    # For gpkg files, just copy the prepared empty file
-    if filetype == "gpkg" and path != ":memory:":
-        empty_path = Path(__file__).resolve().parent / "empty.gpkg"
-        shutil.copy(empty_path, path)
-        conn = sqlite3.connect(path)
-        load_spatialite(conn)
-        return conn
-
     # Connecting to non existing database file will create it...
     conn = sqlite3.connect(path)
     sql = None
