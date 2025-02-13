@@ -131,6 +131,14 @@ def create_new_spatialdb(
     if crs_epsg is not None and not isinstance(crs_epsg, int):
         raise ValueError(f"Invalid {crs_epsg=}")
 
+    """
+    # For gpkg files, just copy the prepared empty file
+    if filetype == "gpkg" and path != ":memory:":
+        empty_path = Path(__file__).resolve().parent / "empty.gpkg"
+        shutil.copy(empty_path, path)
+        return sqlite3.connect(path)
+    """
+
     # Connecting to non existing database file will create it...
     conn = sqlite3.connect(path)
     sql = None
@@ -214,6 +222,7 @@ def get_columns(
     sql_stmt: str,
     input_databases: dict[str, Path],
     empty_output_ok: bool = True,
+    use_spatialite: bool = True,
     output_geometrytype: Optional[GeometryType] = None,
 ) -> dict[str, str]:
     # Init
@@ -226,14 +235,11 @@ def get_columns(
         main_db_path = input_databases["main"]
         filetype = main_db_path.suffix.lstrip(".")
         conn = sqlite3.connect(main_db_path, detect_types=sqlite3.PARSE_DECLTYPES)
-        new_db = False
-
     else:
         # Create temp output db to be sure the output DB is writable, even though we
         # only create a temporary table.
         filetype = next(iter(input_databases.values())).suffix.lstrip(".")
         conn = create_new_spatialdb(":memory:", filetype=filetype)
-        new_db = True
 
     sql = None
     try:
@@ -241,22 +247,22 @@ def get_columns(
         sql = "BEGIN TRANSACTION;"
         conn.execute(sql)
 
-        if not new_db:
-            # If no new db was created, still need to do some initializations
+        # Load spatialite if asked for
+        if use_spatialite:
             load_spatialite(conn)
             if filetype == "gpkg":
                 sql = "SELECT EnableGpkgMode();"
                 conn.execute(sql)
 
-        # Attach to all input databases
-        for dbname, path in input_databases.items():
-            # main is already opened, so skip it
-            if dbname == "main":
-                continue
+            # Attach to all input databases
+            for dbname, path in input_databases.items():
+                # main is already opened, so skip it
+                if dbname == "main":
+                    continue
 
-            sql = f"ATTACH DATABASE ? AS {dbname}"
-            dbSpec = (str(path),)
-            conn.execute(sql, dbSpec)
+                sql = f"ATTACH DATABASE ? AS {dbname}"
+                dbSpec = (str(path),)
+                conn.execute(sql, dbSpec)
 
         # Prepare sql statement for execute
         sql_stmt_prepared = sql_stmt.format(batch_filter="")
@@ -414,7 +420,7 @@ def create_table_as_sql(
         EmptyResultError: the sql_stmt didn't return any rows.
     """
     # Check input parameters
-    if append or update:
+    if append is True or update is True:
         raise ValueError("append=True nor update=True are implemented.")
 
     # All input files and the output file must have the same suffix.
@@ -432,19 +438,18 @@ def create_table_as_sql(
             sql_stmt=sql_stmt,
             input_databases=input_databases,
             empty_output_ok=empty_output_ok,
+            use_spatialite=True,
             output_geometrytype=output_geometrytype,
         )
 
     if not output_path.exists():
         # Output file doesn't exist yet: create and init it
         conn = create_new_spatialdb(path=output_path, crs_epsg=output_crs)
-        new_db = True
     else:
         # Output file exists: open it
         conn = sqlite3.connect(
             output_path, detect_types=sqlite3.PARSE_DECLTYPES, uri=True
         )
-        new_db = False
 
     sql = None
     try:
@@ -461,14 +466,11 @@ def create_table_as_sql(
             # Remark: sql statements using knn only work if they are main, so they
             # are executed with ogr, as the output needs to be main as well :-(.
             output_databasename = "main"
+            load_spatialite(conn)
 
-            if not new_db:
-                # If no new db was created, still need to do some initializations
-                load_spatialite(conn)
-
-                if output_suffix_lower == ".gpkg":
-                    sql = "SELECT EnableGpkgMode();"
-                    conn.execute(sql)
+            if output_suffix_lower == ".gpkg":
+                sql = "SELECT EnableGpkgMode();"
+                conn.execute(sql)
 
             # Set cache size to 128 MB (in kibibytes)
             sql = "PRAGMA cache_size=-128000;"
