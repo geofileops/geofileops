@@ -131,13 +131,13 @@ def create_new_spatialdb(
     if crs_epsg is not None and not isinstance(crs_epsg, int):
         raise ValueError(f"Invalid {crs_epsg=}")
 
-    """
     # For gpkg files, just copy the prepared empty file
     if filetype == "gpkg" and path != ":memory:":
         empty_path = Path(__file__).resolve().parent / "empty.gpkg"
         shutil.copy(empty_path, path)
-        return sqlite3.connect(path)
-    """
+        conn = sqlite3.connect(path)
+        load_spatialite(conn)
+        return conn
 
     # Connecting to non existing database file will create it...
     conn = sqlite3.connect(path)
@@ -145,16 +145,13 @@ def create_new_spatialdb(
     try:
         load_spatialite(conn)
 
-        # Init file
-        # Starting transaction manually is necessary for performance
+        # Starting transaction manually for good performance, mainly needed on Windows.
         sql = "BEGIN TRANSACTION;"
         conn.execute(sql)
 
         if filetype == "gpkg":
             sql = "SELECT EnableGpkgMode();"
             conn.execute(sql)
-            # sql = "SELECT EnableGpkgAmphibiousMode();"
-            # conn.execute(sql)
 
             # Remark: this only works on the main database!
             sql = "SELECT gpkgCreateBaseTables();"
