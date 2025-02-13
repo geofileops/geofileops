@@ -5,6 +5,7 @@ import logging
 import logging.config
 import math
 import multiprocessing
+import os
 import shutil
 import string
 import warnings
@@ -3345,8 +3346,10 @@ def _two_layer_vector_operation(
 
         # Calculate
         # ---------
-        # Processing in threads is 2x faster for small datasets (on Windows)
-        calculate_in_threads = True if input1_layer.featurecount <= 100 else False
+        # Processing in threads is 2x faster for small datasets on Windows
+        calculate_in_threads = (
+            True if os.name == "nt" and input1_layer.featurecount <= 100 else False
+        )
         logger.info(
             f"Start processing ({processing_params.nb_parallel} "
             f"parallel workers, batch size: {processing_params.batchsize})"
