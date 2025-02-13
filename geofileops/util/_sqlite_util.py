@@ -446,197 +446,193 @@ def create_table_as_sql(
 
     sql = None
     try:
-        with conn:
 
-            def to_string_for_sql(input) -> str:
-                if input is None:
-                    return "NULL"
-                else:
-                    return str(input)
+        def to_string_for_sql(input) -> str:
+            if input is None:
+                return "NULL"
+            else:
+                return str(input)
 
-            # Connect to output database file so it is main, otherwise the
-            # gpkg... functions don't work
-            # Remark: sql statements using knn only work if they are main, so they
-            # are executed with ogr, as the output needs to be main as well :-(.
-            output_databasename = "main"
-            if not new_db:
-                # If an existing database is opened, we still need to load spatialite
-                load_spatialite(conn)
+        # Connect to output database file so it is main, otherwise the
+        # gpkg... functions don't work
+        # Remark: sql statements using knn only work if they are main, so they
+        # are executed with ogr, as the output needs to be main as well :-(.
+        output_databasename = "main"
+        if not new_db:
+            # If an existing database is opened, we still need to load spatialite
+            load_spatialite(conn)
 
-            if output_suffix_lower == ".gpkg":
-                sql = "SELECT EnableGpkgMode();"
-                conn.execute(sql)
-
-            # Set cache size to 128 MB (in kibibytes)
-            sql = "PRAGMA cache_size=-128000;"
-            conn.execute(sql)
-            # Set temp storage to MEMORY
-            sql = "PRAGMA temp_store=2;"
-            conn.execute(sql)
-            # Set soft heap limit to 1 GB (in bytes)
-            sql = f"PRAGMA soft_heap_limit={1024*1024*1024};"
+        if output_suffix_lower == ".gpkg":
+            sql = "SELECT EnableGpkgMode();"
             conn.execute(sql)
 
-            # Attach to all input databases
-            for dbname, path in input_databases.items():
-                sql = f"ATTACH DATABASE ? AS {dbname}"
-                dbSpec = (str(path),)
-                conn.execute(sql, dbSpec)
+        # Set cache size to 128 MB (in kibibytes)
+        sql = "PRAGMA cache_size=-128000;"
+        conn.execute(sql)
+        # Set temp storage to MEMORY
+        sql = "PRAGMA temp_store=2;"
+        conn.execute(sql)
+        # Set soft heap limit to 1 GB (in bytes)
+        sql = f"PRAGMA soft_heap_limit={1024*1024*1024};"
+        conn.execute(sql)
 
-            # Use the sqlite profile specified
-            if profile is SqliteProfile.SPEED:
-                # Use memory mapped IO: much faster for calculations
-                # (max 30GB)
-                conn.execute("PRAGMA mmap_size=30000000000;")
+        # Attach to all input databases
+        for dbname, path in input_databases.items():
+            sql = f"ATTACH DATABASE ? AS {dbname}"
+            dbSpec = (str(path),)
+            conn.execute(sql, dbSpec)
 
-                # These options don't really make a difference on windows, but
-                # it doesn't hurt and maybe on other platforms...
-                for databasename in [output_databasename, *input_databases.keys()]:
-                    conn.execute(f"PRAGMA {databasename}.journal_mode=OFF;")
+        # Use the sqlite profile specified
+        if profile is SqliteProfile.SPEED:
+            # Use memory mapped IO: much faster for calculations
+            # (max 30GB)
+            conn.execute("PRAGMA mmap_size=30000000000;")
 
-                    # These pragma's increase speed
-                    conn.execute(f"PRAGMA {databasename}.locking_mode=EXCLUSIVE;")
-                    conn.execute(f"PRAGMA {databasename}.synchronous=OFF;")
+            # These options don't really make a difference on windows, but
+            # it doesn't hurt and maybe on other platforms...
+            for databasename in [output_databasename, *input_databases.keys()]:
+                conn.execute(f"PRAGMA {databasename}.journal_mode=OFF;")
 
-            # Start transaction manually needed for performance
-            sql = "BEGIN TRANSACTION;"
-            conn.execute(sql)
+                # These pragma's increase speed
+                conn.execute(f"PRAGMA {databasename}.locking_mode=EXCLUSIVE;")
+                conn.execute(f"PRAGMA {databasename}.synchronous=OFF;")
 
-            # If geometry type was not specified, look for it in column_types
-            if output_geometrytype is None and "geom" in column_types:
-                output_geometrytype = GeometryType(column_types["geom"])
+        # Start transaction manually needed for performance
+        sql = "BEGIN TRANSACTION;"
+        conn.execute(sql)
 
-            # Now we can create the table
-            # Create output table using the gpkgAddGeometryColumn() function
-            # Problem: the spatialite function gpkgAddGeometryColumn() doesn't support
-            # layer names with special characters (eg. '-')...
-            # Solution: mimic the behaviour of gpkgAddGeometryColumn manually.
-            # Create table without geom column
-            """
-            columns_for_create = [
-                f'"{columnname}" {column_types[columnname]}\n' for columnname
-                in column_types if columnname != 'geom'
-            ]
-            sql = (
-                f'CREATE TABLE {output_databasename}."{output_layer}" '
-                f'({", ".join(columns_for_create)})'
+        # If geometry type was not specified, look for it in column_types
+        if output_geometrytype is None and "geom" in column_types:
+            output_geometrytype = GeometryType(column_types["geom"])
+
+        # Now we can create the table
+        # Create output table using the gpkgAddGeometryColumn() function
+        # Problem: the spatialite function gpkgAddGeometryColumn() doesn't support
+        # layer names with special characters (eg. '-')...
+        # Solution: mimic the behaviour of gpkgAddGeometryColumn manually.
+        # Create table without geom column
+        """
+        columns_for_create = [
+            f'"{columnname}" {column_types[columnname]}\n' for columnname
+            in column_types if columnname != 'geom'
+        ]
+        sql = (
+            f'CREATE TABLE {output_databasename}."{output_layer}" '
+            f'({", ".join(columns_for_create)})'
+        )
+        conn.execute(sql)
+        # Add geom column with gpkgAddGeometryColumn()
+        # Remark: output_geometrytype.name should be detemined from data if needed,
+        # see above...
+        sql = (
+            f"SELECT gpkgAddGeometryColumn("
+            f"    '{output_layer}', 'geom', '{output_geometrytype.name}', 0, 0, "
+            f"    {to_string_for_sql(crs_epsg)});"
+        conn.execute(sql)
+        """
+        columns_for_create = [
+            f'"{columnname}" {column_types[columnname]}\n'
+            for columnname in column_types
+            if columnname.lower() != "fid"
+        ]
+        sql = f"""
+            CREATE TABLE {output_databasename}."{output_layer}" (
+                fid INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                {", ".join(columns_for_create)}
             )
-            conn.execute(sql)
-            # Add geom column with gpkgAddGeometryColumn()
-            # Remark: output_geometrytype.name should be detemined from data if needed,
-            # see above...
-            sql = (
-                f"SELECT gpkgAddGeometryColumn("
-                f"    '{output_layer}', 'geom', '{output_geometrytype.name}', 0, 0, "
-                f"    {to_string_for_sql(crs_epsg)});"
-            conn.execute(sql)
-            """
-            columns_for_create = [
-                f'"{columnname}" {column_types[columnname]}\n'
-                for columnname in column_types
-                if columnname.lower() != "fid"
-            ]
+        """
+        conn.execute(sql)
+
+        # Add metadata
+        if output_suffix_lower == ".gpkg":
+            data_type = "features" if "geom" in column_types else "attributes"
+
+            # ~ mimic behaviour of gpkgAddGeometryColumn()
             sql = f"""
-                CREATE TABLE {output_databasename}."{output_layer}" (
-                    fid INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                    {", ".join(columns_for_create)}
-                )
+                INSERT INTO {output_databasename}.gpkg_contents (
+                    table_name, data_type, identifier, description, last_change,
+                    min_x, min_y, max_x, max_y, srs_id)
+                VALUES ('{output_layer}', '{data_type}', NULL, '', DATETIME(),
+                    NULL, NULL, NULL, NULL, {to_string_for_sql(output_crs)});
             """
             conn.execute(sql)
 
-            # Add metadata
-            if output_suffix_lower == ".gpkg":
-                data_type = "features" if "geom" in column_types else "attributes"
-
-                # ~ mimic behaviour of gpkgAddGeometryColumn()
+            # If there is a geometry column, register it
+            if "geom" in column_types:
+                assert output_geometrytype is not None
                 sql = f"""
-                    INSERT INTO {output_databasename}.gpkg_contents (
-                        table_name, data_type, identifier, description, last_change,
-                        min_x, min_y, max_x, max_y, srs_id)
-                    VALUES ('{output_layer}', '{data_type}', NULL, '', DATETIME(),
-                        NULL, NULL, NULL, NULL, {to_string_for_sql(output_crs)});
+                    INSERT INTO {output_databasename}.gpkg_geometry_columns (
+                        table_name, column_name, geometry_type_name, srs_id, z, m)
+                    VALUES ('{output_layer}', 'geom', '{output_geometrytype.name}',
+                        {to_string_for_sql(output_crs)}, 0, 0);
                 """
                 conn.execute(sql)
 
-                # If there is a geometry column, register it
-                if "geom" in column_types:
-                    assert output_geometrytype is not None
-                    sql = f"""
-                        INSERT INTO {output_databasename}.gpkg_geometry_columns (
-                            table_name, column_name, geometry_type_name, srs_id, z, m)
-                        VALUES ('{output_layer}', 'geom', '{output_geometrytype.name}',
-                            {to_string_for_sql(output_crs)}, 0, 0);
-                    """
-                    conn.execute(sql)
+                # Geometry triggers were removed from the GPKG specs in 1.2!
+                # Remark: this only works on the main database!
+                # sql = f"SELECT gpkgAddGeometryTriggers('{output_layer}', 'geom');"
+                # conn.execute(sql)
 
-                    # Geometry triggers were removed from the GPKG specs in 1.2!
-                    # Remark: this only works on the main database!
-                    # sql = f"SELECT gpkgAddGeometryTriggers('{output_layer}', 'geom');"
-                    # conn.execute(sql)
+        elif output_suffix_lower == ".sqlite":
+            # Create geom metadata if there is one
+            if "geom" in column_types:
+                assert output_geometrytype is not None
+                sql = f"""
+                    SELECT RecoverGeometryColumn(
+                        '{output_layer}', 'geom',
+                        {to_string_for_sql(output_crs)}, '{output_geometrytype.name}');
+                """
+                conn.execute(sql)
 
-            elif output_suffix_lower == ".sqlite":
-                # Create geom metadata if there is one
-                if "geom" in column_types:
-                    assert output_geometrytype is not None
-                    sql = f"""
-                        SELECT RecoverGeometryColumn(
-                          '{output_layer}', 'geom',
-                          {to_string_for_sql(output_crs)}, '{output_geometrytype.name}');
-                    """  # noqa: E501
-                    conn.execute(sql)
+        # Insert data using the sql statement specified
+        try:
+            columns_for_insert = [f'"{column}"' for column in column_types]
+            sql = (
+                f'INSERT INTO {output_databasename}."{output_layer}" '
+                f'({", ".join(columns_for_insert)})\n{sql_stmt}'
+            )
+            conn.execute(sql)
 
-            # Insert data using the sql statement specified
-            try:
-                columns_for_insert = [f'"{column}"' for column in column_types]
-                sql = (
-                    f'INSERT INTO {output_databasename}."{output_layer}" '
-                    f'({", ".join(columns_for_insert)})\n{sql_stmt}'
+        except Exception as ex:
+            ex_message = str(ex).lower()
+            if ex_message.startswith(
+                "unique constraint failed:"
+            ) and ex_message.endswith(".fid"):
+                ex.args = (
+                    f"{ex}: avoid this by not selecting or aliasing fid "
+                    '("select * will select fid!)',
                 )
+            raise
+
+        # Create spatial index if needed
+        if "geom" in column_types and create_spatial_index:
+            sql = f"SELECT UpdateLayerStatistics('{output_layer}', 'geom');"
+            conn.execute(sql)
+            if output_suffix_lower == ".gpkg":
+                warnings.warn(
+                    "Using create_spatial_index=True for a GPKG file is not "
+                    "recommended as it is slow and creates outdated triggers; "
+                    "better use gfo.create_spatial_index() afterwards.",
+                    stacklevel=2,
+                )
+                # Create the necessary empty index, triggers,...
+                sql = f"SELECT gpkgAddSpatialIndex('{output_layer}', 'geom');"
+                conn.execute(sql)
+                # Now fill the index
+                sql = f"""
+                    INSERT INTO "rtree_{output_layer}_geom"
+                      SELECT fid
+                            ,ST_MinX(geom), ST_MaxX(geom), ST_MinY(geom), ST_MaxY(geom)
+                        FROM "{output_layer}"
+                       WHERE geom IS NOT NULL
+                         AND ST_IsEmpty(geom) = 0
+                """
+                conn.execute(sql)
+            elif output_suffix_lower == ".sqlite":
+                sql = f"SELECT CreateSpatialIndex('{output_layer}', 'geom');"
                 conn.execute(sql)
 
-            except Exception as ex:
-                ex_message = str(ex).lower()
-                if ex_message.startswith(
-                    "unique constraint failed:"
-                ) and ex_message.endswith(".fid"):
-                    ex.args = (
-                        f"{ex}: avoid this by not selecting or aliasing fid "
-                        '("select * will select fid!)',
-                    )
-                raise
-
-            # Create spatial index if needed
-            if "geom" in column_types and create_spatial_index:
-                sql = f"SELECT UpdateLayerStatistics('{output_layer}', 'geom');"
-                conn.execute(sql)
-                if output_suffix_lower == ".gpkg":
-                    warnings.warn(
-                        "Using create_spatial_index=True for a GPKG file is not "
-                        "recommended as it is slow and creates outdated triggers; "
-                        "better use gfo.create_spatial_index() afterwards.",
-                        stacklevel=2,
-                    )
-                    # Create the necessary empty index, triggers,...
-                    sql = f"SELECT gpkgAddSpatialIndex('{output_layer}', 'geom');"
-                    conn.execute(sql)
-                    # Now fill the index
-                    sql = f"""
-                        INSERT INTO "rtree_{output_layer}_geom"
-                          SELECT fid
-                                ,ST_MinX(geom)
-                                ,ST_MaxX(geom)
-                                ,ST_MinY(geom)
-                                ,ST_MaxY(geom)
-                            FROM "{output_layer}"
-                           WHERE geom IS NOT NULL
-                             AND ST_IsEmpty(geom) = 0
-                    """
-                    conn.execute(sql)
-                elif output_suffix_lower == ".sqlite":
-                    sql = f"SELECT CreateSpatialIndex('{output_layer}', 'geom');"
-                    conn.execute(sql)
-
-            conn.commit()
+        conn.commit()
 
     except EmptyResultError:
         logger.info(f"Query didn't return any rows: {sql_stmt}")
