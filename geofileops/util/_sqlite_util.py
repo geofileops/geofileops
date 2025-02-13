@@ -143,70 +143,69 @@ def create_new_spatialdb(
     conn = sqlite3.connect(path)
     sql = None
     try:
-        with conn:
-            load_spatialite(conn)
+        load_spatialite(conn)
 
-            # Init file
-            # Starting transaction manually is necessary for performance
-            sql = "BEGIN TRANSACTION;"
+        # Init file
+        # Starting transaction manually is necessary for performance
+        sql = "BEGIN TRANSACTION;"
+        conn.execute(sql)
+
+        if filetype == "gpkg":
+            sql = "SELECT EnableGpkgMode();"
+            conn.execute(sql)
+            # sql = "SELECT EnableGpkgAmphibiousMode();"
+            # conn.execute(sql)
+
+            # Remark: this only works on the main database!
+            sql = "SELECT gpkgCreateBaseTables();"
             conn.execute(sql)
 
-            if filetype == "gpkg":
-                sql = "SELECT EnableGpkgMode();"
-                conn.execute(sql)
-                # sql = "SELECT EnableGpkgAmphibiousMode();"
-                # conn.execute(sql)
-
-                # Remark: this only works on the main database!
-                sql = "SELECT gpkgCreateBaseTables();"
+            if crs_epsg is not None and crs_epsg not in [0, -1, 4326]:
+                sql = f"SELECT gpkgInsertEpsgSRID({crs_epsg});"
                 conn.execute(sql)
 
-                if crs_epsg is not None and crs_epsg not in [0, -1, 4326]:
-                    sql = f"SELECT gpkgInsertEpsgSRID({crs_epsg});"
-                    conn.execute(sql)
+            # The GPKG created till now is of version 1.0. Apply some upgrades to
+            # make it 1.4.
 
-                # The GPKG created till now is of version 1.0. Apply some upgrades to
-                # make it 1.4.
-
-                # Upgrade GPKG from version 1.0 to 1.4.
-                # Most changes are related to rtree index triggers, but they
-                # are not applicable here as this is an empty database at this point.
-                # The 1.3 changes are needed: remove following metadata triggers as they
-                # gave issues in some circumstances.
-                # https://github.com/opengeospatial/geopackage/pull/240
-                triggers_to_remove = [
-                    "gpkg_metadata_md_scope_insert",
-                    "gpkg_metadata_md_scope_update",
-                    "gpkg_metadata_reference_reference_scope_insert",
-                    "gpkg_metadata_reference_reference_scope_update",
-                    "gpkg_metadata_reference_column_name_insert",
-                    "gpkg_metadata_reference_column_name_update",
-                    "gpkg_metadata_reference_row_id_value_insert",
-                    "gpkg_metadata_reference_row_id_value_update",
-                    "gpkg_metadata_reference_timestamp_insert",
-                    "gpkg_metadata_reference_timestamp_update",
-                ]
-                for trigger in triggers_to_remove:
-                    sql = f"DROP TRIGGER IF EXISTS {trigger};"
-                    conn.execute(sql)
-
-                # Set GPKG version to 1.4
-                sql = "PRAGMA application_id=1196444487;"
-                conn.execute(sql)
-                sql = "PRAGMA user_version=10400;"
+            # Upgrade GPKG from version 1.0 to 1.4.
+            # Most changes are related to rtree index triggers, but they
+            # are not applicable here as this is an empty database at this point.
+            # The 1.3 changes are needed: remove following metadata triggers as they
+            # gave issues in some circumstances.
+            # https://github.com/opengeospatial/geopackage/pull/240
+            triggers_to_remove = [
+                "gpkg_metadata_md_scope_insert",
+                "gpkg_metadata_md_scope_update",
+                "gpkg_metadata_reference_reference_scope_insert",
+                "gpkg_metadata_reference_reference_scope_update",
+                "gpkg_metadata_reference_column_name_insert",
+                "gpkg_metadata_reference_column_name_update",
+                "gpkg_metadata_reference_row_id_value_insert",
+                "gpkg_metadata_reference_row_id_value_update",
+                "gpkg_metadata_reference_timestamp_insert",
+                "gpkg_metadata_reference_timestamp_update",
+            ]
+            for trigger in triggers_to_remove:
+                sql = f"DROP TRIGGER IF EXISTS {trigger};"
                 conn.execute(sql)
 
-            elif filetype == "sqlite":
-                sql = "SELECT InitSpatialMetaData(1);"
+            # Set GPKG version to 1.4
+            sql = "PRAGMA application_id=1196444487;"
+            conn.execute(sql)
+            sql = "PRAGMA user_version=10400;"
+            conn.execute(sql)
+
+        elif filetype == "sqlite":
+            sql = "SELECT InitSpatialMetaData(1);"
+            conn.execute(sql)
+            if crs_epsg is not None and crs_epsg not in [0, -1, 4326]:
+                sql = f"SELECT InsertEpsgSrid({crs_epsg});"
                 conn.execute(sql)
-                if crs_epsg is not None and crs_epsg not in [0, -1, 4326]:
-                    sql = f"SELECT InsertEpsgSrid({crs_epsg});"
-                    conn.execute(sql)
 
-            else:
-                raise ValueError(f"Unsupported {filetype=}")
+        else:
+            raise ValueError(f"Unsupported {filetype=}")
 
-            conn.commit()
+        conn.commit()
 
     except ValueError:
         conn.close()
@@ -235,11 +234,13 @@ def get_columns(
         main_db_path = input_databases["main"]
         filetype = main_db_path.suffix.lstrip(".")
         conn = sqlite3.connect(main_db_path, detect_types=sqlite3.PARSE_DECLTYPES)
+        new_db = False
     else:
         # Create temp output db to be sure the output DB is writable, even though we
         # only create a temporary table.
         filetype = next(iter(input_databases.values())).suffix.lstrip(".")
         conn = create_new_spatialdb(":memory:", filetype=filetype)
+        new_db = True
 
     sql = None
     try:
@@ -247,22 +248,23 @@ def get_columns(
         sql = "BEGIN TRANSACTION;"
         conn.execute(sql)
 
-        # Load spatialite if asked for
-        if use_spatialite:
+        if not new_db:
+            # If an existing database is opened, we still need to load spatialite
             load_spatialite(conn)
-            if filetype == "gpkg":
-                sql = "SELECT EnableGpkgMode();"
-                conn.execute(sql)
 
-            # Attach to all input databases
-            for dbname, path in input_databases.items():
-                # main is already opened, so skip it
-                if dbname == "main":
-                    continue
+        if filetype == "gpkg":
+            sql = "SELECT EnableGpkgMode();"
+            conn.execute(sql)
 
-                sql = f"ATTACH DATABASE ? AS {dbname}"
-                dbSpec = (str(path),)
-                conn.execute(sql, dbSpec)
+        # Attach to all input databases
+        for dbname, path in input_databases.items():
+            # main is already opened, so skip it
+            if dbname == "main":
+                continue
+
+            sql = f"ATTACH DATABASE ? AS {dbname}"
+            dbSpec = (str(path),)
+            conn.execute(sql, dbSpec)
 
         # Prepare sql statement for execute
         sql_stmt_prepared = sql_stmt.format(batch_filter="")
@@ -445,11 +447,13 @@ def create_table_as_sql(
     if not output_path.exists():
         # Output file doesn't exist yet: create and init it
         conn = create_new_spatialdb(path=output_path, crs_epsg=output_crs)
+        new_db = True
     else:
         # Output file exists: open it
         conn = sqlite3.connect(
             output_path, detect_types=sqlite3.PARSE_DECLTYPES, uri=True
         )
+        new_db = False
 
     sql = None
     try:
@@ -466,7 +470,9 @@ def create_table_as_sql(
             # Remark: sql statements using knn only work if they are main, so they
             # are executed with ogr, as the output needs to be main as well :-(.
             output_databasename = "main"
-            load_spatialite(conn)
+            if not new_db:
+                # If an existing database is opened, we still need to load spatialite
+                load_spatialite(conn)
 
             if output_suffix_lower == ".gpkg":
                 sql = "SELECT EnableGpkgMode();"
