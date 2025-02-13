@@ -232,10 +232,6 @@ def get_columns(
 
     sql = None
     try:
-        # Start transaction manually needed for performance
-        sql = "BEGIN TRANSACTION;"
-        conn.execute(sql)
-
         if not new_db:
             # If an existing database is opened, we still need to load spatialite
             load_spatialite(conn)
@@ -253,6 +249,14 @@ def get_columns(
             sql = f"ATTACH DATABASE ? AS {dbname}"
             dbSpec = (str(path),)
             conn.execute(sql, dbSpec)
+
+        # Set some default performance options
+        database_names = ["main"] + list(input_databases.keys())
+        set_performance_options(conn, SqliteProfile.SPEED, database_names)
+
+        # Start transaction manually needed for performance
+        sql = "BEGIN TRANSACTION;"
+        conn.execute(sql)
 
         # Prepare sql statement for execute
         sql_stmt_prepared = sql_stmt.format(batch_filter="")
@@ -465,36 +469,15 @@ def create_table_as_sql(
             sql = "SELECT EnableGpkgMode();"
             conn.execute(sql)
 
-        # Set cache size to 128 MB (in kibibytes)
-        sql = "PRAGMA cache_size=-128000;"
-        conn.execute(sql)
-        # Set temp storage to MEMORY
-        sql = "PRAGMA temp_store=2;"
-        conn.execute(sql)
-        # Set soft heap limit to 1 GB (in bytes)
-        sql = f"PRAGMA soft_heap_limit={1024*1024*1024};"
-        conn.execute(sql)
-
         # Attach to all input databases
         for dbname, path in input_databases.items():
             sql = f"ATTACH DATABASE ? AS {dbname}"
             dbSpec = (str(path),)
             conn.execute(sql, dbSpec)
 
-        # Use the sqlite profile specified
-        if profile is SqliteProfile.SPEED:
-            # Use memory mapped IO: much faster for calculations
-            # (max 30GB)
-            conn.execute("PRAGMA mmap_size=30000000000;")
-
-            # These options don't really make a difference on windows, but
-            # it doesn't hurt and maybe on other platforms...
-            for databasename in [output_databasename, *input_databases.keys()]:
-                conn.execute(f"PRAGMA {databasename}.journal_mode=OFF;")
-
-                # These pragma's increase speed
-                conn.execute(f"PRAGMA {databasename}.locking_mode=EXCLUSIVE;")
-                conn.execute(f"PRAGMA {databasename}.synchronous=OFF;")
+        # Set some default performance options
+        database_names = [output_databasename] + list(input_databases.keys())
+        set_performance_options(conn, profile, database_names)
 
         # Start transaction manually needed for performance
         sql = "BEGIN TRANSACTION;"
@@ -665,7 +648,6 @@ def execute_sql(
         conn.execute(sql)
         sql = "PRAGMA temp_store=MEMORY;"
         conn.execute(sql)
-        conn.execute("PRAGMA journal_mode = WAL")
         """
         if isinstance(sql_stmt, str):
             sql = sql_stmt
@@ -691,17 +673,14 @@ def test_data_integrity(path: Path, use_spatialite: bool = True):
     sql = None
 
     try:
-        if use_spatialite is True:
+        if use_spatialite:
             load_spatialite(conn)
         if path.suffix.lower() == ".gpkg":
             sql = "SELECT EnableGpkgMode();"
             conn.execute(sql)
 
-        # Set nb KB of cache
-        sql = "PRAGMA cache_size=-50000;"
-        conn.execute(sql)
-        # Use memory mapped IO = much faster (max 30GB)
-        conn.execute("PRAGMA mmap_size=30000000000;")
+        # Set some basic default performance options
+        set_performance_options(conn)
 
         # Loop over all layers to check if all data is readable
         for layer in layers:
@@ -719,6 +698,45 @@ def test_data_integrity(path: Path, use_spatialite: bool = True):
         raise Exception(f"Error executing {sql}") from ex
     finally:
         conn.close()
+
+
+def set_performance_options(
+    conn: sqlite3.Connection,
+    profile: Optional[SqliteProfile] = None,
+    database_names: list[str] = [],
+):
+    try:
+        # Set cache size to 128 MB (in kibibytes)
+        sql = "PRAGMA cache_size=-128000;"
+        conn.execute(sql)
+        # Set temp storage to MEMORY
+        sql = "PRAGMA temp_store=2;"
+        conn.execute(sql)
+        # Set soft heap limit to 1 GB (in bytes)
+        sql = f"PRAGMA soft_heap_limit={1024*1024*1024};"
+        conn.execute(sql)
+
+        # Use the sqlite profile specified
+        if profile is not None and profile == SqliteProfile.SPEED:
+            # Use memory mapped IO: much faster for calculations
+            # (max 30GB)
+            sql = "PRAGMA mmap_size=30000000000;"
+            conn.execute(sql)
+
+            # These options don't really make a difference on windows, but
+            # it doesn't hurt and maybe on other platforms...
+            for databasename in database_names:
+                sql = f"PRAGMA {databasename}.journal_mode=OFF;"
+                conn.execute(sql)
+
+                # These pragma's increase speed
+                sql = f"PRAGMA {databasename}.locking_mode=EXCLUSIVE;"
+                conn.execute(sql)
+                sql = f"PRAGMA {databasename}.synchronous=OFF;"
+                conn.execute(sql)
+
+    except Exception as ex:
+        raise RuntimeError(f"Error executing {sql}: {ex}") from ex
 
 
 def load_spatialite(conn):
