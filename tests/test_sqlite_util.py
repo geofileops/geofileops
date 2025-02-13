@@ -59,6 +59,9 @@ def test_create_new_spatialdb_error(
 
 
 @pytest.mark.parametrize("create_spatial_index", [(True), (False)])
+@pytest.mark.filterwarnings(
+    "ignore:.*Using create_spatial_index=True for a GPKG file is not recommended .*"
+)
 def test_create_table_as_sql(tmp_path, create_spatial_index):
     output_path = tmp_path / "output.gpkg"
     input1_path = test_helper.get_testfile(testfile="polygon-parcel", dst_dir=tmp_path)
