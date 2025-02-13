@@ -18,10 +18,9 @@ from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import _sqlite_userdefined as sqlite_userdefined
 from geofileops.util._general_util import MissingRuntimeDependencyError
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     import os
 
-# Get a logger...
 logger = logging.getLogger(__name__)
 
 
