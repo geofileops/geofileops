@@ -143,70 +143,69 @@ def create_new_spatialdb(
     conn = sqlite3.connect(path)
     sql = None
     try:
-        with conn:
-            load_spatialite(conn)
+        load_spatialite(conn)
 
-            # Init file
-            # Starting transaction manually is necessary for performance
-            sql = "BEGIN TRANSACTION;"
+        # Init file
+        # Starting transaction manually is necessary for performance
+        sql = "BEGIN TRANSACTION;"
+        conn.execute(sql)
+
+        if filetype == "gpkg":
+            sql = "SELECT EnableGpkgMode();"
+            conn.execute(sql)
+            # sql = "SELECT EnableGpkgAmphibiousMode();"
+            # conn.execute(sql)
+
+            # Remark: this only works on the main database!
+            sql = "SELECT gpkgCreateBaseTables();"
             conn.execute(sql)
 
-            if filetype == "gpkg":
-                sql = "SELECT EnableGpkgMode();"
-                conn.execute(sql)
-                # sql = "SELECT EnableGpkgAmphibiousMode();"
-                # conn.execute(sql)
-
-                # Remark: this only works on the main database!
-                sql = "SELECT gpkgCreateBaseTables();"
+            if crs_epsg is not None and crs_epsg not in [0, -1, 4326]:
+                sql = f"SELECT gpkgInsertEpsgSRID({crs_epsg});"
                 conn.execute(sql)
 
-                if crs_epsg is not None and crs_epsg not in [0, -1, 4326]:
-                    sql = f"SELECT gpkgInsertEpsgSRID({crs_epsg});"
-                    conn.execute(sql)
+            # The GPKG created till now is of version 1.0. Apply some upgrades to
+            # make it 1.4.
 
-                # The GPKG created till now is of version 1.0. Apply some upgrades to
-                # make it 1.4.
-
-                # Upgrade GPKG from version 1.0 to 1.4.
-                # Most changes are related to rtree index triggers, but they
-                # are not applicable here as this is an empty database at this point.
-                # The 1.3 changes are needed: remove following metadata triggers as they
-                # gave issues in some circumstances.
-                # https://github.com/opengeospatial/geopackage/pull/240
-                triggers_to_remove = [
-                    "gpkg_metadata_md_scope_insert",
-                    "gpkg_metadata_md_scope_update",
-                    "gpkg_metadata_reference_reference_scope_insert",
-                    "gpkg_metadata_reference_reference_scope_update",
-                    "gpkg_metadata_reference_column_name_insert",
-                    "gpkg_metadata_reference_column_name_update",
-                    "gpkg_metadata_reference_row_id_value_insert",
-                    "gpkg_metadata_reference_row_id_value_update",
-                    "gpkg_metadata_reference_timestamp_insert",
-                    "gpkg_metadata_reference_timestamp_update",
-                ]
-                for trigger in triggers_to_remove:
-                    sql = f"DROP TRIGGER IF EXISTS {trigger};"
-                    conn.execute(sql)
-
-                # Set GPKG version to 1.4
-                sql = "PRAGMA application_id=1196444487;"
-                conn.execute(sql)
-                sql = "PRAGMA user_version=10400;"
+            # Upgrade GPKG from version 1.0 to 1.4.
+            # Most changes are related to rtree index triggers, but they
+            # are not applicable here as this is an empty database at this point.
+            # The 1.3 changes are needed: remove following metadata triggers as they
+            # gave issues in some circumstances.
+            # https://github.com/opengeospatial/geopackage/pull/240
+            triggers_to_remove = [
+                "gpkg_metadata_md_scope_insert",
+                "gpkg_metadata_md_scope_update",
+                "gpkg_metadata_reference_reference_scope_insert",
+                "gpkg_metadata_reference_reference_scope_update",
+                "gpkg_metadata_reference_column_name_insert",
+                "gpkg_metadata_reference_column_name_update",
+                "gpkg_metadata_reference_row_id_value_insert",
+                "gpkg_metadata_reference_row_id_value_update",
+                "gpkg_metadata_reference_timestamp_insert",
+                "gpkg_metadata_reference_timestamp_update",
+            ]
+            for trigger in triggers_to_remove:
+                sql = f"DROP TRIGGER IF EXISTS {trigger};"
                 conn.execute(sql)
 
-            elif filetype == "sqlite":
-                sql = "SELECT InitSpatialMetaData(1);"
+            # Set GPKG version to 1.4
+            sql = "PRAGMA application_id=1196444487;"
+            conn.execute(sql)
+            sql = "PRAGMA user_version=10400;"
+            conn.execute(sql)
+
+        elif filetype == "sqlite":
+            sql = "SELECT InitSpatialMetaData(1);"
+            conn.execute(sql)
+            if crs_epsg is not None and crs_epsg not in [0, -1, 4326]:
+                sql = f"SELECT InsertEpsgSrid({crs_epsg});"
                 conn.execute(sql)
-                if crs_epsg is not None and crs_epsg not in [0, -1, 4326]:
-                    sql = f"SELECT InsertEpsgSrid({crs_epsg});"
-                    conn.execute(sql)
 
-            else:
-                raise ValueError(f"Unsupported {filetype=}")
+        else:
+            raise ValueError(f"Unsupported {filetype=}")
 
-            conn.commit()
+        conn.commit()
 
     except ValueError:
         conn.close()
