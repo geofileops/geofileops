@@ -33,7 +33,7 @@
 ### Bugs fixed
 
 - Fix `copy_layer` to a gpkg.zip file (#604)
-- Fix GDAL input open options being ignored in `copy_layer` ()
+- Fix GDAL input open options being ignored in `copy_layer` (#632)
 - Fix `missing_ok` parameter in `remove` being ~ignored (#605)
 
 ## 0.9.1 (2024-07-18)
