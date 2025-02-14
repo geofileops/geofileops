@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 0.9.2 (2025-03-11)
+
+### Bugs fixed
+
+- Fix GDAL input open options being ignored in `copy_layer` (#632)
+
 ## 0.9.1 (2024-07-18)
 
 ### Bugs fixed
