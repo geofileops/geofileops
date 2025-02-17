@@ -62,7 +62,7 @@ some placeholders you can use that will be filled out by geofileops:
         SELECT ST_OrientedEnvelope({{geometrycolumn}}) AS geom
               {{columns_to_select_str}}
           FROM "{{input_layer}}" layer
-         WHERE city_name = '{city}'"
+         WHERE city_name = '{city}'
     """
     gfo.select(
         input_path="...",
