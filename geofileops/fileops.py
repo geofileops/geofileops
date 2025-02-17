@@ -903,7 +903,8 @@ def add_column(
     Args:
         path (PathLike): Path to the geofile.
         name (str): Name for the new column.
-        type (str): Column type of the new column.
+        type (str): Column type of the new column. For GPKG, the supported data types
+            can be found in the |gpkg_specs_datatypes|.
         expression (str; int or float, optional): SQL expression to use to fill out the
             column value. It should be in SQLite syntax and |spatialite_reference_link|
             functions can be used. Defaults to None.
@@ -924,6 +925,18 @@ def add_column(
 
             gfo.add_column(
                 path=..., name="area", type="REAL", expression="ST_Area(geom)",
+            )
+
+
+        For string/text type columns, not that in SQL it is mandatory to use single
+        quotes around the string value. For example:
+
+        .. code-block:: python
+
+            import geofileops as gfo
+
+            gfo.add_column(
+                path=..., type= "TEXT", name="text_column", expression="'Hello!'"
             )
 
 
@@ -948,6 +961,10 @@ def add_column(
     .. |spatialite_reference_link| raw:: html
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    .. |gpkg_specs_datatypes| raw:: html
+
+        <a href="https://www.geopackage.org/spec/#:~:text=Table%201.%20GeoPackage%20Data%20Types" target="_blank">Geopackage specification</a>
 
     """  # noqa: E501
     # Init
@@ -1067,7 +1084,17 @@ def update_column(
 
             import geofileops as gfo
 
-            gfo.update_column(path=..., name="area"expression="ST_Area(geom)")
+            gfo.update_column(path=..., name="area", expression="ST_Area(geom)")
+
+
+        For string/text type columns, not that in SQL it is mandatory to use single
+        quotes around the string value. For example:
+
+        .. code-block:: python
+
+            import geofileops as gfo
+
+            gfo.update_column(path=..., name="text_column", expression="'Hello!'")
 
 
         You can also use more complex SQL expressions like CASE WHEN statements:
