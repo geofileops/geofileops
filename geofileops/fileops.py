@@ -525,6 +525,13 @@ def execute_sql(
             * 'OGRSQL': force the use of the OGR SQL dialect.
             * 'SQLITE': force the use of the SQLITE dialect.
             Defaults to None.
+
+    See Also:
+        read_file : read a layer to a (Geo)DataFrame, optionally using a SQL statement
+        update_column : update the values of a column in the layer
+        add_column : add a column to the layer, optionally using a SQL expression to
+            fill out the values
+
     """
     datasource = None
     try:
@@ -562,6 +569,11 @@ def create_spatial_index(
             exists already. Defaults to False.
         no_geom_ok (bool, options): If True and the file doesn't have a geometry column,
             don't throw an error. Defaults to False.
+
+    See Also:
+        has_spatial_index : check if the layer has a spatial index
+        remove_spatial_index : remove the spatial index from the layer
+
     """
     # Init
     path = Path(path)
@@ -634,6 +646,11 @@ def has_spatial_index(
 
     Returns:
         bool: True if a spatial index exists, False if it doesn't exist.
+
+    See Also:
+        create_spatial_index : create a spatial index on the layer
+        remove_spatial_index : remove the spatial index from the layer
+
     """
     # Init
     path = Path(path)
@@ -712,6 +729,11 @@ def remove_spatial_index(
         path (PathLike): The file path.
         layer (str or LayerInfo, optional): The layer. If not specified, and there is
             only one layer in the file, this layer is used. Otherwise exception.
+
+    See Also:
+        create_spatial_index : create a spatial index on the layer
+        has_spatial_index : check if the layer has a spatial index
+
     """
     # Init
     path = Path(path)
@@ -805,6 +827,13 @@ def rename_column(
         new_column_name (str): new column name.
         layer (Optional[str]): layer name. If not specified, and there is only
             one layer in the file, this layer is used. Otherwise exception.
+
+    See Also:
+        add_column : add a column to the layer
+        drop_column : drop a column from the layer
+        get_layerinfo : get information about the layer, including the list of columns
+        update_column : update a column of the layer
+
     """
     # Check input parameters
     path = Path(path)
@@ -956,6 +985,12 @@ def add_column(
             gfo.add_column(path=..., name="type_id", type="INT", expression=expression)
 
 
+    See Also:
+        drop_column : drop a column from the layer
+        get_layerinfo : get information about the layer, including the list of columns
+        rename_column : rename a column in the layer
+        update_column : update a column of the layer
+
     .. |spatialite_reference_link| raw:: html
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
@@ -1029,6 +1064,13 @@ def drop_column(
         layer (Optional[str]): The layer name. If not specified, and there is only
             one layer in the file, this layer is used. Otherwise a ValueError is
             raised.
+
+    See Also:
+        add_column : add a column to the layer
+        get_layerinfo : get information about the layer, including the list of columns
+        rename_column : rename a column in the layer
+        update_column : update a column of the layer
+
     """
     # Check input parameters
     path = Path(path)
@@ -1109,6 +1151,12 @@ def update_column(
                 END
             '''
             gfo.update_column(path=..., name="type_id", expression=expression)
+
+    See Also:
+        add_column : add a column to the layer
+        drop_column : drop a column from the layer
+        get_layerinfo : get information about the layer, including the list of columns
+        rename_column : rename a column in the layer
 
 
     .. |spatialite_reference_link| raw:: html
