@@ -527,9 +527,9 @@ def execute_sql(
             Defaults to None.
 
     See Also:
-        geofileops.read_file : read a layer to a (Geo)DataFrame, optionally using a SQL statement
-        geofileops.update_column : update the values of a column in the layer
-        geofileops.add_column : add a column to the layer, optionally using a SQL expression to fill out the values
+        fileops.read_file : read a layer to a (Geo)DataFrame, optionally using a SQL statement
+        fileops.update_column : update the values of a column in the layer
+        fileops.add_column : add a column to the layer, optionally using a SQL expression to fill out the values
 
     """  # noqa: E501
     datasource = None
@@ -570,8 +570,8 @@ def create_spatial_index(
             don't throw an error. Defaults to False.
 
     See Also:
-        has_spatial_index : check if the layer has a spatial index
-        remove_spatial_index : remove the spatial index from the layer
+        geofileops.has_spatial_index : check if the layer has a spatial index
+        fileops.remove_spatial_index : remove the spatial index from the layer
 
     """
     # Init
