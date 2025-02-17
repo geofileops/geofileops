@@ -898,12 +898,15 @@ def add_column(
 ):
     """Add a column to a layer of the geofile.
 
+    You can specify an `expression` to use to fill out the value of the column.
+
     Args:
         path (PathLike): Path to the geofile.
         name (str): Name for the new column.
         type (str): Column type of the new column.
-        expression (str; int or float, optional): SQLite expression to use to update
-            the value. Defaults to None.
+        expression (str; int or float, optional): SQL expression to use to update the
+            value. It should be in SQLite syntax and |spatialite_reference_link|
+            functions can be used. Defaults to None.
         expression_dialect (str, optional): SQL dialect used for the expression.
         layer (str, optional): The layer name. If None and the geofile
             has only one layer, that layer is used. Defaults to None.
@@ -911,9 +914,40 @@ def add_column(
             the update anyway. Defaults to False.
         width (int, optional): the width of the field.
 
-    Raises:
-        ex: [description]
-    """
+    Examples:
+        A typical example is to add a column with the area of the geometry to the layer.
+        This uses the `ST_Area` function from spatialite (|spatialite_reference_link|):
+
+        .. code-block:: python
+
+            import geofileops as gfo
+
+            gfo.add_column(
+                path=..., name="area", type="REAL", expression="ST_Area(geom)",
+            )
+
+
+        You can also use more complex SQL expressions like CASE WHEN statements:
+
+        .. code-block:: python
+
+            import geofileops as gfo
+
+            expression = '''
+                CASE
+                    WHEN "type" = 'A' THEN 1
+                    WHEN "type" = 'B' THEN 2
+                    ELSE 3
+                END
+            '''
+            gfo.add_column(path=..., name="area", type="REAL", expression=expression)
+
+
+    .. |spatialite_reference_link| raw:: html
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     # Init
     if isinstance(type, DataType):
         type_str = type.value
