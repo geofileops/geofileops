@@ -557,8 +557,10 @@ def test_export_by_location_invalid_params(kwargs, expected_error):
     "query, subdivide_coords, exp_featurecount",
     [
         ("intersects is True or intersects is False", 0, 48),
+        ("intersects is True or intersects is False", 10, 48),
         ("intersects is True", 10, 27),
         ("within is True", 0, 8),
+        ("intersects is False", 0, 21),
         ("intersects is False", 10, 21),
         ("within is False", 10, 39),
         ("disjoint is True", 0, 21),
