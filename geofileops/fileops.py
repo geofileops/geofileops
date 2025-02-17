@@ -570,8 +570,8 @@ def create_spatial_index(
             don't throw an error. Defaults to False.
 
     See Also:
-        :func:`has_spatial_index` : check if the layer has a spatial index
-        :func:`remove_spatial_index` : remove the spatial index from the layer
+        :func:`has_spatial_index`: check if the layer has a spatial index
+        :func:`remove_spatial_index`: remove the spatial index from the layer
 
     """
     # Init
