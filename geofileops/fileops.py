@@ -904,8 +904,8 @@ def add_column(
         path (PathLike): Path to the geofile.
         name (str): Name for the new column.
         type (str): Column type of the new column.
-        expression (str; int or float, optional): SQL expression to use to update the
-            value. It should be in SQLite syntax and |spatialite_reference_link|
+        expression (str; int or float, optional): SQL expression to use to fill out the
+            column value. It should be in SQLite syntax and |spatialite_reference_link|
             functions can be used. Defaults to None.
         expression_dialect (str, optional): SQL dialect used for the expression.
         layer (str, optional): The layer name. If None and the geofile
@@ -940,7 +940,9 @@ def add_column(
                     ELSE 3
                 END
             '''
-            gfo.add_column(path=..., name="area", type="REAL", expression=expression)
+            gfo.add_column(
+                path=..., name="type_id", type="INTEGER", expression=expression
+            )
 
 
     .. |spatialite_reference_link| raw:: html
@@ -1047,15 +1049,48 @@ def update_column(
     Args:
         path (PathLike): Path to the geofile
         name (str): Name for the new column
-        expression (str): SQLite expression to use to update the value.
+        expression (str): SQL expression to use to update the column value. It should be
+            in SQLite syntax and |spatialite_reference_link| functions can be used.
+            Defaults to None.
         layer (str, optional): The layer name. If None and the geofile
             has only one layer, that layer is used. Defaults to None.
         where (str, optional): SQL where clause to restrict the rows that will
             be updated. Defaults to None.
 
-    Raises:
-        ValueError: an invalid parameter value was passed.
-    """
+
+    Examples:
+        A typical example is to update an "area" column after doing an operation on the
+        geometry. This uses the `ST_Area` function from spatialite
+        (|spatialite_reference_link|):
+
+        .. code-block:: python
+
+            import geofileops as gfo
+
+            gfo.update_column(path=..., name="area"expression="ST_Area(geom)")
+
+
+        You can also use more complex SQL expressions like CASE WHEN statements:
+
+        .. code-block:: python
+
+            import geofileops as gfo
+
+            expression = '''
+                CASE
+                    WHEN "type" = 'A' THEN 1
+                    WHEN "type" = 'B' THEN 2
+                    ELSE 3
+                END
+            '''
+            gfo.update_column(path=..., name="type_id", expression=expression)
+
+
+    .. |spatialite_reference_link| raw:: html
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     # Init
     path = Path(path)
     layerinfo = get_layerinfo(path, layer)
