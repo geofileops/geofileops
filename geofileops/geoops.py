@@ -3198,6 +3198,7 @@ def symmetric_difference(
         :func:`intersection`: calculate the intersection of two layers
         :func:`union`: calculate the union of two layers
 
+
     .. |spatialite_reference_link| raw:: html
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
