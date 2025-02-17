@@ -2948,7 +2948,7 @@ def select_two_layers(
 
     Examples:
         An ideal place to get inspiration to write you own advanced queries
-        is in the following source code file: |geofileops_sql_link|.
+        is in the following source code file: |geoops_sql_link|.
 
         Additionally, there are some examples listed here that highlight
         other features/possibilities.
@@ -2999,9 +2999,9 @@ def select_two_layers(
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
 
-    .. |geofileops_sql_link| raw:: html
+    .. |geoops_sql_link| raw:: html
 
-        <a href="https://github.com/geofileops/geofileops/blob/main/geofileops/util/geofileops_sql.py" target="_blank">geofileops_sql.py</a>
+        <a href="https://github.com/geofileops/geofileops/blob/main/geofileops/util/_geoops_sql.py" target="_blank">_geoops_sql.py</a>
 
     '''  # noqa: E501
     logger = logging.getLogger("geofileops.select_two_layers")
