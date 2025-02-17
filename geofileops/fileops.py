@@ -527,12 +527,11 @@ def execute_sql(
             Defaults to None.
 
     See Also:
-        read_file : read a layer to a (Geo)DataFrame, optionally using a SQL statement
-        update_column : update the values of a column in the layer
-        add_column : add a column to the layer, optionally using a SQL expression to
-            fill out the values
+        geofileops.read_file : read a layer to a (Geo)DataFrame, optionally using a SQL statement
+        geofileops.update_column : update the values of a column in the layer
+        geofileops.add_column : add a column to the layer, optionally using a SQL expression to fill out the values
 
-    """
+    """  # noqa: E501
     datasource = None
     try:
         datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
