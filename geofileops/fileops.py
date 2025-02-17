@@ -527,9 +527,9 @@ def execute_sql(
             Defaults to None.
 
     See Also:
-        fileops.read_file : read a layer to a (Geo)DataFrame, optionally using a SQL statement
-        fileops.update_column : update the values of a column in the layer
-        fileops.add_column : add a column to the layer, optionally using a SQL expression to fill out the values
+        :func:`read_file`: read a layer to a (Geo)DataFrame, optionally using a SQL statement
+        :func:`update_column`: update the values of a column in the layer
+        :func:`add_column`: add a column to the layer, optionally using a SQL expression to fill out the values
 
     """  # noqa: E501
     datasource = None
@@ -647,8 +647,8 @@ def has_spatial_index(
         bool: True if a spatial index exists, False if it doesn't exist.
 
     See Also:
-        create_spatial_index : create a spatial index on the layer
-        remove_spatial_index : remove the spatial index from the layer
+        :func:`create_spatial_index`: create a spatial index on the layer
+        :func:`remove_spatial_index`: remove the spatial index from the layer
 
     """
     # Init
@@ -730,8 +730,8 @@ def remove_spatial_index(
             only one layer in the file, this layer is used. Otherwise exception.
 
     See Also:
-        create_spatial_index : create a spatial index on the layer
-        has_spatial_index : check if the layer has a spatial index
+        :func:`create_spatial_index`: create a spatial index on the layer
+        :func:`has_spatial_index`: check if the layer has a spatial index
 
     """
     # Init
@@ -828,10 +828,10 @@ def rename_column(
             one layer in the file, this layer is used. Otherwise exception.
 
     See Also:
-        add_column : add a column to the layer
-        drop_column : drop a column from the layer
-        get_layerinfo : get information about the layer, including the list of columns
-        update_column : update a column of the layer
+        :func:`add_column`: add a column to the layer
+        :func:`drop_column`: drop a column from the layer
+        :func:`get_layerinfo`: get information about the layer, including the list of columns
+        :func:`update_column`: update a column of the layer
 
     """
     # Check input parameters
@@ -985,10 +985,10 @@ def add_column(
 
 
     See Also:
-        drop_column : drop a column from the layer
-        get_layerinfo : get information about the layer, including the list of columns
-        rename_column : rename a column in the layer
-        update_column : update a column of the layer
+        :func:`drop_column`: drop a column from the layer
+        :func:`get_layerinfo`: get information about the layer, including the list of columns
+        :func:`rename_column`: rename a column in the layer
+        :func:`update_column`: update a column of the layer
 
     .. |spatialite_reference_link| raw:: html
 
@@ -1065,10 +1065,10 @@ def drop_column(
             raised.
 
     See Also:
-        add_column : add a column to the layer
-        get_layerinfo : get information about the layer, including the list of columns
-        rename_column : rename a column in the layer
-        update_column : update a column of the layer
+        :func:`add_column`: add a column to the layer
+        :func:`get_layerinfo`: get information about the layer, including the list of columns
+        :func:`rename_column`: rename a column in the layer
+        :func:`update_column`: update a column of the layer
 
     """
     # Check input parameters
@@ -1152,10 +1152,10 @@ def update_column(
             gfo.update_column(path=..., name="type_id", expression=expression)
 
     See Also:
-        add_column : add a column to the layer
-        drop_column : drop a column from the layer
-        get_layerinfo : get information about the layer, including the list of columns
-        rename_column : rename a column in the layer
+        :func:`add_column`: add a column to the layer
+        :func:`drop_column`: drop a column from the layer
+        :func:`get_layerinfo`: get information about the layer, including the list of columns
+        :func:`rename_column`: rename a column in the layer
 
 
     .. |spatialite_reference_link| raw:: html
