@@ -936,7 +936,7 @@ def add_column(
             import geofileops as gfo
 
             gfo.add_column(
-                path=..., type= "TEXT", name="text_column", expression="'Hello!'"
+                path=..., type="TEXT", name="text_column", expression="'Hello!'"
             )
 
 
@@ -953,9 +953,7 @@ def add_column(
                     ELSE 3
                 END
             '''
-            gfo.add_column(
-                path=..., name="type_id", type="INTEGER", expression=expression
-            )
+            gfo.add_column(path=..., name="type_id", type="INT", expression=expression)
 
 
     .. |spatialite_reference_link| raw:: html
