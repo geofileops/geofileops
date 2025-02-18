@@ -184,8 +184,6 @@ such operations:
 
 .. code-block:: python
 
-    import geofileops as gfo
-
     gfo.add_column("file.gpkg", name="area", type="REAL", expression="ST_Area(geom)")
     gfo.update_column("file.gpkg", name="area", expression="ST_Area(geom)")
 
@@ -194,8 +192,6 @@ For string/text type columns, note that in SQL it is mandatory to use single
 quotes around the string value. For example:
 
 .. code-block:: python
-
-    import geofileops as gfo
 
     gfo.add_column("file.gpkg", type="TEXT", name="text_column", expression="'Hello!'")
 

@@ -959,10 +959,8 @@ def add_column(
 
         .. code-block:: python
 
-            import geofileops as gfo
-
             gfo.add_column(
-                path=..., name="area", type="REAL", expression="ST_Area(geom)",
+                "file.gpkg", name="area", type="REAL", expression="ST_Area(geom)",
             )
 
 
@@ -971,18 +969,14 @@ def add_column(
 
         .. code-block:: python
 
-            import geofileops as gfo
-
             gfo.add_column(
-                path=..., type="TEXT", name="text_column", expression="'Hello!'"
+                "file.gpkg", type="TEXT", name="text_column", expression="'Hello!'"
             )
 
 
         You can also use more complex SQL expressions like CASE WHEN statements:
 
         .. code-block:: python
-
-            import geofileops as gfo
 
             expression = '''
                 CASE
@@ -991,7 +985,7 @@ def add_column(
                     ELSE 3
                 END
             '''
-            gfo.add_column(path=..., name="type_id", type="INT", expression=expression)
+            gfo.add_column("file.gpkg", "type_id", "INT", expression=expression)
 
 
     .. |spatialite_reference_link| raw:: html
@@ -1132,9 +1126,7 @@ def update_column(
 
         .. code-block:: python
 
-            import geofileops as gfo
-
-            gfo.update_column(path=..., name="area", expression="ST_Area(geom)")
+            gfo.update_column("file.gpkg", name="area", expression="ST_Area(geom)")
 
 
         For string/text type columns, not that in SQL it is mandatory to use single
@@ -1142,16 +1134,12 @@ def update_column(
 
         .. code-block:: python
 
-            import geofileops as gfo
-
-            gfo.update_column(path=..., name="text_column", expression="'Hello!'")
+            gfo.update_column("file.gpkg", name="text_column", expression="'Hello!'")
 
 
         You can also use more complex SQL expressions like CASE WHEN statements:
 
         .. code-block:: python
-
-            import geofileops as gfo
 
             expression = '''
                 CASE
@@ -1160,7 +1148,7 @@ def update_column(
                     ELSE 3
                 END
             '''
-            gfo.update_column(path=..., name="type_id", expression=expression)
+            gfo.update_column("file.gpkg", name="type_id", expression=expression)
 
 
     .. |spatialite_reference_link| raw:: html

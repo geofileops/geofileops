@@ -455,11 +455,9 @@ def apply(
 
         .. code-block:: python
 
-            import geofileops as gfo
-
             gfo.apply(
-                input_path=...,
-                output_path=...,
+                input_path="input.gpkg",
+                output_path="output.gpkg",
                 func=lambda geom: pygeoops.remove_inner_rings(geom, min_area_to_keep=1),
             )
 
@@ -468,11 +466,9 @@ def apply(
 
         .. code-block:: python
 
-            import geofileops as gfo
-
             gfo.apply(
-                input_path=...,
-                output_path=...,
+                input_path="input.gpkg",
+                output_path="output.gpkg",
                 func=lambda row: pygeoops.remove_inner_rings(
                     row.geometry, min_area_to_keep=row.min_area_to_keep
                 ),
@@ -578,11 +574,9 @@ def apply_vectorized(
 
         .. code-block:: python
 
-            import geofileops as gfo
-
             gfo.apply_vectorized(
-                input_path=...,
-                output_path=...,
+                input_path="input.gpkg",
+                output_path="output.gpkg",
                 func=lambda geom: pygeoops.centerline(geom, densify_distance=0),
             )
 
@@ -1048,11 +1042,9 @@ def dissolve(
 
     .. code-block:: python
 
-        import geofileops as gfo
-
         gfo.dissolve(
-            input_path=...,
-            output_path=...,
+            input_path="input.gpkg",
+            output_path="output.gpkg",
             groupby_columns=["cropgroup"],
             agg_columns={
                 "columns": [
@@ -1079,11 +1071,9 @@ def dissolve(
 
     .. code-block:: python
 
-        import geofileops as gfo
-
         gfo.dissolve(
-            input_path=...,
-            output_path=...,
+            input_path="input.gpkg",
+            output_path="output.gpkg",
             groupby_columns=["cropgroup"],
             agg_columns={"json": ["crop", "area"]},
             explodecollections=False,
@@ -1625,8 +1615,6 @@ def select(
 
         .. code-block:: python
 
-            import geofileops as gfo
-
             minimum_area = 100
             sql_stmt = f"""
                 SELECT ST_Buffer({{geometrycolumn}}, 1) AS {{geometrycolumn}}
@@ -1637,8 +1625,8 @@ def select(
                    AND ST_Area({{geometrycolumn}}) > {minimum_area}
             """
             gfo.select(
-                input_path=...,
-                output_path=...,
+                input_path="input.gpkg",
+                output_path="output.gpkg",
                 sql_stmt=sql_stmt,
             )
 
@@ -2997,8 +2985,6 @@ def select_two_layers(
 
         .. code-block:: python
 
-            import geofileops as gfo
-
             minimum_area = 100
             sql_stmt = f"""
                 SELECT layer1.{{input1_geometrycolumn}}
@@ -3012,9 +2998,9 @@ def select_two_layers(
                    AND ST_Area(layer1.{{input1_geometrycolumn}}) > {minimum_area}
             """
             gfo.select_two_layers(
-                input1_path=...,
-                input2_path=...,
-                output_path=...,
+                input1_path="input1.gpkg",
+                input2_path="input2.gpkg",
+                output_path="output.gpkg",
                 sql_stmt=sql_stmt,
             )
 
