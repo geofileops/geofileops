@@ -2866,7 +2866,7 @@ def join_nearest(
         * :func:`join_by_location`: join features that e.g. intersect with features of
           another layer
 
-    """  # noqa: E501
+    """
     logger = logging.getLogger("geofileops.join_nearest")
     logger.info(f"select from {input1_path} joined with {input2_path} to {output_path}")
     return _geoops_sql.join_nearest(
