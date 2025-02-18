@@ -446,6 +446,10 @@ def apply(
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
+    See Also:
+        * :func:`apply_vectorized`: apply a vectorized python function on the geometry
+          column
+
     Examples:
         This example shows the basic usage of ``gfo.apply``:
 
@@ -475,9 +479,6 @@ def apply(
                 only_geom_input=False,
             )
 
-    See Also:
-        * :func:`apply_vectorized`: apply a vectorized python function on the geometry
-          column
 
     .. |spatialite_reference_link| raw:: html
 
@@ -569,6 +570,9 @@ def apply_vectorized(
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
+    See Also:
+        * :func:`apply`: apply a python function on the geometry column
+
     Examples:
         This example shows the usage of ``gfo.apply_vectorized``:
 
@@ -582,9 +586,6 @@ def apply_vectorized(
                 func=lambda geom: pygeoops.centerline(geom, densify_distance=0),
             )
 
-
-    See Also:
-        * :func:`apply`: apply a python function on the geometry column
 
     .. |spatialite_reference_link| raw:: html
 
@@ -1601,6 +1602,10 @@ def select(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s). Defaults to False.
 
+    See Also:
+        * :func:`select_two_layers`: select features using two input layers based on a
+          SQL query
+
     Notes:
         By convention, the sqlite query can contain following placeholders that
         will be automatically replaced for you:
@@ -1673,10 +1678,6 @@ def select(
           start with a "," and if no column precedes it the SQL statement will be
           invalid.
 
-
-    See Also:
-        * :func:`select_two_layers`: select features using two input layers based on a
-          SQL query
 
     .. |spatialite_reference_link| raw:: html
 
@@ -3037,6 +3038,9 @@ def select_two_layers(
           {layer1_columns_prefix_str}), they will start with a "," and if no column
           precedes it the SQL statement will be invalid.
 
+    See Also:
+        * :func:`select`: select features from a layer based on a SQL query
+
     Examples:
         An ideal place to get inspiration to write you own advanced queries
         is in the following source code file: |geoops_sql_link|.
@@ -3084,9 +3088,6 @@ def select_two_layers(
                   FROM join_with_dist jwd
                  WHERE pos = 1
             """
-
-    See Also:
-        * :func:`select`: select features from a layer based on a SQL query
 
     .. |spatialite_reference_link| raw:: html
 
