@@ -91,7 +91,7 @@ def dissolve_within_distance(
             Defaults to False.
 
     See Also:
-        :func:`dissolve`: dissolve the input layer
+        * :func:`dissolve`: dissolve the input layer
 
     """
     input_path = Path(input_path)
@@ -476,7 +476,8 @@ def apply(
             )
 
     See Also:
-        :func:`apply_vectorized`: apply a vectorized python function on the geometry column
+        * :func:`apply_vectorized`: apply a vectorized python function on the geometry
+          column
 
     .. |spatialite_reference_link| raw:: html
 
@@ -583,7 +584,7 @@ def apply_vectorized(
 
 
     See Also:
-        :func:`apply`: apply a python function on the geometry column
+        * :func:`apply`: apply a python function on the geometry column
 
     .. |spatialite_reference_link| raw:: html
 
@@ -863,7 +864,7 @@ def clip_by_geometry(
             Defaults to False.
 
     See Also:
-        :func:`clip`: clip geometries by the features in another layer
+        * :func:`clip`: clip geometries by the features in another layer
 
     """
     logger = logging.getLogger("geofileops.clip_by_geometry")
@@ -1170,7 +1171,8 @@ def dissolve(
             Defaults to False.
 
     See Also:
-        :func:`dissolve_within_distance`: dissolve all feature within the distance specified of each other
+        * :func:`dissolve_within_distance`: dissolve all feature within the distance
+          specified of each other
 
 
     .. |spatialite_reference_link| raw:: html
@@ -1316,7 +1318,7 @@ def isvalid(
         bool: True if all geometries were valid.
 
     See Also:
-        :func:`make_valid`: make the geometries in the input layer valid
+        * :func:`make_valid`: make the geometries in the input layer valid
 
     """
     # Check parameters
@@ -1411,7 +1413,7 @@ def makevalid(
             Defaults to False.
 
     See Also:
-        :func:`isvalid`: check if the geometries in the input layer are valid
+        * :func:`isvalid`: check if the geometries in the input layer are valid
 
     .. |spatialite_reference_link| raw:: html
 
@@ -1673,7 +1675,8 @@ def select(
 
 
     See Also:
-        :func:`select_two_layers`: select features using two input layers based on a SQL query
+        * :func:`select_two_layers`: select features using two input layers based on a
+          SQL query
 
     .. |spatialite_reference_link| raw:: html
 
@@ -1894,7 +1897,7 @@ def clip(
             Defaults to False.
 
     See Also:
-        :func:`clip_by_geometry`: clip the input layer by a geometry specified
+        * :func:`clip_by_geometry`: clip the input layer by a geometry specified
 
     .. |spatialite_reference_link| raw:: html
 
@@ -2001,10 +2004,10 @@ def difference(
             Defaults to False.
 
     See Also:
-        :func:`identity`: calculate the identity of two layers
-        :func:`intersection`: calculate the intersection of two layers
-        :func:`symmetric_difference`: calculate the symmetric difference of two layers
-        :func:`union`: calculate the union of two layers
+        * :func:`identity`: calculate the identity of two layers
+        * :func:`intersection`: calculate the intersection of two layers
+        * :func:`symmetric_difference`: calculate the symmetric difference of two layers
+        * :func:`union`: calculate the union of two layers
 
     .. |spatialite_reference_link| raw:: html
 
@@ -2166,10 +2169,14 @@ def export_by_location(
             Defaults to False.
 
     See Also:
-        :func:`export_by_bounds`: export features that intersect with the bounds specified
-        :func:`export_by_distance`: export features that are within a certain distance of features of another layer
-        :func:`export_by_location`: export features that e.g. intersect with features of another layer
-        :func:`join_by_location`: join features that e.g. intersect with features of another layer
+        * :func:`export_by_bounds`: export features that intersect with the bounds
+          specified
+        * :func:`export_by_distance`: export features that are within a certain distance
+          of features of another layer
+        * :func:`export_by_location`: export features that e.g. intersect with features
+          of another layer
+        * :func:`join_by_location`: join features that e.g. intersect with features of
+          another layer
 
     .. |spatialite_reference_link| raw:: html
 
@@ -2258,8 +2265,10 @@ def export_by_distance(
             Defaults to False.
 
     See Also:
-        :func:`export_by_bounds`: export features that intersect with the bounds specified
-        :func:`export_by_location`: export features that e.g. intersect with features of another layer
+        * :func:`export_by_bounds`: export features that intersect with the bounds
+          specified
+        * :func:`export_by_location`: export features that e.g. intersect with features
+          of another layer
 
     .. |spatialite_reference_link| raw:: html
 
@@ -2371,10 +2380,10 @@ def identity(
             Defaults to False.
 
     See Also:
-        :func:`difference`: calculate the difference between two layers
-        :func:`intersection`: calculate the intersection of two layers
-        :func:`symmetric_difference`: calculate the symmetric difference of two layers
-        :func:`union`: calculate the union of two layers
+        * :func:`difference`: calculate the difference between two layers
+        * :func:`intersection`: calculate the intersection of two layers
+        * :func:`symmetric_difference`: calculate the symmetric difference of two layers
+        * :func:`union`: calculate the union of two layers
 
     .. |spatialite_reference_link| raw:: html
 
@@ -2591,10 +2600,10 @@ def intersection(
             Defaults to False.
 
     See Also:
-        :func:`difference`: calculate the difference between two layers
-        :func:`identity`: calculate the identity of two layers
-        :func:`symmetric_difference`: calculate the symmetric difference of two layers
-        :func:`union`: calculate the union of two layers
+        * :func:`difference`: calculate the difference between two layers
+        * :func:`identity`: calculate the identity of two layers
+        * :func:`symmetric_difference`: calculate the symmetric difference of two layers
+        * :func:`union`: calculate the union of two layers
 
     .. |spatialite_reference_link| raw:: html
 
@@ -2731,8 +2740,10 @@ def join_by_location(
             Defaults to False.
 
     See Also:
-        :func:`export_by_location`: export features that e.g. intersect with features of another layer
-        :func:`join_by_distance`: join features that are within a certain distance of features of another layer
+        * :func:`export_by_location`: export features that e.g. intersect with features
+          of another layer
+        * :func:`join_by_distance`: join features that are within a certain distance of
+          features of another layer
 
     .. |spatialite_reference_link| raw:: html
 
@@ -2849,8 +2860,10 @@ def join_nearest(
             Defaults to False.
 
     See Also:
-        :func:`export_by_distance`: export features that are within a certain distance of features of another layer
-        :func:`join_by_location`: join features that e.g. intersect with features of another layer
+        * :func:`export_by_distance`: export features that are within a certain distance
+          of features of another layer
+        * :func:`join_by_location`: join features that e.g. intersect with features of
+          another layer
 
     """  # noqa: E501
     logger = logging.getLogger("geofileops.join_nearest")
@@ -3073,7 +3086,7 @@ def select_two_layers(
             """
 
     See Also:
-        :func:`select`: select features from a layer based on a SQL query
+        * :func:`select`: select features from a layer based on a SQL query
 
     .. |spatialite_reference_link| raw:: html
 
@@ -3333,10 +3346,10 @@ def union(
             Defaults to False.
 
     See Also:
-        :func:`difference`: calculate the difference between two layers
-        :func:`identity`: calculate the identity of two layers
-        :func:`intersection`: calculate the intersection of two layers
-        :func:`symmetric_difference`: calculate the symmetric difference of two layers
+        * :func:`difference`: calculate the difference between two layers
+        * :func:`identity`: calculate the identity of two layers
+        * :func:`intersection`: calculate the intersection of two layers
+        * :func:`symmetric_difference`: calculate the symmetric difference of two layers
 
     .. |spatialite_reference_link| raw:: html
 
