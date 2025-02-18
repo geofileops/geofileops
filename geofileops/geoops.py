@@ -3193,14 +3193,10 @@ def symmetric_difference(
             Defaults to False.
 
     See Also:
-        :func:`difference`:
-            calculate the difference between two layers
-        :func:`identity`:
-            calculate the identity of two layers
-        :func:`intersection`:
-            calculate the intersection of two layers
-        :func:`union`:
-            calculate the union of two layers
+        * :func:`difference`: calculate the difference between two layers
+        * :func:`identity`: calculate the identity of two layers
+        * :func:`intersection`: calculate the intersection of two layers
+        * :func:`union`: calculate the union of two layers
 
     .. |spatialite_reference_link| raw:: html
 
