@@ -1244,8 +1244,10 @@ def export_by_bounds(
             Defaults to False.
 
     See Also:
-        :func:`export_by_distance`: export features that are within a certain distance of features of another layer
-        :func:`export_by_location`: export features that e.g. intersect with features of another layer
+        * :func:`export_by_distance`: export features that are within a certain distance
+          of features of another layer
+        * :func:`export_by_location`: export features that e.g. intersect with features
+          of another layer
 
     """
     logger = logging.getLogger("geofileops.export_by_bounds")
