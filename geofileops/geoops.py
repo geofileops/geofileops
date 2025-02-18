@@ -404,7 +404,7 @@ def apply(
     The result is written to the output file specified.
 
     If the function you want to apply accepts an array of geometries as input, you can
-    typically use :func:`gfo.apply_vectorized` instead, which is faster.
+    typically use :func:`apply_vectorized` instead, which is faster.
 
     If ``explodecollections`` is False and the input and output file type is GeoPackage,
     the fid will be preserved. In other cases this will typically not be the case.
@@ -528,7 +528,7 @@ def apply_vectorized(
     The result is written to the output file specified.
 
     It is not possible to use the contents of other columns in the input file in the
-    python function. If you need this, use ``gfo.apply`` instead.
+    python function. If you need this, use :func:`apply` instead.
 
     If ``explodecollections`` is False and the input and output file type is GeoPackage,
     the fid will be preserved. In other cases this will typically not be the case.
