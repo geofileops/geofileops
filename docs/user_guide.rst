@@ -65,8 +65,8 @@ some placeholders you can use that will be filled out by geofileops:
          WHERE city_name = '{city}'
     """
     gfo.select(
-        input_path="...",
-        output_path="...",
+        input_path=...,
+        output_path=...,
         columns=["city_name", "city_code"],
         sql_stmt=sql_stmt,
     )
@@ -82,8 +82,8 @@ Finally, you can apply any python function on the geometry column using :meth:`~
         return new_geom
 
     gfo.apply(
-        input_path="...",
-        output_path="...",
+        input_path=...,
+        output_path=...,
         func=lambda geom: cleanup(geom, min_area_to_keep=1),
     )
 
@@ -153,11 +153,76 @@ Finally there are also some :ref:`general functions <reference-general-layer-ops
 available to manipulate geo files or layers. Eg. :meth:`~copy`, :meth:`~move`,
 :meth:`~get_layerinfo`, :meth:`~add_column`, ...
 
-This is an example to get information like the number of features, the columns, ...
-of a layer. If there is only one layer in the file, the `layer` doesn't need
-to be specified:
+A common need is to get general information about a layer, like the number of features,
+the columns,... , without reading the entire file. If there is only one layer in the
+file, the `layer` doesn't need to be specified:
 
 .. code-block:: python
 
-    layerinfo = gfo.get_layerinfo(path="...")
+    layerinfo = gfo.get_layerinfo(path=...)
     print(f"Layer {layerinfo.name} contains {layerinfo.featurecount} features")
+
+
+You can also add, update,... columns directly to a file layer using :meth:`~add_column`,
+:meth:`~update_column`, ... The values can be filled out using a SQL expression. The SQL
+expression should use the SQLite dialect and you can also use spatialite function 
+(`spatialite functions <https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html>`_).
+
+A typical example is to add a column with the area of the geometry to the layer. 
+This uses the `ST_Area` spatialite function. Note that such an "area" column won't be
+updated automatically if you change the geometry of the features in the layer, e.g. by
+applying a buffer. You can use :meth:`~update_column` to update the area if needed after
+such operations:
+
+.. code-block:: python
+
+    import geofileops as gfo
+
+    gfo.add_column(path=..., name="area", type="REAL", expression="ST_Area(geom)")
+    gfo.update_column(path=..., name="area", expression="ST_Area(geom)")
+
+
+For string/text type columns, note that in SQL it is mandatory to use single
+quotes around the string value. For example:
+
+.. code-block:: python
+
+    import geofileops as gfo
+
+    gfo.add_column(path=..., type="TEXT", name="text_column", expression="'Hello!'")
+
+
+Geofileops also has some functions to read and write GeoDataFrames. They are very
+similar to the geopandas equivalents with some small differences. For example, you can
+use some placeholders in the SQL statements that will be filled out by geofileops to
+make it easier to reuse statements:
+
+.. code-block:: python
+
+    min_area = 100
+    sql_stmt = f"""
+        SELECT {{geometrycolumn}}
+              {{columns_to_select_str}}
+              ,ST_Area({{geometrycolumn}}) AS area
+          FROM "{{input_layer}}" layer
+         WHERE ST_Area(geom) > {min_area}
+    """
+    gdf = gfo.read_file(path=..., sql_stmt=sql_stmt, columns=["city_name", "city_code"])
+    gfo.write_file(gdf, path=...)
+
+
+Because you can use any SQL statement, you can also easily run some statistics on a
+dataset like this:
+
+.. code-block:: python
+
+    sql_stmt = f"""
+        SELECT city_code
+              ,city_name
+              ,COUNT(*) AS count
+              ,SUM(ST_Area({{geometrycolumn}})) AS total_area
+          FROM "{{input_layer}}" layer
+         GROUP BY city_code, city_name
+    """
+    stats_df = gfo.read_file(path=..., sql_stmt=sql_stmt)
+    stats_df.to_excel("stats.xlsx", index=False)
