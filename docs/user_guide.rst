@@ -44,7 +44,9 @@ supported, eg. :meth:`~buffer`, :meth:`~simplify`, :meth:`~convexhull`,
 
 .. code-block:: python
 
-    gfo.simplify(input_path="...", output_path="...", algorythm="vw", tolerance=1)
+    gfo.simplify(
+        input_path="input.gpkg", output_path="output.gpkg", algorythm="vw", tolerance=1
+    )
 
 
 Some more exotic ones are e.g. :meth:`dissolve_within_distance` and :meth:`warp`.
@@ -57,6 +59,9 @@ some placeholders you can use that will be filled out by geofileops:
 
 .. code-block:: python
 
+    # When evaluating an f-string, Python replaces double curly braces with a single
+    # curly brace. Hence, e.g. "{{input_layer}}" becomes "{input_layer}" so it is ready
+    # to be filled out by geofileops.
     city = "Brussels"
     sql_stmt = f"""
         SELECT ST_OrientedEnvelope({{geometrycolumn}}) AS geom
@@ -65,8 +70,8 @@ some placeholders you can use that will be filled out by geofileops:
          WHERE city_name = '{city}'
     """
     gfo.select(
-        input_path=...,
-        output_path=...,
+        input_path="input.gpkg",
+        output_path="output.gpkg",
         columns=["city_name", "city_code"],
         sql_stmt=sql_stmt,
     )
@@ -82,8 +87,8 @@ Finally, you can apply any python function on the geometry column using :meth:`~
         return new_geom
 
     gfo.apply(
-        input_path=...,
-        output_path=...,
+        input_path="input.gpkg",
+        output_path="output.gpkg",
         func=lambda geom: cleanup(geom, min_area_to_keep=1),
     )
 
@@ -114,7 +119,9 @@ An example:
 
 .. code-block:: python
 
-    gfo.identity(input1_path="...", input2_path="...", output_path="...")
+    gfo.identity(
+        input1_path="input1.gpkg", input2_path="input2.gpkg", output_path="output.gpkg"
+    )
 
 
 In addition, if you specify ``input2_path=None``, the result will be the self-overlay of
@@ -159,13 +166,14 @@ file, the `layer` doesn't need to be specified:
 
 .. code-block:: python
 
-    layerinfo = gfo.get_layerinfo(path=...)
+    layerinfo = gfo.get_layerinfo("file.gpkg")
     print(f"Layer {layerinfo.name} contains {layerinfo.featurecount} features")
 
 
-You can also add, update,... columns directly to a file layer using :meth:`~add_column`,
-:meth:`~update_column`, ... The values can be filled out using a SQL expression. The SQL
-expression should use the SQLite dialect and you can also use spatialite function 
+You can also add, update, ... columns directly to a file layer using
+:meth:`~add_column`, :meth:`~update_column`, ... The values can be filled out using a
+SQL expression. The SQLexpression should use the SQLite dialect and you can also use
+spatialite function 
 (`spatialite functions <https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html>`_).
 
 A typical example is to add a column with the area of the geometry to the layer. 
@@ -178,8 +186,8 @@ such operations:
 
     import geofileops as gfo
 
-    gfo.add_column(path=..., name="area", type="REAL", expression="ST_Area(geom)")
-    gfo.update_column(path=..., name="area", expression="ST_Area(geom)")
+    gfo.add_column("file.gpkg", name="area", type="REAL", expression="ST_Area(geom)")
+    gfo.update_column("file.gpkg", name="area", expression="ST_Area(geom)")
 
 
 For string/text type columns, note that in SQL it is mandatory to use single
@@ -189,7 +197,7 @@ quotes around the string value. For example:
 
     import geofileops as gfo
 
-    gfo.add_column(path=..., type="TEXT", name="text_column", expression="'Hello!'")
+    gfo.add_column("file.gpkg", type="TEXT", name="text_column", expression="'Hello!'")
 
 
 Geofileops also has some functions to read and write GeoDataFrames. They are very
@@ -199,16 +207,17 @@ make it easier to reuse statements:
 
 .. code-block:: python
 
-    min_area = 100
-    sql_stmt = f"""
-        SELECT {{geometrycolumn}}
-              {{columns_to_select_str}}
-              ,ST_Area({{geometrycolumn}}) AS area
-          FROM "{{input_layer}}" layer
-         WHERE ST_Area(geom) > {min_area}
+    sql_stmt = """
+        SELECT {geometrycolumn}
+              {columns_to_select_str}
+              ,ST_Area({geometrycolumn}) AS area
+          FROM "{input_layer}" layer
+         WHERE ST_Area({geometrycolumn}) > 100
     """
-    gdf = gfo.read_file(path=..., sql_stmt=sql_stmt, columns=["city_name", "city_code"])
-    gfo.write_file(gdf, path=...)
+    gdf = gfo.read_file(
+        path="file.gpkg", sql_stmt=sql_stmt, columns=["city_name", "city_code"]
+    )
+    gfo.write_file(gdf, path="file2.gpkg")
 
 
 Because you can use any SQL statement, you can also easily run some statistics on a
@@ -216,13 +225,13 @@ dataset like this:
 
 .. code-block:: python
 
-    sql_stmt = f"""
+    sql_stmt = """
         SELECT city_code
               ,city_name
               ,COUNT(*) AS count
-              ,SUM(ST_Area({{geometrycolumn}})) AS total_area
-          FROM "{{input_layer}}" layer
+              ,SUM(ST_Area({geometrycolumn})) AS total_area
+          FROM "{input_layer}" layer
          GROUP BY city_code, city_name
     """
-    stats_df = gfo.read_file(path=..., sql_stmt=sql_stmt)
+    stats_df = gfo.read_file(path="file.gpkg", sql_stmt=sql_stmt)
     stats_df.to_excel("stats.xlsx", index=False)
