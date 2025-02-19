@@ -1414,14 +1414,15 @@ def _read_file_base_pyogrio(
         # When reading datetime columns, don't use arrow as this can give issues.
         # See https://github.com/geopandas/pyogrio/issues/487
         if use_arrow and (columns is None or len(columns) > 0):
-            layerinfo = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
+            if not isinstance(layer, LayerInfo):
+                layer = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
 
             # Convert column names to upper to be able to check them case insensitive
             columns_upper = None
             if columns is not None:
                 columns_upper = {column.upper() for column in columns}
 
-            for column in layerinfo.columns.values():
+            for column in layer.columns.values():
                 if columns_upper is None or column.name.upper() in columns_upper:
                     if column.gdal_type in {"Date", "Time", "DateTime"}:
                         use_arrow = False
@@ -1443,12 +1444,13 @@ def _read_file_base_pyogrio(
         # name needs to become mandatory without column names being specified, which
         # would be a breaking and really wanted change.
         if use_arrow and (columns is not None and len(columns) > 0):
-            layerinfo = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
+            if not isinstance(layer, LayerInfo):
+                layer = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
 
             # Convert column names to upper to be able to check them case insensitive
             columns_upper = {column.upper() for column in columns}
 
-            for column in layerinfo.columns.values():
+            for column in layer.columns.values():
                 if columns is None or column.name.upper() in columns_upper:
                     if column.gdal_type in {"Date", "Time", "DateTime"}:
                         use_arrow = False
