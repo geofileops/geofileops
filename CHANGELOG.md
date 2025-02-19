@@ -9,6 +9,7 @@
 ### Bugs fixed
 
 - Fix `missing_ok` parameter in `remove` being ~ignored (#605)
+- Fix `dissolve` with `agg_columns` on sqlite 3.49.1 (#636)
 
 ## 0.9.1 (2024-07-18)
 
