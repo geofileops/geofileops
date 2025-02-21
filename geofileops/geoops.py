@@ -2108,7 +2108,7 @@ def export_by_location(
     Some examples of valid ``spatial_relations_query`` values:
 
         - "touches is True or within is True"
-        - "intersect is True and touches is False"
+        - "intersects is True and touches is False"
         - "(T*T***T** is True or 1*T***T** is True) and T*****FF* is False"
 
 
