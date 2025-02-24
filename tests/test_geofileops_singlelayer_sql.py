@@ -50,7 +50,6 @@ def test_delete_duplicate_geoms(tmp_path, priority_column, priority_ascending):
 
     # Run test
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
-    print(f"Run test for suffix {suffix}")
     gfo.delete_duplicate_geometries(
         input_path=input_path,
         output_path=output_path,
@@ -93,8 +92,6 @@ def test_delete_duplicate_geoms_notexact(tmp_path):
 
     # Run test
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
-    print(f"Run test for suffix {suffix}")
-    # delete_duplicate_geometries isn't multiprocess, so no batchsize needed
     gfo.delete_duplicate_geometries(input_path=input_path, output_path=output_path)
 
     # Check result
