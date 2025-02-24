@@ -46,22 +46,20 @@ def test_delete_duplicate_geoms(tmp_path, priority_column, priority_ascending):
     suffix = ".gpkg"
     input_path = tmp_path / f"input_test_data{suffix}"
     gfo.to_file(test_gdf, input_path)
-    input_info = gfo.get_layerinfo(input_path)
+    batchsize = math.ceil(gfo.get_layerinfo(input_path).featurecount / 2)
 
     # Run test
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
     print(f"Run test for suffix {suffix}")
-    # delete_duplicate_geometries isn't multiprocess, so no batchsize needed
     gfo.delete_duplicate_geometries(
         input_path=input_path,
         output_path=output_path,
         priority_column=priority_column,
         priority_ascending=priority_ascending,
+        batchsize=batchsize,
     )
 
-    # Check result, 2 duplicates should be removed
-    result_info = gfo.get_layerinfo(output_path)
-    assert result_info.featurecount == input_info.featurecount - 2
+    # Check result
     result_gdf = gfo.read_file(output_path, fid_as_index=True)
     assert_geodataframe_equal(result_gdf, expected_gdf)
 
@@ -92,7 +90,6 @@ def test_delete_duplicate_geoms_notexact(tmp_path):
     suffix = ".gpkg"
     input_path = tmp_path / f"input_test_data{suffix}"
     gfo.to_file(test_gdf, input_path)
-    input_info = gfo.get_layerinfo(input_path)
 
     # Run test
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
@@ -100,9 +97,7 @@ def test_delete_duplicate_geoms_notexact(tmp_path):
     # delete_duplicate_geometries isn't multiprocess, so no batchsize needed
     gfo.delete_duplicate_geometries(input_path=input_path, output_path=output_path)
 
-    # Check result, 3 duplicates should be removed
-    result_info = gfo.get_layerinfo(output_path)
-    assert result_info.featurecount == input_info.featurecount - 3
+    # Check result
     result_gdf = gfo.read_file(output_path, fid_as_index=True)
     assert_geodataframe_equal(result_gdf, expected_gdf)
 
