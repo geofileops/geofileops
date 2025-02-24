@@ -6,6 +6,7 @@ import math
 
 import geopandas as gpd
 import pytest
+from shapely.geometry import Polygon
 
 import geofileops as gfo
 from geofileops import GeometryType
@@ -14,7 +15,7 @@ from tests import test_helper
 from tests.test_helper import EPSGS, SUFFIXES_GEOOPS, assert_geodataframe_equal
 
 
-def test_delete_duplicate_geometries(tmp_path):
+def test_delete_duplicate_geoms(tmp_path):
     # Prepare test data
     test_gdf = gpd.GeoDataFrame(
         {"fid": [1, 2, 3, 4, 5]},
@@ -28,6 +29,37 @@ def test_delete_duplicate_geometries(tmp_path):
         crs=test_helper.TestData.crs_epsg,
     )
     expected_gdf = test_gdf.iloc[[0, 2, 4]].set_index(keys="fid")
+    suffix = ".gpkg"
+    input_path = tmp_path / f"input_test_data{suffix}"
+    gfo.to_file(test_gdf, input_path)
+    input_info = gfo.get_layerinfo(input_path)
+
+    # Run test
+    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
+    print(f"Run test for suffix {suffix}")
+    # delete_duplicate_geometries isn't multiprocess, so no batchsize needed
+    gfo.delete_duplicate_geometries(input_path=input_path, output_path=output_path)
+
+    # Check result, 2 duplicates should be removed
+    result_info = gfo.get_layerinfo(output_path)
+    assert result_info.featurecount == input_info.featurecount - 2
+    result_gdf = gfo.read_file(output_path, fid_as_index=True)
+    assert_geodataframe_equal(result_gdf, expected_gdf)
+
+
+def test_delete_duplicate_geoms_notexact(tmp_path):
+    # Prepare test data
+    test_gdf = gpd.GeoDataFrame(
+        {"fid": [1, 2, 3, 4]},
+        geometry=[
+            Polygon([(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)]),
+            Polygon([(1, 0), (1, 1), (0, 1), (0, 0), (1, 0)]),
+            Polygon([(1, 0), (0, 0), (0, 1), (1, 1), (1, 0)]),
+            Polygon([(3, 0), (3, 1), (2, 1), (2, 0), (3, 0)]),
+        ],
+        crs=test_helper.TestData.crs_epsg,
+    )
+    expected_gdf = test_gdf.iloc[[0, 3]].set_index(keys="fid")
     suffix = ".gpkg"
     input_path = tmp_path / f"input_test_data{suffix}"
     gfo.to_file(test_gdf, input_path)

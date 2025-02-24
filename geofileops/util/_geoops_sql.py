@@ -166,6 +166,8 @@ def delete_duplicate_geometries(
     input_layer: Optional[Union[str, LayerInfo]] = None,
     output_layer: Optional[str] = None,
     columns: Optional[list[str]] = None,
+    priority_column: Optional[str] = None,
+    priority_ascending: bool = True,
     explodecollections: bool = False,
     keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
@@ -182,6 +184,32 @@ def delete_duplicate_geometries(
                   FROM "{input_layer}" layer_sub
                  GROUP BY layer_sub.{geometrycolumn}
             )
+    """
+
+    if priority_column is None:
+        priority_column = "rowid"
+    priority_order = "ASC" if priority_ascending else "DESC"
+    input_layer_rtree = "rtree_{input_layer}_{geometrycolumn}"
+    sql_template = f"""
+        SELECT layer.{{geometrycolumn}} AS {{geometrycolumn}}
+              {{columns_to_select_str}}
+          FROM "{{input_layer}}" layer
+         WHERE 1=1
+           AND layer.rowid IN (
+                  SELECT FIRST_VALUE(layer_sub.rowid) OVER (
+                           ORDER BY layer_sub."{priority_column}" {priority_order})
+                    FROM "{{input_layer}}" layer_sub
+                    JOIN "{input_layer_rtree}" layer_sub_tree
+                      ON layer_sub.fid = layer_sub_tree.id
+                   WHERE ST_MinX(layer.{{geometrycolumn}}) <= layer_sub_tree.maxx
+                     AND ST_MaxX(layer.{{geometrycolumn}}) >= layer_sub_tree.minx
+                     AND ST_MinY(layer.{{geometrycolumn}}) <= layer_sub_tree.maxy
+                     AND ST_MaxY(layer.{{geometrycolumn}}) >= layer_sub_tree.miny
+                     AND ST_Equals(
+                           layer.{{geometrycolumn}}, layer_sub.{{geometrycolumn}}
+                        )
+                     --LIMIT -1 OFFSET 0
+               )
     """
 
     # Go!
