@@ -171,21 +171,10 @@ def delete_duplicate_geometries(
     explodecollections: bool = False,
     keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
+    nb_parallel: int = -1,
+    batchsize: int = -1,
     force: bool = False,
 ):
-    # The query as written doesn't give correct results when parallelized,
-    # but it isn't useful to do it for this operation.
-    sql_template = """
-        SELECT {geometrycolumn} AS {geometrycolumn}
-              {columns_to_select_str}
-          FROM "{input_layer}" layer
-         WHERE layer.rowid IN (
-                SELECT MIN(layer_sub.rowid) AS rowid_to_keep
-                  FROM "{input_layer}" layer_sub
-                 GROUP BY layer_sub.{geometrycolumn}
-            )
-    """
-
     if priority_column is None:
         priority_column = "rowid"
     priority_order = "ASC" if priority_ascending else "DESC"
@@ -195,6 +184,7 @@ def delete_duplicate_geometries(
               {{columns_to_select_str}}
           FROM "{{input_layer}}" layer
          WHERE 1=1
+           {{batch_filter}}
            AND layer.rowid IN (
                   SELECT FIRST_VALUE(layer_sub.rowid) OVER (
                            ORDER BY layer_sub."{priority_column}" {priority_order})
@@ -205,10 +195,12 @@ def delete_duplicate_geometries(
                      AND ST_MaxX(layer.{{geometrycolumn}}) >= layer_sub_tree.minx
                      AND ST_MinY(layer.{{geometrycolumn}}) <= layer_sub_tree.maxy
                      AND ST_MaxY(layer.{{geometrycolumn}}) >= layer_sub_tree.miny
-                     AND ST_Equals(
-                           layer.{{geometrycolumn}}, layer_sub.{{geometrycolumn}}
-                        )
-                     --LIMIT -1 OFFSET 0
+                     AND (layer.rowid = layer_sub.rowid
+                          OR ST_Equals(
+                               layer.{{geometrycolumn}}, layer_sub.{{geometrycolumn}}
+                             )
+                         )
+                     LIMIT -1 OFFSET 0
                )
     """
 
@@ -231,8 +223,8 @@ def delete_duplicate_geometries(
         keep_empty_geoms=keep_empty_geoms,
         where_post=where_post,
         sql_dialect="SQLITE",
-        nb_parallel=1,
-        batchsize=-1,
+        nb_parallel=nb_parallel,
+        batchsize=batchsize,
         force=force,
     )
 
