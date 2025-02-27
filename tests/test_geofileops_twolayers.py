@@ -602,12 +602,12 @@ def test_export_by_distance(tmp_path, testfile, suffix):
     input_layerinfo = gfo.get_layerinfo(input_to_select_from_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
     output_path = tmp_path / f"{input_to_select_from_path.stem}-output{suffix}"
-
+    max_distance = 10
     # Test
     gfo.export_by_distance(
         input_to_select_from_path=str(input_to_select_from_path),
         input_to_compare_with_path=str(input_to_compare_with_path),
-        max_distance=10,
+        max_distance=max_distance,
         output_path=str(output_path),
         batchsize=batchsize,
     )
@@ -618,13 +618,34 @@ def test_export_by_distance(tmp_path, testfile, suffix):
     assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(input_to_select_from_path)
     assert input_layerinfo.featurecount == output_layerinfo.featurecount
-    assert len(input_layerinfo.columns) == len(output_layerinfo.columns)
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
 
     # Check the contents of the result file
-    # TODO: this test should be more elaborate...
     output_gdf = gfo.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
+
+    input_gdf = gfo.read_file(input_to_compare_with_path)
+    # Check CRS consistency
+    assert input_gdf.crs == output_gdf.crs
+
+    # Check if the exported geometries are within the specified distance using shapely
+    input_geometries = input_gdf["geometry"]
+    for output_geom in output_gdf["geometry"]:
+        min_distance = min(
+            output_geom.distance(input_geom) for input_geom in input_geometries
+        )
+        assert min_distance <= max_distance
+
+    # Check if columns exist and have the same data type
+    for col_name, col_infos in input_layerinfo.columns.items():
+        assert col_name in output_layerinfo.columns.keys()
+        assert col_infos.gdal_type == output_layerinfo.columns.get(col_name).gdal_type
+
+    # Compare attribute values of a selected column
+    CHECK_COL = "OIDN"
+    input_ids = gfo.read_file(input_to_select_from_path)[CHECK_COL].tolist()
+    output_ids = output_gdf[CHECK_COL].tolist()
+    assert set(output_ids).issubset(input_ids)
 
 
 @pytest.mark.parametrize(
@@ -886,9 +907,12 @@ def test_intersection_input_no_index(tmp_path):
 
     # Now run test
     output_path = tmp_path / f"{input1_path.stem}_intersection_{input2_path.stem}.gpkg"
-    gfo.intersection(
-        input1_path=input1_path, input2_path=input2_path, output_path=output_path
-    )
+
+    # Use "process" worker type to test this as well
+    with gfo.TempEnv({"GFO_WORKER_TYPE": "process"}):
+        gfo.intersection(
+            input1_path=input1_path, input2_path=input2_path, output_path=output_path
+        )
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
@@ -1439,17 +1463,20 @@ def test_join_nearest(tmp_path, suffix, epsg):
     output_path = tmp_path / f"{input1_path.stem}-output{suffix}"
     nb_nearest = 2
     input1_columns = ["OIDN", "UIDN", "HFDTLT", "fid"]
-    gfo.join_nearest(
-        input1_path=str(input1_path),
-        input1_columns=input1_columns,
-        input2_path=str(input2_path),
-        output_path=str(output_path),
-        nb_nearest=nb_nearest,
-        distance=1000,
-        expand=True,
-        batchsize=batchsize,
-        force=True,
-    )
+
+    # Use "process" worker type to test this as well
+    with gfo.TempEnv({"GFO_WORKER_TYPE": "process"}):
+        gfo.join_nearest(
+            input1_path=str(input1_path),
+            input1_columns=input1_columns,
+            input2_path=str(input2_path),
+            output_path=str(output_path),
+            nb_nearest=nb_nearest,
+            distance=1000,
+            expand=True,
+            batchsize=batchsize,
+            force=True,
+        )
 
     # Check if the output file is correctly created
     assert output_path.exists()
@@ -1517,6 +1544,39 @@ def test_join_nearest_invalid_params(
             nb_nearest=1,
             **kwargs,
         )
+
+
+def test_join_nearest_distance(tmp_path):
+    geoms = [
+        "POLYGON ((0 0, 3 0, 3 3, 0 3, 0 0))",
+        "POLYGON ((10 1, 13 1, 13 4, 10 4, 10 1))",
+    ]
+    for index, geom in enumerate(geoms):
+        box_geom = shapely.from_wkt(geom)
+        box_geom = shapely.segmentize(box_geom, 1)
+        gdf_geom = gpd.GeoDataFrame(geometry=[box_geom], crs="EPSG:31370")
+        geom_path = tmp_path / f"geom{index+1}.gpkg"
+        gfo.to_file(gdf=gdf_geom, path=geom_path)
+
+    # Test
+    output_path = tmp_path / "geom_join_nearest.gpkg"
+    gfo.join_nearest(
+        input1_path=tmp_path / "geom1.gpkg",
+        input2_path=tmp_path / "geom2.gpkg",
+        output_path=output_path,
+        nb_nearest=1,
+        distance=50,
+        expand=True,
+        force=True,
+    )
+
+    # Check if the output file is correctly created
+    assert output_path.exists()
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.featurecount == 1
+    # Check the contents of the result file
+    output_gdf = gfo.read_file(output_path)
+    assert output_gdf["distance"][0] == 7
 
 
 @pytest.mark.parametrize(
