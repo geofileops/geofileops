@@ -305,8 +305,8 @@ def test_dissolve_polygons(
     where_post,
     expected_featurecount,
 ):
-    # if gridsize > 0.0:
-    #    pytest.xfail("Geopandas doesn't support dissolve with gridsize yet")
+    if gridsize > 0.0:
+        pytest.xfail("Geopandas doesn't support dissolve with gridsize yet")
 
     # Prepare test data
     test_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
