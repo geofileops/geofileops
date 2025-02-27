@@ -28,6 +28,7 @@
   layer operations (#558)
 - Don't convert to multi-part geometries by default in `copy_layer`,... (#570)
 - Add configuration option to only warn on dissolve errors (#561)
+- For `dissolve`, apply `grid_size` within `union_all` (#566)
 - Add some pre-flight checks when geofileops is imported (#573, #627)
 - When using join_nearest with spatialite version >= 5.1,
   show ST_distance between the two geometries instead of 
