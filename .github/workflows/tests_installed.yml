@@ -33,7 +33,7 @@ jobs:
       matrix:
         os: ["ubuntu-latest"]
         dev: [false]
-        python: ["3.11"]
+        python: ["3.12"]
         env: ["installed"]
         include:
           - checkout_ref: "v0.9.x"
