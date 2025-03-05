@@ -60,7 +60,7 @@ jobs:
 
       - name: Log
         run: |
-          mamba repoquery whoneeds sqlite
+          micromamba repoquery whoneeds sqlite
 
       - name: Test
         run: |
