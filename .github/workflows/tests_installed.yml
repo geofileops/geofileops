@@ -58,10 +58,6 @@ jobs:
             python=${{ matrix.python }}
             ${{ matrix.install_extra_args }}
 
-      - name: Log
-        run: |
-          micromamba repoquery whoneeds sqlite
-
       - name: Test
         run: |
           pytest --color=yes tests/
