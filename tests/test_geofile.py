@@ -141,6 +141,42 @@ def test_append_different_layer(tmp_path):
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
+def test_append_columns(tmp_path, suffix):
+    """Test appending rows specifying some columns.
+
+    This does not seem to be supported by GDAL.
+    """
+    # Prepare test data
+    src_path = test_helper.get_testfile(
+        "polygon-parcel", dst_dir=tmp_path, suffix=suffix
+    )
+    dst_path = tmp_path / f"dst{suffix}"
+    gfo.copy(src_path, dst_path)
+
+    src_info = gfo.get_layerinfo(src_path, raise_on_nogeom=False)
+    src_columns = list(src_info.columns)
+    dst_columns = ["OIDN", "UIDN", "GEWASGROEP"]
+    for column in src_columns:
+        if column not in dst_columns:
+            gfo.drop_column(dst_path, column_name=column)
+
+    # For GPKG and CSV files, the append fails
+    if suffix in (".gpkg", ".csv"):
+        pytest.xfail(
+            "Appending only certain columns is not supported for GPKG and CSV files"
+        )
+
+    # For other file types, all rows are appended tot the dst layer, but the extra
+    # column is not!
+    gfo.append_to(src_path, dst_path, columns=dst_columns)
+
+    # Check results
+    dst_info = gfo.get_layerinfo(dst_path, raise_on_nogeom=False)
+    assert (src_info.featurecount * 2) == dst_info.featurecount
+    assert len(dst_info.columns) == len(dst_columns)
+
+
+@pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
 def test_append_different_columns(tmp_path, suffix):
     """Test appending rows to a file with a column less than in source file."""
     # Prepare test data
@@ -343,6 +379,34 @@ def test_copy_layer_invalid_params(tmp_path):
     dst = tmp_path / "output.gpkg"
     with pytest.raises(ValueError, match="src file doesn't exist: "):
         gfo.copy_layer(src, dst)
+
+
+def test_copy_layer_input_open_options(tmp_path):
+    # Prepare test data
+    src = tmp_path / "input.csv"
+    dst = tmp_path / "output.gpkg"
+    with open(src, "w") as srcfile:
+        srcfile.write("POINT_ID, POINT_LAT, POINT_LON, POINT_NAME\n")
+        srcfile.write('1, 50.939972761,3.888498686, "random spot"\n')
+
+    # copy_layer with open_options
+    gfo.copy_layer(
+        src,
+        dst,
+        options={
+            "INPUT_OPEN.X_POSSIBLE_NAMES": "POINT_LON",
+            "INPUT_OPEN.Y_POSSIBLE_NAMES": "POINT_LAT",
+        },
+        dst_crs="EPSG:4326",
+    )
+
+    # Check result
+    assert dst.exists()
+    result_gdf = gfo.read_file(dst)
+    assert len(result_gdf) == 1
+    assert "geometry" in result_gdf.columns
+    assert result_gdf.geometry[0].x == 3.888498686
+    assert result_gdf.geometry[0].y == 50.939972761
 
 
 @pytest.mark.parametrize(
@@ -1220,7 +1284,7 @@ def test_fill_out_sql_placeholders():
     "layer, sql_stmt, error",
     [
         (
-            "parcel",
+            "parcels",
             'SELECT {invalid_placeholder} FROM "parcel"',
             "unknown placeholder invalid_placeholder ",
         ),
@@ -1234,13 +1298,7 @@ def test_fill_out_sql_placeholders():
 def test_fill_out_sql_placeholders_errors(layer, sql_stmt, error):
     path = test_helper.get_testfile("polygon-twolayers")
 
-    # Test invalid placeholder
-    with pytest.raises(ValueError, match=error):
-        fileops._fill_out_sql_placeholders(
-            path, layer=layer, sql_stmt=sql_stmt, columns=None
-        )
-
-    # Test layer not passed with multi-layer input file
+    # Test
     with pytest.raises(ValueError, match=error):
         fileops._fill_out_sql_placeholders(
             path, layer=layer, sql_stmt=sql_stmt, columns=None

@@ -27,7 +27,7 @@ from geofileops.util._geometry_util import (
     SimplifyAlgorithm,
 )
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     import os
 
 logger = logging.getLogger(__name__)
@@ -89,6 +89,10 @@ def dissolve_within_distance(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    See Also:
+        * :func:`dissolve`: dissolve the input layer
+
     """
     input_path = Path(input_path)
     output_path = Path(output_path)
@@ -399,6 +403,9 @@ def apply(
 
     The result is written to the output file specified.
 
+    If the function you want to apply accepts an array of geometries as input, you can
+    typically use :func:`apply_vectorized` instead, which is faster.
+
     If ``explodecollections`` is False and the input and output file type is GeoPackage,
     the fid will be preserved. In other cases this will typically not be the case.
 
@@ -439,16 +446,18 @@ def apply(
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
+    See Also:
+        * :func:`apply_vectorized`: apply a vectorized python function on the geometry
+          column
+
     Examples:
         This example shows the basic usage of ``gfo.apply``:
 
         .. code-block:: python
 
-            import geofileops as gfo
-
             gfo.apply(
-                input_path=...,
-                output_path=...,
+                input_path="input.gpkg",
+                output_path="output.gpkg",
                 func=lambda geom: pygeoops.remove_inner_rings(geom, min_area_to_keep=1),
             )
 
@@ -457,11 +466,9 @@ def apply(
 
         .. code-block:: python
 
-            import geofileops as gfo
-
             gfo.apply(
-                input_path=...,
-                output_path=...,
+                input_path="input.gpkg",
+                output_path="output.gpkg",
                 func=lambda row: pygeoops.remove_inner_rings(
                     row.geometry, min_area_to_keep=row.min_area_to_keep
                 ),
@@ -517,7 +524,7 @@ def apply_vectorized(
     The result is written to the output file specified.
 
     It is not possible to use the contents of other columns in the input file in the
-    python function. If you need this, use ``gfo.apply`` instead.
+    python function. If you need this, use :func:`apply` instead.
 
     If ``explodecollections`` is False and the input and output file type is GeoPackage,
     the fid will be preserved. In other cases this will typically not be the case.
@@ -559,18 +566,20 @@ def apply_vectorized(
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
+    See Also:
+        * :func:`apply`: apply a python function on the geometry column
+
     Examples:
         This example shows the usage of ``gfo.apply_vectorized``:
 
         .. code-block:: python
 
-            import geofileops as gfo
-
             gfo.apply_vectorized(
-                input_path=...,
-                output_path=...,
+                input_path="input.gpkg",
+                output_path="output.gpkg",
                 func=lambda geom: pygeoops.centerline(geom, densify_distance=0),
             )
+
 
     .. |spatialite_reference_link| raw:: html
 
@@ -826,7 +835,7 @@ def clip_by_geometry(
     explodecollections: bool = False,
     force: bool = False,
 ):
-    """Clip all geometries in the imput file by the geometry provided.
+    """Clip all geometries in the input file by the geometry provided.
 
     If ``explodecollections`` is False and the input and output file type is GeoPackage,
     the fid will be preserved. In other cases this will typically not be the case.
@@ -848,6 +857,10 @@ def clip_by_geometry(
             Defaults to False.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    See Also:
+        * :func:`clip`: clip geometries by the features in another layer
+
     """
     logger = logging.getLogger("geofileops.clip_by_geometry")
     logger.info(f"Start, on {input_path}")
@@ -1029,11 +1042,9 @@ def dissolve(
 
     .. code-block:: python
 
-        import geofileops as gfo
-
         gfo.dissolve(
-            input_path=...,
-            output_path=...,
+            input_path="input.gpkg",
+            output_path="output.gpkg",
             groupby_columns=["cropgroup"],
             agg_columns={
                 "columns": [
@@ -1060,11 +1071,9 @@ def dissolve(
 
     .. code-block:: python
 
-        import geofileops as gfo
-
         gfo.dissolve(
-            input_path=...,
-            output_path=...,
+            input_path="input.gpkg",
+            output_path="output.gpkg",
             groupby_columns=["cropgroup"],
             agg_columns={"json": ["crop", "area"]},
             explodecollections=False,
@@ -1152,6 +1161,11 @@ def dissolve(
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
+    See Also:
+        * :func:`dissolve_within_distance`: dissolve all feature within the distance
+          specified of each other
+
+
     .. |spatialite_reference_link| raw:: html
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
@@ -1221,6 +1235,13 @@ def export_by_bounds(
             Defaults to False.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    See Also:
+        * :func:`export_by_distance`: export features that are within a certain distance
+          of features of another layer
+        * :func:`export_by_location`: export features that e.g. intersect with features
+          of another layer
+
     """
     logger = logging.getLogger("geofileops.export_by_bounds")
     logger.info(f"Start, on {input_path}")
@@ -1286,6 +1307,10 @@ def isvalid(
 
     Returns:
         bool: True if all geometries were valid.
+
+    See Also:
+        * :func:`make_valid`: make the geometries in the input layer valid
+
     """
     # Check parameters
     if output_path is not None:
@@ -1377,6 +1402,9 @@ def makevalid(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    See Also:
+        * :func:`isvalid`: check if the geometries in the input layer are valid
 
     .. |spatialite_reference_link| raw:: html
 
@@ -1564,6 +1592,10 @@ def select(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s). Defaults to False.
 
+    See Also:
+        * :func:`select_two_layers`: select features using two input layers based on a
+          SQL query
+
     Notes:
         By convention, the sqlite query can contain following placeholders that
         will be automatically replaced for you:
@@ -1583,8 +1615,6 @@ def select(
 
         .. code-block:: python
 
-            import geofileops as gfo
-
             minimum_area = 100
             sql_stmt = f"""
                 SELECT ST_Buffer({{geometrycolumn}}, 1) AS {{geometrycolumn}}
@@ -1595,8 +1625,8 @@ def select(
                    AND ST_Area({{geometrycolumn}}) > {minimum_area}
             """
             gfo.select(
-                input_path=...,
-                output_path=...,
+                input_path="input.gpkg",
+                output_path="output.gpkg",
                 sql_stmt=sql_stmt,
             )
 
@@ -1855,6 +1885,9 @@ def clip(
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
+    See Also:
+        * :func:`clip_by_geometry`: clip the input layer by a geometry specified
+
     .. |spatialite_reference_link| raw:: html
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
@@ -1911,6 +1944,10 @@ def difference(
           interactions between the same rows in this layer will be ignored. The output
           will be the (pieces of) features in this layer that don't have any
           intersections with other features in this layer.
+        - To speed up processing, complex input geometries are subdivided by default.
+          For these geometries, the output geometries will contain extra collinear
+          points where the subdividing occured. This behaviour can be controlled via the
+          ``subdivide_coords`` parameter.
 
     Alternative names:
         - ArcMap: erase
@@ -1955,6 +1992,12 @@ def difference(
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
+    See Also:
+        * :func:`identity`: calculate the identity of two layers
+        * :func:`intersection`: calculate the intersection of two layers
+        * :func:`symmetric_difference`: calculate the symmetric difference of two layers
+        * :func:`union`: calculate the union of two layers
+
     .. |spatialite_reference_link| raw:: html
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
@@ -1977,7 +2020,7 @@ def difference(
         input2_path=Path(input2_path),
         output_path=Path(output_path),
         overlay_self=overlay_self,
-        input_layer=input1_layer,
+        input1_layer=input1_layer,
         input1_columns=input1_columns,
         input2_layer=input2_layer,
         output_layer=output_layer,
@@ -2065,7 +2108,7 @@ def export_by_location(
     Some examples of valid ``spatial_relations_query`` values:
 
         - "touches is True or within is True"
-        - "intersect is True and touches is False"
+        - "intersects is True and touches is False"
         - "(T*T***T** is True or 1*T***T** is True) and T*****FF* is False"
 
 
@@ -2113,6 +2156,16 @@ def export_by_location(
             geometries. If 0, no subdividing is applied. Defaults to 7.500.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    See Also:
+        * :func:`export_by_bounds`: export features that intersect with the bounds
+          specified
+        * :func:`export_by_distance`: export features that are within a certain distance
+          of features of another layer
+        * :func:`export_by_location`: export features that e.g. intersect with features
+          of another layer
+        * :func:`join_by_location`: join features that e.g. intersect with features of
+          another layer
 
     .. |spatialite_reference_link| raw:: html
 
@@ -2200,6 +2253,12 @@ def export_by_distance(
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
+    See Also:
+        * :func:`export_by_bounds`: export features that intersect with the bounds
+          specified
+        * :func:`export_by_location`: export features that e.g. intersect with features
+          of another layer
+
     .. |spatialite_reference_link| raw:: html
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
@@ -2258,6 +2317,10 @@ def identity(
           recalculated manually if this is wanted.
         - If ``input2_path`` is None, the 1st input layer is used for both inputs but
           interactions between the same rows in this layer will be ignored.
+        - To speed up processing, complex input geometries are subdivided by default.
+          For these geometries, the output geometries will contain extra collinear
+          points where the subdividing occured. This behaviour can be controlled via the
+          ``subdivide_coords`` parameter.
 
     Args:
         input1_path (PathLike): the 1st input file.
@@ -2304,6 +2367,12 @@ def identity(
             subdividing is applied. Defaults to 2000.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    See Also:
+        * :func:`difference`: calculate the difference between two layers
+        * :func:`intersection`: calculate the intersection of two layers
+        * :func:`symmetric_difference`: calculate the symmetric difference of two layers
+        * :func:`union`: calculate the union of two layers
 
     .. |spatialite_reference_link| raw:: html
 
@@ -2453,6 +2522,7 @@ def intersection(
     where_post: Optional[str] = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
+    subdivide_coords: int = 7500,
     force: bool = False,
 ):
     r"""Calculates the pairwise intersection of the two input layers.
@@ -2464,6 +2534,10 @@ def intersection(
         - If ``input2_path`` is None, the 1st input layer is used for both inputs but
           intersections between the same rows in this layer will be omitted from the
           result.
+        - To speed up processing, complex input geometries are subdivided by default.
+          For these geometries, the output geometries will contain extra collinear
+          points where the subdividing occured. This behaviour can be controlled via the
+          ``subdivide_coords`` parameter.
 
     Alternative names:
         - GeoPandas: overlay(how="intersection")
@@ -2506,8 +2580,19 @@ def intersection(
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
+        subdivide_coords (int, optional): the input geometries will be subdivided to
+            parts with about ``subdivide_coords`` coordinates during processing which
+            can offer a large speed up for complex geometries. Subdividing can result in
+            extra collinear points being added to the boundaries of the output. If 0, no
+            subdividing is applied. Defaults to 20000.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    See Also:
+        * :func:`difference`: calculate the difference between two layers
+        * :func:`identity`: calculate the identity of two layers
+        * :func:`symmetric_difference`: calculate the symmetric difference of two layers
+        * :func:`union`: calculate the union of two layers
 
     .. |spatialite_reference_link| raw:: html
 
@@ -2543,6 +2628,7 @@ def intersection(
         where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
+        subdivide_coords=subdivide_coords,
         force=force,
     )
 
@@ -2641,6 +2727,12 @@ def join_by_location(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    See Also:
+        * :func:`export_by_location`: export features that e.g. intersect with features
+          of another layer
+        * :func:`join_by_distance`: join features that are within a certain distance of
+          features of another layer
 
     .. |spatialite_reference_link| raw:: html
 
@@ -2755,6 +2847,13 @@ def join_nearest(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    See Also:
+        * :func:`export_by_distance`: export features that are within a certain distance
+          of features of another layer
+        * :func:`join_by_location`: join features that e.g. intersect with features of
+          another layer
+
     """
     logger = logging.getLogger("geofileops.join_nearest")
     logger.info(f"select from {input1_path} joined with {input2_path} to {output_path}")
@@ -2886,8 +2985,6 @@ def select_two_layers(
 
         .. code-block:: python
 
-            import geofileops as gfo
-
             minimum_area = 100
             sql_stmt = f"""
                 SELECT layer1.{{input1_geometrycolumn}}
@@ -2901,9 +2998,9 @@ def select_two_layers(
                    AND ST_Area(layer1.{{input1_geometrycolumn}}) > {minimum_area}
             """
             gfo.select_two_layers(
-                input1_path=...,
-                input2_path=...,
-                output_path=...,
+                input1_path="input1.gpkg",
+                input2_path="input2.gpkg",
+                output_path="output.gpkg",
                 sql_stmt=sql_stmt,
             )
 
@@ -2927,9 +3024,12 @@ def select_two_layers(
           {layer1_columns_prefix_str}), they will start with a "," and if no column
           precedes it the SQL statement will be invalid.
 
+    See Also:
+        * :func:`select`: select features from a layer based on a SQL query
+
     Examples:
         An ideal place to get inspiration to write you own advanced queries
-        is in the following source code file: |geofileops_sql_link|.
+        is in the following source code file: |geoops_sql_link|.
 
         Additionally, there are some examples listed here that highlight
         other features/possibilities.
@@ -2975,14 +3075,13 @@ def select_two_layers(
                  WHERE pos = 1
             """
 
-
     .. |spatialite_reference_link| raw:: html
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
 
-    .. |geofileops_sql_link| raw:: html
+    .. |geoops_sql_link| raw:: html
 
-        <a href="https://github.com/geofileops/geofileops/blob/main/geofileops/util/geofileops_sql.py" target="_blank">geofileops_sql.py</a>
+        <a href="https://github.com/geofileops/geofileops/blob/main/geofileops/util/_geoops_sql.py" target="_blank">_geoops_sql.py</a>
 
     '''  # noqa: E501
     logger = logging.getLogger("geofileops.select_two_layers")
@@ -3039,6 +3138,10 @@ def symmetric_difference(
           recalculated manually if this is wanted.
         - If ``input2_path`` is None, the 1st input layer is used for both inputs but
           interactions between the same rows in this layer will be ignored.
+        - To speed up processing, complex input geometries are subdivided by default.
+          For these geometries, the output geometries will contain extra collinear
+          points where the subdividing occured. This behaviour can be controlled via the
+          ``subdivide_coords`` parameter.
 
 
     Alternative names:
@@ -3090,6 +3193,12 @@ def symmetric_difference(
             subdividing is applied. Defaults to 2000.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    See Also:
+        * :func:`difference`: calculate the difference between two layers
+        * :func:`identity`: calculate the identity of two layers
+        * :func:`intersection`: calculate the intersection of two layers
+        * :func:`union`: calculate the union of two layers
 
     .. |spatialite_reference_link| raw:: html
 
@@ -3168,6 +3277,10 @@ def union(
           recalculated manually if this is wanted.
         - If ``input2_path`` is None, the 1st input layer is used for both inputs but
           interactions between the same rows in this layer will be ignored.
+        - To speed up processing, complex input geometries are subdivided by default.
+          For these geometries, the output geometries will contain extra collinear
+          points where the subdividing occured. This behaviour can be controlled via the
+          ``subdivide_coords`` parameter.
 
 
     Alternative names:
@@ -3218,6 +3331,12 @@ def union(
             subdividing is applied. Defaults to 2000.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    See Also:
+        * :func:`difference`: calculate the difference between two layers
+        * :func:`identity`: calculate the identity of two layers
+        * :func:`intersection`: calculate the intersection of two layers
+        * :func:`symmetric_difference`: calculate the symmetric difference of two layers
 
     .. |spatialite_reference_link| raw:: html
 

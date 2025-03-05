@@ -70,12 +70,12 @@ def test_convert_to_spatialite_based(
     tmp_path, input1_suffix, input2_suffix, output1_suffix, output2_suffix
 ):
     input1_path = test_helper.get_testfile("polygon-parcel", suffix=input1_suffix)
-    input1_layer = gfo.get_only_layer(input1_path)
+    input1_layer = gfo.get_layerinfo(input1_path)
     input2_path = None
     input2_layer = None
     if input2_suffix is not None:
         input2_path = test_helper.get_testfile("polygon-parcel", suffix=input2_suffix)
-        input2_layer = gfo.get_only_layer(input2_path)
+        input2_layer = gfo.get_layerinfo(input2_path)
 
     input1_out_path, input1_out_layer, input2_out_path, input2_out_layer = (
         _geoops_sql._convert_to_spatialite_based(  # type: ignore[assignment]
@@ -89,7 +89,7 @@ def test_convert_to_spatialite_based(
 
     assert input1_out_path.suffix == output1_suffix
     assert input1_out_path.exists()
-    assert input1_out_layer in gfo.listlayers(input1_out_path)
+    assert input1_out_layer.name in gfo.listlayers(input1_out_path)
 
     # If the file format hasn't changed, the file should not be copied
     if input1_path.suffix == input1_out_path.suffix:
@@ -97,7 +97,7 @@ def test_convert_to_spatialite_based(
 
     if input2_suffix is not None:
         assert input2_out_path.exists()
-        assert input2_out_layer in gfo.listlayers(input2_out_path)
+        assert input2_out_layer.name in gfo.listlayers(input2_out_path)
         assert input2_out_path.suffix == output2_suffix
         # If the file format hasn't changed, the file should not be copied
         if input2_out_path.suffix == input2_path.suffix:
@@ -111,14 +111,18 @@ def test_convert_to_spatialite_based(
 
 
 @pytest.mark.parametrize(
-    "desc, testfile, subdivide_coords, retval_None",
+    "desc, testfile, subdivide_coords, expected_subdivided",
     [
-        ("input not complex", "polygon-zone", 1000, True),
-        ("input poly+complex", "polygon-zone", 1, False),
-        ("input no poly", "linestring-watercourse", 1, True),
+        ("input poly not complex", "polygon-zone", 1000, False),
+        ("input poly complex", "polygon-zone", 1, True),
+        ("input line not complex", "linestring-watercourse", 10_000, False),
+        ("input line complex", "linestring-watercourse", 1, True),
+        ("input point complex", "point", 1, False),
     ],
 )
-def test_subdivide_layer(desc, tmp_path, testfile, subdivide_coords, retval_None):
+def test_subdivide_layer(
+    desc, tmp_path, testfile, subdivide_coords, expected_subdivided: bool
+):
     path = test_helper.get_testfile(testfile)
     result = _geoops_sql._subdivide_layer(
         path=path,
@@ -128,7 +132,7 @@ def test_subdivide_layer(desc, tmp_path, testfile, subdivide_coords, retval_None
         keep_fid=False,
     )
 
-    if retval_None:
-        assert result is None
-    else:
+    if expected_subdivided:
         assert result is not None
+    else:
+        assert result is None
