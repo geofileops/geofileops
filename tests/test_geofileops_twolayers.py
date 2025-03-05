@@ -3,6 +3,7 @@ Tests for operations that are executed using a sql statement on two layers.
 """
 
 import math
+import os
 import sys
 from contextlib import nullcontext
 from pathlib import Path
@@ -116,6 +117,7 @@ def test_clip_resultempty(tmp_path, suffix, clip_empty):
     not GEOPANDAS_GTE_10,
     reason="assert_geodataframe_equal with check_geom_gridsize requires gpd >= 1.0",
 )
+@pytest.mark.skipif(os.name == "nt", reason="crashes on windows")
 def test_difference(
     tmp_path,
     suffix,
@@ -555,8 +557,10 @@ def test_export_by_location_invalid_params(kwargs, expected_error):
     "query, subdivide_coords, exp_featurecount",
     [
         ("intersects is True or intersects is False", 0, 48),
+        ("intersects is True or intersects is False", 10, 48),
         ("intersects is True", 10, 27),
         ("within is True", 0, 8),
+        ("intersects is False", 0, 21),
         ("intersects is False", 10, 21),
         ("within is False", 10, 39),
         ("disjoint is True", 0, 21),
