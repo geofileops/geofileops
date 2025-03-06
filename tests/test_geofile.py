@@ -15,7 +15,7 @@ from pygeoops import GeometryType
 
 import geofileops as gfo
 from geofileops import fileops
-from geofileops.util import _geofileinfo, _geoseries_util, _io_util, _ogr_util
+from geofileops.util import _geofileinfo, _geoseries_util, _io_util
 from geofileops.util._geofileinfo import GeofileInfo
 from tests import test_helper
 from tests.test_helper import SUFFIXES_FILEOPS, assert_geodataframe_equal
