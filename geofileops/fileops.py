@@ -30,7 +30,7 @@ from osgeo import gdal, ogr
 from pandas.api.types import is_integer_dtype
 from pygeoops import GeometryType, PrimitiveType  # noqa: F401
 
-from geofileops._compat import PYOGRIO_GTE_07
+from geofileops._compat import PYOGRIO_GTE_07, PYOGRIO_GTE_08
 from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import (
     _geofileinfo,
@@ -1215,10 +1215,11 @@ def read_file(
           FROM "{input_layer}" layer
 
     The underlying library used to read the file can be choosen using the
-    "GFO_IO_ENGINE" environment variable. Possible values are "fiona" and "pyogrio".
-    This option is created as a temporary fallback to "fiona" for cases where "pyogrio"
-    gives issues, so please report issues if they are encountered. In the future support
-    for the "fiona" engine most likely will be removed. Default engine is "pyogrio".
+    "GFO_IO_ENGINE" environment variable. Possible values are "pyogrio", "pyogrio-arrow"
+    and "fiona". This option is created so it can be uses as a temporary fallback for
+    cases where "pyogrio-arrow" gives issues, so please report issues if they are
+    encountered. In the future support for the "fiona" engine most likely will be
+    removed. Default engine is "pyogrio-arrow".
 
     When a file with CURVE geometries is read, they are transformed on the fly to LINEAR
     geometries, as shapely/geopandas doesn't support CURVE geometries.
@@ -1348,7 +1349,8 @@ def _read_file_base(
 
     # Read with the engine specified
     engine = ConfigOptions.io_engine
-    if engine == "pyogrio":
+    if engine.startswith("pyogrio"):
+        use_arrow = True if engine.endswith("-arrow") else False
         gdf = _read_file_base_pyogrio(
             path=path,
             layer=layer,
@@ -1360,6 +1362,7 @@ def _read_file_base(
             sql_dialect=sql_dialect,
             ignore_geometry=ignore_geometry,
             fid_as_index=fid_as_index or fid_as_column,
+            use_arrow=use_arrow,
             **kwargs,
         )
     elif engine == "fiona":
@@ -1507,6 +1510,7 @@ def _read_file_base_pyogrio(
     sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     ignore_geometry: bool = False,
     fid_as_index: bool = False,
+    use_arrow: bool = True,
     **kwargs,
 ) -> Union[pd.DataFrame, gpd.GeoDataFrame]:
     """Reads a file to a pandas Dataframe using pyogrio."""
@@ -1514,6 +1518,9 @@ def _read_file_base_pyogrio(
     path = Path(path)
     if path.exists() is False:
         raise ValueError(f"file doesn't exist: {path}")
+    columns_upper_lookup = None
+    if columns is not None:
+        columns = list(columns)
 
     # Convert rows slice object to pyogrio parameters
     if rows is not None:
@@ -1522,8 +1529,6 @@ def _read_file_base_pyogrio(
     else:
         skip_features = 0
         max_features = None
-    # Arrow doesn't support filtering rows like this
-    # use_arrow = True if rows is None else False
 
     # If no sql_stmt specified
     columns_prepared = None
@@ -1540,6 +1545,23 @@ def _read_file_base_pyogrio(
                 if column.upper() in columns_upper_lookup
             }
 
+        # When reading datetime columns, don't use arrow as this can give issues.
+        # See https://github.com/geopandas/pyogrio/issues/487
+        if use_arrow and (columns is None or len(columns) > 0):
+            if not isinstance(layer, LayerInfo):
+                layer = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
+
+            # Convert column names to upper to be able to check them case insensitive
+            columns_upper = None
+            if columns is not None:
+                columns_upper = {column.upper() for column in columns}
+
+            for column in layer.columns.values():
+                if columns_upper is None or column.name.upper() in columns_upper:
+                    if column.gdal_type in {"Date", "Time", "DateTime"}:
+                        use_arrow = False
+                        break
+
         # If no sql + no layer specified, there should be only one layer in the file.
         if layer is None:
             layer = get_only_layer(path)
@@ -1549,6 +1571,25 @@ def _read_file_base_pyogrio(
         sql_stmt = _fill_out_sql_placeholders(
             path=path, layer=layer, sql_stmt=sql_stmt, columns=columns
         )
+
+        # When reading datetime columns, don't use arrow as this can give issues.
+        # See https://github.com/geopandas/pyogrio/issues/487
+        # Remark: is only checked if columns is not None, because otherwise the layer
+        # name needs to become mandatory without column names being specified, which
+        # would be a breaking and really wanted change.
+        if use_arrow and (columns is not None and len(columns) > 0):
+            if not isinstance(layer, LayerInfo):
+                layer = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
+
+            # Convert column names to upper to be able to check them case insensitive
+            columns_upper = {column.upper() for column in columns}
+
+            for column in layer.columns.values():
+                if columns is None or column.name.upper() in columns_upper:
+                    if column.gdal_type in {"Date", "Time", "DateTime"}:
+                        use_arrow = False
+                        break
+
         # Specifying a layer as well as an SQL statement in pyogrio is not supported.
         layer = None
 
@@ -1567,6 +1608,8 @@ def _read_file_base_pyogrio(
         sql_dialect=sql_dialect,
         read_geometry=not ignore_geometry,
         fid_as_index=fid_as_index,
+        use_arrow=use_arrow,
+        arrow_to_pandas_kwargs={"date_as_object": False},
         **kwargs,
     )
 
@@ -1684,8 +1727,8 @@ def to_file(
     The fileformat is detected based on the filepath extension.
 
     The underlying library used to write the file can be choosen using the
-    "GFO_IO_ENGINE" environment variable. Possible values are "fiona" and "pyogrio".
-    Default engine is "pyogrio".
+    "GFO_IO_ENGINE" environment variable. Possible values are "pyogrio", "pyogrio-arrow"
+    and "fiona". Default engine is "pyogrio-arrow".
 
     Args:
         gdf (gpd.GeoDataFrame): The GeoDataFrame to export to file.
@@ -1767,7 +1810,9 @@ def to_file(
             engine = "fiona"
 
     # Write file with the correct engine
-    if engine == "pyogrio":
+    if engine.startswith("pyogrio"):
+        # Writing with pyarrow only supported since pyogrio 0.8
+        use_arrow = True if engine.endswith("-arrow") and PYOGRIO_GTE_08 else False
         return _to_file_pyogrio(
             gdf=gdf,
             path=path,
@@ -1778,6 +1823,7 @@ def to_file(
             append_timeout_s=append_timeout_s,
             index=index,
             create_spatial_index=create_spatial_index,
+            use_arrow=use_arrow,
             **kwargs,
         )
     elif engine == "fiona":
@@ -1973,6 +2019,7 @@ def _to_file_pyogrio(
     append_timeout_s: int = 600,
     index: Optional[bool] = None,
     create_spatial_index: Optional[bool] = None,
+    use_arrow: bool = True,
     **kwargs,
 ):
     """Writes a pandas dataframe to file using pyogrio."""
@@ -2007,6 +2054,8 @@ def _to_file_pyogrio(
         kwargs["promote_to_multi"] = True
     if not path_info.is_singlelayer:
         kwargs["layer"] = layer
+    if use_arrow:
+        kwargs["use_arrow"] = True
 
     # Temp fix for bug in pyogrio 0.7.2 (https://github.com/geopandas/pyogrio/pull/324)
     # Logic based on geopandas.to_file
