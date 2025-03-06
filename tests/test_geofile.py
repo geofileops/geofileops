@@ -273,6 +273,7 @@ def test_copy_layer(tmp_path, testfile, dimensions, suffix_input, suffix_output)
     # Now compare source and dst file
     src_layerinfo = gfo.get_layerinfo(src, raise_on_nogeom=raise_on_nogeom)
     dst_layerinfo = gfo.get_layerinfo(dst, raise_on_nogeom=raise_on_nogeom)
+    assert dst_layerinfo.name == dst.stem
     assert src_layerinfo.featurecount == dst_layerinfo.featurecount
     assert len(src_layerinfo.columns) == len(dst_layerinfo.columns)
     if not (
@@ -402,6 +403,21 @@ def test_copy_layer_input_open_options(tmp_path):
     assert "geometry" in result_gdf.columns
     assert result_gdf.geometry[0].x == 3.888498686
     assert result_gdf.geometry[0].y == 50.939972761
+
+
+@pytest.mark.parametrize("layer", [None, "parcels_output"])
+def test_copy_layer_layer(tmp_path, layer):
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel")
+    dst = tmp_path / "output.gpkg"
+    expected_layer = dst.stem if layer is None else layer
+
+    gfo.copy_layer(src, dst, dst_layer=layer)
+
+    # Check result
+    dst_info = gfo.get_layerinfo(dst)
+    assert dst_info.name == expected_layer
+    assert dst_info.featurecount == 48
 
 
 @pytest.mark.parametrize(
