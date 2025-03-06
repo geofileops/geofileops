@@ -1,6 +1,8 @@
 # CHANGELOG
 
 ## 0.10 (????-??-??)
+- where possible `export_by_location` uses the specialized named relation functions
+  (e.g. intersects is False) instead of relate (#548)
 
 ### Deprecations and compatibility notes
 
