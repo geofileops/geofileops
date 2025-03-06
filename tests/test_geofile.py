@@ -184,22 +184,17 @@ def test_append_different_columns(tmp_path, suffix):
         "polygon-parcel", dst_dir=tmp_path, suffix=suffix
     )
     dst_path = tmp_path / f"dst{suffix}"
-    gfo.copy(src_path, dst_path)
+    gfo.copy_layer(src_path, dst_path)
     gfo.add_column(src_path, name="extra_col", type=gfo.DataType.INTEGER)
 
-    # For CSV files, the append fails
-    if suffix == ".csv":
-        with pytest.raises(_ogr_util.GDALError):
-            gfo.append_to(src_path, dst_path)
-        return
-
-    # For other file types, all rows are appended tot the dst layer, but the extra
-    # column is not!
+    # All rows are appended tot the dst layer, but the extra column is not!
     gfo.append_to(src_path, dst_path)
 
     # Check results
-    src_info = gfo.get_layerinfo(src_path)
-    res_info = gfo.get_layerinfo(dst_path)
+    raise_on_nogeom = False if suffix == ".csv" else True
+
+    src_info = gfo.get_layerinfo(src_path, raise_on_nogeom=raise_on_nogeom)
+    res_info = gfo.get_layerinfo(dst_path, raise_on_nogeom=raise_on_nogeom)
     assert (src_info.featurecount * 2) == res_info.featurecount
     assert len(src_info.columns) == len(res_info.columns) + 1
 
