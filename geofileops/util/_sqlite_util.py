@@ -534,16 +534,20 @@ def create_table_as_sql(
             data_type = "features" if "geom" in column_types else "attributes"
 
             # Fill out the bounds of the layer using the bounds of the crs if possible
-            crs = CRS.from_user_input(output_crs)
-            if crs is not None and crs.area_of_use is not None:
-                transformer = Transformer.from_crs(
-                    crs.geodetic_crs, crs, always_xy=True
-                )
-                bounds = transformer.transform_bounds(*crs.area_of_use.bounds)
-                min_x, min_y, max_x, max_y = [
-                    to_string_for_sql(coord) for coord in bounds
-                ]
-            else:
+            try:
+                crs = CRS.from_user_input(output_crs)
+                if crs is not None and crs.area_of_use is not None:
+                    transformer = Transformer.from_crs(
+                        crs.geodetic_crs, crs, always_xy=True
+                    )
+                    bounds = transformer.transform_bounds(*crs.area_of_use.bounds)
+                    min_x, min_y, max_x, max_y = [
+                        to_string_for_sql(coord) for coord in bounds
+                    ]
+                else:
+                    min_x = min_y = max_x = max_y = "NULL"
+
+            except Exception:
                 min_x = min_y = max_x = max_y = "NULL"
 
             # ~ mimic behaviour of gpkgAddGeometryColumn()
