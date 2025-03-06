@@ -108,6 +108,17 @@ def test_create_table_as_sql(tmp_path, create_spatial_index):
     output_info = gfo.get_layerinfo(output_path)
     assert output_info.featurecount == 7
 
+    # The "gpkg_ogr_contents" table won't be present in the output gpkg
+    tables = sqlite_util.get_tables(output_path)
+    assert "gpkg_ogr_contents" not in tables
+
+    # The bounds of the layer should be filled out
+    gpkg_contents = sqlite_util.get_gpkg_contents(output_path)
+    assert gpkg_contents["output"]["min_x"] is not None
+    assert gpkg_contents["output"]["min_y"] is not None
+    assert gpkg_contents["output"]["max_x"] is not None
+    assert gpkg_contents["output"]["max_y"] is not None
+
     # The gpkg created by spatialite by default include some triggers that have errors
     # and were removed from the gpkg spec but not removed in spatialite.
     # These operations give errors if the triggers are still there.
