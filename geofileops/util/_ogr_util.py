@@ -181,11 +181,8 @@ def StartTransaction(datasource: gdal.Dataset) -> bool:
     if datasource is None:
         raise ValueError("datasource is None")
 
-    try:
-        if datasource.TestCapability(ogr.ODsCTransactions):
-            datasource.StartTransaction()
-    except Exception:
-        return False
+    if datasource.TestCapability(ogr.ODsCTransactions):
+        datasource.StartTransaction()
 
     return True
 
@@ -203,11 +200,8 @@ def CommitTransaction(datasource: Optional[gdal.Dataset]) -> bool:
     if datasource is None:
         return False
 
-    try:
-        if datasource.TestCapability(ogr.ODsCTransactions):
-            datasource.CommitTransaction()
-    except Exception:
-        return False
+    if datasource.TestCapability(ogr.ODsCTransactions):
+        datasource.CommitTransaction()
 
     return True
 
@@ -225,11 +219,8 @@ def RollbackTransaction(datasource: Optional[gdal.Dataset]) -> bool:
     if datasource is None:
         return False
 
-    try:
-        if datasource.TestCapability(ogr.ODsCTransactions):
-            datasource.RollbackTransaction()
-    except Exception:
-        return False
+    if datasource.TestCapability(ogr.ODsCTransactions):
+        datasource.RollbackTransaction()
 
     return True
 
