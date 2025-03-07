@@ -123,6 +123,24 @@ def test_add_column_gpkg(tmp_path):
     assert gdf["HFDTLT"][0] == "5"
 
 
+@pytest.mark.parametrize("suffix", [".gpkg", ".shp"])
+def test_add_column_update_error(tmp_path, suffix):
+    """Test that when the update gives an error, the column is not added."""
+    test_path = test_helper.get_testfile(
+        "polygon-parcel", dst_dir=tmp_path, suffix=suffix
+    )
+
+    # Add a column with an invalid expression
+    with pytest.raises(RuntimeError, match="add_column error for"):
+        gfo.add_column(
+            test_path, name="ERROR_COLUMN", type="TEXT", expression="invalid_expression"
+        )
+
+    # The column should not be added, as GPKG supports transactions
+    info = gfo.get_layerinfo(test_path)
+    assert "ERROR_COLUMN" not in list(info.columns)
+
+
 def test_append_different_layer(tmp_path):
     # Prepare test data
     src_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
