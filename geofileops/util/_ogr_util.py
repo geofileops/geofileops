@@ -172,6 +172,9 @@ def StartTransaction(datasource: gdal.Dataset) -> bool:
     Args:
         datasource (gdal.Dataset): the datasource to start the transaction on.
 
+    Raises:
+        ValueError: if datasource is None.
+
     Returns:
         bool: True if the transaction was started successfully.
     """
@@ -179,47 +182,52 @@ def StartTransaction(datasource: gdal.Dataset) -> bool:
         raise ValueError("datasource is None")
 
     try:
-        datasource.StartTransaction()
+        if datasource.TestCapability(ogr.ODsCTransactions):
+            datasource.StartTransaction()
     except Exception:
         return False
 
     return True
 
 
-def CommitTransaction(datasource: gdal.Dataset) -> bool:
+def CommitTransaction(datasource: Optional[gdal.Dataset]) -> bool:
     """Commits a transaction on an open datasource.
 
     Args:
-        datasource (gdal.Dataset): the datasource to commit the transaction on.
+        datasource (gdal.Dataset): the datasource to commit the transaction on. If None,
+            no commit is executed.
 
     Returns:
         bool: True if the transaction was committed successfully.
     """
     if datasource is None:
-        raise ValueError("datasource is None")
+        return False
 
     try:
-        datasource.CommitTransaction()
+        if datasource.TestCapability(ogr.ODsCTransactions):
+            datasource.CommitTransaction()
     except Exception:
         return False
 
     return True
 
 
-def RollbackTransaction(datasource: gdal.Dataset) -> bool:
+def RollbackTransaction(datasource: Optional[gdal.Dataset]) -> bool:
     """Rolls back a transaction on an open datasource.
 
     Args:
-        datasource (gdal.Dataset): the datasource to roll back the transaction on.
+        datasource (gdal.Dataset): the datasource to roll back the transaction on. If
+            None, no rollback is executed.
 
     Returns:
         bool: True if the transaction was rolled back successfully.
     """
     if datasource is None:
-        raise ValueError("datasource is None")
+        return False
 
     try:
-        datasource.RollbackTransaction()
+        if datasource.TestCapability(ogr.ODsCTransactions):
+            datasource.RollbackTransaction()
     except Exception:
         return False
 
