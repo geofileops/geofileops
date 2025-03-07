@@ -176,7 +176,7 @@ def StartTransaction(datasource: gdal.Dataset) -> bool:
         bool: True if the transaction was started successfully.
     """
     if datasource is None:
-        return False
+        raise ValueError("datasource is None")
 
     try:
         datasource.StartTransaction()
@@ -196,7 +196,7 @@ def CommitTransaction(datasource: gdal.Dataset) -> bool:
         bool: True if the transaction was committed successfully.
     """
     if datasource is None:
-        return False
+        raise ValueError("datasource is None")
 
     try:
         datasource.CommitTransaction()
@@ -216,7 +216,7 @@ def RollbackTransaction(datasource: gdal.Dataset) -> bool:
         bool: True if the transaction was rolled back successfully.
     """
     if datasource is None:
-        return False
+        raise ValueError("datasource is None")
 
     try:
         datasource.RollbackTransaction()

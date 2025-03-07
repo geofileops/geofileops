@@ -149,6 +149,17 @@ def test_set_config_options():
     assert gdal.GetConfigOption(test3_config_envset) == "test3_new_env_value"
 
 
+def test_transactions():
+    with pytest.raises(Exception, match="datasource is None"):
+        _ogr_util.StartTransaction(None)
+
+    with pytest.raises(Exception, match="datasource is None"):
+        _ogr_util.CommitTransaction(None)
+
+    with pytest.raises(Exception, match="datasource is None"):
+        _ogr_util.RollbackTransaction(None)
+
+
 @pytest.mark.parametrize(
     "output_geometrytype, exp_geometrytype",
     [
