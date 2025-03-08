@@ -166,22 +166,42 @@ def delete_duplicate_geometries(
     input_layer: Optional[Union[str, LayerInfo]] = None,
     output_layer: Optional[str] = None,
     columns: Optional[list[str]] = None,
+    priority_column: Optional[str] = None,
+    priority_ascending: bool = True,
     explodecollections: bool = False,
     keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
+    nb_parallel: int = -1,
+    batchsize: int = -1,
     force: bool = False,
 ):
-    # The query as written doesn't give correct results when parallelized,
-    # but it isn't useful to do it for this operation.
-    sql_template = """
-        SELECT {geometrycolumn} AS {geometrycolumn}
-              {columns_to_select_str}
-          FROM "{input_layer}" layer
-         WHERE layer.rowid IN (
-                SELECT MIN(layer_sub.rowid) AS rowid_to_keep
-                  FROM "{input_layer}" layer_sub
-                 GROUP BY layer_sub.{geometrycolumn}
-            )
+    if priority_column is None:
+        priority_column = "rowid"
+    priority_order = "ASC" if priority_ascending else "DESC"
+    input_layer_rtree = "rtree_{input_layer}_{geometrycolumn}"
+    sql_template = f"""
+        SELECT layer.{{geometrycolumn}} AS {{geometrycolumn}}
+              {{columns_to_select_str}}
+          FROM "{{input_layer}}" layer
+         WHERE 1=1
+           {{batch_filter}}
+           AND layer.rowid IN (
+                  SELECT FIRST_VALUE(layer_sub.rowid) OVER (
+                           ORDER BY layer_sub."{priority_column}" {priority_order})
+                    FROM "{{input_layer}}" layer_sub
+                    JOIN "{input_layer_rtree}" layer_sub_tree
+                      ON layer_sub.fid = layer_sub_tree.id
+                   WHERE ST_MinX(layer.{{geometrycolumn}}) <= layer_sub_tree.maxx
+                     AND ST_MaxX(layer.{{geometrycolumn}}) >= layer_sub_tree.minx
+                     AND ST_MinY(layer.{{geometrycolumn}}) <= layer_sub_tree.maxy
+                     AND ST_MaxY(layer.{{geometrycolumn}}) >= layer_sub_tree.miny
+                     AND (layer.rowid = layer_sub.rowid
+                          OR ST_Equals(
+                               layer.{{geometrycolumn}}, layer_sub.{{geometrycolumn}}
+                             )
+                         )
+                     LIMIT -1 OFFSET 0
+               )
     """
 
     # Go!
@@ -203,8 +223,8 @@ def delete_duplicate_geometries(
         keep_empty_geoms=keep_empty_geoms,
         where_post=where_post,
         sql_dialect="SQLITE",
-        nb_parallel=1,
-        batchsize=-1,
+        nb_parallel=nb_parallel,
+        batchsize=batchsize,
         force=force,
     )
 
@@ -3451,11 +3471,14 @@ def _two_layer_vector_operation(
 
                 # If there is only one tmp_partial file and it is already ok as
                 # output file, just rename/move it.
+                # Just for GPKG, don't do this, as there are small issues in the file
+                # created by spatialite that are fixed by copying with ogr2ogr.
                 if (
                     nb_batches == 1
                     and not explodecollections
                     and force_output_geometrytype is None
                     and where_post is None
+                    and tmp_output_path.suffix.lower() != ".gpkg"
                     and tmp_partial_output_path.suffix.lower()
                     == tmp_output_path.suffix.lower()
                 ):
@@ -3470,6 +3493,8 @@ def _two_layer_vector_operation(
                     fileops._append_to_nolock(
                         src=tmp_partial_output_path,
                         dst=tmp_output_path,
+                        src_layer=output_layer,
+                        dst_layer=output_layer,
                         explodecollections=explodecollections,
                         force_output_geometrytype=force_output_geometrytype,
                         where=where_post,
