@@ -347,8 +347,8 @@ def test_copy_layer_input_open_options(tmp_path):
     result_gdf = gfo.read_file(dst)
     assert len(result_gdf) == 1
     assert "geometry" in result_gdf.columns
-    assert result_gdf.geometry[0].x == 3.888498686
-    assert result_gdf.geometry[0].y == 50.939972761
+    assert result_gdf.geometry[0].geoms[0].x == 3.888498686
+    assert result_gdf.geometry[0].geoms[0].y == 50.939972761
 
 
 @pytest.mark.parametrize(
