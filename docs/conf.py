@@ -28,7 +28,7 @@ devdir = "./"
 # -- Project information -----------------------------------------------------
 
 project = "geofileops"
-copyright = "2024, Pieter Roggemans"
+copyright = "2025, Pieter Roggemans"
 author = "Pieter Roggemans"
 
 # The full version, including alpha/beta/rc tags
@@ -77,6 +77,8 @@ exclude_patterns = [
 # a list of builtin themes.
 #
 html_theme = "pydata_sphinx_theme"
+
+html_title = ""
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
