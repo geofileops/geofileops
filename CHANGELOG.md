@@ -5,9 +5,6 @@
 ### Bugs fixed
 
 - Fix GDAL input open options being ignored in `copy_layer` (#632)
-
-### Bugs fixed
-
 - Fix `missing_ok` parameter in `remove` being ~ignored (#605)
 - Fix `dissolve` with `agg_columns` on sqlite 3.49.1 (#636)
 
