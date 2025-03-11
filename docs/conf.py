@@ -78,7 +78,7 @@ exclude_patterns = [
 #
 html_theme = "pydata_sphinx_theme"
 
-html_title = "project release"
+html_title = f"{project} {release}"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
