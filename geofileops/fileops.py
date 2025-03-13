@@ -2547,7 +2547,7 @@ def copy_layer(
     Typically used to convert from one fileformat to another, to reproject or to export
     a subset of the data using the `where` parameter.
 
-    You can also add a layer to an existing file or append to/upsert an existing layer
+    You can also add a layer to an existing file or append rows to an existing layer
     using the `write_mode` parameter.
 
     The options parameter can be used to pass any type of options to GDAL in
@@ -2575,12 +2575,10 @@ def copy_layer(
             - "create": create a new destination file. If the file already exists,
                 behaviour depends on the `force` parameter.
             - "add_layer": add the source layer to the destination file as a new layer.
-                If the layer already exists, behaviour depends on the `force` parameter.
+                When using "add_layer", `dst_layer` should be specified. If the layer
+                already exists, behaviour depends on the `force` parameter.
             - "append": append the source layer to the destination layer, if the
                 layer already exists.
-            - "upsert": update the destination layer with the values in the source
-                layer if it exists, using the FID as key. Only supported for some file
-                formats (e.g. GPKG).
 
         src_crs (Union[str, int], optional): an epsg int or anything supported
             by the OGRSpatialReference.SetFromUserInput() call, which includes
@@ -2666,6 +2664,9 @@ def copy_layer(
         write_mode = "append"
 
     if dst_layer is None:
+        if write_mode == "add_layer":
+            raise ValueError("dst_layer is required when write_mode is 'add_layer'")
+
         dst_layer = get_default_layer(dst)
 
     # Convert write_mode to the access_mode expected by GDAL + handle existing dst.
@@ -2684,7 +2685,7 @@ def copy_layer(
                 return
             access_mode = "update"
 
-    elif write_mode in ("append", "upsert"):
+    elif write_mode == "append":
         access_mode = write_mode
     else:
         raise ValueError(f"Invalid write_mode: {write_mode}")
