@@ -2442,7 +2442,7 @@ def append_to(
     start_time = datetime.now()
     ready = False
     while not ready:
-        if _io_util.create_file_atomic(lockfile) is True:
+        if _io_util.create_file_atomic(lockfile):
             try:
                 # append
                 copy_layer(

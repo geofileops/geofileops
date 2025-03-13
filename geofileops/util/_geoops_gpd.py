@@ -946,7 +946,7 @@ def _apply_geooperation(
     if not output_path.parent.exists():
         raise ValueError(f"Output directory does not exist: {output_path.parent}")
     if output_path.exists():
-        if force is False:
+        if not force:
             message = f"Stop, output already exists {output_path}"
             return message
         else:
