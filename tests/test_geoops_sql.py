@@ -136,3 +136,201 @@ def test_subdivide_layer(
         assert result is not None
     else:
         assert result is None
+
+
+@pytest.mark.parametrize(
+    (
+        "query, "
+        "subdivided, "
+        "spatial_relations, "
+        "exp_spatial_relation_filter, "
+        "exp_spatial_relation_column, "
+        "exp_true_for_disjoint, "
+        "exp_aggregation_column, "
+        "exp_groupby"
+    ),
+    [
+        (
+            "intersects is True",
+            False,
+            [],
+            (
+                '((ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " 'T********') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '*T*******') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '***T*****') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '****T****') = 1) = 1)"
+            ),
+            (
+                ",ST_relate(layer1.{input1_geometrycolumn}"
+                ', layer2.{input2_geometrycolumn}) AS "GFO_$TEMP$_SPATIAL_RELATION"'
+            ),
+            False,
+            ',"GFO_$TEMP$_SPATIAL_RELATION"',
+            "",
+        ),
+        (
+            "intersects is True",
+            False,
+            ["intersects"],
+            'sub_filter."GFO_$TEMP$_SPATIAL_RELATION" = 1',
+            (
+                ",ST_intersects(layer1.{input1_geometrycolumn}"
+                ', layer2.{input2_geometrycolumn}) AS "GFO_$TEMP$_SPATIAL_RELATION"'
+            ),
+            False,
+            ',"GFO_$TEMP$_SPATIAL_RELATION"',
+            "",
+        ),
+        (
+            "intersects is True",
+            True,
+            [],
+            (
+                '((ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " 'T********') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '*T*******') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '***T*****') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '****T****') = 1) = 1)"
+            ),
+            (
+                ",ST_relate(layer1.{input1_geometrycolumn}"
+                ", ST_union(layer2.{input2_geometrycolumn}))"
+                ' AS "GFO_$TEMP$_SPATIAL_RELATION"'
+            ),
+            False,
+            ',"GFO_$TEMP$_SPATIAL_RELATION"',
+            "GROUP BY layer2.fid_1",
+        ),
+        (
+            "intersects is True",
+            True,
+            ["intersects"],
+            'sub_filter."GFO_$TEMP$_SPATIAL_RELATION" = 1',
+            (
+                ",ST_intersects(layer1.{input1_geometrycolumn},"
+                " ST_union(layer2.{input2_geometrycolumn}))"
+                ' AS "GFO_$TEMP$_SPATIAL_RELATION"'
+            ),
+            False,
+            ',"GFO_$TEMP$_SPATIAL_RELATION"',
+            "GROUP BY layer2.fid_1",
+        ),
+        (
+            "intersects is False",
+            False,
+            [],
+            (
+                '((ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " 'T********') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '*T*******') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '***T*****') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '****T****') = 1) = 0)"
+            ),
+            (
+                ",ST_relate(layer1.{input1_geometrycolumn}"
+                ', layer2.{input2_geometrycolumn}) AS "GFO_$TEMP$_SPATIAL_RELATION"'
+            ),
+            False,
+            ',MIN("GFO_$TEMP$_SPATIAL_RELATION") AS "GFO_$TEMP$_SPATIAL_RELATION"',
+            "",
+        ),
+        (
+            "intersects is False",
+            False,
+            ["intersects"],
+            'sub_filter."GFO_$TEMP$_SPATIAL_RELATION" = 0',
+            (
+                ",ST_intersects(layer1.{input1_geometrycolumn}"
+                ', layer2.{input2_geometrycolumn}) AS "GFO_$TEMP$_SPATIAL_RELATION"'
+            ),
+            True,
+            ',MAX("GFO_$TEMP$_SPATIAL_RELATION") AS "GFO_$TEMP$_SPATIAL_RELATION"',
+            "",
+        ),
+        (
+            "intersects is False",
+            True,
+            [],
+            (
+                '((ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " 'T********') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '*T*******') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '***T*****') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '****T****') = 1) = 0)"
+            ),
+            (
+                ",ST_relate(layer1.{input1_geometrycolumn}"
+                ", ST_union(layer2.{input2_geometrycolumn}))"
+                ' AS "GFO_$TEMP$_SPATIAL_RELATION"'
+            ),
+            False,
+            ',MIN("GFO_$TEMP$_SPATIAL_RELATION") AS "GFO_$TEMP$_SPATIAL_RELATION"',
+            "GROUP BY layer2.fid_1",
+        ),
+        (
+            "intersects is False",
+            True,
+            ["intersects"],
+            'sub_filter."GFO_$TEMP$_SPATIAL_RELATION" = 0',
+            (
+                ",ST_intersects(layer1.{input1_geometrycolumn}"
+                ", ST_union(layer2.{input2_geometrycolumn}))"
+                ' AS "GFO_$TEMP$_SPATIAL_RELATION"'
+            ),
+            True,
+            ',MAX("GFO_$TEMP$_SPATIAL_RELATION") AS "GFO_$TEMP$_SPATIAL_RELATION"',
+            "GROUP BY layer2.fid_1",
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "geom1, geom2",
+    [
+        ("layer1.{input1_geometrycolumn}", "layer2.{input2_geometrycolumn}"),
+    ],
+)
+def test_prepare_filter_by_location_fields(
+    tmp_path,
+    query,
+    geom1,
+    geom2,
+    subdivided,
+    spatial_relations,
+    exp_spatial_relation_column,
+    exp_spatial_relation_filter,
+    exp_true_for_disjoint,
+    exp_aggregation_column,
+    exp_groupby,
+):
+    (
+        spatial_relation_column,
+        spatial_relation_filter,
+        aggregation_column,
+        true_for_disjoint,
+        groupby,
+    ) = _geoops_sql._prepare_filter_by_location_fields(
+        query=query,
+        geom1=geom1,
+        geom2=geom2,
+        subdivided=subdivided,
+        spatial_relations=spatial_relations,
+    )
+
+    assert spatial_relation_column == exp_spatial_relation_column
+    assert spatial_relation_filter == exp_spatial_relation_filter
+    assert true_for_disjoint == exp_true_for_disjoint
+    assert aggregation_column == exp_aggregation_column
+    assert groupby == exp_groupby
