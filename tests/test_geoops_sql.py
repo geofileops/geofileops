@@ -154,8 +154,20 @@ def test_subdivide_layer(
             "intersects is True",
             False,
             [],
-            "",
-            "",
+            (
+                '((ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " 'T********') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '*T*******') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '***T*****') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '****T****') = 1) = 1)"
+            ),
+            (
+                ",ST_relate(layer1.{input1_geometrycolumn}"
+                ', layer2.{input2_geometrycolumn}) AS "GFO_$TEMP$_SPATIAL_RELATION"'
+            ),
             False,
             ',"GFO_$TEMP$_SPATIAL_RELATION"',
             "",
@@ -177,8 +189,21 @@ def test_subdivide_layer(
             "intersects is True",
             True,
             [],
-            "",
-            "",
+            (
+                '((ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " 'T********') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '*T*******') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '***T*****') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '****T****') = 1) = 1)"
+            ),
+            (
+                ",ST_relate(layer1.{input1_geometrycolumn}"
+                ", ST_union(layer2.{input2_geometrycolumn}))"
+                ' AS "GFO_$TEMP$_SPATIAL_RELATION"'
+            ),
             False,
             ',"GFO_$TEMP$_SPATIAL_RELATION"',
             "GROUP BY layer2.fid_1",
@@ -201,8 +226,20 @@ def test_subdivide_layer(
             "intersects is False",
             False,
             [],
-            "",
-            "",
+            (
+                '((ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " 'T********') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '*T*******') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '***T*****') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '****T****') = 1) = 0)"
+            ),
+            (
+                ",ST_relate(layer1.{input1_geometrycolumn}"
+                ', layer2.{input2_geometrycolumn}) AS "GFO_$TEMP$_SPATIAL_RELATION"'
+            ),
             False,
             ',MIN("GFO_$TEMP$_SPATIAL_RELATION") AS "GFO_$TEMP$_SPATIAL_RELATION"',
             "",
@@ -224,8 +261,21 @@ def test_subdivide_layer(
             "intersects is False",
             True,
             [],
-            "",
-            "",
+            (
+                '((ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " 'T********') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '*T*******') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '***T*****') = 1 or"
+                ' ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
+                " '****T****') = 1) = 0)"
+            ),
+            (
+                ",ST_relate(layer1.{input1_geometrycolumn}"
+                ", ST_union(layer2.{input2_geometrycolumn}))"
+                ' AS "GFO_$TEMP$_SPATIAL_RELATION"'
+            ),
             False,
             ',MIN("GFO_$TEMP$_SPATIAL_RELATION") AS "GFO_$TEMP$_SPATIAL_RELATION"',
             "GROUP BY layer2.fid_1",
@@ -252,7 +302,7 @@ def test_subdivide_layer(
         ("layer1.{input1_geometrycolumn}", "layer2.{input2_geometrycolumn}"),
     ],
 )
-def test_add_specific_optimisation(
+def test_prepare_filter_by_location_fields(
     tmp_path,
     query,
     geom1,
@@ -271,7 +321,7 @@ def test_add_specific_optimisation(
         aggregation_column,
         true_for_disjoint,
         groupby,
-    ) = _geoops_sql._add_specific_optimisation(
+    ) = _geoops_sql._prepare_filter_by_location_fields(
         query=query,
         geom1=geom1,
         geom2=geom2,
