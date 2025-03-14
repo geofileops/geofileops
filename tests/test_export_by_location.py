@@ -14,6 +14,7 @@ zones = [
     "POLYGON ((0 0, 3 0, 3 3, 0 3, 0 0))",
     "POLYGON ((10 1, 13 1, 13 4, 10 4, 10 1))",
     "POLYGON ((7 2, 8 2, 8 5, 1 5, 1 4, 7 4, 7 2))",
+    "POLYGON ((7 1, 7 -2, 10 -2, 10 -1, 8 -1, 8 1, 7 1))",
 ]
 
 extra_parcels = [
@@ -385,6 +386,7 @@ def test_coveredby(
     [
         [
             "POLYGON ((4 1, 6 1, 6 3, 4 3, 4 1))",
+            "POLYGON ((4 -2, 6 -2, 6 0, 4 0, 4 -2))",
             "POLYGON ((9 0, 11 0, 11 2, 9 2, 9 0))",
             *extra_parcels,
         ]
@@ -393,7 +395,7 @@ def test_coveredby(
 @pytest.mark.parametrize("subdivide_coords", [0, 10])
 @pytest.mark.parametrize(
     "spatial_relations, exp_features",
-    [("disjoint is True", 3), ("disjoint is False", 1)],
+    [("disjoint is True", 4), ("disjoint is False", 1)],
 )
 def test_disjoint(
     tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
