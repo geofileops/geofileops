@@ -403,6 +403,35 @@ def test_disjoint(
     )
 
 
+@pytest.mark.parametrize("zones", [zones])
+@pytest.mark.parametrize(
+    "parcels",
+    [
+        [
+            "POLYGON ((2 1, 4 1, 4 3, 2 3, 2 1))",
+            "POLYGON ((2 -2, 4 -2, 4 0, 2 0, 2 -2))",
+            *extra_parcels,
+        ]
+    ],
+)
+@pytest.mark.parametrize("subdivide_coords", [0, 10])
+@pytest.mark.parametrize(
+    "spatial_relations, exp_features",
+    [
+        ("intersects is True and touches is False", 1),
+        ("intersects is True and touches is True", 1),
+        ("intersects is True or touches is False", 4),
+        ("intersects is True or touches is True", 2),
+    ],
+)
+def test_intersects_true_touches_false(
+    tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
+):
+    _spatial_relation(
+        tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
+    )
+
+
 def _spatial_relation(
     tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
 ):
@@ -413,7 +442,9 @@ def _spatial_relation(
         box_zone = shapely.segmentize(box_zone, 1)
         box_zones.append(box_zone)
     gdf_zone = gpd.GeoDataFrame(geometry=box_zones, crs="EPSG:31370")
-    gfo.to_file(gdf=gdf_zone, path=input_to_compare_with_path)
+    gfo.to_file(
+        gdf=gdf_zone, path=input_to_compare_with_path, create_spatial_index=True
+    )
 
     input_to_select_from_path = tmp_path / "parcels.gpkg"
     box_parcels = []
@@ -421,7 +452,9 @@ def _spatial_relation(
         box_parcel = shapely.from_wkt(parcel)
         box_parcels.append(box_parcel)
     gdf_parcel = gpd.GeoDataFrame(geometry=box_parcels, crs="EPSG:31370")
-    gfo.to_file(gdf=gdf_parcel, path=input_to_select_from_path)
+    gfo.to_file(
+        gdf=gdf_parcel, path=input_to_select_from_path, create_spatial_index=True
+    )
 
     # Test
     input_layerinfo = gfo.get_layerinfo(input_to_select_from_path)

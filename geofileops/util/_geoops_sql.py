@@ -2187,11 +2187,36 @@ def _add_specific_optimisation(
             - spatial_relation_filter: the string to use as filter
             - true_for_disjoint: True if the query returns True for disjoint features.
                   If `avoid_disjoint` is True, `includes_disjoint` is always False.
+
+    Remarks:
+    ST_Relate
+    - bij disjoint:
+        - MIN aggregation bij "... is True" omdat het voor alle relaties moet gelden.
+        - GEEN aggregation bij "... is False"
+        - true_for_disjoint TRUE bij "... is True" en FALSE bij "... is False"
+
+    - bij de rest:
+        - GEEN aggregation bij "... is True"
+        - MIN aggregation bij "... is False" omdat het voor alle relaties moet gelden.
+        - true_for_disjoint altijd FALSE
+
+    Optimize (eg ST_Intersects, ...)
+    - bij disjoint:
+        - MIN aggregation bij "... is True" omdat het voor alle relaties moet gelden.
+        - GEEN aggregation bij "... is False"
+        - true_for_disjoint TRUE bij "... is True" en FALSE bij "... is False"
+
+
+    - bij de rest:
+        - GEEN aggregation bij "... is True" omdat dit ok is van zodra er één geldig is.
+        - MAX aggregation bij "... is False"
+        - true_for_disjoint FALSE bij "... is True" en TRUE bij "... is False"
+
     """
     spatial_relation_column: str = ""
     spatial_relation_filter: str = ""
     aggregation_column: str = (
-        ',MIN("GFO_$TEMP$_SPATIAL_RELATION") AS "GFO_$TEMP$_SPATIAL_RELATION"'
+        ',("GFO_$TEMP$_SPATIAL_RELATION") AS "GFO_$TEMP$_SPATIAL_RELATION"'
     )
     true_for_disjoint = False
     groupby = "GROUP BY layer2.fid_1" if subdivided else ""
@@ -2207,12 +2232,19 @@ def _add_specific_optimisation(
         if query.lower() == f"{spatial_relation} is {str(relation_is_true).lower()}":
             if spatial_relation == "disjoint":
                 disjoint = True
-            else:
+                if relation_is_true:
+                    aggregation_column = (
+                        ',MIN("GFO_$TEMP$_SPATIAL_RELATION")'
+                        ' AS "GFO_$TEMP$_SPATIAL_RELATION"'
+                    )
+            elif not relation_is_true:
                 disjoint = False
                 aggregation_column = (
                     ',MAX("GFO_$TEMP$_SPATIAL_RELATION")'
                     ' AS "GFO_$TEMP$_SPATIAL_RELATION"'
                 )
+            else:
+                disjoint = False
             spatial_relation_column = (
                 f",ST_{spatial_relation}({geomA}, {geomB})"
                 ' AS "GFO_$TEMP$_SPATIAL_RELATION"'
@@ -2226,9 +2258,14 @@ def _add_specific_optimisation(
 
     # It is a more complex query, so some more processing needed
     if spatial_relation_column == "" and spatial_relation_filter == "":
-        if "disjoint is false" in query.lower():
-            aggregation_column = ',"GFO_$TEMP$_SPATIAL_RELATION"'
-        elif "disjoint is true" in query.lower():
+        if (
+            "is false" in query.lower() and "disjoint is false" not in query.lower()
+        ) or "disjoint is true" in query.lower():
+            aggregation_column = (
+                ',MIN("GFO_$TEMP$_SPATIAL_RELATION")'
+                ' AS "GFO_$TEMP$_SPATIAL_RELATION"'
+            )
+        if "disjoint is true" in query.lower():
             true_for_disjoint = True
 
     return (
@@ -2277,12 +2314,7 @@ def _prepare_filter_by_location_fields(
         true_for_disjoint,
         groupby,
     ) = _add_specific_optimisation(
-        query,
-        geom1,
-        geom2,
-        subquery_alias,
-        avoid_disjoint,
-        subdivided,
+        query, geom1, geom2, subquery_alias, avoid_disjoint, subdivided
     )
 
     # It is a more complex query, so some more processing needed
