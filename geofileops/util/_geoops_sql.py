@@ -2215,9 +2215,7 @@ def _add_specific_optimisation(
     """
     spatial_relation_column: str = ""
     spatial_relation_filter: str = ""
-    aggregation_column: str = (
-        ',("GFO_$TEMP$_SPATIAL_RELATION") AS "GFO_$TEMP$_SPATIAL_RELATION"'
-    )
+    aggregation_column: str = ',"GFO_$TEMP$_SPATIAL_RELATION"'
     true_for_disjoint = False
     groupby = "GROUP BY layer2.fid_1" if subdivided else ""
     geom2 = f"ST_union({geom2})" if subdivided else f"{geom2}"

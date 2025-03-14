@@ -157,7 +157,7 @@ def test_subdivide_layer(
             "",
             "",
             False,
-            ',MIN("GFO_$TEMP$_SPATIAL_RELATION") AS "GFO_$TEMP$_SPATIAL_RELATION"',
+            ',"GFO_$TEMP$_SPATIAL_RELATION"',
             "",
         ),
         (
@@ -170,7 +170,7 @@ def test_subdivide_layer(
                 ', layer2.{input2_geometrycolumn}) AS "GFO_$TEMP$_SPATIAL_RELATION"'
             ),
             False,
-            ',MAX("GFO_$TEMP$_SPATIAL_RELATION") AS "GFO_$TEMP$_SPATIAL_RELATION"',
+            ',"GFO_$TEMP$_SPATIAL_RELATION"',
             "",
         ),
         (
@@ -180,7 +180,7 @@ def test_subdivide_layer(
             "",
             "",
             False,
-            ',MIN("GFO_$TEMP$_SPATIAL_RELATION") AS "GFO_$TEMP$_SPATIAL_RELATION"',
+            ',"GFO_$TEMP$_SPATIAL_RELATION"',
             "GROUP BY layer2.fid_1",
         ),
         (
@@ -194,7 +194,7 @@ def test_subdivide_layer(
                 ' AS "GFO_$TEMP$_SPATIAL_RELATION"'
             ),
             False,
-            ',MAX("GFO_$TEMP$_SPATIAL_RELATION") AS "GFO_$TEMP$_SPATIAL_RELATION"',
+            ',"GFO_$TEMP$_SPATIAL_RELATION"',
             "GROUP BY layer2.fid_1",
         ),
         (
