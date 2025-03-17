@@ -1487,7 +1487,7 @@ def export_by_location(
     ) = _prepare_filter_by_location_fields(
         query=spatial_relations_query,
         subdivided=input_to_compare_with_subdivided_path is not None,
-        spatial_relations=[],
+        # spatial_relations=[],
     )
 
     # Different query if intersecting features need to be unioned...
