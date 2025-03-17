@@ -23,7 +23,6 @@ import shapely.geometry.base
 import geofileops as gfo
 from geofileops import GeometryType, LayerInfo, PrimitiveType, fileops
 from geofileops._compat import SPATIALITE_GTE_51
-from geofileops.fileops import _append_to_nolock
 from geofileops.helpers import _general_helper, _parameter_helper
 from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import (
@@ -166,22 +165,42 @@ def delete_duplicate_geometries(
     input_layer: Optional[Union[str, LayerInfo]] = None,
     output_layer: Optional[str] = None,
     columns: Optional[list[str]] = None,
+    priority_column: Optional[str] = None,
+    priority_ascending: bool = True,
     explodecollections: bool = False,
     keep_empty_geoms: bool = False,
     where_post: Optional[str] = None,
+    nb_parallel: int = -1,
+    batchsize: int = -1,
     force: bool = False,
 ):
-    # The query as written doesn't give correct results when parallelized,
-    # but it isn't useful to do it for this operation.
-    sql_template = """
-        SELECT {geometrycolumn} AS {geometrycolumn}
-              {columns_to_select_str}
-          FROM "{input_layer}" layer
-         WHERE layer.rowid IN (
-                SELECT MIN(layer_sub.rowid) AS rowid_to_keep
-                  FROM "{input_layer}" layer_sub
-                 GROUP BY layer_sub.{geometrycolumn}
-            )
+    if priority_column is None:
+        priority_column = "rowid"
+    priority_order = "ASC" if priority_ascending else "DESC"
+    input_layer_rtree = "rtree_{input_layer}_{geometrycolumn}"
+    sql_template = f"""
+        SELECT layer.{{geometrycolumn}} AS {{geometrycolumn}}
+              {{columns_to_select_str}}
+          FROM "{{input_layer}}" layer
+         WHERE 1=1
+           {{batch_filter}}
+           AND layer.rowid IN (
+                  SELECT FIRST_VALUE(layer_sub.rowid) OVER (
+                           ORDER BY layer_sub."{priority_column}" {priority_order})
+                    FROM "{{input_layer}}" layer_sub
+                    JOIN "{input_layer_rtree}" layer_sub_tree
+                      ON layer_sub.fid = layer_sub_tree.id
+                   WHERE ST_MinX(layer.{{geometrycolumn}}) <= layer_sub_tree.maxx
+                     AND ST_MaxX(layer.{{geometrycolumn}}) >= layer_sub_tree.minx
+                     AND ST_MinY(layer.{{geometrycolumn}}) <= layer_sub_tree.maxy
+                     AND ST_MaxY(layer.{{geometrycolumn}}) >= layer_sub_tree.miny
+                     AND (layer.rowid = layer_sub.rowid
+                          OR ST_Equals(
+                               layer.{{geometrycolumn}}, layer_sub.{{geometrycolumn}}
+                             )
+                         )
+                     LIMIT -1 OFFSET 0
+               )
     """
 
     # Go!
@@ -203,8 +222,8 @@ def delete_duplicate_geometries(
         keep_empty_geoms=keep_empty_geoms,
         where_post=where_post,
         sql_dialect="SQLITE",
-        nb_parallel=1,
-        batchsize=-1,
+        nb_parallel=nb_parallel,
+        batchsize=batchsize,
         force=force,
     )
 
@@ -298,11 +317,11 @@ def makevalid(
     batchsize: int = -1,
     force: bool = False,
 ):
-    # If output file exists already, either clean up or return...
+    # If output file already exists, either clean up or return...
     operation_name = "makevalid"
     logger = logging.getLogger(f"geofileops.{operation_name}")
     if not force and output_path.exists():
-        logger.info(f"Stop, output exists already {output_path}")
+        logger.info(f"Stop, output already exists {output_path}")
         return
 
     # Determine output_geometrytype + make it multitype if it wasn't specified.
@@ -391,7 +410,7 @@ def select(
     force: bool = False,
     operation_prefix: str = "",
 ):
-    # Check if output exists already here, to avoid to much logging to be written
+    # Check if output already exists here, to avoid to much logging to be written
     logger = logging.getLogger(f"geofileops.{operation_prefix}select")
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
@@ -554,7 +573,7 @@ def _single_layer_vector_operation(
     if output_layer is None:
         output_layer = gfo.get_default_layer(output_path)
 
-    # If output file exists already, either clean up or return...
+    # If output file already exists, either clean up or return...
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
@@ -814,9 +833,10 @@ def _single_layer_vector_operation(
                         where_post = where_post.format(
                             geometrycolumn=info.geometrycolumn
                         )
-                    fileops._append_to_nolock(
+                    fileops.copy_layer(
                         src=tmp_partial_output_path,
                         dst=tmp_output_path,
+                        write_mode="append",
                         explodecollections=explodecollections,
                         force_output_geometrytype=force_output_geometrytype,
                         where=where_post,
@@ -1431,7 +1451,7 @@ def export_by_location(
     logger = logging.getLogger(f"geofileops.{operation_name}")
     if output_path.exists():
         if force is False:
-            logger.info(f"Stop, output exists already {output_path}")
+            logger.info(f"Stop, output already exists {output_path}")
             return
         else:
             gfo.remove(output_path)
@@ -2394,7 +2414,7 @@ def join_nearest(
     # here already
     logger = logging.getLogger("geofileops.join_nearest")
     if output_path.exists() and force is False:
-        logger.info(f"Stop, output exists already {output_path}")
+        logger.info(f"Stop, output already exists {output_path}")
         return
     if input1_layer is None:
         input1_layer = gfo.get_only_layer(input1_path)
@@ -2690,11 +2710,12 @@ def identity(
         # Now append
         logger.info("Step 4 of 4: finalize")
         # Note: append will never create an index on an already existing layer.
-        _append_to_nolock(
+        fileops.copy_layer(
             src=difference_output_path,
             dst=intersection_output_path,
             src_layer=output_layer,
             dst_layer=output_layer,
+            write_mode="append",
         )
 
         # Convert or add spatial index
@@ -2864,11 +2885,12 @@ def symmetric_difference(
         # Now append
         logger.info("Step 4 of 4: finalize")
         # Note: append will never create an index on an already existing layer.
-        _append_to_nolock(
+        fileops.copy_layer(
             src=diff2_output_path,
             dst=diff1_output_path,
             src_layer=output_layer,
             dst_layer=output_layer,
+            write_mode="append",
         )
 
         # Convert or add spatial index
@@ -3022,11 +3044,12 @@ def union(
             input2_subdivided_path=input1_subdivided_path,
         )
         # Note: append will never create an index on an already existing layer.
-        _append_to_nolock(
+        fileops.copy_layer(
             src=diff1_output_path,
             dst=intersection_output_path,
             src_layer=output_layer,
             dst_layer=output_layer,
+            write_mode="append",
         )
         gfo.remove(diff1_output_path)
 
@@ -3056,11 +3079,12 @@ def union(
             input1_subdivided_path=input1_subdivided_path,
             input2_subdivided_path=input2_subdivided_path,
         )
-        _append_to_nolock(
+        fileops.copy_layer(
             src=diff2_output_path,
             dst=intersection_output_path,
             src_layer=output_layer,
             dst_layer=output_layer,
+            write_mode="append",
         )
         gfo.remove(diff2_output_path)
 
@@ -3569,9 +3593,12 @@ def _two_layer_vector_operation(
                         True if nb_batches == 1 and output_with_spatial_index else False
                     )
 
-                    fileops._append_to_nolock(
+                    fileops.copy_layer(
                         src=tmp_partial_output_path,
                         dst=tmp_output_path,
+                        src_layer=output_layer,
+                        dst_layer=output_layer,
+                        write_mode="append",
                         explodecollections=explodecollections,
                         force_output_geometrytype=force_output_geometrytype,
                         where=where_post,

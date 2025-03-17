@@ -166,6 +166,65 @@ def read_cpl_log(path: Path) -> tuple[list[str], list[str]]:
     return (lines_cleaned, lines_error)
 
 
+def StartTransaction(datasource: gdal.Dataset) -> bool:
+    """Starts a transaction on an open datasource.
+
+    Args:
+        datasource (gdal.Dataset): the datasource to start the transaction on.
+
+    Raises:
+        ValueError: if datasource is None.
+
+    Returns:
+        bool: True if the transaction was started successfully.
+    """
+    if datasource is None:
+        raise ValueError("datasource is None")
+
+    if datasource.TestCapability(ogr.ODsCTransactions):
+        datasource.StartTransaction()
+
+    return True
+
+
+def CommitTransaction(datasource: Optional[gdal.Dataset]) -> bool:
+    """Commits a transaction on an open datasource.
+
+    Args:
+        datasource (gdal.Dataset): the datasource to commit the transaction on. If None,
+            no commit is executed.
+
+    Returns:
+        bool: True if the transaction was committed successfully.
+    """
+    if datasource is None:
+        return False
+
+    if datasource.TestCapability(ogr.ODsCTransactions):
+        datasource.CommitTransaction()
+
+    return True
+
+
+def RollbackTransaction(datasource: Optional[gdal.Dataset]) -> bool:
+    """Rolls back a transaction on an open datasource.
+
+    Args:
+        datasource (gdal.Dataset): the datasource to roll back the transaction on. If
+            None, no rollback is executed.
+
+    Returns:
+        bool: True if the transaction was rolled back successfully.
+    """
+    if datasource is None:
+        return False
+
+    if datasource.TestCapability(ogr.ODsCTransactions):
+        datasource.RollbackTransaction()
+
+    return True
+
+
 class VectorTranslateInfo:
     def __init__(
         self,
@@ -173,6 +232,7 @@ class VectorTranslateInfo:
         output_path: Path,
         input_layers: Union[list[str], str, None] = None,
         output_layer: Optional[str] = None,
+        access_mode: Optional[str] = None,
         input_srs: Union[int, str, None] = None,
         output_srs: Union[int, str, None] = None,
         reproject: bool = False,
@@ -182,8 +242,6 @@ class VectorTranslateInfo:
         sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
         where: Optional[str] = None,
         transaction_size: int = 65536,
-        append: bool = False,
-        update: bool = False,
         explodecollections: bool = False,
         force_output_geometrytype: Union[GeometryType, str, Iterable[str], None] = None,
         options: dict = {},
@@ -196,6 +254,7 @@ class VectorTranslateInfo:
         self.output_path = output_path
         self.input_layers = input_layers
         self.output_layer = output_layer
+        self.access_mode = access_mode
         self.input_srs = input_srs
         self.output_srs = output_srs
         self.reproject = reproject
@@ -205,8 +264,6 @@ class VectorTranslateInfo:
         self.sql_dialect = sql_dialect
         self.where = where
         self.transaction_size = transaction_size
-        self.append = append
-        self.update = update
         self.explodecollections = explodecollections
         self.force_output_geometrytype = force_output_geometrytype
         self.options = options
@@ -222,6 +279,7 @@ def vector_translate_by_info(info: VectorTranslateInfo):
         output_path=info.output_path,
         input_layers=info.input_layers,
         output_layer=info.output_layer,
+        access_mode=info.access_mode,
         input_srs=info.input_srs,
         output_srs=info.output_srs,
         reproject=info.reproject,
@@ -231,8 +289,6 @@ def vector_translate_by_info(info: VectorTranslateInfo):
         sql_dialect=info.sql_dialect,
         where=info.where,
         transaction_size=info.transaction_size,
-        append=info.append,
-        update=info.update,
         explodecollections=info.explodecollections,
         force_output_geometrytype=info.force_output_geometrytype,
         options=info.options,
@@ -248,6 +304,7 @@ def vector_translate(
     output_path: Path,
     input_layers: Union[list[str], str, None] = None,
     output_layer: Optional[str] = None,
+    access_mode: Optional[str] = None,
     input_srs: Union[int, str, None] = None,
     output_srs: Union[int, str, None] = None,
     reproject: bool = False,
@@ -257,8 +314,6 @@ def vector_translate(
     sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     where: Optional[str] = None,
     transaction_size: int = 65536,
-    append: bool = False,
-    update: bool = False,
     explodecollections: bool = False,
     force_output_geometrytype: Union[GeometryType, str, Iterable[str], None] = None,
     options: dict = {},
@@ -348,16 +403,10 @@ def vector_translate(
 
     # Output basic options
     output_exists = output_path.exists()
-    if output_exists:
-        if append:
-            args.append("-append")
-        if update:
-            args.append("-update")
-
     datasetCreationOptions = []
     # Output dataset creation options are only applicable if a new output file
     # will be created
-    if not output_exists or not update:
+    if not output_exists or access_mode is None:
         dataset_creation_options = gdal_options["DATASET_CREATION"]
         if output_info.driver == "SQLite":
             # If SQLite file, use the spatialite type of sqlite by default
@@ -408,7 +457,7 @@ def vector_translate(
     # Output layer creation options are only applicable if a new layer will be
     # created
     layerCreationOptions = []
-    if not output_exists or (update and not append):
+    if not output_exists or (access_mode is None or access_mode == "overwrite"):
         for option_name, value in gdal_options["LAYER_CREATION"].items():
             layerCreationOptions.extend([f"{option_name}={value}"])
 
@@ -515,7 +564,7 @@ def vector_translate(
             options = gdal.VectorTranslateOptions(
                 options=args_copy,
                 format=output_info.driver,
-                accessMode=None,
+                accessMode=access_mode,
                 srcSRS=input_srs,
                 dstSRS=output_srs,
                 reproject=reproject,

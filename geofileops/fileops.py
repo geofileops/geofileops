@@ -564,10 +564,10 @@ def create_spatial_index(
         cache_size_mb (int, optional): cache memory in MB that can be used while
             creating spatial index for spatialite files (.gpkg or .sqlite). If None,
             the default cache_size from sqlite is used. Defaults to 128.
-        exist_ok (bool, optional): If True and the index exists already, don't
+        exist_ok (bool, optional): If True and the index already exists, don't
             throw an error. Defaults to False.
         force_rebuild (bool, options): True to force rebuild even if index
-            exists already. Defaults to False.
+            already exists. Defaults to False.
         no_geom_ok (bool, options): If True and the file doesn't have a geometry column,
             don't throw an error. Defaults to False.
 
@@ -598,7 +598,7 @@ def create_spatial_index(
                     return
                 else:
                     raise RuntimeError(
-                        f"spatial index exists already on {path}#{layer.name}"
+                        f"spatial index already exists on {path}#{layer.name}"
                     )
 
             if path_info.is_spatialite_based:
@@ -929,7 +929,9 @@ def add_column(
 ):
     """Add a column to a layer of the geofile.
 
-    You can specify an `expression` to use to fill out the value of the column.
+    You can specify an `expression` to use to fill out the value of the column. For file
+    formats that support transactions, the column won't be added if updating the value
+    fails.
 
     Args:
         path (PathLike): Path to the geofile.
@@ -1028,8 +1030,8 @@ def add_column(
                 f'ALTER TABLE "{layer}" ADD COLUMN "{name}" {type_str}{width_str}'
             )
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
-            result = datasource.ExecuteSQL(sql_stmt)
-            datasource.ReleaseResultSet(result)
+            _ogr_util.StartTransaction(datasource)
+            datasource.ExecuteSQL(sql_stmt)
         else:
             logger.warning(f"Column {name} existed already in {path}, layer {layer}")
 
@@ -1039,11 +1041,14 @@ def add_column(
         ):
             if datasource is None:
                 datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
+                _ogr_util.StartTransaction(datasource)
             sql_stmt = f'UPDATE "{layer}" SET "{name}" = {expression}'
-            result = datasource.ExecuteSQL(sql_stmt, dialect=expression_dialect)
-            datasource.ReleaseResultSet(result)
+            datasource.ExecuteSQL(sql_stmt, dialect=expression_dialect)
+
+        _ogr_util.CommitTransaction(datasource)
 
     except Exception as ex:
+        _ogr_util.RollbackTransaction(datasource)
         ex.args = (f"add_column error for {path}#{layer}:\n  {ex}",)
         raise
     finally:
@@ -1703,7 +1708,7 @@ def to_file(
         force_multitype (bool, optional): force the geometry type to a multitype
             for file types that require one geometrytype per layer.
             Defaults to False.
-        append (bool, optional): True to append to the file/layer if it exists already.
+        append (bool, optional): True to append to the file/layer if it already exists.
             If it doesn't exist yet, it is created. Defaults to False.
         append_timeout_s (int, optional): The maximum timeout to wait when the
             output file is already being written to by another process.
@@ -2313,9 +2318,9 @@ def append_to(
     dst_dimensions: Optional[str] = None,
     options: dict = {},
 ):
-    """Append src file to the dst file.
+    """Append a layer of the source file to the destination file.
 
-    If an sql_stmt is specified, the sqlite query can contain following placeholders
+    If an `sql_stmt` is specified, the sqlite query can contain following placeholders
     that will be automatically replaced for you:
 
       * {geometrycolumn}: the column where the primary geometry is stored.
@@ -2346,8 +2351,10 @@ def append_to(
     Args:
         src (Union[str,): source file path.
         dst (Union[str,): destination file path.
-        src_layer (str, optional): source layer. Defaults to None.
-        dst_layer (str, optional): destination layer. Defaults to None.
+        src_layer (str, optional): the source layer. If None and there is only one layer
+            in the src file, that layer is taken. Defaults to None.
+        dst_layer (str, optional): the destination layer. If None, the destination file
+            stem is used as layer name. Defaults to None.
         src_crs (str, optional): an epsg int or anything supported
             by the OGRSpatialReference.SetFromUserInput() call, which includes
             an EPSG string (eg. "EPSG:4326"), a well known text (WKT) CRS
@@ -2383,7 +2390,7 @@ def append_to(
             on the destination file/layer. If None, the default behaviour by gdal for
             that file type is respected. If the `LAYER_CREATION.SPATIAL_INDEX`
             parameter is specified in options, `create_spatial_index` is ignored. If the
-            destination layer exists already, `create_spatial_index` is also ignored.
+            destination layer already exists, `create_spatial_index` is also ignored.
             Defaults to None.
         append_timeout_s (int, optional): timeout to use if the output file is
             being written to by another process already. Defaults to 600.
@@ -2414,6 +2421,8 @@ def append_to(
     # Check/clean input params
     src = Path(src)
     dst = Path(dst)
+    if dst_layer is None:
+        dst_layer = get_default_layer(dst)
     if force_output_geometrytype is not None:
         force_output_geometrytype = GeometryType(force_output_geometrytype)
 
@@ -2433,14 +2442,15 @@ def append_to(
     start_time = datetime.now()
     ready = False
     while not ready:
-        if _io_util.create_file_atomic(lockfile) is True:
+        if _io_util.create_file_atomic(lockfile):
             try:
                 # append
-                _append_to_nolock(
+                copy_layer(
                     src=src,
                     dst=dst,
                     src_layer=src_layer,
                     dst_layer=dst_layer,
+                    write_mode="append",
                     src_crs=src_crs,
                     dst_crs=dst_crs,
                     columns=columns,
@@ -2471,26 +2481,215 @@ def append_to(
         time.sleep(1)
 
 
-def _append_to_nolock(
-    src: Path,
-    dst: Path,
+def convert(
+    src: Union[str, "os.PathLike[Any]"],
+    dst: Union[str, "os.PathLike[Any]"],
+    src_layer: Optional[str] = None,
+    dst_layer: Optional[str] = None,
+    src_crs: Union[str, int, None] = None,
+    dst_crs: Union[str, int, None] = None,
+    where: Optional[str] = None,
+    reproject: bool = False,
+    explodecollections: bool = False,
+    force_output_geometrytype: Union[GeometryType, str, None] = None,
+    create_spatial_index: Optional[bool] = None,
+    preserve_fid: Optional[bool] = None,
+    options: dict = {},
+    append: bool = False,
+    force: bool = False,
+):
+    """DEPRECATED: please use copy_layer."""
+    warnings.warn("convert is deprecated: use copy_layer.", FutureWarning, stacklevel=2)
+    return copy_layer(
+        src=src,
+        dst=dst,
+        src_layer=src_layer,
+        dst_layer=dst_layer,
+        src_crs=src_crs,
+        dst_crs=dst_crs,
+        where=where,
+        reproject=reproject,
+        explodecollections=explodecollections,
+        force_output_geometrytype=force_output_geometrytype,
+        create_spatial_index=create_spatial_index,
+        preserve_fid=preserve_fid,
+        options=options,
+        append=append,
+        force=force,
+    )
+
+
+def copy_layer(
+    src: Union[str, "os.PathLike[Any]"],
+    dst: Union[str, "os.PathLike[Any]"],
     src_layer: Optional[Union[str, LayerInfo]] = None,
     dst_layer: Optional[str] = None,
-    src_crs: Union[int, str, None] = None,
-    dst_crs: Union[int, str, None] = None,
+    write_mode: str = "create",
+    src_crs: Union[str, int, None] = None,
+    dst_crs: Union[str, int, None] = None,
     columns: Optional[Iterable[str]] = None,
     where: Optional[str] = None,
     sql_stmt: Optional[str] = None,
     sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
     reproject: bool = False,
     explodecollections: bool = False,
+    force_output_geometrytype: Union[GeometryType, str, None] = None,
     create_spatial_index: Optional[bool] = None,
-    force_output_geometrytype: Union[GeometryType, str, Iterable[str], None] = None,
     transaction_size: int = 50000,
     preserve_fid: Optional[bool] = None,
     dst_dimensions: Optional[str] = None,
     options: dict = {},
+    append: bool = False,
+    force: bool = False,
 ):
+    """Copy a layer from a source file to a destination file.
+
+    Typically used to convert from one fileformat to another, to reproject or to export
+    a subset of the data using the `where` parameter.
+
+    You can also add a layer to an existing file or append rows to an existing layer
+    using the `write_mode` parameter.
+
+    The options parameter can be used to pass any type of options to GDAL in
+    the following form:
+        { "<option_type>.<option_name>": <option_value> }
+
+    The option types can be any of the following:
+        - LAYER_CREATION: layer creation option (lco)
+        - DATASET_CREATION: dataset creation option (dsco)
+        - INPUT_OPEN: input dataset open option (oo)
+        - DESTINATION_OPEN: destination dataset open option (doo)
+        - CONFIG: config option (config)
+
+    The options can be found in the |GDAL_vector_driver_documentation|.
+
+    Args:
+        src (PathLike): The source file path.
+        dst (PathLike): The destination file path.
+        src_layer (str, optional): The source layer. If None and there is only
+            one layer in the src file, that layer is taken. Defaults to None.
+        dst_layer (str, optional): The destination layer. If None, the destination file
+            stem is taken as layer name. Defaults to None.
+        write_mode (str, optional): The write mode. Defaults to "create". Valid values:
+
+            - "create": create a new destination file. If the file already exists,
+                behaviour depends on the `force` parameter.
+            - "add_layer": add the source layer to the destination file as a new layer.
+                When using "add_layer", `dst_layer` should be specified. If the layer
+                already exists, behaviour depends on the `force` parameter.
+            - "append": append the source layer to the destination layer, if the
+                layer already exists.
+
+        src_crs (Union[str, int], optional): an epsg int or anything supported
+            by the OGRSpatialReference.SetFromUserInput() call, which includes
+            an EPSG string (eg. "EPSG:4326"), a well known text (WKT) CRS
+            definition,... Defaults to None.
+        dst_crs (Union[str, int], optional): an epsg int or anything supported
+            by the OGRSpatialReference.SetFromUserInput() call, which includes
+            an EPSG string (eg. "EPSG:4326"), a well known text (WKT) CRS
+            definition,... Defaults to None.
+        columns (Iterable[str], optional): The (non-geometry) columns to read will
+            be returned in the order specified. If None, all standard columns are read.
+            In addition to standard columns, it is also possible
+            to specify "fid", a unique index available in all input files. Note that the
+            "fid" will be aliased eg. to "fid_1". Defaults to None.
+        where (str, optional): only append the rows from src that comply to the filter
+            specified. Applied before ``explodecollections``. Filter should be in sqlite
+            SQL WHERE syntax and |spatialite_reference_link| functions can be used. If
+            where contains the {geometrycolumn} placeholder, it is filled out with the
+            geometry column name of the src file. Defaults to None.
+        sql_stmt (str): SQL statement to use. Only supported with "pyogrio" engine.
+        sql_dialect (str, optional): SQL dialect used. Options are None, "SQLITE" or
+            "OGRSQL". If None, for data sources with explicit SQL support the statement
+            is processed by the default SQL engine (e.g. for Geopackage and Spatialite
+            this is "SQLITE"). For data sources without native SQL support (e.g. .shp),
+            the "OGRSQL" dialect is the default. If the "SQLITE" dialect is specified,
+            |spatialite_reference_link| functions can also be used. Defaults to None.
+        reproject (bool, optional): True to reproject while converting the
+            file. Defaults to False.
+        explodecollections (bool, optional): True to output only simple
+            geometries. Defaults to False.
+        force_output_geometrytype (Union[GeometryType, str], optional): Geometry type.
+            to (try to) force the output to. In addition to geometry types, it is also
+            possible to specify PROMOTE_TO_MULTI to convert all geometries to
+            multigeometries or CONVERT_TO_LINEAR to convert CURVE geometries to linear.
+            Defaults to None.
+        create_spatial_index (bool, optional): True to create a spatial index
+            on the destination file/layer. If None, the default behaviour by gdal for
+            that file type is respected. If the LAYER_CREATION.SPATIAL_INDEX
+            parameter is specified in options, create_spatial_index is ignored.
+            Defaults to None.
+        transaction_size (int, optional): Transaction size. Defaults to 50000.
+        preserve_fid (bool, optional): True to make an extra effort to preserve fid's of
+            the source layer to the destination layer. False not to do any effort. None
+            to use the default behaviour of gdal, that already preserves in some cases.
+            Some file formats don't explicitly store the fid (e.g. shapefile), so they
+            will never be able to preserve fids. Defaults to None.
+        dst_dimensions (str, optional): Force the dimensions of the destination layer to
+            the value specified. Valid values: "XY", "XYZ", "XYM" or "XYZM".
+            Defaults to None.
+        options (dict, optional): options to pass to gdal.
+        append (bool, optional): True to append to the destination layer if it already
+            exists. Deprecated: use write_mode='append'. Defaults to False.
+        force (bool, optional): True to overwrite the output file/layer (depending on
+            `write_mode`) if it already exists. False to just return if the output
+            file/layer exists. Defaults to False.
+
+    .. |spatialite_reference_link| raw:: html
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    .. |GDAL_vector_driver_documentation| raw:: html
+
+        <a href="https://gdal.org/drivers/vector/index.html" target="_blank">GDAL vector driver documentation</a>
+
+    """  # noqa: E501
+    # Init
+    src = Path(src)
+    dst = Path(dst)
+
+    # If source file doesn't exist, raise error
+    if not src.exists():
+        raise ValueError(f"src file doesn't exist: {src}")
+
+    # The append parameter is deprecated, but keep backwards compatibility
+    if append:
+        if write_mode != "create":
+            raise ValueError("append parameter is deprecated, use write_mode='append'")
+        warnings.warn(
+            "append parameter is deprecated, use write_mode='append'",
+            FutureWarning,
+            stacklevel=2,
+        )
+        write_mode = "append"
+
+    if dst_layer is None:
+        if write_mode == "add_layer":
+            raise ValueError("dst_layer is required when write_mode is 'add_layer'")
+
+        dst_layer = get_default_layer(dst)
+
+    # Convert write_mode to the access_mode expected by GDAL + handle existing dst.
+    if write_mode == "create":
+        if dst.exists() and not force:
+            logger.info(f"Destination file already exists, so stop: {dst}")
+            return
+        access_mode = None
+
+    elif write_mode == "add_layer":
+        if force:
+            access_mode = "overwrite"
+        else:
+            if dst.exists() and dst_layer in listlayers(dst, only_spatial_layers=False):
+                logger.info(f"dst_layer already exists, so stop: {dst}#{dst_layer}")
+                return
+            access_mode = "update"
+
+    elif write_mode == "append":
+        access_mode = write_mode
+    else:
+        raise ValueError(f"Invalid write_mode: {write_mode}")
+
     # Check/clean input params
     if isinstance(columns, str):
         # If a string is passed, convert to list
@@ -2562,6 +2761,7 @@ def _append_to_nolock(
         output_path=dst,
         input_layers=src_layername,
         output_layer=dst_layer,
+        access_mode=access_mode,
         input_srs=src_crs,
         output_srs=dst_crs,
         columns=columns,
@@ -2570,8 +2770,6 @@ def _append_to_nolock(
         where=where,
         reproject=reproject,
         transaction_size=transaction_size,
-        append=True,
-        update=True,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         options=options,
@@ -2579,189 +2777,6 @@ def _append_to_nolock(
         dst_dimensions=dst_dimensions,
     )
     _ogr_util.vector_translate_by_info(info=translate_info)
-
-
-def convert(
-    src: Union[str, "os.PathLike[Any]"],
-    dst: Union[str, "os.PathLike[Any]"],
-    src_layer: Optional[str] = None,
-    dst_layer: Optional[str] = None,
-    src_crs: Union[str, int, None] = None,
-    dst_crs: Union[str, int, None] = None,
-    where: Optional[str] = None,
-    reproject: bool = False,
-    explodecollections: bool = False,
-    force_output_geometrytype: Union[GeometryType, str, None] = None,
-    create_spatial_index: Optional[bool] = None,
-    preserve_fid: Optional[bool] = None,
-    options: dict = {},
-    append: bool = False,
-    force: bool = False,
-):
-    """DEPRECATED: please use copy_layer."""
-    warnings.warn("convert is deprecated: use copy_layer.", FutureWarning, stacklevel=2)
-    return copy_layer(
-        src=src,
-        dst=dst,
-        src_layer=src_layer,
-        dst_layer=dst_layer,
-        src_crs=src_crs,
-        dst_crs=dst_crs,
-        where=where,
-        reproject=reproject,
-        explodecollections=explodecollections,
-        force_output_geometrytype=force_output_geometrytype,
-        create_spatial_index=create_spatial_index,
-        preserve_fid=preserve_fid,
-        options=options,
-        append=append,
-        force=force,
-    )
-
-
-def copy_layer(
-    src: Union[str, "os.PathLike[Any]"],
-    dst: Union[str, "os.PathLike[Any]"],
-    src_layer: Optional[str] = None,
-    dst_layer: Optional[str] = None,
-    src_crs: Union[str, int, None] = None,
-    dst_crs: Union[str, int, None] = None,
-    columns: Optional[Iterable[str]] = None,
-    where: Optional[str] = None,
-    sql_stmt: Optional[str] = None,
-    sql_dialect: Optional[Literal["SQLITE", "OGRSQL"]] = None,
-    reproject: bool = False,
-    explodecollections: bool = False,
-    force_output_geometrytype: Union[GeometryType, str, None] = None,
-    create_spatial_index: Optional[bool] = None,
-    preserve_fid: Optional[bool] = None,
-    dst_dimensions: Optional[str] = None,
-    options: dict = {},
-    append: bool = False,
-    force: bool = False,
-):
-    """Read a layer from a source file and write it to a new destination file.
-
-    Typically used to convert from one fileformat to another or to reproject.
-
-    The options parameter can be used to pass any type of options to GDAL in
-    the following form:
-        { "<option_type>.<option_name>": <option_value> }
-
-    The option types can be any of the following:
-        - LAYER_CREATION: layer creation option (lco)
-        - DATASET_CREATION: dataset creation option (dsco)
-        - INPUT_OPEN: input dataset open option (oo)
-        - DESTINATION_OPEN: destination dataset open option (doo)
-        - CONFIG: config option (config)
-
-    The options can be found in the |GDAL_vector_driver_documentation|.
-
-    Args:
-        src (PathLike): The source file path.
-        dst (PathLike): The destination file path.
-        src_layer (str, optional): The source layer. If None and there is only
-            one layer in the src file, that layer is taken. Defaults to None.
-        dst_layer (str, optional): The destination layer. If None, the file
-            stem is taken as layer name. Defaults to None.
-        src_crs (Union[str, int], optional): an epsg int or anything supported
-            by the OGRSpatialReference.SetFromUserInput() call, which includes
-            an EPSG string (eg. "EPSG:4326"), a well known text (WKT) CRS
-            definition,... Defaults to None.
-        dst_crs (Union[str, int], optional): an epsg int or anything supported
-            by the OGRSpatialReference.SetFromUserInput() call, which includes
-            an EPSG string (eg. "EPSG:4326"), a well known text (WKT) CRS
-            definition,... Defaults to None.
-        columns (Iterable[str], optional): The (non-geometry) columns to read will
-            be returned in the order specified. If None, all standard columns are read.
-            In addition to standard columns, it is also possible
-            to specify "fid", a unique index available in all input files. Note that the
-            "fid" will be aliased eg. to "fid_1". Defaults to None.
-        where (str, optional): only append the rows from src that comply to the filter
-            specified. Applied before ``explodecollections``. Filter should be in sqlite
-            SQL WHERE syntax and |spatialite_reference_link| functions can be used. If
-            where contains the {geometrycolumn} placeholder, it is filled out with the
-            geometry column name of the src file. Defaults to None.
-        sql_stmt (str): SQL statement to use. Only supported with "pyogrio" engine.
-        sql_dialect (str, optional): SQL dialect used. Options are None, "SQLITE" or
-            "OGRSQL". If None, for data sources with explicit SQL support the statement
-            is processed by the default SQL engine (e.g. for Geopackage and Spatialite
-            this is "SQLITE"). For data sources without native SQL support (e.g. .shp),
-            the "OGRSQL" dialect is the default. If the "SQLITE" dialect is specified,
-            |spatialite_reference_link| functions can also be used. Defaults to None.
-        reproject (bool, optional): True to reproject while converting the
-            file. Defaults to False.
-        explodecollections (bool, optional): True to output only simple
-            geometries. Defaults to False.
-        force_output_geometrytype (Union[GeometryType, str], optional): Geometry type.
-            to (try to) force the output to. In addition to geometry types, it is also
-            possible to specify PROMOTE_TO_MULTI to convert all geometries to
-            multigeometries or CONVERT_TO_LINEAR to convert CURVE geometries to linear.
-            Defaults to None.
-        create_spatial_index (bool, optional): True to create a spatial index
-            on the destination file/layer. If None, the default behaviour by gdal for
-            that file type is respected. If the LAYER_CREATION.SPATIAL_INDEX
-            parameter is specified in options, create_spatial_index is ignored.
-            Defaults to None.
-        preserve_fid (bool, optional): True to make an extra effort to preserve fid's of
-            the source layer to the destination layer. False not to do any effort. None
-            to use the default behaviour of gdal, that already preserves in some cases.
-            Some file formats don't explicitly store the fid (e.g. shapefile), so they
-            will never be able to preserve fids. Defaults to None.
-        dst_dimensions (str, optional): Force the dimensions of the destination layer to
-            the value specified. Valid values: "XY", "XYZ", "XYM" or "XYZM".
-            Defaults to None.
-        options (dict, optional): options to pass to gdal.
-        append (bool, optional): True to append to the output file if it exists.
-            Defaults to False.
-        force (bool, optional): overwrite existing output file(s)
-            Defaults to False.
-
-    .. |spatialite_reference_link| raw:: html
-
-        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
-
-    .. |GDAL_vector_driver_documentation| raw:: html
-
-        <a href="https://gdal.org/drivers/vector/index.html" target="_blank">GDAL vector driver documentation</a>
-
-    """  # noqa: E501
-    # Init
-    src = Path(src)
-    dst = Path(dst)
-
-    # If source file doesn't exist, raise error
-    if not src.exists():
-        raise ValueError(f"src file doesn't exist: {src}")
-    # If dest file exists already and no append
-    if not append and dst.exists():
-        if force:
-            remove(dst)
-        else:
-            logger.info(f"Output file exists already, so stop: {dst}")
-            return
-
-    # Convert
-    logger.info(f"Copy layer from {src} to {dst}")
-    _append_to_nolock(
-        src,
-        dst,
-        src_layer,
-        dst_layer,
-        src_crs=src_crs,
-        dst_crs=dst_crs,
-        columns=columns,
-        where=where,
-        sql_stmt=sql_stmt,
-        sql_dialect=sql_dialect,
-        reproject=reproject,
-        explodecollections=explodecollections,
-        force_output_geometrytype=force_output_geometrytype,
-        create_spatial_index=create_spatial_index,
-        preserve_fid=preserve_fid,
-        dst_dimensions=dst_dimensions,
-        options=options,
-    )
 
 
 def _launder_column_names(columns: Iterable) -> list[tuple[str, str]]:
