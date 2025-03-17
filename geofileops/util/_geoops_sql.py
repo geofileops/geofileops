@@ -1493,6 +1493,9 @@ def export_by_location(
     # Different query if intersecting features need to be unioned...
     if area_inters_column_name is None and min_area_intersect is None:
         # No union needed.
+        where_clause = (
+            f"WHERE {spatial_relation_filter}" if spatial_relation_filter != "" else ""
+        )
         sql_template = f"""
             WITH layer1_intersecting_filtered AS (
               SELECT layer1.{{input1_geometrycolumn}} AS geom
@@ -1518,7 +1521,7 @@ def export_by_location(
                             --LIMIT -1 OFFSET 0
                           )
                         ) sub_filter
-                       WHERE {spatial_relation_filter}
+                       {where_clause}
                       )
             )
             SELECT sub.geom
@@ -1588,6 +1591,9 @@ def export_by_location(
         area_inters_column = (
             f",{area_inters_column_name}" if area_inters_column_name is not None else ""
         )
+        where_clause = (
+            f"WHERE {spatial_relation_filter}" if spatial_relation_filter != "" else ""
+        )
         sql_template = f"""
             SELECT sub.geom
                   {{layer1_columns_from_subselect_str}}
@@ -1620,7 +1626,7 @@ def export_by_location(
                      LIMIT -1 OFFSET 0
                 ) sub_union
               ) sub
-             WHERE {spatial_relation_filter}
+             {where_clause}
         """  # noqa: E501
 
         # Filter on intersect area if necessary
@@ -2256,6 +2262,14 @@ def _prepare_filter_by_location_fields(
     )
 
     # Add a specific optimisation for spatial relations.
+    if query == "":
+        return (
+            spatial_relation_column,
+            spatial_relation_filter,
+            aggregation_column,
+            true_for_disjoint,
+            groupby,
+        )
     relation_is_true = query.split()[-1].lower() == "true"
     for spatial_relation in spatial_relations:
         if query.lower() == f"{spatial_relation} is {str(relation_is_true).lower()}":
