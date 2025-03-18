@@ -143,6 +143,26 @@ def test_export_by_location_area(
         assert len(output_gdf[output_gdf.area_custom.isna()]) == exp_nb_None
 
 
+def test_export_by_location_empty_query_no_area_column(tmp_path):
+    """An empty query combined with no area_inters_column_name is not supported."""
+    input_to_select_from_path = test_helper.get_testfile("polygon-parcel")
+    input_to_compare_with_path = test_helper.get_testfile("polygon-zone")
+    output_path = tmp_path / f"{input_to_select_from_path.stem}-output.gpkg"
+
+    # Test
+    with pytest.raises(
+        ValueError,
+        match='if spatial_relations_query is "", area_inters_column_name or',
+    ):
+        gfo.export_by_location(
+            input_to_select_from_path=input_to_select_from_path,
+            input_to_compare_with_path=input_to_compare_with_path,
+            output_path=output_path,
+            spatial_relations_query="",
+            area_inters_column_name=None,
+        )
+
+
 def test_export_by_location_force(tmp_path):
     # Prepare test data
     input1_path = test_helper.get_testfile("polygon-parcel")
@@ -186,6 +206,7 @@ def test_export_by_location_invalid_params(kwargs, expected_error):
 
 
 @pytest.mark.parametrize("subdivide_coords", [0, 10])
+@pytest.mark.parametrize("area_inters_column_name", [None])
 @pytest.mark.parametrize(
     "query, exp_featurecount",
     [
@@ -193,18 +214,33 @@ def test_export_by_location_invalid_params(kwargs, expected_error):
         ("intersects is True", 27),
         ("intersects is False", 21),
         ("within is True", 8),
+        ("T-F--F--- is True", 8),  # Equivalent to "within is True"
         ("within is False", 40),
+        ("T-F--F--- is False", 40),  # Equivalent to "within is False"
         ("disjoint is True", 21),
+        ("FF*FF**** is True", 21),  # Equivalent to "disjoint is True"
         ("disjoint is False", 27),
+        ("FF*FF**** is False", 27),  # Equivalent to "disjoint is False"
         ("equals is True", 0),
         ("equals is False", 48),
         ("coveredby is True", 8),
         ("coveredby is False", 40),
         ("covers is True", 0),
         ("covers is False", 48),
+        ("", 48),
     ],
 )
-def test_export_by_location_query(tmp_path, query, subdivide_coords, exp_featurecount):
+def test_export_by_location_query(
+    tmp_path, query, subdivide_coords, area_inters_column_name, exp_featurecount
+):
+    if area_inters_column_name is None and query.strip() == "":
+        pytest.skip("No area_inters_column_name with an empty query is not supported")
+
+    # Having asterisks in the test parameters above gives issues... so use dashes there
+    # and replace them with asterisks here.
+    query = query.replace("-", "*")
+
+    # Prepare test data
     input_to_select_from_path = test_helper.get_testfile("polygon-parcel")
     input_to_compare_with_path = test_helper.get_testfile("polygon-zone")
     output_path = tmp_path / f"{input_to_select_from_path.stem}-output.gpkg"
@@ -220,6 +256,7 @@ def test_export_by_location_query(tmp_path, query, subdivide_coords, exp_feature
         spatial_relations_query=query,
         batchsize=batchsize,
         subdivide_coords=subdivide_coords,
+        area_inters_column_name=area_inters_column_name,
     )
 
     # Check if the output file is correctly created
@@ -228,6 +265,8 @@ def test_export_by_location_query(tmp_path, query, subdivide_coords, exp_feature
     assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
     exp_columns = len(input_layerinfo.columns)
+    if area_inters_column_name is not None:
+        exp_columns += 1
     assert len(output_layerinfo.columns) == exp_columns
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
     assert output_layerinfo.featurecount == exp_featurecount
@@ -238,40 +277,6 @@ def test_export_by_location_query(tmp_path, query, subdivide_coords, exp_feature
         assert output_gdf["geometry"][0] is not None
     elif exp_featurecount == 0:
         assert output_gdf.empty
-
-
-@pytest.mark.parametrize(
-    "query, exp_featurecount",
-    [
-        ("", 48),
-    ],
-)
-def test_export_by_location_empty_query(tmp_path, query, exp_featurecount):
-    input_to_select_from_path = test_helper.get_testfile("polygon-parcel")
-    input_to_compare_with_path = test_helper.get_testfile("polygon-zone")
-    output_path = tmp_path / f"{input_to_select_from_path.stem}-output.gpkg"
-    input_layerinfo = gfo.get_layerinfo(input_to_select_from_path)
-    batchsize = math.ceil(input_layerinfo.featurecount / 2)
-
-    # Test
-    gfo.export_by_location(
-        input_to_select_from_path=str(input_to_select_from_path),
-        input_to_compare_with_path=str(input_to_compare_with_path),
-        output_path=str(output_path),
-        spatial_relations_query=query,
-        batchsize=batchsize,
-        area_inters_column_name="area_inters",
-    )
-
-    # Check if the output file is correctly created
-    assert output_path.exists()
-    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
-    assert gfo.has_spatial_index(output_path) is exp_spatial_index
-    output_layerinfo = gfo.get_layerinfo(output_path)
-    exp_columns = len(input_layerinfo.columns) + 1
-    assert len(output_layerinfo.columns) == exp_columns
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
-    assert output_layerinfo.featurecount == exp_featurecount
 
 
 @pytest.mark.parametrize("zones", [zones])
