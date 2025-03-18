@@ -2188,16 +2188,16 @@ def _prepare_filter_by_location_fields(
         - MAX aggregation bij "... is False"
         - true_for_disjoint FALSE bij "... is True" en TRUE bij "... is False"
     """
-    # Check and prepare input parameters
+    # If an empty query is given, no filtering needs to be done...
     query = query.strip()
-
-    # Default return values
-    spatial_relation_column = (
-        ',ST_relate({input1}, {input2}) AS "GFO_$TEMP$_SPATIAL_RELATION"'
-    )
-    spatial_relation_filter: str = ""
-    aggregation_column: str = ',"GFO_$TEMP$_SPATIAL_RELATION"'
-    true_for_disjoint = False
+    if query == "":
+        return (
+            "",  # spatial_relation_column
+            "",  # spatial_relation_filter
+            "",  # aggregation_column
+            True,  # true_for_disjoint
+            "",  # groupby,
+        )
 
     # Group by is needed when the layer was subdivided
     # When the layer was subdivided, the geom2 needs to be unioned
@@ -2208,19 +2208,8 @@ def _prepare_filter_by_location_fields(
     geomA = geom2 if "contains" in query.lower() else geom1
     geomB = geom1 if "contains" in query.lower() else geom2
 
-    if query == "":
-        spatial_relation_column = ""
-        aggregation_column = ""
-        true_for_disjoint = True
-        groupby = ""
-
-        return (
-            spatial_relation_column,
-            spatial_relation_filter,
-            aggregation_column,
-            true_for_disjoint,
-            groupby,
-        )
+    spatial_relation_filter: str = ""
+    aggregation_column: str = ',"GFO_$TEMP$_SPATIAL_RELATION"'
 
     # For simple queries, don't use ST_Relate as it will be faster.
     relation_is_true = query.split()[-1].lower() == "true"
@@ -2254,6 +2243,9 @@ def _prepare_filter_by_location_fields(
 
     # It is a more complex query, so some more processing needed
     if spatial_relation_filter == "":
+        spatial_relation_column = (
+            ',ST_relate({input1}, {input2}) AS "GFO_$TEMP$_SPATIAL_RELATION"'
+        )
         spatial_relations_filter = _prepare_spatial_relations_filter(query)
         spatial_relation_filter = spatial_relations_filter.format(
             spatial_relation=f'{subquery_alias}."GFO_$TEMP$_SPATIAL_RELATION"'
