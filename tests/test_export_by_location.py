@@ -81,9 +81,9 @@ def test_export_by_location(
     [
         (None, None, None, 10, 27),
         (None, "area_custom", None, 0, 27),
-        ("within is False", "area_custom", None, 0, 39),
+        ("within is False", "area_custom", None, 0, 40),
         (None, None, 1000, 10, 24),
-        ("within is False", None, 1000, 0, 15),
+        ("within is False", None, 1000, 0, 16),
     ],
 )
 @pytest.mark.filterwarnings("ignore:.*Field format '' not supported.*")
@@ -143,26 +143,6 @@ def test_export_by_location_area(
         assert len(output_gdf[output_gdf.area_custom.isna()]) == exp_nb_None
 
 
-def test_export_by_location_empty_query_no_area_column(tmp_path):
-    """An empty query combined with no area_inters_column_name is not supported."""
-    input_to_select_from_path = test_helper.get_testfile("polygon-parcel")
-    input_to_compare_with_path = test_helper.get_testfile("polygon-zone")
-    output_path = tmp_path / f"{input_to_select_from_path.stem}-output.gpkg"
-
-    # Test
-    with pytest.raises(
-        ValueError,
-        match='if spatial_relations_query is "", area_inters_column_name or',
-    ):
-        gfo.export_by_location(
-            input_to_select_from_path=input_to_select_from_path,
-            input_to_compare_with_path=input_to_compare_with_path,
-            output_path=output_path,
-            spatial_relations_query="",
-            area_inters_column_name=None,
-        )
-
-
 def test_export_by_location_force(tmp_path):
     # Prepare test data
     input1_path = test_helper.get_testfile("polygon-parcel")
@@ -206,7 +186,7 @@ def test_export_by_location_invalid_params(kwargs, expected_error):
 
 
 @pytest.mark.parametrize("subdivide_coords", [0, 10])
-@pytest.mark.parametrize("area_inters_column_name", [None])
+@pytest.mark.parametrize("area_inters_column_name", [None, "area_inters"])
 @pytest.mark.parametrize(
     "query, exp_featurecount",
     [
@@ -233,9 +213,6 @@ def test_export_by_location_invalid_params(kwargs, expected_error):
 def test_export_by_location_query(
     tmp_path, query, subdivide_coords, area_inters_column_name, exp_featurecount
 ):
-    if area_inters_column_name is None and query.strip() == "":
-        pytest.skip("No area_inters_column_name with an empty query is not supported")
-
     # Having asterisks in the test parameters above gives issues... so use dashes there
     # and replace them with asterisks here.
     query = query.replace("-", "*")
@@ -246,7 +223,6 @@ def test_export_by_location_query(
     output_path = tmp_path / f"{input_to_select_from_path.stem}-output.gpkg"
     input_layerinfo = gfo.get_layerinfo(input_to_select_from_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
-    batchsize = input_layerinfo.featurecount
 
     # Test
     gfo.export_by_location(
