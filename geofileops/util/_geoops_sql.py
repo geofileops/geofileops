@@ -1450,7 +1450,7 @@ def export_by_location(
     operation_name = "export_by_location"
     logger = logging.getLogger(f"geofileops.{operation_name}")
     if output_path.exists():
-        if force is False:
+        if not force:
             logger.info(f"Stop, output already exists {output_path}")
             return
         else:
@@ -1486,7 +1486,6 @@ def export_by_location(
     ) = _prepare_filter_by_location_fields(
         query=spatial_relations_query,
         subdivided=input_to_compare_with_subdivided_path is not None,
-        # spatial_relations=[],
     )
 
     where_clause = (
@@ -1524,10 +1523,10 @@ def export_by_location(
           FROM layer1_intersecting_filtered sub
     """  # noqa: E501
 
-    # If disjoint is True according to the query, include features that don't match
+    # If disjoint is True according to the query, union all features that don't match
     # the spatial index.
-    # In some rare cases this still lead to duplicates, so they are excluded explicitly
-    # as well
+    # In some rare cases this lead to duplicates, so the results of the previous
+    # query are excluded explicitly in the union all query...
     if true_for_disjoint:
         sql_template = f"""
             {sql_template}
