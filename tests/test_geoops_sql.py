@@ -142,7 +142,7 @@ def test_subdivide_layer(
     (
         "query, "
         "subdivided, "
-        "spatial_relations, "
+        "optimize_simple_queries, "
         "exp_spatial_relation_filter, "
         "exp_spatial_relation_column, "
         "exp_groupby,"
@@ -153,7 +153,7 @@ def test_subdivide_layer(
         (
             "intersects is True",
             False,
-            [],
+            False,
             (
                 '((ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
                 " 'T********') = 1 or"
@@ -175,7 +175,7 @@ def test_subdivide_layer(
         (
             "intersects is True",
             False,
-            ["intersects"],
+            True,
             'sub_filter."GFO_$TEMP$_SPATIAL_RELATION" = 1',
             (
                 ",ST_intersects(layer1.{input1_geometrycolumn}"
@@ -188,7 +188,7 @@ def test_subdivide_layer(
         (
             "intersects is True",
             True,
-            [],
+            False,
             (
                 '((ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
                 " 'T********') = 1 or"
@@ -211,7 +211,7 @@ def test_subdivide_layer(
         (
             "intersects is True",
             True,
-            ["intersects"],
+            True,
             'sub_filter."GFO_$TEMP$_SPATIAL_RELATION" = 1',
             (
                 ",ST_intersects(layer1.{input1_geometrycolumn},"
@@ -225,7 +225,7 @@ def test_subdivide_layer(
         (
             "intersects is False",
             False,
-            [],
+            False,
             (
                 'NOT (((ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
                 " 'T********') = 1 or"
@@ -247,7 +247,7 @@ def test_subdivide_layer(
         (
             "intersects is False",
             False,
-            ["intersects"],
+            True,
             'NOT (sub_filter."GFO_$TEMP$_SPATIAL_RELATION" = 0)',
             (
                 ",ST_intersects(layer1.{input1_geometrycolumn}"
@@ -260,7 +260,7 @@ def test_subdivide_layer(
         (
             "intersects is False",
             True,
-            [],
+            False,
             (
                 'NOT (((ST_RelateMatch(sub_filter."GFO_$TEMP$_SPATIAL_RELATION",'
                 " 'T********') = 1 or"
@@ -283,7 +283,7 @@ def test_subdivide_layer(
         (
             "intersects is False",
             True,
-            ["intersects"],
+            True,
             'NOT (sub_filter."GFO_$TEMP$_SPATIAL_RELATION" = 0)',
             (
                 ",ST_intersects(layer1.{input1_geometrycolumn}"
@@ -308,7 +308,7 @@ def test_prepare_filter_by_location_fields(
     geom1,
     geom2,
     subdivided,
-    spatial_relations,
+    optimize_simple_queries,
     exp_spatial_relation_column,
     exp_spatial_relation_filter,
     exp_groupby,
@@ -326,7 +326,7 @@ def test_prepare_filter_by_location_fields(
         geom1=geom1,
         geom2=geom2,
         subdivided=subdivided,
-        spatial_relations=spatial_relations,
+        optimize_simple_queries=optimize_simple_queries,
     )
 
     # Check results

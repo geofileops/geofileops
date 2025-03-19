@@ -2122,18 +2122,7 @@ def _prepare_filter_by_location_fields(
     subquery_alias: str = "sub_filter",
     avoid_disjoint: bool = False,
     subdivided: bool = False,
-    spatial_relations: list[str] = [
-        "disjoint",
-        "equals",
-        "touches",
-        "within",
-        "overlaps",
-        "crosses",
-        "intersects",
-        "contains",
-        "covers",
-        "coveredby",
-    ],
+    optimize_simple_queries: bool = True,
 ) -> tuple[str, str, str, bool, bool]:
     """Prepare the fields needed to prepare a select to filter by location.
 
@@ -2147,10 +2136,8 @@ def _prepare_filter_by_location_fields(
             If it does, "intersects is True" is added to the input query.
         subdivided (bool): when true the (compare) layer was subdivided.
             Defaults to False
-        spatial_relations (Optional[list[str]]): the list of spatial relations that can
-            be used in the query.
-            Defaults to ["disjoint", "equals", "touches", "within", "overlaps",
-                         "crosses", "intersects", "contains", "covers", "coveredby"].
+        optimize_simple_queries (bool): True to optimize simple spatial queries to use
+            dedicated spatialite functions.
 
     Returns:
         Tuple[str, str, bool]: returns a tuple with the following values:
@@ -2188,10 +2175,23 @@ def _prepare_filter_by_location_fields(
 
     # For simple queries, use the specialised ST_... functions instead of ST_Relate as
     # it will be faster.
+    optimized_spatial_relations = {
+        "disjoint",
+        "equals",
+        "touches",
+        "within",
+        "overlaps",
+        "crosses",
+        "intersects",
+        "contains",
+        "covers",
+        "coveredby",
+    }
     query_parts = query.lower().split()
     if (
-        len(query_parts) == 3
-        and query_parts[0] in spatial_relations
+        optimize_simple_queries
+        and len(query_parts) == 3
+        and query_parts[0] in optimized_spatial_relations
         and query_parts[1] == "is"
         and query_parts[2] in ("true", "false")
     ):
