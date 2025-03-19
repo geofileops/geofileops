@@ -2147,7 +2147,7 @@ def _prepare_filter_by_location_fields(
         "covers",
         "coveredby",
     ],
-) -> tuple[str, str, bool, bool, str]:
+) -> tuple[str, str, str, bool, bool]:
     """Prepare the fields needed to prepare a select to filter by location.
 
     Args:
