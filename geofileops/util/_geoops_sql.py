@@ -1476,23 +1476,31 @@ def export_by_location(
     if input_to_compare_with_subdivided_path is not None:
         input_to_compare_with_path = input_to_compare_with_subdivided_path
 
-    # Prepare spatial relation column and filter
+    # Determine parameters to be used to filetune the SQL template for the query
+    # specified.
     (
         spatial_relation_column,
         spatial_relation_filter,
+        groupby,
         relation_should_be_found,
         true_for_disjoint,
-        groupby,
     ) = _prepare_filter_by_location_fields(
         query=spatial_relations_query,
         subdivided=input_to_compare_with_subdivided_path is not None,
     )
 
+    # Prepare the where clause based on the spatial_relation_filter.
     where_clause = (
         f"WHERE {spatial_relation_filter}" if spatial_relation_filter != "" else ""
     )
+    # Prepare the exists clause based on whether layer2 geometries should be found using
+    # the spatial_relation_filter or if no geometries should be found to retain a layer1
+    # feature.
     exists_clause = "EXISTS" if relation_should_be_found else "NOT EXISTS"
 
+    # Prepare the SQL template for the operation.
+    # This first part will only select features that are matched with layer2 using the
+    # spatial index.
     sql_template = f"""
         WITH layer1_intersecting_filtered AS (
             SELECT rowid
@@ -1523,10 +1531,10 @@ def export_by_location(
           FROM layer1_intersecting_filtered sub
     """  # noqa: E501
 
-    # If disjoint is True according to the query, union all features that don't match
-    # the spatial index.
-    # In some rare cases this lead to duplicates, so the results of the previous
-    # query are excluded explicitly in the union all query...
+    # If disjoint is True according to the query, all features that don't match using
+    # the spatial index have to be added as well.
+    # Remark: in some rare cases this leads to duplicates, so the query includes a part
+    # to exclude the results of the previous one to avoid this...
     if true_for_disjoint:
         sql_template = f"""
             {sql_template}
@@ -2021,9 +2029,9 @@ def join_by_location(
     (
         spatial_relation_column,
         spatial_relation_filter,
-        _,
-        _,
         groupby,
+        _,
+        _,
     ) = _prepare_filter_by_location_fields(
         query=spatial_relations_query, avoid_disjoint=True
     )
@@ -2161,12 +2169,12 @@ def _prepare_filter_by_location_fields(
         Tuple[str, str, bool]: returns a tuple with the following values:
             - spatial_relation_column: the string to use as column to filter on
             - spatial_relation_filter: the string to use as filter
+            - groupby: the group by clause to use in the query.
             - relation_should_be_found: True if the relation is satisfied if at least
                 one spatial relation is True, False if it is satisfied if at least one
                 spatial relation is False.
             - true_for_disjoint: True if the query returns True for disjoint features.
                   If `avoid_disjoint` is True, `includes_disjoint` is always False.
-            - groupby: the string to use as groupby in the query.
     """
     # If an empty query is given, no filtering needs to be done...
     query = query.strip()
@@ -2174,9 +2182,9 @@ def _prepare_filter_by_location_fields(
         return (
             "",  # spatial_relation_column
             "",  # spatial_relation_filter
+            "",  # groupby,
             True,  # relation_should_be_found
             True,  # true_for_disjoint
-            "",  # groupby,
         )
 
     # Group by is needed when the layer was subdivided
@@ -2268,9 +2276,9 @@ def _prepare_filter_by_location_fields(
     return (
         spatial_relation_column,
         spatial_relation_filter,
+        groupby,
         relation_should_be_found,
         true_for_disjoint,
-        groupby,
     )
 
 
