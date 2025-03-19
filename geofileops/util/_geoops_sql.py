@@ -1480,7 +1480,7 @@ def export_by_location(
     (
         spatial_relation_column,
         spatial_relation_filter,
-        aggregation_column,
+        relation_should_be_found,
         true_for_disjoint,
         groupby,
     ) = _prepare_filter_by_location_fields(
@@ -1491,6 +1491,8 @@ def export_by_location(
     where_clause = (
         f"WHERE {spatial_relation_filter}" if spatial_relation_filter != "" else ""
     )
+    exists_clause = "EXISTS" if relation_should_be_found else "NOT EXISTS"
+
     sql_template = f"""
         WITH layer1_intersecting_filtered AS (
             SELECT rowid
@@ -1499,9 +1501,8 @@ def export_by_location(
               FROM {{input1_databasename}}."{{input1_layer}}" layer1
              WHERE 1=1
                {{batch_filter}}
-               AND EXISTS (
+               AND {exists_clause} (
                      SELECT 1 FROM (
-                       SELECT 1 {aggregation_column} FROM (
                          SELECT 1
                                {spatial_relation_column}
                            FROM {{input2_databasename}}."{{input2_layer}}" layer2
@@ -1513,7 +1514,6 @@ def export_by_location(
                             AND ST_MaxY(layer1.{{input1_geometrycolumn}}) >= layer2tree.miny
                           {groupby}
                           LIMIT -1 OFFSET 0
-                         ) sub_filter2
                        ) sub_filter
                      {where_clause}
                    )
@@ -2139,7 +2139,7 @@ def _prepare_filter_by_location_fields(
         "covers",
         "coveredby",
     ],
-) -> tuple[str, str, str, bool, str]:
+) -> tuple[str, str, bool, bool, str]:
     """Prepare the fields needed to prepare a select to filter by location.
 
     Args:
@@ -2161,32 +2161,12 @@ def _prepare_filter_by_location_fields(
         Tuple[str, str, bool]: returns a tuple with the following values:
             - spatial_relation_column: the string to use as column to filter on
             - spatial_relation_filter: the string to use as filter
+            - relation_should_be_found: True if the relation is satisfied if at least
+                one spatial relation is True, False if it is satisfied if at least one
+                spatial relation is False.
             - true_for_disjoint: True if the query returns True for disjoint features.
                   If `avoid_disjoint` is True, `includes_disjoint` is always False.
-
-    Remarks:
-    ST_Relate
-    - bij disjoint:
-        - MIN aggregation bij "... is True" omdat het voor alle relaties moet gelden.
-        - GEEN aggregation bij "... is False"
-        - true_for_disjoint TRUE bij "... is True" en FALSE bij "... is False"
-
-    - bij de rest:
-        - GEEN aggregation bij "... is True"
-        - MIN aggregation bij "... is False" omdat het voor alle relaties moet gelden.
-        - true_for_disjoint altijd FALSE
-
-    Optimize (eg ST_Intersects, ...)
-    - bij disjoint:
-        - MIN aggregation bij "... is True" omdat het voor alle relaties moet gelden.
-        - GEEN aggregation bij "... is False"
-        - true_for_disjoint TRUE bij "... is True" en FALSE bij "... is False"
-
-
-    - bij de rest:
-        - GEEN aggregation bij "... is True" omdat dit ok is van zodra er één geldig is.
-        - MAX aggregation bij "... is False"
-        - true_for_disjoint FALSE bij "... is True" en TRUE bij "... is False"
+            - groupby: the string to use as groupby in the query.
     """
     # If an empty query is given, no filtering needs to be done...
     query = query.strip()
@@ -2194,7 +2174,7 @@ def _prepare_filter_by_location_fields(
         return (
             "",  # spatial_relation_column
             "",  # spatial_relation_filter
-            "",  # aggregation_column
+            True,  # relation_should_be_found
             True,  # true_for_disjoint
             "",  # groupby,
         )
@@ -2209,7 +2189,7 @@ def _prepare_filter_by_location_fields(
     geomB = geom1 if "contains" in query.lower() else geom2
 
     spatial_relation_filter: str = ""
-    aggregation_column: str = ',"GFO_$TEMP$_SPATIAL_RELATION"'
+    relation_should_be_found = True
 
     # For simple queries, use the specialised ST_... functions instead of ST_Relate as
     # it will be faster.
@@ -2224,25 +2204,9 @@ def _prepare_filter_by_location_fields(
         relation_is_true = query_parts[2] == "true"
 
         if spatial_relation == "disjoint":
-            true_for_disjoint = relation_is_true
-            if relation_is_true:
-                # For a geometry to be disjoint, being disjoint should be True for all
-                # relations, so all ST_disjoints results should be 1 -> MIN should be 1.
-                aggregation_column = (
-                    ',MIN("GFO_$TEMP$_SPATIAL_RELATION")'
-                    ' AS "GFO_$TEMP$_SPATIAL_RELATION"'
-                )
-        else:
-            true_for_disjoint = not relation_is_true
-
-            if not relation_is_true:
-                # For a geometry to be NOT have a (non-disjoint) relation, all spatial
-                # relations should be False, so all ST_... results should be 0
-                # -> MAX should be 0.
-                aggregation_column = (
-                    ',MAX("GFO_$TEMP$_SPATIAL_RELATION")'
-                    ' AS "GFO_$TEMP$_SPATIAL_RELATION"'
-                )
+            # disjoint is the opposite to intersects, so for simplicity, switch it.
+            spatial_relation = "intersects"
+            relation_is_true = not relation_is_true
 
         spatial_relation_column = (
             f',ST_{spatial_relation}({geomA}, {geomB}) AS "GFO_$TEMP$_SPATIAL_RELATION"'
@@ -2251,24 +2215,34 @@ def _prepare_filter_by_location_fields(
             f'{subquery_alias}."GFO_$TEMP$_SPATIAL_RELATION" = {int(relation_is_true)}'
         )
 
-    # It is a more complex query, so combine the query and use ST_Relate
-    if spatial_relation_filter == "":
+        true_for_disjoint = not relation_is_true
+        if true_for_disjoint:
+            # The filter will evaluate to True for disjoint geometries in layer2. For
+            # layer1.geometry to be disjoint with layer2, the filter should be True for
+            # ALL layer2 geometries. Using "De Morgen's laws", we can make a more
+            # efficient equivalent: we should NOT find any negative results.
+            relation_should_be_found = False
+            spatial_relation_filter = f"NOT ({spatial_relation_filter})"
+
+    else:
+        # It is a more complex query, so combine the query and use ST_Relate
         spatial_relation_column = (
             ',ST_relate({input1}, {input2}) AS "GFO_$TEMP$_SPATIAL_RELATION"'
         )
-        spatial_relations_filter = _prepare_spatial_relations_filter(query)
-        spatial_relation_filter = spatial_relations_filter.format(
+        spatial_relation_filter = _prepare_spatial_relation_filter(query)
+        spatial_relation_filter = spatial_relation_filter.format(
             spatial_relation=f'{subquery_alias}."GFO_$TEMP$_SPATIAL_RELATION"'
         )
         true_for_disjoint = _is_query_true_for_disjoint_features(
             spatial_relation_column, spatial_relation_filter, subquery_alias
         )
         if true_for_disjoint:
-            # The query evaluates to True for disjoint features, so all
-            aggregation_column = (
-                ',MIN("GFO_$TEMP$_SPATIAL_RELATION")'
-                ' AS "GFO_$TEMP$_SPATIAL_RELATION"'
-            )
+            # The filter will evaluate to True for disjoint geometries in layer2. For
+            # layer1.geometry to be disjoint with layer2, the filter should be True for
+            # ALL layer2 geometries. Using "De Morgen's laws", we can make a more
+            # efficient equivalent: we should NOT find any negative results.
+            relation_should_be_found = False
+            spatial_relation_filter = f"NOT ({spatial_relation_filter})"
 
         # Prepare the spatial relation column
         spatial_relation_column = spatial_relation_column.format(
@@ -2279,8 +2253,8 @@ def _prepare_filter_by_location_fields(
         # Avoid the query evaluating to True for disjoint features by adding
         # "intersects is True"
         query = f"({query}) and intersects is True"
-        spatial_relations_filter = _prepare_spatial_relations_filter(query)
-        spatial_relation_filter = spatial_relations_filter.format(
+        spatial_relation_filter = _prepare_spatial_relation_filter(query)
+        spatial_relation_filter = spatial_relation_filter.format(
             spatial_relation=f'{subquery_alias}."GFO_$TEMP$_SPATIAL_RELATION"'
         )
         true_for_disjoint = False
@@ -2294,7 +2268,7 @@ def _prepare_filter_by_location_fields(
     return (
         spatial_relation_column,
         spatial_relation_filter,
-        aggregation_column,
+        relation_should_be_found,
         true_for_disjoint,
         groupby,
     )
@@ -2322,7 +2296,7 @@ def _is_query_true_for_disjoint_features(
     return true_for_disjoint
 
 
-def _prepare_spatial_relations_filter(query: str) -> str:
+def _prepare_spatial_relation_filter(query: str) -> str:
     named_spatial_relations = {
         "disjoint": ["FF*FF****"],
         "equals": ["TFFF*FFF*"],
