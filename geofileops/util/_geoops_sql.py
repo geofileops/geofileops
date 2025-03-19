@@ -2200,7 +2200,7 @@ def _prepare_filter_by_location_fields(
         )
 
     # Group by is needed when the layer was subdivided
-    # When the layer was subdivided, the geom2 needs to be unioned
+    # When the layer was subdivided, geom2 needs to be unioned
     groupby = "GROUP BY layer2.fid_1" if subdivided else ""
     geom2 = f"ST_union({geom2})" if subdivided else f"{geom2}"
 
@@ -2211,37 +2211,47 @@ def _prepare_filter_by_location_fields(
     spatial_relation_filter: str = ""
     aggregation_column: str = ',"GFO_$TEMP$_SPATIAL_RELATION"'
 
-    # For simple queries, don't use ST_Relate as it will be faster.
-    relation_is_true = query.split()[-1].lower() == "true"
-    for spatial_relation in spatial_relations:
-        if query.lower() == f"{spatial_relation} is {str(relation_is_true).lower()}":
-            if spatial_relation == "disjoint":
-                disjoint = True
-                if relation_is_true:
-                    aggregation_column = (
-                        ',MIN("GFO_$TEMP$_SPATIAL_RELATION")'
-                        ' AS "GFO_$TEMP$_SPATIAL_RELATION"'
-                    )
-            elif not relation_is_true:
-                disjoint = False
+    # For simple queries, use the specialised ST_... functions instead of ST_Relate as
+    # it will be faster.
+    query_parts = query.lower().split()
+    if (
+        len(query_parts) == 3
+        and query_parts[0] in spatial_relations
+        and query_parts[1] == "is"
+        and query_parts[2] in ("true", "false")
+    ):
+        spatial_relation = query_parts[0]
+        relation_is_true = query_parts[2] == "true"
+
+        if spatial_relation == "disjoint":
+            true_for_disjoint = relation_is_true
+            if relation_is_true:
+                # For a geometry to be disjoint, being disjoint should be True for all
+                # relations, so all ST_disjoints results should be 1 -> MIN should be 1.
+                aggregation_column = (
+                    ',MIN("GFO_$TEMP$_SPATIAL_RELATION")'
+                    ' AS "GFO_$TEMP$_SPATIAL_RELATION"'
+                )
+        else:
+            true_for_disjoint = not relation_is_true
+
+            if not relation_is_true:
+                # For a geometry to be NOT have a (non-disjoint) relation, all spatial
+                # relations should be False, so all ST_... results should be 0
+                # -> MAX should be 0.
                 aggregation_column = (
                     ',MAX("GFO_$TEMP$_SPATIAL_RELATION")'
                     ' AS "GFO_$TEMP$_SPATIAL_RELATION"'
                 )
-            else:
-                disjoint = False
-            spatial_relation_column = (
-                f",ST_{spatial_relation}({geomA}, {geomB})"
-                ' AS "GFO_$TEMP$_SPATIAL_RELATION"'
-            )
-            spatial_relation_filter = (
-                f'{subquery_alias}."GFO_$TEMP$_SPATIAL_RELATION" = '
-                f"{int(relation_is_true)}"
-            )
-            true_for_disjoint = disjoint if relation_is_true else not disjoint
-            break
 
-    # It is a more complex query, so some more processing needed
+        spatial_relation_column = (
+            f',ST_{spatial_relation}({geomA}, {geomB}) AS "GFO_$TEMP$_SPATIAL_RELATION"'
+        )
+        spatial_relation_filter = (
+            f'{subquery_alias}."GFO_$TEMP$_SPATIAL_RELATION" = {int(relation_is_true)}'
+        )
+
+    # It is a more complex query, so combine the query and use ST_Relate
     if spatial_relation_filter == "":
         spatial_relation_column = (
             ',ST_relate({input1}, {input2}) AS "GFO_$TEMP$_SPATIAL_RELATION"'
