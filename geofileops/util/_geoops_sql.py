@@ -1476,12 +1476,12 @@ def export_by_location(
     if input_to_compare_with_subdivided_path is not None:
         input_to_compare_with_path = input_to_compare_with_subdivided_path
 
-    # Determine parameters to be used to filetune the SQL template for the query
-    # specified.
+    # Determine parameters to be used to fill out the export_by_location SQL template
+    # for the spatial_relations_query specified.
     (
         spatial_relation_column,
         spatial_relation_filter,
-        groupby,
+        layer2_groupby,
         relation_should_be_found,
         true_for_disjoint,
     ) = _prepare_filter_by_location_fields(
@@ -1520,7 +1520,7 @@ def export_by_location(
                             AND ST_MaxX(layer1.{{input1_geometrycolumn}}) >= layer2tree.minx
                             AND ST_MinY(layer1.{{input1_geometrycolumn}}) <= layer2tree.maxy
                             AND ST_MaxY(layer1.{{input1_geometrycolumn}}) >= layer2tree.miny
-                          {groupby}
+                          {layer2_groupby}
                           LIMIT -1 OFFSET 0
                        ) sub_filter
                      {where_clause}
@@ -2029,7 +2029,7 @@ def join_by_location(
     (
         spatial_relation_column,
         spatial_relation_filter,
-        groupby,
+        layer2_groupby,
         _,
         _,
     ) = _prepare_filter_by_location_fields(
@@ -2068,7 +2068,7 @@ def join_by_location(
                      AND layer1tree.maxx >= layer2tree.minx
                      AND layer1tree.miny <= layer2tree.maxy
                      AND layer1tree.maxy >= layer2tree.miny
-                    {groupby}
+                    {layer2_groupby}
                    LIMIT -1 OFFSET 0
                   ) sub_filter
                WHERE {spatial_relation_filter}
@@ -2169,7 +2169,7 @@ def _prepare_filter_by_location_fields(
         Tuple[str, str, bool]: returns a tuple with the following values:
             - spatial_relation_column: the string to use as column to filter on
             - spatial_relation_filter: the string to use as filter
-            - groupby: the group by clause to use in the query.
+            - layer2_groupby: the group by clause to use if layer2 is subdivided
             - relation_should_be_found: True if the relation is satisfied if at least
                 one spatial relation is True, False if it is satisfied if at least one
                 spatial relation is False.
@@ -2182,14 +2182,14 @@ def _prepare_filter_by_location_fields(
         return (
             "",  # spatial_relation_column
             "",  # spatial_relation_filter
-            "",  # groupby,
+            "",  # layer2_groupby,
             True,  # relation_should_be_found
             True,  # true_for_disjoint
         )
 
     # Group by is needed when the layer was subdivided
     # When the layer was subdivided, geom2 needs to be unioned
-    groupby = "GROUP BY layer2.fid_1" if subdivided else ""
+    layer2_groupby = "GROUP BY layer2.fid_1" if subdivided else ""
     geom2 = f"ST_union({geom2})" if subdivided else f"{geom2}"
 
     # When "contains" is used, geomA and geomB need to be swapped
@@ -2276,7 +2276,7 @@ def _prepare_filter_by_location_fields(
     return (
         spatial_relation_column,
         spatial_relation_filter,
-        groupby,
+        layer2_groupby,
         relation_should_be_found,
         true_for_disjoint,
     )
