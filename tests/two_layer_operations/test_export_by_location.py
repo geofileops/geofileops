@@ -1,5 +1,6 @@
 import math
 from pathlib import Path
+from typing import Optional
 
 import geopandas as gpd
 import pytest
@@ -598,7 +599,7 @@ def _test_export_by_location(
     input_to_compare_with_path: Path,
     output_path: Path,
     spatial_relations_query: str,
-    area_inters_column_name: str,
+    area_inters_column_name: Optional[str],
     subdivide_coords: int,
     exp_featurecount: int,
 ):
@@ -609,8 +610,8 @@ def _test_export_by_location(
         input_to_compare_with_path (Path): input file to compare with.
         output_path (Path): output file to write to.
         spatial_relations_query (str): spatial relations query to use.
-        area_inters_column_name (str): the name of the column to use for the area of the
-            intersection.
+        area_inters_column_name (Optional[str]): the name of the column to use for the
+            area of the intersection.
         subdivide_coords (int): the number of coordinates to use to subdivide the
             geometries in input_to_compare_with_path.
         exp_featurecount (int): the number of features expected in the output file.
