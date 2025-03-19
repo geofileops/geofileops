@@ -316,8 +316,8 @@ def test_prepare_filter_by_location_fields(
     exp_relation_should_be_found,
 ):
     (
-        spatial_relation_column,
-        spatial_relation_filter,
+        spatial_relations_column,
+        spatial_relations_filter,
         groupby,
         relation_should_be_found,
         true_for_disjoint,
@@ -330,12 +330,12 @@ def test_prepare_filter_by_location_fields(
     )
 
     # Check results
-    assert spatial_relation_column == exp_spatial_relation_column
+    assert spatial_relations_column == exp_spatial_relation_column
 
     # Ignore any formatting like newlines and multiple spaces
-    spatial_relation_filter = " ".join(spatial_relation_filter.split())
+    spatial_relations_filter = " ".join(spatial_relations_filter.split())
     exp_spatial_relation_filter = " ".join(exp_spatial_relation_filter.split())
-    assert spatial_relation_filter == exp_spatial_relation_filter
+    assert spatial_relations_filter == exp_spatial_relation_filter
 
     assert groupby == exp_groupby
     assert true_for_disjoint == exp_true_for_disjoint
