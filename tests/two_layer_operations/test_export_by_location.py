@@ -1,4 +1,5 @@
 import math
+from pathlib import Path
 
 import geopandas as gpd
 import pytest
@@ -10,14 +11,14 @@ from geofileops.util._geofileinfo import GeofileInfo
 from tests import test_helper
 from tests.test_helper import SUFFIXES_GEOOPS
 
-zones = [
+input_to_compare_with_wkts = [
     "POLYGON ((0 0, 3 0, 3 3, 0 3, 0 0))",
     "POLYGON ((10 1, 13 1, 13 4, 10 4, 10 1))",
     "POLYGON ((7 2, 8 2, 8 5, 1 5, 1 4, 7 4, 7 2))",
     "POLYGON ((7 1, 7 -2, 10 -2, 10 -1, 8 -1, 8 1, 7 1))",
 ]
 
-extra_parcels = [
+extra_input_to_select_from = [
     "POLYGON ((-2 4, 0 4, 0 6, -2 6, -2 4))",
     "POLYGON ((3 6, 5 6, 5 8, 3 8, 3 6))",
 ]
@@ -201,12 +202,16 @@ def test_export_by_location_invalid_params(kwargs, expected_error):
         ("FF*FF**** is True", 21),  # Equivalent to "disjoint is True"
         ("disjoint is False", 27),
         ("FF*FF**** is False", 27),  # Equivalent to "disjoint is False"
+        ("within is True or disjoint is True", 29),
+        ("within is True and disjoint is True", 0),
         ("equals is True", 0),
         ("equals is False", 48),
         ("coveredby is True", 8),
         ("coveredby is False", 40),
         ("covers is True", 0),
         ("covers is False", 48),
+        ("touches is True", 0),
+        ("touches is False", 48),
         ("", 48),
     ],
 )
@@ -221,18 +226,407 @@ def test_export_by_location_query(
     input_to_select_from_path = test_helper.get_testfile("polygon-parcel")
     input_to_compare_with_path = test_helper.get_testfile("polygon-zone")
     output_path = tmp_path / f"{input_to_select_from_path.stem}-output.gpkg"
+
+    # Test
+    _test_export_by_location(
+        input_to_select_from_path,
+        input_to_compare_with_path,
+        output_path,
+        spatial_relations_query=query,
+        area_inters_column_name=area_inters_column_name,
+        subdivide_coords=subdivide_coords,
+        exp_featurecount=exp_featurecount,
+    )
+
+
+@pytest.mark.parametrize("input_to_compare_with_wkts", [input_to_compare_with_wkts])
+@pytest.mark.parametrize(
+    "input_to_select_from_wkts",
+    [
+        [
+            "POLYGON ((0.5 0.5, 2.5 0.5, 2.5 2.5, 0.5 2.5, 0.5 0.5))",
+            *extra_input_to_select_from,
+        ]
+    ],
+)
+@pytest.mark.parametrize("subdivide_coords", [0, 10])
+@pytest.mark.parametrize(
+    "spatial_relations_query, exp_featurecount",
+    [("contains is True", 1), ("contains is False", 2)],
+)
+def test_query_contains(
+    tmp_path,
+    input_to_select_from_wkts,
+    input_to_compare_with_wkts,
+    spatial_relations_query,
+    subdivide_coords,
+    exp_featurecount,
+):
+    _test_export_by_location_for_wkts(
+        tmp_path,
+        input_to_select_from_wkts,
+        input_to_compare_with_wkts,
+        spatial_relations_query,
+        subdivide_coords,
+        exp_featurecount,
+    )
+
+
+@pytest.mark.parametrize("input_to_compare_with_wkts", [input_to_compare_with_wkts])
+@pytest.mark.parametrize(
+    "input_to_select_from_wkts",
+    [["POLYGON ((1 1, 3 1, 3 3, 1 3, 1 1))", *extra_input_to_select_from]],
+)
+@pytest.mark.parametrize("subdivide_coords", [0, 10])
+@pytest.mark.parametrize(
+    "spatial_relations_query, exp_featurecount",
+    [("coveredby is True", 1), ("coveredby is False", 2)],
+)
+def test_query_coveredby(
+    tmp_path,
+    input_to_select_from_wkts,
+    input_to_compare_with_wkts,
+    spatial_relations_query,
+    subdivide_coords,
+    exp_featurecount,
+):
+    _test_export_by_location_for_wkts(
+        tmp_path,
+        input_to_select_from_wkts,
+        input_to_compare_with_wkts,
+        spatial_relations_query,
+        subdivide_coords,
+        exp_featurecount,
+    )
+
+
+@pytest.mark.parametrize("input_to_compare_with_wkts", [input_to_compare_with_wkts])
+@pytest.mark.parametrize(
+    "input_to_select_from_wkts",
+    [["POLYGON ((-1 -1, 4 -1, 4 4, -1 4, -1 -1))", *extra_input_to_select_from]],
+)
+@pytest.mark.parametrize("subdivide_coords", [0, 10])
+@pytest.mark.parametrize(
+    "spatial_relations_query, exp_featurecount",
+    [("covers is True", 1), ("covers is False", 2)],
+)
+def test_query_covers(
+    tmp_path,
+    input_to_select_from_wkts,
+    input_to_compare_with_wkts,
+    spatial_relations_query,
+    subdivide_coords,
+    exp_featurecount,
+):
+    _test_export_by_location_for_wkts(
+        tmp_path,
+        input_to_select_from_wkts,
+        input_to_compare_with_wkts,
+        spatial_relations_query,
+        subdivide_coords,
+        exp_featurecount,
+    )
+
+
+@pytest.mark.parametrize("input_to_compare_with_wkts", [input_to_compare_with_wkts])
+@pytest.mark.parametrize(
+    "input_to_select_from_wkts",
+    [
+        [
+            "POLYGON ((4 1, 6 1, 6 3, 4 3, 4 1))",
+            "POLYGON ((4 -2, 6 -2, 6 0, 4 0, 4 -2))",
+            "POLYGON ((9 0, 11 0, 11 2, 9 2, 9 0))",
+            *extra_input_to_select_from,
+        ]
+    ],
+)
+@pytest.mark.parametrize("subdivide_coords", [0, 10])
+@pytest.mark.parametrize(
+    "spatial_relations_query, exp_featurecount",
+    [("disjoint is True", 4), ("disjoint is False", 1)],
+)
+def test_query_disjoint(
+    tmp_path,
+    input_to_select_from_wkts,
+    input_to_compare_with_wkts,
+    spatial_relations_query,
+    subdivide_coords,
+    exp_featurecount,
+):
+    _test_export_by_location_for_wkts(
+        tmp_path,
+        input_to_select_from_wkts,
+        input_to_compare_with_wkts,
+        spatial_relations_query,
+        subdivide_coords,
+        exp_featurecount,
+    )
+
+
+@pytest.mark.parametrize("input_to_compare_with_wkts", [input_to_compare_with_wkts])
+@pytest.mark.parametrize(
+    "input_to_select_from_wkts",
+    [["POLYGON ((0 0, 3 0, 3 3, 0 3, 0 0))", *extra_input_to_select_from]],
+)
+@pytest.mark.parametrize("subdivide_coords", [0, 10])
+@pytest.mark.parametrize(
+    "spatial_relations_query, exp_featurecount",
+    [("equals is True", 1), ("equals is False", 2)],
+)
+def test_query_equals(
+    tmp_path,
+    input_to_select_from_wkts,
+    input_to_compare_with_wkts,
+    spatial_relations_query,
+    subdivide_coords,
+    exp_featurecount,
+):
+    _test_export_by_location_for_wkts(
+        tmp_path,
+        input_to_select_from_wkts,
+        input_to_compare_with_wkts,
+        spatial_relations_query,
+        subdivide_coords,
+        exp_featurecount,
+    )
+
+
+@pytest.mark.parametrize("input_to_compare_with_wkts", [input_to_compare_with_wkts])
+@pytest.mark.parametrize(
+    "input_to_select_from_wkts",
+    [["POLYGON ((2 1, 4 1, 4 3, 2 3, 2 1))", *extra_input_to_select_from]],
+)
+@pytest.mark.parametrize("subdivide_coords", [0, 10])
+@pytest.mark.parametrize(
+    "spatial_relations_query, exp_featurecount",
+    [("intersects is True", 1), ("intersects is False", 2)],
+)
+def test_query_intersects(
+    tmp_path,
+    input_to_select_from_wkts,
+    input_to_compare_with_wkts,
+    spatial_relations_query,
+    subdivide_coords,
+    exp_featurecount,
+):
+    _test_export_by_location_for_wkts(
+        tmp_path,
+        input_to_select_from_wkts,
+        input_to_compare_with_wkts,
+        spatial_relations_query,
+        subdivide_coords,
+        exp_featurecount,
+    )
+
+
+@pytest.mark.parametrize("input_to_compare_with_wkts", [input_to_compare_with_wkts])
+@pytest.mark.parametrize(
+    "input_to_select_from_wkts",
+    [
+        [
+            "POLYGON ((2 1, 4 1, 4 3, 2 3, 2 1))",
+            "POLYGON ((2 -2, 4 -2, 4 0, 2 0, 2 -2))",
+            *extra_input_to_select_from,
+        ]
+    ],
+)
+@pytest.mark.parametrize("subdivide_coords", [0, 10])
+@pytest.mark.parametrize(
+    "spatial_relations_query, exp_featurecount",
+    [
+        ("intersects is True and touches is False", 1),
+        ("intersects is True and touches is True", 1),
+        ("intersects is True or touches is False", 4),
+        ("intersects is True or touches is True", 2),
+    ],
+)
+def test_query_intersects_true_touches_false(
+    tmp_path,
+    input_to_select_from_wkts,
+    input_to_compare_with_wkts,
+    spatial_relations_query,
+    subdivide_coords,
+    exp_featurecount,
+):
+    _test_export_by_location_for_wkts(
+        tmp_path,
+        input_to_select_from_wkts,
+        input_to_compare_with_wkts,
+        spatial_relations_query,
+        subdivide_coords,
+        exp_featurecount,
+    )
+
+
+@pytest.mark.parametrize("input_to_compare_with_wkts", [input_to_compare_with_wkts])
+@pytest.mark.parametrize(
+    "input_to_select_from_wkts",
+    [["POLYGON ((2 1, 4 1, 4 3, 2 3, 2 1))", *extra_input_to_select_from]],
+)
+@pytest.mark.parametrize("subdivide_coords", [0, 10])
+@pytest.mark.parametrize(
+    "spatial_relations_query, exp_featurecount",
+    [("overlaps is True", 1), ("overlaps is False", 2)],
+)
+def test_query_overlaps(
+    tmp_path,
+    input_to_select_from_wkts,
+    input_to_compare_with_wkts,
+    spatial_relations_query,
+    subdivide_coords,
+    exp_featurecount,
+):
+    _test_export_by_location_for_wkts(
+        tmp_path,
+        input_to_select_from_wkts,
+        input_to_compare_with_wkts,
+        spatial_relations_query,
+        subdivide_coords,
+        exp_featurecount,
+    )
+
+
+@pytest.mark.parametrize("input_to_compare_with_wkts", [input_to_compare_with_wkts])
+@pytest.mark.parametrize(
+    "input_to_select_from_wkts",
+    [["POLYGON ((3 1, 5 1, 5 3, 3 3, 3 1))", *extra_input_to_select_from]],
+)
+@pytest.mark.parametrize("subdivide_coords", [0, 10])
+@pytest.mark.parametrize(
+    "spatial_relations_query, exp_featurecount",
+    [("touches is True", 1), ("touches is False", 2)],
+)
+def test_query_touches(
+    tmp_path,
+    input_to_select_from_wkts,
+    input_to_compare_with_wkts,
+    spatial_relations_query,
+    subdivide_coords,
+    exp_featurecount,
+):
+    _test_export_by_location_for_wkts(
+        tmp_path,
+        input_to_select_from_wkts,
+        input_to_compare_with_wkts,
+        spatial_relations_query,
+        subdivide_coords,
+        exp_featurecount,
+    )
+
+
+@pytest.mark.parametrize("input_to_compare_with_wkts", [input_to_compare_with_wkts])
+@pytest.mark.parametrize(
+    "input_to_select_from_wkts",
+    [["POLYGON ((1 1, 3 1, 3 3, 1 3, 1 1))", *extra_input_to_select_from]],
+)
+@pytest.mark.parametrize("subdivide_coords", [0, 10])
+@pytest.mark.parametrize(
+    "spatial_relations_query, exp_featurecount",
+    [("within is True", 1), ("within is False", 2)],
+)
+def test_query_within(
+    tmp_path,
+    input_to_select_from_wkts,
+    input_to_compare_with_wkts,
+    spatial_relations_query,
+    subdivide_coords,
+    exp_featurecount,
+):
+    _test_export_by_location_for_wkts(
+        tmp_path,
+        input_to_select_from_wkts,
+        input_to_compare_with_wkts,
+        spatial_relations_query,
+        subdivide_coords,
+        exp_featurecount,
+    )
+
+
+def _test_export_by_location_for_wkts(
+    tmp_path: Path,
+    input_to_select_from_wkts: list[str],
+    input_to_compare_with_wkts: list[str],
+    spatial_relations_query: str,
+    subdivide_coords: int,
+    exp_featurecount: int,
+):
+    """Helper function to run export_by_location with wkt geometries as input.
+
+    Args:
+        tmp_path (Path): temporary directory to write files to.
+        input_to_select_from_wkts (list[str]): list of wkt strings to use as
+            input_to_select_from.
+        input_to_compare_with_wkts (list[str]): list of wkt strings to use as
+            input_to_compare_with.
+        spatial_relations_query (str): the spatial relations query to use.
+        subdivide_coords (int): value to use for the subdivide_coords parameter.
+        exp_featurecount (int): the number of features expected in the output file.
+    """
+    # Prepare input_to_select_from file
+    input_to_select_from_path = tmp_path / "input_to_select_from.gpkg"
+    input_to_select_from_geoms = [
+        shapely.from_wkt(wkt) for wkt in input_to_select_from_wkts
+    ]
+    gdf_parcel = gpd.GeoDataFrame(geometry=input_to_select_from_geoms, crs="EPSG:31370")
+    gfo.to_file(gdf=gdf_parcel, path=input_to_select_from_path)
+
+    # Prepare input_to_compare_with file
+    input_to_compare_with_path = tmp_path / "input_to_compare_with.gpkg"
+    input_to_compare_with_geoms = [
+        shapely.segmentize(shapely.from_wkt(wkt), 1)
+        for wkt in input_to_compare_with_wkts
+    ]
+    gdf_zone = gpd.GeoDataFrame(geometry=input_to_compare_with_geoms, crs="EPSG:31370")
+    gfo.to_file(gdf=gdf_zone, path=input_to_compare_with_path)
+
+    output = "_".join(spatial_relations_query.split(" ")).lower()
+    output_path = tmp_path / f"{output}.gpkg"
+
+    _test_export_by_location(
+        input_to_select_from_path,
+        input_to_compare_with_path,
+        output_path,
+        spatial_relations_query,
+        area_inters_column_name=None,
+        subdivide_coords=subdivide_coords,
+        exp_featurecount=exp_featurecount,
+    )
+
+
+def _test_export_by_location(
+    input_to_select_from_path: Path,
+    input_to_compare_with_path: Path,
+    output_path: Path,
+    spatial_relations_query: str,
+    area_inters_column_name: str,
+    subdivide_coords: int,
+    exp_featurecount: int,
+):
+    """Helper function to test export_by_location with basic parameters.
+
+    Args:
+        input_to_select_from_path (Path): input file to select from.
+        input_to_compare_with_path (Path): input file to compare with.
+        output_path (Path): output file to write to.
+        spatial_relations_query (str): spatial relations query to use.
+        area_inters_column_name (str): the name of the column to use for the area of the
+            intersection.
+        subdivide_coords (int): the number of coordinates to use to subdivide the
+            geometries in input_to_compare_with_path.
+        exp_featurecount (int): the number of features expected in the output file.
+    """
     input_layerinfo = gfo.get_layerinfo(input_to_select_from_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
-    # Test
+    # Run test
     gfo.export_by_location(
-        input_to_select_from_path=str(input_to_select_from_path),
-        input_to_compare_with_path=str(input_to_compare_with_path),
-        output_path=str(output_path),
-        spatial_relations_query=query,
+        input_to_select_from_path=input_to_select_from_path,
+        input_to_compare_with_path=input_to_compare_with_path,
+        output_path=output_path,
+        spatial_relations_query=spatial_relations_query,
+        area_inters_column_name=area_inters_column_name,
         batchsize=batchsize,
         subdivide_coords=subdivide_coords,
-        area_inters_column_name=area_inters_column_name,
     )
 
     # Check if the output file is correctly created
@@ -243,8 +637,9 @@ def test_export_by_location_query(
     exp_columns = len(input_layerinfo.columns)
     if area_inters_column_name is not None:
         exp_columns += 1
+        assert area_inters_column_name in output_layerinfo.columns
     assert len(output_layerinfo.columns) == exp_columns
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+    assert output_layerinfo.geometrytype == input_layerinfo.geometrytype
     assert output_layerinfo.featurecount == exp_featurecount
 
     # Check the contents of the result file
@@ -253,245 +648,3 @@ def test_export_by_location_query(
         assert output_gdf["geometry"][0] is not None
     elif exp_featurecount == 0:
         assert output_gdf.empty
-
-
-@pytest.mark.parametrize("zones", [zones])
-@pytest.mark.parametrize(
-    "parcels", [["POLYGON ((2 1, 4 1, 4 3, 2 3, 2 1))", *extra_parcels]]
-)
-@pytest.mark.parametrize("subdivide_coords", [0, 10])
-@pytest.mark.parametrize(
-    "spatial_relations, exp_features",
-    [("intersects is True", 1), ("intersects is False", 2)],
-)
-def test_intersects(
-    tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
-):
-    _spatial_relation(
-        tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
-    )
-
-
-@pytest.mark.parametrize("zones", [zones])
-@pytest.mark.parametrize(
-    "parcels", [["POLYGON ((1 1, 3 1, 3 3, 1 3, 1 1))", *extra_parcels]]
-)
-@pytest.mark.parametrize("subdivide_coords", [0, 10])
-@pytest.mark.parametrize(
-    "spatial_relations, exp_features",
-    [("within is True", 1), ("within is False", 2)],
-)
-def test_within(
-    tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
-):
-    _spatial_relation(
-        tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
-    )
-
-
-@pytest.mark.parametrize("zones", [zones])
-@pytest.mark.parametrize(
-    "parcels", [["POLYGON ((2 1, 4 1, 4 3, 2 3, 2 1))", *extra_parcels]]
-)
-@pytest.mark.parametrize("subdivide_coords", [0, 10])
-@pytest.mark.parametrize(
-    "spatial_relations, exp_features",
-    [("overlaps is True", 1), ("overlaps is False", 2)],
-)
-def test_overlaps(
-    tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
-):
-    _spatial_relation(
-        tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
-    )
-
-
-@pytest.mark.parametrize("zones", [zones])
-@pytest.mark.parametrize(
-    "parcels", [["POLYGON ((3 1, 5 1, 5 3, 3 3, 3 1))", *extra_parcels]]
-)
-@pytest.mark.parametrize("subdivide_coords", [0, 10])
-@pytest.mark.parametrize(
-    "spatial_relations, exp_features",
-    [("touches is True", 1), ("touches is False", 2)],
-)
-def test_touches(
-    tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
-):
-    _spatial_relation(
-        tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
-    )
-
-
-@pytest.mark.parametrize("zones", [zones])
-@pytest.mark.parametrize(
-    "parcels",
-    [["POLYGON ((0.5 0.5, 2.5 0.5, 2.5 2.5, 0.5 2.5, 0.5 0.5))", *extra_parcels]],
-)
-@pytest.mark.parametrize("subdivide_coords", [0, 10])
-@pytest.mark.parametrize(
-    "spatial_relations, exp_features",
-    [("contains is True", 1), ("contains is False", 2)],
-)
-def test_contains(
-    tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
-):
-    _spatial_relation(
-        tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
-    )
-
-
-@pytest.mark.parametrize("zones", [zones])
-@pytest.mark.parametrize(
-    "parcels",
-    [["POLYGON ((0 0, 3 0, 3 3, 0 3, 0 0))", *extra_parcels]],
-)
-@pytest.mark.parametrize("subdivide_coords", [0, 10])
-@pytest.mark.parametrize(
-    "spatial_relations, exp_features",
-    [("equals is True", 1), ("equals is False", 2)],
-)
-def test_equals(
-    tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
-):
-    _spatial_relation(
-        tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
-    )
-
-
-@pytest.mark.parametrize("zones", [zones])
-@pytest.mark.parametrize(
-    "parcels",
-    [["POLYGON ((-1 -1, 4 -1, 4 4, -1 4, -1 -1))", *extra_parcels]],
-)
-@pytest.mark.parametrize("subdivide_coords", [0, 10])
-@pytest.mark.parametrize(
-    "spatial_relations, exp_features",
-    [("covers is True", 1), ("covers is False", 2)],
-)
-def test_covers(
-    tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
-):
-    _spatial_relation(
-        tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
-    )
-
-
-@pytest.mark.parametrize("zones", [zones])
-@pytest.mark.parametrize(
-    "parcels",
-    [["POLYGON ((1 1, 3 1, 3 3, 1 3, 1 1))", *extra_parcels]],
-)
-@pytest.mark.parametrize("subdivide_coords", [0, 10])
-@pytest.mark.parametrize(
-    "spatial_relations, exp_features",
-    [("coveredby is True", 1), ("coveredby is False", 2)],
-)
-def test_coveredby(
-    tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
-):
-    _spatial_relation(
-        tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
-    )
-
-
-@pytest.mark.parametrize("zones", [zones])
-@pytest.mark.parametrize(
-    "parcels",
-    [
-        [
-            "POLYGON ((4 1, 6 1, 6 3, 4 3, 4 1))",
-            "POLYGON ((4 -2, 6 -2, 6 0, 4 0, 4 -2))",
-            "POLYGON ((9 0, 11 0, 11 2, 9 2, 9 0))",
-            *extra_parcels,
-        ]
-    ],
-)
-@pytest.mark.parametrize("subdivide_coords", [0, 10])
-@pytest.mark.parametrize(
-    "spatial_relations, exp_features",
-    [("disjoint is True", 4), ("disjoint is False", 1)],
-)
-def test_disjoint(
-    tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
-):
-    _spatial_relation(
-        tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
-    )
-
-
-@pytest.mark.parametrize("zones", [zones])
-@pytest.mark.parametrize(
-    "parcels",
-    [
-        [
-            "POLYGON ((2 1, 4 1, 4 3, 2 3, 2 1))",
-            "POLYGON ((2 -2, 4 -2, 4 0, 2 0, 2 -2))",
-            *extra_parcels,
-        ]
-    ],
-)
-@pytest.mark.parametrize("subdivide_coords", [0, 10])
-@pytest.mark.parametrize(
-    "spatial_relations, exp_features",
-    [
-        ("intersects is True and touches is False", 1),
-        ("intersects is True and touches is True", 1),
-        ("intersects is True or touches is False", 4),
-        ("intersects is True or touches is True", 2),
-    ],
-)
-def test_intersects_true_touches_false(
-    tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
-):
-    _spatial_relation(
-        tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
-    )
-
-
-def _spatial_relation(
-    tmp_path, spatial_relations, zones, parcels, exp_features, subdivide_coords
-):
-    input_to_compare_with_path = tmp_path / "zones.gpkg"
-    box_zones = []
-    for zone in zones:
-        box_zone = shapely.from_wkt(zone)
-        box_zone = shapely.segmentize(box_zone, 1)
-        box_zones.append(box_zone)
-    gdf_zone = gpd.GeoDataFrame(geometry=box_zones, crs="EPSG:31370")
-    gfo.to_file(
-        gdf=gdf_zone, path=input_to_compare_with_path, create_spatial_index=True
-    )
-
-    input_to_select_from_path = tmp_path / "parcels.gpkg"
-    box_parcels = []
-    for parcel in parcels:
-        box_parcel = shapely.from_wkt(parcel)
-        box_parcels.append(box_parcel)
-    gdf_parcel = gpd.GeoDataFrame(geometry=box_parcels, crs="EPSG:31370")
-    gfo.to_file(
-        gdf=gdf_parcel, path=input_to_select_from_path, create_spatial_index=True
-    )
-
-    # Test
-    input_layerinfo = gfo.get_layerinfo(input_to_select_from_path)
-    batchsize = math.ceil(input_layerinfo.featurecount / 2)
-    output = "_".join(spatial_relations.split(" ")).lower()
-    output_path = tmp_path / f"{output}.gpkg"
-    gfo.export_by_location(
-        input_to_select_from_path=str(input_to_select_from_path),
-        input_to_compare_with_path=str(input_to_compare_with_path),
-        output_path=str(output_path),
-        spatial_relations_query=spatial_relations,
-        batchsize=batchsize,
-        subdivide_coords=subdivide_coords,
-    )
-
-    # Check if the output file is correctly created
-    assert output_path.exists()
-    output_layerinfo = gfo.get_layerinfo(output_path)
-    assert output_layerinfo.featurecount == exp_features
-
-    # Check the contents of the result file
-    output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
