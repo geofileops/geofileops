@@ -1498,9 +1498,24 @@ def export_by_location(
     # feature.
     exists_clause = "EXISTS" if relation_should_be_found else "NOT EXISTS"
 
+    # If `true_for_disjoint` is True for the spatial_relations_query specified, all
+    # features that don't match using the spatial index will have to be retained.
+    include_disjoint = ""
+    if true_for_disjoint:
+        include_disjoint = f"""
+            OR NOT EXISTS (
+                 SELECT 1
+                   FROM {{input2_databasename}}."{{input2_layer}}" layer2
+                   JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                     ON layer2.fid = layer2tree.id
+                  WHERE ST_MinX(layer1.{{input1_geometrycolumn}}) <= layer2tree.maxx
+                    AND ST_MaxX(layer1.{{input1_geometrycolumn}}) >= layer2tree.minx
+                    AND ST_MinY(layer1.{{input1_geometrycolumn}}) <= layer2tree.maxy
+                    AND ST_MaxY(layer1.{{input1_geometrycolumn}}) >= layer2tree.miny
+            )
+        """
+
     # Prepare the SQL template for the operation.
-    # This first part will only select features that are matched with layer2 using the
-    # spatial index.
     sql_template = f"""
         WITH layer1_intersecting_filtered AS (
             SELECT rowid
@@ -1509,8 +1524,8 @@ def export_by_location(
               FROM {{input1_databasename}}."{{input1_layer}}" layer1
              WHERE 1=1
                {{batch_filter}}
-               AND {exists_clause} (
-                     SELECT 1 FROM (
+               AND ( {exists_clause} (
+                       SELECT 1 FROM (
                          SELECT 1
                                {spatial_relation_column}
                            FROM {{input2_databasename}}."{{input2_layer}}" layer2
@@ -1522,44 +1537,16 @@ def export_by_location(
                             AND ST_MaxY(layer1.{{input1_geometrycolumn}}) >= layer2tree.miny
                           {layer2_groupby}
                           LIMIT -1 OFFSET 0
-                       ) sub_filter
-                     {where_clause}
+                         ) sub_filter
+                        {where_clause}
+                     )
+                     {include_disjoint}
                    )
         )
         SELECT sub.geom
               {{layer1_columns_from_subselect_str}}
           FROM layer1_intersecting_filtered sub
     """  # noqa: E501
-
-    # If disjoint is True according to the query, all features that don't match using
-    # the spatial index have to be added as well.
-    # Remark: in some rare cases this leads to duplicates, so the query includes a part
-    # to exclude the results of the previous one to avoid this...
-    if true_for_disjoint:
-        sql_template = f"""
-            {sql_template}
-            UNION ALL
-            SELECT layer1.{{input1_geometrycolumn}} AS geom
-                  {{layer1_columns_prefix_alias_str}}
-              FROM {{input1_databasename}}."{{input1_layer}}" layer1
-             WHERE 1=1
-               {{batch_filter}}
-               AND NOT EXISTS (  -- Avoid duplicates with the intersecting part
-                     SELECT 1
-                       FROM layer1_intersecting_filtered sub
-                      WHERE layer1.rowid = sub.rowid
-                   )
-               AND NOT EXISTS (
-                     SELECT 1
-                       FROM {{input2_databasename}}."{{input2_layer}}" layer2
-                       JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
-                         ON layer2.fid = layer2tree.id
-                      WHERE ST_MinX(layer1.{{input1_geometrycolumn}}) <= layer2tree.maxx
-                        AND ST_MaxX(layer1.{{input1_geometrycolumn}}) >= layer2tree.minx
-                        AND ST_MinY(layer1.{{input1_geometrycolumn}}) <= layer2tree.maxy
-                        AND ST_MaxY(layer1.{{input1_geometrycolumn}}) >= layer2tree.miny
-                   )
-    """
 
     # Intersection area needs to be calculated.
     if area_inters_column_name is not None or min_area_intersect is not None:
