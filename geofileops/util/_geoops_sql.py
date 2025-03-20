@@ -1484,7 +1484,7 @@ def export_by_location(
         layer2_groupby,
         relation_should_be_found,
         true_for_disjoint,
-    ) = _prepare_filter_by_location_fields(
+    ) = _prepare_filter_by_location_params(
         query=spatial_relations_query,
         subdivided=input_to_compare_with_subdivided_path is not None,
     )
@@ -2019,7 +2019,7 @@ def join_by_location(
         layer2_groupby,
         _,
         _,
-    ) = _prepare_filter_by_location_fields(
+    ) = _prepare_filter_by_location_params(
         query=spatial_relations_query, avoid_disjoint=True
     )
 
@@ -2115,7 +2115,7 @@ def join_by_location(
     )
 
 
-def _prepare_filter_by_location_fields(
+def _prepare_filter_by_location_params(
     query: str,
     geom1: str = "layer1.{input1_geometrycolumn}",
     geom2: str = "layer2.{input2_geometrycolumn}",
@@ -2124,7 +2124,7 @@ def _prepare_filter_by_location_fields(
     subdivided: bool = False,
     optimize_simple_queries: bool = True,
 ) -> tuple[str, str, str, bool, bool]:
-    """Prepare the fields needed to prepare a select to filter by location.
+    """Deduct the parameters needed to form an SQL statement for a custom spatial query.
 
     Args:
         query (str): the spatial relations query that should be filtered on.
@@ -2161,8 +2161,7 @@ def _prepare_filter_by_location_fields(
             True,  # true_for_disjoint
         )
 
-    # Group by is needed when the layer was subdivided
-    # When the layer was subdivided, geom2 needs to be unioned
+    # When the layer was subdivided, all geom2s need to be unioned on their original fid
     layer2_groupby = "GROUP BY layer2.fid_1" if subdivided else ""
     geom2 = f"ST_union({geom2})" if subdivided else f"{geom2}"
 

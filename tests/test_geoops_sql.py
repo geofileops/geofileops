@@ -321,7 +321,7 @@ def test_prepare_filter_by_location_fields(
         groupby,
         relation_should_be_found,
         true_for_disjoint,
-    ) = _geoops_sql._prepare_filter_by_location_fields(
+    ) = _geoops_sql._prepare_filter_by_location_params(
         query=query,
         geom1=geom1,
         geom2=geom2,
