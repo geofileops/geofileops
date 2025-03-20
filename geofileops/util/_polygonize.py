@@ -7,7 +7,7 @@ import time
 from concurrent import futures
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Union
 
 import geopandas as gpd
 import pygeoops
@@ -36,11 +36,11 @@ logger = logging.getLogger(__name__)
 def polygonize(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
-    output_layer: Optional[str] = None,
+    output_layer: str | None = None,
     value_column: str = "DN",
     dissolve: bool = True,
     simplify_tolerance: float = 0.0,
-    simplify_algorithm: Union[SimplifyAlgorithm, str] = "rdp",
+    simplify_algorithm: SimplifyAlgorithm | str = "rdp",
     simplify_lookahead: int = 8,
     simplify_preserve_common_boundaries: bool = False,
     dst_tiles_path: Union[str, "os.PathLike[Any]", None] = None,
@@ -171,6 +171,7 @@ def polygonize(
                     _polygonize_bbox,
                     input_path=input_path,
                     output_path=polygonize_part_path,
+                    output_layer=output_layer,
                     value_column=value_column,
                     bbox=tile_bbox,
                     simplify_algorithm=simplify_algorithm,
@@ -207,10 +208,12 @@ def polygonize(
                         tmp_partial_output_path.exists()
                         and tmp_partial_output_path.stat().st_size > 0
                     ):
-                        fileops._append_to_nolock(
+                        fileops.copy_layer(
                             src=tmp_partial_output_path,
                             dst=polygonized_path,
+                            src_layer=output_layer,
                             dst_layer=output_layer,
+                            write_mode="append",
                             create_spatial_index=False,
                         )
                         fileops.remove(tmp_partial_output_path)
@@ -250,6 +253,8 @@ def polygonize(
                 output_path,
                 explodecollections=True,
                 groupby_columns=value_column,
+                input_layer=output_layer,
+                output_layer=output_layer,
             )
         else:
             fileops.move(polygonized_path, output_path)
@@ -263,14 +268,15 @@ def polygonize(
         if ConfigOptions.remove_temp_files:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
-    logger.info(f"Ready, took {datetime.now()-start_time}")
+    logger.info(f"Ready, took {datetime.now() - start_time}")
 
 
 def _polygonize_bbox(
     input_path: Path,
     output_path: Path,
+    output_layer: str,
     value_column: str,
-    bbox: Optional[tuple[float, float, float, float]],
+    bbox: tuple[float, float, float, float] | None,
     simplify_algorithm: SimplifyAlgorithm,
     simplify_tolerance: float,
     simplify_lookahead: int,
@@ -297,6 +303,7 @@ def _polygonize_bbox(
     gdal_polygonize.gdal_polygonize(
         src_filename=str(input_path),
         dst_filename=str(output_poly_path),
+        dst_layername=output_layer,
         dst_fieldname=value_column,
         quiet=True,
         layer_creation_options=["SPATIAL_INDEX=NO"],
@@ -312,7 +319,7 @@ def _polygonize_bbox(
 
         # Read, simplify, write
         start = time.perf_counter()
-        poly_gdf = fileops.read_file(output_poly_path)
+        poly_gdf = fileops.read_file(output_poly_path, layer=output_layer)
         poly_gdf.geometry = pygeoops.simplify(
             poly_gdf.geometry,
             algorithm=simplify_algorithm.value,
@@ -321,7 +328,7 @@ def _polygonize_bbox(
             preserve_common_boundaries=simplify_preserve_common_boundaries,
             keep_points_on=keep_points_on,
         )
-        fileops.to_file(poly_gdf, output_path, append=True)
+        fileops.to_file(poly_gdf, output_path, layer=output_layer, append=True)
         logger.debug(f"Simplify took {(time.perf_counter() - start):.2f} seconds")
 
     # Cleanup tmp files
