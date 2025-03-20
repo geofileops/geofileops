@@ -7,6 +7,10 @@
 - `erase` was renamed to `difference`, as most other open source applications/libraries
   use this terminology. `erase` just keeps existing for backwards compatibility for now,
   but a warning is shown that it might be removed in the (distant) future. (#595)
+- In `copy_layer` and `append_to` the default `dst_layer` was, contrary to the
+  documentation, not the stem of the destination filename. This is corrected now. (#648)
+- In `copy_layer`, the `append` parameter is deprecated and replaced by the `write_mode`
+  parameter that accepts e.g. "append" as value (#663).
 
 ### Improvements
 
@@ -17,7 +21,11 @@
 - Improve performance of `erase` and `intersection` for very complex input geometries.
   This gives similar improvements for such datasets to `identity`,
   `symmetric_difference` and `union`. (#585, #601, #591, #614)
+- Improve performance of `export_by_location` and `join_by_location` for simple queries
+  (#548)
+- Add support for `query=""` in `export_by_location` (#597)
 - Add support to rename columns and layers with only a difference in casing (#549, #593)
+- Use `ST_Equals` and add priority feature to `delete_duplicate_geometries` (#638)
 - Avoid integer overflow when gpkg written by geofileops is read from .NET (#612)
 - Speed up processing many small files, mainly on windows:
     - reduce calls to `gdal.OpenEx` (#622, #625)
@@ -28,9 +36,14 @@
   column should be retained (#523)
 - Enable "CURVE" geometrytype files to be processed in the general file and
   layer operations (#558)
+- Replace `append` parameter by `write_mode` in `copy_file` (#663)
 - Don't convert to multi-part geometries by default in `copy_layer`,... (#570)
+- In `add_column`, don't add column if update expression is invalid (#650)
 - Add configuration option to only warn on dissolve errors (#561)
+- For `dissolve`, apply `grid_size` within `union_all` (#566)
 - Add some pre-flight checks when geofileops is imported (#573, #627)
+- For `select_two_layers`, add the `gpkg_ogr_contents` table + fill out extents in the
+  `gpkg_contents` table in the output file (#647)
 - When using join_nearest with spatialite version >= 5.1,
   show ST_distance between the two geometries instead of 
   the distance between the centroid of the two geometries (#634)
@@ -41,6 +54,9 @@
 - Fix GDAL input open options being ignored in `copy_layer` (#632)
 - Fix `missing_ok` parameter in `remove` being ~ignored (#605)
 - Fix `dissolve` with `agg_columns` on sqlite 3.49.1 (#636)
+- Fix an invalid output .gpkg file being created when e.g. `copy_layer` is ran with an
+  invalid sql statement (#641)
+- Fix wrong results for `export_by_location` with queries != "intersects is True" (#617)
 
 ## 0.9.1 (2024-07-18)
 
