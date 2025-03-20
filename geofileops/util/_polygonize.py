@@ -132,6 +132,7 @@ def polygonize(
         _polygonize_bbox(
             input_path=input_path,
             output_path=output_path,
+            output_layer=output_layer,
             value_column=value_column,
             bbox=None,
             simplify_algorithm=simplify_algorithm,
