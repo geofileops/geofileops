@@ -325,8 +325,8 @@ def vector_translate(
     # API Doc of VectorTranslateOptions:
     #   https://gdal.org/en/stable/api/python/utilities.html#osgeo.gdal.VectorTranslateOptions
     args = []
-    if isinstance(input_path, str):
-        input_path = Path(input_path)
+    if isinstance(input_path, Path):
+        input_path = input_path.as_posix()
     if isinstance(columns, str):
         # If a string is passed, convert to list
         columns = [columns]

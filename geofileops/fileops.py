@@ -2719,7 +2719,7 @@ def copy_layer(
         if (
             force_output_geometrytype is None
             and src_layer.geometrytypename in ["GEOMETRY", "GEOMETRYCOLLECTION"]
-            and not dst.exists()
+            and not vsi_exists(dst)
         ):
             raise ValueError(
                 f"src file {src} has geometrytype {src_layer.geometrytypename} "
@@ -2773,6 +2773,24 @@ def copy_layer(
         dst_dimensions=dst_dimensions,
     )
     _ogr_util.vector_translate_by_info(info=translate_info)
+
+
+def vsi_exists(path: Union[str, "os.PathLike[Any]"]) -> bool:
+    """Check if a file exists using the VSI file system.
+
+    Args:
+        path (str): the path the the file to check if it exists.
+
+    Returns:
+        bool: True if the file exists.
+    """
+    if isinstance(path, Path):
+        path = path.as_posix()
+
+    if gdal.VSIStatL(path, gdal.VSI_STAT_EXISTS_FLAG) is None:
+        return False
+
+    return True
 
 
 def _launder_column_names(columns: Iterable) -> list[tuple[str, str]]:

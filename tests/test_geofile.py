@@ -570,6 +570,20 @@ def test_copy_layer_sql_placeholders(tmp_path, suffix):
     assert_geodataframe_equal(input_gdf, copy_gdf)
 
 
+def test_copy_layer_vsi(tmp_path):
+    # Prepare test data
+    src = "/vsizip//vsicurl/https://raw.githubusercontent.com/OSGeo/gdal/master/autotest/ogr/data/shp/poly.zip/poly.shp"
+    dst = tmp_path / "output.gpkg"
+
+    # copy_layer with vsi
+    gfo.copy_layer(src, dst)
+
+    # Now compare source and dst file
+    src_layerinfo = gfo.get_layerinfo(src)
+    dst_layerinfo = gfo.get_layerinfo(dst)
+    assert src_layerinfo.featurecount == dst_layerinfo.featurecount
+
+
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
 def test_copy_layer_where(tmp_path, suffix):
     # Prepare test data
