@@ -24,7 +24,7 @@ setuptools.setup(
     ),
     install_requires=[
         "cloudpickle",
-        "gdal>=3.6,<3.10",
+        "gdal>=3.6,<3.11",
         "geopandas>=0.12,<1.1",
         "numpy",
         "packaging",
@@ -44,5 +44,5 @@ setuptools.setup(
         "Programming Language :: Python :: 3 :: Only",
         "Topic :: Scientific/Engineering :: GIS",
     ],
-    python_requires=">=3.9",
+    python_requires=">=3.10",
 )

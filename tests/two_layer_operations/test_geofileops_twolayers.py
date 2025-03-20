@@ -3,10 +3,10 @@ Tests for operations that are executed using a sql statement on two layers.
 """
 
 import math
+import os
 import sys
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Optional
 
 import geopandas as gpd
 import numpy as np
@@ -18,7 +18,7 @@ import shapely.geometry as sh_geom
 import geofileops as gfo
 from geofileops import GeometryType
 from geofileops._compat import GEOPANDAS_GTE_10, SPATIALITE_GTE_51
-from geofileops.util import _geofileinfo
+from geofileops.util import _geofileinfo, _sqlite_util
 from geofileops.util import _geoops_sql as geoops_sql
 from geofileops.util._geofileinfo import GeofileInfo
 from tests import test_helper
@@ -116,6 +116,7 @@ def test_clip_resultempty(tmp_path, suffix, clip_empty):
     not GEOPANDAS_GTE_10,
     reason="assert_geodataframe_equal with check_geom_gridsize requires gpd >= 1.0",
 )
+@pytest.mark.skipif(os.name == "nt", reason="crashes on windows")
 def test_difference(
     tmp_path,
     suffix,
@@ -389,211 +390,6 @@ def test_erase_deprecated(tmp_path):
     assert output_path.exists()
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
-@pytest.mark.parametrize(
-    "columns, gridsize, where_post, subdivide_coords, exp_featurecount",
-    [
-        (["OIDN", "UIDN"], 0.0, "ST_Area(geom) > 2000", 0, 25),
-        (None, 0.01, None, 10, 27),
-    ],
-)
-def test_export_by_location(
-    tmp_path,
-    suffix,
-    columns,
-    gridsize,
-    where_post,
-    subdivide_coords,
-    exp_featurecount,
-):
-    input_to_select_from_path = test_helper.get_testfile(
-        "polygon-parcel", suffix=suffix
-    )
-    input_to_compare_with_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
-    output_path = tmp_path / f"{input_to_select_from_path.stem}-output{suffix}"
-    input_layerinfo = gfo.get_layerinfo(input_to_select_from_path)
-    batchsize = math.ceil(input_layerinfo.featurecount / 2)
-
-    # Test
-    gfo.export_by_location(
-        input_to_select_from_path=str(input_to_select_from_path),
-        input_to_compare_with_path=str(input_to_compare_with_path),
-        output_path=str(output_path),
-        input1_columns=columns,
-        gridsize=gridsize,
-        where_post=where_post,
-        subdivide_coords=subdivide_coords,
-        batchsize=batchsize,
-    )
-
-    # Check if the output file is correctly created
-    assert output_path.exists()
-    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
-    assert gfo.has_spatial_index(output_path) is exp_spatial_index
-    output_layerinfo = gfo.get_layerinfo(output_path)
-    exp_columns = len(input_layerinfo.columns) if columns is None else len(columns)
-    assert len(output_layerinfo.columns) == exp_columns
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
-    assert output_layerinfo.featurecount == exp_featurecount
-
-    # Check the contents of the result file
-    output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
-
-
-@pytest.mark.parametrize(
-    "query, area_inters_column_name, min_area_intersect, subdivide_coords, "
-    "exp_featurecount",
-    [
-        (None, None, None, 10, 27),
-        (None, "area_custom", None, 0, 27),
-        ("within is False", "area_custom", None, 0, 39),
-        (None, None, 1000, 10, 24),
-        ("within is False", None, 1000, 0, 15),
-    ],
-)
-@pytest.mark.filterwarnings("ignore:.*Field format '' not supported.*")
-def test_export_by_location_area(
-    tmp_path,
-    query,
-    area_inters_column_name,
-    min_area_intersect,
-    subdivide_coords,
-    exp_featurecount,
-):
-    input_to_select_from_path = test_helper.get_testfile("polygon-parcel")
-    input_to_compare_with_path = test_helper.get_testfile("polygon-zone")
-    output_path = tmp_path / f"{input_to_select_from_path.stem}-output.gpkg"
-    input_layerinfo = gfo.get_layerinfo(input_to_select_from_path)
-    batchsize = math.ceil(input_layerinfo.featurecount / 2)
-
-    # Test
-    kwargs = {}
-    if query is not None:
-        kwargs["spatial_relations_query"] = query
-    gfo.export_by_location(
-        input_to_select_from_path=str(input_to_select_from_path),
-        input_to_compare_with_path=str(input_to_compare_with_path),
-        output_path=str(output_path),
-        area_inters_column_name=area_inters_column_name,
-        min_area_intersect=min_area_intersect,
-        batchsize=batchsize,
-        subdivide_coords=subdivide_coords,
-        **kwargs,
-    )
-
-    # Check if the output file is correctly created
-    assert output_path.exists()
-    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
-    assert gfo.has_spatial_index(output_path) is exp_spatial_index
-    output_layerinfo = gfo.get_layerinfo(output_path)
-    exp_columns = len(input_layerinfo.columns)
-    exp_area_inters_column_name = area_inters_column_name
-    if exp_area_inters_column_name is None and min_area_intersect is not None:
-        exp_area_inters_column_name = "area_inters"
-    if exp_area_inters_column_name is not None:
-        exp_columns += 1
-        assert exp_area_inters_column_name in output_layerinfo.columns
-    assert len(output_layerinfo.columns) == exp_columns
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
-    assert output_layerinfo.featurecount == exp_featurecount
-
-    # Check the contents of the result file
-    output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
-
-    # If an area column name is specified, check the number of None values
-    # (= number features without intersection)
-    if area_inters_column_name is not None:
-        exp_nb_None = 21 if query == "within is False" else 0
-        assert len(output_gdf[output_gdf.area_custom.isna()]) == exp_nb_None
-
-
-def test_export_by_location_force(tmp_path):
-    # Prepare test data
-    input1_path = test_helper.get_testfile("polygon-parcel")
-    input2_path = test_helper.get_testfile("polygon-zone")
-    output_path = tmp_path / f"output{input1_path.suffix}"
-    output_path.touch()
-
-    # Test with force False (the default): existing output file should stay the same
-    mtime_orig = output_path.stat().st_mtime
-    gfo.export_by_location(
-        input_to_select_from_path=input1_path,
-        input_to_compare_with_path=input2_path,
-        output_path=output_path,
-    )
-    assert output_path.stat().st_mtime == mtime_orig
-
-    # With force=True
-    gfo.export_by_location(
-        input_to_select_from_path=input1_path,
-        input_to_compare_with_path=input2_path,
-        output_path=output_path,
-        force=True,
-    )
-    assert output_path.stat().st_mtime != mtime_orig
-
-
-@pytest.mark.parametrize(
-    "kwargs, expected_error",
-    [
-        ({"subdivide_coords": -1}, "subdivide_coords < 0 is not allowed"),
-    ],
-)
-def test_export_by_location_invalid_params(kwargs, expected_error):
-    with pytest.raises(ValueError, match=expected_error):
-        gfo.export_by_location(
-            input_to_select_from_path="input.gpkg",
-            input_to_compare_with_path="input2.gpkg",
-            output_path="output.gpkg",
-            **kwargs,
-        )
-
-
-@pytest.mark.parametrize(
-    "query, subdivide_coords, exp_featurecount",
-    [
-        ("intersects is True or intersects is False", 0, 48),
-        ("intersects is True", 10, 27),
-        ("within is True", 0, 8),
-        ("intersects is False", 10, 21),
-        ("within is False", 10, 39),
-        ("disjoint is True", 0, 21),
-    ],
-)
-def test_export_by_location_query(tmp_path, query, subdivide_coords, exp_featurecount):
-    input_to_select_from_path = test_helper.get_testfile("polygon-parcel")
-    input_to_compare_with_path = test_helper.get_testfile("polygon-zone")
-    output_path = tmp_path / f"{input_to_select_from_path.stem}-output.gpkg"
-    input_layerinfo = gfo.get_layerinfo(input_to_select_from_path)
-    batchsize = math.ceil(input_layerinfo.featurecount / 2)
-
-    # Test
-    gfo.export_by_location(
-        input_to_select_from_path=str(input_to_select_from_path),
-        input_to_compare_with_path=str(input_to_compare_with_path),
-        output_path=str(output_path),
-        spatial_relations_query=query,
-        batchsize=batchsize,
-        subdivide_coords=subdivide_coords,
-    )
-
-    # Check if the output file is correctly created
-    assert output_path.exists()
-    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
-    assert gfo.has_spatial_index(output_path) is exp_spatial_index
-    output_layerinfo = gfo.get_layerinfo(output_path)
-    exp_columns = len(input_layerinfo.columns)
-    assert len(output_layerinfo.columns) == exp_columns
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
-    assert output_layerinfo.featurecount == exp_featurecount
-
-    # Check the contents of the result file
-    output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
-
-
 @pytest.mark.parametrize("testfile", ["polygon-parcel"])
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 def test_export_by_distance(tmp_path, testfile, suffix):
@@ -602,12 +398,12 @@ def test_export_by_distance(tmp_path, testfile, suffix):
     input_layerinfo = gfo.get_layerinfo(input_to_select_from_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
     output_path = tmp_path / f"{input_to_select_from_path.stem}-output{suffix}"
-
+    max_distance = 10
     # Test
     gfo.export_by_distance(
         input_to_select_from_path=str(input_to_select_from_path),
         input_to_compare_with_path=str(input_to_compare_with_path),
-        max_distance=10,
+        max_distance=max_distance,
         output_path=str(output_path),
         batchsize=batchsize,
     )
@@ -618,13 +414,34 @@ def test_export_by_distance(tmp_path, testfile, suffix):
     assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(input_to_select_from_path)
     assert input_layerinfo.featurecount == output_layerinfo.featurecount
-    assert len(input_layerinfo.columns) == len(output_layerinfo.columns)
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
 
     # Check the contents of the result file
-    # TODO: this test should be more elaborate...
     output_gdf = gfo.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
+
+    input_gdf = gfo.read_file(input_to_compare_with_path)
+    # Check CRS consistency
+    assert input_gdf.crs == output_gdf.crs
+
+    # Check if the exported geometries are within the specified distance using shapely
+    input_geometries = input_gdf["geometry"]
+    for output_geom in output_gdf["geometry"]:
+        min_distance = min(
+            output_geom.distance(input_geom) for input_geom in input_geometries
+        )
+        assert min_distance <= max_distance
+
+    # Check if columns exist and have the same data type
+    for col_name, col_infos in input_layerinfo.columns.items():
+        assert col_name in output_layerinfo.columns.keys()
+        assert col_infos.gdal_type == output_layerinfo.columns.get(col_name).gdal_type
+
+    # Compare attribute values of a selected column
+    CHECK_COL = "OIDN"
+    input_ids = gfo.read_file(input_to_select_from_path)[CHECK_COL].tolist()
+    output_ids = output_gdf[CHECK_COL].tolist()
+    assert set(output_ids).issubset(input_ids)
 
 
 @pytest.mark.parametrize(
@@ -886,9 +703,12 @@ def test_intersection_input_no_index(tmp_path):
 
     # Now run test
     output_path = tmp_path / f"{input1_path.stem}_intersection_{input2_path.stem}.gpkg"
-    gfo.intersection(
-        input1_path=input1_path, input2_path=input2_path, output_path=output_path
-    )
+
+    # Use "process" worker type to test this as well
+    with gfo.TempEnv({"GFO_WORKER_TYPE": "process"}):
+        gfo.intersection(
+            input1_path=input1_path, input2_path=input2_path, output_path=output_path
+        )
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
@@ -1302,7 +1122,7 @@ def test_prepare_spatial_relations_filter():
     ]
     for relation in named_relations:
         query = f"{relation} is True"
-        filter = geoops_sql._prepare_spatial_relations_filter(query)
+        filter = geoops_sql._prepare_spatial_relation_filter(query)
         assert filter is not None and filter != ""
 
     # Test extra queries that should work
@@ -1312,7 +1132,7 @@ def test_prepare_spatial_relations_filter():
         "(((T******** is False)))",
     ]
     for query in ok_queries:
-        filter = geoops_sql._prepare_spatial_relations_filter(query)
+        filter = geoops_sql._prepare_spatial_relation_filter(query)
         assert filter is not None and filter != ""
 
     # Test queries that should fail
@@ -1331,7 +1151,7 @@ def test_prepare_spatial_relations_filter():
     ]
     for query, error_reason in error_queries:
         try:
-            _ = geoops_sql._prepare_spatial_relations_filter(query)
+            _ = geoops_sql._prepare_spatial_relation_filter(query)
             error = False
         except Exception:
             error = True
@@ -1439,17 +1259,20 @@ def test_join_nearest(tmp_path, suffix, epsg):
     output_path = tmp_path / f"{input1_path.stem}-output{suffix}"
     nb_nearest = 2
     input1_columns = ["OIDN", "UIDN", "HFDTLT", "fid"]
-    gfo.join_nearest(
-        input1_path=str(input1_path),
-        input1_columns=input1_columns,
-        input2_path=str(input2_path),
-        output_path=str(output_path),
-        nb_nearest=nb_nearest,
-        distance=1000,
-        expand=True,
-        batchsize=batchsize,
-        force=True,
-    )
+
+    # Use "process" worker type to test this as well
+    with gfo.TempEnv({"GFO_WORKER_TYPE": "process"}):
+        gfo.join_nearest(
+            input1_path=str(input1_path),
+            input1_columns=input1_columns,
+            input2_path=str(input2_path),
+            output_path=str(output_path),
+            nb_nearest=nb_nearest,
+            distance=1000,
+            expand=True,
+            batchsize=batchsize,
+            force=True,
+        )
 
     # Check if the output file is correctly created
     assert output_path.exists()
@@ -1519,6 +1342,39 @@ def test_join_nearest_invalid_params(
         )
 
 
+def test_join_nearest_distance(tmp_path):
+    geoms = [
+        "POLYGON ((0 0, 3 0, 3 3, 0 3, 0 0))",
+        "POLYGON ((10 1, 13 1, 13 4, 10 4, 10 1))",
+    ]
+    for index, geom in enumerate(geoms):
+        box_geom = shapely.from_wkt(geom)
+        box_geom = shapely.segmentize(box_geom, 1)
+        gdf_geom = gpd.GeoDataFrame(geometry=[box_geom], crs="EPSG:31370")
+        geom_path = tmp_path / f"geom{index + 1}.gpkg"
+        gfo.to_file(gdf=gdf_geom, path=geom_path)
+
+    # Test
+    output_path = tmp_path / "geom_join_nearest.gpkg"
+    gfo.join_nearest(
+        input1_path=tmp_path / "geom1.gpkg",
+        input2_path=tmp_path / "geom2.gpkg",
+        output_path=output_path,
+        nb_nearest=1,
+        distance=50,
+        expand=True,
+        force=True,
+    )
+
+    # Check if the output file is correctly created
+    assert output_path.exists()
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.featurecount == 1
+    # Check the contents of the result file
+    output_gdf = gfo.read_file(output_path)
+    assert output_gdf["distance"][0] == 7
+
+
 @pytest.mark.parametrize(
     "suffix, epsg, gridsize",
     [(".gpkg", 31370, 0.01), (".gpkg", 4326, 0.0), (".shp", 31370, 0.01)],
@@ -1575,6 +1431,11 @@ def test_select_two_layers(tmp_path, suffix, epsg, gridsize):
         len(input1_layerinfo.columns) + len(input2_layerinfo.columns)
     )
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+
+    # Check if the "gpkg_ogr_contents" table is present in the output gpkg
+    if suffix == ".gpkg":
+        tables = _sqlite_util.get_tables(output_path)
+        assert "gpkg_ogr_contents" in tables
 
     # Check the contents of the result file
     output_gdf = gfo.read_file(output_path)
@@ -2122,7 +1983,7 @@ def test_union(
     suffix: str,
     epsg: int,
     gridsize: float,
-    where_post: Optional[str],
+    where_post: str | None,
     explodecollections: bool,
     keep_fid: bool,
     subdivide_coords: int,

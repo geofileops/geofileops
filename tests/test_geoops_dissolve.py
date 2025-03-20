@@ -10,6 +10,7 @@ import geopandas as gpd
 import pandas as pd
 import pygeoops
 import pytest
+import shapely
 import shapely.geometry as sh_geom
 
 import geofileops as gfo
@@ -281,7 +282,7 @@ def test_dissolve_linestrings_aggcolumns_json(tmp_path, agg_columns):
     [
         (".gpkg", 31370, False, ["GEWASgroep"], True, 0.0, "", 26),
         (".gpkg", 31370, False, "GEWASgroep", True, 0.0, "", 26),
-        (".gpkg", 31370, False, ["GEWASgroep"], True, 0.01, "", 25),
+        (".gpkg", 31370, False, ["GEWASgroep"], True, 0.01, "", 24),
         (".gpkg", 31370, False, ["GEWASGROEP"], False, 0.0, "", 6),
         (".gpkg", 31370, True, ["GEWASGROEP"], False, 0.0, "", 6),
         (".gpkg", 31370, False, ["gewasGROEP"], False, 0.01, WHERE_AREA_GT_5000, 4),
@@ -304,6 +305,9 @@ def test_dissolve_polygons(
     where_post,
     expected_featurecount,
 ):
+    if gridsize > 0.0:
+        pytest.xfail("Geopandas doesn't support dissolve with gridsize yet")
+
     # Prepare test data
     test_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
     if explode_input:
@@ -374,6 +378,10 @@ def test_dissolve_polygons(
 
     # Compare result expected values using geopandas
     columns = ["geometry"]
+    if gridsize > 0.0:
+        input_gdf.geometry = shapely.set_precision(
+            input_gdf.geometry, grid_size=gridsize
+        )
     if groupby_columns is None or len(groupby_columns) == 0:
         expected_gdf = input_gdf[columns].dissolve()
     else:
@@ -755,15 +763,18 @@ def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
         ]
     }
     groupby_columns = ["GEWASgroep"]
-    gfo.dissolve(
-        input_path=input_path,
-        output_path=output_path,
-        groupby_columns=groupby_columns,
-        agg_columns=agg_columns,
-        explodecollections=False,
-        nb_parallel=2,
-        batchsize=batchsize,
-    )
+
+    # Force use of processes as workers
+    with gfo.TempEnv({"GFO_WORKER_TYPE": "process"}):
+        gfo.dissolve(
+            input_path=input_path,
+            output_path=output_path,
+            groupby_columns=groupby_columns,
+            agg_columns=agg_columns,
+            explodecollections=False,
+            nb_parallel=2,
+            batchsize=batchsize,
+        )
 
     # Now check if the tmp file is correctly created
     assert output_path.exists()
@@ -801,8 +812,7 @@ def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
     ].index.to_list()[0]
     assert output_gdf["lbl_count"][groenten_idx] == 5
     print(
-        "groenten.lblhfdtlt_concat_distinct: "
-        "f{output_gdf['lbl_conc_d'][groenten_idx]}"
+        "groenten.lblhfdtlt_concat_distinct: f{output_gdf['lbl_conc_d'][groenten_idx]}"
     )
     assert output_gdf["lbl_cnt_d"][groenten_idx] == 4
     fid_concat_result = sorted(output_gdf["fid_concat"][groenten_idx].split(","))

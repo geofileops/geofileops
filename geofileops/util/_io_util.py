@@ -3,13 +3,15 @@
 import logging
 import os
 import tempfile
+import time
+from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Union
 
 import geofileops as gfo
 
 
-def create_tempdir(base_dirname: str, parent_dir: Optional[Path] = None) -> Path:
+def create_tempdir(base_dirname: str, parent_dir: Path | None = None) -> Path:
     """Creates a new tempdir in the default temp location.
 
     Remark: the temp dir won't be cleaned up automatically!
@@ -52,8 +54,8 @@ def create_tempdir(base_dirname: str, parent_dir: Optional[Path] = None) -> Path
 def get_tempfile_locked(
     base_filename: str,
     suffix: str = ".tmp",
-    dirname: Optional[str] = None,
-    tempdir: Optional[Path] = None,
+    dirname: str | None = None,
+    tempdir: Path | None = None,
 ) -> tuple[Path, Path]:
     """Formats a temp file path, and creates a corresponding lock file.
 
@@ -105,14 +107,49 @@ def get_tempfile_locked(
     )
 
 
-def create_file_atomic(filename) -> bool:
-    """Create a lock file in an atomic way, so it is threadsafe.
+def create_file_atomic_wait(
+    path: Union[str, "os.PathLike[Any]"],
+    time_between_attempts: float = 1,
+    timeout: float = 0,
+):
+    """Create a file in an atomic way.
+
+    If it already exists, wait till it can be created.
+
+    Returns once the file is created.
+
+    Args:
+        path (PathLike): path of the file to create.
+        time_between_attempts (float, optional): time to wait between attempts.
+            Defaults to 1.
+        timeout (float, optional): maximum time in seconds to wait to create the file.
+            Once the timeout has been reached, a RunTimeError is raised. If 0, there is
+            no timeout. Defaults to 0.
+    """
+    start_time = datetime.now()
+    while True:
+        if create_file_atomic(path):
+            return
+
+        if timeout > 0:
+            time_waiting = (datetime.now() - start_time).total_seconds()
+            if time_waiting > timeout:
+                raise RuntimeError(
+                    f"timeout of {timeout} secs reached, couldn't create {path}"
+                )
+
+        # Wait 100ms
+        time.sleep(time_between_attempts)
+
+
+def create_file_atomic(path: Union[str, "os.PathLike[Any]"]) -> bool:
+    """Create a file in an atomic way.
 
     Returns True if the file was created by this thread, False if the file existed
     already.
     """
     try:
-        fd = os.open(filename, os.O_CREAT | os.O_EXCL)
+        fd = os.open(path, os.O_CREAT | os.O_EXCL)
         os.close(fd)
         return True
     except FileExistsError:
@@ -121,7 +158,7 @@ def create_file_atomic(filename) -> bool:
         if ex.errno == 13:
             return False
         else:
-            raise Exception("Error creating lock file {filename}") from ex
+            raise Exception(f"Error creating file {path}") from ex
 
 
 def with_stem(path: Path, new_stem) -> Path:
@@ -154,7 +191,7 @@ def output_exists(path: Path, remove_if_exists: bool) -> bool:
             gfo.remove(path)
             return False
         else:
-            logging.info(msg=f"Stop, output exists already {path}", stacklevel=2)
+            logging.info(msg=f"Stop, output already exists {path}", stacklevel=2)
             return True
 
     return False

@@ -149,6 +149,19 @@ def test_set_config_options():
     assert gdal.GetConfigOption(test3_config_envset) == "test3_new_env_value"
 
 
+def test_StartTransaction_None():
+    with pytest.raises(Exception, match="datasource is None"):
+        _ogr_util.StartTransaction(None)
+
+
+def test_CommitTransaction_None():
+    assert not _ogr_util.CommitTransaction(None)
+
+
+def test_RollbackTransaction_None():
+    assert not _ogr_util.RollbackTransaction(None)
+
+
 @pytest.mark.parametrize(
     "output_geometrytype, exp_geometrytype",
     [
@@ -324,6 +337,61 @@ def test_vector_translate_sql_input_empty(tmp_path, input_suffix, output_suffix)
     input_layerinfo = gfo.get_layerinfo(input_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert len(input_layerinfo.columns) == len(output_layerinfo.columns)
+
+
+@pytest.mark.parametrize("input_suffix", test_helper.SUFFIXES_GEOOPS)
+@pytest.mark.parametrize("output_suffix", test_helper.SUFFIXES_GEOOPS)
+def test_vector_translate_sql_invalid_new_output(tmp_path, input_suffix, output_suffix):
+    input_path = test_helper.get_testfile(
+        "polygon-parcel", suffix=input_suffix, empty=True
+    )
+    output_path = tmp_path / f"output{output_suffix}"
+    layer = gfo.get_only_layer(input_path)
+    sql_stmt = f'SELECT * FROM "{layer}55" WHERE not_existing_column = 1'
+    try:
+        _ogr_util.vector_translate(input_path, output_path, sql_stmt=sql_stmt)
+    except Exception:
+        pass
+
+    assert not output_path.exists()
+
+
+@pytest.mark.parametrize("input_suffix", test_helper.SUFFIXES_GEOOPS)
+@pytest.mark.parametrize("output_suffix", test_helper.SUFFIXES_GEOOPS)
+@pytest.mark.parametrize(
+    "access_mode, output_file_expected",
+    [
+        (None, False),
+        ("update", True),
+        ("append", True),
+        ("append", True),
+    ],
+)
+def test_vector_translate_sql_invalid_existing_output(
+    tmp_path, input_suffix, output_suffix, access_mode, output_file_expected
+):
+    """Run an invalid query that tries to add a layer to an existing file (update).
+
+    If access_mode is None, the existing output file will be overwritten.
+    In this case, if the sql query is invalid, the output file will effectively be
+    removed.
+    """
+    input_path = test_helper.get_testfile(
+        "polygon-parcel", suffix=input_suffix, empty=True
+    )
+    output_path = test_helper.get_testfile(
+        "polygon-parcel", suffix=input_suffix, dst_dir=tmp_path
+    )
+    layer = gfo.get_only_layer(input_path)
+    sql_stmt = f'SELECT * FROM "{layer}" WHERE not_existing_column = 1'
+    try:
+        _ogr_util.vector_translate(
+            input_path, output_path, sql_stmt=sql_stmt, access_mode=access_mode
+        )
+    except Exception:
+        pass
+
+    assert output_path.exists() is output_file_expected
 
 
 @pytest.mark.parametrize("input_suffix", test_helper.SUFFIXES_GEOOPS)

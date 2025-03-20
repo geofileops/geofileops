@@ -5,7 +5,7 @@ Tests for operations that are executed using a sql statement on one layer.
 import logging
 import math
 from importlib import import_module
-from typing import Any, Optional
+from typing import Any
 
 import geopandas as gpd
 import pytest
@@ -14,7 +14,7 @@ from shapely import MultiPolygon, Polygon
 
 from geofileops import GeometryType, fileops, geoops
 from geofileops._compat import SPATIALITE_GTE_51
-from geofileops.util import _geofileinfo, _geoops_sql
+from geofileops.util import _general_util, _geofileinfo, _geoops_sql
 from geofileops.util import _io_util as io_util
 from geofileops.util._geofileinfo import GeofileInfo
 from tests import test_helper
@@ -69,7 +69,7 @@ def basic_combinations_to_test(
         for geoops_module in geoops_modules:
             for testfile in testfiles:
                 where_post = None
-                keep_empty_geoms: Optional[bool] = False
+                keep_empty_geoms: bool | None = False
                 dimensions = None
                 gridsize = 0.01 if epsg == 31370 else GRIDSIZE_DEFAULT
                 if testfile == "polygon-parcel":
@@ -300,16 +300,18 @@ def test_buffer_force(tmp_path, geoops_module):
 
     # Run buffer
     output_path = tmp_path / f"{input_path.stem}-output{input_path.suffix}"
-    assert output_path.exists() is False
+    assert not output_path.exists()
 
-    geoops.buffer(
-        input_path=input_path,
-        output_path=output_path,
-        distance=distance,
-        keep_empty_geoms=False,
-        nb_parallel=2,
-        batchsize=batchsize,
-    )
+    # Use "process" worker type to test this as well
+    with _general_util.TempEnv({"GFO_WORKER_TYPE": "process"}):
+        geoops.buffer(
+            input_path=input_path,
+            output_path=output_path,
+            distance=distance,
+            keep_empty_geoms=False,
+            nb_parallel=2,
+            batchsize=batchsize,
+        )
 
     # Test buffer to existing output path
     assert output_path.exists()

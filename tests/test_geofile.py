@@ -15,7 +15,7 @@ from pygeoops import GeometryType
 
 import geofileops as gfo
 from geofileops import fileops
-from geofileops.util import _geofileinfo, _geoseries_util, _io_util, _ogr_util
+from geofileops.util import _geofileinfo, _geoseries_util, _io_util
 from geofileops.util._geofileinfo import GeofileInfo
 from tests import test_helper
 from tests.test_helper import SUFFIXES_FILEOPS, assert_geodataframe_equal
@@ -123,6 +123,32 @@ def test_add_column_gpkg(tmp_path):
     assert gdf["HFDTLT"][0] == "5"
 
 
+@pytest.mark.parametrize(
+    "suffix, transaction_supported", [(".gpkg", True), (".shp", False)]
+)
+def test_add_column_update_error(tmp_path, suffix, transaction_supported):
+    """Test on the result of an invalid update expression.
+
+    If the file format supports transactions, the column should not be added.
+    """
+    test_path = test_helper.get_testfile(
+        "polygon-parcel", dst_dir=tmp_path, suffix=suffix
+    )
+
+    # Add a column with an invalid expression
+    with pytest.raises(RuntimeError, match="add_column error for"):
+        gfo.add_column(
+            test_path, name="ERROR_COL", type="TEXT", expression="invalid_expression"
+        )
+
+    # For formats that support transactions, the column should not be there
+    info = gfo.get_layerinfo(test_path)
+    if transaction_supported:
+        assert "ERROR_COL" not in list(info.columns)
+    else:
+        assert "ERROR_COL" in list(info.columns)
+
+
 def test_append_different_layer(tmp_path):
     # Prepare test data
     src_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
@@ -141,6 +167,42 @@ def test_append_different_layer(tmp_path):
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
+def test_append_columns(tmp_path, suffix):
+    """Test appending rows specifying some columns.
+
+    This does not seem to be supported by GDAL.
+    """
+    # Prepare test data
+    src_path = test_helper.get_testfile(
+        "polygon-parcel", dst_dir=tmp_path, suffix=suffix
+    )
+    dst_path = tmp_path / f"dst{suffix}"
+    gfo.copy(src_path, dst_path)
+
+    src_info = gfo.get_layerinfo(src_path, raise_on_nogeom=False)
+    src_columns = list(src_info.columns)
+    dst_columns = ["OIDN", "UIDN", "GEWASGROEP"]
+    for column in src_columns:
+        if column not in dst_columns:
+            gfo.drop_column(dst_path, column_name=column)
+
+    # For GPKG and CSV files, the append fails
+    if suffix in (".gpkg", ".csv"):
+        pytest.xfail(
+            "Appending only certain columns is not supported for GPKG and CSV files"
+        )
+
+    # For other file types, all rows are appended tot the dst layer, but the extra
+    # column is not!
+    gfo.append_to(src_path, dst_path, columns=dst_columns)
+
+    # Check results
+    dst_info = gfo.get_layerinfo(dst_path, raise_on_nogeom=False)
+    assert (src_info.featurecount * 2) == dst_info.featurecount
+    assert len(dst_info.columns) == len(dst_columns)
+
+
+@pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
 def test_append_different_columns(tmp_path, suffix):
     """Test appending rows to a file with a column less than in source file."""
     # Prepare test data
@@ -148,22 +210,17 @@ def test_append_different_columns(tmp_path, suffix):
         "polygon-parcel", dst_dir=tmp_path, suffix=suffix
     )
     dst_path = tmp_path / f"dst{suffix}"
-    gfo.copy(src_path, dst_path)
+    gfo.copy_layer(src_path, dst_path)
     gfo.add_column(src_path, name="extra_col", type=gfo.DataType.INTEGER)
 
-    # For CSV files, the append fails
-    if suffix == ".csv":
-        with pytest.raises(_ogr_util.GDALError):
-            gfo.append_to(src_path, dst_path)
-        return
-
-    # For other file types, all rows are appended tot the dst layer, but the extra
-    # column is not!
+    # All rows are appended tot the dst layer, but the extra column is not!
     gfo.append_to(src_path, dst_path)
 
     # Check results
-    src_info = gfo.get_layerinfo(src_path)
-    res_info = gfo.get_layerinfo(dst_path)
+    raise_on_nogeom = False if suffix == ".csv" else True
+
+    src_info = gfo.get_layerinfo(src_path, raise_on_nogeom=raise_on_nogeom)
+    res_info = gfo.get_layerinfo(dst_path, raise_on_nogeom=raise_on_nogeom)
     assert (src_info.featurecount * 2) == res_info.featurecount
     assert len(src_info.columns) == len(res_info.columns) + 1
 
@@ -242,6 +299,7 @@ def test_copy_layer(tmp_path, testfile, dimensions, suffix_input, suffix_output)
     # Now compare source and dst file
     src_layerinfo = gfo.get_layerinfo(src, raise_on_nogeom=raise_on_nogeom)
     dst_layerinfo = gfo.get_layerinfo(dst, raise_on_nogeom=raise_on_nogeom)
+    assert dst_layerinfo.name == dst.stem
     assert src_layerinfo.featurecount == dst_layerinfo.featurecount
     assert len(src_layerinfo.columns) == len(dst_layerinfo.columns)
     if not (
@@ -337,12 +395,69 @@ def test_copy_layer_force_output_geometrytype(tmp_path, testfile, force_geometry
     assert len(result_gdf) == 48
 
 
-def test_copy_layer_invalid_params(tmp_path):
+@pytest.mark.parametrize(
+    "kwargs, expected_error",
+    [
+        ({"src": "non_existing_file.gpkg"}, "src file doesn't exist"),
+        ({"write_mode": "invalid"}, "Invalid write_mode"),
+        ({"write_mode": "add_layer"}, "dst_layer is required when write_mode is"),
+        (
+            {"write_mode": "append", "append": True},
+            "append parameter is deprecated, use write_mode",
+        ),
+    ],
+)
+def test_copy_layer_invalid_params(tmp_path, kwargs, expected_error):
     # Convert
-    src = tmp_path / "nonexisting_file.gpkg"
+    if "src" not in kwargs:
+        kwargs["src"] = test_helper.get_testfile("polygon-parcel")
+    kwargs["dst"] = tmp_path / "output.gpkg"
+
+    with pytest.raises(ValueError, match=expected_error):
+        gfo.copy_layer(**kwargs)
+
+
+def test_copy_layer_input_open_options(tmp_path):
+    # Prepare test data
+    src = tmp_path / "input.csv"
     dst = tmp_path / "output.gpkg"
-    with pytest.raises(ValueError, match="src file doesn't exist: "):
-        gfo.copy_layer(src, dst)
+    with open(src, "w") as srcfile:
+        srcfile.write("POINT_ID, POINT_LAT, POINT_LON, POINT_NAME\n")
+        srcfile.write('1, 50.939972761,3.888498686, "random spot"\n')
+
+    # copy_layer with open_options
+    gfo.copy_layer(
+        src,
+        dst,
+        options={
+            "INPUT_OPEN.X_POSSIBLE_NAMES": "POINT_LON",
+            "INPUT_OPEN.Y_POSSIBLE_NAMES": "POINT_LAT",
+        },
+        dst_crs="EPSG:4326",
+    )
+
+    # Check result
+    assert dst.exists()
+    result_gdf = gfo.read_file(dst)
+    assert len(result_gdf) == 1
+    assert "geometry" in result_gdf.columns
+    assert result_gdf.geometry[0].x == 3.888498686
+    assert result_gdf.geometry[0].y == 50.939972761
+
+
+@pytest.mark.parametrize("layer", [None, "parcels_output"])
+def test_copy_layer_layer(tmp_path, layer):
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel")
+    dst = tmp_path / "output.gpkg"
+    expected_layer = dst.stem if layer is None else layer
+
+    gfo.copy_layer(src, dst, dst_layer=layer)
+
+    # Check result
+    dst_info = gfo.get_layerinfo(dst)
+    assert dst_info.name == expected_layer
+    assert dst_info.featurecount == 48
 
 
 @pytest.mark.parametrize(
@@ -477,6 +592,55 @@ def test_copy_layer_where(tmp_path, suffix):
     dst_layerinfo = gfo.get_layerinfo(dst, raise_on_nogeom=raise_on_nogeom)
     assert src_layerinfo.featurecount > dst_layerinfo.featurecount
     assert dst_layerinfo.featurecount == exp_featurecount
+
+
+def test_copy_layer_write_mode_add_layer(tmp_path):
+    src = test_helper.get_testfile("polygon-parcel")
+    dst = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    dst_layer = "parcels_2"
+
+    # Test
+    gfo.copy_layer(src, dst, dst_layer=dst_layer, write_mode="add_layer")
+
+    # Test if number of rows is correct
+    layers = gfo.listlayers(dst)
+    assert len(layers) == 2
+    assert dst_layer in layers
+
+    info = gfo.get_layerinfo(dst, layer=dst_layer)
+    assert info.featurecount == 48
+
+
+def test_copy_layer_write_mode_append(tmp_path):
+    src = test_helper.get_testfile("polygon-parcel")
+    dst = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    dst_layer = gfo.get_only_layer(dst)
+
+    # Test
+    gfo.copy_layer(src, dst, dst_layer=dst_layer, write_mode="append")
+
+    # Test if number of rows is correct
+    info = gfo.get_layerinfo(dst)
+    assert info.featurecount == 96
+
+
+@pytest.mark.parametrize("write_mode", [None, "create", "add_layer"])
+@pytest.mark.parametrize("force", [True, False])
+def test_copy_layer_write_mode_force(tmp_path, write_mode, force):
+    """Test if force parameter is properly handled."""
+    src = test_helper.get_testfile("polygon-parcel")
+    dst = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    kwargs = {}
+    if write_mode is not None:
+        kwargs["write_mode"] = write_mode
+    dst_layer = gfo.get_only_layer(dst)
+
+    mtime_orig = dst.stat().st_mtime
+    gfo.copy_layer(src, dst, dst_layer=dst_layer, force=force, **kwargs)
+    if force:
+        assert dst.stat().st_mtime > mtime_orig
+    else:
+        assert dst.stat().st_mtime == mtime_orig
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
@@ -1220,7 +1384,7 @@ def test_fill_out_sql_placeholders():
     "layer, sql_stmt, error",
     [
         (
-            "parcel",
+            "parcels",
             'SELECT {invalid_placeholder} FROM "parcel"',
             "unknown placeholder invalid_placeholder ",
         ),
@@ -1234,13 +1398,7 @@ def test_fill_out_sql_placeholders():
 def test_fill_out_sql_placeholders_errors(layer, sql_stmt, error):
     path = test_helper.get_testfile("polygon-twolayers")
 
-    # Test invalid placeholder
-    with pytest.raises(ValueError, match=error):
-        fileops._fill_out_sql_placeholders(
-            path, layer=layer, sql_stmt=sql_stmt, columns=None
-        )
-
-    # Test layer not passed with multi-layer input file
+    # Test
     with pytest.raises(ValueError, match=error):
         fileops._fill_out_sql_placeholders(
             path, layer=layer, sql_stmt=sql_stmt, columns=None
@@ -1269,9 +1427,9 @@ def test_spatial_index(tmp_path, suffix):
     has_spatial_index = gfo.has_spatial_index(path=test_path, layer=layer)
     assert has_spatial_index is True
 
-    # Spatial index if it exists already by default gives error
+    # Spatial index if it already exists by default gives error
     with pytest.raises(
-        Exception, match="create_spatial_index error: spatial index exists already"
+        Exception, match="create_spatial_index error: spatial index already exists"
     ):
         gfo.create_spatial_index(path=test_path, layer=layer)
     gfo.create_spatial_index(path=test_path, layer=layer, exist_ok=True)
