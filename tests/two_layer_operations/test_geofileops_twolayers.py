@@ -7,7 +7,6 @@ import os
 import sys
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Optional
 
 import geopandas as gpd
 import numpy as np
@@ -1352,7 +1351,7 @@ def test_join_nearest_distance(tmp_path):
         box_geom = shapely.from_wkt(geom)
         box_geom = shapely.segmentize(box_geom, 1)
         gdf_geom = gpd.GeoDataFrame(geometry=[box_geom], crs="EPSG:31370")
-        geom_path = tmp_path / f"geom{index+1}.gpkg"
+        geom_path = tmp_path / f"geom{index + 1}.gpkg"
         gfo.to_file(gdf=gdf_geom, path=geom_path)
 
     # Test
@@ -1984,7 +1983,7 @@ def test_union(
     suffix: str,
     epsg: int,
     gridsize: float,
-    where_post: Optional[str],
+    where_post: str | None,
     explodecollections: bool,
     keep_fid: bool,
     subdivide_coords: int,
