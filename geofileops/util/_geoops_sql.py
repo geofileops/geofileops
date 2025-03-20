@@ -2214,7 +2214,7 @@ def _prepare_filter_by_location_fields(
         if true_for_disjoint:
             # The filter will evaluate to True for disjoint geometries in layer2. For
             # layer1.geometry to be disjoint with layer2, the filter should be True for
-            # ALL layer2 geometries. Using "De Morgen's laws", we can make a more
+            # ALL layer2 geometries. Using "De Morgan's laws", we can make a more
             # efficient equivalent: we should NOT find any negative results.
             relation_should_be_found = False
             spatial_relations_filter = f"NOT ({spatial_relations_filter})"
