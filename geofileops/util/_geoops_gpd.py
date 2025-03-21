@@ -872,7 +872,7 @@ def _apply_geooperation_to_layer(
                     ):
                         # Remark: because force_output_geometrytype for GeoDataFrame
                         # operations is (a lot) more limited than gdal-based, use the
-                        # gdal version via _append_to_nolock.
+                        # gdal version via copy_layer.
                         if (
                             nb_batches == 1
                             and force_output_geometrytype is None
