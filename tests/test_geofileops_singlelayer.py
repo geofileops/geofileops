@@ -350,7 +350,7 @@ def test_buffer_force(tmp_path, geoops_module):
             test_helper.get_testfile("polygon-parcel"),
         ),
         (
-            "buffer: input_path doesn't exist:",
+            "buffer: input_path not found:",
             "not_existing_path",
             "output.gpkg",
         ),

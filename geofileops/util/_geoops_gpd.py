@@ -746,7 +746,7 @@ def _apply_geooperation_to_layer(
 
     # Check input parameters...
     if not input_path.exists():
-        raise ValueError(f"{operation_name}: input_path doesn't exist: {input_path}")
+        raise ValueError(f"{operation_name}: input_path not found: {input_path}")
     if input_path == output_path:
         raise ValueError(f"{operation_name}: output_path must not equal input_path")
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
@@ -1123,7 +1123,7 @@ def dissolve(
     if groupby_columns is not None and len(list(groupby_columns)) == 0:
         raise ValueError("groupby_columns=[] is not supported. Use None.")
     if not input_path.exists():
-        raise ValueError(f"input_path doesn't exist: {input_path}")
+        raise ValueError(f"input_path not found: {input_path}")
     if input_path == output_path:
         raise ValueError("output_path must not equal input_path")
 

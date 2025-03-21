@@ -398,7 +398,7 @@ def test_copy_layer_force_output_geometrytype(tmp_path, testfile, force_geometry
 @pytest.mark.parametrize(
     "kwargs, expected_error",
     [
-        ({"src": "non_existing_file.gpkg"}, "src file doesn't exist"),
+        ({"src": "non_existing_file.gpkg"}, "src file not found"),
         ({"write_mode": "invalid"}, "Invalid write_mode"),
         ({"write_mode": "add_layer"}, "dst_layer is required when write_mode is"),
         (
@@ -807,7 +807,7 @@ def test_get_layerinfo(suffix, dimensions):
         layerinfo = gfo.get_layerinfo(src, "not_existing_layer")
 
     # Path specified that doesn't exist
-    with pytest.raises(ValueError, match="input_path doesn't exist"):
+    with pytest.raises(ValueError, match="input_path not found"):
         not_existing_path = _io_util.with_stem(src, "not_existing_layer")
         layerinfo = gfo.get_layerinfo(not_existing_path)
 
@@ -1145,7 +1145,7 @@ def test_read_file_curve():
 def test_read_file_invalid_params(tmp_path, engine_setter):
     src = tmp_path / "nonexisting_file.gpkg"
 
-    with pytest.raises(ValueError, match="file doesn't exist:"):
+    with pytest.raises(ValueError, match="file not found:"):
         _ = gfo.read_file(src)
 
 

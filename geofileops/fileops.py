@@ -103,9 +103,9 @@ def listlayers(
     Returns:
         List[str]: the list of layers
     """
-    path = Path(path)
-    if path.suffix.lower() == ".shp":
-        return [path.stem]
+    path_p = Path(path)
+    if path_p.suffix.lower() == ".shp":
+        return [path_p.stem]
 
     datasource = None
     try:
@@ -299,10 +299,6 @@ def get_layerinfo(
         LayerInfo: the information about the layer.
     """
     # Init
-    path = Path(path)
-    if not path.exists():
-        raise ValueError(f"input_path doesn't exist: {path}")
-
     datasource = None
     try:
         datasource = gdal.OpenEx(
@@ -1412,7 +1408,7 @@ def _read_file_base_fiona(
     # Init
     path = Path(path)
     if path.exists() is False:
-        raise ValueError(f"file doesn't exist: {path}")
+        raise ValueError(f"file not found: {path}")
 
     # If no layer name specified, check if there is only one layer in the file.
     if layer is None:
@@ -1515,7 +1511,7 @@ def _read_file_base_pyogrio(
     # Init
     path = Path(path)
     if path.exists() is False:
-        raise ValueError(f"file doesn't exist: {path}")
+        raise ValueError(f"file not found: {path}")
 
     # Convert rows slice object to pyogrio parameters
     if rows is not None:
@@ -2640,14 +2636,6 @@ def copy_layer(
         <a href="https://gdal.org/drivers/vector/index.html" target="_blank">GDAL vector driver documentation</a>
 
     """  # noqa: E501
-    # Init
-    src = Path(src)
-    dst = Path(dst)
-
-    # If source file doesn't exist, raise error
-    if not src.exists():
-        raise ValueError(f"src file doesn't exist: {src}")
-
     # The append parameter is deprecated, but keep backwards compatibility
     if append:
         if write_mode != "create":
@@ -2676,7 +2664,9 @@ def copy_layer(
         if force:
             access_mode = "overwrite"
         else:
-            if dst.exists() and dst_layer in listlayers(dst, only_spatial_layers=False):
+            if vsi_exists(dst) and dst_layer in listlayers(
+                dst, only_spatial_layers=False
+            ):
                 logger.info(f"dst_layer already exists, so stop: {dst}#{dst_layer}")
                 return
             access_mode = "update"
@@ -2787,6 +2777,7 @@ def vsi_exists(path: Union[str, "os.PathLike[Any]"]) -> bool:
     if isinstance(path, Path):
         path = path.as_posix()
 
+    gdal.UseExceptions()
     if gdal.VSIStatL(path, gdal.VSI_STAT_EXISTS_FLAG) is None:
         return False
 

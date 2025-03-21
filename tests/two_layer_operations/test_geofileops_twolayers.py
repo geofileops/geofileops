@@ -732,14 +732,14 @@ def test_intersection_input_no_index(tmp_path):
             test_helper.get_testfile("polygon-zone"),
         ),
         (
-            "intersection: input1_path doesn't exist",
+            "intersection: input1_path not found",
             ValueError,
             "not_existing_path",
             test_helper.get_testfile("polygon-zone"),
             "output.gpkg",
         ),
         (
-            "intersection: input2_path doesn't exist",
+            "intersection: input2_path not found",
             ValueError,
             test_helper.get_testfile("polygon-zone"),
             "not_existing_path",
@@ -1565,13 +1565,13 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
             test_helper.get_testfile("polygon-zone"),
         ),
         (
-            "select_two_layers: input1_path doesn't exist: not_existing_path",
+            "select_two_layers: input1_path not found: not_existing_path",
             "not_existing_path",
             test_helper.get_testfile("polygon-zone"),
             "output.gpkg",
         ),
         (
-            "select_two_layers: input2_path doesn't exist: not_existing_path",
+            "select_two_layers: input2_path not found: not_existing_path",
             test_helper.get_testfile("polygon-zone"),
             "not_existing_path",
             "output.gpkg",

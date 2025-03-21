@@ -480,7 +480,7 @@ def test_dissolve_emptyfile(tmp_path, testfile, suffix, explodecollections):
     "exp_match, invalid_params",
     [
         ("column in groupby_columns not", {"groupby_columns": "NON_EXISTING_COLUMN"}),
-        ("input_path doesn't exist: ", {"input_path": Path("nonexisting.abc")}),
+        ("input_path not found: ", {"input_path": Path("nonexisting.abc")}),
         (
             "output_path must not equal input_path",
             {
