@@ -14,6 +14,8 @@
 
 ### Improvements
 
+- Use `use_arrow=True` for reading and writing dataframes when possible to
+  improve performance (#392)
 - Add function `apply_vectorized` to apply a vectorized function on a geometry column
   and use it internally where possible (#588, #594)
 - Improve performance of `erase` and `intersection` for very complex input geometries.

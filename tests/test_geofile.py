@@ -14,7 +14,7 @@ from pandas.testing import assert_frame_equal
 from pygeoops import GeometryType
 
 import geofileops as gfo
-from geofileops import fileops
+from geofileops import _compat, fileops
 from geofileops.util import _geofileinfo, _geoseries_util, _io_util
 from geofileops.util._geofileinfo import GeofileInfo
 from tests import test_helper
@@ -26,6 +26,9 @@ try:
     ENGINES = ["fiona", "pyogrio"]
 except ImportError:
     ENGINES = ["pyogrio"]
+
+if _compat.PYOGRIO_GTE_08:
+    ENGINES.append("pyogrio-arrow")
 
 
 @pytest.fixture(scope="module", params=ENGINES)
@@ -541,7 +544,7 @@ def test_copy_layer_sql(tmp_path, suffix):
     sql_stmt = f'SELECT * FROM "{src_layer}"'
     dst = tmp_path / f"output{suffix}"
     gfo.copy_layer(src, dst, src_layer=src_layer, sql_stmt=sql_stmt)
-    read_gdf = gfo.read_file(src, sql_stmt=sql_stmt)
+    read_gdf = gfo.read_file(src, sql_stmt=sql_stmt, layer=src_layer)
     assert isinstance(read_gdf, pd.DataFrame)
     if not suffix == ".csv":
         assert isinstance(read_gdf, gpd.GeoDataFrame)
@@ -1114,11 +1117,14 @@ def test_read_file_columns_geometry(tmp_path, suffix, columns, geometry, engine_
     assert len(read_gdf) == exp_featurecount
 
 
-def test_read_file_curve():
+def test_read_file_curve(engine_setter):
     """Test reading a curve file.
 
     The geometry type is automatically converted to a linear one in read_file.
     """
+    if engine_setter == "pyogrio-arrow":
+        pytest.xfail("pyogrio-arrow doesn't support curve geometry")
+
     # Prepare test data
     src = test_helper.get_testfile("curvepolygon")
 
@@ -1186,7 +1192,7 @@ def test_read_file_sql(suffix, engine_setter):
 
     read_gdf = gfo.read_file(src, sql_stmt=sql_stmt)
     assert isinstance(read_gdf, pd.DataFrame)
-    if not (suffix == ".csv" and engine_setter == "pyogrio"):
+    if not (suffix == ".csv" and engine_setter.startswith("pyogrio")):
         assert isinstance(read_gdf, gpd.GeoDataFrame)
     assert len(read_gdf) == 48
 
@@ -1227,7 +1233,9 @@ def test_read_file_sql_no_geom(suffix, engine_setter):
     assert read_df.aantal.item() == 48
 
 
-@pytest.mark.parametrize("columns", [["OIDN", "UIDN"], ["OidN", "UidN"]])
+@pytest.mark.parametrize(
+    "columns", [["OIDN", "UIDN", "DATUM"], ["OidN", "UidN", "DatuM"]]
+)
 @pytest.mark.parametrize(
     "suffix, testfile, layer",
     [
