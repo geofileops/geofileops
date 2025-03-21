@@ -2563,6 +2563,22 @@ def copy_layer(
       - add a layer to an existing file as a new layer (`write_mode="add_layer"`)
       - append a layer to an existing layer (`write_mode="append"`)
 
+    If an `sql_stmt` is specified, the sqlite query can contain following placeholders
+    that will be automatically replaced for you:
+
+      * {geometrycolumn}: the column where the primary geometry is stored.
+      * {columns_to_select_str}: if 'columns' is not None, those columns,
+        otherwise all columns of the layer.
+      * {input_layer}: the layer name of the input layer.
+
+    Example SQL statement with placeholders:
+    ::
+
+        SELECT {geometrycolumn}
+              {columns_to_select_str}
+          FROM "{input_layer}" layer
+
+
     The options parameter can be used to pass any type of options to GDAL in
     the following form:
         { "<option_type>.<option_name>": <option_value> }
