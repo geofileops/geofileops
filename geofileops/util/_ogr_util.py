@@ -402,11 +402,10 @@ def vector_translate(
         output_srs = f"EPSG:{output_srs}"
 
     # Output basic options
-    output_exists = output_path.exists()
     datasetCreationOptions = []
     # Output dataset creation options are only applicable if a new output file
     # will be created
-    if not output_exists or access_mode is None:
+    if access_mode is None:
         dataset_creation_options = gdal_options["DATASET_CREATION"]
         if output_info.driver == "SQLite":
             # If SQLite file, use the spatialite type of sqlite by default
@@ -457,7 +456,7 @@ def vector_translate(
     # Output layer creation options are only applicable if a new layer will be
     # created
     layerCreationOptions = []
-    if not output_exists or (access_mode is None or access_mode == "overwrite"):
+    if access_mode is None or access_mode == "overwrite":
         for option_name, value in gdal_options["LAYER_CREATION"].items():
             layerCreationOptions.extend([f"{option_name}={value}"])
 
@@ -656,7 +655,7 @@ def _validate_file(
         input_has_geom_attribute (bool): True if the input file has a geom attribute
             column.
     """
-    if not path.exists():
+    if not fileops._vsi_exists(path):
         return
 
     def is_file_valid(

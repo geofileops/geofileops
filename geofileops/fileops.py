@@ -1690,8 +1690,8 @@ def to_file(
 
     Args:
         gdf (gpd.GeoDataFrame): The GeoDataFrame to export to file.
-        path (Union[str,): The file path to write to. |GDAL_vsi| paths are also
-            supported.
+        path (Union[str,): The file path to write to. |GDAL_vsi| paths can be used for
+            handlers with write support.
         layer (str, optional): The layer to read. If no layer is specified,
             reads the only layer in the file or throws an Exception.
         force_output_geometrytype (Union[GeometryType, str], optional): Geometry type
@@ -1733,7 +1733,7 @@ def to_file(
     # ----------------------
     # If no layer name specified, determine one
     if layer is None:
-        if append and vsi_exists(path):
+        if append and _vsi_exists(path):
             layer = get_only_layer(path)
         else:
             layer = get_default_layer(path)
@@ -1979,7 +1979,7 @@ def _to_file_pyogrio(
 ):
     """Writes a pandas dataframe to file using pyogrio."""
     # Check upfront if append is going to work to give nice error
-    if append is True and vsi_exists(path):
+    if append is True and _vsi_exists(path):
         kwargs["append"] = True
         layerinfo = get_layerinfo(path, layer, raise_on_nogeom=False)
 
@@ -2440,13 +2440,13 @@ def append_to(
 
     # Files don't typically support having multiple processes writing
     # simultanously to them, so use lock file to synchronize access.
-    lockfile = Path(f"{dst!s}.lock")
+    lockfile = f"{dst!s}.lock"
 
     # If the destination file doesn't exist yet, but the lockfile does,
     # try removing the lockfile as it might be a ghost lockfile.
-    if not dst.exists() and lockfile.exists():
+    if not _vsi_exists(dst) and _vsi_exists(lockfile):
         try:
-            lockfile.unlink()
+            gdal.Unlink(lockfile)
         except Exception:
             _ = None
 
@@ -2554,13 +2554,14 @@ def copy_layer(
     append: bool = False,
     force: bool = False,
 ):
-    """Copy a layer from a source file to a destination file.
+    """Copy a layer from a source to a destination dataset.
 
-    Typically used to convert from one fileformat to another, to reproject or to export
-    a subset of the data using the `where` parameter.
-
-    You can also add a layer to an existing file or append rows to an existing layer
-    using the `write_mode` parameter.
+    Typical use cases:
+      - convert a file from one fileformat to another
+      - reproject a layer to another spatial reference
+      - export a subset of a layer using the `where` or `sql_stmt` parameter
+      - add a layer to an existing file as a new layer (`write_mode="add_layer"`)
+      - append a layer to an existing layer (`write_mode="append"`)
 
     The options parameter can be used to pass any type of options to GDAL in
     the following form:
@@ -2576,8 +2577,9 @@ def copy_layer(
     The options can be found in the |GDAL_vector_driver_documentation|.
 
     Args:
-        src (PathLike): The source file path.
-        dst (PathLike): The destination file path.
+        src (PathLike): The source path. |GDAL_vsi| paths are also supported.
+        dst (PathLike): The destination path. |GDAL_vsi| paths can be used for handlers
+            with write support.
         src_layer (str, optional): The source layer. If None and there is only
             one layer in the src file, that layer is taken. Defaults to None.
         dst_layer (str, optional): The destination layer. If None, the destination file
@@ -2655,6 +2657,10 @@ def copy_layer(
 
         <a href="https://gdal.org/drivers/vector/index.html" target="_blank">GDAL vector driver documentation</a>
 
+    .. |GDAL_vsi| raw:: html
+
+        <a href="https://gdal.org/en/stable/user/virtual_file_systems.html" target="_blank">GDAL vsi</a>
+
     """  # noqa: E501
     # The append parameter is deprecated, but keep backwards compatibility
     if append:
@@ -2675,7 +2681,7 @@ def copy_layer(
 
     # Convert write_mode to the access_mode expected by GDAL + handle existing dst.
     if write_mode == "create":
-        if dst.exists() and not force:
+        if _vsi_exists(dst) and not force:
             logger.info(f"Destination file already exists, so stop: {dst}")
             return
         access_mode = None
@@ -2684,7 +2690,7 @@ def copy_layer(
         if force:
             access_mode = "overwrite"
         else:
-            if vsi_exists(dst) and dst_layer in listlayers(
+            if _vsi_exists(dst) and dst_layer in listlayers(
                 dst, only_spatial_layers=False
             ):
                 logger.info(f"dst_layer already exists, so stop: {dst}#{dst_layer}")
@@ -2720,7 +2726,7 @@ def copy_layer(
         )
 
     # When creating/appending to a shapefile, some extra things need to be done/checked.
-    if sql_stmt is None and dst.suffix.lower() == ".shp":
+    if sql_stmt is None and Path(dst).suffix.lower() == ".shp":
         # If the destination file doesn't exist yet, and the source file has
         # geometrytype "Geometry", raise because type is not supported by shp (and will
         # default to linestring).
@@ -2729,7 +2735,7 @@ def copy_layer(
         if (
             force_output_geometrytype is None
             and src_layer.geometrytypename in ["GEOMETRY", "GEOMETRYCOLLECTION"]
-            and not vsi_exists(dst)
+            and not _vsi_exists(dst)
         ):
             raise ValueError(
                 f"src file {src} has geometrytype {src_layer.geometrytypename} "
@@ -2785,7 +2791,7 @@ def copy_layer(
     _ogr_util.vector_translate_by_info(info=translate_info)
 
 
-def vsi_exists(path: Union[str, "os.PathLike[Any]"]) -> bool:
+def _vsi_exists(path: Union[str, "os.PathLike[Any]"]) -> bool:
     """Check if a file exists using the VSI file system.
 
     Args:
@@ -2797,7 +2803,6 @@ def vsi_exists(path: Union[str, "os.PathLike[Any]"]) -> bool:
     if isinstance(path, Path):
         path = path.as_posix()
 
-    gdal.UseExceptions()
     if gdal.VSIStatL(path, gdal.VSI_STAT_EXISTS_FLAG) is None:
         return False
 

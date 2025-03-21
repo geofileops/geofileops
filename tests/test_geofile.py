@@ -10,6 +10,7 @@ import geopandas as gpd
 import pandas as pd
 import pytest
 import shapely.geometry as sh_geom
+from osgeo import gdal
 from pandas.testing import assert_frame_equal
 from pygeoops import GeometryType
 
@@ -26,6 +27,8 @@ try:
     ENGINES = ["fiona", "pyogrio"]
 except ImportError:
     ENGINES = ["pyogrio"]
+
+gdal.UseExceptions()
 
 
 @pytest.fixture(scope="module", params=ENGINES)
@@ -149,7 +152,7 @@ def test_add_column_update_error(tmp_path, suffix, transaction_supported):
         assert "ERROR_COL" in list(info.columns)
 
 
-def test_append_different_layer(tmp_path):
+def test_append_to_different_layer(tmp_path):
     # Prepare test data
     src_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
     dst_path = tmp_path / "dst.gpkg"
@@ -167,7 +170,7 @@ def test_append_different_layer(tmp_path):
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
-def test_append_columns(tmp_path, suffix):
+def test_append_to_columns(tmp_path, suffix):
     """Test appending rows specifying some columns.
 
     This does not seem to be supported by GDAL.
@@ -203,7 +206,7 @@ def test_append_columns(tmp_path, suffix):
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
-def test_append_different_columns(tmp_path, suffix):
+def test_append_to_different_columns(tmp_path, suffix):
     """Test appending rows to a file with a column less than in source file."""
     # Prepare test data
     src_path = test_helper.get_testfile(
@@ -226,7 +229,7 @@ def test_append_different_columns(tmp_path, suffix):
 
 
 @pytest.mark.parametrize("testfile", ["polygon-parcel", "curvepolygon"])
-def test_append_shp_laundered_columns(tmp_path, testfile):
+def test_append_to_shp_laundered_columns(tmp_path, testfile):
     # GDAL doesn't seem to handle appending to a shapefile where column laundering is
     # needed very well: all laundered columns get NULL values instead of the actual
     # values.
@@ -707,12 +710,6 @@ def test_get_crs(suffix):
     assert crs.to_epsg() == 31370
 
 
-def test_get_crs_invalid_params():
-    src = test_helper.get_testfile("polygon-parcel")
-    with pytest.raises(ValueError, match="Layer not_existing not found in file"):
-        _ = gfo.get_crs(str(src), layer="not_existing")
-
-
 def test_get_crs_bad_prj(tmp_path):
     # Prepare test data
     src = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=".shp")
@@ -729,12 +726,34 @@ def test_get_crs_bad_prj(tmp_path):
         assert file_corrected.read() == fileops.PRJ_EPSG_31370
 
 
+def test_get_crs_invalid_params():
+    src = test_helper.get_testfile("polygon-parcel")
+    with pytest.raises(ValueError, match="Layer not_existing not found in file"):
+        _ = gfo.get_crs(str(src), layer="not_existing")
+
+
+def test_get_crs_vsi():
+    # Prepare test data
+    src = f"/vsizip//vsicurl/{test_helper.data_url}/poly_shp.zip/poly.shp"
+
+    # Test
+    crs = gfo.get_crs(src)
+    assert crs.to_epsg() == 27700
+
+
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
 def test_get_default_layer(suffix):
     # Prepare test data + test
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     layer = gfo.get_default_layer(str(src))
     assert layer == src.stem
+
+
+def test_get_default_layer_vsi():
+    # Prepare test data + test
+    src = f"/vsizip//vsicurl/{test_helper.data_url}/poly_shp.zip/poly.shp"
+    layer = gfo.get_default_layer(src)
+    assert layer == "poly"
 
 
 @pytest.mark.parametrize("suffix", [s for s in SUFFIXES_FILEOPS if s != ".csv"])
@@ -766,6 +785,14 @@ def test_get_layer_geometrytypes_geometry(tmp_path):
     assert gfo.get_layerinfo(test_path).geometrytypename == "GEOMETRY"
     geometrytypes = gfo.get_layer_geometrytypes(src)
     assert geometrytypes == ["POLYGON", "MULTIPOLYGON"]
+
+
+def test_get_layer_geometrytypes_vsi(tmp_path):
+    """Test get_layer_geometrytypes on an online zipped shapefile via vsi."""
+    src = f"/vsizip//vsicurl/{test_helper.data_url}/poly_shp.zip/poly.shp"
+
+    geometrytypes = gfo.get_layer_geometrytypes(src)
+    assert geometrytypes == ["POLYGON"]
 
 
 @pytest.mark.parametrize("suffix", [".gpkg", ".shp"])
@@ -881,6 +908,7 @@ def test_get_layerinfo_twolayers():
 
 
 def test_get_layerinfo_vsi():
+    """Test get_layerinfo on an online zipped shapefile via vsi."""
     src = f"/vsizip//vsicurl/{test_helper.data_url}/poly_shp.zip/poly.shp"
 
     # Test
@@ -909,6 +937,15 @@ def test_get_only_layer_two_layers():
     assert len(layers) == 2
     with pytest.raises(ValueError, match="input has > 1 layer, but no layer specified"):
         _ = gfo.get_only_layer(src)
+
+
+def test_get_only_layer_vsi():
+    """Test get_only_layer on an online zipped shapefile via vsi."""
+    src = f"/vsizip//vsicurl/{test_helper.data_url}/poly_shp.zip/poly.shp"
+
+    # Test
+    layer = gfo.get_only_layer(src)
+    assert layer == "poly"
 
 
 @pytest.mark.filterwarnings(
@@ -2015,6 +2052,23 @@ def test_to_file_nogeom(tmp_path, suffix):
         assert len(test_df.columns) == exp_columns
     else:
         raise ValueError(f"test not implemented for suffix {suffix}")
+
+
+def test_to_file_vsi(tmp_path):
+    """Test writing to a file in vsimem."""
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel")
+    read_gdf = gfo.read_file(src)
+
+    # Test
+    vsi_path = f"/vsimem/{src.stem}{src.suffix}"
+    gfo.to_file(read_gdf, vsi_path)
+
+    # Check result
+    assert src.stem in gfo.listlayers(vsi_path)
+    result_gdf = gfo.read_file(vsi_path)
+    gdal.Unlink(vsi_path)
+    assert_geodataframe_equal(read_gdf, result_gdf)
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
