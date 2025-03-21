@@ -572,7 +572,7 @@ def test_copy_layer_sql_placeholders(tmp_path, suffix):
 
 def test_copy_layer_vsi(tmp_path):
     # Prepare test data
-    src = "/vsizip//vsicurl/https://raw.githubusercontent.com/OSGeo/gdal/master/autotest/ogr/data/shp/poly.zip/poly.shp"
+    src = f"/vsizip//vsicurl/{test_helper.data_url}/poly_shp.zip/poly.shp"
     dst = tmp_path / "output.gpkg"
 
     # copy_layer with vsi
@@ -716,7 +716,7 @@ def test_get_crs_invalid_params():
 def test_get_crs_bad_prj(tmp_path):
     # Prepare test data
     src = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=".shp")
-    bad_prj_src = test_helper._data_dir / "crs_custom_match" / "31370_no_epsg.prj"
+    bad_prj_src = test_helper.data_dir / "crs_custom_match" / "31370_no_epsg.prj"
     bad_prj_dst = src.with_suffix(".prj")
     shutil.copy(bad_prj_src, bad_prj_dst)
     with open(bad_prj_src) as prj_bad:
@@ -880,6 +880,17 @@ def test_get_layerinfo_twolayers():
         layerinfo = gfo.get_layerinfo(src)
 
 
+def test_get_layerinfo_vsi():
+    src = f"/vsizip//vsicurl/{test_helper.data_url}/poly_shp.zip/poly.shp"
+
+    # Test
+    layerinfo = gfo.get_layerinfo(src)
+    assert layerinfo.featurecount == 10
+    assert layerinfo.name == "poly"
+    assert len(layerinfo.columns) == 3
+    assert layerinfo.geometrytypename == "MULTIPOLYGON"
+
+
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
 def test_get_only_layer_one_layer(suffix):
     # Test Geopackage with 1 layer
@@ -931,7 +942,7 @@ def test_listlayers_errors():
     ],
 )
 def test_listlayers_one_layer(suffix, only_spatial_layers, expected):
-    # Test with 1 layer
+    """Test listlayers on with 1 layer."""
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     layers = gfo.listlayers(src, only_spatial_layers=only_spatial_layers)
 
@@ -940,11 +951,18 @@ def test_listlayers_one_layer(suffix, only_spatial_layers, expected):
 
 
 def test_listlayers_two_layers():
-    # Test geopackage with 2 layers
+    """Test listlayers on geopackage with 2 layers."""
     src = test_helper.get_testfile("polygon-twolayers")
     layers = gfo.listlayers(str(src))
     assert "parcels" in layers
     assert "zones" in layers
+
+
+def test_listlayers_vsi():
+    """Test listlayers on zipped shapefile via vsi."""
+    src = f"/vsizip//vsicurl/{test_helper.data_url}/poly_shp.zip/poly.shp"
+    layers = gfo.listlayers(src)
+    assert "poly" in layers
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
@@ -1284,6 +1302,13 @@ def test_read_file_two_layers(engine_setter):
     read_gdf = gfo.read_file(src, layer="parcels")
     assert isinstance(read_gdf, gpd.GeoDataFrame)
     assert len(read_gdf) == 48
+
+
+def test_read_file_vsi():
+    src = f"/vsizip//vsicurl/{test_helper.data_url}/poly_shp.zip/poly.shp"
+    read_gdf = gfo.read_file(src)
+    assert isinstance(read_gdf, gpd.GeoDataFrame)
+    assert len(read_gdf) == 10
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)

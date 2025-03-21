@@ -96,13 +96,19 @@ def listlayers(
     """Get the list of layers in a geofile.
 
     Args:
-        path (PathLike): path to the file to get info about
+        path (PathLike): path to the file to get info about. |GDAL_vsi| paths are also
+            supported.
         only_spatial_layers (bool, optional): True to only list spatial layers.
             False to list all tables.
 
     Returns:
         List[str]: the list of layers
-    """
+
+    .. |GDAL_vsi| raw:: html
+
+        <a href="https://gdal.org/en/stable/user/virtual_file_systems.html" target="_blank">GDAL vsi</a>
+
+    """  # noqa: E501
     path_p = Path(path)
     if path_p.suffix.lower() == ".shp":
         return [path_p.stem]
@@ -258,13 +264,19 @@ def get_layer_geometrytypes(
     :meth:`~get_layerinfo`.
 
     Args:
-        path (PathLike): path to the file to get info about
+        path (PathLike): path to the file to get info about. |GDAL_vsi| paths are also
+            supported.
         layer (str): the layer you want info about. Doesn't need to be
             specified if there is only one layer in the geofile.
 
     Returns:
         List[str]: the geometry types in the layer.
-    """
+
+    .. |GDAL_vsi| raw:: html
+
+        <a href="https://gdal.org/en/stable/user/virtual_file_systems.html" target="_blank">GDAL vsi</a>
+
+    """  # noqa: E501
     sql_stmt = """
         SELECT DISTINCT
                CASE
@@ -288,7 +300,8 @@ def get_layerinfo(
     Raises ValueError if the layer definition has errors like invalid column names,...
 
     Args:
-        path (PathLike): path to the file to get info about
+        path (PathLike): path to the file to get info about. |GDAL_vsi| paths are also
+            supported.
         layer (str, optional): the layer you want info about. Doesn't need to be
             specified if there is only one layer in the geofile.
         raise_on_nogeom (bool, optional): True to raise if the layer doesn't have a
@@ -297,7 +310,12 @@ def get_layerinfo(
 
     Returns:
         LayerInfo: the information about the layer.
-    """
+
+    .. |GDAL_vsi| raw:: html
+
+        <a href="https://gdal.org/en/stable/user/virtual_file_systems.html" target="_blank">GDAL vsi</a>
+
+    """  # noqa: E501
     # Init
     datasource = None
     try:
@@ -403,13 +421,18 @@ def get_only_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
     If the file contains multiple layers, an exception is thrown.
 
     Args:
-        path (PathLike): the file.
+        path (PathLike): the file. |GDAL_vsi| paths are also supported.
 
     Raises:
         ValueError: an invalid parameter value was passed.
 
     Returns:
         str: the layer name
+
+    .. |GDAL_vsi| raw:: html
+
+        <a href="https://gdal.org/en/stable/user/virtual_file_systems.html" target="_blank">GDAL vsi</a>
+
     """
     try:
         datasource = gdal.OpenEx(
@@ -569,9 +592,6 @@ def create_spatial_index(
         * :func:`remove_spatial_index`: remove the spatial index from the layer
 
     """
-    # Init
-    path = Path(path)
-
     if not isinstance(layer, LayerInfo):
         layer = get_layerinfo(path, layer, raise_on_nogeom=not no_geom_ok)
     if no_geom_ok and layer.geometrycolumn is None:
@@ -646,9 +666,6 @@ def has_spatial_index(
         * :func:`remove_spatial_index`: remove the spatial index from the layer
 
     """
-    # Init
-    path = Path(path)
-
     # Now check the index
     try:
         datasource = gdal.OpenEx(
@@ -665,7 +682,7 @@ def has_spatial_index(
 
 def _has_spatial_index(
     datasource: gdal.Dataset,
-    path: Path,
+    path: Union[Path, "os.PathLike[Any]"],
     layer: str | LayerInfo | None = None,
     no_geom_ok: bool = False,
 ) -> bool:
@@ -673,7 +690,7 @@ def _has_spatial_index(
 
     Args:
         datasource (gdal.Dataset): Opened gdal Dataset.
-        path (Path): The file path to the datasource.
+        path (PathLike): The file path to the datasource.
         layer (str, optional): The layer. Defaults to None.
         no_geom_ok (bool, options): If True and the file doesn't have a geometry column,
             don't throw an error. Defaults to False.
@@ -707,7 +724,8 @@ def _has_spatial_index(
         return has_spatial_index
 
     elif path_info.driver == "ESRI Shapefile":
-        index_path = path.parent / f"{path.stem}.qix"
+        path_p = Path(path)
+        index_path = path_p.parent / f"{path_p.stem}.qix"
         return index_path.exists()
 
     else:
@@ -730,8 +748,6 @@ def remove_spatial_index(
 
     """
     # Init
-    path = Path(path)
-
     if not isinstance(layer, LayerInfo):
         layer = get_layerinfo(path, layer)
     path_info = _geofileinfo.get_geofileinfo(path)
@@ -776,9 +792,6 @@ def rename_layer(
         new_layer (str): The new layer name. If not specified, and there is only
             one layer in the file, this layer is used. Otherwise exception.
     """
-    # Check input parameters
-    path = Path(path)
-
     # Renaming the layer name is not possible for single layer file formats.
     path_info = _geofileinfo.get_geofileinfo(path)
     if path_info.is_singlelayer:
@@ -831,7 +844,6 @@ def rename_column(
 
     """
     # Check input parameters
-    path = Path(path)
     layerinfo = get_layerinfo(path, layer, raise_on_nogeom=False)
     if column_name not in layerinfo.columns and new_column_name in layerinfo.columns:
         logger.info(
@@ -1008,7 +1020,7 @@ def add_column(
             type_str = "INTEGER"
         else:
             type_str = type
-    path = Path(path)
+
     layerinfo = get_layerinfo(path, layer, raise_on_nogeom=False)
     layer = layerinfo.name
 
@@ -1066,10 +1078,8 @@ def drop_column(
           columns
         * :func:`rename_column`: rename a column in the layer
         * :func:`update_column`: update a column of the layer
-
     """
     # Check input parameters
-    path = Path(path)
     layerinfo = get_layerinfo(path, layer, raise_on_nogeom=False)
     layer = layerinfo.name
     if column_name not in layerinfo.columns:
@@ -1100,7 +1110,7 @@ def update_column(
     """Update a column from a layer of the geofile.
 
     Args:
-        path (PathLike): Path to the geofile
+        path (PathLike): Path to the geofile.
         name (str): Name for the new column
         expression (str): SQL expression to use to update the column value. It should be
             in SQLite syntax and |spatialite_reference_link| functions can be used.
@@ -1152,10 +1162,8 @@ def update_column(
     .. |spatialite_reference_link| raw:: html
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
-
     """  # noqa: E501
     # Init
-    path = Path(path)
     layerinfo = get_layerinfo(path, layer)
     columns_upper = [column.upper() for column in layerinfo.columns]
     if layerinfo.geometrycolumn is not None:
@@ -1222,7 +1230,8 @@ def read_file(
     geometries, as shapely/geopandas doesn't support CURVE geometries.
 
     Args:
-        path (file path): path to the file to read from
+        path (file path): path to the file to read from. |GDAL_vsi|_ paths are also
+            supported.
         layer (str, optional): The layer to read. If None and there is only one layer in
             the file it is read, otherwise an error is thrown. Defaults to None.
         columns (Iterable[str], optional): The (non-geometry) columns to read will
@@ -1270,6 +1279,10 @@ def read_file(
     .. |spatialite_reference_link| raw:: html
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    .. |GDAL_vsi| raw:: html
+
+        <a href="https://gdal.org/en/stable/user/virtual_file_systems.html" target="_blank">GDAL vsi</a>
 
     """  # noqa: E501
     result_gdf = _read_file_base(
@@ -1405,11 +1418,6 @@ def _read_file_base_fiona(
     if sql_stmt is not None:
         raise ValueError("sql_stmt is not supported with fiona engine")
 
-    # Init
-    path = Path(path)
-    if path.exists() is False:
-        raise ValueError(f"file not found: {path}")
-
     # If no layer name specified, check if there is only one layer in the file.
     if layer is None:
         layer = get_only_layer(path)
@@ -1417,7 +1425,7 @@ def _read_file_base_fiona(
     # VERY DIRTY hack to get the fid
     if fid_as_index:
         # Make a copy/copy input file to geopackage, as we will add an fid/rowd column
-        tmp_fid_path = Path(tempfile.mkdtemp()) / f"{path.stem}.gpkg"
+        tmp_fid_path = Path(tempfile.mkdtemp()) / f"{Path(path).stem}.gpkg"
         path_info = _geofileinfo.get_geofileinfo(path)
         try:
             if path_info.driver == "GPKG":
@@ -1508,11 +1516,6 @@ def _read_file_base_pyogrio(
     **kwargs,
 ) -> pd.DataFrame | gpd.GeoDataFrame:
     """Reads a file to a pandas Dataframe using pyogrio."""
-    # Init
-    path = Path(path)
-    if path.exists() is False:
-        raise ValueError(f"file not found: {path}")
-
     # Convert rows slice object to pyogrio parameters
     if rows is not None:
         skip_features = rows.start
@@ -1590,7 +1593,7 @@ def _read_file_base_pyogrio(
 
 
 def _fill_out_sql_placeholders(
-    path: Path,
+    path: Union[str, "os.PathLike[Any]"],
     layer: str | LayerInfo | None,
     sql_stmt: str,
     columns: Iterable[str] | None,
@@ -1687,7 +1690,8 @@ def to_file(
 
     Args:
         gdf (gpd.GeoDataFrame): The GeoDataFrame to export to file.
-        path (Union[str,): The file path to write to.
+        path (Union[str,): The file path to write to. |GDAL_vsi| paths are also
+            supported.
         layer (str, optional): The layer to read. If no layer is specified,
             reads the only layer in the file or throws an Exception.
         force_output_geometrytype (Union[GeometryType, str], optional): Geometry type
@@ -1719,17 +1723,20 @@ def to_file(
     Raises:
         ValueError: an invalid parameter value was passed.
         RuntimeError: timeout was reached while trying to append data to path.
-    """
+
+    .. |GDAL_vsi| raw:: html
+
+        <a href="https://gdal.org/en/stable/user/virtual_file_systems.html" target="_blank">GDAL vsi</a>
+
+    """  # noqa: E501
     # Check input parameters
     # ----------------------
-    path = Path(path)
-
     # If no layer name specified, determine one
     if layer is None:
-        if append and path.exists():
+        if append and vsi_exists(path):
             layer = get_only_layer(path)
         else:
-            layer = Path(path).stem
+            layer = get_default_layer(path)
 
     # If force_output_geometrytype is a string, check if it is a "standard" geometry
     # type, as GDAL also supports special geometry types like "PROMOTE_TO_MULTI"
@@ -1797,7 +1804,7 @@ def to_file(
 
 def _to_file_fiona(
     gdf: pd.DataFrame | gpd.GeoDataFrame,
-    path: Path,
+    path: Union[Path, "os.PathLike[Any]"],
     layer: str,
     force_output_geometrytype: GeometryType | str | None = None,
     force_multitype: bool = False,
@@ -1809,7 +1816,7 @@ def _to_file_fiona(
 ):
     """Writes a pandas dataframe to file using fiona."""
     # Shapefile doesn't support datetime columns, so first cast them to string
-    if path.suffix.lower() in [".shp", ".dbf"]:
+    if Path(path).suffix.lower() in [".shp", ".dbf"]:
         gdf = gdf.copy()
         # Columns that have a proper datetime64 type
         for column in gdf.select_dtypes(include=["datetime64"]):
@@ -1858,7 +1865,7 @@ def _to_file_fiona(
     # lightweight implementation just set force
     def write_to_file(
         gdf: gpd.GeoDataFrame,
-        path: Path,
+        path: Union[Path, "os.PathLike[Any]"],
         layer: str,
         index: bool | None = None,
         force_output_geometrytype: str | None = None,
@@ -1869,11 +1876,8 @@ def _to_file_fiona(
         **kwargs,
     ):
         # Prepare args for to_file
-        if append is True:
-            if path.exists():
-                mode = "a"
-            else:
-                mode = "w"
+        if append:
+            mode = "a"
         else:
             mode = "w"
 
@@ -1963,7 +1967,7 @@ def _to_file_fiona(
 
 def _to_file_pyogrio(
     gdf: gpd.GeoDataFrame,
-    path: Path,
+    path: Union[Path, "os.PathLike[Any]"],
     layer: str,
     force_output_geometrytype: GeometryType | str | None = None,
     force_multitype: bool = False,
@@ -1975,7 +1979,7 @@ def _to_file_pyogrio(
 ):
     """Writes a pandas dataframe to file using pyogrio."""
     # Check upfront if append is going to work to give nice error
-    if append is True and path.exists():
+    if append is True and vsi_exists(path):
         kwargs["append"] = True
         layerinfo = get_layerinfo(path, layer, raise_on_nogeom=False)
 
@@ -2032,7 +2036,7 @@ def get_crs(
     """Get the CRS (projection) of the file.
 
     Args:
-        path (PathLike): path to the file.
+        path (PathLike): path to the file. |GDAL_vsi| paths are supported.
         layer (Optional[str]): layer name. If not specified, and there is only
             one layer in the file, this layer is used. Otherwise exception.
         min_confidence (int): a value between 0-100 where 100 is the most confident.
@@ -2041,10 +2045,13 @@ def get_crs(
 
     Returns:
         pyproj.CRS: The projection of the file.
-    """
-    # Check input parameters
-    path = Path(path)
 
+    .. |GDAL_vsi| raw:: html
+
+        <a href="https://gdal.org/en/stable/user/virtual_file_systems.html" target="_blank">GDAL vsi</a>
+
+    """  # noqa: E501
+    # Check input parameters
     crs = None
     try:
         datasource = gdal.OpenEx(
@@ -2165,12 +2172,17 @@ def cmp(
     Eg. for shapefiles, the .shp, .shx and .dbf file must be identical.
 
     Args:
-        path1 (PathLike): path to the first file.
-        path2 (PathLike): path to the second file.
+        path1 (PathLike): path to the first file. |GDAL_vsi| paths are not supported.
+        path2 (PathLike): path to the second file. |GDAL_vsi| paths are not supported.
 
     Returns:
         bool: True if the files are identical
-    """
+
+    .. |GDAL_vsi| raw:: html
+
+        <a href="https://gdal.org/en/stable/user/virtual_file_systems.html" target="_blank">GDAL vsi</a>
+
+    """  # noqa: E501
     # Check input parameters
     path1 = Path(path1)
     path2 = Path(path2)
@@ -2197,12 +2209,20 @@ def copy(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
     are copied.
 
     Args:
-        src (PathLike): the file to copy.
+        src (PathLike): the file to copy. |GDAL_vsi| paths are not supported.
         dst (PathLike): the location to copy the file(s) to.
-    """
+
+    .. |GDAL_vsi| raw:: html
+
+        <a href="https://gdal.org/en/stable/user/virtual_file_systems.html" target="_blank">GDAL vsi</a>
+
+    """  # noqa: E501
     # Check input parameters
     src = Path(src)
     dst = Path(dst)
+    if not src.exists():
+        raise FileNotFoundError(f"File {src} not found")
+
     src_info = _geofileinfo.get_geofileinfo(src)
 
     # Copy the main file
