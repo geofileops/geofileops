@@ -312,6 +312,58 @@ def test_copy_layer(tmp_path, testfile, dimensions, suffix_input, suffix_output)
         assert src_layerinfo.geometrytypename == dst_layerinfo.geometrytypename
 
 
+@pytest.mark.parametrize("create_spatial_index", [True, False])
+def test_copy_layer_append_spatial_index(tmp_path, create_spatial_index):
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel")
+    dst = tmp_path / "output.gpkg"
+    layer1 = gfo.get_default_layer(dst)
+
+    if create_spatial_index is not None:
+        index_expected = create_spatial_index
+    else:
+        index_expected = _geofileinfo.get_geofileinfo(dst).default_spatial_index
+
+    # First append to file already while it doesn't exist yet
+    gfo.copy_layer(
+        src, dst, write_mode="append", create_spatial_index=create_spatial_index
+    )
+
+    # Check result
+    layer1_info = gfo.get_layerinfo(dst)
+    assert layer1_info.featurecount == 48
+    assert gfo.has_spatial_index(dst) == index_expected
+
+    # Now append while the file exists to the existing layer
+    gfo.copy_layer(
+        src, dst, write_mode="append", create_spatial_index=create_spatial_index
+    )
+
+    # Check if number of rows is correct
+    layer1_info = gfo.get_layerinfo(dst)
+    assert layer1_info.featurecount == 96
+    assert gfo.has_spatial_index(dst) == index_expected
+
+    # Finally append while the file exists but to a new layer
+    layer2 = "new_layer"
+    gfo.copy_layer(
+        src,
+        dst,
+        dst_layer=layer2,
+        write_mode="append",
+        create_spatial_index=create_spatial_index,
+    )
+
+    # Check properties of both layers
+    layer1_info = gfo.get_layerinfo(dst, layer1)
+    assert layer1_info.featurecount == 96
+    assert gfo.has_spatial_index(dst, layer1) == index_expected
+
+    layer2_info = gfo.get_layerinfo(dst, layer2)
+    assert layer2_info.featurecount == 48
+    assert gfo.has_spatial_index(dst, layer2) == index_expected
+
+
 @pytest.mark.parametrize("suffix", [s for s in SUFFIXES_FILEOPS if s != ".csv"])
 @pytest.mark.parametrize("columns", [["OIDN", "UIDN"], "OIDN"])
 def test_copy_layer_columns(tmp_path, suffix, columns):
@@ -399,24 +451,29 @@ def test_copy_layer_force_output_geometrytype(tmp_path, testfile, force_geometry
 
 
 @pytest.mark.parametrize(
-    "kwargs, expected_error",
+    "kwargs, expected_exc, expected_error",
     [
-        ({"src": "non_existing_file.gpkg"}, "src file not found"),
-        ({"write_mode": "invalid"}, "Invalid write_mode"),
-        ({"write_mode": "add_layer"}, "dst_layer is required when write_mode is"),
+        ({"src": "non_existing_file.gpkg"}, FileNotFoundError, "File not found"),
+        ({"write_mode": "invalid"}, ValueError, "Invalid write_mode"),
+        (
+            {"write_mode": "add_layer"},
+            ValueError,
+            "dst_layer is required when write_mode is",
+        ),
         (
             {"write_mode": "append", "append": True},
+            ValueError,
             "append parameter is deprecated, use write_mode",
         ),
     ],
 )
-def test_copy_layer_invalid_params(tmp_path, kwargs, expected_error):
+def test_copy_layer_errors(tmp_path, kwargs, expected_exc, expected_error):
     # Convert
     if "src" not in kwargs:
         kwargs["src"] = test_helper.get_testfile("polygon-parcel")
     kwargs["dst"] = tmp_path / "output.gpkg"
 
-    with pytest.raises(ValueError, match=expected_error):
+    with pytest.raises(expected_exc, match=expected_error):
         gfo.copy_layer(**kwargs)
 
 
@@ -828,16 +885,6 @@ def test_get_layerinfo(suffix, dimensions):
     assert len(layerinfo.columns) == 11
     assert layerinfo.columns["OIDN"].gdal_type == "Integer64"
 
-    # Some tests for exception cases
-    # Layer specified that doesn't exist
-    with pytest.raises(ValueError, match="Layer not_existing_layer not found in file"):
-        layerinfo = gfo.get_layerinfo(src, "not_existing_layer")
-
-    # Path specified that doesn't exist
-    with pytest.raises(ValueError, match="input_path not found"):
-        not_existing_path = _io_util.with_stem(src, "not_existing_layer")
-        layerinfo = gfo.get_layerinfo(not_existing_path)
-
 
 @pytest.mark.xfail
 def test_get_layerinfo_curve():
@@ -849,6 +896,20 @@ def test_get_layerinfo_curve():
     # Test
     layerinfo = gfo.get_layerinfo(str(src))
     assert layerinfo.geometrytypename == "MULTISURFACE"
+
+
+def test_get_layerinfo_errors_not_existing_src():
+    """Tests with non-existing source layer or path."""
+    src = test_helper.get_testfile("polygon-parcel")
+
+    # Layer specified that doesn't exist
+    with pytest.raises(ValueError, match="Layer not_existing_layer not found in file"):
+        _ = gfo.get_layerinfo(src, "not_existing_layer")
+
+    # Path specified that doesn't exist
+    with pytest.raises(FileNotFoundError, match="File not found"):
+        not_existing_path = src.with_stem("not_existing_file_stem")
+        _ = gfo.get_layerinfo(not_existing_path)
 
 
 def test_get_layerinfo_nogeom(tmp_path):
@@ -1200,7 +1261,7 @@ def test_read_file_curve():
 def test_read_file_invalid_params(tmp_path, engine_setter):
     src = tmp_path / "nonexisting_file.gpkg"
 
-    with pytest.raises(ValueError, match="file not found:"):
+    with pytest.raises(FileNotFoundError, match="File not found:"):
         _ = gfo.read_file(src)
 
 

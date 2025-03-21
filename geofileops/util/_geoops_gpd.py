@@ -838,6 +838,7 @@ def _apply_geooperation_to_layer(
                     gridsize=gridsize,
                     keep_empty_geoms=keep_empty_geoms,
                     preserve_fid=preserve_fid,
+                    create_spatial_index=False,
                     force=force,
                 )
                 future_to_batch_id[future] = batch_id
@@ -940,6 +941,7 @@ def _apply_geooperation(
     gridsize: float = 0.0,
     keep_empty_geoms: bool = False,
     preserve_fid: bool = False,
+    create_spatial_index: bool = False,
     force: bool = False,
 ) -> str:
     # Init
@@ -1041,7 +1043,7 @@ def _apply_geooperation(
         index=False,
         force_output_geometrytype=force_output_geometrytype,
         force_multitype=not explodecollections,
-        create_spatial_index=False,
+        create_spatial_index=create_spatial_index,
     )
 
     message = f"Took {datetime.now() - start_time} for {len(data_gdf)} rows ({where})"

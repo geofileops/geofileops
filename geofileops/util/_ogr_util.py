@@ -403,8 +403,6 @@ def vector_translate(
 
     # Output basic options
     datasetCreationOptions = []
-    # Output dataset creation options are only applicable if a new output file
-    # will be created
     if access_mode is None:
         dataset_creation_options = gdal_options["DATASET_CREATION"]
         if output_info.driver == "SQLite":
@@ -453,12 +451,10 @@ def vector_translate(
     else:
         args.append("-unsetFid")
 
-    # Output layer creation options are only applicable if a new layer will be
-    # created
+    # Prepare output layer creation options
     layerCreationOptions = []
-    if access_mode is None or access_mode == "overwrite":
-        for option_name, value in gdal_options["LAYER_CREATION"].items():
-            layerCreationOptions.extend([f"{option_name}={value}"])
+    for option_name, value in gdal_options["LAYER_CREATION"].items():
+        layerCreationOptions.extend([f"{option_name}={value}"])
 
     # General configuration options
     # Remark: passing them as parameter using --config doesn't work, but they are set as
@@ -608,10 +604,12 @@ def vector_translate(
         # Read cpl_log file
         log_lines, log_errors = read_cpl_log(gdal_cpl_log_path)
 
-        # Raise
-        raise GDALError(
-            message, log_details=log_lines, error_details=log_errors
-        ).with_traceback(ex.__traceback__) from None
+        raise FileNotFoundError(
+            f"File not found: {input_path}",
+            GDALError(
+                message, log_details=log_lines, error_details=log_errors
+            ).with_traceback(ex.__traceback__),
+        ) from None
 
     finally:
         output_ds = None
