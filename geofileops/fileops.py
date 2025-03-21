@@ -2480,7 +2480,7 @@ def append_to(
                 )
             finally:
                 ready = True
-                lockfile.unlink()
+                gdal.Unlink(lockfile)
         else:
             time_waiting = (datetime.now() - start_time).total_seconds()
             if time_waiting > append_timeout_s:
