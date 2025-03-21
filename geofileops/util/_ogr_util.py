@@ -395,7 +395,7 @@ def vector_translate(
 
     # Shapefiles only can have one layer, and the layer name == the stem of the file
     if output_info.driver == "ESRI Shapefile":
-        output_layer = output_path.stem
+        output_layer = Path(output_path).stem
 
     # SRS
     if output_srs is not None and isinstance(output_srs, int):
