@@ -274,6 +274,26 @@ def test_cmp(tmp_path, suffix):
     assert gfo.cmp(src2, dst) is False
 
 
+def test_convert(tmp_path):
+    """Test the convert function.
+
+    The function is deprecated, but is still kept alive for backwards compatibility.
+    """
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel")
+    dst = tmp_path / "output.gpkg"
+
+    # Test
+    gfo.convert(str(src), str(dst))
+
+    # Now compare source and dst file
+    src_layerinfo = gfo.get_layerinfo(src)
+    dst_layerinfo = gfo.get_layerinfo(dst)
+    assert src_layerinfo.featurecount == dst_layerinfo.featurecount
+    assert len(src_layerinfo.columns) == len(dst_layerinfo.columns)
+    assert src_layerinfo.geometrytypename == dst_layerinfo.geometrytypename
+
+
 @pytest.mark.parametrize(
     "testfile, suffix_input, suffix_output, dimensions",
     [
