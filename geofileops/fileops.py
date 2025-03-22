@@ -1770,7 +1770,7 @@ def to_file(
 
     # pyogrio < 0.7 doesn't support writing without geometry, so in that case use fiona.
     if not PYOGRIO_GTE_07:
-        if isinstance(gdf, gpd.GeoDataFrame) is False or (
+        if not isinstance(gdf, gpd.GeoDataFrame) or (
             isinstance(gdf, gpd.GeoDataFrame) and "geometry" not in gdf.columns
         ):
             # Give a clear error if fiona isn't installed.
@@ -1828,6 +1828,9 @@ def _to_file_fiona(
     **kwargs,
 ):
     """Writes a pandas dataframe to file using fiona."""
+    if append and not _vsi_exists(path):
+        append = False
+
     # Shapefile doesn't support datetime columns, so first cast them to string
     if Path(path).suffix.lower() in [".shp", ".dbf"]:
         gdf = gdf.copy()
@@ -1844,7 +1847,7 @@ def _to_file_fiona(
 
     # Handle some specific cases where the file schema needs to be manipulated.
     schema = None
-    if isinstance(gdf, gpd.GeoDataFrame) is False or (
+    if not isinstance(gdf, gpd.GeoDataFrame) or (
         isinstance(gdf, gpd.GeoDataFrame) and "geometry" not in gdf.columns
     ):
         # No geometry, so prepare to be written as attribute table: add geometry column
@@ -1992,7 +1995,7 @@ def _to_file_pyogrio(
 ):
     """Writes a pandas dataframe to file using pyogrio."""
     # Check upfront if append is going to work to give nice error
-    if append is True and _vsi_exists(path):
+    if append and _vsi_exists(path):
         kwargs["append"] = True
         layerinfo = get_layerinfo(path, layer, raise_on_nogeom=False)
 
