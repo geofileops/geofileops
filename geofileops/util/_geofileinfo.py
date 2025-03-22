@@ -246,12 +246,11 @@ def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
     elif suffix == ".shp":
         return "ESRI Shapefile"
 
-    def get_driver_for_path(input_path: Union[Path, "os.PathLike[Any]"]) -> str:
+    def get_driver_for_path(input_path: Union[str, "os.PathLike[Any]"]) -> str:
         # If there is no suffix, possibly it is only a suffix, so prefix with filename
+        local_path = input_path
         if Path(input_path).suffix == "":
             local_path = f"temp{input_path}"
-        else:
-            local_path = input_path
 
         drivers = GetOutputDriversFor(local_path, is_raster=False)
         if len(drivers) == 1:

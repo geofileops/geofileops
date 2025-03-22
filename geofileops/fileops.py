@@ -694,7 +694,7 @@ def has_spatial_index(
 
 def _has_spatial_index(
     datasource: gdal.Dataset,
-    path: Union[Path, "os.PathLike[Any]"],
+    path: Union[str, "os.PathLike[Any]"],
     layer: str | LayerInfo | None = None,
     no_geom_ok: bool = False,
 ) -> bool:
@@ -776,7 +776,8 @@ def remove_spatial_index(
             datasource.ReleaseResultSet(result)
         elif path_info.driver == "ESRI Shapefile":
             # DROP SPATIAL INDEX ON ... command gives an error, so just remove .qix
-            index_path = path.parent / f"{path.stem}.qix"
+            path_p = Path(path)
+            index_path = path_p.parent / f"{path_p.stem}.qix"
             index_path.unlink(missing_ok=True)
         else:
             raise ValueError(
@@ -1816,7 +1817,7 @@ def to_file(
 
 def _to_file_fiona(
     gdf: pd.DataFrame | gpd.GeoDataFrame,
-    path: Union[Path, "os.PathLike[Any]"],
+    path: Union[str, "os.PathLike[Any]"],
     layer: str,
     force_output_geometrytype: GeometryType | str | None = None,
     force_multitype: bool = False,
@@ -1877,7 +1878,7 @@ def _to_file_fiona(
     # lightweight implementation just set force
     def write_to_file(
         gdf: gpd.GeoDataFrame,
-        path: Union[Path, "os.PathLike[Any]"],
+        path: Union[str, "os.PathLike[Any]"],
         layer: str,
         index: bool | None = None,
         force_output_geometrytype: str | None = None,
@@ -1979,7 +1980,7 @@ def _to_file_fiona(
 
 def _to_file_pyogrio(
     gdf: gpd.GeoDataFrame,
-    path: Union[Path, "os.PathLike[Any]"],
+    path: Union[str, "os.PathLike[Any]"],
     layer: str,
     force_output_geometrytype: GeometryType | str | None = None,
     force_multitype: bool = False,
@@ -2091,7 +2092,9 @@ def get_crs(
     return crs
 
 
-def _crs_custom_match(crs: pyproj.CRS, path_to_fix: Path | None) -> pyproj.CRS:
+def _crs_custom_match(
+    crs: pyproj.CRS, path_to_fix: Union[str, "os.PathLike[Any]", None]
+) -> pyproj.CRS:
     """Custom matching of crs's not matched automatically, based on name.
 
     If path_to_fix is specified, the corresponding .prj file located on the path will be
@@ -2116,6 +2119,7 @@ def _crs_custom_match(crs: pyproj.CRS, path_to_fix: Path | None) -> pyproj.CRS:
 
         # If path is specified and it is a shapefile, add correct 31370 .prj file
         if path_to_fix is not None:
+            path_to_fix = Path(path_to_fix)
             driver = _geofileinfo.get_driver(path_to_fix)
             if driver == "ESRI Shapefile":
                 prj_path = path_to_fix.parent / f"{path_to_fix.stem}.prj"

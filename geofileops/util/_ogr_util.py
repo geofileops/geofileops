@@ -7,7 +7,7 @@ import warnings
 from collections.abc import Iterable
 from pathlib import Path
 from threading import Lock
-from typing import Literal
+from typing import Any, Literal, Union
 
 from osgeo import gdal, ogr
 from pygeoops import GeometryType
@@ -228,8 +228,8 @@ def RollbackTransaction(datasource: gdal.Dataset | None) -> bool:
 class VectorTranslateInfo:
     def __init__(
         self,
-        input_path: Path,
-        output_path: Path,
+        input_path: Union[str, "os.PathLike[Any]"],
+        output_path: Union[str, "os.PathLike[Any]"],
         input_layers: list[str] | str | None = None,
         output_layer: str | None = None,
         access_mode: str | None = None,
@@ -300,8 +300,8 @@ def vector_translate_by_info(info: VectorTranslateInfo):
 
 
 def vector_translate(
-    input_path: Path | str,
-    output_path: Path,
+    input_path: Union[str, "os.PathLike[Any]"],
+    output_path: Union[str, "os.PathLike[Any]"],
     input_layers: list[str] | str | None = None,
     output_layer: str | None = None,
     access_mode: str | None = None,
@@ -638,7 +638,7 @@ def vector_translate(
 
 
 def _validate_file(
-    path: Path,
+    path: Union[str, "os.PathLike[Any]"],
     layer: str | None,
     input_has_geometry_attribute: bool,
     input_has_geom_attribute: bool,
@@ -646,7 +646,7 @@ def _validate_file(
     """Check the file for invalid geometry columns and removes them.
 
     Args:
-        path (Path): the file to check.
+        path (PathLike): the file to check.
         layer (Optional[str]): the output layer name.
         input_has_geometry_attribute (bool): True if the input file has a geometry
             attribute column.
@@ -657,7 +657,7 @@ def _validate_file(
         return
 
     def is_file_valid(
-        path: Path,
+        path: Union[str, "os.PathLike[Any]"],
         fix: bool,
         input_has_geometry_attribute: bool,
         input_has_geom_attribute: bool,
@@ -665,7 +665,7 @@ def _validate_file(
         """Check if the file is valid.
 
         Args:
-            path (Path): the file to check.
+            path (PathLike): the file to check.
             fix (bool): True to fix the invalid columns.
             input_has_geometry_attribute (bool): True if the input file has a geometry
                 attribute column.
