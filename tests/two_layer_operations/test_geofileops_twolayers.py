@@ -733,14 +733,14 @@ def test_intersection_input_no_index(tmp_path):
         ),
         (
             "intersection: input1_path not found",
-            ValueError,
+            FileNotFoundError,
             "not_existing_path",
             test_helper.get_testfile("polygon-zone"),
             "output.gpkg",
         ),
         (
             "intersection: input2_path not found",
-            ValueError,
+            FileNotFoundError,
             test_helper.get_testfile("polygon-zone"),
             "not_existing_path",
             "output.gpkg",
