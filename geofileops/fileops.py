@@ -2240,7 +2240,7 @@ def copy(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
     src = Path(src)
     dst = Path(dst)
     if not src.exists():
-        raise FileNotFoundError(f"File {src} not found")
+        raise FileNotFoundError(f"File not found: {src}")
 
     src_info = _geofileinfo.get_geofileinfo(src)
 
@@ -2639,20 +2639,20 @@ def copy_layer(
         access_mode = None
 
     elif write_mode == "add_layer":
-        if force:
-            access_mode = "overwrite"
-        else:
-            try:
-                layers = listlayers(dst, only_spatial_layers=False)
-                if dst_layer in layers:
+        try:
+            layers = listlayers(dst, only_spatial_layers=False)
+            if dst_layer in layers:
+                if force:
+                    access_mode = "overwrite"
+                else:
                     logger.info(f"dst_layer already exists, so stop: {dst}#{dst_layer}")
                     return
-            except FileNotFoundError:
-                # The file doesn't seem to exist yet... just continue, the file and
-                # layer will be created in this case.
-                access_mode = "create"
+            else:
+                access_mode = "update"
 
-            access_mode = "update"
+        except FileNotFoundError:
+            # The file doesn't seem to exist yet, so set access_mode to None.
+            access_mode = None
 
     elif write_mode == "append":
         try:

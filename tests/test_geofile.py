@@ -312,6 +312,50 @@ def test_copy_layer(tmp_path, testfile, dimensions, suffix_input, suffix_output)
         assert src_layerinfo.geometrytypename == dst_layerinfo.geometrytypename
 
 
+def test_copy_layer_add_layer(tmp_path):
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel")
+    dst = tmp_path / "output.gpkg"
+    layer1 = gfo.get_default_layer(dst)
+
+    # First "add_layer" to file already while the file doesn't exist yet
+    gfo.copy_layer(src, dst, dst_layer=layer1, write_mode="add_layer")
+
+    # Check result
+    layer1_info = gfo.get_layerinfo(dst, layer1)
+    assert layer1_info.featurecount == 48
+
+    # Now "add_layer" with the layer existing, and use force=True to overwrite it.
+    # Use a filter so it is clear it was overwritten.
+    gfo.copy_layer(
+        src, dst, dst_layer=layer1, write_mode="add_layer", where="OIDN=1", force=True
+    )
+
+    # Check if the layer was properly overwritten
+    assert gfo.listlayers(dst) == [layer1]
+    layer1_info = gfo.get_layerinfo(dst, layer1)
+    assert layer1_info.featurecount == 1
+
+    # Now "add_layer" with the layer existing, and use force=False not to overwrite it.
+    gfo.copy_layer(src, dst, dst_layer=layer1, write_mode="add_layer", force=False)
+
+    # Check if the layer was properly overwritten
+    assert gfo.listlayers(dst) == [layer1]
+    layer1_info = gfo.get_layerinfo(dst, layer1)
+    assert layer1_info.featurecount == 1
+
+    # Finally "add_layer" to a new layer name
+    layer2 = "new_layer"
+    gfo.copy_layer(src, dst, dst_layer=layer2, write_mode="add_layer")
+
+    # Check properties of both layers
+    layer1_info = gfo.get_layerinfo(dst, layer1)
+    assert layer1_info.featurecount == 1
+
+    layer2_info = gfo.get_layerinfo(dst, layer2)
+    assert layer2_info.featurecount == 48
+
+
 @pytest.mark.parametrize("create_spatial_index", [True, False])
 def test_copy_layer_append_spatial_index(tmp_path, create_spatial_index):
     # Prepare test data
@@ -738,6 +782,13 @@ def test_copy(tmp_path, suffix):
     assert dst.exists()
     if suffix == ".shp":
         assert dst.with_suffix(".shx").exists()
+
+
+def test_copy_error(tmp_path):
+    src = tmp_path / "non_existing_file.gpkg"
+    dst = tmp_path / "output.gpkg"
+    with pytest.raises(FileNotFoundError, match="File not found"):
+        gfo.copy(src, dst)
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
