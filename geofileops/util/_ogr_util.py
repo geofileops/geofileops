@@ -506,6 +506,10 @@ def vector_translate(
                 input_ds = gdal.OpenEx(
                     str(input_path),
                     nOpenFlags=gdal.OF_VECTOR | gdal.OF_READONLY | gdal.OF_SHARED,
+                    open_options=input_open_options,
+                )
+            except Exception as ex:
+                if "no such file or directory" in str(ex).lower():
                     raise FileNotFoundError(f"File not found: {input_path}") from ex
 
                 raise
