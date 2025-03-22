@@ -442,7 +442,7 @@ def get_only_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
 
         <a href="https://gdal.org/en/stable/user/virtual_file_systems.html" target="_blank">GDAL vsi</a>
 
-    """
+    """  # noqa: E501
     try:
         datasource = gdal.OpenEx(
             str(path), nOpenFlags=gdal.OF_VECTOR | gdal.OF_READONLY | gdal.OF_SHARED
@@ -2433,7 +2433,8 @@ def convert(
 ):
     """DEPRECATED: please use copy_layer."""
     warnings.warn(
-        "convert is deprecated: use copy_layer. It will be removed in a future version.",
+        "convert is deprecated: use copy_layer. It will be removed in a future "
+        "version.",
         FutureWarning,
         stacklevel=2,
     )
