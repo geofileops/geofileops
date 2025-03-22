@@ -451,7 +451,7 @@ def test_copy_layer_force_output_geometrytype(tmp_path, testfile, force_geometry
 
 
 @pytest.mark.parametrize(
-    "kwargs, expected_exc, expected_error",
+    "kwargs, exp_ex, exp_error",
     [
         ({"src": "non_existing_file.gpkg"}, FileNotFoundError, "File not found"),
         ({"write_mode": "invalid"}, ValueError, "Invalid write_mode"),
@@ -467,13 +467,13 @@ def test_copy_layer_force_output_geometrytype(tmp_path, testfile, force_geometry
         ),
     ],
 )
-def test_copy_layer_errors(tmp_path, kwargs, expected_exc, expected_error):
+def test_copy_layer_errors(tmp_path, kwargs, exp_ex, exp_error):
     # Convert
     if "src" not in kwargs:
         kwargs["src"] = test_helper.get_testfile("polygon-parcel")
     kwargs["dst"] = tmp_path / "output.gpkg"
 
-    with pytest.raises(expected_exc, match=expected_error):
+    with pytest.raises(exp_ex, match=exp_error):
         gfo.copy_layer(**kwargs)
 
 
