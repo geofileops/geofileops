@@ -1026,7 +1026,7 @@ def test_is_geofile_deprecated():
 
 def test_listlayers_errors():
     path = "not_existing_file.gpkg"
-    with pytest.raises(RuntimeError, match=f"listlayers error for {path}"):
+    with pytest.raises(FileNotFoundError, match=f"File not found: {path}"):
         _ = gfo.listlayers(path)
 
 
