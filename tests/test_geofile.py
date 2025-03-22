@@ -152,112 +152,24 @@ def test_add_column_update_error(tmp_path, suffix, transaction_supported):
         assert "ERROR_COL" in list(info.columns)
 
 
-def test_append_to_different_layer(tmp_path):
-    # Prepare test data
-    src_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
-    dst_path = tmp_path / "dst.gpkg"
+def test_append_to(tmp_path):
+    """Test the append_to function.
 
-    # Copy src file to dst file to "layer1"
-    gfo.append_to(str(src_path), str(dst_path), dst_layer="layer1")
-    src_info = gfo.get_layerinfo(src_path)
-    dst_layer1_info = gfo.get_layerinfo(dst_path, "layer1")
-    assert src_info.featurecount == dst_layer1_info.featurecount
-
-    # Append src file layer to dst file to new layer: "layer2"
-    gfo.append_to(src_path, dst_path, dst_layer="layer2")
-    dst_layer2_info = gfo.get_layerinfo(dst_path, "layer2")
-    assert dst_layer1_info.featurecount == dst_layer2_info.featurecount
-
-
-@pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
-def test_append_to_columns(tmp_path, suffix):
-    """Test appending rows specifying some columns.
-
-    This does not seem to be supported by GDAL.
+    It is deprecated, but is still kept alive for backwards compatibility.
     """
     # Prepare test data
-    src_path = test_helper.get_testfile(
-        "polygon-parcel", dst_dir=tmp_path, suffix=suffix
-    )
-    dst_path = tmp_path / f"dst{suffix}"
-    gfo.copy(src_path, dst_path)
+    src = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    dst = tmp_path / "output.gpkg"
+    gfo.copy(src, dst)
+    layer = gfo.get_only_layer(dst)
 
-    src_info = gfo.get_layerinfo(src_path, raise_on_nogeom=False)
-    src_columns = list(src_info.columns)
-    dst_columns = ["OIDN", "UIDN", "GEWASGROEP"]
-    for column in src_columns:
-        if column not in dst_columns:
-            gfo.drop_column(dst_path, column_name=column)
+    # Append to file
+    with pytest.warns(FutureWarning):
+        gfo.append_to(src, dst, dst_layer=layer)
 
-    # For GPKG and CSV files, the append fails
-    if suffix in (".gpkg", ".csv"):
-        pytest.xfail(
-            "Appending only certain columns is not supported for GPKG and CSV files"
-        )
-
-    # For other file types, all rows are appended tot the dst layer, but the extra
-    # column is not!
-    gfo.append_to(src_path, dst_path, columns=dst_columns)
-
-    # Check results
-    dst_info = gfo.get_layerinfo(dst_path, raise_on_nogeom=False)
-    assert (src_info.featurecount * 2) == dst_info.featurecount
-    assert len(dst_info.columns) == len(dst_columns)
-
-
-@pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
-def test_append_to_different_columns(tmp_path, suffix):
-    """Test appending rows to a file with a column less than in source file."""
-    # Prepare test data
-    src_path = test_helper.get_testfile(
-        "polygon-parcel", dst_dir=tmp_path, suffix=suffix
-    )
-    dst_path = tmp_path / f"dst{suffix}"
-    gfo.copy_layer(src_path, dst_path)
-    gfo.add_column(src_path, name="extra_col", type=gfo.DataType.INTEGER)
-
-    # All rows are appended tot the dst layer, but the extra column is not!
-    gfo.append_to(src_path, dst_path)
-
-    # Check results
-    raise_on_nogeom = False if suffix == ".csv" else True
-
-    src_info = gfo.get_layerinfo(src_path, raise_on_nogeom=raise_on_nogeom)
-    res_info = gfo.get_layerinfo(dst_path, raise_on_nogeom=raise_on_nogeom)
-    assert (src_info.featurecount * 2) == res_info.featurecount
-    assert len(src_info.columns) == len(res_info.columns) + 1
-
-
-@pytest.mark.parametrize("testfile", ["polygon-parcel", "curvepolygon"])
-def test_append_to_shp_laundered_columns(tmp_path, testfile):
-    # GDAL doesn't seem to handle appending to a shapefile where column laundering is
-    # needed very well: all laundered columns get NULL values instead of the actual
-    # values.
-    # gfo.append_to bypasses this by laundering the columns beforehand via an sql
-    # statement so gdal doesn't need to do laundering.
-    # Start from a gpkg test file, because that can have long column names that need
-    # laundering.
-    src_path = test_helper.get_testfile(testfile, dst_dir=tmp_path, suffix=".gpkg")
-    gfo.add_column(
-        src_path, name="extra_long_columnname", type="TEXT", expression="'TEST VALUE'"
-    )
-    dst_path = tmp_path / "dst.shp"
-    gfo.append_to(src_path, dst_path)
-    gfo.append_to(src_path, dst_path)
-
-    src_info = gfo.get_layerinfo(src_path)
-    dst_info = gfo.get_layerinfo(dst_path)
-
-    # All rows are appended tot the dst layer, and long column name should be laundered
-    assert (src_info.featurecount * 2) == dst_info.featurecount
-    assert len(src_info.columns) == len(dst_info.columns)
-    assert "extra_long" in dst_info.columns
-    assert "extra_long_columnname" not in dst_info.columns
-
-    # Check content
-    dst_gdf = gfo.read_file(dst_path)
-    assert dst_gdf is not None
-    assert dst_gdf["extra_long"].to_list() == ["TEST VALUE"] * len(dst_gdf)
+    # Test if number of rows is correct
+    info = gfo.get_layerinfo(dst)
+    assert info.featurecount == 96
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
@@ -284,7 +196,8 @@ def test_convert(tmp_path):
     dst = tmp_path / "output.gpkg"
 
     # Test
-    gfo.convert(str(src), str(dst))
+    with pytest.warns(FutureWarning):
+        gfo.convert(src, dst)
 
     # Now compare source and dst file
     src_layerinfo = gfo.get_layerinfo(src)
@@ -374,6 +287,116 @@ def test_copy_layer_add_layer(tmp_path):
 
     layer2_info = gfo.get_layerinfo(dst, layer2)
     assert layer2_info.featurecount == 48
+
+
+def test_copy_layer_append_different_layer(tmp_path):
+    # Prepare test data
+    src_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    dst_path = tmp_path / "dst.gpkg"
+
+    # Copy src file to dst file to "layer1"
+    gfo.copy_layer(
+        str(src_path), str(dst_path), dst_layer="layer1", write_mode="append"
+    )
+    src_info = gfo.get_layerinfo(src_path)
+    dst_layer1_info = gfo.get_layerinfo(dst_path, "layer1")
+    assert src_info.featurecount == dst_layer1_info.featurecount
+
+    # Append src file layer to dst file to new layer: "layer2"
+    gfo.copy_layer(src_path, dst_path, dst_layer="layer2", write_mode="append")
+    dst_layer2_info = gfo.get_layerinfo(dst_path, "layer2")
+    assert dst_layer1_info.featurecount == dst_layer2_info.featurecount
+
+
+@pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
+def test_copy_layer_append_columns(tmp_path, suffix):
+    """Test appending rows specifying some columns.
+
+    This does not seem to be supported by GDAL.
+    """
+    # Prepare test data
+    src_path = test_helper.get_testfile(
+        "polygon-parcel", dst_dir=tmp_path, suffix=suffix
+    )
+    dst_path = tmp_path / f"dst{suffix}"
+    gfo.copy(src_path, dst_path)
+
+    src_info = gfo.get_layerinfo(src_path, raise_on_nogeom=False)
+    src_columns = list(src_info.columns)
+    dst_columns = ["OIDN", "UIDN", "GEWASGROEP"]
+    for column in src_columns:
+        if column not in dst_columns:
+            gfo.drop_column(dst_path, column_name=column)
+
+    # For GPKG and CSV files, the append fails
+    if suffix in (".gpkg", ".csv"):
+        pytest.xfail(
+            "Appending only certain columns is not supported for GPKG and CSV files"
+        )
+
+    # For other file types, all rows are appended tot the dst layer, but the extra
+    # column is not!
+    gfo.copy_layer(src_path, dst_path, columns=dst_columns, write_mode="append")
+
+    # Check results
+    dst_info = gfo.get_layerinfo(dst_path, raise_on_nogeom=False)
+    assert (src_info.featurecount * 2) == dst_info.featurecount
+    assert len(dst_info.columns) == len(dst_columns)
+
+
+@pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
+def test_copy_layer_append_different_columns(tmp_path, suffix):
+    """Test appending rows to a file with a column less than in source file."""
+    # Prepare test data
+    src_path = test_helper.get_testfile(
+        "polygon-parcel", dst_dir=tmp_path, suffix=suffix
+    )
+    dst_path = tmp_path / f"dst{suffix}"
+    gfo.copy_layer(src_path, dst_path)
+    gfo.add_column(src_path, name="extra_col", type=gfo.DataType.INTEGER)
+
+    # All rows are appended tot the dst layer, but the extra column is not!
+    gfo.copy_layer(src_path, dst_path, write_mode="append")
+
+    # Check results
+    raise_on_nogeom = False if suffix == ".csv" else True
+
+    src_info = gfo.get_layerinfo(src_path, raise_on_nogeom=raise_on_nogeom)
+    res_info = gfo.get_layerinfo(dst_path, raise_on_nogeom=raise_on_nogeom)
+    assert (src_info.featurecount * 2) == res_info.featurecount
+    assert len(src_info.columns) == len(res_info.columns) + 1
+
+
+@pytest.mark.parametrize("testfile", ["polygon-parcel", "curvepolygon"])
+def test_copy_layer_append_shp_laundered_columns(tmp_path, testfile):
+    # GDAL doesn't seem to handle appending to a shapefile where column laundering is
+    # needed very well: all laundered columns get NULL values instead of the actual
+    # values.
+    # gfo.append_to bypasses this by laundering the columns beforehand via an sql
+    # statement so gdal doesn't need to do laundering.
+    # Start from a gpkg test file, because that can have long column names that need
+    # laundering.
+    src_path = test_helper.get_testfile(testfile, dst_dir=tmp_path, suffix=".gpkg")
+    gfo.add_column(
+        src_path, name="extra_long_columnname", type="TEXT", expression="'TEST VALUE'"
+    )
+    dst_path = tmp_path / "dst.shp"
+    gfo.copy_layer(src_path, dst_path, write_mode="append")
+    gfo.copy_layer(src_path, dst_path, write_mode="append")
+
+    src_info = gfo.get_layerinfo(src_path)
+    dst_info = gfo.get_layerinfo(dst_path)
+
+    # All rows are appended tot the dst layer, and long column name should be laundered
+    assert (src_info.featurecount * 2) == dst_info.featurecount
+    assert len(src_info.columns) == len(dst_info.columns)
+    assert "extra_long" in dst_info.columns
+    assert "extra_long_columnname" not in dst_info.columns
+
+    # Check content
+    dst_gdf = gfo.read_file(dst_path)
+    assert dst_gdf is not None
+    assert dst_gdf["extra_long"].to_list() == ["TEST VALUE"] * len(dst_gdf)
 
 
 @pytest.mark.parametrize("create_spatial_index", [True, False])
