@@ -11,6 +11,8 @@
   documentation, not the stem of the destination filename. This is corrected now. (#648)
 - In `copy_layer`, the `append` parameter is deprecated and replaced by the `write_mode`
   parameter that accepts e.g. "append" as value (#663).
+- The `append_to` function is deprecated, as it is almost identical to `copy_layer` with
+  `write_mode="append"` (#669).
 
 ### Improvements
 
