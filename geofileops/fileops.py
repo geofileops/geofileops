@@ -2361,10 +2361,6 @@ def append_to(
         FutureWarning,
         stacklevel=2,
     )
-    if dst_layer is None:
-        dst_layer = get_default_layer(dst)
-    if force_output_geometrytype is not None:
-        force_output_geometrytype = GeometryType(force_output_geometrytype)
 
     # Files don't typically support having multiple processes writing
     # simultanously to them, so use lock file to synchronize access.
@@ -2624,53 +2620,21 @@ def copy_layer(
         )
         write_mode = "append"
 
-    if dst_layer is None:
-        if write_mode == "add_layer":
-            raise ValueError("dst_layer is required when write_mode is 'add_layer'")
-
-        dst_layer = get_default_layer(dst)
-
-    # Determine the access_mode expected by GDAL based on the write_mode and the
-    # destination file/layer.
-    if write_mode == "create":
-        if _vsi_exists(dst) and not force:
-            logger.info(f"Destination file already exists, so stop: {dst}")
-            return
+    # Determine the access mode
+    access_mode = _determine_access_mode(dst, dst_layer, write_mode, force)
+    if access_mode is None:
+        # The file/layer exists already and force is false, so we can return
+        return
+    elif access_mode == "create":
+        # GDAL expects None for create mode
         access_mode = None
+    elif access_mode == "append":
+        # As we will actually be appending to an existing layer, the layer
+        # creation option regarding spatial index creation should not be passed.
+        create_spatial_index = None
 
-    elif write_mode == "add_layer":
-        try:
-            layers = listlayers(dst, only_spatial_layers=False)
-            if dst_layer in layers:
-                if force:
-                    access_mode = "overwrite"
-                else:
-                    logger.info(f"dst_layer already exists, so stop: {dst}#{dst_layer}")
-                    return
-            else:
-                access_mode = "update"
-
-        except FileNotFoundError:
-            # The file doesn't seem to exist yet, so set access_mode to None.
-            access_mode = None
-
-    elif write_mode == "append":
-        try:
-            layers = listlayers(dst, only_spatial_layers=False)
-            if dst_layer in layers:
-                access_mode = "append"
-                # As we will actually be appending to an existing layer, the layer
-                # creation option regarding spatial index creation should not be passed.
-                create_spatial_index = None
-            else:
-                access_mode = "update"
-        except FileNotFoundError:
-            # The file doesn't seem to exist yet... just continue, the file and layer
-            # will be created in this case.
-            access_mode = None
-
-    else:
-        raise ValueError(f"Invalid write_mode: {write_mode}")
+    if dst_layer is None:
+        dst_layer = get_default_layer(dst)
 
     # Check/clean input params
     if isinstance(columns, str):
@@ -2759,6 +2723,97 @@ def copy_layer(
         dst_dimensions=dst_dimensions,
     )
     _ogr_util.vector_translate_by_info(info=translate_info)
+
+
+def _determine_access_mode(
+    dst: Union[str, "os.PathLike[Any]"],
+    dst_layer: str | None,
+    write_mode: str,
+    force: bool,
+) -> str | None:
+    """Determines an access mode based on the write mode,...
+
+    Does this by checking if the destination file/layer already exists in combination
+    with the `write_mode` and `force` parameters.
+
+    Args:
+        dst (PathLike): the destination file
+        dst_layer (str): the destination layer name
+        write_mode (str): the write mode
+        force (bool): True to force (re)creation of the file/layer.
+
+    Returns:
+        str | None: If None, we can just return. If an access mode, one of the following
+            values:
+              - "create": the destination file doesn't exist, so create a new file.
+              - "overwrite": the destination layer exists, overwrite it.
+              - "update": the destination file exists, but destination layer doesn't so
+                add the layer to the file.
+              - "append": the destination layer exists, append to it.
+    """
+
+    def try_listlayers(dst, only_spatial_layers: bool) -> list[str] | None:
+        try:
+            return listlayers(dst, only_spatial_layers)
+        except FileNotFoundError:
+            return None
+
+    # Determine the access_mode expected by GDAL based on the write_mode and the
+    # destination file/layer.
+    if write_mode == "create":
+        if _vsi_exists(dst) and not force:
+            logger.info(f"Destination file already exists, so stop: {dst}")
+            return None
+        return "create"
+
+    elif write_mode == "add_layer":
+        if dst_layer is None:
+            raise ValueError("dst_layer is required when write_mode is 'add_layer'")
+
+        layers = try_listlayers(dst, only_spatial_layers=False)
+        if layers is None:
+            # The file doesn't seem to exist yet, so set access_mode to None.
+            return "create"
+        elif dst_layer in layers:
+            if not force:
+                logger.info(f"dst_layer already exists, so stop: {dst}#{dst_layer}")
+                return None
+            return "overwrite"
+        else:
+            return "update"
+
+    elif write_mode == "append":
+        layers = try_listlayers(dst, only_spatial_layers=False)
+        if layers is None:
+            # The file doesn't seem to exist yet... just continue, the file and layer
+            # will be created in this case.
+            return "create"
+        elif len(layers) == 0:
+            # File exists, but there are no layers yet: add the layer
+            return "update"
+        elif dst_layer is None and len(layers) == 1:
+            # No dst_layer specified but only one layer: if the same we can append
+            dst_layer = get_default_layer(dst)
+            if dst_layer not in layers:
+                raise ValueError(
+                    "dst_layer is required when write_mode is 'append' and "
+                    "there are already other layers than the default layername."
+                )
+            return "append"
+
+        elif dst_layer is None:
+            # No dst_layer specified and multiple layers: raise error
+            raise ValueError(
+                "dst_layer is required when write_mode is 'append' and "
+                "there are multiple other layers."
+            )
+        elif dst_layer in layers:
+            return "append"
+        else:
+            return "update"
+
+    else:
+        raise ValueError(f"Invalid write_mode: {write_mode}")
 
 
 def _vsi_exists(path: Union[str, "os.PathLike[Any]"]) -> bool:

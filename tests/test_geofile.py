@@ -345,6 +345,25 @@ def test_copy_layer_append_columns(tmp_path, suffix):
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
+def test_copy_layer_append_default_layer(tmp_path, suffix):
+    """Test appending rows to a file without specifying a layer name."""
+    # Prepare test data
+    src_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    dst_path = tmp_path / f"dst{suffix}"
+
+    # Copy src file to dst file to "layer1"
+    gfo.copy_layer(src_path, dst_path, write_mode="append")
+    src_info = gfo.get_layerinfo(src_path, raise_on_nogeom=False)
+    dst_info = gfo.get_layerinfo(dst_path, raise_on_nogeom=False)
+    assert dst_info.featurecount == src_info.featurecount
+
+    # Append src file layer to dst file to new layer: "layer2"
+    gfo.copy_layer(src_path, dst_path, write_mode="append")
+    dst_info = gfo.get_layerinfo(dst_path, raise_on_nogeom=False)
+    assert dst_info.featurecount == src_info.featurecount * 2
+
+
+@pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
 def test_copy_layer_append_different_columns(tmp_path, suffix):
     """Test appending rows to a file with a column less than in source file."""
     # Prepare test data
