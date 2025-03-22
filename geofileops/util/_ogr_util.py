@@ -502,11 +502,13 @@ def vector_translate(
         # Go!
         with set_config_options(config_options):
             # Open input datasource already
-            input_ds = gdal.OpenEx(
-                str(input_path),
-                nOpenFlags=gdal.OF_VECTOR | gdal.OF_READONLY | gdal.OF_SHARED,
-                open_options=input_open_options,
-            )
+            try:
+                input_ds = gdal.OpenEx(
+                    str(input_path),
+                    nOpenFlags=gdal.OF_VECTOR | gdal.OF_READONLY | gdal.OF_SHARED,
+                    raise FileNotFoundError(f"File not found: {input_path}") from ex
+
+                raise
 
             # If output_srs is not specified and the result has 0 rows, gdal creates the
             # output file without srs.
@@ -593,6 +595,8 @@ def vector_translate(
         if output_ds is None:
             raise RuntimeError("output_ds is None")
 
+    except FileNotFoundError:
+        raise
     except Exception as ex:
         output_ds = None
 
@@ -604,12 +608,9 @@ def vector_translate(
         # Read cpl_log file
         log_lines, log_errors = read_cpl_log(gdal_cpl_log_path)
 
-        raise FileNotFoundError(
-            f"File not found: {input_path}",
-            GDALError(
-                message, log_details=log_lines, error_details=log_errors
-            ).with_traceback(ex.__traceback__),
-        ) from None
+        raise GDALError(
+            message, log_details=log_lines, error_details=log_errors
+        ).with_traceback(ex.__traceback__) from None
 
     finally:
         output_ds = None
