@@ -33,9 +33,8 @@ Combining both, a basic script using geofileops can look like this:
 Finally, for the spatial tools, only geopackage and shapefile files are supported.
 However, geopackage is **very** recommended for
 :ref:`many reasons <FAQ-supported-file-formats>`. Most general file/layer operations
-can be used on any file format supported by GDAL and also paths using
-`GDAL VSI handlers <https://gdal.org/en/stable/user/virtual_file_systems.html>`_ are
-supported.
+can be used on any file format supported by GDAL as well as on paths using
+`GDAL VSI handlers <https://gdal.org/en/stable/user/virtual_file_systems.html>`_.
 
 
 Geometry tools  
