@@ -704,7 +704,7 @@ def _validate_file(
                     logger.warning(
                         "Unable to determine output layer, so not able to remove "
                         "possibly incorrect geom and geometry text columns, with "
-                        f"path: {path}, path: {path}"
+                        f"{path=}"
                     )
 
                 # Output layer was found, so check it
