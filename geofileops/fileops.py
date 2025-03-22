@@ -2540,6 +2540,8 @@ def copy_layer(
                 `force=False` the layer is overwritten.
             - "append": append the source layer to the destination layer, if the
                 layer already exists. If not, the file and/or layer will be created.
+                If the file already contains layers named differently than the default
+                layer name for the file, `dst_layer` becomes mandatory.
 
         src_crs (Union[str, int], optional): an epsg int or anything supported
             by the OGRSpatialReference.SetFromUserInput() call, which includes

@@ -386,6 +386,33 @@ def test_copy_layer_append_different_columns(tmp_path, suffix):
     assert len(src_info.columns) == len(res_info.columns) + 1
 
 
+def test_copy_layer_append_error_non_default_layer(tmp_path):
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    dst = tmp_path / "output.gpkg"
+    gfo.copy(src, dst)
+
+    # Append fails if no layer is specified and a layer that does not have the default
+    # layer name exists already
+    with pytest.raises(ValueError, match="dst_layer is required when write_mode is"):
+        gfo.copy_layer(src, dst, write_mode="append")
+
+
+def test_copy_layer_append_error_other_layers(tmp_path):
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    dst = tmp_path / "output.gpkg"
+    gfo.copy(src, dst)
+    gfo.copy_layer(
+        src, dst, write_mode="add_layer", dst_layer=gfo.get_default_layer(dst)
+    )
+
+    # Append fails if no layer is specified and multiple layers exist already, even if
+    # one of them has the default layer name
+    with pytest.raises(ValueError, match="dst_layer is required when write_mode is"):
+        gfo.copy_layer(src, dst, write_mode="append")
+
+
 @pytest.mark.parametrize("testfile", ["polygon-parcel", "curvepolygon"])
 def test_copy_layer_append_shp_laundered_columns(tmp_path, testfile):
     # GDAL doesn't seem to handle appending to a shapefile where column laundering is
