@@ -4,7 +4,7 @@ import os
 from pathlib import Path, PurePath
 from typing import Any, Union
 
-GEO_MULTI_SUFFIXES = [".gpkg.zip"]
+GEO_MULTI_SUFFIXES = [".gpkg.zip", ".shp.zip"]
 
 
 def stem(path: Union[str, "os.PathLike[Any]"]) -> str:

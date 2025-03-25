@@ -25,7 +25,8 @@
   (#548)
 - Add support for `query=""` in `export_by_location` (#597)
 - Add support for GDAL vsi handlers in paths in most general file/layer operations (#669)
-- Add basic support for ".gpkg.zip" files in most general file/layer operations (#673)
+- Add basic support for ".gpkg.zip" and ".shp.zip" files in most general file/layer
+  operations (#673)
 - Add support to rename columns and layers with only a difference in casing (#549, #593)
 - Use `ST_Equals` and add priority feature to `delete_duplicate_geometries` (#638)
 - Avoid integer overflow when gpkg written by geofileops is read from .NET (#612)

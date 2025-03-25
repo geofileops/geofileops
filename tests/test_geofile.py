@@ -220,6 +220,10 @@ def test_convert(tmp_path):
     ],
 )
 def test_copy_layer(tmp_path, testfile, suffix_input, suffix_output):
+    if suffix_input == ".shp.zip" and suffix_output == ".shp":
+        # GDAL < 3.10 determines the layer name wrong for .shp.zip leading to this error
+        pytest.xfail("Copy of .shp.zip gives issues in GDAL <= 3.10")
+
     # Prepare test data
     src = test_helper.get_testfile(testfile, suffix=suffix_input)
     if suffix_input == ".csv" or suffix_output == ".csv":
@@ -227,7 +231,7 @@ def test_copy_layer(tmp_path, testfile, suffix_input, suffix_output):
     else:
         raise_on_nogeom = True
 
-    if suffix_input == ".csv" and suffix_output == ".shp":
+    if suffix_input == ".csv" and suffix_output in (".shp", ".shp.zip"):
         # If no geometry column, there will only be a .dbf output file
         dst = tmp_path / f"{src.stem}-output.dbf"
     else:
@@ -1892,8 +1896,8 @@ def test_create_spatial_index_invalid_params():
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS_EXT)
 @pytest.mark.parametrize("dimensions", [None])
 def test_to_file(tmp_path, suffix, dimensions, engine_setter):
-    if suffix == ".gpkg.zip":
-        pytest.xfail("gpkg.zip doesn't seem to work not supported for now")
+    if suffix in (".gpkg.zip", ".shp.zip"):
+        pytest.xfail("gpkg.zip and .shp.zip don't seem to work in pyogrio for now")
 
     # Remark: geopandas doesn't seem seem to read the Z dimension, so writing can't be
     # tested?
