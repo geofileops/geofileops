@@ -94,7 +94,7 @@ def with_stem(path: Union[str, "os.PathLike[Any]"], new_stem: str) -> str | Path
         if new_path_str is not None:
             return Path(new_path_str)
         else:
-            return path_p.with_stem(new_stem)
+            return Path(path_p).with_stem(new_stem)
 
     # The input was not a Path, return a string
     if new_path_str is not None:
