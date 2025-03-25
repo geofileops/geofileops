@@ -17,7 +17,7 @@ from pygeoops import GeometryType
 
 import geofileops as gfo
 from geofileops import fileops
-from geofileops.util import _geofileinfo, _geoseries_util
+from geofileops.util import _geofileinfo, _geopath_util, _geoseries_util
 from geofileops.util._geofileinfo import GeofileInfo
 from tests import test_helper
 from tests.test_helper import (
@@ -1906,16 +1906,13 @@ def test_create_spatial_index_invalid_params():
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS_EXT)
 @pytest.mark.parametrize("dimensions", [None])
 def test_to_file(tmp_path, suffix, dimensions, engine_setter):
-    if suffix in (".gpkg.zip", ".shp.zip"):
-        pytest.xfail("gpkg.zip and .shp.zip don't seem to work in pyogrio for now")
-
     # Remark: geopandas doesn't seem seem to read the Z dimension, so writing can't be
     # tested?
     # Prepare test file
     src = test_helper.get_testfile(
         "polygon-parcel", suffix=suffix, dimensions=dimensions
     )
-    output_path = tmp_path / f"{src.stem}-output{suffix}"
+    output_path = tmp_path / f"{_geopath_util.stem(src)}-output{suffix}"
     uidn = str(2318781) if suffix == ".csv" else 2318781
     encoding = "utf-8" if suffix == ".csv" else None
 
@@ -1924,6 +1921,9 @@ def test_to_file(tmp_path, suffix, dimensions, engine_setter):
 
     # Validate if string (encoding) is correct for data read.
     assert read_gdf.loc[read_gdf["UIDN"] == uidn]["LBLHFDTLT"].item() == "Silomaïs"
+
+    if suffix in (".gpkg.zip", ".shp.zip"):
+        pytest.xfail("writing a dataframe to gpkg.zip or .shp.zip has issue")
 
     gfo.to_file(read_gdf, str(output_path))
     written_gdf = gfo.read_file(output_path)
