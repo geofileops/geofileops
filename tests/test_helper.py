@@ -193,6 +193,7 @@ def get_testfile(
         # Convert all layers found
         for src_layer in layers:
             # Single layer files have stem as layername
+            assert isinstance(tmp_path, Path)
             dst_layer = tmp_path.stem if dst_info.is_singlelayer else src_layer
 
             gfo.copy_layer(
