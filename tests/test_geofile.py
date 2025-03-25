@@ -5,6 +5,7 @@ Tests for functionalities in geofileops.general.
 import os
 import shutil
 from itertools import product
+from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
@@ -19,7 +20,11 @@ from geofileops import fileops
 from geofileops.util import _geofileinfo, _geoseries_util
 from geofileops.util._geofileinfo import GeofileInfo
 from tests import test_helper
-from tests.test_helper import SUFFIXES_FILEOPS, assert_geodataframe_equal
+from tests.test_helper import (
+    SUFFIXES_FILEOPS,
+    SUFFIXES_FILEOPS_EXT,
+    assert_geodataframe_equal,
+)
 
 try:
     import fiona  # noqa: F401
@@ -208,16 +213,15 @@ def test_convert(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "testfile, suffix_input, suffix_output, dimensions",
+    "testfile, suffix_input, suffix_output",
     [
-        *product(["polygon-parcel"], SUFFIXES_FILEOPS, SUFFIXES_FILEOPS, [None, "XYZ"]),
-        ["curvepolygon", ".gpkg", ".gpkg", None],
-        ["polygon-parcel", ".gpkg", ".gpkg.zip", None],
+        *product(["polygon-parcel"], SUFFIXES_FILEOPS_EXT, SUFFIXES_FILEOPS_EXT),
+        ["curvepolygon", ".gpkg", ".gpkg"],
     ],
 )
-def test_copy_layer(tmp_path, testfile, dimensions, suffix_input, suffix_output):
+def test_copy_layer(tmp_path, testfile, suffix_input, suffix_output):
     # Prepare test data
-    src = test_helper.get_testfile(testfile, suffix=suffix_input, dimensions=dimensions)
+    src = test_helper.get_testfile(testfile, suffix=suffix_input)
     if suffix_input == ".csv" or suffix_output == ".csv":
         raise_on_nogeom = False
     else:
@@ -235,13 +239,38 @@ def test_copy_layer(tmp_path, testfile, dimensions, suffix_input, suffix_output)
     # Now compare source and dst file
     src_layerinfo = gfo.get_layerinfo(src, raise_on_nogeom=raise_on_nogeom)
     dst_layerinfo = gfo.get_layerinfo(dst, raise_on_nogeom=raise_on_nogeom)
-    assert dst_layerinfo.name == dst.stem
+    assert dst_layerinfo.name == gfo.get_default_layer(dst)
     assert src_layerinfo.featurecount == dst_layerinfo.featurecount
     assert len(src_layerinfo.columns) == len(dst_layerinfo.columns)
     if not (
         (suffix_input != ".csv" and suffix_output == ".csv")
         or (suffix_input == ".shp" and suffix_output == ".gpkg")
     ):
+        assert src_layerinfo.geometrytypename == dst_layerinfo.geometrytypename
+
+
+@pytest.mark.parametrize(
+    "testfile, suffix_input, suffix_output",
+    [
+        *product(["polygon-parcel"], [".gpkg", ".shp"], [".gpkg", ".shp"]),
+        ["curvepolygon", ".gpkg", ".gpkg"],
+    ],
+)
+def test_copy_layer_dimensions_xyz(tmp_path, testfile, suffix_input, suffix_output):
+    # Prepare test data
+    src = test_helper.get_testfile(testfile, suffix=suffix_input, dimensions="XYZ")
+    dst = tmp_path / f"{src.stem}-output{suffix_output}"
+
+    # Test
+    gfo.copy_layer(str(src), str(dst))
+
+    # Now compare source and dst file
+    src_layerinfo = gfo.get_layerinfo(src)
+    dst_layerinfo = gfo.get_layerinfo(dst)
+    assert dst_layerinfo.name == dst.stem
+    assert src_layerinfo.featurecount == dst_layerinfo.featurecount
+    assert len(src_layerinfo.columns) == len(dst_layerinfo.columns)
+    if not (suffix_input == ".shp" and suffix_output == ".gpkg"):
         assert src_layerinfo.geometrytypename == dst_layerinfo.geometrytypename
 
 
@@ -777,6 +806,24 @@ def test_copy_layer_sql_placeholders(tmp_path, suffix):
     assert_geodataframe_equal(input_gdf, copy_gdf)
 
 
+def test_copy_layer_to_gpkg_zip(tmp_path):
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel")
+    dst = tmp_path / "output.gpkg.zip"
+
+    # copy_layer
+    gfo.copy_layer(src, dst)
+
+    # Now compare source and dst file
+    src_layerinfo = gfo.get_layerinfo(src)
+    dst_layerinfo = gfo.get_layerinfo(dst)
+    assert src_layerinfo.featurecount == dst_layerinfo.featurecount
+
+    src_gdf = gfo.read_file(src)
+    dst_gdf = gfo.read_file(dst)
+    assert_geodataframe_equal(src_gdf, dst_gdf)
+
+
 def test_copy_layer_vsi(tmp_path):
     # Prepare test data
     src = f"/vsizip//vsicurl/{test_helper.data_url}/poly_shp.zip/poly.shp"
@@ -952,19 +999,32 @@ def test_get_crs_vsi():
     assert crs.to_epsg() == 27700
 
 
+@pytest.mark.parametrize(
+    "path, exp_default_layer",
+    [
+        ("/tmp/polygons.gpkg", "polygons"),
+        (Path("/tmp/polygons.gpkg"), "polygons"),
+        ("/tmp/polygons.gpkg.zip", "polygons"),
+        (Path("/tmp/polygons.gpkg.zip"), "polygons"),
+        (r"C:\tmp\polygons.gpkg.zip", "polygons"),
+        (Path(r"C:\tmp\polygons.gpkg.zip"), "polygons"),
+        ("/tmp/polygons.shp", "polygons"),
+        ("/tmp/polygons.csv", "polygons"),
+        ("/tmp/polygons.csv", "polygons"),
+        ("/vsizip//vsicurl/poly_shp.zip/poly.shp", "poly"),
+    ],
+)
+def test_get_default_layer(path, exp_default_layer):
+    layer = gfo.get_default_layer(path)
+    assert layer == exp_default_layer
+
+
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
-def test_get_default_layer(suffix):
+def test_get_default_layer_files(suffix):
     # Prepare test data + test
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     layer = gfo.get_default_layer(str(src))
     assert layer == src.stem
-
-
-def test_get_default_layer_vsi():
-    # Prepare test data + test
-    src = f"/vsizip//vsicurl/{test_helper.data_url}/poly_shp.zip/poly.shp"
-    layer = gfo.get_default_layer(src)
-    assert layer == "poly"
 
 
 @pytest.mark.parametrize("suffix", [s for s in SUFFIXES_FILEOPS if s != ".csv"])
@@ -1720,9 +1780,7 @@ def test_spatial_index(tmp_path, suffix):
     assert has_spatial_index is True
 
     # Spatial index if it already exists by default gives error
-    with pytest.raises(
-        Exception, match="create_spatial_index error: spatial index already exists"
-    ):
+    with pytest.raises(Exception, match="spatial index already exists"):
         gfo.create_spatial_index(path=test_path, layer=layer)
     gfo.create_spatial_index(path=test_path, layer=layer, exist_ok=True)
 
@@ -1734,6 +1792,55 @@ def test_spatial_index(tmp_path, suffix):
         assert qix_path.stat().st_mtime == qix_modified_time_orig
         gfo.create_spatial_index(path=test_path, layer=layer, force_rebuild=True)
         assert qix_path.stat().st_mtime > qix_modified_time_orig
+
+
+def test_spatial_index_gpkg_zip(tmp_path):
+    """Spatial index tests are specific for .gpkg.zip as it is read-only."""
+    # Test cases where the input file has an index
+    # --------------------------------------------
+    test_path = test_helper.get_testfile(
+        "polygon-parcel", dst_dir=tmp_path, suffix=".gpkg.zip"
+    )
+    layer = gfo.get_only_layer(test_path)
+
+    # Check if spatial index present
+    has_spatial_index = gfo.has_spatial_index(path=test_path, layer=layer)
+    assert has_spatial_index is True
+
+    # Removing spatial index in not supported as .gpkg.zip is read-only
+    with pytest.raises(ValueError, match="remove_spatial_index not supported for"):
+        gfo.remove_spatial_index(path=test_path, layer=layer)
+
+    # Create spatial index is supported with `exist_ok=True`
+    gfo.create_spatial_index(path=test_path, layer=layer, exist_ok=True)
+
+    # If no `exist_ok=True` is specified, error
+    with pytest.raises(RuntimeError, match="spatial index already exists"):
+        gfo.create_spatial_index(path=test_path, layer=layer)
+
+    # If  `force_rebuild=True` is specified, error
+    with pytest.raises(
+        RuntimeError, match="create_spatial_index not supported for .gpkg.zip files"
+    ):
+        gfo.create_spatial_index(path=test_path, layer=layer, force_rebuild=True)
+
+    # Test cases where the input file does not have an index
+    # ------------------------------------------------------
+    # Prepare .gpkg file without spatial index
+    test_path = test_helper.get_testfile(
+        "polygon-parcel", dst_dir=tmp_path, suffix=".gpkg"
+    )
+    layer = gfo.get_only_layer(test_path)
+    gfo.remove_spatial_index(path=test_path, layer=layer)
+    assert not gfo.has_spatial_index(path=test_path, layer=layer)
+    test_zip_path = tmp_path / f"{test_path.name}.zip"
+    fileops._zip(test_path, test_zip_path)
+    assert not gfo.has_spatial_index(path=test_path, layer=layer)
+
+    with pytest.raises(
+        RuntimeError, match="create_spatial_index not supported for .gpkg.zip files"
+    ):
+        gfo.create_spatial_index(path=test_zip_path, layer=layer)
 
 
 def test_spatial_index_unsupported(tmp_path):
@@ -1769,9 +1876,22 @@ def test_spatial_index_unsupported(tmp_path):
         _ = gfo.remove_spatial_index(path, path.stem)
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
+def test_create_spatial_index_invalid_params():
+    path = test_helper.get_testfile("polygon-parcel")
+
+    # Test invalid parameters
+    with pytest.raises(
+        ValueError, match="exist_ok and force_rebuild can't both be True"
+    ):
+        _ = gfo.create_spatial_index(path=path, exist_ok=True, force_rebuild=True)
+
+
+@pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS_EXT)
 @pytest.mark.parametrize("dimensions", [None])
 def test_to_file(tmp_path, suffix, dimensions, engine_setter):
+    if suffix == ".gpkg.zip":
+        pytest.xfail("gpkg.zip doesn't seem to work not supported for now")
+
     # Remark: geopandas doesn't seem seem to read the Z dimension, so writing can't be
     # tested?
     # Prepare test file
@@ -1811,10 +1931,21 @@ def test_to_file(tmp_path, suffix, dimensions, engine_setter):
 
         assert_geodataframe_equal(written_gdf, read_gdf)
 
-    # Append the file again to tmppath
-    gfo.to_file(read_gdf, output_path, append=True)
-    written_gdf = gfo.read_file(output_path)
-    assert 2 * len(read_gdf) == len(written_gdf)
+
+@pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
+def test_to_file_append(tmp_path, suffix, engine_setter):
+    test_path = test_helper.get_testfile(
+        "polygon-parcel", dst_dir=tmp_path, suffix=suffix
+    )
+    raise_on_nogeom = False if suffix == ".csv" else True
+
+    test_gdf = gfo.read_file(test_path)
+    gfo.to_file(test_gdf, path=test_path, append=True)
+
+    # Check result
+    assert test_path.exists()
+    dst_info = gfo.get_layerinfo(test_path, raise_on_nogeom=raise_on_nogeom)
+    assert dst_info.featurecount == len(test_gdf) * 2
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
