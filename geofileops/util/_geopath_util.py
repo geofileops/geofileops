@@ -16,7 +16,7 @@ def stem(path: Union[str, "os.PathLike[Any]"]) -> str:
     Returns:
         str: the stem of the path.
     """
-    # If there are multiple "."s the name, check if it is a geo multi-suffix
+    # If there are multiple "."s in the name, check if it is a geo multi-suffix
     path = PurePath(path)
     if path.name.count(".") > 1:
         name_lower = path.name.lower()
@@ -42,7 +42,7 @@ def suffixes(path: Union[str, "os.PathLike[Any]"]) -> str:
     Returns:
         str: The suffixes of the path.
     """
-    # If there are multiple "."s the name, check if it is a geo multi-suffix
+    # If there are multiple "."s in the name, check if it is a geo multi-suffix
     path = PurePath(path)
     if path.name.count(".") > 1:
         name_lower = path.name.lower()
@@ -67,7 +67,7 @@ def with_stem(path: Union[str, "os.PathLike[Any]"], new_stem: str) -> str | Path
         str | Path: The path with the new stem.
 
     """
-    # If there are multiple "."s the name, check if it is a geo multi-suffix
+    # If there are multiple "."s in the name, check if it is a geo multi-suffix
     path_p = PurePath(path)
 
     new_path_str = None
