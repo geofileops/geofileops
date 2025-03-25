@@ -181,7 +181,8 @@ def get_testfile(
 
         # Prepare the file in a tmp file so the file is not visible to other
         # processes until it is completely ready.
-        tmp_path = _geopath_util.with_stem(prepared_path, f"{prepared_path.stem}_tmp")
+        prepared_stem = _geopath_util.stem(prepared_path)
+        tmp_path = _geopath_util.with_stem(prepared_path, f"{prepared_stem}_tmp")
         layers = gfo.listlayers(testfile_path)
         dst_info = _geofileinfo.get_geofileinfo(tmp_path)
         if len(layers) > 1 and dst_info.is_singlelayer:
@@ -194,7 +195,9 @@ def get_testfile(
         for src_layer in layers:
             # Single layer files have stem as layername
             assert isinstance(tmp_path, Path)
-            dst_layer = tmp_path.stem if dst_info.is_singlelayer else src_layer
+            dst_layer = (
+                _geopath_util.stem(tmp_path) if dst_info.is_singlelayer else src_layer
+            )
 
             gfo.copy_layer(
                 testfile_path,

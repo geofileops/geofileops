@@ -392,15 +392,8 @@ def get_layerinfo(
 
         # If there were no errors, everything was OK so we can return.
         if len(errors) == 0:
-            if str(path).lower().endswith(".shp.zip"):
-                # datasource_layer.GetName() incorrectly includes the .shp extension in
-                # GDAL <= 3.10
-                layername = _geopath_util.stem(path)
-            else:
-                layername = datasource_layer.GetName()
-
             return LayerInfo(
-                name=layername,
+                name=datasource_layer.GetName(),
                 featurecount=datasource_layer.GetFeatureCount(),
                 total_bounds=total_bounds,  # type: ignore[arg-type]
                 geometrycolumn=geometrycolumn,  # type: ignore[arg-type]
