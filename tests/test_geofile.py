@@ -1015,6 +1015,9 @@ def test_get_crs_vsi():
     ],
 )
 def test_get_default_layer(path, exp_default_layer):
+    if os.name != "nt" and str(path).lower().startswith("c:"):
+        pytest.skip("Test only valid on Windows")
+
     layer = gfo.get_default_layer(path)
     assert layer == exp_default_layer
 
