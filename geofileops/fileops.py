@@ -106,11 +106,10 @@ def listlayers(
         <a href="https://gdal.org/en/stable/user/virtual_file_systems.html" target="_blank">GDAL vsi</a>
 
     """  # noqa: E501
-    path_p = Path(path)
-    if path_p.suffix.lower() == ".shp":
+    if str(path).lower().endswith((".shp", ".shp.zip")):
         if not _vsi_exists(path):
             raise FileNotFoundError(f"File not found: {path}")
-        return [path_p.stem]
+        return [_geopath_util.stem(path)]
 
     datasource = None
     try:

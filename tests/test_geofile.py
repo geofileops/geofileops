@@ -1261,7 +1261,9 @@ def test_listlayers_errors(suffix):
     "suffix, only_spatial_layers, expected",
     [
         (".gpkg", True, ["parcels"]),
+        (".gpkg.zip", True, ["parcels"]),
         (".shp", True, ["{src_stem}"]),
+        (".shp.zip", True, ["{src_stem}"]),
         (".csv", True, []),
         (".csv", False, ["{src_stem}"]),
     ],
@@ -1271,7 +1273,7 @@ def test_listlayers_one_layer(suffix, only_spatial_layers, expected):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     layers = gfo.listlayers(src, only_spatial_layers=only_spatial_layers)
 
-    expected = [exp.format(src_stem=src.stem) for exp in expected]
+    expected = [exp.format(src_stem=_geopath_util.stem(src)) for exp in expected]
     assert layers == expected
 
 
