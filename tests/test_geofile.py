@@ -2475,3 +2475,37 @@ def test_launder_columns():
         NotImplementedError, match="Not supported to launder > 99 columns starting with"
     ):
         laundered = fileops._launder_column_names(columns)
+
+
+def test_zip_unzip(tmp_path):
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel")
+    zip_path = tmp_path / "zipped.zip"
+    fileops._zip(src, zip_path)
+
+    # Unzip and check result
+    dst_dir = tmp_path / "unzipped"
+    fileops._unzip(zip_path, dst_dir)
+    assert len(list(dst_dir.iterdir())) == 1
+    assert (dst_dir / src.name).exists()
+
+
+def test_zip_unzip_dir(tmp_path):
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel")
+    zip_dir = tmp_path / "dir_to_zip"
+    zip_dir.mkdir()
+    file1 = zip_dir / f"{src.stem}_1{src.suffix}"
+    file2 = zip_dir / f"{src.stem}_2{src.suffix}"
+    gfo.copy(src, file1)
+    gfo.copy(src, file2)
+    zip_path = tmp_path / "zipped.zip"
+    fileops._zip(zip_dir, zip_path)
+
+    # Unzip and check result
+    dst_dir = tmp_path / "unzipped"
+    fileops._unzip(zip_path, dst_dir)
+    assert dst_dir.exists()
+    assert len(list(dst_dir.iterdir())) == 2
+    assert (dst_dir / file1.name).exists()
+    assert (dst_dir / file2.name).exists()
