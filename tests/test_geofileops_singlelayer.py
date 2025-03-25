@@ -1142,7 +1142,9 @@ def test_simplify(
     kwargs = {}
     if keep_empty_geoms is not None:
         kwargs["keep_empty_geoms"] = keep_empty_geoms
-    output_path = _geopath_util.with_stem(input_path, output_path)
+    output_path = _geopath_util.with_stem(
+        input_path, f"{output_path.stem}_{keep_empty_geoms}"
+    )
     geoops.simplify(
         input_path=input_path,
         output_path=output_path,
