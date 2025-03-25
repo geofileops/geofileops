@@ -195,7 +195,12 @@ def get_testfile(
         for src_layer in layers:
             # Single layer files have stem as layername
             assert isinstance(tmp_path, Path)
-            dst_layer = tmp_stem if dst_info.is_singlelayer else src_layer
+            if dst_info.is_singlelayer:
+                dst_layer = tmp_stem
+                preserve_fid = False
+            else:
+                dst_layer = src_layer
+                preserve_fid = not explodecollections
 
             gfo.copy_layer(
                 testfile_path,
@@ -205,7 +210,7 @@ def get_testfile(
                 write_mode="add_layer",
                 dst_crs=epsg,
                 reproject=True,
-                preserve_fid=not explodecollections,
+                preserve_fid=preserve_fid,
                 dst_dimensions=dimensions,
                 explodecollections=explodecollections,
             )
