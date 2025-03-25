@@ -3,6 +3,7 @@
 import enum
 import filecmp
 import logging
+import os
 import pprint
 import shutil
 import string
@@ -13,12 +14,7 @@ import zipfile
 from collections.abc import Iterable
 from datetime import date, datetime
 from pathlib import Path
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Literal,
-    Union,
-)
+from typing import Any, Literal, Union
 
 import geopandas as gpd
 import numpy as np
@@ -39,9 +35,6 @@ from geofileops.util import (
     _ogr_sql_util,
     _ogr_util,
 )
-
-if TYPE_CHECKING:  # pragma: no cover
-    import os
 
 logger = logging.getLogger(__name__)
 
