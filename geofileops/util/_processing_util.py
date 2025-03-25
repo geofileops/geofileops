@@ -1,5 +1,7 @@
 """Module containing utilities regarding processes."""
 
+import multiprocessing
+import multiprocessing.context
 import os
 from concurrent import futures
 
@@ -14,16 +16,27 @@ class PooledExecutorFactory:
             False to get a ProcessPoolExecutor. Defaults to True.
         max_workers (int, optional): Max number of workers.
             Defaults to None to get automatic determination.
-        initialisze (function, optional): Function that does initialisations.
+        initializer (function, optional): Function that does initialisations.
+        mp_context (BaseContext, optional): multiprocessing context if processes are
+            used. If None "spawn" will be used for ALL platforms to avoid risks to
+            deadlocks. Defaults to None.
+
     """
 
-    def __init__(self, threadpool: bool = True, max_workers=None, initializer=None):
+    def __init__(
+        self,
+        threadpool: bool = True,
+        max_workers=None,
+        initializer=None,
+        mp_context: multiprocessing.context.BaseContext | None = None,
+    ):
         self.threadpool = threadpool
         if max_workers is not None and os.name == "nt":
             self.max_workers = min(max_workers, 61)
         else:
             self.max_workers = max_workers
         self.initializer = initializer
+        self.mp_context = mp_context
         self.pool: futures.Executor | None = None
 
     def __enter__(self) -> futures.Executor:
@@ -32,8 +45,12 @@ class PooledExecutorFactory:
                 max_workers=self.max_workers, initializer=self.initializer
             )
         else:
+            if self.mp_context is None:
+                self.mp_context = multiprocessing.get_context("spawn")
             self.pool = futures.ProcessPoolExecutor(
-                max_workers=self.max_workers, initializer=self.initializer
+                max_workers=self.max_workers,
+                initializer=self.initializer,
+                mp_context=self.mp_context,
             )
         return self.pool
 
