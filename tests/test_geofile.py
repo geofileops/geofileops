@@ -177,7 +177,7 @@ def test_append_to(tmp_path):
     assert info.featurecount == 96
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
+@pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS_EXT)
 def test_cmp(tmp_path, suffix):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     src2 = test_helper.get_testfile("polygon-invalid", suffix=suffix)
@@ -915,7 +915,7 @@ def test_copy_layer_write_mode_force(tmp_path, write_mode, force):
         assert dst.stat().st_mtime == mtime_orig
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
+@pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS_EXT)
 def test_copy(tmp_path, suffix):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
@@ -1073,9 +1073,14 @@ def test_get_layer_geometrytypes_vsi(tmp_path):
     assert geometrytypes == ["POLYGON"]
 
 
-@pytest.mark.parametrize("suffix", [".gpkg", ".shp"])
+@pytest.mark.parametrize("suffix", [".gpkg", ".gpkg.zip", ".shp", ".shp.zip"])
 @pytest.mark.parametrize("dimensions", [None, "XYZ"])
 def test_get_layerinfo(suffix, dimensions):
+    if dimensions == "XYZ" and suffix == ".gpkg.zip":
+        pytest.skip(
+            "get_testfile for dim=XYZ requires updating: so skip .gpkg.zip + XYZ"
+        )
+
     src = test_helper.get_testfile(
         "polygon-parcel", suffix=suffix, dimensions=dimensions
     )
@@ -1285,7 +1290,7 @@ def test_listlayers_vsi():
     assert "poly" in layers
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
+@pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS_EXT)
 def test_move(tmp_path, suffix):
     src = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=suffix)
 
@@ -1362,11 +1367,16 @@ def test_update_column_error(tmp_path):
         gfo.update_column(test_path, name="OPPERVL", expression="invalid_expression")
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
+@pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS_EXT)
 @pytest.mark.parametrize("dimensions", [None, "XYZ"])
 def test_read_file(suffix, dimensions, engine_setter):
     # Remark: it seems like Z dimensions aren't read in geopandas.
     # Prepare and validate test data
+    if dimensions == "XYZ" and suffix == ".gpkg.zip":
+        pytest.skip(
+            "get_testfile for dim=XYZ requires updating: so skip .gpkg.zip + XYZ"
+        )
+
     src = test_helper.get_testfile(
         "polygon-parcel", suffix=suffix, dimensions=dimensions
     )
