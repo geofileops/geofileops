@@ -195,9 +195,7 @@ def get_testfile(
         for src_layer in layers:
             # Single layer files have stem as layername
             assert isinstance(tmp_path, Path)
-            dst_layer = (
-                _geopath_util.stem(tmp_path) if dst_info.is_singlelayer else src_layer
-            )
+            dst_layer = prepared_stem if dst_info.is_singlelayer else src_layer
 
             gfo.copy_layer(
                 testfile_path,
