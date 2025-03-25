@@ -4,7 +4,7 @@ import shapely.ops
 from shapely import MultiPolygon, Point, Polygon
 from shapely.testing import assert_geometries_equal
 
-from geofileops.util import _sqlite_userdefined as _sqlite_userdefined
+from geofileops.util import _sqlite_userdefined
 
 
 def test_gfo_difference_collection():
