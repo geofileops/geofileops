@@ -3492,6 +3492,8 @@ def _two_layer_vector_operation(
                 ):
                     # convert geometrytype to multitype to avoid ogr warnings
                     output_geometrytype_now = force_output_geometrytype.to_multitype
+                    if "geom" in column_datatypes:
+                        column_datatypes["geom"] = output_geometrytype_now.name
 
                 # Remark: this temp file doesn't need spatial index
                 future = calculate_pool.submit(
