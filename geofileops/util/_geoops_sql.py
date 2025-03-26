@@ -1553,13 +1553,16 @@ def export_by_location(
         if area_inters_column_name is None:
             area_inters_column_name = "area_inters"
 
+        # Cast the intersection to REAL so SQLite knows the result is a REAL even if the
+        # result is NULL. Without it, GDAL gives warnings afterwards because the data
+        # type is ''.
         sql_template = f"""
             SELECT filtered.*
-                  ,(SELECT SUM(ST_area(
+                  ,(SELECT CAST(SUM(ST_area(
                              ST_intersection(
                                filtered.geom, layer2_sub.{{input2_geometrycolumn}}
                              )
-                           ))
+                           )) AS REAL)
                       FROM {{input2_databasename}}."{{input2_layer}}" layer2_sub
                       JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
                         ON layer2_sub.rowid = layer2tree.id
