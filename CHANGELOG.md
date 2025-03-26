@@ -4,8 +4,8 @@
 
 ### Deprecations and compatibility notes
 
-- processes are being spawned using "spawn" also on linux now. This solves risks of
-  deadlocks and the corresponding warning for that. Consequence is that also on linux
+- worker processes are now being created using "forkserver" on linux. This solves risks
+  of deadlocks and the corresponding warning for that. Consequence is that also on linux
   the `if __name__ == "__main__":` construct needs to be used in scripts. Some more info
   can be found in the geofileops FAQ (#675).
 - `erase` was renamed to `difference`, as most other open source applications/libraries
