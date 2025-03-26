@@ -2423,11 +2423,12 @@ def join_nearest(
         # Add input2 layer to sqlite gfo...
         input2_tmp_path = input1_tmp_path
         input2_tmp_layer = "input2_layer"
-        gfo.append_to(
+        gfo.copy_layer(
             src=input2_path,
             src_layer=input2_layer,
             dst=input2_tmp_path,
             dst_layer=input2_tmp_layer,
+            write_mode="append",
             preserve_fid=True,
         )
 
