@@ -1834,7 +1834,7 @@ def test_spatial_index_gpkg_zip(tmp_path):
     assert has_spatial_index is True
 
     # Removing spatial index in not supported as .gpkg.zip is read-only
-    with pytest.raises(ValueError, match="remove_spatial_index not supported for"):
+    with pytest.raises(RuntimeError, match="remove_spatial_index error"):
         gfo.remove_spatial_index(path=test_path, layer=layer)
 
     # Create spatial index is supported with `exist_ok=True`
