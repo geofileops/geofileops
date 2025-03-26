@@ -45,9 +45,7 @@ class PooledExecutorFactory:
                 max_workers=self.max_workers, initializer=self.initializer
             )
         else:
-            if self.mp_context is None and not (
-                os.name == "nt" and os.name == "darwin"
-            ):
+            if self.mp_context is None and os.name not in {"nt", "darwin"}:
                 # On linux, use "forkserver" to avoid risks to deadlocks
                 self.mp_context = multiprocessing.get_context("forkserver")
             self.pool = futures.ProcessPoolExecutor(
