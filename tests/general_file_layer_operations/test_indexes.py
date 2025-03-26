@@ -155,8 +155,9 @@ def test_create_spatial_index_invalid_params():
         _ = gfo.create_spatial_index(path=path, exist_ok=True, force_rebuild=True)
 
 
-def test_has_spatial_index():
-    src = test_helper.get_testfile("polygon-parcel")
+@pytest.mark.parametrize("suffix", [s for s in SUFFIXES_FILEOPS if s != ".csv"])
+def test_has_spatial_index(suffix):
+    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
     # Test
     has_spatial_index = gfo.has_spatial_index(src)
@@ -173,6 +174,27 @@ def test_has_spatial_index_datasource():
 
     assert datasource is not None
     datasource = None
+
+
+def test_has_spatial_index_no_geom(tmp_path):
+    """A geofile without geometry column never has a spatial index."""
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel", suffix=".csv")
+    test_path = tmp_path / "test_file.dbf"
+    gfo.copy_layer(src, test_path)
+
+    # Test
+    has_spatial_index = gfo.has_spatial_index(test_path)
+    assert not has_spatial_index
+
+
+@pytest.mark.parametrize("suffix", [".csv"])
+def test_has_spatial_index_unsupported(suffix):
+    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+
+    # Test
+    with pytest.raises(ValueError, match="has_spatial_index not supported for CSV"):
+        _ = gfo.has_spatial_index(src)
 
 
 def test_remove_spatial_index(tmp_path):
