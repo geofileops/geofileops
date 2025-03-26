@@ -156,12 +156,18 @@ def test_create_spatial_index_invalid_params():
 
 
 @pytest.mark.parametrize("suffix", [s for s in SUFFIXES_FILEOPS if s != ".csv"])
-def test_has_spatial_index(suffix):
-    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+def test_has_spatial_index(tmp_path, suffix):
+    src = test_helper.get_testfile("polygon-parcel", suffix=suffix, dst_dir=tmp_path)
 
     # Test
     has_spatial_index = gfo.has_spatial_index(src)
-    assert has_spatial_index
+    if GeofileInfo(src).default_spatial_index:
+        assert has_spatial_index
+    else:
+        # File format that doesn't have a spatial index by default
+        assert not has_spatial_index
+        gfo.create_spatial_index(src)
+        assert gfo.has_spatial_index(src)
 
 
 def test_has_spatial_index_datasource():
