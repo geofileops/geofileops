@@ -28,4 +28,4 @@ dependencies:
   - pytest-cov
   - pytest-xdist
   - pip:
-    - shapely =2.1.0rc1
+    - shapely ==2.1.0rc1
