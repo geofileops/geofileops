@@ -1,4 +1,4 @@
-import os
+"""General helper functions, specific for geofileops."""
 
 from geofileops.helpers._configoptions_helper import ConfigOptions
 
