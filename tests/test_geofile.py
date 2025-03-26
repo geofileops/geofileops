@@ -1400,6 +1400,26 @@ def test_get_only_layer_vsi():
     assert layer == "poly"
 
 
+def test_has_spatial_index():
+    src = test_helper.get_testfile("polygon-parcel")
+
+    # Test
+    has_spatial_index = gfo.has_spatial_index(src)
+    assert has_spatial_index
+
+
+def test_has_spatial_index_datasource():
+    src = test_helper.get_testfile("polygon-parcel")
+
+    # Test
+    datasource = gdal.OpenEx(str(src), gdal.OF_VECTOR)
+    has_spatial_index = gfo.has_spatial_index(src, datasource=datasource)
+    assert has_spatial_index
+
+    assert datasource is not None
+    datasource = None
+
+
 @pytest.mark.filterwarnings(
     "ignore: is_geofile is deprecated and will be removed in a future version"
 )
@@ -2485,7 +2505,35 @@ def test_remove(tmp_path, suffix):
 
     # Remove and check result
     gfo.remove(str(src))
-    assert src.exists() is False
+    assert not src.exists()
+
+
+def test_remove_spatial_index(tmp_path):
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    gfo.create_spatial_index(src, exist_ok=True)
+    assert gfo.has_spatial_index(src)
+
+    # Remove spatial index and check result
+    gfo.remove_spatial_index(src)
+    assert not gfo.has_spatial_index(src)
+
+
+def test_remove_spatial_index_datasource(tmp_path):
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    gfo.create_spatial_index(src, exist_ok=True)
+    assert gfo.has_spatial_index(src)
+
+    # Remove spatial index and check result
+    datasource = gdal.OpenEx(str(src), gdal.OF_VECTOR | gdal.OF_UPDATE)
+    gfo.remove_spatial_index(src, datasource=datasource)
+
+    # Check result
+    assert not gfo.has_spatial_index(src)
+    # Datasource should not be closed by has_spatial_index
+    assert datasource is not None
+    datasource = None
 
 
 def test_launder_columns():
