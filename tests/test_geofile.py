@@ -1811,6 +1811,13 @@ def test_spatial_index(tmp_path, suffix):
         assert qix_path.stat().st_mtime == qix_modified_time_orig
         gfo.create_spatial_index(path=test_path, layer=layer, force_rebuild=True)
         assert qix_path.stat().st_mtime > qix_modified_time_orig
+    elif suffix == ".gpkg":
+        gfo.create_spatial_index(path=test_path, layer=layer, exist_ok=True)
+        has_spatial_index = gfo.has_spatial_index(path=test_path, layer=layer)
+        assert has_spatial_index is True
+        gfo.create_spatial_index(path=test_path, layer=layer, force_rebuild=True)
+        has_spatial_index = gfo.has_spatial_index(path=test_path, layer=layer)
+        assert has_spatial_index is True
 
 
 def test_spatial_index_gpkg_zip(tmp_path):
