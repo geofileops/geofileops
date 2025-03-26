@@ -18,10 +18,14 @@ dependencies:
   - pygeoops
   - pyogrio
   - pyproj
-  - conda-forge/label/shapely_dev::shapely >=2
+  #- shapely >=2,<2.1
   # optional
   - simplification
+  # extra dependencies for pip packages
+  - geos
   # testing
   - pytest
   - pytest-cov
   - pytest-xdist
+  - pip
+    - shapely ==2.1.0rc1
