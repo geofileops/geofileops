@@ -3377,7 +3377,9 @@ def _two_layer_vector_operation(
         )
 
         column_datatypes = _sqlite_util.get_columns(
-            sql_stmt=sql_stmt, input_databases=input_db_names
+            sql_stmt=sql_stmt,
+            input_databases=input_db_names,
+            output_geometrytype=force_output_geometrytype,
         )
 
         # Apply gridsize if it is specified
