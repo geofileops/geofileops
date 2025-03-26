@@ -18,7 +18,7 @@ dependencies:
   - pygeoops
   - pyogrio
   - pyproj
-  - shapely
+  - conda-forge/label/shapely_dev::shapely >=2
   # optional
   - simplification
   # testing
