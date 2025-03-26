@@ -10,12 +10,7 @@ def use_threads(input_layer_featurecount: int) -> bool:
     elif worker_type == "process":
         return False
 
-    """
-    if os.name != "nt":
-        return False"
-    """
-
-    # Processing in threads is 2x faster for small datasets on Windows
+    # Processing in threads is 2x faster for small datasets
     if input_layer_featurecount <= 100:
         return True
 

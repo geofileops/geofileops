@@ -1,4 +1,4 @@
-import os
+"""Tests for the general_helper module."""
 
 import pytest
 
