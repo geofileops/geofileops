@@ -17,7 +17,7 @@ dependencies:
   - pygeoops >=0.4
   - pyogrio >=0.7
   - pyproj
-  - shapely >=2,<2.1
+  - shapely >=2
   # optional
   - fiona
   - simplification
