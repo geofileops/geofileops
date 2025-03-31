@@ -30,7 +30,7 @@ setuptools.setup(
         "packaging",
         "pandas>=1.5",
         "psutil",
-        "pygeoops>=0.4,<0.5",
+        "pygeoops>=0.4,<0.6",
         "pyogrio>=0.7",
         "pyproj",
         "shapely>=2,<2.1",

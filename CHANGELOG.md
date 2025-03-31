@@ -1,10 +1,16 @@
 # CHANGELOG
 
-## 0.10 (2025-03-26)
+## 0.10.1 (yyyy-mm-dd)
+
+### Improvements
+
+- Update minimal versions of dependencies (#)
+
+## 0.10.0 (2025-03-26)
 
 ### Deprecations and compatibility notes
 
-- worker processes are now being created using "forkserver" on linux. This solves risks
+- Worker processes are now being created using "forkserver" on linux. This solves risks
   of deadlocks and the corresponding warning for that. Consequence is that also on linux
   the `if __name__ == "__main__":` construct needs to be used in scripts. Some more info
   can be found in the geofileops FAQ (#675).
