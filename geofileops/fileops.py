@@ -613,22 +613,15 @@ def create_spatial_index(
     if exist_ok and force_rebuild:
         raise ValueError("exist_ok and force_rebuild can't both be True")
 
-    # .gpkg.zip files don't support update, so use has_spatial_index up-front to check
-    # if there is an index.
-    if str(path).lower().endswith(".gpkg.zip"):
-        if has_spatial_index(path, layer):
-            if force_rebuild:
-                pass
-            elif exist_ok:
-                return
-            else:
-                raise RuntimeError(
-                    f"spatial index already exists on {path}#{layer.name}"
-                )
-
-        raise RuntimeError(
-            f"create_spatial_index not supported for .gpkg.zip files: {path}"
-        )
+    # use has_spatial_index up-front to check if there is an index.
+    needs_spatial_index_removed = False
+    if has_spatial_index(path, layer):
+        if force_rebuild:
+            needs_spatial_index_removed = True
+        elif exist_ok:
+            return
+        else:
+            raise RuntimeError(f"spatial index already exists on {path}#{layer.name}")
 
     # Add index
     path_info = _geofileinfo.get_geofileinfo(path)
@@ -637,15 +630,8 @@ def create_spatial_index(
         with _ogr_util.set_config_options({"OGR_SQLITE_CACHE": cache_size_mb}):
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             # If index already exists, remove index or return
-            if has_spatial_index(path, layer, datasource=datasource):
-                if force_rebuild:
-                    remove_spatial_index(path, layer, datasource=datasource)
-                elif exist_ok:
-                    return
-                else:
-                    raise RuntimeError(
-                        f"spatial index already exists on {path}#{layer.name}"
-                    )
+            if needs_spatial_index_removed:
+                remove_spatial_index(path, layer, datasource=datasource)
 
             if path_info.is_spatialite_based:
                 geometrycolumn = layer.geometrycolumn

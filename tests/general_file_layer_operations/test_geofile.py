@@ -492,9 +492,10 @@ def test_copy_layer_append_shp_laundered_columns(tmp_path, testfile):
 
 
 @pytest.mark.parametrize("create_spatial_index", [True, False])
-def test_copy_layer_append_spatial_index(tmp_path, create_spatial_index):
+@pytest.mark.parametrize("read_only", [True, False])
+def test_copy_layer_append_spatial_index(tmp_path, create_spatial_index, read_only):
     # Prepare test data
-    src = test_helper.get_testfile("polygon-parcel")
+    src = test_helper.get_testfile("polygon-parcel", read_only=read_only)
     dst = tmp_path / "output.gpkg"
     layer1 = gfo.get_default_layer(dst)
 
@@ -1914,14 +1915,16 @@ def test_to_file_attribute_table_gpkg(tmp_path, engine_setter):
         [".shp", None, False],
     ],
 )
+@pytest.mark.parametrize("read_only", [True, False])
 def test_to_file_create_spatial_index(
     tmp_path,
     suffix: str,
     create_spatial_index: bool,
     expected_spatial_index: bool,
     engine_setter,
+    read_only: bool,
 ):
-    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    src = test_helper.get_testfile("polygon-parcel", suffix=suffix, read_only=read_only)
     output_path = tmp_path / f"{src.stem}-output{suffix}"
 
     # Read test file and write to tmppath

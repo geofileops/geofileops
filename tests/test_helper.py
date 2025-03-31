@@ -5,6 +5,7 @@ Helper functions for all tests.
 import os
 import tempfile
 from pathlib import Path
+from stat import S_IREAD, S_IRGRP, S_IROTH, S_IWUSR
 
 import geopandas as gpd
 import geopandas.testing as gpd_testing
@@ -147,6 +148,36 @@ def get_testfile(
     empty: bool = False,
     dimensions: str | None = None,
     explodecollections: bool = False,
+    read_only: bool = False,
+) -> Path:
+    # if dst_dir is None:
+    #     read_only = True
+
+    prepared_path = _get_testfile(
+        testfile=testfile,
+        dst_dir=dst_dir,
+        suffix=suffix,
+        epsg=epsg,
+        empty=empty,
+        dimensions=dimensions,
+        explodecollections=explodecollections,
+    )
+
+    if read_only:
+        # Make input read-only
+        set_read_only(prepared_path, read_only=True)
+
+    return prepared_path
+
+
+def _get_testfile(
+    testfile: str,
+    dst_dir: Path | None = None,
+    suffix: str = ".gpkg",
+    epsg: int = 31370,
+    empty: bool = False,
+    dimensions: str | None = None,
+    explodecollections: bool = False,
 ) -> Path:
     # Prepare original filepath.
     testfile_path = data_dir / f"{testfile}.gpkg"
@@ -248,6 +279,19 @@ def get_testfile(
         raise
     finally:
         prepared_lock_path.unlink(missing_ok=True)
+
+
+def set_read_only(path: Path, read_only: bool) -> None:
+    """Set the file to read-only or read-write."""
+    if path.exists():
+        if read_only:
+            # Set read-only
+            os.chmod(path, S_IREAD | S_IRGRP | S_IROTH)
+        else:
+            # Set read-write
+            os.chmod(path, S_IWUSR | S_IREAD)
+    else:
+        raise FileNotFoundError(f"File not found: {path}")
 
 
 class TestData:
