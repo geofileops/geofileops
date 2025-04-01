@@ -2233,21 +2233,22 @@ def copy(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
     src_info = _geofileinfo.get_geofileinfo(src)
 
     # Copy the main file
-    shutil.copy(str(src), dst)
+    # We use copyfile instead of copy to avoid copying the file permissions
+    shutil.copyfile(str(src), dst)
 
     # For some file types, extra files need to be copied
     # If dest is a dir, just use move. Otherwise concat dest filepaths
     if dst.is_dir():
         for suffix in src_info.suffixes_extrafiles:
             srcfile = src.parent / f"{src.stem}{suffix}"
-            if srcfile.exists():
-                shutil.copy(str(srcfile), dst)
+            if srcfile.exists() and not dst.exists():
+                shutil.copyfile(str(srcfile), dst)
     else:
         for suffix in src_info.suffixes_extrafiles:
             srcfile = src.parent / f"{src.stem}{suffix}"
             dstfile = dst.parent / f"{dst.stem}{suffix}"
-            if srcfile.exists():
-                shutil.copy(str(srcfile), dstfile)
+            if srcfile.exists() and not dstfile.exists():
+                shutil.copyfile(str(srcfile), dstfile)
 
 
 def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]):

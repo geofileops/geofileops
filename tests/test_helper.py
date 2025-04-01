@@ -5,7 +5,7 @@ Helper functions for all tests.
 import os
 import tempfile
 from pathlib import Path
-from stat import S_IREAD, S_IRGRP, S_IROTH, S_IWUSR
+from stat import S_IRGRP, S_IROTH, S_IRUSR, S_IRWXG, S_IRWXO, S_IRWXU
 
 import geopandas as gpd
 import geopandas.testing as gpd_testing
@@ -289,10 +289,10 @@ def set_read_only(path: Path, read_only: bool) -> None:
     if path.exists():
         if read_only:
             # Set read-only
-            os.chmod(path, S_IREAD | S_IRGRP | S_IROTH)
+            os.chmod(path, S_IRUSR | S_IRGRP | S_IROTH)
         else:
             # Set read-write
-            os.chmod(path, S_IWUSR | S_IREAD)
+            os.chmod(path, S_IRWXU | S_IRWXG | S_IRWXO)
     else:
         raise FileNotFoundError(f"File not found: {path}")
 
