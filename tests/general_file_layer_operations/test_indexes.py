@@ -112,9 +112,7 @@ def test_create_spatial_index_gpkg_zip(tmp_path):
         gfo.create_spatial_index(path=test_path, layer=layer)
 
     # If  `force_rebuild=True` is specified, error
-    with pytest.raises(
-        RuntimeError, match="create_spatial_index not supported for .gpkg.zip files"
-    ):
+    with pytest.raises(RuntimeError, match="create_spatial_index error"):
         gfo.create_spatial_index(path=test_path, layer=layer, force_rebuild=True)
 
     # Test cases where the input file does not have an index
@@ -130,9 +128,7 @@ def test_create_spatial_index_gpkg_zip(tmp_path):
     fileops._zip(test_path, test_zip_path)
     assert not gfo.has_spatial_index(path=test_path, layer=layer)
 
-    with pytest.raises(
-        RuntimeError, match="create_spatial_index not supported for .gpkg.zip files"
-    ):
+    with pytest.raises(RuntimeError, match="create_spatial_index error"):
         gfo.create_spatial_index(path=test_zip_path, layer=layer)
 
 

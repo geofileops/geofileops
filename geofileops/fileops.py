@@ -613,19 +613,22 @@ def create_spatial_index(
     if exist_ok and force_rebuild:
         raise ValueError("exist_ok and force_rebuild can't both be True")
 
-    # use has_spatial_index up-front to check if there is an index.
-    needs_spatial_index_removed = False
-    if has_spatial_index(path, layer):
-        if force_rebuild:
-            needs_spatial_index_removed = True
-        elif exist_ok:
-            return
-        else:
-            raise RuntimeError(f"spatial index already exists on {path}#{layer.name}")
-
     # Add index
     path_info = _geofileinfo.get_geofileinfo(path)
     try:
+        # use has_spatial_index up-front to check if there is an index.
+        needs_spatial_index_removed = False
+        if has_spatial_index(path, layer):
+            if force_rebuild:
+                needs_spatial_index_removed = True
+            elif exist_ok:
+                return
+            else:
+                raise RuntimeError(
+                    f"spatial index already exists on {path}#{layer.name}"
+                )
+
+        # try:
         # The config options need to be set before opening the file!
         with _ogr_util.set_config_options({"OGR_SQLITE_CACHE": cache_size_mb}):
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
