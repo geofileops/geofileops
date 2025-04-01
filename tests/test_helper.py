@@ -148,9 +148,11 @@ def get_testfile(
     empty: bool = False,
     dimensions: str | None = None,
     explodecollections: bool = False,
-    read_only: bool = False,
+    read_only: bool | None = None,
 ) -> Path:
-    # if dst_dir is None:
+    if dst_dir is not None:
+        read_only = False
+    # else:
     #     read_only = True
 
     prepared_path = _get_testfile(
