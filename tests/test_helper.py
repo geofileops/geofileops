@@ -151,8 +151,7 @@ def get_testfile(
     read_only: bool | None = None,
 ) -> Path:
     if dst_dir is None:
-        pass
-        # read_only = True
+        read_only = True
     else:
         read_only = False
 
@@ -168,7 +167,14 @@ def get_testfile(
 
     # Make input read-only
     if read_only:
-        set_read_only(prepared_path, read_only=read_only)
+        set_read_only(prepared_path, read_only=True)
+
+        # For some file types, extra files need to be copied
+        src_info = _geofileinfo.get_geofileinfo(prepared_path)
+        for s in src_info.suffixes_extrafiles:
+            extra_file_path = prepared_path.parent / f"{prepared_path.stem}{s}"
+            if extra_file_path.exists():
+                set_read_only(extra_file_path, read_only=True)
 
     return prepared_path
 
