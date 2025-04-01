@@ -150,10 +150,11 @@ def get_testfile(
     explodecollections: bool = False,
     read_only: bool | None = None,
 ) -> Path:
-    # if dst_dir is not None:
-    #     read_only = False
-    # else:
-    #     read_only = True
+    if dst_dir is None:
+        pass
+        # read_only = True
+    else:
+        read_only = False
 
     prepared_path = _get_testfile(
         testfile=testfile,
@@ -165,9 +166,9 @@ def get_testfile(
         explodecollections=explodecollections,
     )
 
-    # if read_only:
     # Make input read-only
-    # set_read_only(prepared_path, read_only=True)
+    if read_only:
+        set_read_only(prepared_path, read_only=read_only)
 
     return prepared_path
 
