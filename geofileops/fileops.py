@@ -2234,21 +2234,19 @@ def copy(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
 
     # Copy the main file
     # We use copyfile instead of copy to avoid copying the file permissions
-    shutil.copyfile(str(src), dst)
+    if dst.is_dir():
+        dst = dst / src.name
+    shutil.copyfile(src, dst)
 
     # For some file types, extra files need to be copied
-    # If dest is a dir, just use move. Otherwise concat dest filepaths
-    if dst.is_dir():
-        for suffix in src_info.suffixes_extrafiles:
-            srcfile = src.parent / f"{src.stem}{suffix}"
-            if srcfile.exists() and not dst.exists():
-                shutil.copyfile(str(srcfile), dst)
-    else:
-        for suffix in src_info.suffixes_extrafiles:
-            srcfile = src.parent / f"{src.stem}{suffix}"
+    for suffix in src_info.suffixes_extrafiles:
+        if dst.is_dir():
+            dstfile = dst / f"{src.stem}{suffix}"
+        else:
             dstfile = dst.parent / f"{dst.stem}{suffix}"
-            if srcfile.exists() and not dstfile.exists():
-                shutil.copyfile(str(srcfile), dstfile)
+        srcfile = src.parent / f"{src.stem}{suffix}"
+        if srcfile.exists() and not dstfile.exists():
+            shutil.copyfile(srcfile, dstfile)
 
 
 def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]):
