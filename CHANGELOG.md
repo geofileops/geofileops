@@ -4,7 +4,7 @@
 
 ### Improvements
 
-- Update minimal versions of dependencies (#)
+- Don't pin maximum versions of dependencies for e.g. geopandas, shapely, pyogrio (#685)
 
 ## 0.10.0 (2025-03-26)
 
