@@ -152,8 +152,6 @@ def get_testfile(
 ) -> Path:
     if dst_dir is None:
         read_only = True
-    else:
-        read_only = False
 
     prepared_path = _get_testfile(
         testfile=testfile,
@@ -168,13 +166,6 @@ def get_testfile(
     # Make input read-only
     if read_only:
         set_read_only(prepared_path, read_only=True)
-
-        # For some file types, extra files need to be copied
-        src_info = _geofileinfo.get_geofileinfo(prepared_path)
-        for s in src_info.suffixes_extrafiles:
-            extra_file_path = prepared_path.parent / f"{prepared_path.stem}{s}"
-            if extra_file_path.exists():
-                set_read_only(extra_file_path, read_only=True)
 
     return prepared_path
 
@@ -292,15 +283,26 @@ def _get_testfile(
 
 def set_read_only(path: Path, read_only: bool) -> None:
     """Set the file to read-only or read-write."""
+
+    def _read_only(path: Path) -> None:
+        # Set read-only
+        os.chmod(path, S_IRUSR | S_IRGRP | S_IROTH)
+
+    def _read_write(path: Path) -> None:
+        # Set read-write
+        os.chmod(path, S_IRWXU | S_IRWXG | S_IRWXO)
+
     if path.exists():
-        if read_only:
-            # Set read-only
-            os.chmod(path, S_IRUSR | S_IRGRP | S_IROTH)
-        else:
-            # Set read-write
-            os.chmod(path, S_IRWXU | S_IRWXG | S_IRWXO)
+        _read_only(path) if read_only else _read_write(path)
     else:
         raise FileNotFoundError(f"File not found: {path}")
+
+    # For some file types, extra files need to be copied
+    src_info = _geofileinfo.get_geofileinfo(path)
+    for s in src_info.suffixes_extrafiles:
+        extra_file_path = path.parent / f"{path.stem}{s}"
+        if extra_file_path.exists():
+            _read_only(extra_file_path) if read_only else _read_write(extra_file_path)
 
 
 class TestData:

@@ -617,10 +617,10 @@ def create_spatial_index(
     path_info = _geofileinfo.get_geofileinfo(path)
     try:
         # use has_spatial_index up-front to check if there is an index.
-        needs_spatial_index_removed = False
+        remove_spatial_index_needed = False
         if has_spatial_index(path, layer):
             if force_rebuild:
-                needs_spatial_index_removed = True
+                remove_spatial_index_needed = True
             elif exist_ok:
                 return
             else:
@@ -633,7 +633,7 @@ def create_spatial_index(
         with _ogr_util.set_config_options({"OGR_SQLITE_CACHE": cache_size_mb}):
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             # If index already exists, remove index or return
-            if needs_spatial_index_removed:
+            if remove_spatial_index_needed:
                 remove_spatial_index(path, layer, datasource=datasource)
 
             if path_info.is_spatialite_based:
