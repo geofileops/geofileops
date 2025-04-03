@@ -177,13 +177,14 @@ def test_append_to(tmp_path):
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS_EXT)
-def test_cmp(tmp_path, suffix):
+@pytest.mark.parametrize("keep_permissions", [True, False])
+def test_cmp(tmp_path, suffix, keep_permissions):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     src2 = test_helper.get_testfile("polygon-invalid", suffix=suffix)
 
     # Copy test file to tmpdir
     dst = tmp_path / f"polygons_parcels_output{suffix}"
-    gfo.copy(str(src), str(dst))
+    gfo.copy(str(src), str(dst), keep_permissions=keep_permissions)
 
     # Now compare source and dst files
     assert gfo.cmp(src, dst) is True
@@ -915,12 +916,13 @@ def test_copy_layer_write_mode_force(tmp_path, write_mode, force):
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS_EXT)
-def test_copy(tmp_path, suffix):
+@pytest.mark.parametrize("keep_permissions", [True, False])
+def test_copy(tmp_path, suffix, keep_permissions):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
     # Copy to dest file
     dst = tmp_path / f"{src.stem}-output{suffix}"
-    gfo.copy(src, dst)
+    gfo.copy(src, dst, keep_permissions=keep_permissions)
     assert src.exists()
     assert dst.exists()
     if suffix == ".shp":
@@ -929,7 +931,7 @@ def test_copy(tmp_path, suffix):
     # Copy to dest dir
     dst_dir = tmp_path / "dest_dir"
     dst_dir.mkdir(parents=True, exist_ok=True)
-    gfo.copy(src, dst_dir)
+    gfo.copy(src, dst_dir, keep_permissions=keep_permissions)
     dst = dst_dir / src.name
     assert src.exists()
     assert dst.exists()
@@ -1462,7 +1464,7 @@ def test_read_file_columns_geometry(tmp_path, suffix, columns, geometry, engine_
         else:
             # For a multilayer filetype, add the attribute table so the file stays
             # multi-layer
-            gfo.copy(src, test_path)
+            gfo.copy(src, test_path, keep_permissions=False)
             gfo.to_file(input_df, test_path, layer=layer, append=False)
             assert len(gfo.listlayers(test_path)) > 1
         src = test_path
@@ -1619,13 +1621,11 @@ def test_read_file_sql_no_geom(suffix, engine_setter):
         (".gpkg", "polygon-twolayers", "parcels"),
     ],
 )
-def test_read_file_sql_placeholders(suffix, testfile, layer, columns, engine_setter):
+def test_read_file_sql_placeholders(suffix, testfile, layer, columns):
     """
     Test if placeholders are properly filled out + if casing used in columns parameter
     is retained when using placeholders.
     """
-    if engine_setter == "fiona":
-        pytest.skip("sql_stmt param not supported for fiona engine")
     # Prepare test data
     src = test_helper.get_testfile(testfile, suffix=suffix)
 
@@ -1703,9 +1703,7 @@ def test_rename_column_unsupported(tmp_path):
         _ = gfo.rename_column(path, column_name="abc", new_column_name="def")
 
 
-def test_rename_layer(tmp_path, engine_setter):
-    if engine_setter == "fiona":
-        pytest.skip("sql_stmt param not supported for fiona engine")
+def test_rename_layer(tmp_path):
     test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
     gfo.add_layerstyle(test_path, layer="parcels", name="stylename", qml="")
 

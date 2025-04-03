@@ -628,7 +628,6 @@ def create_spatial_index(
                     f"spatial index already exists on {path}#{layer.name}"
                 )
 
-        # try:
         # The config options need to be set before opening the file!
         with _ogr_util.set_config_options({"OGR_SQLITE_CACHE": cache_size_mb}):
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
@@ -2209,7 +2208,11 @@ def cmp(
         return filecmp.cmp(str(path1), str(path2))
 
 
-def copy(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]):
+def copy(
+    src: Union[str, "os.PathLike[Any]"],
+    dst: Union[str, "os.PathLike[Any]"],
+    keep_permissions: bool = True,
+):
     """Copies the geofile from src to dst.
 
     If the source file is a geofile containing of multiple files (eg. .shp) all files
@@ -2218,6 +2221,8 @@ def copy(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
     Args:
         src (PathLike): the file to copy. |GDAL_vsi| paths are not supported.
         dst (PathLike): the location to copy the file(s) to.
+        keep_permissions (bool, optional): True to keep the file permissions of the
+            source file. Defaults to True.
 
     .. |GDAL_vsi| raw:: html
 
@@ -2233,20 +2238,47 @@ def copy(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
     src_info = _geofileinfo.get_geofileinfo(src)
 
     # Copy the main file
-    # We use copyfile instead of copy to avoid copying the file permissions
-    if dst.is_dir():
-        dst = dst / src.name
-    shutil.copyfile(src, dst)
+    if keep_permissions:
+        shutil.copy(str(src), dst)
+    else:
+        dstfile = dst / src.name if dst.is_dir() else dst
+        shutil.copyfile(src, dstfile)
 
     # For some file types, extra files need to be copied
+    # If dest is a dir, just use move. Otherwise concat dest filepaths
+
     for suffix in src_info.suffixes_extrafiles:
-        if dst.is_dir():
-            dstfile = dst / f"{src.stem}{suffix}"
-        else:
-            dstfile = dst.parent / f"{dst.stem}{suffix}"
         srcfile = src.parent / f"{src.stem}{suffix}"
+        dstfile = (
+            dst / f"{src.stem}{suffix}"
+            if dst.is_dir()
+            else dst.parent / f"{dst.stem}{suffix}"
+        )
         if srcfile.exists() and not dstfile.exists():
-            shutil.copyfile(srcfile, dstfile)
+            if keep_permissions:
+                shutil.copy(str(srcfile), dstfile)
+            else:
+                shutil.copyfile(srcfile, dstfile)
+
+    # if dst.is_dir():
+    #     for suffix in src_info.suffixes_extrafiles:
+    #         srcfile = src.parent / f"{src.stem}{suffix}"
+    #         dstfile = dst / f"{src.stem}{suffix}"
+    #         if srcfile.exists() and not dstfile.exists():
+    #             if keep_permissions:
+    #                 shutil.copy(str(srcfile), dst)
+    #             else:
+    #                 # dstfile = dst / f"{src.stem}{suffix}"
+    #                 shutil.copyfile(srcfile, dstfile)
+    # else:
+    #     for suffix in src_info.suffixes_extrafiles:
+    #         srcfile = src.parent / f"{src.stem}{suffix}"
+    #         dstfile = dst.parent / f"{dst.stem}{suffix}"
+    #         if srcfile.exists() and not dstfile.exists():
+    #             if keep_permissions:
+    #                 shutil.copy(str(srcfile), dstfile)
+    #             else:
+    #                 shutil.copyfile(srcfile, dstfile)
 
 
 def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]):
