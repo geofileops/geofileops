@@ -613,12 +613,14 @@ def create_spatial_index(
     if exist_ok and force_rebuild:
         raise ValueError("exist_ok and force_rebuild can't both be True")
 
-    # .gpkg.zip files don't support update, so use has_spatial_index up-front to check
-    # if there is an index.
-    if str(path).lower().endswith(".gpkg.zip"):
+    # Add index
+    path_info = _geofileinfo.get_geofileinfo(path)
+    try:
+        # use has_spatial_index up-front to check if there is an index.
+        remove_spatial_index_needed = False
         if has_spatial_index(path, layer):
             if force_rebuild:
-                pass
+                remove_spatial_index_needed = True
             elif exist_ok:
                 return
             else:
@@ -626,26 +628,12 @@ def create_spatial_index(
                     f"spatial index already exists on {path}#{layer.name}"
                 )
 
-        raise RuntimeError(
-            f"create_spatial_index not supported for .gpkg.zip files: {path}"
-        )
-
-    # Add index
-    path_info = _geofileinfo.get_geofileinfo(path)
-    try:
         # The config options need to be set before opening the file!
         with _ogr_util.set_config_options({"OGR_SQLITE_CACHE": cache_size_mb}):
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             # If index already exists, remove index or return
-            if has_spatial_index(path, layer, datasource=datasource):
-                if force_rebuild:
-                    remove_spatial_index(path, layer, datasource=datasource)
-                elif exist_ok:
-                    return
-                else:
-                    raise RuntimeError(
-                        f"spatial index already exists on {path}#{layer.name}"
-                    )
+            if remove_spatial_index_needed:
+                remove_spatial_index(path, layer, datasource=datasource)
 
             if path_info.is_spatialite_based:
                 geometrycolumn = layer.geometrycolumn
@@ -1457,7 +1445,7 @@ def _read_file_base_fiona(
         path_info = _geofileinfo.get_geofileinfo(path)
         try:
             if path_info.driver == "GPKG":
-                copy(path, tmp_fid_path)
+                copy(path, tmp_fid_path, keep_permissions=False)
             else:
                 copy_layer(path, tmp_fid_path)
             if path_info.is_fid_zerobased:
@@ -2220,7 +2208,11 @@ def cmp(
         return filecmp.cmp(str(path1), str(path2))
 
 
-def copy(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]):
+def copy(
+    src: Union[str, "os.PathLike[Any]"],
+    dst: Union[str, "os.PathLike[Any]"],
+    keep_permissions: bool = True,
+):
     """Copies the geofile from src to dst.
 
     If the source file is a geofile containing of multiple files (eg. .shp) all files
@@ -2229,6 +2221,8 @@ def copy(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
     Args:
         src (PathLike): the file to copy. |GDAL_vsi| paths are not supported.
         dst (PathLike): the location to copy the file(s) to.
+        keep_permissions (bool, optional): True to keep the file permissions of the
+            source file. Defaults to True.
 
     .. |GDAL_vsi| raw:: html
 
@@ -2244,21 +2238,47 @@ def copy(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
     src_info = _geofileinfo.get_geofileinfo(src)
 
     # Copy the main file
-    shutil.copy(str(src), dst)
+    if keep_permissions:
+        shutil.copy(str(src), dst)
+    else:
+        dstfile = dst / src.name if dst.is_dir() else dst
+        shutil.copyfile(src, dstfile)
 
     # For some file types, extra files need to be copied
     # If dest is a dir, just use move. Otherwise concat dest filepaths
-    if dst.is_dir():
-        for suffix in src_info.suffixes_extrafiles:
-            srcfile = src.parent / f"{src.stem}{suffix}"
-            if srcfile.exists():
-                shutil.copy(str(srcfile), dst)
-    else:
-        for suffix in src_info.suffixes_extrafiles:
-            srcfile = src.parent / f"{src.stem}{suffix}"
-            dstfile = dst.parent / f"{dst.stem}{suffix}"
-            if srcfile.exists():
+
+    for suffix in src_info.suffixes_extrafiles:
+        srcfile = src.parent / f"{src.stem}{suffix}"
+        dstfile = (
+            dst / f"{src.stem}{suffix}"
+            if dst.is_dir()
+            else dst.parent / f"{dst.stem}{suffix}"
+        )
+        if srcfile.exists() and not dstfile.exists():
+            if keep_permissions:
                 shutil.copy(str(srcfile), dstfile)
+            else:
+                shutil.copyfile(srcfile, dstfile)
+
+    # if dst.is_dir():
+    #     for suffix in src_info.suffixes_extrafiles:
+    #         srcfile = src.parent / f"{src.stem}{suffix}"
+    #         dstfile = dst / f"{src.stem}{suffix}"
+    #         if srcfile.exists() and not dstfile.exists():
+    #             if keep_permissions:
+    #                 shutil.copy(str(srcfile), dst)
+    #             else:
+    #                 # dstfile = dst / f"{src.stem}{suffix}"
+    #                 shutil.copyfile(srcfile, dstfile)
+    # else:
+    #     for suffix in src_info.suffixes_extrafiles:
+    #         srcfile = src.parent / f"{src.stem}{suffix}"
+    #         dstfile = dst.parent / f"{dst.stem}{suffix}"
+    #         if srcfile.exists() and not dstfile.exists():
+    #             if keep_permissions:
+    #                 shutil.copy(str(srcfile), dstfile)
+    #             else:
+    #                 shutil.copyfile(srcfile, dstfile)
 
 
 def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]):
