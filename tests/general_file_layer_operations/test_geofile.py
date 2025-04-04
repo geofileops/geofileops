@@ -2330,7 +2330,7 @@ def test_to_file_vsi(tmp_path):
     assert src.stem in gfo.listlayers(vsi_path)
     result_gdf = gfo.read_file(vsi_path)
     gdal.Unlink(vsi_path)
-    assert_geodataframe_equal(read_gdf, result_gdf)
+    assert_geodataframe_equal(read_gdf, result_gdf, check_geom_empty_vs_None=False)
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)

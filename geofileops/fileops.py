@@ -1445,7 +1445,7 @@ def _read_file_base_fiona(
         path_info = _geofileinfo.get_geofileinfo(path)
         try:
             if path_info.driver == "GPKG":
-                copy(path, tmp_fid_path)
+                copy(path, tmp_fid_path, keep_permissions=False)
             else:
                 copy_layer(path, tmp_fid_path)
             if path_info.is_fid_zerobased:
