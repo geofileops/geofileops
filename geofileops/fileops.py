@@ -1487,7 +1487,7 @@ def _read_file_base_fiona(
     )
 
     # Set the index to the backed-up fid
-    if fid_as_index:
+    if fid_as_index and "__TMP_GEOFILEOPS_FID" in result_gdf.columns:
         result_gdf = result_gdf.set_index("__TMP_GEOFILEOPS_FID")
         result_gdf.index.name = "fid"
 
