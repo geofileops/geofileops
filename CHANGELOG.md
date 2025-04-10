@@ -2,6 +2,11 @@
 
 ## 0.10.1 (yyyy-mm-dd)
 
+### Deprecations and compatibility notes
+
+- Add warnings when the "fiona" GFO_IO_ENGINE is used that this is deprecated and will
+  be removed in a future version (#)
+
 ### Improvements
 
 - Don't pin maximum versions of dependencies for e.g. geopandas, shapely, pyogrio (#685)
