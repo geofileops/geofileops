@@ -1439,81 +1439,103 @@ def _read_file_base_fiona(
         layer = get_only_layer(path)
 
     # VERY DIRTY hack to get the fid
-    if fid_as_index:
-        # Make a copy/copy input file to geopackage, as we will add an fid/rowd column
-        tmp_fid_path = Path(tempfile.mkdtemp()) / f"{Path(path).stem}.gpkg"
-        path_info = _geofileinfo.get_geofileinfo(path)
-        try:
+
+    tmp_fid_path = None
+    try:
+        if fid_as_index:
+            # Make a copy/copy input file to geopackage,
+            # as we will add an fid/rowd column
+            tmp_fid_path = Path(tempfile.mkdtemp()) / f"{Path(path).stem}.gpkg"
+            path_info = _geofileinfo.get_geofileinfo(path)
             if path_info.driver == "GPKG":
                 copy(path, tmp_fid_path, keep_permissions=False)
             else:
                 copy_layer(path, tmp_fid_path)
+            fid_column = get_layerinfo(
+                tmp_fid_path, layer=layer, raise_on_nogeom=False
+            ).fid_column
             if path_info.is_fid_zerobased:
                 # fid in shapefile is 0 based, so fid-1
-                add_column(tmp_fid_path, "__TMP_GEOFILEOPS_FID", "INTEGER", "fid-1")
+                add_column(
+                    tmp_fid_path,
+                    "__TMP_GEOFILEOPS_FID",
+                    "INTEGER",
+                    f"{fid_column}-1",
+                    layer=layer,
+                )
             else:
-                add_column(tmp_fid_path, "__TMP_GEOFILEOPS_FID", "INTEGER", "fid")
+                add_column(
+                    tmp_fid_path,
+                    "__TMP_GEOFILEOPS_FID",
+                    "INTEGER",
+                    fid_column,
+                    layer=layer,
+                )
 
             path = tmp_fid_path
-        finally:
-            if ConfigOptions.remove_temp_files and tmp_fid_path.parent.exists():
-                shutil.rmtree(tmp_fid_path, ignore_errors=True)
 
-    # Checking if field/column names should be read is case sensitive in fiona, so
-    # make sure the column names specified have the same casing.
-    columns_prepared = None
-    if columns is not None:
-        layerinfo = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
-        columns_upper_lookup = {column.upper(): column for column in columns}
-        columns_prepared = {
-            column: columns_upper_lookup[column.upper()]
-            for column in layerinfo.columns
-            if column.upper() in columns_upper_lookup
-        }
+        # Checking if field/column names should be read is case sensitive in fiona, so
+        # make sure the column names specified have the same casing.
+        columns_prepared = None
+        if columns is not None:
+            layerinfo = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
+            columns_upper_lookup = {column.upper(): column for column in columns}
+            columns_prepared = {
+                column: columns_upper_lookup[column.upper()]
+                for column in layerinfo.columns
+                if column.upper() in columns_upper_lookup
+            }
 
-    # Read...
-    columns_list = None if columns_prepared is None else list(columns_prepared)
-    result_gdf = gpd.read_file(
-        str(path),
-        layer=layer,
-        bbox=bbox,
-        rows=rows,
-        columns=columns_list,
-        where=where,
-        sql=sql_stmt,
-        sql_dialect=sql_dialect,
-        ignore_geometry=ignore_geometry,
-        **kwargs,
-    )
+        # Read...
+        columns_list = None if columns_prepared is None else list(columns_prepared)
+        result_gdf = gpd.read_file(
+            str(path),
+            layer=layer,
+            bbox=bbox,
+            rows=rows,
+            columns=columns_list,
+            where=where,
+            sql=sql_stmt,
+            sql_dialect=sql_dialect,
+            ignore_geometry=ignore_geometry,
+            **kwargs,
+        )
 
-    # Set the index to the backed-up fid
-    if fid_as_index and "__TMP_GEOFILEOPS_FID" in result_gdf.columns:
-        result_gdf = result_gdf.set_index("__TMP_GEOFILEOPS_FID")
-        result_gdf.index.name = "fid"
+        # Set the index to the backed-up fid
+        if fid_as_index:
+            result_gdf = result_gdf.set_index("__TMP_GEOFILEOPS_FID")
+            result_gdf.index.name = "fid"
 
-    # Reorder columns + change casing so they are the same as columns parameter
-    if columns_prepared is not None and len(columns_prepared) > 0:
-        columns_to_keep = list(columns_prepared)
-        if "geometry" in result_gdf.columns:
-            columns_to_keep += ["geometry"]
-        result_gdf = result_gdf[columns_to_keep]
-        result_gdf = result_gdf.rename(columns=columns_prepared)
+        # Reorder columns + change casing so they are the same as columns parameter
+        if columns_prepared is not None and len(columns_prepared) > 0:
+            columns_to_keep = list(columns_prepared)
+            if "geometry" in result_gdf.columns:
+                columns_to_keep += ["geometry"]
+            result_gdf = result_gdf[columns_to_keep]
+            result_gdf = result_gdf.rename(columns=columns_prepared)
 
-    # Starting from fiona 1.9, string columns with all None values are read as being
-    # float columns. Convert them to object type.
-    float_cols = list(result_gdf.select_dtypes(["float64"]).columns)
-    if len(float_cols) > 0:
-        # Check for all float columns found if they should be object columns instead
-        import fiona
+        # Starting from fiona 1.9, string columns with all None values are read as being
+        # float columns. Convert them to object type.
+        float_cols = list(result_gdf.select_dtypes(["float64"]).columns)
+        if len(float_cols) > 0:
+            # Check for all float columns found if they should be object columns instead
+            import fiona
 
-        with fiona.open(path, layer=layer) as collection:
-            assert collection.schema is not None
-            properties = collection.schema["properties"]
-            for col in float_cols:
-                if col in properties and properties[col].startswith("str"):
-                    result_gdf[col] = (
-                        result_gdf[col].astype(object).replace(np.nan, None)
-                    )
+            with fiona.open(path, layer=layer) as collection:
+                assert collection.schema is not None
+                properties = collection.schema["properties"]
+                for col in float_cols:
+                    if col in properties and properties[col].startswith("str"):
+                        result_gdf[col] = (
+                            result_gdf[col].astype(object).replace(np.nan, None)
+                        )
+    finally:
+        if (
+            tmp_fid_path is not None
+            and ConfigOptions.remove_temp_files
+            and tmp_fid_path.parent.exists()
+        ):
+            shutil.rmtree(tmp_fid_path.parent, ignore_errors=True)
 
     return result_gdf
 
@@ -2259,26 +2281,6 @@ def copy(
                 shutil.copy(str(srcfile), dstfile)
             else:
                 shutil.copyfile(srcfile, dstfile)
-
-    # if dst.is_dir():
-    #     for suffix in src_info.suffixes_extrafiles:
-    #         srcfile = src.parent / f"{src.stem}{suffix}"
-    #         dstfile = dst / f"{src.stem}{suffix}"
-    #         if srcfile.exists() and not dstfile.exists():
-    #             if keep_permissions:
-    #                 shutil.copy(str(srcfile), dst)
-    #             else:
-    #                 # dstfile = dst / f"{src.stem}{suffix}"
-    #                 shutil.copyfile(srcfile, dstfile)
-    # else:
-    #     for suffix in src_info.suffixes_extrafiles:
-    #         srcfile = src.parent / f"{src.stem}{suffix}"
-    #         dstfile = dst.parent / f"{dst.stem}{suffix}"
-    #         if srcfile.exists() and not dstfile.exists():
-    #             if keep_permissions:
-    #                 shutil.copy(str(srcfile), dstfile)
-    #             else:
-    #                 shutil.copyfile(srcfile, dstfile)
 
 
 def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]):

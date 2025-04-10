@@ -8,7 +8,7 @@
 
 ### Bugs fixed
 
-- Fix error in `create_spatial_indexµ  on a read-only file even if index exists
+- Fix error in `create_spatial_index` on a read-only file even if index exists
   already (#686)
 
 ## 0.10.0 (2025-03-26)
