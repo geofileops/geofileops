@@ -4,8 +4,8 @@
 
 ### Deprecations and compatibility notes
 
-- Add warnings when the "fiona" GFO_IO_ENGINE is used that this is deprecated and will
-  be removed in a future version (#)
+- Add warning when GFO_IO_ENGINE is used with engine "fiona" that this is deprecated and
+  will be removed/ignored in a future version (#688)
 
 ### Improvements
 
@@ -13,8 +13,8 @@
 
 ### Bugs fixed
 
-- Fix error in `create_spatial_index` on a read-only file even if index exists
-  already (#686)
+- Don't throw error when running `create_spatial_index` on a read-only file if the index
+  exists already (#686)
 
 ## 0.10.0 (2025-03-26)
 
