@@ -616,7 +616,8 @@ def create_spatial_index(
     # Add index
     path_info = _geofileinfo.get_geofileinfo(path)
     try:
-        # use has_spatial_index up-front to check if there is an index.
+        # Use has_spatial_index up-front to check if there is an index. To avoid needing
+        # R/W permissions, don't open the file in update mode yet.
         remove_spatial_index_needed = False
         if has_spatial_index(path, layer):
             if force_rebuild:
