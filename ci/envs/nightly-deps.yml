@@ -19,7 +19,7 @@ dependencies:
   - pyproj
   - shapely >=2
   # optional
-  - simplification
+  #- simplification
   # testing
   - pytest
   - pytest-cov
