@@ -2168,10 +2168,6 @@ def _prepare_filter_by_location_params(
     layer2_groupby = "GROUP BY layer2.fid_1" if subdivided else ""
     geom2 = f"ST_union({geom2})" if subdivided else f"{geom2}"
 
-    # When "contains" is used, geomA and geomB need to be swapped
-    geomA = geom2 if "contains" in query.lower() else geom1
-    geomB = geom1 if "contains" in query.lower() else geom2
-
     spatial_relations_filter: str = ""
     relation_should_be_found = True
 
@@ -2206,7 +2202,7 @@ def _prepare_filter_by_location_params(
             relation_is_true = not relation_is_true
 
         spatial_relations_column = (
-            f',ST_{spatial_relation}({geomA}, {geomB}) AS "GFO_$TEMP$_SPATIAL_RELATION"'
+            f',ST_{spatial_relation}({geom1}, {geom2}) AS "GFO_$TEMP$_SPATIAL_RELATION"'
         )
         spatial_relations_filter = (
             f'{subquery_alias}."GFO_$TEMP$_SPATIAL_RELATION" = {int(relation_is_true)}'
@@ -2243,7 +2239,7 @@ def _prepare_filter_by_location_params(
 
         # Prepare the spatial relation column
         spatial_relations_column = spatial_relations_column.format(
-            input1=geomA, input2=geomB
+            input1=geom1, input2=geom2
         )
 
     if true_for_disjoint and avoid_disjoint:
@@ -3496,6 +3492,7 @@ def _two_layer_vector_operation(
                     # convert geometrytype to multitype to avoid ogr warnings
                     output_geometrytype_now = force_output_geometrytype.to_multitype
                     if "geom" in column_datatypes:
+                        assert output_geometrytype_now is not None
                         column_datatypes["geom"] = output_geometrytype_now.name
 
                 # Remark: this temp file doesn't need spatial index
