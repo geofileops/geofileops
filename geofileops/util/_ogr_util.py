@@ -688,6 +688,17 @@ def _validate_file(
             result_layer = output_ds.GetLayer(layer)
         elif output_ds.GetLayerCount() == 1:
             result_layer = output_ds.GetLayerByIndex(0)
+        elif output_ds.GetLayerCount() == 0:
+            logger.warning(
+                "Output file has layercount=0, so remove it as opening it read/only"
+                "will lead to an error. Probably the input file was empty, "
+                "no rows were selected, geom was NULL or the SQL was invalid."
+            )
+
+            output_ds = None
+            gfo.remove(path)
+            return False
+
         else:
             result_layer = None
 
@@ -735,8 +746,8 @@ def _validate_file(
         # In gdal 3.10, invalid gpkg files are still written when an invalid sql
         # is used if a new file is created or an existing one is overwritten.
         logger.warning(
-            f"Opening output file gave error. Probably the input file was empty, "
-            f"no rows were selected, geom was NULL or the SQL was invalid: {ex}"
+            "Opening output file gave error, so remove it. Probably the input file was "
+            f"empty, no rows were selected, geom was NULL or the SQL was invalid: {ex}"
         )
         gfo.remove(path)
 
