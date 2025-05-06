@@ -3556,7 +3556,6 @@ def _two_layer_vector_operation(
                     and not explodecollections
                     and force_output_geometrytype is None
                     and where_post is None
-                    and tmp_output_path.suffix.lower() != ".gpkg"
                     and tmp_partial_output_path.suffix.lower()
                     == tmp_output_path.suffix.lower()
                 ):

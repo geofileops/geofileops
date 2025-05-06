@@ -187,6 +187,15 @@ def create_new_spatialdb(
             sql = "PRAGMA user_version=10400;"
             conn.execute(sql)
 
+            # Add gpkg_ogr_contents table
+            sql = """
+                CREATE TABLE gpkg_ogr_contents(
+                    table_name TEXT NOT NULL PRIMARY KEY,
+                    feature_count INTEGER DEFAULT 0
+                );
+            """
+            conn.execute(sql)
+
         elif filetype == "sqlite":
             sql = "SELECT InitSpatialMetaData(1);"
             conn.execute(sql)
@@ -611,6 +620,40 @@ def create_table_as_sql(
                     '("select * will select fid!)',
                 )
             raise
+
+        # Fill out the feature count in the gpkg_ogr_contents table + create triggers
+        if output_suffix_lower == ".gpkg":
+            # Fill out feature count
+            sql = f"""
+                INSERT INTO
+                    {output_databasename}.gpkg_ogr_contents (table_name, feature_count)
+                  VALUES ( '{output_layer}',
+                           (SELECT COUNT(*) FROM {output_databasename}."{output_layer}")
+                         );
+            """
+            conn.execute(sql)
+
+            # Create triggers to keep the feature count up to date
+            sql = f"""
+                CREATE TRIGGER "trigger_insert_feature_count_{output_layer}"
+                  AFTER INSERT ON "{output_layer}"
+                BEGIN
+                  UPDATE gpkg_ogr_contents
+                     SET feature_count = feature_count + 1
+                   WHERE lower(table_name) = lower('{output_layer}');
+                END;
+            """
+            conn.execute(sql)
+            sql = f"""
+                CREATE TRIGGER "trigger_delete_feature_count_{output_layer}"
+                  AFTER DELETE ON "{output_layer}"
+                BEGIN
+                  UPDATE gpkg_ogr_contents
+                     SET feature_count = feature_count - 1
+                   WHERE lower(table_name) = lower('{output_layer}');
+                END;
+            """
+            conn.execute(sql)
 
         # Create spatial index if needed
         if "geom" in column_types and create_spatial_index:
