@@ -15,6 +15,7 @@
 
 - Don't throw error when running `create_spatial_index` on a read-only file if the index
   exists already (#686)
+- In some cases operations are slow even though output exists and `force=False` (#)
 
 ## 0.10.0 (2025-03-26)
 
