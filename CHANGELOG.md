@@ -10,6 +10,7 @@
 ### Improvements
 
 - Don't pin maximum versions of dependencies for e.g. geopandas, shapely, pyogrio (#685)
+- Add helper function to plot dataframes
 
 ### Bugs fixed
 
