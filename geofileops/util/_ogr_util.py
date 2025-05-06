@@ -623,12 +623,13 @@ def vector_translate(
 
         # Fix/remove invalid files that were written.
         output_ds = None
-        _validate_file(
-            output_path,
-            output_layer,
-            input_has_geometry_attribute,
-            input_has_geom_attribute,
-        )
+        if output_info.driver == "GPKG":
+            _validate_fix_gpkg(
+                output_path,
+                output_layer,
+                input_has_geometry_attribute,
+                input_has_geom_attribute,
+            )
 
         if gdal_cpl_log_path.exists():
             # Truncate the cpl log file already, because sometimes it is locked and
@@ -643,13 +644,18 @@ def vector_translate(
     return True
 
 
-def _validate_file(
+def _validate_fix_gpkg(
     path: Union[str, "os.PathLike[Any]"],
     layer: str | None,
     input_has_geometry_attribute: bool,
     input_has_geom_attribute: bool,
 ):
-    """Check the file for invalid geometry columns and removes them.
+    """Validate and fix a GPKG file.
+
+    Two things are checked and fixed if needed:
+      - the featurecount of the layer in gpkg_ogr_contents should not be NULL.
+      - when the first row of the input layer has an NULL geometry, a redundant column
+        is sometimes present.
 
     Args:
         path (PathLike): the file to check.
@@ -687,6 +693,21 @@ def _validate_file(
 
             output_ds = gdal.OpenEx(str(path), nOpenFlags=nOpenFlags)
 
+            assert isinstance(output_ds, gdal.Dataset)
+
+            # Get the output layer
+            if layer is not None:
+                result_layer = output_ds.GetLayer(layer)
+            elif output_ds.GetLayerCount() == 1:
+                result_layer = output_ds.GetLayerByIndex(0)
+            else:
+                result_layer = None
+
+            # In some cases output files end up with NULL featurecount. Getting the
+            # featurecount of the layer will fix this
+            if result_layer is not None:
+                result_layer.GetFeatureCount()
+
             # If the (first) output row contains NULL as geom/geometry, gdal will
             # add an attribute column with the name of the (alias of) the geometry
             # column: so "geometry" or "geom".
@@ -700,19 +721,6 @@ def _validate_file(
             # list of the Dataset returned by VectorTranslate. E.g. when the input
             # file is empty.
             if not input_has_geometry_attribute or not input_has_geom_attribute:
-                assert isinstance(output_ds, gdal.Dataset)
-                if layer is not None:
-                    result_layer = output_ds.GetLayer(layer)
-                elif output_ds.GetLayerCount() == 1:
-                    result_layer = output_ds.GetLayerByIndex(0)
-                else:
-                    result_layer = None
-                    logger.warning(
-                        "Unable to determine output layer, so not able to remove "
-                        "possibly incorrect geom and geometry text columns, with "
-                        f"{path=}"
-                    )
-
                 # Output layer was found, so check it
                 if result_layer is not None:
                     layer_defn = result_layer.GetLayerDefn()
@@ -728,6 +736,13 @@ def _validate_file(
 
                             break
 
+                else:
+                    logger.warning(
+                        "Unable to determine output layer, so not able to remove "
+                        "possibly incorrect geom and geometry text columns, with "
+                        f"{path=}"
+                    )
+
         except Exception as ex:
             # In gdal 3.10, invalid gpkg files are still written when an invalid sql
             # is used if a new file is created or an existing one is overwritten.
@@ -741,21 +756,13 @@ def _validate_file(
 
         return True
 
-    # First check if the file has invalid geometry columns without fixing so we can
-    # open the file read-only.
-    if not is_file_valid(
+    # Validate and fix file if needed.
+    is_file_valid(
         path,
-        fix=False,
+        fix=True,
         input_has_geometry_attribute=input_has_geometry_attribute,
         input_has_geom_attribute=input_has_geom_attribute,
-    ):
-        logger.warning(f"Invalid geometry columns found in {path}, try to fix...")
-        is_file_valid(
-            path,
-            fix=True,
-            input_has_geometry_attribute=input_has_geometry_attribute,
-            input_has_geom_attribute=input_has_geom_attribute,
-        )
+    )
 
 
 def _prepare_gdal_options(options: dict, split_by_option_type: bool = False) -> dict:
