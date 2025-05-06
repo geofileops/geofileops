@@ -623,13 +623,12 @@ def vector_translate(
 
         # Fix/remove invalid files that were written.
         output_ds = None
-        if output_info.driver == "GPKG":
-            _validate_fix_gpkg(
-                output_path,
-                output_layer,
-                input_has_geometry_attribute,
-                input_has_geom_attribute,
-            )
+        _validate_file(
+            output_path,
+            output_layer,
+            input_has_geometry_attribute,
+            input_has_geom_attribute,
+        )
 
         if gdal_cpl_log_path.exists():
             # Truncate the cpl log file already, because sometimes it is locked and
@@ -644,7 +643,7 @@ def vector_translate(
     return True
 
 
-def _validate_fix_gpkg(
+def _validate_file(
     path: Union[str, "os.PathLike[Any]"],
     layer: str | None,
     input_has_geometry_attribute: bool,
@@ -668,101 +667,81 @@ def _validate_fix_gpkg(
     if not fileops._vsi_exists(path):
         return
 
-    def is_file_valid(
-        path: Union[str, "os.PathLike[Any]"],
-        fix: bool,
-        input_has_geometry_attribute: bool,
-        input_has_geom_attribute: bool,
-    ) -> bool:
-        """Check if the file is valid.
-
-        Args:
-            path (PathLike): the file to check.
-            fix (bool): True to fix the invalid columns.
-            input_has_geometry_attribute (bool): True if the input file has a geometry
-                attribute column.
-            input_has_geom_attribute (bool): True if the input file has a geom attribute
-                column.
-        """
+    try:
         try:
-            # Only if fix is True, open the file in update mode
-            if fix:
-                nOpenFlags = gdal.OF_VECTOR | gdal.OF_UPDATE
-            else:
-                nOpenFlags = gdal.OF_VECTOR | gdal.OF_READONLY
-
-            output_ds = gdal.OpenEx(str(path), nOpenFlags=nOpenFlags)
-
-            assert isinstance(output_ds, gdal.Dataset)
-
-            # Get the output layer
-            if layer is not None:
-                result_layer = output_ds.GetLayer(layer)
-            elif output_ds.GetLayerCount() == 1:
-                result_layer = output_ds.GetLayerByIndex(0)
-            else:
-                result_layer = None
-
-            # In some cases output files end up with NULL featurecount. Getting the
-            # featurecount of the layer will fix this
-            if result_layer is not None:
-                result_layer.GetFeatureCount()
-
-            # If the (first) output row contains NULL as geom/geometry, gdal will
-            # add an attribute column with the name of the (alias of) the geometry
-            # column: so "geometry" or "geom".
-            # To fix this, delete the "geom" or "geometry" attribute column if
-            # present if the input file didn't have an attribute column with this
-            # name.
-            # Bug documented in https://github.com/geofileops/geofileops/issues/313
-            #
-            # Remark: this check must be done on the reopened output file because
-            # in some cases the "geometrycolumn" is incorrectly listed in the field
-            # list of the Dataset returned by VectorTranslate. E.g. when the input
-            # file is empty.
-            if not input_has_geometry_attribute or not input_has_geom_attribute:
-                # Output layer was found, so check it
-                if result_layer is not None:
-                    layer_defn = result_layer.GetLayerDefn()
-                    for field_idx in range(layer_defn.GetFieldCount()):
-                        name = layer_defn.GetFieldDefn(field_idx).GetName().lower()
-                        if (name == "geom" and not input_has_geom_attribute) or (
-                            name == "geometry" and not input_has_geometry_attribute
-                        ):
-                            if fix:
-                                result_layer.DeleteField(field_idx)
-                            else:
-                                return False
-
-                            break
-
-                else:
-                    logger.warning(
-                        "Unable to determine output layer, so not able to remove "
-                        "possibly incorrect geom and geometry text columns, with "
-                        f"{path=}"
-                    )
-
-        except Exception as ex:
-            # In gdal 3.10, invalid gpkg files are still written when an invalid sql
-            # is used if a new file is created or an existing one is overwritten.
-            logger.warning(
-                f"Opening output file gave error. Probably the input file was empty, "
-                f"no rows were selected, geom was NULL or the SQL was invalid: {ex}"
+            # First try to open file in update mode. If OK, we can fix if needed.
+            output_ds = gdal.OpenEx(
+                str(path), nOpenFlags=gdal.OF_VECTOR | gdal.OF_UPDATE
             )
-            gfo.remove(path)
-        finally:
-            output_ds = None
+            fix = True
+        except Exception:
+            # Opening in update mode failed, so try to open in read-only mode.
+            output_ds = gdal.OpenEx(
+                str(path), nOpenFlags=gdal.OF_VECTOR | gdal.OF_READONLY
+            )
+            fix = False
 
-        return True
+        assert isinstance(output_ds, gdal.Dataset)
 
-    # Validate and fix file if needed.
-    is_file_valid(
-        path,
-        fix=True,
-        input_has_geometry_attribute=input_has_geometry_attribute,
-        input_has_geom_attribute=input_has_geom_attribute,
-    )
+        # Get the output layer
+        if layer is not None:
+            result_layer = output_ds.GetLayer(layer)
+        elif output_ds.GetLayerCount() == 1:
+            result_layer = output_ds.GetLayerByIndex(0)
+        else:
+            result_layer = None
+
+        # In some cases output files end up with NULL featurecount. Getting the
+        # featurecount of the layer will fix this
+        if result_layer is not None:
+            result_layer.GetFeatureCount()
+
+        # If the (first) output row contains NULL as geom/geometry, gdal will
+        # add an attribute column with the name of the (alias of) the geometry
+        # column: so "geometry" or "geom".
+        # To fix this, delete the "geom" or "geometry" attribute column if
+        # present if the input file didn't have an attribute column with this
+        # name.
+        # Bug documented in https://github.com/geofileops/geofileops/issues/313
+        #
+        # Remark: this check must be done on the reopened output file because
+        # in some cases the "geometrycolumn" is incorrectly listed in the field
+        # list of the Dataset returned by VectorTranslate. E.g. when the input
+        # file is empty.
+        if not input_has_geometry_attribute or not input_has_geom_attribute:
+            # Output layer was found, so check it
+            if result_layer is not None:
+                layer_defn = result_layer.GetLayerDefn()
+                for field_idx in range(layer_defn.GetFieldCount()):
+                    name = layer_defn.GetFieldDefn(field_idx).GetName().lower()
+                    if (name == "geom" and not input_has_geom_attribute) or (
+                        name == "geometry" and not input_has_geometry_attribute
+                    ):
+                        if fix:
+                            result_layer.DeleteField(field_idx)
+                        else:
+                            return False
+
+                        break
+
+            else:
+                logger.warning(
+                    "Unable to determine output layer, so not able to remove "
+                    "possibly incorrect geom and geometry text columns, with "
+                    f"{path=}"
+                )
+
+    except Exception as ex:
+        # In gdal 3.10, invalid gpkg files are still written when an invalid sql
+        # is used if a new file is created or an existing one is overwritten.
+        logger.warning(
+            f"Opening output file gave error. Probably the input file was empty, "
+            f"no rows were selected, geom was NULL or the SQL was invalid: {ex}"
+        )
+        gfo.remove(path)
+
+    finally:
+        output_ds = None
 
 
 def _prepare_gdal_options(options: dict, split_by_option_type: bool = False) -> dict:
