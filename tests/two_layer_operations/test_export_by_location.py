@@ -629,6 +629,12 @@ def _test_export_by_location(
         subdivide_coords=subdivide_coords,
     )
 
+    # Plot
+    plot_path = output_path.with_suffix(".png")
+    test_helper.plot(
+        [input_to_select_from_path, input_to_compare_with_path, output_path], plot_path
+    )
+
     # Check if the output file is correctly created
     assert output_path.exists()
     exp_spatial_index = GeofileInfo(output_path).default_spatial_index
