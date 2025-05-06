@@ -706,9 +706,10 @@ def _validate_file(
         else:
             result_layer = None
 
-        # In some cases output files end up with NULL featurecount. Getting the
-        # featurecount of the layer will fix this
-        if result_layer is not None:
+        # In some cases output files ended up with NULL featurecount in GDAL < 3.10.1.
+        # This was fixed in https://github.com/OSGeo/gdal/pull/11275, but getting the
+        # featurecount of the layer will fix this.
+        if result_layer is not None and not _compat.GDAL_GTE_3101:
             result_layer.GetFeatureCount()
 
         # If the (first) output row contains NULL as geom/geometry, gdal will
