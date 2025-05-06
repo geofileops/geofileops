@@ -689,6 +689,10 @@ def _validate_file(
         elif output_ds.GetLayerCount() == 1:
             result_layer = output_ds.GetLayerByIndex(0)
         elif output_ds.GetLayerCount() == 0:
+            # At least a GPKG file with no layers gives issues when opened read-only.
+            # So remove it.
+            # This was raised as an issue in https://github.com/OSGeo/gdal/issues/12284
+            # but apparently there are reasons to keep this behaviour.
             logger.warning(
                 "Output file has layercount=0, so remove it as opening it read/only"
                 "will lead to an error. Probably the input file was empty, "
