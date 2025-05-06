@@ -1121,7 +1121,7 @@ def dissolve(
     operation_name = f"{operation_prefix}dissolve"
     logger = logging.getLogger(f"geofileops.{operation_name}")
 
-    # Check input parameters
+    # Basic checks on input parameters
     if groupby_columns is not None and len(list(groupby_columns)) == 0:
         raise ValueError("groupby_columns=[] is not supported. Use None.")
     if not input_path.exists():
@@ -1129,6 +1129,11 @@ def dissolve(
     if input_path == output_path:
         raise ValueError("output_path must not equal input_path")
 
+    # Check if we need to calculate anyway
+    if _io_util.output_exists(path=output_path, remove_if_exists=force):
+        return
+
+    # More complicated checks on input parameters
     if not isinstance(input_layer, LayerInfo):
         input_layer = gfo.get_layerinfo(input_path, input_layer)
 
@@ -1184,10 +1189,6 @@ def dissolve(
                 agg_column["column"] = _general_util.align_casing(
                     agg_column["column"], columns_available
                 )
-
-    # Now input parameters are checked, check if we need to calculate anyway
-    if _io_util.output_exists(path=output_path, remove_if_exists=force):
-        return
 
     # Check what we need to do in an error occurs
     on_data_error = ConfigOptions.on_data_error
