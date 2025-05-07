@@ -1571,10 +1571,6 @@ def _read_file_base_pyogrio(
 ) -> pd.DataFrame | gpd.GeoDataFrame:
     """Reads a file to a pandas Dataframe using pyogrio."""
     # Init
-    path = Path(path)
-    if path.exists() is False:
-        raise ValueError(f"file doesn't exist: {path}")
-    columns_upper_lookup = None
     if columns is not None:
         columns = list(columns)
 
