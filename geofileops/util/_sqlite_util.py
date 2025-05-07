@@ -96,6 +96,7 @@ def create_new_spatialdb(
     path: Union[str, "os.PathLike[Any]"],
     crs_epsg: int | None = None,
     filetype: str | None = None,
+    create_ogr_contents: bool = False,
 ) -> sqlite3.Connection:
     """Create a new spatialite database file.
 
@@ -109,6 +110,7 @@ def create_new_spatialdb(
         filetype (str, optional): filetype of the spatial database to create. If
             specified, takes precendence over the suffix of the path. Possible values
             are "gpkg" and "sqlite". Defaults to None.
+        create_ogr_contents (bool, optional): True to create the gpkg_ogr_contents table
 
     Raises:
         ValueError: an invalid parameter value is passed.
@@ -187,14 +189,15 @@ def create_new_spatialdb(
             sql = "PRAGMA user_version=10400;"
             conn.execute(sql)
 
-            # Add gpkg_ogr_contents table
-            sql = """
-                CREATE TABLE gpkg_ogr_contents(
-                    table_name TEXT NOT NULL PRIMARY KEY,
-                    feature_count INTEGER DEFAULT 0
-                );
-            """
-            conn.execute(sql)
+            if create_ogr_contents:
+                # Add gpkg_ogr_contents table
+                sql = """
+                    CREATE TABLE gpkg_ogr_contents(
+                        table_name TEXT NOT NULL PRIMARY KEY,
+                        feature_count INTEGER DEFAULT 0
+                    );
+                """
+                conn.execute(sql)
 
         elif filetype == "sqlite":
             sql = "SELECT InitSpatialMetaData(1);"
@@ -396,6 +399,7 @@ def create_table_as_sql(
     append: bool = False,
     update: bool = False,
     create_spatial_index: bool = False,
+    create_ogr_contents: bool = False,
     empty_output_ok: bool = True,
     column_datatypes: dict | None = None,
     profile: SqliteProfile = SqliteProfile.DEFAULT,
@@ -414,6 +418,8 @@ def create_table_as_sql(
         update (bool, optional): True to append to an existing layer. Defaults to False.
         create_spatial_index (bool, optional): True to create a spatial index on the
             output layer. Defaults to False.
+        create_ogr_contents (bool, optional): True to create the gpkg_ogr_contents table
+            in the output file and fill it up. Defaults to False.
         empty_output_ok (bool, optional): If the sql_stmt doesn't return any rows and
             True, create an empty output file. If False, throw EmptyResultError.
             Defaults to True.
@@ -456,7 +462,11 @@ def create_table_as_sql(
 
     if not output_path.exists():
         # Output file doesn't exist yet: create and init it
-        conn = create_new_spatialdb(path=output_path, crs_epsg=output_crs)
+        conn = create_new_spatialdb(
+            path=output_path,
+            crs_epsg=output_crs,
+            create_ogr_contents=create_ogr_contents,
+        )
         new_db = True
     else:
         # Output file exists: open it
@@ -622,7 +632,7 @@ def create_table_as_sql(
             raise
 
         # Fill out the feature count in the gpkg_ogr_contents table + create triggers
-        if output_suffix_lower == ".gpkg":
+        if create_ogr_contents and output_suffix_lower == ".gpkg":
             # Fill out feature count
             sql = f"""
                 INSERT INTO
@@ -656,7 +666,7 @@ def create_table_as_sql(
             conn.execute(sql)
 
         # Create spatial index if needed
-        if "geom" in column_types and create_spatial_index:
+        if create_spatial_index and "geom" in column_types:
             sql = f"SELECT UpdateLayerStatistics('{output_layer}', 'geom');"
             conn.execute(sql)
             if output_suffix_lower == ".gpkg":
@@ -744,6 +754,31 @@ def get_gpkg_contents(path: Path) -> dict[str, dict]:
     sql = None
     try:
         sql = "SELECT * FROM gpkg_contents;"
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute(sql)
+        contents = cursor.fetchall()
+        contents_dict = {row["table_name"]: dict(row) for row in contents}
+    except Exception as ex:
+        raise RuntimeError(f"Error executing {sql}") from ex
+    finally:
+        conn.close()
+
+    return contents_dict
+
+
+def get_gpkg_ogr_contents(path: Path) -> dict[str, dict]:
+    """Get the contents of the gpkg_ogr_contents table of a geopackage.
+
+    Args:
+        path (Path): file path to the geopackage.
+
+    Returns:
+        dict[str, Any]: the contents of the geopackage.
+    """
+    conn = sqlite3.connect(path)
+    sql = None
+    try:
+        sql = "SELECT * FROM gpkg_ogr_contents;"
         conn.row_factory = sqlite3.Row
         cursor = conn.execute(sql)
         contents = cursor.fetchall()

@@ -59,11 +59,14 @@ def test_create_new_spatialdb_error(
 
 
 @pytest.mark.parametrize("create_spatial_index", [(True), (False)])
+@pytest.mark.parametrize("create_ogr_contents", [(True), (False)])
 @pytest.mark.parametrize("output_epsg", [-1, 31370])
 @pytest.mark.filterwarnings(
     "ignore:.*Using create_spatial_index=True for a GPKG file is not recommended .*"
 )
-def test_create_table_as_sql(tmp_path, create_spatial_index, output_epsg):
+def test_create_table_as_sql(
+    tmp_path, create_spatial_index, create_ogr_contents, output_epsg
+):
     output_path = tmp_path / "output.gpkg"
     input1_path = test_helper.get_testfile(testfile="polygon-parcel", dst_dir=tmp_path)
     input2_path = test_helper.get_testfile(testfile="polygon-zone", dst_dir=tmp_path)
@@ -102,6 +105,7 @@ def test_create_table_as_sql(tmp_path, create_spatial_index, output_epsg):
         sql_stmt=sql_stmt,
         profile=sqlite_util.SqliteProfile.SPEED,
         create_spatial_index=create_spatial_index,
+        create_ogr_contents=create_ogr_contents,
     )
 
     assert output_path.exists()
@@ -109,9 +113,14 @@ def test_create_table_as_sql(tmp_path, create_spatial_index, output_epsg):
     output_info = gfo.get_layerinfo(output_path)
     assert output_info.featurecount == 7
 
-    # The "gpkg_ogr_contents" table won't be present in the output gpkg
+    # Check if the "gpkg_ogr_contents" table is present in the output gpkg if needed.
     tables = sqlite_util.get_tables(output_path)
-    assert "gpkg_ogr_contents" not in tables
+    if create_ogr_contents:
+        assert "gpkg_ogr_contents" in tables
+        gpkg_ogr_contents = sqlite_util.get_gpkg_ogr_contents(output_path)
+        assert gpkg_ogr_contents["output"]["feature_count"] is not None
+    else:
+        assert "gpkg_ogr_contents" not in tables
 
     # The bounds of the layer should typically be filled out. It won't be filled out
     # if the output_epsg is -1 and no spatial index is created.
