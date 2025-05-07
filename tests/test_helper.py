@@ -3,8 +3,10 @@ Helper functions for all tests.
 """
 
 import os
+import re
 import tempfile
 from pathlib import Path
+from stat import S_IRGRP, S_IROTH, S_IRUSR, S_IRWXG, S_IRWXO, S_IRWXU
 
 import geopandas as gpd
 import geopandas.testing as gpd_testing
@@ -12,13 +14,23 @@ import shapely
 import shapely.geometry as sh_geom
 
 import geofileops as gfo
-from geofileops.util import _geofileinfo, _geoseries_util, _io_util, geodataframe_util
+from geofileops.util import (
+    _geofileinfo,
+    _geopath_util,
+    _geoseries_util,
+    _io_util,
+    geodataframe_util,
+)
 
-_data_dir = Path(__file__).parent.resolve() / "data"
+data_dir = Path(__file__).parent.resolve() / "data"
+data_url = "https://raw.githubusercontent.com/geofileops/geofileops/main/tests/data"
+
 EPSGS = [31370, 4326]
 GRIDSIZE_DEFAULT = 0.0
 SUFFIXES_FILEOPS = [".gpkg", ".shp", ".csv"]
+SUFFIXES_FILEOPS_EXT = [".gpkg", ".gpkg.zip", ".shp.zip", ".shp", ".csv"]
 SUFFIXES_GEOOPS = [".gpkg", ".shp"]
+SUFFIXES_GEOOPS_INPUT = [".gpkg", ".gpkg.zip", ".shp.zip", ".shp"]
 TESTFILES = ["polygon-parcel", "linestring-row-trees", "point"]
 WHERE_AREA_GT_400 = "ST_Area({geometrycolumn}) > 400"
 WHERE_AREA_GT_5000 = "ST_Area({geometrycolumn}) > 5000"
@@ -137,9 +149,39 @@ def get_testfile(
     empty: bool = False,
     dimensions: str | None = None,
     explodecollections: bool = False,
+    read_only: bool | None = None,
+) -> Path:
+    if dst_dir is None:
+        read_only = True
+
+    prepared_path = _get_testfile(
+        testfile=testfile,
+        dst_dir=dst_dir,
+        suffix=suffix,
+        epsg=epsg,
+        empty=empty,
+        dimensions=dimensions,
+        explodecollections=explodecollections,
+    )
+
+    # Make input read-only
+    if read_only:
+        set_read_only(prepared_path, read_only=True)
+
+    return prepared_path
+
+
+def _get_testfile(
+    testfile: str,
+    dst_dir: Path | None = None,
+    suffix: str = ".gpkg",
+    epsg: int = 31370,
+    empty: bool = False,
+    dimensions: str | None = None,
+    explodecollections: bool = False,
 ) -> Path:
     # Prepare original filepath.
-    testfile_path = _data_dir / f"{testfile}.gpkg"
+    testfile_path = data_dir / f"{testfile}.gpkg"
     if not testfile_path.exists():
         raise ValueError(f"Invalid testfile type: {testfile}")
 
@@ -171,7 +213,8 @@ def get_testfile(
 
         # Prepare the file in a tmp file so the file is not visible to other
         # processes until it is completely ready.
-        tmp_path = prepared_path.with_stem(f"{prepared_path.stem}_tmp")
+        tmp_stem = f"{_geopath_util.stem(prepared_path)}_tmp"
+        tmp_path = _geopath_util.with_stem(prepared_path, tmp_stem)
         layers = gfo.listlayers(testfile_path)
         dst_info = _geofileinfo.get_geofileinfo(tmp_path)
         if len(layers) > 1 and dst_info.is_singlelayer:
@@ -183,17 +226,23 @@ def get_testfile(
         # Convert all layers found
         for src_layer in layers:
             # Single layer files have stem as layername
-            dst_layer = tmp_path.stem if dst_info.is_singlelayer else src_layer
+            assert isinstance(tmp_path, Path)
+            if dst_info.is_singlelayer:
+                dst_layer = tmp_stem
+                preserve_fid = False
+            else:
+                dst_layer = src_layer
+                preserve_fid = not explodecollections
 
             gfo.copy_layer(
                 testfile_path,
                 tmp_path,
                 src_layer=src_layer,
                 dst_layer=dst_layer,
+                write_mode="add_layer",
                 dst_crs=epsg,
                 reproject=True,
-                append=True,
-                preserve_fid=not explodecollections,
+                preserve_fid=preserve_fid,
                 dst_dimensions=dimensions,
                 explodecollections=explodecollections,
             )
@@ -231,6 +280,30 @@ def get_testfile(
         raise
     finally:
         prepared_lock_path.unlink(missing_ok=True)
+
+
+def set_read_only(path: Path, read_only: bool) -> None:
+    """Set the file to read-only or read-write."""
+
+    def _read_only(path: Path) -> None:
+        # Set read-only
+        os.chmod(path, S_IRUSR | S_IRGRP | S_IROTH)
+
+    def _read_write(path: Path) -> None:
+        # Set read-write
+        os.chmod(path, S_IRWXU | S_IRWXG | S_IRWXO)
+
+    if path.exists():
+        _read_only(path) if read_only else _read_write(path)
+    else:
+        raise FileNotFoundError(f"File not found: {path}")
+
+    # For some file types, extra files need to be copied
+    src_info = _geofileinfo.get_geofileinfo(path)
+    for s in src_info.suffixes_extrafiles:
+        extra_file_path = path.parent / f"{path.stem}{s}"
+        if extra_file_path.exists():
+            _read_only(extra_file_path) if read_only else _read_write(extra_file_path)
 
 
 class TestData:
@@ -425,3 +498,50 @@ def assert_geodataframe_equal(
         check_crs=check_crs,
         normalize=normalize,
     )
+
+
+def plot(
+    geofiles: list[Path],
+    output_path: Path,
+    title: str | None = None,
+    clean_name: bool = True,
+):
+    # If we are running on CI server, don't plot
+    if "GITHUB_ACTIONS" in os.environ:
+        return
+
+    import matplotlib.colors as mcolors
+    from matplotlib import figure as mpl_figure
+
+    figure = mpl_figure.Figure(figsize=((len(geofiles) + 1) * 3, 3))
+    figure.subplots(1, len(geofiles) + 1, sharex=True, sharey=True)
+    if title is not None:
+        figure.suptitle(title)
+
+    colors = mcolors.TABLEAU_COLORS
+    for geofile_idx, geofile in enumerate(geofiles):
+        # Read the geofile
+        gdf = gfo.read_file(geofile)
+        if gdf is None:
+            continue
+
+        color = list(colors.keys())[geofile_idx % len(colors)]
+        figure.axes[geofile_idx].set_aspect("equal")
+        # add hatch to the last axis
+        gdf.plot(
+            ax=figure.axes[geofile_idx],
+            color=colors[color],
+            alpha=0.5,
+        )
+        gdf.plot(
+            ax=figure.axes[len(geofiles)],
+            color=colors[color],
+            alpha=0.5,
+        )
+        figure.axes[geofile_idx].set_title(geofile.stem)
+
+    if clean_name:
+        # Replace all possibly invalid characters by "_"
+        output_path = output_path.with_name(re.sub(r"[^\w_. -]", "_", output_path.name))
+
+    figure.savefig(str(output_path), dpi=72)

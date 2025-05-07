@@ -15,7 +15,7 @@ import shapely.geometry as sh_geom
 
 import geofileops as gfo
 from geofileops import GeometryType
-from geofileops.util import _geofileinfo
+from geofileops.util import _general_util, _geofileinfo
 from geofileops.util._geofileinfo import GeofileInfo
 from tests import test_helper
 from tests.test_helper import (
@@ -309,7 +309,10 @@ def test_dissolve_polygons(
         pytest.xfail("Geopandas doesn't support dissolve with gridsize yet")
 
     # Prepare test data
-    test_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
+    dst_dir = tmp_path if suffix == ".shp" else None
+    test_path = test_helper.get_testfile(
+        "polygon-parcel", suffix=suffix, epsg=epsg, dst_dir=dst_dir
+    )
     if explode_input:
         # A bug caused in the past that the output was forced to the same type as the
         # input. If input was simple Polygon, this cause invalid output because
@@ -477,19 +480,29 @@ def test_dissolve_emptyfile(tmp_path, testfile, suffix, explodecollections):
 
 @pytest.mark.parametrize("sql_singlethread", [True, False])
 @pytest.mark.parametrize(
-    "exp_match, invalid_params",
+    "exp_error, exp_ex, invalid_params",
     [
-        ("column in groupby_columns not", {"groupby_columns": "NON_EXISTING_COLUMN"}),
-        ("input_path doesn't exist: ", {"input_path": Path("nonexisting.abc")}),
+        (
+            "column in groupby_columns not",
+            ValueError,
+            {"groupby_columns": "NON_EXISTING_COLUMN"},
+        ),
+        (
+            "input_path not found: ",
+            FileNotFoundError,
+            {"input_path": Path("nonexisting.abc")},
+        ),
         (
             "output_path must not equal input_path",
+            ValueError,
             {
-                "input_path": test_helper.get_testfile("polygon-parcel"),
-                "output_path": test_helper.get_testfile("polygon-parcel"),
+                "input_path": Path("nonexisting.abc"),
+                "output_path": Path("nonexisting.abc"),
             },
         ),
         (
             "Dissolve to tiles is not supported for GeometryType.MULTILINESTRING, ",
+            ValueError,
             {
                 "input_path": test_helper.get_testfile("linestring-watercourse"),
                 "nb_squarish_tiles": 2,
@@ -497,6 +510,7 @@ def test_dissolve_emptyfile(tmp_path, testfile, suffix, explodecollections):
         ),
         (
             "abc not available in: ",
+            ValueError,
             {
                 "agg_columns": {
                     "columns": [{"column": "abc", "agg": "count", "as": "cba"}]
@@ -505,9 +519,10 @@ def test_dissolve_emptyfile(tmp_path, testfile, suffix, explodecollections):
         ),
     ],
 )
-def test_dissolve_invalid_params(tmp_path, sql_singlethread, invalid_params, exp_match):
-    """
-    Test dissolve with some invalid input params.
+def test_dissolve_invalid_params(
+    tmp_path, sql_singlethread, invalid_params, exp_ex, exp_error
+):
+    """Test dissolve with some invalid input params.
 
     Remark: the structure of agg_columns parameter is tested in
       test_parameter_helper.test_validate_agg_columns_invalid.
@@ -533,7 +548,7 @@ def test_dissolve_invalid_params(tmp_path, sql_singlethread, invalid_params, exp
             raise ValueError(f"unsupported invalid_param: {invalid_param}")
 
     # Run test
-    with pytest.raises(ValueError, match=exp_match):
+    with pytest.raises(exp_ex, match=exp_error):
         if sql_singlethread:
             if nb_squarish_tiles > 1:
                 pytest.skip("nb_squarish_tiles not relevant for dissolve_singlethread")
@@ -592,10 +607,41 @@ def test_dissolve_polygons_groupby_None(tmp_path):
     )
 
 
+@pytest.mark.parametrize("worker_type", ["thread", "process"])
+def test_dissolve_polygons_process_threads(tmp_path, worker_type):
+    """
+    Test dissolve polygons with different worker types.
+    """
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    input_layerinfo = gfo.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+
+    # Run test
+    output_path = tmp_path / "output.gpkg"
+    with _general_util.TempEnv({"GFO_WORKER_TYPE": worker_type}):
+        gfo.dissolve(
+            input_path=input_path,
+            output_path=output_path,
+            groupby_columns="GEWASGROEP",
+            explodecollections=True,
+            nb_parallel=2,
+            batchsize=batchsize,
+        )
+
+    # Now check if the tmp file is correctly created
+    assert output_path.exists()
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.geometrytype == GeometryType.POLYGON
+
+
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 def test_dissolve_polygons_specialcases(tmp_path, suffix):
     # Prepare test data
-    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    dst_dir = tmp_path if suffix == ".shp" else None
+    input_path = test_helper.get_testfile(
+        "polygon-parcel", suffix=suffix, dst_dir=dst_dir
+    )
     output_basepath = tmp_path / f"{input_path.stem}-output{suffix}"
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
@@ -661,7 +707,10 @@ def test_dissolve_polygons_specialcases(tmp_path, suffix):
 @pytest.mark.parametrize("nb_parallel", [-1, 2])
 def test_dissolve_polygons_tiles_empty(tmp_path, suffix, nb_parallel):
     # Prepare test data
-    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    dst_dir = tmp_path if suffix == ".shp" else None
+    input_path = test_helper.get_testfile(
+        "polygon-parcel", suffix=suffix, dst_dir=dst_dir
+    )
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
     output_path = tmp_path / f"{input_path.stem}-tilesoutput{suffix}"
@@ -717,7 +766,10 @@ def test_dissolve_polygons_tiles_empty(tmp_path, suffix, nb_parallel):
 @pytest.mark.filterwarnings("ignore: .* field lbl_conc has been truncated to 254")
 def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
     # Prepare test data
-    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    dst_dir = tmp_path if suffix == ".shp" else None
+    input_path = test_helper.get_testfile(
+        "polygon-parcel", suffix=suffix, dst_dir=dst_dir
+    )
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
     output_basepath = tmp_path / f"{input_path.stem}-output{suffix}"

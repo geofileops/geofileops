@@ -1,9 +1,32 @@
 # CHANGELOG
 
-## 0.10 (????-??-??)
+## 0.10.1 (yyyy-mm-dd)
 
 ### Deprecations and compatibility notes
 
+- Add warning when the GFO_IO_ENGINE configuration option is used with engine "fiona"
+  that this is deprecated and will be removed/ignored in a future version (#688)
+
+### Improvements
+
+- Don't pin maximum versions of dependencies for e.g. geopandas, shapely, pyogrio (#685)
+
+### Bugs fixed
+
+- Don't throw error when running `create_spatial_index` on a read-only file if the index
+  exists already (#686)
+- Fix `join_by_location` when using "contains" (#694)
+- Fix that on some input files spatial operations take significant time, even though
+  the output exists already and `force=False` (#696)
+
+## 0.10.0 (2025-03-26)
+
+### Deprecations and compatibility notes
+
+- Worker processes are now being created using "forkserver" on linux. This solves risks
+  of deadlocks and the corresponding warning for that. Consequence is that also on linux
+  the `if __name__ == "__main__":` construct needs to be used in scripts. Some more info
+  can be found in the geofileops FAQ (#675).
 - `erase` was renamed to `difference`, as most other open source applications/libraries
   use this terminology. `erase` just keeps existing for backwards compatibility for now,
   but a warning is shown that it might be removed in the (distant) future. (#595)
@@ -11,6 +34,8 @@
   documentation, not the stem of the destination filename. This is corrected now. (#648)
 - In `copy_layer`, the `append` parameter is deprecated and replaced by the `write_mode`
   parameter that accepts e.g. "append" as value (#663).
+- The `append_to` function is deprecated, as it is almost identical to `copy_layer` with
+  `write_mode="append"` (#669).
 
 ### Improvements
 
@@ -24,11 +49,14 @@
 - Improve performance of `export_by_location` and `join_by_location` for simple queries
   (#548)
 - Add support for `query=""` in `export_by_location` (#597)
+- Add support for GDAL vsi handlers in paths in most general file/layer operations (#669)
+- Add basic support for ".gpkg.zip" and ".shp.zip" files in most general file/layer
+  operations (#673)
 - Add support to rename columns and layers with only a difference in casing (#549, #593)
 - Use `ST_Equals` and add priority feature to `delete_duplicate_geometries` (#638)
 - Avoid integer overflow when gpkg written by geofileops is read from .NET (#612)
 - Speed up processing many small files, mainly on windows:
-    - reduce calls to `gdal.OpenEx` (#622, #625)
+    - reduce calls to `gdal.OpenEx` (#622, #625, #677)
     - improvements in sqlite3 code for 2 layer operations: start transactions
       explicitly, remove obsolete GPKG triggers, use a :memory: temp file where possible
       (#626, #628, #630)
@@ -57,6 +85,7 @@
 - Fix an invalid output .gpkg file being created when e.g. `copy_layer` is ran with an
   invalid sql statement (#641)
 - Fix wrong results for `export_by_location` with queries != "intersects is True" (#617)
+- Fix listlayers returns layer name for a non-existing .shp (#672)
 
 ## 0.9.1 (2024-07-18)
 
