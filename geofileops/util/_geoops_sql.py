@@ -544,10 +544,10 @@ def _single_layer_vector_operation(
         return
 
     # Check/clean input parameters...
-    if not input_path.exists():
-        raise FileNotFoundError(f"{operation_name}: input_path not found: {input_path}")
     if input_path == output_path:
         raise ValueError(f"{operation_name}: output_path must not equal input_path")
+    if not input_path.exists():
+        raise FileNotFoundError(f"{operation_name}: input_path not found: {input_path}")
     if where_post is not None and where_post == "":
         where_post = None
     if isinstance(columns, str):
@@ -3627,6 +3627,10 @@ def _validate_params(
         a tuple with the layers:
         input1_layer (LayerInfo), input2_layer (LayerInfo), output_layer (str)
     """
+    if output_path in (input1_path, input2_path):
+        raise ValueError(
+            f"{operation_name}: output_path must not equal one of input paths"
+        )
     if not input1_path.exists():
         raise FileNotFoundError(
             f"{operation_name}: input1_path not found: {input1_path}"
@@ -3634,10 +3638,6 @@ def _validate_params(
     if not input2_path.exists():
         raise FileNotFoundError(
             f"{operation_name}: input2_path not found: {input2_path}"
-        )
-    if output_path in (input1_path, input2_path):
-        raise ValueError(
-            f"{operation_name}: output_path must not equal one of input paths"
         )
 
     # Get layer info
@@ -4117,10 +4117,10 @@ def dissolve_singlethread(
     start_time = datetime.now()
 
     # Check input params
-    if not input_path.exists():
-        raise FileNotFoundError(f"input_path not found: {input_path}")
     if input_path == output_path:
         raise ValueError("output_path must not equal input_path")
+    if not input_path.exists():
+        raise FileNotFoundError(f"input_path not found: {input_path}")
     if where_post is not None and where_post == "":
         where_post = None
 
