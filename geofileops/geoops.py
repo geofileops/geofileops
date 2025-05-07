@@ -100,6 +100,8 @@ def dissolve_within_distance(
 
     input_path = Path(input_path)
     output_path = Path(output_path)
+    if _io_util.output_exists(path=output_path, remove_if_exists=force):
+        return
 
     start_time = datetime.now()
     operation_name = "dissolve_within_distance"
