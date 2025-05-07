@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 0.11.0 (yyyy-mm-dd)
+
+### Improvements
+
+- Ensure that the featurecount is properly cached in GPKG files, also for older GDAL
+  versions + small refactor (#693)
+
 ## 0.10.1 (yyyy-mm-dd)
 
 ### Deprecations and compatibility notes
