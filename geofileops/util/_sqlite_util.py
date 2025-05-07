@@ -92,11 +92,112 @@ class SqliteProfile(enum.Enum):
     SPEED = 1
 
 
+def add_gpkg_ogr_contents(database: Any, layer: str | None, force_update: bool = False):
+    """Add a layer to the gpkg_ogr_contents table in a geopackage.
+
+    If the table doesn't exist yet, it will be created.
+
+    Args:
+        database (Any): the database to add the gpkg_ogr_contents to. This can be a path
+            to a file or an sqlite3.Connection object. If it is a connection, it won't
+            be closed when returning.
+        layer (str): the name of the layer to add to the gpkg_ogr_contents table.
+            If None, only the table will be created.
+        force_update (bool, optional): True to update the data if the layer already
+            exists. Defaults to False.
+
+    Raises:
+        RuntimeError: an error occured while creating the table.
+
+    Returns:
+        None
+    """
+    if isinstance(database, sqlite3.Connection):
+        # If a connection is passed, use it
+        conn = database
+    else:
+        conn = sqlite3.connect(database)
+
+    sql = None
+    try:
+        # Create gpkg_ogr_contents table if it doesn't exist yet
+        sql = """
+            CREATE TABLE IF NOT EXISTS gpkg_ogr_contents(
+                table_name TEXT NOT NULL PRIMARY KEY,
+                feature_count INTEGER DEFAULT 0
+            );
+        """
+        conn.execute(sql)
+
+        if layer is None:
+            conn.commit()
+            return
+
+        # Create triggers to keep the feature count up to date
+        sql = f"""
+            CREATE TRIGGER IF NOT EXISTS "trigger_insert_feature_count_{layer}"
+                AFTER INSERT ON "{layer}"
+            BEGIN
+                UPDATE gpkg_ogr_contents
+                    SET feature_count = feature_count + 1
+                WHERE lower(table_name) = lower('{layer}');
+            END;
+        """
+        conn.execute(sql)
+        sql = f"""
+            CREATE TRIGGER IF NOT EXISTS "trigger_delete_feature_count_{layer}"
+                AFTER DELETE ON "{layer}"
+            BEGIN
+                UPDATE gpkg_ogr_contents
+                    SET feature_count = feature_count - 1
+                WHERE lower(table_name) = lower('{layer}');
+            END;
+        """
+        conn.execute(sql)
+
+        # Check if the layer already exists in the gpkg_ogr_contents table
+        sql = f"""
+            SELECT * FROM gpkg_ogr_contents
+             WHERE lower(table_name) = '{layer.lower()}';
+        """
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute(sql)
+        contents = cursor.fetchall()
+        if len(contents) > 0:
+            # Layer already exists, check if we need to update it
+            if force_update:
+                sql = f"""
+                    UPDATE gpkg_ogr_contents
+                       SET feature_count = (SELECT COUNT(*) FROM "{layer}")
+                     WHERE lower(table_name) = '{layer.lower()}';
+                """
+                conn.execute(sql)
+            else:
+                # Layer already exists and we don't want to update it, so skip it
+                return
+        else:
+            # Layer doesn't exist yet, so add it to the gpkg_ogr_contents table
+            sql = f"""
+                INSERT INTO gpkg_ogr_contents (table_name, feature_count)
+                  VALUES ('{layer}', (SELECT COUNT(*) FROM "{layer}"));
+            """
+            conn.execute(sql)
+
+        conn.commit()
+
+    except Exception as ex:
+        conn.rollback()
+        raise RuntimeError(f"Error executing {sql}") from ex
+    finally:
+        # If no existing connection was passed, close the connection
+        if not isinstance(database, sqlite3.Connection):
+            conn.close()
+
+
 def create_new_spatialdb(
     path: Union[str, "os.PathLike[Any]"],
     crs_epsg: int | None = None,
     filetype: str | None = None,
-    create_ogr_contents: bool = False,
 ) -> sqlite3.Connection:
     """Create a new spatialite database file.
 
@@ -110,7 +211,6 @@ def create_new_spatialdb(
         filetype (str, optional): filetype of the spatial database to create. If
             specified, takes precendence over the suffix of the path. Possible values
             are "gpkg" and "sqlite". Defaults to None.
-        create_ogr_contents (bool, optional): True to create the gpkg_ogr_contents table
 
     Raises:
         ValueError: an invalid parameter value is passed.
@@ -188,16 +288,6 @@ def create_new_spatialdb(
             conn.execute(sql)
             sql = "PRAGMA user_version=10400;"
             conn.execute(sql)
-
-            if create_ogr_contents:
-                # Add gpkg_ogr_contents table
-                sql = """
-                    CREATE TABLE gpkg_ogr_contents(
-                        table_name TEXT NOT NULL PRIMARY KEY,
-                        feature_count INTEGER DEFAULT 0
-                    );
-                """
-                conn.execute(sql)
 
         elif filetype == "sqlite":
             sql = "SELECT InitSpatialMetaData(1);"
@@ -462,11 +552,7 @@ def create_table_as_sql(
 
     if not output_path.exists():
         # Output file doesn't exist yet: create and init it
-        conn = create_new_spatialdb(
-            path=output_path,
-            crs_epsg=output_crs,
-            create_ogr_contents=create_ogr_contents,
-        )
+        conn = create_new_spatialdb(path=output_path, crs_epsg=output_crs)
         new_db = True
     else:
         # Output file exists: open it
@@ -633,37 +719,7 @@ def create_table_as_sql(
 
         # Fill out the feature count in the gpkg_ogr_contents table + create triggers
         if create_ogr_contents and output_suffix_lower == ".gpkg":
-            # Fill out feature count
-            sql = f"""
-                INSERT INTO
-                    {output_databasename}.gpkg_ogr_contents (table_name, feature_count)
-                  VALUES ( '{output_layer}',
-                           (SELECT COUNT(*) FROM {output_databasename}."{output_layer}")
-                         );
-            """
-            conn.execute(sql)
-
-            # Create triggers to keep the feature count up to date
-            sql = f"""
-                CREATE TRIGGER "trigger_insert_feature_count_{output_layer}"
-                  AFTER INSERT ON "{output_layer}"
-                BEGIN
-                  UPDATE gpkg_ogr_contents
-                     SET feature_count = feature_count + 1
-                   WHERE lower(table_name) = lower('{output_layer}');
-                END;
-            """
-            conn.execute(sql)
-            sql = f"""
-                CREATE TRIGGER "trigger_delete_feature_count_{output_layer}"
-                  AFTER DELETE ON "{output_layer}"
-                BEGIN
-                  UPDATE gpkg_ogr_contents
-                     SET feature_count = feature_count - 1
-                   WHERE lower(table_name) = lower('{output_layer}');
-                END;
-            """
-            conn.execute(sql)
+            add_gpkg_ogr_contents(database=conn, layer=output_layer, force_update=True)
 
         # Create spatial index if needed
         if create_spatial_index and "geom" in column_types:
