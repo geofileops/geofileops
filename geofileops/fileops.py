@@ -26,7 +26,7 @@ from osgeo import gdal, ogr
 from pandas.api.types import is_integer_dtype
 from pygeoops import GeometryType, PrimitiveType  # noqa: F401
 
-from geofileops._compat import PYOGRIO_GTE_07, PYOGRIO_GTE_08
+from geofileops._compat import PYOGRIO_GTE_08
 from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import (
     _geofileinfo,

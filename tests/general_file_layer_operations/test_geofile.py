@@ -17,8 +17,7 @@ from pygeoops import GeometryType
 
 import geofileops as gfo
 from geofileops import _compat, fileops
-from geofileops.util import _geofileinfo, _geopath_util, _geoseries_util, _io_util
-from geofileops.util._geofileinfo import GeofileInfo
+from geofileops.util import _geofileinfo, _geopath_util, _geoseries_util
 from tests import test_helper
 from tests.test_helper import (
     SUFFIXES_FILEOPS,
