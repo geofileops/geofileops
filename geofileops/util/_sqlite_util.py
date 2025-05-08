@@ -185,7 +185,7 @@ def add_gpkg_ogr_contents(database: Any, layer: str | None, force_update: bool =
 
         conn.commit()
 
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
         conn.rollback()
         raise RuntimeError(f"Error executing {sql}") from ex
     finally:
@@ -304,7 +304,7 @@ def create_new_spatialdb(
     except ValueError:
         conn.close()
         raise
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
         conn.close()
         raise RuntimeError(f"Error creating spatial db {path} executing {sql}") from ex
 
@@ -463,7 +463,7 @@ def get_columns(
             else:
                 columns[columnname] = columntype
 
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
         conn.rollback()
         raise RuntimeError(f"Error {ex} executing {sql}") from ex
     finally:
@@ -756,7 +756,7 @@ def create_table_as_sql(
         conn.close()
         if output_path.exists():
             output_path.unlink()
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
         raise RuntimeError(f"Error {ex} executing {sql}") from ex
     finally:
         if conn is not None:
@@ -792,7 +792,7 @@ def execute_sql(path: Path, sql_stmt: str | list[str], use_spatialite: bool = Tr
 
     except Exception as ex:
         conn.rollback()
-        raise Exception(f"Error executing {sql}") from ex
+        raise RuntimeError(f"Error executing {sql}") from ex
     finally:
         conn.close()
 
@@ -814,7 +814,7 @@ def get_gpkg_contents(path: Path) -> dict[str, dict]:
         cursor = conn.execute(sql)
         contents = cursor.fetchall()
         contents_dict = {row["table_name"]: dict(row) for row in contents}
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
         raise RuntimeError(f"Error executing {sql}") from ex
     finally:
         conn.close()
@@ -839,7 +839,7 @@ def get_gpkg_ogr_contents(path: Path) -> dict[str, dict]:
         cursor = conn.execute(sql)
         contents = cursor.fetchall()
         contents_dict = {row["table_name"]: dict(row) for row in contents}
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
         raise RuntimeError(f"Error executing {sql}") from ex
     finally:
         conn.close()
@@ -862,7 +862,7 @@ def get_tables(path: Path) -> list[str]:
         sql = "SELECT name FROM sqlite_master WHERE type='table';"
         cursor = conn.execute(sql)
         tables = [row[0] for row in cursor.fetchall()]
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
         raise RuntimeError(f"Error executing {sql}") from ex
     finally:
         conn.close()
@@ -900,8 +900,8 @@ def test_data_integrity(path: Path, use_spatialite: bool = True):
                     # All data was fetched from layer
                     break
 
-    except Exception as ex:
-        raise Exception(f"Error executing {sql}") from ex
+    except Exception as ex:  # pragma: no cover
+        raise RuntimeError(f"Error executing {sql}") from ex
     finally:
         conn.close()
 
@@ -941,7 +941,7 @@ def set_performance_options(
                 sql = f"PRAGMA {databasename}.synchronous=OFF;"
                 conn.execute(sql)
 
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
         raise RuntimeError(f"Error executing {sql}: {ex}") from ex
 
 
