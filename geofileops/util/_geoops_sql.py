@@ -648,7 +648,7 @@ def _single_layer_vector_operation(
 
         # Add application of gridsize around sql_template if specified
         if geom_selected and gridsize != 0.0:
-            assert force_output_geometrytype is not None
+            assert isinstance(force_output_geometrytype, GeometryType)
             gridsize_op = _format_apply_gridsize_operation(
                 geometrycolumn=f"sub_gridsize.{input_layer.geometrycolumn}",
                 gridsize=gridsize,
@@ -3359,6 +3359,9 @@ def _two_layer_vector_operation(
             batch_filter=processing_params.batches[0]["batch_filter"]
         )
 
+        assert force_output_geometrytype is None or isinstance(
+            force_output_geometrytype, GeometryType
+        )
         column_datatypes = _sqlite_util.get_columns(
             sql_stmt=sql_stmt,
             input_databases=input_db_names,
