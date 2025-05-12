@@ -2124,13 +2124,16 @@ def test_to_file_index(tmp_path, points_gdf, suffix, engine_setter):
             self.ext = ext
             self.fileno = 0
 
-        def __repr__(self):
+        def __repr__(self) -> str:
+            return self.format_filepath().as_posix()
+
+        def __next__(self) -> Path:
+            self.fileno += 1
+            return self.format_filepath()
+
+        def format_filepath(self) -> Path:
             filename = f"{self.base}{self.fileno:02d}.{self.ext}"
             return self.tmpdir / filename
-
-        def __next__(self):
-            self.fileno += 1
-            return repr(self)
 
     fngen = FileNumber(tmp_path, "check", suffix)
 
