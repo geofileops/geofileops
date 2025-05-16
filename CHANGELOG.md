@@ -5,7 +5,7 @@
 ### Deprecations and compatibility notes
 
 - Add warning when the GFO_IO_ENGINE configuration option is used with engine "fiona"
-  that this is deprecated and will be removed/ignored in a future version (#688)
+  that this is deprecated and will be removed/ignored in a future version (#688, #701)
 
 ### Improvements
 
