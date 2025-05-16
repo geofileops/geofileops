@@ -97,15 +97,13 @@ def dissolve_within_distance(
     """
     input_path = Path(input_path)
     output_path = Path(output_path)
+    if _io_util.output_exists(path=output_path, remove_if_exists=force):
+        return
 
     start_time = datetime.now()
     operation_name = "dissolve_within_distance"
     logger = logging.getLogger(f"geofileops.{operation_name}")
     nb_steps = 9
-
-    # Already check here if it is useful to continue
-    if _io_util.output_exists(path=output_path, remove_if_exists=force):
-        return
 
     tempdir = _io_util.create_tempdir(f"geofileops/{operation_name}")
     try:
@@ -358,8 +356,11 @@ def dissolve_within_distance(
         step += 1
         logger.info(f"Step {step} of {nb_steps}")
         dst_layer = fileops.get_only_layer(diss_path)
-        fileops.append_to(
-            src=parts_to_add_filtered_path, dst=diss_path, dst_layer=dst_layer
+        fileops.copy_layer(
+            src=parts_to_add_filtered_path,
+            dst=diss_path,
+            dst_layer=dst_layer,
+            write_mode="append",
         )
 
         step += 1

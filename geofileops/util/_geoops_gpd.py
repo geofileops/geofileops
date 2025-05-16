@@ -564,6 +564,9 @@ def makevalid(
     batchsize: int = -1,
     force: bool = False,
 ):
+    if _io_util.output_exists(path=output_path, remove_if_exists=force):
+        return
+
     # Determine if collapsed parts need to be kept after makevalid or not
     keep_collapsed = True
     if force_output_geometrytype is None:
@@ -745,12 +748,14 @@ def _apply_geooperation_to_layer(
     logger = logging.getLogger(f"geofileops.{operation_name}")
 
     # Check input parameters...
-    if not input_path.exists():
-        raise ValueError(f"{operation_name}: input_path doesn't exist: {input_path}")
-    if input_path == output_path:
-        raise ValueError(f"{operation_name}: output_path must not equal input_path")
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
+
+    if input_path == output_path:
+        raise ValueError(f"{operation_name}: output_path must not equal input_path")
+    if not input_path.exists():
+        raise FileNotFoundError(f"{operation_name}: input_path not found: {input_path}")
+
     if not isinstance(input_layer, LayerInfo):
         input_layer = gfo.get_layerinfo(input_path, input_layer)
     if output_layer is None:
@@ -838,6 +843,7 @@ def _apply_geooperation_to_layer(
                     gridsize=gridsize,
                     keep_empty_geoms=keep_empty_geoms,
                     preserve_fid=preserve_fid,
+                    create_spatial_index=False,
                     force=force,
                 )
                 future_to_batch_id[future] = batch_id
@@ -940,6 +946,7 @@ def _apply_geooperation(
     gridsize: float = 0.0,
     keep_empty_geoms: bool = False,
     preserve_fid: bool = False,
+    create_spatial_index: bool = False,
     force: bool = False,
 ) -> str:
     # Init
@@ -1041,7 +1048,7 @@ def _apply_geooperation(
         index=False,
         force_output_geometrytype=force_output_geometrytype,
         force_multitype=not explodecollections,
-        create_spatial_index=False,
+        create_spatial_index=create_spatial_index,
     )
 
     message = f"Took {datetime.now() - start_time} for {len(data_gdf)} rows ({where})"
@@ -1119,13 +1126,16 @@ def dissolve(
     operation_name = f"{operation_prefix}dissolve"
     logger = logging.getLogger(f"geofileops.{operation_name}")
 
-    # Check input parameters
+    # Check if we need to calculate anyway
+    if _io_util.output_exists(path=output_path, remove_if_exists=force):
+        return
+
     if groupby_columns is not None and len(list(groupby_columns)) == 0:
         raise ValueError("groupby_columns=[] is not supported. Use None.")
-    if not input_path.exists():
-        raise ValueError(f"input_path doesn't exist: {input_path}")
     if input_path == output_path:
         raise ValueError("output_path must not equal input_path")
+    if not input_path.exists():
+        raise FileNotFoundError(f"input_path not found: {input_path}")
 
     if not isinstance(input_layer, LayerInfo):
         input_layer = gfo.get_layerinfo(input_path, input_layer)
@@ -1182,10 +1192,6 @@ def dissolve(
                 agg_column["column"] = _general_util.align_casing(
                     agg_column["column"], columns_available
                 )
-
-    # Now input parameters are checked, check if we need to calculate anyway
-    if _io_util.output_exists(path=output_path, remove_if_exists=force):
-        return
 
     # Check what we need to do in an error occurs
     on_data_error = ConfigOptions.on_data_error
@@ -1395,8 +1401,11 @@ def dissolve(
                 str(output_tmp_onborder_path) != str(output_tmp_path)
                 and output_tmp_onborder_path.exists()
             ):
-                gfo.append_to(
-                    output_tmp_onborder_path, output_tmp_path, dst_layer=output_layer
+                gfo.copy_layer(
+                    output_tmp_onborder_path,
+                    output_tmp_path,
+                    dst_layer=output_layer,
+                    write_mode="append",
                 )
 
             # If there is a result...

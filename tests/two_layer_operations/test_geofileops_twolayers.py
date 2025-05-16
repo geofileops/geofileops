@@ -18,7 +18,7 @@ import shapely.geometry as sh_geom
 import geofileops as gfo
 from geofileops import GeometryType
 from geofileops._compat import GEOPANDAS_GTE_10, SPATIALITE_GTE_51
-from geofileops.util import _geofileinfo, _sqlite_util
+from geofileops.util import _general_util, _geofileinfo, _sqlite_util
 from geofileops.util import _geoops_sql as geoops_sql
 from geofileops.util._geofileinfo import GeofileInfo
 from tests import test_helper
@@ -615,39 +615,55 @@ def test_intersect_deprecated(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "suffix, epsg, gridsize, explodecollections, nb_parallel",
+    "suffix_in, suffix_out, epsg, gridsize, explodecollections, worker_type, "
+    "nb_parallel",
     [
-        (".gpkg", 31370, 0.0, True, 1),
-        (".gpkg", 31370, 0.01, True, 1),
-        (".gpkg", 31370, 0.0, False, 2),
-        (".gpkg", 4326, 0.0, True, 2),
-        (".shp", 31370, 0.0, True, 1),
-        (".shp", 31370, 0.0, False, 2),
+        (".gpkg.zip", ".gpkg", 31370, 0.0, True, "thread", 1),
+        (".gpkg", ".gpkg", 31370, 0.01, True, "thread", 1),
+        (".gpkg", ".gpkg", 31370, 0.0, False, "process", 2),
+        (".gpkg", ".gpkg", 4326, 0.0, True, "thread", 2),
+        (".shp", ".shp", 31370, 0.0, True, "thread", 1),
+        (".shp", ".shp", 31370, 0.0, False, "process", 2),
     ],
 )
 def test_intersection(
-    tmp_path, suffix, epsg, explodecollections, gridsize, nb_parallel
+    tmp_path,
+    suffix_in,
+    suffix_out,
+    epsg,
+    explodecollections,
+    gridsize,
+    worker_type,
+    nb_parallel,
 ):
-    # Prepare test data/parameters
-    input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
-    input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
+    if suffix_in == ".gpkg.zip":
+        pytest.xfail(
+            "Two layer operations use sqlite directly, so .gpkg.zip does not work"
+        )
 
-    output_path = tmp_path / f"{input1_path.stem}_inters_{input2_path.stem}{suffix}"
+    # Prepare test data/parameters
+    input1_path = test_helper.get_testfile(
+        "polygon-parcel", suffix=suffix_in, epsg=epsg
+    )
+    input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix_in, epsg=epsg)
+
+    output_path = tmp_path / f"{input1_path.stem}_inters_{input2_path.stem}{suffix_out}"
     batchsize = -1
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     if nb_parallel > 1:
         batchsize = math.ceil(input1_layerinfo.featurecount / 2)
 
     # Now run test
-    gfo.intersection(
-        input1_path=str(input1_path),
-        input2_path=str(input2_path),
-        output_path=str(output_path),
-        gridsize=gridsize,
-        explodecollections=explodecollections,
-        nb_parallel=nb_parallel,
-        batchsize=batchsize,
-    )
+    with _general_util.TempEnv({"GFO_WORKER_TYPE": worker_type}):
+        gfo.intersection(
+            input1_path=str(input1_path),
+            input2_path=str(input2_path),
+            output_path=str(output_path),
+            gridsize=gridsize,
+            explodecollections=explodecollections,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+        )
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
@@ -659,7 +675,7 @@ def test_intersection(
         len(input1_layerinfo.columns) + len(input2_layerinfo.columns)
     )
 
-    if explodecollections and suffix != ".shp":
+    if explodecollections and suffix_out != ".shp":
         assert output_layerinfo.geometrytype == GeometryType.POLYGON
     else:
         assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
@@ -715,32 +731,32 @@ def test_intersection_input_no_index(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "expected_error, expected_exception, input1_path, input2_path, output_path",
+    "exp_error, exp_ex, input1_path, input2_path, output_path",
     [
         (
             "intersection: output_path must not equal one of input paths",
             ValueError,
-            test_helper.get_testfile("polygon-parcel"),
+            "not_existing_path",
             test_helper.get_testfile("polygon-zone"),
-            test_helper.get_testfile("polygon-parcel"),
+            Path("not_existing_path"),
         ),
         (
             "intersection: output_path must not equal one of input paths",
             ValueError,
             test_helper.get_testfile("polygon-parcel"),
-            test_helper.get_testfile("polygon-zone"),
-            test_helper.get_testfile("polygon-zone"),
+            Path("not_existing_path"),
+            Path("not_existing_path"),
         ),
         (
-            "intersection: input1_path doesn't exist",
-            ValueError,
+            "intersection: input1_path not found",
+            FileNotFoundError,
             "not_existing_path",
             test_helper.get_testfile("polygon-zone"),
             "output.gpkg",
         ),
         (
-            "intersection: input2_path doesn't exist",
-            ValueError,
+            "intersection: input2_path not found",
+            FileNotFoundError,
             test_helper.get_testfile("polygon-zone"),
             "not_existing_path",
             "output.gpkg",
@@ -755,11 +771,11 @@ def test_intersection_input_no_index(tmp_path):
     ],
 )
 def test_intersection_invalid_params(
-    tmp_path, input1_path, input2_path, output_path, expected_exception, expected_error
+    tmp_path, input1_path, input2_path, output_path, exp_ex, exp_error
 ):
     if isinstance(output_path, str):
         output_path = tmp_path / output_path
-    with pytest.raises(expected_exception, match=expected_error):
+    with pytest.raises(exp_ex, match=exp_error):
         gfo.intersection(
             input1_path=input1_path, input2_path=input2_path, output_path=output_path
         )
@@ -1550,28 +1566,32 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
 
 
 @pytest.mark.parametrize(
-    "expected_error, input1_path, input2_path, output_path",
+    "exp_error, exp_ex, input1_path, input2_path, output_path",
     [
         (
             "select_two_layers: output_path must not equal one of input paths",
-            test_helper.get_testfile("polygon-parcel"),
+            ValueError,
+            Path("non_existing_input.gpkg"),
             test_helper.get_testfile("polygon-zone"),
-            test_helper.get_testfile("polygon-parcel"),
+            Path("non_existing_input.gpkg"),
         ),
         (
             "select_two_layers: output_path must not equal one of input paths",
+            ValueError,
             test_helper.get_testfile("polygon-parcel"),
-            test_helper.get_testfile("polygon-zone"),
-            test_helper.get_testfile("polygon-zone"),
+            Path("non_existing_input.gpkg"),
+            Path("non_existing_input.gpkg"),
         ),
         (
-            "select_two_layers: input1_path doesn't exist: not_existing_path",
+            "select_two_layers: input1_path not found: not_existing_path",
+            FileNotFoundError,
             "not_existing_path",
             test_helper.get_testfile("polygon-zone"),
             "output.gpkg",
         ),
         (
-            "select_two_layers: input2_path doesn't exist: not_existing_path",
+            "select_two_layers: input2_path not found: not_existing_path",
+            FileNotFoundError,
             test_helper.get_testfile("polygon-zone"),
             "not_existing_path",
             "output.gpkg",
@@ -1579,7 +1599,7 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
     ],
 )
 def test_select_two_layers_invalid_paths(
-    tmp_path, input1_path, input2_path, output_path, expected_error
+    tmp_path, input1_path, input2_path, output_path, exp_ex, exp_error
 ):
     """
     select_two_layers doesn't get info on input layers up-front, so this is the best
@@ -1597,7 +1617,7 @@ def test_select_two_layers_invalid_paths(
          WHERE 1=1
            AND ST_Area(layer1.{input1_geometrycolumn}) > 5
     """
-    with pytest.raises(ValueError, match=expected_error):
+    with pytest.raises(exp_ex, match=exp_error):
         gfo.select_two_layers(
             input1_path=input1_path,
             input2_path=input2_path,

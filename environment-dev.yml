@@ -15,10 +15,10 @@ dependencies:
   - packaging
   - pandas
   - psutil
-  - pygeoops >=0.4,<0.5
-  - pyogrio >=0.5
+  - pygeoops >=0.4
+  - pyogrio >=0.7
   - pyproj
-  - shapely >=2,<2.1
+  - shapely >=2
   # optional
   # - fiona  # Not needed anymore except if pyogio < 0.7 is used.
   - matplotlib-base
@@ -27,12 +27,11 @@ dependencies:
   - pytest
   - pytest-cov
   # linting
-  - mypy
+  - mypy ==1.15.0
   - pandas-stubs
   - pre-commit
   - ruff ==0.11.0
   - types-pillow
   # docs
   - pydata-sphinx-theme
-  - pip:
-    - sphinx-automodapi==0.13
+  - sphinx-automodapi
