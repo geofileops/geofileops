@@ -16,6 +16,7 @@ dependencies:
   - packaging
   - pandas
   - psutil
+  - pyarrow
   - pygeoops
   - pyogrio
   - pyproj
