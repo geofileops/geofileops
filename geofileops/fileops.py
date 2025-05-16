@@ -1080,7 +1080,7 @@ def add_column(
 
         # Log time taken if it was slow.
         took = time.perf_counter() - start
-        if took > 2:
+        if took > 2:  # pragma: no cover
             logger.info(f"Ready, add_column of {name} took {took:.2f}")
 
 
@@ -1216,7 +1216,7 @@ def update_column(
 
         # Log time taken if it was slow.
         took = time.perf_counter() - start
-        if took > 2:
+        if took > 2:  # pragma: no cover
             logger.info(f"Ready, update_column of {name} took {took:.2f}")
 
 
