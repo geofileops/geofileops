@@ -6,12 +6,12 @@
 
 - Improve performance of two-layer operations using `nb_parallel=1` (#692)
 
-## 0.10.1 (yyyy-mm-dd)
+## 0.10.1 (2025-05-16)
 
 ### Deprecations and compatibility notes
 
 - Add warning when the GFO_IO_ENGINE configuration option is used with engine "fiona"
-  that this is deprecated and will be removed/ignored in a future version (#688)
+  that this is deprecated and will be removed/ignored in a future version (#688, #701)
 
 ### Improvements
 
