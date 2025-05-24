@@ -1,11 +1,11 @@
 # CHANGELOG
 
-## 0.10.1 (yyyy-mm-dd)
+## 0.10.1 (2025-05-16)
 
 ### Deprecations and compatibility notes
 
 - Add warning when the GFO_IO_ENGINE configuration option is used with engine "fiona"
-  that this is deprecated and will be removed/ignored in a future version (#688)
+  that this is deprecated and will be removed/ignored in a future version (#688, #701)
 
 ### Improvements
 
@@ -15,6 +15,9 @@
 
 - Don't throw error when running `create_spatial_index` on a read-only file if the index
   exists already (#686)
+- Fix `join_by_location` when using "contains" (#694)
+- Fix that on some input files spatial operations take significant time, even though
+  the output exists already and `force=False` (#696)
 
 ## 0.10.0 (2025-03-26)
 
