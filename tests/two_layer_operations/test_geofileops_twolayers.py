@@ -447,6 +447,7 @@ def test_export_by_distance(tmp_path, testfile, suffix):
 @pytest.mark.parametrize(
     "suffix, epsg, gridsize, subdivide_coords",
     [
+        (".gpkg", 31370, 0.0, 2000),
         (".gpkg", 31370, 0.01, 2000),
         (".gpkg", 4326, 0.0, 2000),
         (".shp", 31370, 0.0, 10),
@@ -499,6 +500,11 @@ def test_identity(tmp_path, suffix, epsg, gridsize, subdivide_coords):
     # Remove rows where geometry is empty or None
     exp_gdf = exp_gdf[~exp_gdf.geometry.isna()]
     exp_gdf = exp_gdf[~exp_gdf.geometry.is_empty]
+
+    # If running locally, save the expected output for comparison
+    if "GITHUB_ACTIONS" not in os.environ:
+        exp_path = tmp_path / "expected.gpkg"
+        exp_gdf.to_file(exp_path)
 
     # If input was subdivided, the output geometries will have some extra points
     check_geom_tolerance = 0.0
