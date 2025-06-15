@@ -274,6 +274,7 @@ def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
         if (
             "no such file or directory" in ex_str
             or "not recognized as being in a supported file format" in ex_str
+            or "not recognized as a supported file format" in ex_str
         ):
             # If the file does not exist or if, for some cases like a csv file,
             # it is e.g. an empty file that was not recognized yet, try to get the
