@@ -17,7 +17,7 @@ import shapely.geometry as sh_geom
 
 import geofileops as gfo
 from geofileops import GeometryType
-from geofileops._compat import GEOPANDAS_GTE_10, SPATIALITE_GTE_51
+from geofileops._compat import GEOPANDAS_110, GEOPANDAS_GTE_10, SPATIALITE_GTE_51
 from geofileops.util import _general_util, _geofileinfo, _sqlite_util
 from geofileops.util import _geoops_sql as geoops_sql
 from geofileops.util._geofileinfo import GeofileInfo
@@ -453,6 +453,7 @@ def test_export_by_distance(tmp_path, testfile, suffix):
         (".shp", 31370, 0.0, 10),
     ],
 )
+@pytest.mark.skipif(GEOPANDAS_110, "a bug in geopandas 1.1.0 causes this test to fail")
 def test_identity(tmp_path, suffix, epsg, gridsize, subdivide_coords):
     # Prepare test data
     input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
