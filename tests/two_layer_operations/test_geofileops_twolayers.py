@@ -453,7 +453,9 @@ def test_export_by_distance(tmp_path, testfile, suffix):
         (".shp", 31370, 0.0, 10),
     ],
 )
-@pytest.mark.skipif(GEOPANDAS_110, "a bug in geopandas 1.1.0 causes this test to fail")
+@pytest.mark.skipif(
+    GEOPANDAS_110, reason="a bug in geopandas 1.1.0 causes this test to fail"
+)
 def test_identity(tmp_path, suffix, epsg, gridsize, subdivide_coords):
     # Prepare test data
     input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
