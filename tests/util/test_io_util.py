@@ -2,7 +2,6 @@
 Tests for functionalities in _io_util.
 """
 
-import os
 import tempfile
 
 import pytest
