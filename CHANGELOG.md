@@ -7,6 +7,8 @@
 - Ensure that the featurecount is properly cached in GPKG files, also for older GDAL
   versions + small refactor (#693)
 - Improve performance of two-layer operations using `nb_parallel=1` (#692)
+- Support specifying the directory used for temporary files via an environment variable
+  (GFO_TMPDIR) (#)
 
 ### Bugs fixed
 
