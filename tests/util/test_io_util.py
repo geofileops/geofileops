@@ -7,7 +7,7 @@ import tempfile
 
 import pytest
 
-from geofileops.util import _io_util
+from geofileops.util import _general_util, _io_util
 
 
 def test_create_tempdir():
@@ -38,29 +38,22 @@ def test_create_tempdir_custom_dir(tmp_path):
 
 def test_create_tempdir_gfo_tmpdir(tmp_path):
     """Test the creation of a temporary directory in a dir specified via GFO_TMPDIR."""
-    os.environ["GFO_TMPDIR"] = str(tmp_path)
+    with _general_util.TempEnv({"GFO_TMPDIR": str(tmp_path)}):
+        tempdir = _io_util.create_tempdir("testje")
 
-    # Test
-    tempdir = _io_util.create_tempdir("testje")
     assert tempdir.exists()
     assert str(tempdir).startswith(str(tmp_path))
-
-    del os.environ["GFO_TMPDIR"]
 
 
 def test_create_tempdir_gfo_tmpdir_invalid(tmp_path):
     """Test the creation of a temporary directory if GFO_TMPDIR is invalid."""
     # GFO_TMPDIR set to an empty string is not supported.
-    os.environ["GFO_TMPDIR"] = ""
-
-    # Test
-    with pytest.raises(
-        RuntimeError,
-        match="GFO_TMPDIR='' environment variable found which is not supported",
-    ):
-        _io_util.create_tempdir("testje")
-
-    del os.environ["GFO_TMPDIR"]
+    with _general_util.TempEnv({"GFO_TMPDIR": ""}):
+        with pytest.raises(
+            RuntimeError,
+            match="GFO_TMPDIR='' environment variable found which is not supported",
+        ):
+            _io_util.create_tempdir("testje")
 
 
 def test_create_file_atomic(tmp_path):
