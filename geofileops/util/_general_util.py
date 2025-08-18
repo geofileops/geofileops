@@ -184,6 +184,8 @@ class TempEnv:
     Existing values for variables are backed up and reset when the scope is left,
     variables that didn't exist before are deleted again.
 
+    If value is None, the environment variable is deleted within the context.
+
     Args:
         envs (Dict[str, Any]): dict with environment variables to set.
     """
