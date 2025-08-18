@@ -200,7 +200,11 @@ class TempEnv:
                 self._envs_backup[name] = os.environ[name]
 
             # Set env variable to value
-            os.environ[name] = str(value)
+            if value is None:
+                if name in os.environ:
+                    del os.environ[name]
+            else:
+                os.environ[name] = str(value)
 
     def __exit__(self, type, value, traceback):
         # Set variables that were backed up back to original value
