@@ -16,7 +16,7 @@
 - Fix `copy_file` for some special vsi cases (#703)
 - Fix handling `None` values for environment variables in the `gfo.TempEnv` context
   manager (#710)
-- Avoid random rare crashes by disable arrow in `gdal.VectorTranslate` (#714)
+- Disable arrow in `gdal.VectorTranslate` to avoid random crashes (#714)
 
 ## 0.10.1 (2025-05-16)
 
