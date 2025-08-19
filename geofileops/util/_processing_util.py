@@ -80,7 +80,6 @@ def initialize_worker(worker_type: str):
 
     Following things are done:
     - Set the worker process priority low so the workers don't block the system.
-    - Reduce OpenMP threads to avoid committed memory getting very high.
 
     Args:
         worker_type (str): The type of worker to initialize.
