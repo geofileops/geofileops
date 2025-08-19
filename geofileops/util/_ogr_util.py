@@ -470,15 +470,17 @@ def vector_translate(
     gdal.UseExceptions()
 
     # Write some extra logging per process
-    suffix = access_mode if access_mode else "create"
-    gfo_log_dir = Path(tempfile.gettempdir()) / "geofileops/log"
-    gfo_log_dir.mkdir(parents=True, exist_ok=True)
-    fd, gfo_log_filepath = tempfile.mkstemp(
-        suffix=f"_{suffix}.log", dir=gfo_log_dir, text=True
-    )
-    with os.fdopen(fd, mode="w", encoding="utf-8") as gfo_log_file:
-        gfo_log_file.write("Before gdal\n")
-    gfo_log_path = Path(gfo_log_filepath)
+    gfo_log_path = None
+    if logger.isEnabledFor(logging.DEBUG):
+        suffix = access_mode if access_mode else "create"
+        gfo_log_dir = Path(tempfile.gettempdir()) / "geofileops/log"
+        gfo_log_dir.mkdir(parents=True, exist_ok=True)
+        fd, gfo_log_filepath = tempfile.mkstemp(
+            suffix=f"_{suffix}.log", dir=gfo_log_dir, text=True
+        )
+        with os.fdopen(fd, mode="w", encoding="utf-8") as gfo_log_file:
+            gfo_log_file.write("Before gdal\n")
+        gfo_log_path = Path(gfo_log_filepath)
 
     # In some cases gdal only raises the last exception instead of the stack in
     # VectorTranslate, so you then you lose important details!
@@ -518,8 +520,9 @@ def vector_translate(
         # Go!
         with set_config_options(config_options):
             # Open input datasource already
-            with gfo_log_path.open(mode="a+", encoding="utf-8") as gfo_log_file:
-                gfo_log_file.write(f"Before gdal.OpenEx of {input_path}\n")
+            if gfo_log_path is not None:
+                with gfo_log_path.open(mode="a+", encoding="utf-8") as gfo_log_file:
+                    gfo_log_file.write(f"Before gdal.OpenEx of {input_path}\n")
             try:
                 input_ds = gdal.OpenEx(
                     str(input_path),
@@ -609,13 +612,17 @@ def vector_translate(
                 callback_data=None,
             )
 
-            with gfo_log_path.open(mode="a+", encoding="utf-8") as gfo_log_file:
-                gfo_log_file.write("Before gdal.VectorTranslate\n")
+            if gfo_log_path is not None:
+                with gfo_log_path.open(mode="a+", encoding="utf-8") as gfo_log_file:
+                    gfo_log_file.write("Before gdal.VectorTranslate\n")
+
             output_ds = gdal.VectorTranslate(
                 destNameOrDestDS=str(output_path), srcDS=input_ds, options=options
             )
-            with gfo_log_path.open(mode="a+", encoding="utf-8") as gfo_log_file:
-                gfo_log_file.write("After gdal.VectorTranslate\n")
+
+            if gfo_log_path is not None:
+                with gfo_log_path.open(mode="a+", encoding="utf-8") as gfo_log_file:
+                    gfo_log_file.write("After gdal.VectorTranslate\n")
 
         # If the resulting datasource is None, something went wrong
         if output_ds is None:
@@ -661,9 +668,9 @@ def vector_translate(
             except Exception:
                 pass
 
-        with gfo_log_path.open(mode="a+", encoding="utf-8") as gfo_log_file:
-            gfo_log_file.write("End of finally block\n")
-        # gfo_log_path.unlink(missing_ok=True)
+        if gfo_log_path is not None:
+            with gfo_log_path.open(mode="a+", encoding="utf-8") as gfo_log_file:
+                gfo_log_file.write("End of finally block\n")
 
     return True
 
