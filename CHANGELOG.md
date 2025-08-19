@@ -2,6 +2,10 @@
 
 ## 0.10.2 (2025-08-20)
 
+### Improvements
+
+- Improve performance of `makevalid` by using `apply_vectorized` under the hood (#713)
+
 ### Bugs fixed
 
 - Disable arrow in `gdal.VectorTranslate` to avoid random crashes (#714)
