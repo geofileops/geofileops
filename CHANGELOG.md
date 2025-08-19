@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 0.10.2 (2025-08-20)
+
+### Bugs fixed
+
+- Disable arrow in `gdal.VectorTranslate` to avoid random crashes (#714)
+
 ## 0.10.1 (2025-05-16)
 
 ### Deprecations and compatibility notes
