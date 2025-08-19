@@ -21,4 +21,4 @@ def test_use_threads(worker_type, input_layer_featurecount):
         expected = False
 
     with _general_util.TempEnv({"GFO_WORKER_TYPE": worker_type}):
-        assert _general_helper.use_threads(input_layer_featurecount) == expected
+        assert _general_helper.worker_type_to_use(input_layer_featurecount) == expected
