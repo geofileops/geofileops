@@ -12,6 +12,7 @@
 - Add checks on invalid values in `ConfigOptions` (#711)
 - Improve performance of `makevalid` by using `apply_vectorized` under the hood (#713)
 - Add worker_type used to progress logging (#715)
+- Reduce memory being committed on hardware with many cores (#717)
 
 ### Bugs fixed
 
