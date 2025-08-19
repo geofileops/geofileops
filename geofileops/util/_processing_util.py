@@ -11,16 +11,16 @@ WORKER_TYPES = {"threads", "processes"}
 
 
 class PooledExecutorFactory:
-    """Context manager to create an Executor.
+    """Context manager to create a pooled executor.
 
     Args:
-        worker_type (str, optional): True to get a ThreadPoolExecutor,
-            False to get a ProcessPoolExecutor. Defaults to True.
-        max_workers (int, optional): Max number of workers.
+        worker_type (str, optional): type of executor pool to create.
+            "threads" for a ThreadPoolExecutor, "processes" for a ProcessPoolExecutor.
+        max_workers (int, optional): Maximum number of workers.
             Defaults to None to get automatic determination.
         initializer (function, optional): Function that does initialisations.
         mp_context (BaseContext, optional): multiprocessing context if processes are
-            used. If None "spawn" will be used for ALL platforms to avoid risks to
+            used. If None, "forkserver" will be used on linux to avoid risks on getting
             deadlocks. Defaults to None.
 
     """
