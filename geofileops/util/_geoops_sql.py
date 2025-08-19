@@ -649,9 +649,8 @@ def _single_layer_vector_operation(
 
         # Add application of gridsize around sql_template if specified
         if geom_selected and gridsize != 0.0:
-            assert force_output_geometrytype is not None and isinstance(
-                force_output_geometrytype, GeometryType
-            )
+            assert force_output_geometrytype is not None
+            assert isinstance(force_output_geometrytype, GeometryType)
             gridsize_op = _format_apply_gridsize_operation(
                 geometrycolumn=f"sub_gridsize.{input_layer.geometrycolumn}",
                 gridsize=gridsize,
@@ -3165,9 +3164,7 @@ def _two_layer_vector_operation(
             force_output_geometrytype = input1_layer.geometrytype
         else:
             raise ValueError(f"unsupported {force_output_geometrytype=}")
-    assert force_output_geometrytype is None or isinstance(
-        force_output_geometrytype, GeometryType
-    )
+    assert isinstance(force_output_geometrytype, GeometryType | type(None))
 
     # For columns params, if a string is passed, convert to list
     if isinstance(input1_columns, str):
