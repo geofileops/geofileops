@@ -515,7 +515,6 @@ def vector_translate(
         use_arrow_key = "OGR2OGR_USE_ARROW_API"
         if use_arrow_key not in config_options and use_arrow_key not in os.environ:
             config_options[use_arrow_key] = False
-        config_options[use_arrow_key] = True
 
         # Go!
         with set_config_options(config_options):
