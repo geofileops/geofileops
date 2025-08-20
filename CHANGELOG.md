@@ -4,6 +4,7 @@
 
 ### Bugs fixed
 
+- Disable arrow in `gdal.VectorTranslate` to avoid random crashes (#714)
 - Fix `copy_file` for some special vsi cases (#703)
 - Fix handling `None` values for environment variables in the `gfo.TempEnv` context
   manager (#710)
