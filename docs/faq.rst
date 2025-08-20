@@ -54,7 +54,7 @@ variables:
   to the data OF THE ENTIRE TILE being "dropped", so use with care! Defaults to "raise".
 - `GFO_REMOVE_TEMP_FILES`: whether to remove temp files being created after use, e.g.
   for debugging purposes. Valid values are e.g. "TRUE" or "FALSE". Defaults to True.
-- `GFO_TMPDIR`: directory geofileops use to put temporary files. If not specified,
+- `GFO_TMPDIR`: directory geofileops uses to put temporary files. If not specified,
   defaults to the default python temp directory as returned by
   `tempfile.gettempdir <https://docs.python.org/3/library/tempfile.html#tempfile.gettempdir>`_.
 
