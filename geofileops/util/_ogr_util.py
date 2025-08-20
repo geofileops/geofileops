@@ -13,7 +13,7 @@ from osgeo import gdal, ogr
 from pygeoops import GeometryType
 
 import geofileops as gfo
-from geofileops import _compat, fileops
+from geofileops import fileops
 from geofileops.util import _geopath_util
 from geofileops.util._general_util import MissingRuntimeDependencyError
 
