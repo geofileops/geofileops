@@ -4,6 +4,7 @@
 
 ### Bugs fixed
 
+- Disable arrow in `gdal.VectorTranslate` to avoid random crashes (#714)
 - Fix `copy_file` for some special vsi cases (#703)
 
 ## 0.10.1 (2025-05-16)
