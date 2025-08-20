@@ -5,6 +5,8 @@
 ### Improvements
 
 - Improve performance of `makevalid` by using `apply_vectorized` under the hood (#713)
+- Support to specify the directory used by geofileops to put temporary files via an
+  environment variable (GFO_TMPDIR) (#707)
 
 ### Bugs fixed
 
