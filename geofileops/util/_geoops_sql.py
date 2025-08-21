@@ -824,6 +824,7 @@ def _single_layer_vector_operation(
                         where_post = where_post.format(
                             geometrycolumn=info.geometrycolumn
                         )
+                    
                     fileops.copy_layer(
                         src=tmp_partial_output_path,
                         dst=tmp_output_path,
@@ -834,6 +835,20 @@ def _single_layer_vector_operation(
                         create_spatial_index=False,
                         preserve_fid=preserve_fid,
                     )
+                    """
+                    if not tmp_output_path.exists():
+                        # If the output file does not exist yet, just move the
+                        # partial file to the output file.
+                        gfo.move(tmp_partial_output_path, tmp_output_path)
+                    else:
+                        _sqlite_util.append_table_to_table(
+                            input_path=tmp_partial_output_path,
+                            output_path=tmp_output_path,
+                            input_table=output_layer,
+                            output_table=output_layer,
+                            profile=_sqlite_util.SqliteProfile.DEFAULT,
+                        )
+                    """
                     gfo.remove(tmp_partial_output_path)
 
                 # Log the progress and prediction speed

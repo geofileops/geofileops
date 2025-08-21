@@ -479,6 +479,98 @@ def get_columns(
     return columns
 
 
+def append_table_to_table(
+    input_path: Path,
+    output_path: Path,
+    input_table: str,
+    output_table: str,
+    profile: SqliteProfile = SqliteProfile.DEFAULT,
+) -> None:
+    """Append data to an existing table.
+
+    Args:
+        input_path (Path): The path to the input SQLite database.
+        output_path (Path): The path to the output SQLite database.
+        input_table (str): The name of the input table.
+        output_table (str): The name of the output table.
+        profile (SqliteProfile, optional): The SQLite profile to use.
+            Defaults to SqliteProfile.DEFAULT.
+    """
+    conn = sqlite3.connect(output_path, uri=True)
+
+    # Execute the insert statement
+    sql = None
+    try:
+        load_spatialite(conn)
+
+        if output_path.suffix.lower() == ".gpkg":
+            sql = "SELECT EnableGpkgMode();"
+            conn.execute(sql)
+
+        # Attach the input database
+        sql = "ATTACH DATABASE ? AS input_db"
+        dbSpec = (str(input_path),)
+        conn.execute(sql, dbSpec)
+
+        # Set some default performance options
+        database_names = ["main", "input_db"]
+        set_performance_options(conn, profile, database_names)
+
+        # Start transaction manually needed for performance
+        sql = "BEGIN TRANSACTION;"
+        conn.execute(sql)
+
+        # Determine the columns of the tables
+        '''        
+        sql = f"""
+            SELECT name
+              FROM pragma_table_info
+             WHERE arg = '{input_table}'
+               AND schema = 'input_db'
+               AND lower(name) <> 'fid';
+        """
+        input_columns = conn.execute(sql).fetchall()
+        sql = f"""
+            SELECT name
+              FROM pragma_table_info
+             WHERE arg = '{output_table}'
+               AND schema = 'main'
+               AND lower(name) <> 'fid';
+        """
+        output_columns = conn.execute(sql).fetchall()
+        '''
+        sql = f"""
+            SELECT name
+              FROM pragma_table_info('{input_table}', 'input_db')
+             WHERE lower(name) <> 'fid';
+        """
+        input_columns = [value[0] for value in conn.execute(sql).fetchall()]
+        sql = f"""
+            SELECT name
+              FROM pragma_table_info('{output_table}', 'main')
+             WHERE lower(name) <> 'fid';
+        """
+        output_columns = [value[0] for value in conn.execute(sql).fetchall()]
+
+        # TODO: compare both to be sure they are identical?
+        assert input_columns == output_columns
+
+        sql = f"""
+            INSERT INTO main."{output_table}"
+                ({",".join(output_columns)})
+            SELECT {",".join(output_columns)}
+              FROM input_db."{input_table}";
+        """
+        conn.execute(sql)
+
+        conn.commit()
+    except Exception as ex:  # pragma: no cover
+        conn.rollback()
+        raise RuntimeError(f"Error {ex} executing {sql}") from ex
+    finally:
+        conn.close()
+
+
 def create_table_as_sql(
     input_databases: dict[str, Path],
     output_path: Path,
