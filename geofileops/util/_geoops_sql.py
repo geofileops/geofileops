@@ -8,6 +8,7 @@ import multiprocessing
 import re
 import shutil
 import string
+import time
 import warnings
 from collections.abc import Iterable
 from concurrent import futures
@@ -1323,11 +1324,14 @@ def _subdivide_layer(
         f"Check if complex geometries in {path.name}/{layer.name} (> {subdivide_coords}"
         " coords)"
     )
+    start = time.perf_counter()
     complexgeom_df = gfo.read_file(path, sql_stmt=complexgeom_sql, sql_dialect="SQLITE")
     if len(complexgeom_df) <= 0:
         return None
 
-    logger.info("Subdivide needed: complex geometries found")
+    # Log time taken if it was slow.
+    took = time.perf_counter() - start
+    logger.info(f"Subdivide needed: complex geometries found (check took {took:.2f}s)")
 
     # Do subdivide using python function, because all spatialite options didn't
     # seem to work.
