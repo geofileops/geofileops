@@ -479,31 +479,41 @@ def get_columns(
     return columns
 
 
-def append_table_to_table(
-    input_path: Path,
-    output_path: Path,
+def copy_table(
+    input_path: Union[str, "os.PathLike[Any]"],
+    output_path: Union[str, "os.PathLike[Any]"],
     input_table: str,
     output_table: str,
+    where: str | None = None,
+    preserve_fid: bool = False,
     profile: SqliteProfile = SqliteProfile.DEFAULT,
 ) -> None:
     """Append data to an existing table.
 
     Args:
-        input_path (Path): The path to the input SQLite database.
-        output_path (Path): The path to the output SQLite database.
+        input_path (PathLike): The path to the input SQLite database.
+        output_path (PathLike): The path to the output SQLite database.
         input_table (str): The name of the input table.
         output_table (str): The name of the output table.
+        where (str | None, optional): An optional SQL WHERE clause to filter the rows
+            to copy. Defaults to None.
+        preserve_fid (bool, optional): Whether to preserve values in the input FID
+            column. Defaults to False.
         profile (SqliteProfile, optional): The SQLite profile to use.
             Defaults to SqliteProfile.DEFAULT.
     """
-    conn = sqlite3.connect(output_path, uri=True)
+    if not Path(input_path).exists():
+        raise FileNotFoundError(f"Input file not found: {input_path}")
+
+    existed = True if Path(output_path).exists() else False
+    conn = sqlite3.connect(str(output_path), uri=True)
 
     # Execute the insert statement
     sql = None
     try:
         load_spatialite(conn)
 
-        if output_path.suffix.lower() == ".gpkg":
+        if Path(output_path).suffix.lower() == ".gpkg":
             sql = "SELECT EnableGpkgMode();"
             conn.execute(sql)
 
@@ -521,51 +531,43 @@ def append_table_to_table(
         conn.execute(sql)
 
         # Determine the columns of the tables
-        '''        
-        sql = f"""
-            SELECT name
-              FROM pragma_table_info
-             WHERE arg = '{input_table}'
-               AND schema = 'input_db'
-               AND lower(name) <> 'fid';
-        """
-        input_columns = conn.execute(sql).fetchall()
-        sql = f"""
-            SELECT name
-              FROM pragma_table_info
-             WHERE arg = '{output_table}'
-               AND schema = 'main'
-               AND lower(name) <> 'fid';
-        """
-        output_columns = conn.execute(sql).fetchall()
-        '''
+        if not preserve_fid:
+            column_filter = "WHERE lower(name) <> 'fid'"
+
         sql = f"""
             SELECT name
               FROM pragma_table_info('{input_table}', 'input_db')
-             WHERE lower(name) <> 'fid';
+             {column_filter};
         """
-        input_columns = [value[0] for value in conn.execute(sql).fetchall()]
+        input_columns = sorted([value[0] for value in conn.execute(sql).fetchall()])
         sql = f"""
             SELECT name
               FROM pragma_table_info('{output_table}', 'main')
-             WHERE lower(name) <> 'fid';
+             {column_filter};
         """
-        output_columns = [value[0] for value in conn.execute(sql).fetchall()]
+        output_columns = sorted([value[0] for value in conn.execute(sql).fetchall()])
 
         # TODO: compare both to be sure they are identical?
         assert input_columns == output_columns
 
+        where_clause = f"WHERE {where}" if where else ""
         sql = f"""
             INSERT INTO main."{output_table}"
                 ({",".join(output_columns)})
             SELECT {",".join(output_columns)}
-              FROM input_db."{input_table}";
+              FROM input_db."{input_table}"
+             {where_clause};
         """
         conn.execute(sql)
 
         conn.commit()
     except Exception as ex:  # pragma: no cover
         conn.rollback()
+        if not existed:
+            # If the output file didn't exist before, but was created, remove it
+            conn.close()
+            Path(output_path).unlink(missing_ok=True)
+
         raise RuntimeError(f"Error {ex} executing {sql}") from ex
     finally:
         conn.close()

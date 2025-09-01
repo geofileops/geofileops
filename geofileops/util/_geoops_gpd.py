@@ -883,10 +883,10 @@ def _apply_geooperation_to_layer(
                         # operations is (a lot) more limited than gdal-based, use the
                         # gdal version via _append_to_nolock.
                         if (
-                            nb_batches == 1
-                            and force_output_geometrytype is None
-                            and tmp_partial_output_path.suffix == tmp_output_path.suffix
+                            force_output_geometrytype is None
                             and where_post is None
+                            and tmp_partial_output_path.suffix == tmp_output_path.suffix
+                            and not tmp_output_path.exists()
                         ):
                             gfo.move(tmp_partial_output_path, tmp_output_path)
                         else:
@@ -1758,15 +1758,21 @@ def _dissolve_polygons_pass(
                         output_notonborder_tmp_partial_path.exists()
                         and output_notonborder_tmp_partial_path.stat().st_size > 0
                     ):
-                        fileops.copy_layer(
-                            src=output_notonborder_tmp_partial_path,
-                            dst=output_notonborder_path,
-                            src_layer=output_layer,
-                            dst_layer=output_layer,
-                            write_mode="append",
-                            create_spatial_index=False,
-                        )
-                        gfo.remove(output_notonborder_tmp_partial_path)
+                        if not output_notonborder_path.exists():
+                            fileops.move(
+                                src=output_notonborder_tmp_partial_path,
+                                dst=output_notonborder_path,
+                            )
+                        else:
+                            fileops.copy_layer(
+                                src=output_notonborder_tmp_partial_path,
+                                dst=output_notonborder_path,
+                                src_layer=output_layer,
+                                dst_layer=output_layer,
+                                write_mode="append",
+                                create_spatial_index=False,
+                            )
+                            gfo.remove(output_notonborder_tmp_partial_path)
 
                     # If calculate gave onborder results, append to output
                     output_onborder_tmp_partial_path = batches[batch_id][
@@ -1776,15 +1782,21 @@ def _dissolve_polygons_pass(
                         output_onborder_tmp_partial_path.exists()
                         and output_onborder_tmp_partial_path.stat().st_size > 0
                     ):
-                        fileops.copy_layer(
-                            src=output_onborder_tmp_partial_path,
-                            dst=output_onborder_path,
-                            src_layer=output_layer,
-                            dst_layer=output_layer,
-                            write_mode="append",
-                            create_spatial_index=False,
-                        )
-                        gfo.remove(output_onborder_tmp_partial_path)
+                        if not output_onborder_path.exists():
+                            fileops.move(
+                                src=output_onborder_tmp_partial_path,
+                                dst=output_onborder_path,
+                            )
+                        else:
+                            fileops.copy_layer(
+                                src=output_onborder_tmp_partial_path,
+                                dst=output_onborder_path,
+                                src_layer=output_layer,
+                                dst_layer=output_layer,
+                                write_mode="append",
+                                create_spatial_index=False,
+                            )
+                            gfo.remove(output_onborder_tmp_partial_path)
 
             except Exception as ex:
                 batch_id = future_to_batch_id[future]

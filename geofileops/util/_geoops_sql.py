@@ -808,23 +808,23 @@ def _single_layer_vector_operation(
                     continue
 
                 if (
-                    nb_batches == 1
-                    and tmp_partial_output_path.suffix == tmp_output_path.suffix
+                    tmp_partial_output_path.suffix == tmp_output_path.suffix
                     and where_post is None
+                    and not tmp_output_path.exists()
                 ):
-                    # If there is only one batch
+                    # If it is the first partial file
                     #   + partial file is already is correct file format
                     #   + no more where_post needs to be applied
-                    # -> just rename partial file, because it is already OK.
+                    # -> just rename partial file, as that's faster than copy_layer.
                     gfo.move(tmp_partial_output_path, tmp_output_path)
                 else:
-                    # Append partial file to full destination file
+                    # Copy partial file contents to full tmp output file
                     if where_post is not None:
                         info = gfo.get_layerinfo(tmp_partial_output_path, output_layer)
                         where_post = where_post.format(
                             geometrycolumn=info.geometrycolumn
                         )
-                    
+
                     fileops.copy_layer(
                         src=tmp_partial_output_path,
                         dst=tmp_output_path,
@@ -835,20 +835,6 @@ def _single_layer_vector_operation(
                         create_spatial_index=False,
                         preserve_fid=preserve_fid,
                     )
-                    """
-                    if not tmp_output_path.exists():
-                        # If the output file does not exist yet, just move the
-                        # partial file to the output file.
-                        gfo.move(tmp_partial_output_path, tmp_output_path)
-                    else:
-                        _sqlite_util.append_table_to_table(
-                            input_path=tmp_partial_output_path,
-                            output_path=tmp_output_path,
-                            input_table=output_layer,
-                            output_table=output_layer,
-                            profile=_sqlite_util.SqliteProfile.DEFAULT,
-                        )
-                    """
                     gfo.remove(tmp_partial_output_path)
 
                 # Log the progress and prediction speed
@@ -3038,6 +3024,7 @@ def union(
             input1_subdivided_path=input1_subdivided_path,
             input2_subdivided_path=input2_subdivided_path,
         )
+        # Note: append will never create an index on an already existing layer.
         fileops.copy_layer(
             src=diff2_output_path,
             dst=intersection_output_path,
@@ -3544,20 +3531,21 @@ def _two_layer_vector_operation(
                     logger.warning(f"Result file {tmp_partial_output_path} not found")
                     continue
 
-                # If there is only one tmp_partial file and it is already ok as
-                # output file, just rename/move it.
+                # If this is the first partial file (no tmp output file yet), just
+                # rename/move it as that is faster.
                 if (
-                    nb_batches == 1
-                    and not explodecollections
+                    not explodecollections
                     and force_output_geometrytype is None
                     and where_post is None
                     and tmp_partial_output_path.suffix.lower()
                     == tmp_output_path.suffix.lower()
+                    and not tmp_output_path.exists()
                 ):
                     gfo.move(tmp_partial_output_path, tmp_output_path)
 
                     if tmp_output_path.suffix.lower() == ".gpkg":
-                        # If the output file is a geopackage, add gpkg_ogr_contents
+                        # If the output file is a geopackage, make sure
+                        # gpkg_ogr_contents exists
                         _sqlite_util.add_gpkg_ogr_contents(
                             database=tmp_output_path,
                             layer=output_layer,
