@@ -2758,7 +2758,7 @@ def copy_layer(
             return
 
         except Exception as ex:
-            logger.debug(
+            logger.info(
                 f"Failed to copy data directly in sqlite, retry with gdal: {ex}"
             )
 
