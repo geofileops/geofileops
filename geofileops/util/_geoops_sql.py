@@ -825,13 +825,12 @@ def _single_layer_vector_operation(
                             geometrycolumn=info.geometrycolumn
                         )
 
-                    # force_output_geometrytype has already been applied above, so need
-                    # to specify it here anymore.
+                    # force_output_geometrytype and explodecollections have already been
+                    # applied during calculation, so need to apply it here anymore.
                     fileops.copy_layer(
                         src=tmp_partial_output_path,
                         dst=tmp_output_path,
                         write_mode="append",
-                        explodecollections=explodecollections,
                         where=where_post,
                         create_spatial_index=False,
                         preserve_fid=preserve_fid,
