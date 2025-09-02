@@ -546,9 +546,6 @@ def copy_table(
         """
         output_columns = sorted([value[0] for value in conn.execute(sql).fetchall()])
 
-        # TODO: compare both to be sure they are identical?
-        assert input_columns == output_columns
-
         input_columns_str = ", ".join([f'"{col}"' for col in input_columns])
         output_columns_str = ", ".join([f'"{col}"' for col in output_columns])
         where_clause = f"WHERE {where}" if where else ""
