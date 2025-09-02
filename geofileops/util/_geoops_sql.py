@@ -3436,8 +3436,8 @@ def _two_layer_vector_operation(
         # be applied, it needs to be applied during calculation already.
         # Otherwise the where_post in the append of partial files later on
         # won't give correct results!
-        explode_calc = True if explodecollections and not where_post else False
-        explode_append = not explode_calc
+        explode_calc = True if explodecollections and where_post is not None else False
+        explode_append = True if explodecollections and not explode_calc else False
 
         # Apply the geometrytype already during calculation
         output_geometrytype_calc = force_output_geometrytype

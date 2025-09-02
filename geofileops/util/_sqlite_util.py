@@ -488,7 +488,9 @@ def copy_table(
     preserve_fid: bool = False,
     profile: SqliteProfile = SqliteProfile.DEFAULT,
 ) -> None:
-    """Append data to an existing table.
+    """Copy data from one to another table.
+
+    At the moment only appending to an existing table is supported.
 
     Args:
         input_path (PathLike): The path to the input SQLite database.

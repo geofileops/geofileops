@@ -843,6 +843,7 @@ def _apply_geooperation_to_layer(
                     output_layer=output_layer,
                     where=batch_filter,
                     explodecollections=explodecollections,
+                    force_output_geometrytype=force_output_geometrytype,
                     gridsize=gridsize,
                     keep_empty_geoms=keep_empty_geoms,
                     preserve_fid=preserve_fid,
@@ -898,8 +899,8 @@ def _apply_geooperation_to_layer(
                                 dst_layer=output_layer,
                                 write_mode="append",
                                 explodecollections=explodecollections,
+                                # force_output_geometrytype=force_output_geometrytype,
                                 create_spatial_index=False,
-                                force_output_geometrytype=force_output_geometrytype,
                                 where=where_post,
                                 preserve_fid=preserve_fid,
                             )
@@ -947,6 +948,7 @@ def _apply_geooperation(
     columns: list[str] | None = None,
     where=None,
     explodecollections: bool = False,
+    force_output_geometrytype: GeometryType | str | None = None,
     gridsize: float = 0.0,
     keep_empty_geoms: bool = False,
     preserve_fid: bool = False,
@@ -1033,11 +1035,11 @@ def _apply_geooperation(
 
     # If the result is empty, and no output geometrytype specified, use input
     # geometrytype
-    force_output_geometrytype = None
-    if len(data_gdf) == 0:
-        force_output_geometrytype = input_layer.geometrytype
-        if not explodecollections:
-            force_output_geometrytype = force_output_geometrytype.to_multitype
+    if force_output_geometrytype is None and len(data_gdf) == 0:
+        if explodecollections:
+            force_output_geometrytype = input_layer.geometrytype.to_singletype
+        else:
+            force_output_geometrytype = input_layer.geometrytype.to_multitype
 
     # If the index is still unique, save it to fid column so to_file can save it
     if preserve_fid:
