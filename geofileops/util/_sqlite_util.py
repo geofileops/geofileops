@@ -531,9 +531,8 @@ def copy_table(
         conn.execute(sql)
 
         # Determine the columns of the tables
-        if not preserve_fid:
-            column_filter = "WHERE lower(name) <> 'fid'"
-
+        # If the fid should not be preserved, don't include it in the column list
+        column_filter = "" if preserve_fid else "WHERE lower(name) <> 'fid'"
         sql = f"""
             SELECT name
               FROM pragma_table_info('{input_table}', 'input_db')
