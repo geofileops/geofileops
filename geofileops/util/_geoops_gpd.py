@@ -1799,6 +1799,7 @@ def _dissolve_polygons_pass(
                                 dst_layer=output_layer,
                                 write_mode="append",
                                 create_spatial_index=False,
+                                preserve_fid=False,
                             )
                             gfo.remove(output_onborder_tmp_partial_path)
 
