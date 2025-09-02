@@ -899,7 +899,6 @@ def _apply_geooperation_to_layer(
                                 dst_layer=output_layer,
                                 write_mode="append",
                                 explodecollections=explodecollections,
-                                # force_output_geometrytype=force_output_geometrytype,
                                 create_spatial_index=False,
                                 where=where_post,
                                 preserve_fid=preserve_fid,
