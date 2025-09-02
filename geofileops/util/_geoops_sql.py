@@ -3433,23 +3433,24 @@ def _two_layer_vector_operation(
         # there is an extra layer copy involved.
         # Normally explodecollections can be deferred to the appending of the
         # partial files, but if explodecollections and there is a where_post to
-        # be applied, it needs to be applied now already. Otherwise the
-        # where_post in the append of partial files later on won't give correct
-        # results!
-        explodecollections_now = False
-        output_geometrytype_now = force_output_geometrytype
-        if explodecollections and where_post is not None:
-            explodecollections_now = True
+        # be applied, it needs to be applied during calculation already.
+        # Otherwise the where_post in the append of partial files later on
+        # won't give correct results!
+        explode_calc = True if explodecollections and not where_post else False
+        explode_append = not explode_calc
+
+        # Apply the geometrytype already during calculation
+        output_geometrytype_calc = force_output_geometrytype
         if (
             force_output_geometrytype is not None
             and explodecollections
-            and not explodecollections_now
+            and not explode_calc
         ):
             # convert geometrytype to multitype to avoid ogr warnings
-            output_geometrytype_now = force_output_geometrytype.to_multitype  # type: ignore[union-attr]
+            output_geometrytype_calc = force_output_geometrytype.to_multitype  # type: ignore[union-attr]
             if "geom" in column_datatypes:
-                assert output_geometrytype_now is not None
-                column_datatypes["geom"] = output_geometrytype_now.name
+                assert output_geometrytype_calc is not None
+                column_datatypes["geom"] = output_geometrytype_calc.name
 
         worker_type = _general_helper.worker_type_to_use(input1_layer.featurecount)
         logger.info(
@@ -3490,8 +3491,8 @@ def _two_layer_vector_operation(
                     output_path=tmp_partial_output_path,
                     sql_stmt=sql_stmt,
                     output_layer=output_layer,
-                    explodecollections=explodecollections_now,
-                    force_output_geometrytype=output_geometrytype_now,
+                    explodecollections=explode_calc,
+                    force_output_geometrytype=output_geometrytype_calc,
                     output_crs=output_crs,
                     use_ogr=use_ogr,
                     create_spatial_index=False,
@@ -3565,7 +3566,7 @@ def _two_layer_vector_operation(
                         src_layer=output_layer,
                         dst_layer=output_layer,
                         write_mode="append",
-                        explodecollections=explodecollections,
+                        explodecollections=explode_append,
                         force_output_geometrytype=force_output_geometrytype,
                         where=where_post,
                         create_spatial_index=create_spatial_index,
