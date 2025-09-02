@@ -549,11 +549,13 @@ def copy_table(
         # TODO: compare both to be sure they are identical?
         assert input_columns == output_columns
 
+        input_columns_str = ", ".join([f'"{col}"' for col in input_columns])
+        output_columns_str = ", ".join([f'"{col}"' for col in output_columns])
         where_clause = f"WHERE {where}" if where else ""
         sql = f"""
             INSERT INTO main."{output_table}"
-                ({",".join(output_columns)})
-            SELECT {",".join(output_columns)}
+                ({output_columns_str})
+            SELECT {input_columns_str}
               FROM input_db."{input_table}"
              {where_clause};
         """
