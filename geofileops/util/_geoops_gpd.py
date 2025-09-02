@@ -881,9 +881,10 @@ def _apply_geooperation_to_layer(
                     ):
                         # Remark: because force_output_geometrytype for GeoDataFrame
                         # operations is (a lot) more limited than gdal-based, use the
-                        # gdal version via _append_to_nolock.
+                        # gdal version via copy_layer.
                         if (
-                            force_output_geometrytype is None
+                            not explodecollections
+                            and force_output_geometrytype is None
                             and where_post is None
                             and tmp_partial_output_path.suffix == tmp_output_path.suffix
                             and not tmp_output_path.exists()
