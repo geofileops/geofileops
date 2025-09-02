@@ -832,6 +832,7 @@ def _single_layer_vector_operation(
                         dst=tmp_output_path,
                         write_mode="append",
                         explodecollections=explodecollections,
+                        force_output_geometrytype=force_output_geometrytype,
                         where=where_post,
                         create_spatial_index=False,
                         preserve_fid=preserve_fid,
