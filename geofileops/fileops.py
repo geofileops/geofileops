@@ -2746,7 +2746,7 @@ def copy_layer(
         # TODO: create gfo config option to disable?
         try:
             name = src_layername if src_layername is not None else get_only_layer(src)
-            preserve_fid_local = preserve_fid if preserve_fid is not None else True
+            preserve_fid_local = preserve_fid if preserve_fid is not None else False
             _sqlite_util.copy_table(
                 input_path=src,
                 output_path=dst,
