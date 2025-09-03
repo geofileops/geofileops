@@ -2723,7 +2723,7 @@ def copy_layer(
     src_layername = src_layer.name if isinstance(src_layer, LayerInfo) else src_layer
 
     # If the source and destination files are GeoPackages, and it involves a simple data
-    # copy, it is faster to copy the data directly in sqlite instead of with GDAL.
+    # copy, it is faster to copy the data directly in sqlite instead of via GDAL.
     if (
         access_mode == "append"
         and Path(src).suffix.lower() == ".gpkg"
@@ -2739,6 +2739,7 @@ def copy_layer(
         and dst_crs is None
         and Path(src).exists()
         and Path(dst).exists()
+        and ConfigOptions.copy_layer_sqlite_direct
     ):
         # TODO: sql_stmt?, access_mode="create", create_spatial_index, dst_crs?
         # TODO: create gfo config option to disable?
