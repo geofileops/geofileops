@@ -880,13 +880,10 @@ def _apply_geooperation_to_layer(
                         tmp_partial_output_path.exists()
                         and tmp_partial_output_path.stat().st_size > 0
                     ):
-                        # Remark: because force_output_geometrytype for GeoDataFrame
-                        # operations is (a lot) more limited than gdal-based, use the
-                        # gdal version via copy_layer.
+                        # Remark: force_output_geometrytype and explodecollections have
+                        # already been applied in the calculation step.
                         if (
-                            not explodecollections
-                            and force_output_geometrytype is None
-                            and where_post is None
+                            where_post is None
                             and tmp_partial_output_path.suffix == tmp_output_path.suffix
                             and not tmp_output_path.exists()
                         ):
@@ -898,7 +895,6 @@ def _apply_geooperation_to_layer(
                                 src_layer=output_layer,
                                 dst_layer=output_layer,
                                 write_mode="append",
-                                explodecollections=explodecollections,
                                 create_spatial_index=False,
                                 where=where_post,
                                 preserve_fid=preserve_fid,
