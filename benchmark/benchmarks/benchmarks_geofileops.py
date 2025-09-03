@@ -7,8 +7,9 @@ import multiprocessing
 from datetime import datetime
 from pathlib import Path
 
-import geofileops as gfo
 import shapely
+
+import geofileops as gfo
 from benchmark.benchmarker import RunResult
 from benchmark.benchmarks import testdata
 from geofileops.util import _geoops_gpd, _geoops_sql

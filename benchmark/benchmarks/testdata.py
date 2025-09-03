@@ -8,7 +8,6 @@ import tempfile
 import urllib.request
 import zipfile
 from pathlib import Path
-from typing import Optional, Union
 
 import geopandas as gpd
 import pyproj
@@ -96,10 +95,10 @@ def create_testfile(
     geoms: int,
     polys_per_geom: int,
     points_per_poly: int,
-    poly_width: float = 15_000,
-    poly_height: float = 15_000,
-    crs: Union[int, str, pyproj.CRS, None] = None,
-    dst_dir: Optional[Path] = None,
+    poly_width: int = 15_000,
+    poly_height: int = 15_000,
+    crs: int | str | pyproj.CRS | None = None,
+    dst_dir: Path | None = None,
 ) -> tuple[Path, str]:
     """Creates a test file.
 
@@ -226,8 +225,8 @@ def _move_xy(x, y, max_x, max_y):
 def _create_complex_poly_points(
     xmin: float,
     ymin: float,
-    width: float,
-    height: float,
+    width: int,
+    height: int,
     nb_points: int,
     nb_points_tol: float = 0.1,
 ) -> shapely.Polygon:
