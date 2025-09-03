@@ -94,7 +94,7 @@ def test_read_cpl_log(tmp_path):
         "\n",
         "logging line 3\n",
     ]
-    with open(cpl_log_path, mode="w") as file:
+    with cpl_log_path.open(mode="w") as file:
         file.writelines(test_log_lines)
 
     # Test
@@ -147,6 +147,19 @@ def test_set_config_options():
     # If option via env is changed, it changes here as well
     os.environ[test3_config_envset] = "test3_new_env_value"
     assert gdal.GetConfigOption(test3_config_envset) == "test3_new_env_value"
+
+
+def test_StartTransaction_None():
+    with pytest.raises(Exception, match="datasource is None"):
+        _ogr_util.StartTransaction(None)
+
+
+def test_CommitTransaction_None():
+    assert not _ogr_util.CommitTransaction(None)
+
+
+def test_RollbackTransaction_None():
+    assert not _ogr_util.RollbackTransaction(None)
 
 
 @pytest.mark.parametrize(
@@ -329,6 +342,12 @@ def test_vector_translate_sql_input_empty(tmp_path, input_suffix, output_suffix)
 @pytest.mark.parametrize("input_suffix", test_helper.SUFFIXES_GEOOPS)
 @pytest.mark.parametrize("output_suffix", test_helper.SUFFIXES_GEOOPS)
 def test_vector_translate_sql_invalid_new_output(tmp_path, input_suffix, output_suffix):
+    """When an invalid sql query is used, the output file should not be created.
+
+    Note: GDAL does create an output file without any layers in it, but apparently this
+    is not trivial and/or riskful to change, so this won't be changed:
+    https://github.com/OSGeo/gdal/issues/12284
+    """
     input_path = test_helper.get_testfile(
         "polygon-parcel", suffix=input_suffix, empty=True
     )
@@ -346,20 +365,20 @@ def test_vector_translate_sql_invalid_new_output(tmp_path, input_suffix, output_
 @pytest.mark.parametrize("input_suffix", test_helper.SUFFIXES_GEOOPS)
 @pytest.mark.parametrize("output_suffix", test_helper.SUFFIXES_GEOOPS)
 @pytest.mark.parametrize(
-    "update, append, output_file_expected",
+    "access_mode, output_file_expected",
     [
-        (False, False, False),
-        (True, False, True),
-        (False, True, True),
-        (True, True, True),
+        (None, False),
+        ("update", True),
+        ("append", True),
+        ("append", True),
     ],
 )
 def test_vector_translate_sql_invalid_existing_output(
-    tmp_path, input_suffix, output_suffix, update, append, output_file_expected
+    tmp_path, input_suffix, output_suffix, access_mode, output_file_expected
 ):
     """Run an invalid query that tries to add a layer to an existing file (update).
 
-    If append and update are both False, the existing output file will be overwritten.
+    If access_mode is None, the existing output file will be overwritten.
     In this case, if the sql query is invalid, the output file will effectively be
     removed.
     """
@@ -373,7 +392,7 @@ def test_vector_translate_sql_invalid_existing_output(
     sql_stmt = f'SELECT * FROM "{layer}" WHERE not_existing_column = 1'
     try:
         _ogr_util.vector_translate(
-            input_path, output_path, sql_stmt=sql_stmt, update=update, append=append
+            input_path, output_path, sql_stmt=sql_stmt, access_mode=access_mode
         )
     except Exception:
         pass

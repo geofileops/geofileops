@@ -5,7 +5,7 @@ Tests for operations that are executed using a sql statement on one layer.
 import logging
 import math
 from importlib import import_module
-from typing import Any, Optional
+from typing import Any
 
 import geopandas as gpd
 import pytest
@@ -13,15 +13,15 @@ import shapely
 from shapely import MultiPolygon, Polygon
 
 from geofileops import GeometryType, fileops, geoops
-from geofileops._compat import SPATIALITE_GTE_51
-from geofileops.util import _general_util, _geofileinfo, _geoops_sql
-from geofileops.util import _io_util as io_util
+from geofileops._compat import GDAL_GTE_39, SPATIALITE_GTE_51
+from geofileops.util import _general_util, _geofileinfo, _geoops_sql, _geopath_util
 from geofileops.util._geofileinfo import GeofileInfo
 from tests import test_helper
 from tests.test_helper import (
     EPSGS,
     GRIDSIZE_DEFAULT,
     SUFFIXES_GEOOPS,
+    SUFFIXES_GEOOPS_INPUT,
     TESTFILES,
     WHERE_AREA_GT_400,
     assert_geodataframe_equal,
@@ -69,7 +69,7 @@ def basic_combinations_to_test(
         for geoops_module in geoops_modules:
             for testfile in testfiles:
                 where_post = None
-                keep_empty_geoms: Optional[bool] = False
+                keep_empty_geoms: bool | None = False
                 dimensions = None
                 gridsize = 0.01 if epsg == 31370 else GRIDSIZE_DEFAULT
                 if testfile == "polygon-parcel":
@@ -149,12 +149,42 @@ def basic_combinations_to_test(
     return result
 
 
+@pytest.mark.parametrize("suffix_input", SUFFIXES_GEOOPS_INPUT)
+@pytest.mark.parametrize("worker_type", ["threads", "processes"])
+@pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
+def test_buffer(tmp_path, suffix_input, worker_type, geoops_module):
+    """Buffer minimal test."""
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix_input)
+    input_layerinfo = fileops.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+
+    # Now run test
+    output_path = tmp_path / "output.gpkg"
+    set_geoops_module(geoops_module)
+    with _general_util.TempEnv({"GFO_WORKER_TYPE": worker_type}):
+        geoops.buffer(
+            input_path=input_path,
+            output_path=output_path,
+            distance=1,
+            nb_parallel=2,
+            keep_empty_geoms=True,
+            batchsize=batchsize,
+        )
+
+    # Now check if the output file is correctly created
+    assert output_path.exists()
+    output_layerinfo = fileops.get_layerinfo(output_path)
+    assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
+    assert output_layerinfo.featurecount == input_layerinfo.featurecount
+
+
 @pytest.mark.parametrize(
     "suffix, epsg, geoops_module, testfile, empty_input, gridsize, keep_empty_geoms, "
     "where_post, dimensions",
     basic_combinations_to_test(),
 )
-def test_buffer(
+def test_buffer_basic(
     tmp_path,
     suffix,
     epsg,
@@ -167,6 +197,16 @@ def test_buffer(
     dimensions,
 ):
     """Buffer basics are available both in the gpd and sql implementations."""
+    if (
+        not GDAL_GTE_39
+        and dimensions == "XYZ"
+        and suffix == ".gpkg"
+        and geoops_module != "_geoops_gpd"
+    ):
+        pytest.xfail(
+            "GDAL < 3.9 (at least) writes 3D geometries even though "
+            "force_geometrytype='MULTIPOLYGON' for buffer operation."
+        )
     # Prepare test data
     input_path = test_helper.get_testfile(
         testfile, suffix=suffix, epsg=epsg, empty=empty_input, dimensions=dimensions
@@ -302,8 +342,8 @@ def test_buffer_force(tmp_path, geoops_module):
     output_path = tmp_path / f"{input_path.stem}-output{input_path.suffix}"
     assert not output_path.exists()
 
-    # Use "process" worker type to test this as well
-    with _general_util.TempEnv({"GFO_WORKER_TYPE": "process"}):
+    # Use "processes" worker type to test this as well
+    with _general_util.TempEnv({"GFO_WORKER_TYPE": "processes"}):
         geoops.buffer(
             input_path=input_path,
             output_path=output_path,
@@ -342,15 +382,17 @@ def test_buffer_force(tmp_path, geoops_module):
 
 
 @pytest.mark.parametrize(
-    "expected_error, input_path, output_path",
+    "exp_error, exp_ex, input_path, output_path",
     [
         (
             "buffer: output_path must not equal input_path",
-            test_helper.get_testfile("polygon-parcel"),
-            test_helper.get_testfile("polygon-parcel"),
+            ValueError,
+            "not_existing_path.gpkg",
+            "not_existing_path.gpkg",
         ),
         (
-            "buffer: input_path doesn't exist:",
+            "buffer: input_path not found:",
+            FileNotFoundError,
             "not_existing_path",
             "output.gpkg",
         ),
@@ -358,11 +400,9 @@ def test_buffer_force(tmp_path, geoops_module):
 )
 @pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
 def test_buffer_invalid_params(
-    tmp_path, input_path, output_path, expected_error, geoops_module
+    tmp_path, input_path, output_path, exp_ex, exp_error, geoops_module
 ):
-    """
-    Invalid params for single layer operations.
-    """
+    """Invalid params for single layer operations."""
     # Internal functions are directly called, so need to be Path objects
     if isinstance(output_path, str):
         output_path = tmp_path / output_path
@@ -371,7 +411,7 @@ def test_buffer_invalid_params(
 
     # Now run test
     set_geoops_module(geoops_module)
-    with pytest.raises(ValueError, match=expected_error):
+    with pytest.raises(exp_ex, match=exp_error):
         geoops.buffer(input_path=input_path, output_path=output_path, distance=1)
 
 
@@ -1114,7 +1154,9 @@ def test_simplify(
     kwargs = {}
     if keep_empty_geoms is not None:
         kwargs["keep_empty_geoms"] = keep_empty_geoms
-    output_path = io_util.with_stem(input_path, output_path)
+    output_path = _geopath_util.with_stem(
+        input_path, f"{output_path.stem}_{keep_empty_geoms}"
+    )
     geoops.simplify(
         input_path=input_path,
         output_path=output_path,

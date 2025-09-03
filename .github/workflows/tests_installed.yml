@@ -4,8 +4,7 @@
 name: TestsOnInstalled
 
 on:
-  #pull_request:
-  #  branches: [ main, v0.** ]
+  workflow_dispatch:
   schedule:
     # every Monday to Friday at 5:40 AM
     - cron: "40 5 * * 1-5"
@@ -36,14 +35,14 @@ jobs:
         python: ["3.12"]
         env: ["installed"]
         include:
-          - checkout_ref: "v0.9.x"
+          - checkout_ref: "v0.10.x"
             # nomkl: openblas instead of mkl saves 600 MB. Linux OK, but 50% slower on Windows and OSX!
             install_extra_args: >-
               nomkl
-              geofileops=0.9.1=pyhd8ed1ab_3
+              geofileops=0.10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ matrix.checkout_ref }}
           sparse-checkout: |

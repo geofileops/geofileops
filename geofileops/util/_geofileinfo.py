@@ -36,7 +36,7 @@ geofiletypes: dict[str, GeofileTypeInfo] = {}
 
 def _init_geofiletypes():
     geofiletypes_path = Path(__file__).resolve().parent / "geofiletypes.csv"
-    with open(geofiletypes_path) as file:
+    with geofiletypes_path.open() as file:
         # Set skipinitialspace to True so the csv can be formatted for readability
         csv.register_dialect("geofiletype_dialect", skipinitialspace=True, strict=True)
         reader = csv.DictReader(file, dialect="geofiletype_dialect")
@@ -166,7 +166,7 @@ class GeofileInfo:
         driver (str): the relevant gdal driver for the file.
     """
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Union[str, "os.PathLike[Any]"]):
         """Constructor of Layerinfo.
 
         Args:
@@ -229,25 +229,28 @@ def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
     """Get the gdal driver name for the file specified.
 
     Args:
-        path (PathLike): The file path.
+        path (PathLike): The file path. |GDAL_vsi| paths are also supported.
 
     Returns:
         str: The OGR driver name.
-    """
-    path = Path(path)
 
+    .. |GDAL_vsi| raw:: html
+
+        <a href="https://gdal.org/en/stable/user/virtual_file_systems.html" target="_blank">GDAL vsi</a>
+
+    """  # noqa: E501
     # gdal.OpenEx is relatively slow on windows, so for straightforward cases, avoid it.
-    if path.suffix.lower() == ".gpkg":
+    suffix = Path(path).suffix.lower()
+    if suffix == ".gpkg":
         return "GPKG"
-    elif path.suffix.lower() == ".shp":
+    elif suffix == ".shp":
         return "ESRI Shapefile"
 
-    def get_driver_for_path(input_path) -> str:
+    def get_driver_for_path(input_path: Union[str, "os.PathLike[Any]"]) -> str:
         # If there is no suffix, possibly it is only a suffix, so prefix with filename
-        if input_path.suffix == "":
+        local_path = input_path
+        if Path(input_path).suffix == "":
             local_path = f"temp{input_path}"
-        else:
-            local_path = input_path
 
         drivers = GetOutputDriversFor(local_path, is_raster=False)
         if len(drivers) == 1:
@@ -259,7 +262,7 @@ def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
                 f"Path: {input_path}"
             )
 
-    # If the file exists, determine the driver based on the file.
+    # Try to determine the driver by opening the file.
     try:
         datasource = gdal.OpenEx(
             str(path), nOpenFlags=gdal.OF_VECTOR | gdal.OF_READONLY | gdal.OF_SHARED
@@ -267,9 +270,21 @@ def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
         driver = datasource.GetDriver()
         drivername = driver.ShortName
     except Exception as ex:
-        try:
-            drivername = get_driver_for_path(path)
-        except Exception:
+        ex_str = str(ex).lower()
+        if (
+            "no such file or directory" in ex_str
+            or "not recognized as being in a supported file format" in ex_str
+            or "not recognized as a supported file format" in ex_str
+        ):
+            # If the file does not exist or if, for some cases like a csv file,
+            # it is e.g. an empty file that was not recognized yet, try to get the
+            # driver based on only the path.
+            try:
+                drivername = get_driver_for_path(path)
+            except Exception:
+                ex.args = (f"get_driver error for {path}: {ex}",)
+                raise
+        else:
             ex.args = (f"get_driver error for {path}: {ex}",)
             raise
     finally:
@@ -290,4 +305,4 @@ def get_geofileinfo(path: Union[str, "os.PathLike[Any]"]) -> GeofileInfo:
     Returns:
         GeofileInfo: _description_
     """
-    return GeofileInfo(path=Path(path))
+    return GeofileInfo(path=path)

@@ -174,7 +174,7 @@ def dissolve_groupby(tmp_dir: Path) -> RunResult:
         package_version=_get_version(),
         operation="dissolve_groupby",
         secs_taken=(datetime.now() - start_time).total_seconds(),
-        operation_descr=f"dissolve on {input_descr}, groupby=[GEWASGROEP]",
+        operation_descr=f"dissolve on {input_descr}, groupby=[GWSGRPH_LB]",
         run_details={"nb_cpu": nb_parallel},
     )
 

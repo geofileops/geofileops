@@ -2,7 +2,6 @@
 
 import sqlite3
 from pathlib import Path
-from typing import Optional
 
 import pandas as pd
 from osgeo import gdal, ogr
@@ -14,7 +13,7 @@ ogr.UseExceptions()
 
 
 def get_layerstyles(
-    path: Path, layer: Optional[str] = None, name: Optional[str] = None
+    path: Path, layer: str | None = None, name: str | None = None
 ) -> pd.DataFrame:
     """Get the layer styles saved in the geofile.
 
@@ -90,7 +89,7 @@ def add_layerstyle(
             .reset_index()
             .to_dict(orient="records")
         )
-        raise ValueError(f"layer style exists already: {styles_found}")
+        raise ValueError(f"layer style already exists: {styles_found}")
 
     # Insert style
     conn = sqlite3.connect(path)
@@ -172,16 +171,16 @@ def _init_layerstyles(path: Path, exist_ok: bool = False):
 
     Args:
         path (Path): the file to create the table in.
-        exist_ok (bool, options): If True and the index exists already, don't
+        exist_ok (bool, options): If True and the index already exists, don't
             throw an error.
     """
     try:
-        # First check if it exists already
+        # First check if it already exists
         if _has_layerstyles_table(path):
             if exist_ok:
                 return
             else:
-                raise ValueError(f"layer_styles table exists already in {path}")
+                raise ValueError(f"layer_styles table already exists in {path}")
 
         # Doesn't exist yet, so create the table
         datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)

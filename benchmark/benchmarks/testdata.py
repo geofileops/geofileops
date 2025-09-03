@@ -55,7 +55,7 @@ class TestFile(enum.Enum):
         "agri parcels (~500k poly)",
     )
 
-    def __init__(self, value, url: str, filename: str, descr: Optional[str]):
+    def __init__(self, value, url: str, filename: str, descr: str | None):
         """Create a test file.
 
         Args:
@@ -119,7 +119,6 @@ def create_testfile(
         tuple[Path, str]: The path to the file + a description of the test file.
     """
     # Format file name
-
     if polys_per_geom == 1:
         poly_str = f"{geoms}polys({points_per_poly}pnts)"
     else:
@@ -361,9 +360,7 @@ def _create_complex_poly(
     return poly_complex
 
 
-def _download_samplefile(
-    url: str, dst_name: str, dst_dir: Optional[Path] = None
-) -> Path:
+def _download_samplefile(url: str, dst_name: str, dst_dir: Path | None = None) -> Path:
     """Download a sample file to dest_path.
 
     If it is zipped, it will be unzipped. If needed, it will be converted to
@@ -402,7 +399,7 @@ def _download_samplefile(
         tmp_dir = dst_path.parent / "tmp"
 
         try:
-            # Remove tmp dir if it exists already
+            # Remove tmp dir if it already exists
             if tmp_dir.exists():
                 shutil.rmtree(tmp_dir)
             tmp_dir.mkdir(parents=True, exist_ok=True)
@@ -446,7 +443,7 @@ def _download_samplefile(
     return dst_path
 
 
-def _prepare_dst_path(dst_name: str, dst_dir: Optional[Path] = None):
+def _prepare_dst_path(dst_name: str, dst_dir: Path | None = None):
     if dst_dir is None:
         return Path(tempfile.gettempdir()) / "geofileops_sampledata" / dst_name
     else:

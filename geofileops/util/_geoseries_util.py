@@ -2,7 +2,6 @@
 
 import logging
 import warnings
-from typing import Union
 
 import geopandas as gpd
 import geopandas._compat as gpd_compat
@@ -44,7 +43,7 @@ def get_geometrytypes(
     geom_types_2D = input_geoseries[~input_geoseries.has_z].geom_type.unique()
     geom_types_2D = [gtype for gtype in geom_types_2D if gtype is not None]
     geom_types_3D = input_geoseries[input_geoseries.has_z].geom_type.unique()
-    geom_types_3D = ["3D " + gtype for gtype in geom_types_3D if gtype is not None]
+    geom_types_3D = [f"{gtype}Z" for gtype in geom_types_3D if gtype is not None]
     geom_types = geom_types_3D + geom_types_2D
 
     if len(geom_types) == 0:
@@ -168,7 +167,7 @@ def set_precision(
     grid_size: float,
     mode: str = "valid_output",
     raise_on_topoerror: bool = True,
-) -> Union[BaseGeometry, NDArray[BaseGeometry], None]:
+) -> BaseGeometry | NDArray[BaseGeometry] | None:
     """Returns geometry with the precision set to a precision grid size.
 
     By default, geometries use double precision coordinates (grid_size = 0).
