@@ -3443,7 +3443,9 @@ def _two_layer_vector_operation(
         if output_geometrytype_calc is not None and "geom" in column_datatypes:
             column_datatypes["geom"] = output_geometrytype_calc.name
         output_geometrytype_append = (
-            force_output_geometrytype if explode_append else None
+            force_output_geometrytype
+            if explode_append or output_path.suffix == ".shp"
+            else None
         )
 
         worker_type = _general_helper.worker_type_to_use(input1_layer.featurecount)
