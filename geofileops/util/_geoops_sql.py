@@ -1362,10 +1362,6 @@ def _has_complex_geoms(path: Path, layer: LayerInfo, max_coords: int) -> bool:
     Returns:
         bool: True if the layer has complex geometries, False otherwise.
     """
-    logger.info(
-        f"Check if complex geometries in {path.name}/{layer.name} (> {max_coords}"
-        " coords)"
-    )
     start = time.perf_counter()
 
     sql_template = f"""
@@ -1378,6 +1374,10 @@ def _has_complex_geoms(path: Path, layer: LayerInfo, max_coords: int) -> bool:
     complex_found = False
     if layer.featurecount < 1_000_000:
         # For small files, simple check
+        logger.info(
+            f"Check for complex geometries in {path.name}/{layer.name} "
+            f"(> {max_coords} coords)"
+        )
         sql = sql_template.format(batch_filter="")
         complexgeom_df = gfo.read_file(path, sql_stmt=sql, sql_dialect="SQLITE")
         if len(complexgeom_df) > 0:
@@ -1388,6 +1388,10 @@ def _has_complex_geoms(path: Path, layer: LayerInfo, max_coords: int) -> bool:
         # of all rows. The fraction didn't help, so use 100% for now
         nb_parallel = 4
         fraction_to_check = 5
+        logger.info(
+            f"Check for complex geometries in 1/{fraction_to_check} rows in "
+            f"{path.name}/{layer.name} (> {max_coords} coords)"
+        )
         processing_params = _prepare_processing_params(
             input1_path=path,
             input1_layer=layer,
