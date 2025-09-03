@@ -126,9 +126,9 @@ def create_testfile(
 
     if testfile_path.exists():
         polys_gdf = gpd.read_file(testfile_path, engine="pyogrio")
-        nb_coords = shapely.get_num_coordinates(polys_gdf.iloc[0])
+        nb_coords = shapely.get_num_coordinates(polys_gdf.iloc[0]).item()
         nb_polys = len(polys_gdf)
-        descr = descr_template.format(nb_polys=nb_polys, nb_coords=nb_coords)
+        descr = descr_template.format(nb_polys=nb_polys, nb_coords_str=str(nb_coords))
 
         return (testfile_path, descr)
 
