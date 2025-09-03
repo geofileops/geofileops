@@ -1397,6 +1397,7 @@ def _subdivide_layer(
     # Keep the fid column if needed
     columns = ["fid"] if keep_fid else []
 
+    # Subdividing can be a relatively expensive operation, so use min_rows_per_batch=1.
     output_path.parent.mkdir(parents=True, exist_ok=True)
     _geoops_gpd.apply_vectorized(
         input_path=path,
@@ -1410,7 +1411,7 @@ def _subdivide_layer(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         parallelization_config=_geoops_gpd.ParallelizationConfig(
-            bytes_per_row=2000, max_rows_per_batch=50000
+            bytes_per_row=2000, max_rows_per_batch=50000, min_rows_per_batch=1
         ),
     )
     if keep_fid:
