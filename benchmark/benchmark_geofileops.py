@@ -18,7 +18,7 @@ def main():
         # "union",
         "buffer_spatialite",
     ]
-    # Run all bechmark functions
+    # Run all benchmark functions
     # functions_to_run = None
     benchmarker.run_benchmarks(["benchmarks_geofileops"], functions_to_run)
 
