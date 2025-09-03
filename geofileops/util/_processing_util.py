@@ -75,7 +75,7 @@ class PooledExecutorFactory:
             self.pool.shutdown(wait=True)
 
 
-def initialize_worker(worker_type: str):
+def initialize_worker(worker_type: str, nice_value: int = 15):
     """Some default inits.
 
     Following things are done:
@@ -84,6 +84,9 @@ def initialize_worker(worker_type: str):
     Args:
         worker_type (str): The type of worker to initialize.
             "threads" for thread pool, "processes" for process pool.
+        nice_value (int, optional): The niceness value to set for the worker. 19 is the
+            maximum niceness (lowest priority), and -20 is the minimum
+            (highest priority). Defaults to 15.
     """
     worker_type = worker_type.lower()
     if worker_type not in WORKER_TYPES:
