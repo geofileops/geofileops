@@ -3440,16 +3440,11 @@ def _two_layer_vector_operation(
 
         # Apply the geometrytype already during calculation
         output_geometrytype_calc = force_output_geometrytype
-        if (
-            force_output_geometrytype is not None
-            and explodecollections
-            and not explode_calc
-        ):
-            # convert geometrytype to multitype to avoid ogr warnings
-            output_geometrytype_calc = force_output_geometrytype.to_multitype  # type: ignore[union-attr]
-            if "geom" in column_datatypes:
-                assert output_geometrytype_calc is not None
-                column_datatypes["geom"] = output_geometrytype_calc.name
+        if output_geometrytype_calc is not None and "geom" in column_datatypes:
+            column_datatypes["geom"] = output_geometrytype_calc.name
+        output_geometrytype_append = (
+            force_output_geometrytype if explode_append else None
+        )
 
         worker_type = _general_helper.worker_type_to_use(input1_layer.featurecount)
         logger.info(
@@ -3536,7 +3531,7 @@ def _two_layer_vector_operation(
                 # rename/move it as that is faster.
                 if (
                     not explodecollections
-                    and force_output_geometrytype is None
+                    and output_geometrytype_append is None
                     and where_post is None
                     and tmp_partial_output_path.suffix.lower()
                     == tmp_output_path.suffix.lower()
@@ -3566,7 +3561,7 @@ def _two_layer_vector_operation(
                         dst_layer=output_layer,
                         write_mode="append",
                         explodecollections=explode_append,
-                        force_output_geometrytype=force_output_geometrytype,
+                        force_output_geometrytype=output_geometrytype_append,
                         where=where_post,
                         create_spatial_index=create_spatial_index,
                         preserve_fid=False,
