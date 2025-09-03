@@ -2730,7 +2730,6 @@ def copy_layer(
         and Path(dst).suffix.lower() == ".gpkg"
         and not sql_stmt
         and (sql_dialect is None or sql_dialect == "SQLITE")
-        and not columns
         and not explodecollections
         and not reproject
         and force_output_geometrytype is None
@@ -2741,8 +2740,7 @@ def copy_layer(
         and Path(src).exists()
         and Path(dst).exists()
     ):
-        # TODO: columns, sql_stmt?, access_mode="create", create_spatial_index
-        #       dst_crs?
+        # TODO: sql_stmt?, access_mode="create", create_spatial_index, dst_crs?
         # TODO: create gfo config option to disable?
         try:
             name = src_layername if src_layername is not None else get_only_layer(src)
@@ -2752,6 +2750,7 @@ def copy_layer(
                 output_path=dst,
                 input_table=name,
                 output_table=dst_layer,
+                columns=columns,
                 where=where,
                 preserve_fid=preserve_fid_local,
             )
