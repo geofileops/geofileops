@@ -17,8 +17,8 @@ def main():
         # "symmetric_difference_complexpolys_agri",
         # "union",
     ]
-    # Run all bechmark functions
     # functions_to_run = None
+    # Run all benchmark functions
     benchmarker.run_benchmarks(["benchmarks_geofileops"], functions_to_run)
 
 
