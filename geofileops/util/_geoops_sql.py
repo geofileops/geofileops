@@ -5,6 +5,7 @@ import logging
 import logging.config
 import math
 import multiprocessing
+import os
 import re
 import shutil
 import string
@@ -1403,7 +1404,8 @@ def _has_complex_geoms(path: Path, layer: LayerInfo, max_coords: int) -> bool:
         if processing_params is None or processing_params.batches is None:
             return False
 
-        worker_type = "threads"
+        # On windows, use threads as processes have too much overhead
+        worker_type = "threads" if os.name == "nt" else "processes"
         with _processing_util.PooledExecutorFactory(
             worker_type=worker_type,
             max_workers=processing_params.nb_parallel,
@@ -1415,9 +1417,14 @@ def _has_complex_geoms(path: Path, layer: LayerInfo, max_coords: int) -> bool:
                     # Only check a fraction of the batches
                     continue
                 sql = sql_template.format(batch_filter=batch_info["batch_filter"])
+                # Using arrow is slower in this case... so disable.
                 process_futures.append(
                     pool.submit(
-                        fileops.read_file, path, sql_stmt=sql, sql_dialect="SQLITE"
+                        fileops.read_file,
+                        path,
+                        sql_stmt=sql,
+                        sql_dialect="SQLITE",
+                        use_arrow=False,
                     )
                 )
 
@@ -1430,7 +1437,7 @@ def _has_complex_geoms(path: Path, layer: LayerInfo, max_coords: int) -> bool:
                     break
 
     took = time.perf_counter() - start
-    if took > 0:
+    if took > 0.5:
         logger.info(f"{complex_found=}, check took {took:.2f}s")
 
     return complex_found
