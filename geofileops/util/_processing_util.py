@@ -93,7 +93,7 @@ def initialize_worker(worker_type: str):
         )
 
     if worker_type == "processes":
-        # Reduce OpenMP threads to avoid the committed memory usage becoming huge when
+        # Reduce OpenMP threads to avoid unnecessary inflated committed memory when
         # using multiprocessing.
         # Should work for any numeric library used (openblas, mkl,...).
         # Ref: https://stackoverflow.com/questions/77764228/pandas-scipy-high-commit-memory-usage-windows
