@@ -4,6 +4,7 @@
 
 ### Improvements
 
+- Improve performance of clip with a complex clip layer (#740)
 - Improve performance of most operations by using a direct gpkg to gpkg append via
   sqlite where possible (#728)
 - Ensure that the featurecount is properly cached in GPKG files, also for older GDAL
