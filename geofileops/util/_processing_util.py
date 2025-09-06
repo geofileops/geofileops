@@ -79,8 +79,10 @@ def initialize_worker(worker_type: str, nice_value: int = 15):
     """Some default inits.
 
     Following things are done:
-    - Set the worker process priority low so the workers don't block the system.
-    - Reduce OpenMP threads to avoid committed memory getting very high.
+    - Set the worker process priority low (to `nice_value`) so the workers don't block
+      the system.
+    - Reduce OpenMP threads to avoid committed memory getting very high. You can specify
+      the number of threads using the environment variable `GFO_WORKER_OMP_NUM_THREADS`.
 
     Args:
         worker_type (str): The type of worker to initialize.
@@ -111,7 +113,6 @@ def initialize_worker(worker_type: str, nice_value: int = 15):
     #     niceness, even if it was you who niced before.
     #   - we are setting the niceness of the process here, so in case of
     #     `worker_type=threads` the main thread/process will also be impacted.
-    nice_value = 15
     if getprocessnice() < nice_value:
         setprocessnice(nice_value)
 
