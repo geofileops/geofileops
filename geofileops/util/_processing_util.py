@@ -80,6 +80,7 @@ def initialize_worker(worker_type: str, nice_value: int = 15):
 
     Following things are done:
     - Set the worker process priority low so the workers don't block the system.
+    - Reduce OpenMP threads to avoid committed memory getting very high.
 
     Args:
         worker_type (str): The type of worker to initialize.
@@ -94,12 +95,13 @@ def initialize_worker(worker_type: str, nice_value: int = 15):
             f"Invalid worker_type: {worker_type}. Must be one of {WORKER_TYPES}."
         )
 
-    # Reduce OpenMP threads to avoid unnecessary inflated committed memory when using
-    # multiprocessing.
-    # Should work for any numeric library used (openblas, mkl,...).
-    # Ref: https://stackoverflow.com/questions/77764228/pandas-scipy-high-commit-memory-usage-windows
-    if os.environ.get("OMP_NUM_THREADS") is None:
-        os.environ["OMP_NUM_THREADS"] = "1"
+    if worker_type == "processes":
+        # Reduce OpenMP threads to avoid unnecessary inflated committed memory when
+        # using multiprocessing.
+        # Should work for any numeric library used (openblas, mkl,...).
+        # Ref: https://stackoverflow.com/questions/77764228/pandas-scipy-high-commit-memory-usage-windows
+        worker_omp_threads = os.environ.get("GFO_WORKER_OMP_NUM_THREADS", "1")
+        os.environ["OMP_NUM_THREADS"] = worker_omp_threads
 
     # We don't want the workers to block the entire system, so make the workers nice
     # if they aren't quite nice already.
