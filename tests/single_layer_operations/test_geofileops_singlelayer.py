@@ -13,7 +13,7 @@ import shapely
 from shapely import MultiPolygon, Polygon
 
 from geofileops import GeometryType, fileops, geoops
-from geofileops._compat import SPATIALITE_GTE_51
+from geofileops._compat import GDAL_GTE_39, SPATIALITE_GTE_51
 from geofileops.util import _general_util, _geofileinfo, _geoops_sql, _geopath_util
 from geofileops.util._geofileinfo import GeofileInfo
 from tests import test_helper
@@ -150,7 +150,7 @@ def basic_combinations_to_test(
 
 
 @pytest.mark.parametrize("suffix_input", SUFFIXES_GEOOPS_INPUT)
-@pytest.mark.parametrize("worker_type", ["thread", "process"])
+@pytest.mark.parametrize("worker_type", ["threads", "processes"])
 @pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
 def test_buffer(tmp_path, suffix_input, worker_type, geoops_module):
     """Buffer minimal test."""
@@ -197,6 +197,16 @@ def test_buffer_basic(
     dimensions,
 ):
     """Buffer basics are available both in the gpd and sql implementations."""
+    if (
+        not GDAL_GTE_39
+        and dimensions == "XYZ"
+        and suffix == ".gpkg"
+        and geoops_module != "_geoops_gpd"
+    ):
+        pytest.xfail(
+            "GDAL < 3.9 (at least) writes 3D geometries even though "
+            "force_geometrytype='MULTIPOLYGON' for buffer operation."
+        )
     # Prepare test data
     input_path = test_helper.get_testfile(
         testfile, suffix=suffix, epsg=epsg, empty=empty_input, dimensions=dimensions
@@ -332,8 +342,8 @@ def test_buffer_force(tmp_path, geoops_module):
     output_path = tmp_path / f"{input_path.stem}-output{input_path.suffix}"
     assert not output_path.exists()
 
-    # Use "process" worker type to test this as well
-    with _general_util.TempEnv({"GFO_WORKER_TYPE": "process"}):
+    # Use "processes" worker type to test this as well
+    with _general_util.TempEnv({"GFO_WORKER_TYPE": "processes"}):
         geoops.buffer(
             input_path=input_path,
             output_path=output_path,

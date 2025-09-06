@@ -27,7 +27,8 @@ from tests.test_helper import SUFFIXES_GEOOPS, TESTFILES, assert_geodataframe_eq
 
 @pytest.mark.parametrize("testfile", TESTFILES)
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
-def test_clip(tmp_path, testfile, suffix):
+@pytest.mark.parametrize("subdivide_coords", [0, 5])
+def test_clip(tmp_path, testfile, suffix, subdivide_coords):
     input_path = test_helper.get_testfile(testfile, suffix=suffix)
     clip_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
@@ -39,6 +40,7 @@ def test_clip(tmp_path, testfile, suffix):
         output_path=str(output_path),
         where_post=None,
         batchsize=batchsize,
+        subdivide_coords=subdivide_coords,
     )
 
     # Compare result with geopandas
@@ -627,12 +629,12 @@ def test_intersect_deprecated(tmp_path):
     "suffix_in, suffix_out, epsg, gridsize, explodecollections, worker_type, "
     "nb_parallel",
     [
-        (".gpkg.zip", ".gpkg", 31370, 0.0, True, "thread", 1),
-        (".gpkg", ".gpkg", 31370, 0.01, True, "thread", 1),
-        (".gpkg", ".gpkg", 31370, 0.0, False, "process", 2),
-        (".gpkg", ".gpkg", 4326, 0.0, True, "thread", 2),
-        (".shp", ".shp", 31370, 0.0, True, "thread", 1),
-        (".shp", ".shp", 31370, 0.0, False, "process", 2),
+        (".gpkg.zip", ".gpkg", 31370, 0.0, True, "threads", 1),
+        (".gpkg", ".gpkg", 31370, 0.01, True, "threads", 1),
+        (".gpkg", ".gpkg", 31370, 0.0, False, "processes", 2),
+        (".gpkg", ".gpkg", 4326, 0.0, True, "threads", 2),
+        (".shp", ".shp", 31370, 0.0, True, "threads", 1),
+        (".shp", ".shp", 31370, 0.0, False, "processes", 2),
     ],
 )
 def test_intersection(
@@ -729,8 +731,8 @@ def test_intersection_input_no_index(tmp_path):
     # Now run test
     output_path = tmp_path / f"{input1_path.stem}_intersection_{input2_path.stem}.gpkg"
 
-    # Use "process" worker type to test this as well
-    with gfo.TempEnv({"GFO_WORKER_TYPE": "process"}):
+    # Use "processes" worker type to test this as well
+    with gfo.TempEnv({"GFO_WORKER_TYPE": "processes"}):
         gfo.intersection(
             input1_path=input1_path, input2_path=input2_path, output_path=output_path
         )
@@ -1285,8 +1287,8 @@ def test_join_nearest(tmp_path, suffix, epsg):
     nb_nearest = 2
     input1_columns = ["OIDN", "UIDN", "HFDTLT", "fid"]
 
-    # Use "process" worker type to test this as well
-    with gfo.TempEnv({"GFO_WORKER_TYPE": "process"}):
+    # Use "processes" worker type to test this as well
+    with gfo.TempEnv({"GFO_WORKER_TYPE": "processes"}):
         gfo.join_nearest(
             input1_path=str(input1_path),
             input1_columns=input1_columns,

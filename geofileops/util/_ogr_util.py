@@ -14,7 +14,7 @@ from pygeoops import GeometryType
 
 import geofileops as gfo
 from geofileops import _compat, fileops
-from geofileops.util import _geopath_util
+from geofileops.util import _geopath_util, _io_util
 from geofileops.util._general_util import MissingRuntimeDependencyError
 
 # Make sure only one instance per process is running
@@ -478,7 +478,7 @@ def vector_translate(
     # with enable_debug=True nothing is logged. In addition, after
     # gdal.ConfigurePythonLogging is called, the CPL_LOG config setting is ignored.
     if "CPL_LOG" not in config_options:
-        gdal_cpl_log_dir = Path(tempfile.gettempdir()) / "geofileops/gdal_cpl_log"
+        gdal_cpl_log_dir = _io_util.get_tempdir() / "geofileops/gdal_cpl_log"
         gdal_cpl_log_dir.mkdir(parents=True, exist_ok=True)
         fd, gdal_cpl_log = tempfile.mkstemp(suffix=".log", dir=gdal_cpl_log_dir)
         os.close(fd)
@@ -497,8 +497,11 @@ def vector_translate(
     input_has_geometry_attribute = False
     try:
         # Till gdal 3.10 datetime columns can be interpreted wrongly with arrow.
-        if _compat.GDAL_ST_311 and "OGR2OGR_USE_ARROW_API" not in config_options:
-            config_options["OGR2OGR_USE_ARROW_API"] = False
+        # Additionally, enabling arrow seems to lead to (rare) random crashes, so
+        # for now, disable it by default.
+        use_arrow_key = "OGR2OGR_USE_ARROW_API"
+        if use_arrow_key not in config_options and use_arrow_key not in os.environ:
+            config_options[use_arrow_key] = False
 
         # Go!
         with set_config_options(config_options):
