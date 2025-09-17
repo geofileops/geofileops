@@ -323,6 +323,16 @@ def test_subdivide(geom, num_coords_max, exp_nb_parts):
         (None, 2, None),
         (test_helper.TestData.multipolygon, 2, 2),
         (np.array([test_helper.TestData.multipolygon]), 2, 2),
+        (
+            np.array(
+                [
+                    test_helper.TestData.multipolygon,
+                    test_helper.TestData.polygon_with_island,
+                ]
+            ),
+            2,
+            2,
+        ),
     ],
 )
 def test_subdivide_vectorized(geom, num_coords_max, exp_nb_parts):
@@ -335,12 +345,15 @@ def test_subdivide_vectorized(geom, num_coords_max, exp_nb_parts):
 
     if isinstance(geom, np.ndarray):
         assert isinstance(result, np.ndarray)
-        assert len(result) == 1
+        assert len(result) == len(geom)
         result = result[0]
+        exp_union_result = geom[0]
+    else:
+        exp_union_result = geom
 
     assert isinstance(result, shapely.GeometryCollection)
     assert len(result.geoms) == exp_nb_parts
 
     # Check that the union of all parts is equal to the original geometry
     union = shapely.union_all(result)
-    assert shapely.equals(union, geom)
+    assert shapely.equals(union, exp_union_result)
