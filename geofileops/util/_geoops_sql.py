@@ -1434,15 +1434,14 @@ def _has_complex_geoms(path: Path, layer: LayerInfo, max_coords: int) -> bool:
                 if batch_id % fraction_to_check != 0:
                     # Only check a fraction of the batches
                     continue
+
                 sql = sql_template.format(batch_filter=batch_info["batch_filter"])
-                # Using arrow is slower in this case... so disable.
                 process_futures.append(
                     pool.submit(
                         fileops.read_file,
                         path,
                         sql_stmt=sql,
                         sql_dialect="SQLITE",
-                        use_arrow=False,
                     )
                 )
 
