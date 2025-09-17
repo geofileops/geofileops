@@ -295,7 +295,7 @@ def test_set_precision(geometry, exp_geometry, raise_on_topoerror):
     [
         (None, 2, None),
         (test_helper.TestData.multipolygon, 5, 5),
-        (test_helper.TestData.polygon_with_island, 2, 6),
+        (test_helper.TestData.polygon_with_island, 5, 4),
         (test_helper.TestData.linestring, 2, 2),
         (test_helper.TestData.point, 1, 1),
         (test_helper.TestData.geometrycollection, 5, 11),
@@ -322,8 +322,8 @@ def test_subdivide(geom, num_coords_max, exp_nb_parts):
     "geom, num_coords_max, exp_nb_parts",
     [
         (None, 2, None),
-        (test_helper.TestData.multipolygon, 2, 2),
-        (np.array([test_helper.TestData.multipolygon]), 2, 2),
+        (test_helper.TestData.multipolygon, 5, 5),
+        (np.array([test_helper.TestData.multipolygon]), 5, 5),
         (
             np.array(
                 [
@@ -331,8 +331,8 @@ def test_subdivide(geom, num_coords_max, exp_nb_parts):
                     test_helper.TestData.polygon_with_island,
                 ]
             ),
-            2,
-            2,
+            5,
+            5,
         ),
     ],
 )
