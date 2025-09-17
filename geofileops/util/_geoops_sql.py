@@ -1391,7 +1391,7 @@ def _has_complex_geoms(path: Path, layer: LayerInfo, max_coords: int) -> bool:
          LIMIT 1
     """
     complex_found = False
-    if layer.featurecount < 1_000_000:
+    if layer.featurecount < ConfigOptions.subdivide_check_parallel_rows:
         # For small files, simple check
         logger.info(
             f"Check for complex geometries in {path.name}/{layer.name} "
@@ -1404,9 +1404,9 @@ def _has_complex_geoms(path: Path, layer: LayerInfo, max_coords: int) -> bool:
 
     else:
         # For large files, check for complex geometries in parallel + check a fraction
-        # of all rows. The fraction didn't help, so use 100% for now
+        # of all rows.
         nb_parallel = 4
-        fraction_to_check = 5
+        fraction_to_check = ConfigOptions.subdivide_check_parallel_fraction
         logger.info(
             f"Check for complex geometries in 1/{fraction_to_check} rows in "
             f"{path.name}/{layer.name} (> {max_coords} coords)"
@@ -1454,7 +1454,7 @@ def _has_complex_geoms(path: Path, layer: LayerInfo, max_coords: int) -> bool:
                     break
 
     took = time.perf_counter() - start
-    if took > 0.5:
+    if took > 0:
         logger.info(f"{complex_found=}, check took {took:.2f}s")
 
     return complex_found
