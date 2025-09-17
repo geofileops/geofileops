@@ -297,7 +297,7 @@ def subdivide(
     if geom is None or geom.is_empty:
         return geom
 
-    if isinstance(geom, shapely.geometry.base.BaseMultipartGeometry):
+    if not isinstance(geom, shapely.geometry.base.BaseMultipartGeometry):
         # Simple single geometry
         result = shapely.get_parts(
             pygeoops.subdivide(geom, num_coords_max=num_coords_max)

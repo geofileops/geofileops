@@ -294,11 +294,11 @@ def test_set_precision(geometry, exp_geometry, raise_on_topoerror):
     "geom, num_coords_max, exp_nb_parts",
     [
         (None, 2, None),
-        (test_helper.TestData.multipolygon, 2, 2),
+        (test_helper.TestData.multipolygon, 5, 5),
         (test_helper.TestData.polygon_with_island, 2, 6),
         (test_helper.TestData.linestring, 2, 2),
         (test_helper.TestData.point, 1, 1),
-        (test_helper.TestData.geometrycollection, 5, 8),
+        (test_helper.TestData.geometrycollection, 5, 11),
     ],
 )
 def test_subdivide(geom, num_coords_max, exp_nb_parts):
@@ -315,7 +315,7 @@ def test_subdivide(geom, num_coords_max, exp_nb_parts):
 
     # Check that the union of all parts is equal to the original geometry
     union = shapely.union_all(result)
-    assert shapely.equals(union, geom)
+    assert shapely.equals(union.normalize(), geom.normalize())
 
 
 @pytest.mark.parametrize(
