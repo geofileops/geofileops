@@ -298,6 +298,7 @@ def test_set_precision(geometry, exp_geometry, raise_on_topoerror):
         (test_helper.TestData.polygon_with_island, 2, 6),
         (test_helper.TestData.linestring, 2, 2),
         (test_helper.TestData.point, 1, 1),
+        (test_helper.TestData.geometrycollection, 5, 8),
     ],
 )
 def test_subdivide(geom, num_coords_max, exp_nb_parts):
