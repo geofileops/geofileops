@@ -1332,7 +1332,7 @@ def _subdivide_layer(
     if layer.geometrytype == GeometryType.POINT:
         return None
 
-    has_complex_geoms = _has_complex_geoms(path, layer, subdivide_coords * 2)
+    has_complex_geoms = _has_complex_geoms(path, layer, subdivide_coords)
     if not has_complex_geoms:
         return None
 
