@@ -1728,7 +1728,7 @@ def intersection(  # noqa: D417
     where_post: str | None = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    subdivide_coords: int = 7500,
+    subdivide_coords: int = 15000,
     force: bool = False,
     output_with_spatial_index: bool | None = None,
     operation_prefix: str = "",
