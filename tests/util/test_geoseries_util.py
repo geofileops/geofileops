@@ -301,6 +301,9 @@ def test_set_precision(geometry, exp_geometry, raise_on_topoerror):
         (test_helper.TestData.geometrycollection, 5, 11),
     ],
 )
+@pytest.mark.skipif(
+    not compat.GEOS_GTE_312, reason="Proper normalize requires GEOS >= 3.12"
+)
 def test_subdivide(geom, num_coords_max, exp_nb_parts):
     """Test subdivide function."""
     result = _geoseries_util.subdivide(geom, num_coords_max=num_coords_max)
