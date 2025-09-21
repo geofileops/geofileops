@@ -4,8 +4,9 @@ Tests for functionalities in ogr_util.
 
 import os
 
-from osgeo import gdal
 import pytest
+from osgeo import gdal
+from pygeoops import GeometryType
 
 import geofileops as gfo
 from geofileops._compat import GDAL_GTE_38
@@ -93,7 +94,7 @@ def test_read_cpl_log(tmp_path):
         "\n",
         "logging line 3\n",
     ]
-    with open(cpl_log_path, mode="w") as file:
+    with cpl_log_path.open(mode="w") as file:
         file.writelines(test_log_lines)
 
     # Test
@@ -148,6 +149,62 @@ def test_set_config_options():
     assert gdal.GetConfigOption(test3_config_envset) == "test3_new_env_value"
 
 
+def test_StartTransaction_None():
+    with pytest.raises(Exception, match="datasource is None"):
+        _ogr_util.StartTransaction(None)
+
+
+def test_CommitTransaction_None():
+    assert not _ogr_util.CommitTransaction(None)
+
+
+def test_RollbackTransaction_None():
+    assert not _ogr_util.RollbackTransaction(None)
+
+
+@pytest.mark.parametrize(
+    "output_geometrytype, exp_geometrytype",
+    [
+        (None, "POLYGON"),
+        ("MULTIPOLYGON", "MULTIPOLYGON"),
+        (GeometryType.MULTIPOLYGON, "MULTIPOLYGON"),
+        (["MULTIPOLYGON"], "MULTIPOLYGON"),
+        ([GeometryType.MULTIPOLYGON], "MULTIPOLYGON"),
+        (["PROMOTE_TO_MULTI"], "MULTIPOLYGON"),
+    ],
+)
+def test_vector_translate_geometrytype(tmp_path, output_geometrytype, exp_geometrytype):
+    input_path = test_helper.get_testfile(
+        "polygon-parcel", dst_dir=tmp_path, explodecollections=True
+    )
+    output_path = tmp_path / f"output{input_path.suffix}"
+
+    _ogr_util.vector_translate(
+        str(input_path), output_path, force_output_geometrytype=output_geometrytype
+    )
+    output_info = gfo.get_layerinfo(output_path)
+    assert output_info.geometrytypename == exp_geometrytype
+
+
+@pytest.mark.parametrize(
+    "output_geometrytype, exp_error",
+    [
+        (1, "invalid type for"),
+        ([1], "invalid type in"),
+    ],
+)
+def test_vector_translate_geometrytype_error(tmp_path, output_geometrytype, exp_error):
+    input_path = test_helper.get_testfile(
+        "polygon-parcel", dst_dir=tmp_path, explodecollections=True
+    )
+    output_path = tmp_path / f"output{input_path.suffix}"
+
+    with pytest.raises(ValueError, match=exp_error):
+        _ogr_util.vector_translate(
+            str(input_path), output_path, force_output_geometrytype=output_geometrytype
+        )
+
+
 def test_vector_translate_input_nolayer(tmp_path):
     input_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
     output_path = tmp_path / f"output{input_path.suffix}"
@@ -155,7 +212,7 @@ def test_vector_translate_input_nolayer(tmp_path):
     gfo.execute_sql(input_path, sql_stmt=f'DROP TABLE "{layer}"')
 
     with pytest.raises(
-        Exception, match="Error .* not recognized as a supported file format"
+        Exception, match="Error .* not recognized as .*a supported file format"
     ):
         _ogr_util.vector_translate(str(input_path), output_path)
 
@@ -280,3 +337,83 @@ def test_vector_translate_sql_input_empty(tmp_path, input_suffix, output_suffix)
     input_layerinfo = gfo.get_layerinfo(input_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert len(input_layerinfo.columns) == len(output_layerinfo.columns)
+
+
+@pytest.mark.parametrize("input_suffix", test_helper.SUFFIXES_GEOOPS)
+@pytest.mark.parametrize("output_suffix", test_helper.SUFFIXES_GEOOPS)
+def test_vector_translate_sql_invalid_new_output(tmp_path, input_suffix, output_suffix):
+    """When an invalid sql query is used, the output file should not be created.
+
+    Note: GDAL does create an output file without any layers in it, but apparently this
+    is not trivial and/or riskful to change, so this won't be changed:
+    https://github.com/OSGeo/gdal/issues/12284
+    """
+    input_path = test_helper.get_testfile(
+        "polygon-parcel", suffix=input_suffix, empty=True
+    )
+    output_path = tmp_path / f"output{output_suffix}"
+    layer = gfo.get_only_layer(input_path)
+    sql_stmt = f'SELECT * FROM "{layer}55" WHERE not_existing_column = 1'
+    try:
+        _ogr_util.vector_translate(input_path, output_path, sql_stmt=sql_stmt)
+    except Exception:
+        pass
+
+    assert not output_path.exists()
+
+
+@pytest.mark.parametrize("input_suffix", test_helper.SUFFIXES_GEOOPS)
+@pytest.mark.parametrize("output_suffix", test_helper.SUFFIXES_GEOOPS)
+@pytest.mark.parametrize(
+    "access_mode, output_file_expected",
+    [
+        (None, False),
+        ("update", True),
+        ("append", True),
+        ("append", True),
+    ],
+)
+def test_vector_translate_sql_invalid_existing_output(
+    tmp_path, input_suffix, output_suffix, access_mode, output_file_expected
+):
+    """Run an invalid query that tries to add a layer to an existing file (update).
+
+    If access_mode is None, the existing output file will be overwritten.
+    In this case, if the sql query is invalid, the output file will effectively be
+    removed.
+    """
+    input_path = test_helper.get_testfile(
+        "polygon-parcel", suffix=input_suffix, empty=True
+    )
+    output_path = test_helper.get_testfile(
+        "polygon-parcel", suffix=input_suffix, dst_dir=tmp_path
+    )
+    layer = gfo.get_only_layer(input_path)
+    sql_stmt = f'SELECT * FROM "{layer}" WHERE not_existing_column = 1'
+    try:
+        _ogr_util.vector_translate(
+            input_path, output_path, sql_stmt=sql_stmt, access_mode=access_mode
+        )
+    except Exception:
+        pass
+
+    assert output_path.exists() is output_file_expected
+
+
+@pytest.mark.parametrize("input_suffix", test_helper.SUFFIXES_GEOOPS)
+@pytest.mark.parametrize("output_suffix", test_helper.SUFFIXES_GEOOPS)
+@pytest.mark.parametrize("columns", [["OIDN"], "OIDN"])
+def test_vector_translate_columns(tmp_path, input_suffix, output_suffix, columns):
+    # Prepare test data
+    input_path = test_helper.get_testfile(
+        "polygon-parcel", suffix=input_suffix, empty=True
+    )
+    output_path = tmp_path / f"output{output_suffix}"
+    exp_columns = columns if isinstance(columns, list) else [columns]
+
+    _ogr_util.vector_translate(input_path, output_path, columns=columns)
+
+    # Check result
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert len(output_layerinfo.columns) == 1
+    assert list(output_layerinfo.columns) == exp_columns

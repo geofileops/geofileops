@@ -1,14 +1,10 @@
-"""
-Module to save layer styles in Geopackage files.
-"""
+"""Module to save layer styles in Geopackage files."""
 
-from pathlib import Path
 import sqlite3
-from typing import Optional
+from pathlib import Path
 
-from osgeo import gdal
-from osgeo import ogr
 import pandas as pd
+from osgeo import gdal, ogr
 
 from geofileops import fileops
 
@@ -17,10 +13,9 @@ ogr.UseExceptions()
 
 
 def get_layerstyles(
-    path: Path, layer: Optional[str] = None, name: Optional[str] = None
+    path: Path, layer: str | None = None, name: str | None = None
 ) -> pd.DataFrame:
-    """
-    Get the layer styles saved in the geofile.
+    """Get the layer styles saved in the geofile.
 
     Only styles saved according to the QGIS Geopackage styling extension are read:
     https://github.com/pka/qgpkg/blob/master/qgis_geopackage_extension.md
@@ -56,8 +51,7 @@ def add_layerstyle(
     owner: str = "",
     ui: str = "",
 ):
-    """
-    Add the layer style to the geofile.
+    """Add the layer style to the geofile.
 
     Remark: at the time of writing, QGIS only uses the qml field to interprete the
     style, so this field is mandatory and sld is not.
@@ -95,7 +89,7 @@ def add_layerstyle(
             .reset_index()
             .to_dict(orient="records")
         )
-        raise ValueError(f"layer style exists already: {styles_found}")
+        raise ValueError(f"layer style already exists: {styles_found}")
 
     # Insert style
     conn = sqlite3.connect(path)
@@ -121,8 +115,7 @@ def add_layerstyle(
 
 
 def remove_layerstyle(path: Path, id: int):
-    """
-    Remove a layer style.
+    """Remove a layer style.
 
     Only styles saved according to the QGIS Geopackage styling extension are removed:
     https://github.com/pka/qgpkg/blob/master/qgis_geopackage_extension.md
@@ -146,8 +139,7 @@ def remove_layerstyle(path: Path, id: int):
 
 
 def _has_layerstyles_table(path: Path) -> bool:
-    """
-    Check if the layer_styles table exists for the geo file specified.
+    """Check if the layer_styles table exists for the geo file specified.
 
     Args:
         path (Path): the path to the geofile.
@@ -172,24 +164,23 @@ def _has_layerstyles_table(path: Path) -> bool:
 
 
 def _init_layerstyles(path: Path, exist_ok: bool = False):
-    """
-    Create a layer_styles attribute table to store style information in the QGIS way.
+    """Create a layer_styles attribute table to store style information in the QGIS way.
 
     The table is created according to the QGIS Geopackage styling extension:
     https://github.com/pka/qgpkg/blob/master/qgis_geopackage_extension.md
 
     Args:
         path (Path): the file to create the table in.
-        exist_ok (bool, options): If True and the index exists already, don't
+        exist_ok (bool, options): If True and the index already exists, don't
             throw an error.
     """
     try:
-        # First check if it exists already
+        # First check if it already exists
         if _has_layerstyles_table(path):
             if exist_ok:
                 return
             else:
-                raise ValueError(f"layer_styles table exists already in {path}")
+                raise ValueError(f"layer_styles table already exists in {path}")
 
         # Doesn't exist yet, so create the table
         datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)

@@ -2,7 +2,7 @@
 Tests for functionalities in sql_util.
 """
 
-from typing import Iterable, List, Optional
+from collections.abc import Iterable
 
 import pytest
 
@@ -85,7 +85,7 @@ from geofileops.util import _ogr_sql_util
 )
 def test_ColumnFormatter(
     descr: str,
-    columns_specified: Optional[List[str]],
+    columns_specified: list[str] | None,
     columns_available: Iterable[str],
     table_alias: str,
     columnname_prefix: str,

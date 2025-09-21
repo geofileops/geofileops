@@ -1,18 +1,18 @@
-"""
-Module containing some utilities regarding io.
-"""
+"""Module containing some utilities regarding io."""
 
 import logging
 import os
-from pathlib import Path
 import tempfile
-from typing import Optional, Tuple
+import time
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Union
+
 import geofileops as gfo
 
 
-def create_tempdir(base_dirname: str, parent_dir: Optional[Path] = None) -> Path:
-    """
-    Creates a new tempdir in the default temp location.
+def create_tempdir(base_dirname: str, parent_dir: Path | None = None) -> Path:
+    """Creates a new temporary directory.
 
     Remark: the temp dir won't be cleaned up automatically!
 
@@ -25,17 +25,19 @@ def create_tempdir(base_dirname: str, parent_dir: Optional[Path] = None) -> Path
             suffixed with a number to make the directory name unique. If a "/" is part
             of the base_dirname a subdirectory will be created: e.g. "foo/bar".
         parent_dir (Path, optional): The dir to create the tempdir in. If None, the
-            system temp dir is used. Defaults to None.
+            directory specified in the environment variable `GFO_TMPDIR` is used. If
+            that does not exist, the directory returned by :func:`tempfile.gettempdir`
+            is used. Defaults to None.
 
     Raises:
-        Exception: if it wasn't possible to create the temp dir because there
+        RuntimeError: if it wasn't possible to create the temp dir because there
             wasn't found a unique directory name.
 
     Returns:
         Path: the path to the temp dir created.
     """
     if parent_dir is None:
-        parent_dir = Path(tempfile.gettempdir())
+        parent_dir = get_tempdir()
 
     for i in range(1, 999999):
         try:
@@ -45,20 +47,36 @@ def create_tempdir(base_dirname: str, parent_dir: Optional[Path] = None) -> Path
         except FileExistsError:
             continue
 
-    raise Exception(
+    raise RuntimeError(
         f"Wasn't able to create a temporary dir with basedir: "
         f"{parent_dir / base_dirname}"
     )
 
 
+def get_tempdir() -> Path:
+    """Returns the path to the geofileops temporary directory.
+
+    Returns:
+        Path: The path to the temporary directory.
+    """
+    tmp_dir = os.environ.get("GFO_TMPDIR")
+    if tmp_dir is None:
+        tmp_dir = tempfile.gettempdir()
+    elif tmp_dir == "":
+        raise RuntimeError(
+            "GFO_TMPDIR='' environment variable found which is not supported."
+        )
+
+    return Path(tmp_dir)
+
+
 def get_tempfile_locked(
     base_filename: str,
     suffix: str = ".tmp",
-    dirname: Optional[str] = None,
-    tempdir: Optional[Path] = None,
-) -> Tuple[Path, Path]:
-    """
-    Formats a temp file path, and creates a corresponding lock file.
+    dirname: str | None = None,
+    tempdir: Path | None = None,
+) -> tuple[Path, Path]:
+    """Formats a temp file path, and creates a corresponding lock file.
 
     This way you can treat it immediately as being locked.
 
@@ -83,7 +101,7 @@ def get_tempfile_locked(
     """
     # If no dir specified, use default temp dir
     if tempdir is None:
-        tempdir = Path(tempfile.gettempdir())
+        tempdir = get_tempdir()
     if dirname is not None:
         tempdir = tempdir / dirname
         tempdir.mkdir(parents=True, exist_ok=True)
@@ -108,15 +126,49 @@ def get_tempfile_locked(
     )
 
 
-def create_file_atomic(filename) -> bool:
+def create_file_atomic_wait(
+    path: Union[str, "os.PathLike[Any]"],
+    time_between_attempts: float = 1,
+    timeout: float = 0,
+):
+    """Create a file in an atomic way.
+
+    If it already exists, wait till it can be created.
+
+    Returns once the file is created.
+
+    Args:
+        path (PathLike): path of the file to create.
+        time_between_attempts (float, optional): time to wait between attempts.
+            Defaults to 1.
+        timeout (float, optional): maximum time in seconds to wait to create the file.
+            Once the timeout has been reached, a RunTimeError is raised. If 0, there is
+            no timeout. Defaults to 0.
     """
-    Create a lock file in an atomic way, so it is threadsafe.
+    start_time = datetime.now()
+    while True:
+        if create_file_atomic(path):
+            return
+
+        if timeout > 0:
+            time_waiting = (datetime.now() - start_time).total_seconds()
+            if time_waiting > timeout:
+                raise RuntimeError(
+                    f"timeout of {timeout} secs reached, couldn't create {path}"
+                )
+
+        # Wait 100ms
+        time.sleep(time_between_attempts)
+
+
+def create_file_atomic(path: Union[str, "os.PathLike[Any]"]) -> bool:
+    """Create a file in an atomic way.
 
     Returns True if the file was created by this thread, False if the file existed
     already.
     """
     try:
-        fd = os.open(filename, os.O_CREAT | os.O_EXCL)
+        fd = os.open(path, os.O_CREAT | os.O_EXCL)
         os.close(fd)
         return True
     except FileExistsError:
@@ -125,18 +177,11 @@ def create_file_atomic(filename) -> bool:
         if ex.errno == 13:
             return False
         else:
-            raise Exception("Error creating lock file {filename}") from ex
-
-
-def with_stem(path: Path, new_stem) -> Path:
-    # Remark: from python 3.9 this is available on any Path, but to avoid
-    # having to require 3.9 for this, this hack...
-    return path.parent / f"{new_stem}{path.suffix}"
+            raise RuntimeError(f"Error creating file {path}") from ex
 
 
 def output_exists(path: Path, remove_if_exists: bool) -> bool:
-    """
-    Checks and returns whether the file specified exists.
+    """Checks and returns whether the file specified exists.
 
     If remove_if_exists is True, the file is removed and False is returned.
 
@@ -159,7 +204,7 @@ def output_exists(path: Path, remove_if_exists: bool) -> bool:
             gfo.remove(path)
             return False
         else:
-            logging.info(msg=f"Stop, output exists already {path}", stacklevel=2)
+            logging.info(msg=f"Stop, output already exists {path}", stacklevel=2)
             return True
 
     return False

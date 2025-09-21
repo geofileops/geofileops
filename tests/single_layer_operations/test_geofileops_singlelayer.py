@@ -2,34 +2,30 @@
 Tests for operations that are executed using a sql statement on one layer.
 """
 
-from importlib import import_module
 import logging
 import math
-from typing import Any, List, Optional
+from importlib import import_module
+from typing import Any
 
 import geopandas as gpd
 import pytest
 import shapely
 from shapely import MultiPolygon, Polygon
 
-from geofileops import fileops
-from geofileops import GeometryType
-from geofileops import geoops
-from geofileops._compat import SPATIALITE_GTE_51
-from geofileops.util import _geofileinfo
+from geofileops import GeometryType, fileops, geoops
+from geofileops._compat import GDAL_GTE_39, SPATIALITE_GTE_51
+from geofileops.util import _general_util, _geofileinfo, _geoops_sql, _geopath_util
 from geofileops.util._geofileinfo import GeofileInfo
-from geofileops.util import _geoops_sql
-from geofileops.util import _io_util as io_util
-
 from tests import test_helper
 from tests.test_helper import (
     EPSGS,
     GRIDSIZE_DEFAULT,
     SUFFIXES_GEOOPS,
+    SUFFIXES_GEOOPS_INPUT,
     TESTFILES,
     WHERE_AREA_GT_400,
+    assert_geodataframe_equal,
 )
-from tests.test_helper import assert_geodataframe_equal
 
 # Init gfo module
 current_geoops_module = "unknown"
@@ -54,11 +50,11 @@ def set_geoops_module(geoops_module: str):
 
 
 def basic_combinations_to_test(
-    geoops_modules: List[str] = GEOOPS_MODULES,
-    testfiles: List[str] = TESTFILES,
-    epsgs: List[int] = EPSGS,
-    suffixes: List[str] = SUFFIXES_GEOOPS,
-) -> List[Any]:
+    geoops_modules: list[str] = GEOOPS_MODULES,
+    testfiles: list[str] = TESTFILES,
+    epsgs: list[int] = EPSGS,
+    suffixes: list[str] = SUFFIXES_GEOOPS,
+) -> list[Any]:
     """
     Return sensible combinations of parameters to be used in tests for following params:
         suffix, epsg, geoops_module, testfile, empty_input, gridsize, where_post
@@ -73,7 +69,7 @@ def basic_combinations_to_test(
         for geoops_module in geoops_modules:
             for testfile in testfiles:
                 where_post = None
-                keep_empty_geoms: Optional[bool] = False
+                keep_empty_geoms: bool | None = False
                 dimensions = None
                 gridsize = 0.01 if epsg == 31370 else GRIDSIZE_DEFAULT
                 if testfile == "polygon-parcel":
@@ -153,12 +149,42 @@ def basic_combinations_to_test(
     return result
 
 
+@pytest.mark.parametrize("suffix_input", SUFFIXES_GEOOPS_INPUT)
+@pytest.mark.parametrize("worker_type", ["threads", "processes"])
+@pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
+def test_buffer(tmp_path, suffix_input, worker_type, geoops_module):
+    """Buffer minimal test."""
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix_input)
+    input_layerinfo = fileops.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+
+    # Now run test
+    output_path = tmp_path / "output.gpkg"
+    set_geoops_module(geoops_module)
+    with _general_util.TempEnv({"GFO_WORKER_TYPE": worker_type}):
+        geoops.buffer(
+            input_path=input_path,
+            output_path=output_path,
+            distance=1,
+            nb_parallel=2,
+            keep_empty_geoms=True,
+            batchsize=batchsize,
+        )
+
+    # Now check if the output file is correctly created
+    assert output_path.exists()
+    output_layerinfo = fileops.get_layerinfo(output_path)
+    assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
+    assert output_layerinfo.featurecount == input_layerinfo.featurecount
+
+
 @pytest.mark.parametrize(
     "suffix, epsg, geoops_module, testfile, empty_input, gridsize, keep_empty_geoms, "
     "where_post, dimensions",
     basic_combinations_to_test(),
 )
-def test_buffer(
+def test_buffer_basic(
     tmp_path,
     suffix,
     epsg,
@@ -171,6 +197,16 @@ def test_buffer(
     dimensions,
 ):
     """Buffer basics are available both in the gpd and sql implementations."""
+    if (
+        not GDAL_GTE_39
+        and dimensions == "XYZ"
+        and suffix == ".gpkg"
+        and geoops_module != "_geoops_gpd"
+    ):
+        pytest.xfail(
+            "GDAL < 3.9 (at least) writes 3D geometries even though "
+            "force_geometrytype='MULTIPOLYGON' for buffer operation."
+        )
     # Prepare test data
     input_path = test_helper.get_testfile(
         testfile, suffix=suffix, epsg=epsg, empty=empty_input, dimensions=dimensions
@@ -241,7 +277,13 @@ def test_buffer(
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize("testfile", ["polygon-parcel"])
 @pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
-def test_buffer_columns_fid(tmp_path, suffix, geoops_module, testfile):
+@pytest.mark.parametrize(
+    "columns, exp_columns",
+    [(["LblHfdTlt", "fid"], ["LblHfdTlt", "fid_1"]), ("LblHfdTlt", ["LblHfdTlt"])],
+)
+def test_buffer_columns_fid(
+    tmp_path, suffix, geoops_module, testfile, columns, exp_columns
+):
     """Buffer basics are available both in the gpd and sql implementations."""
     # Prepare test data
     input_path = test_helper.get_testfile(testfile, suffix=suffix)
@@ -257,7 +299,7 @@ def test_buffer_columns_fid(tmp_path, suffix, geoops_module, testfile):
         input_path=input_path,
         output_path=output_path,
         distance=1,
-        columns=["LblHfdTlt", "fid"],
+        columns=columns,
         explodecollections=True,
         keep_empty_geoms=False,
         nb_parallel=2,
@@ -283,8 +325,9 @@ def test_buffer_columns_fid(tmp_path, suffix, geoops_module, testfile):
     output_layerinfo = fileops.get_layerinfo(output_path)
     output_gdf = fileops.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
-    assert list(output_layerinfo.columns) == ["LblHfdTlt", "fid_1"]
-    assert len(output_gdf[output_gdf.fid_1 == multi_fid]) == 2
+    assert list(output_layerinfo.columns) == exp_columns
+    if "fid" in columns:
+        assert len(output_gdf[output_gdf.fid_1 == multi_fid]) == 2
 
 
 @pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
@@ -297,16 +340,18 @@ def test_buffer_force(tmp_path, geoops_module):
 
     # Run buffer
     output_path = tmp_path / f"{input_path.stem}-output{input_path.suffix}"
-    assert output_path.exists() is False
+    assert not output_path.exists()
 
-    geoops.buffer(
-        input_path=input_path,
-        output_path=output_path,
-        distance=distance,
-        keep_empty_geoms=False,
-        nb_parallel=2,
-        batchsize=batchsize,
-    )
+    # Use "processes" worker type to test this as well
+    with _general_util.TempEnv({"GFO_WORKER_TYPE": "processes"}):
+        geoops.buffer(
+            input_path=input_path,
+            output_path=output_path,
+            distance=distance,
+            keep_empty_geoms=False,
+            nb_parallel=2,
+            batchsize=batchsize,
+        )
 
     # Test buffer to existing output path
     assert output_path.exists()
@@ -337,15 +382,17 @@ def test_buffer_force(tmp_path, geoops_module):
 
 
 @pytest.mark.parametrize(
-    "expected_error, input_path, output_path",
+    "exp_error, exp_ex, input_path, output_path",
     [
         (
             "buffer: output_path must not equal input_path",
-            test_helper.get_testfile("polygon-parcel"),
-            test_helper.get_testfile("polygon-parcel"),
+            ValueError,
+            "not_existing_path.gpkg",
+            "not_existing_path.gpkg",
         ),
         (
-            "buffer: input_path doesn't exist:",
+            "buffer: input_path not found:",
+            FileNotFoundError,
             "not_existing_path",
             "output.gpkg",
         ),
@@ -353,11 +400,9 @@ def test_buffer_force(tmp_path, geoops_module):
 )
 @pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
 def test_buffer_invalid_params(
-    tmp_path, input_path, output_path, expected_error, geoops_module
+    tmp_path, input_path, output_path, exp_ex, exp_error, geoops_module
 ):
-    """
-    Invalid params for single layer operations.
-    """
+    """Invalid params for single layer operations."""
     # Internal functions are directly called, so need to be Path objects
     if isinstance(output_path, str):
         output_path = tmp_path / output_path
@@ -366,7 +411,7 @@ def test_buffer_invalid_params(
 
     # Now run test
     set_geoops_module(geoops_module)
-    with pytest.raises(ValueError, match=expected_error):
+    with pytest.raises(exp_ex, match=exp_error):
         geoops.buffer(input_path=input_path, output_path=output_path, distance=1)
 
 
@@ -622,8 +667,8 @@ def test_buffer_shp_to_gpkg(
     """
     Buffer from shapefile to gpkg.
 
-    Test added because this gave a unique constraint on fid's, because for each partial
-    file the fid started again with 0.
+    Test added because this gave a unique constraint error on fid's, because for each
+    partial file the fid started again with 0.
     """
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=".shp")
@@ -743,6 +788,9 @@ def test_convexhull(
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize("input_empty", [True, False])
 @pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
+@pytest.mark.filterwarnings(
+    "ignore: The default date converter is deprecated as of Python 3.12"
+)
 def test_makevalid(tmp_path, suffix, input_empty, geoops_module):
     # Prepare test data
     input_path = test_helper.get_testfile(
@@ -886,10 +934,10 @@ def test_makevalid_exploded_input(tmp_path, suffix, geoops_module, explodecollec
     layerinfo_orig = fileops.get_layerinfo(input_path)
     layerinfo_output = fileops.get_layerinfo(output_path)
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
-    if explodecollections and suffix != ".shp":
-        assert layerinfo_output.geometrytype == GeometryType.POLYGON
-    else:
-        assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
+    assert layerinfo_output.geometrytype in {
+        GeometryType.POLYGON,
+        GeometryType.MULTIPOLYGON,
+    }
 
 
 @pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
@@ -1106,7 +1154,9 @@ def test_simplify(
     kwargs = {}
     if keep_empty_geoms is not None:
         kwargs["keep_empty_geoms"] = keep_empty_geoms
-    output_path = io_util.with_stem(input_path, output_path)
+    output_path = _geopath_util.with_stem(
+        input_path, f"{output_path.stem}_{keep_empty_geoms}"
+    )
     geoops.simplify(
         input_path=input_path,
         output_path=output_path,

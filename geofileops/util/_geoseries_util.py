@@ -1,23 +1,20 @@
-"""
-Module containing utilities regarding operations on geoseries.
-"""
+"""Module containing utilities regarding operations on geoseries."""
 
 import logging
-from typing import List, Union
 import warnings
 
 import geopandas as gpd
 import geopandas._compat as gpd_compat
 import numpy as np
-from numpy.typing import NDArray
 import pandas as pd
-from pygeoops import GeometryType
-from pygeoops._general import _extract_0dim_ndarray
 import pygeoops
 import shapely
+from numpy.typing import NDArray
+from pygeoops import GeometryType
+from pygeoops._general import _extract_0dim_ndarray
 from shapely.geometry.base import BaseGeometry
 
-if gpd_compat.USE_PYGEOS:
+if hasattr(gpd_compat, "USE_PYGEOS") and gpd_compat.USE_PYGEOS:
     import pygeos as shapely2_or_pygeos
 else:
     import shapely as shapely2_or_pygeos
@@ -28,9 +25,8 @@ logger = logging.getLogger(__name__)
 
 def get_geometrytypes(
     geoseries: gpd.GeoSeries, ignore_empty_geometries: bool = True
-) -> List[GeometryType]:
-    """
-    Determine the geometry types in the GeoDataFrame.
+) -> list[GeometryType]:
+    """Determine the geometry types in the GeoDataFrame.
 
     Args:
         geoseries (gpd.GeoSeries): input geoseries.
@@ -47,7 +43,7 @@ def get_geometrytypes(
     geom_types_2D = input_geoseries[~input_geoseries.has_z].geom_type.unique()
     geom_types_2D = [gtype for gtype in geom_types_2D if gtype is not None]
     geom_types_3D = input_geoseries[input_geoseries.has_z].geom_type.unique()
-    geom_types_3D = ["3D " + gtype for gtype in geom_types_3D if gtype is not None]
+    geom_types_3D = [f"{gtype}Z" for gtype in geom_types_3D if gtype is not None]
     geom_types = geom_types_3D + geom_types_2D
 
     if len(geom_types) == 0:
@@ -60,8 +56,7 @@ def get_geometrytypes(
 def harmonize_geometrytypes(
     geoseries: gpd.GeoSeries, force_multitype: bool = False
 ) -> gpd.GeoSeries:
-    """
-    Tries to harmonize the geometries in the geoseries to one type.
+    """Tries to harmonize the geometries in the geoseries to one type.
 
     Eg. if Polygons and MultiPolygons are present in the geoseries, all
     geometries are converted to MultiPolygons.
@@ -117,7 +112,7 @@ def _harmonize_to_multitype(
     geoseries: gpd.GeoSeries, dest_geometrytype: GeometryType
 ) -> gpd.GeoSeries:
     # Copy geoseries data to new array
-    if gpd_compat.USE_PYGEOS:
+    if hasattr(gpd_compat, "USE_PYGEOS") and gpd_compat.USE_PYGEOS:
         geometries_arr = geoseries.array.data.copy()
     else:
         geometries_arr = geoseries.copy()
@@ -172,9 +167,8 @@ def set_precision(
     grid_size: float,
     mode: str = "valid_output",
     raise_on_topoerror: bool = True,
-) -> Union[BaseGeometry, NDArray[BaseGeometry], None]:
-    """
-    Returns geometry with the precision set to a precision grid size.
+) -> BaseGeometry | NDArray[BaseGeometry] | None:
+    """Returns geometry with the precision set to a precision grid size.
 
     By default, geometries use double precision coordinates (grid_size = 0).
 
@@ -282,3 +276,89 @@ def set_precision(
                     )
 
             return np.array(result)
+
+
+def subdivide(
+    geom: shapely.geometry.base.BaseGeometry | None, num_coords_max: int
+) -> shapely.geometry.base.BaseGeometry | None:
+    """Subdivide a geometry into smaller parts.
+
+    Does the subdivide in python, because all spatialite options didn't seem to work.
+    Check out commits in https://github.com/geofileops/geofileops/pull/433
+
+    Args:
+        geom (geometry): the geometry to subdivide
+        num_coords_max (int): the maximum number of coordinates per geometry
+
+    Returns:
+        geometry: the subdivided geometry as a GeometryCollection or None if the input
+            was None.
+    """
+    if geom is None or geom.is_empty:
+        return geom
+
+    if not isinstance(geom, shapely.geometry.base.BaseMultipartGeometry):
+        # Simple single geometry
+        result = shapely.get_parts(
+            pygeoops.subdivide(geom, num_coords_max=num_coords_max)
+        )
+    else:
+        geom = shapely.get_parts(geom)
+        if len(geom) == 1:
+            # There was only one geometry in the multigeometry
+            result = shapely.get_parts(
+                pygeoops.subdivide(geom[0], num_coords_max=num_coords_max)
+            )
+        else:
+            to_subdivide = shapely.get_num_coordinates(geom) > num_coords_max
+            if np.any(to_subdivide):
+                subdivided = np.concatenate(
+                    [
+                        shapely.get_parts(
+                            pygeoops.subdivide(g, num_coords_max=num_coords_max)
+                        )
+                        for g in geom[to_subdivide]
+                    ]
+                )
+                result = np.concatenate([subdivided, geom[~to_subdivide]])
+            else:
+                result = geom
+
+    if result is None:
+        return None
+    if not hasattr(result, "__len__"):
+        return result
+    if len(result) == 1:
+        return result[0]
+
+    # Explode because
+    #   - they will be exploded anyway by spatialite.ST_Collect
+    #   - spatialite.ST_AsBinary and/or spatialite.ST_GeomFromWkb don't seem
+    #     to handle nested collections well.
+    return shapely.geometrycollections(result)
+
+
+def subdivide_vectorized(
+    geom: shapely.geometry.base.BaseGeometry | np.ndarray | None, num_coords_max: int
+) -> shapely.geometry.base.BaseGeometry | np.ndarray | None:
+    """Subdivide the input geometries into smaller parts.
+
+    Args:
+        geom (arraylike): the geometries to subdivide
+        num_coords_max (int): maximum number of coordinates per geometry
+
+    Returns:
+        arraylike: the subdivided geometries as GeometryCollections
+    """
+    if geom is None:
+        return None
+
+    if not hasattr(geom, "__len__"):
+        return subdivide(geom, num_coords_max)
+
+    to_subdivide = shapely.get_num_coordinates(geom) > num_coords_max
+    geom[to_subdivide] = np.array(
+        [subdivide(g, num_coords_max=num_coords_max) for g in geom[to_subdivide]]
+    )
+
+    return geom

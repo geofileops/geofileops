@@ -3,26 +3,40 @@ Helper functions for all tests.
 """
 
 import os
+import re
 from pathlib import Path
-import tempfile
-from typing import List, Optional, Union
+from stat import S_IRGRP, S_IROTH, S_IRUSR, S_IRWXG, S_IRWXO, S_IRWXU
 
 import geopandas as gpd
 import geopandas.testing as gpd_testing
-
 import shapely
 import shapely.geometry as sh_geom
 
 import geofileops as gfo
-from geofileops.util import _geofileinfo
-from geofileops.util import geodataframe_util
-from geofileops.util import _geoseries_util
+from geofileops.util import (
+    _geofileinfo,
+    _geopath_util,
+    _geoseries_util,
+    _io_util,
+    geodataframe_util,
+)
 
-_data_dir = Path(__file__).parent.resolve() / "data"
+try:
+    import matplotlib.colors as mcolors
+    from matplotlib import figure as mpl_figure
+except ImportError:
+    mcolors = None  # type: ignore[assignment]
+    mpl_figure = None  # type: ignore[assignment]
+
+data_dir = Path(__file__).parent.resolve() / "data"
+data_url = "https://raw.githubusercontent.com/geofileops/geofileops/main/tests/data"
+
 EPSGS = [31370, 4326]
 GRIDSIZE_DEFAULT = 0.0
 SUFFIXES_FILEOPS = [".gpkg", ".shp", ".csv"]
+SUFFIXES_FILEOPS_EXT = [".gpkg", ".gpkg.zip", ".shp.zip", ".shp", ".csv"]
 SUFFIXES_GEOOPS = [".gpkg", ".shp"]
+SUFFIXES_GEOOPS_INPUT = [".gpkg", ".gpkg.zip", ".shp.zip", ".shp"]
 TESTFILES = ["polygon-parcel", "linestring-row-trees", "point"]
 WHERE_AREA_GT_400 = "ST_Area({geometrycolumn}) > 400"
 WHERE_AREA_GT_5000 = "ST_Area({geometrycolumn}) > 5000"
@@ -38,9 +52,9 @@ def prepare_expected_result(
     gdf: gpd.GeoDataFrame,
     keep_empty_geoms: bool,
     gridsize: float = 0.0,
-    where_post: Optional[str] = None,
+    where_post: str | None = None,
     explodecollections=False,
-    columns: Optional[List[str]] = None,
+    columns: list[str] | None = None,
 ) -> gpd.GeoDataFrame:
     """Prepare expected data"""
     if keep_empty_geoms is None:
@@ -93,12 +107,12 @@ def prepare_test_file(
     input_path: Path,
     output_dir: Path,
     suffix: str,
-    crs_epsg: Optional[int] = None,
+    crs_epsg: int | None = None,
     use_cachedir: bool = False,
 ) -> Path:
     # Tmp dir
     if use_cachedir is True:
-        tmp_cache_dir = Path(tempfile.gettempdir()) / "geofileops_test_data"
+        tmp_cache_dir = _io_util.get_tempdir() / "geofileops_test_data"
         tmp_cache_dir.mkdir(parents=True, exist_ok=True)
     else:
         tmp_cache_dir = output_dir
@@ -135,21 +149,51 @@ def prepare_test_file(
 
 def get_testfile(
     testfile: str,
-    dst_dir: Optional[Path] = None,
+    dst_dir: Path | None = None,
     suffix: str = ".gpkg",
     epsg: int = 31370,
     empty: bool = False,
-    dimensions: Optional[str] = None,
+    dimensions: str | None = None,
+    explodecollections: bool = False,
+    read_only: bool | None = None,
+) -> Path:
+    if dst_dir is None:
+        read_only = True
+
+    prepared_path = _get_testfile(
+        testfile=testfile,
+        dst_dir=dst_dir,
+        suffix=suffix,
+        epsg=epsg,
+        empty=empty,
+        dimensions=dimensions,
+        explodecollections=explodecollections,
+    )
+
+    # Make input read-only
+    if read_only:
+        set_read_only(prepared_path, read_only=True)
+
+    return prepared_path
+
+
+def _get_testfile(
+    testfile: str,
+    dst_dir: Path | None = None,
+    suffix: str = ".gpkg",
+    epsg: int = 31370,
+    empty: bool = False,
+    dimensions: str | None = None,
     explodecollections: bool = False,
 ) -> Path:
-    # Prepare original filepath; but try first with .zip.gpkg file.
-    testfile_path = _data_dir / f"{testfile}.gpkg"
+    # Prepare original filepath.
+    testfile_path = data_dir / f"{testfile}.gpkg"
     if not testfile_path.exists():
         raise ValueError(f"Invalid testfile type: {testfile}")
 
     # Prepare destination location
     if dst_dir is None:
-        dst_dir = Path(tempfile.gettempdir()) / "geofileops_test_data"
+        dst_dir = _io_util.get_tempdir() / "geofileops_test_data"
     assert isinstance(dst_dir, Path)
     dst_dir.mkdir(parents=True, exist_ok=True)
 
@@ -160,56 +204,112 @@ def get_testfile(
     )
     if prepared_path.exists():
         return prepared_path
-    layers = gfo.listlayers(testfile_path)
-    dst_info = _geofileinfo.get_geofileinfo(prepared_path)
-    if len(layers) > 1 and dst_info.is_singlelayer:
-        raise ValueError(
-            f"multilayer testfile ({testfile}) cannot be converted to single layer "
-            f"geofiletype: {dst_info.driver}"
+
+    # Test file doesn't exist yet, so create it
+    # To be safe for parallelized tests, lock the creation.
+    prepared_lock_path = Path(f"{prepared_path}.lock")
+    try:
+        _io_util.create_file_atomic_wait(
+            prepared_lock_path, time_between_attempts=0.1, timeout=60
         )
 
-    # Convert all layers found
-    for src_layer in layers:
-        # Single layer files have stem as layername
-        dst_layer = prepared_path.stem if dst_info.is_singlelayer else src_layer
+        # Make sure it wasn't created by another process while waiting for the lock file
+        if prepared_path.exists():
+            return prepared_path
 
-        gfo.copy_layer(
-            testfile_path,
-            prepared_path,
-            src_layer=src_layer,
-            dst_layer=dst_layer,
-            dst_crs=epsg,
-            reproject=True,
-            append=True,
-            preserve_fid=not explodecollections,
-            dst_dimensions=dimensions,
-            explodecollections=explodecollections,
-        )
-
-        if empty:
-            # Remove all rows from destination layer.
-            # GDAL only supports DELETE using SQLITE dialect, not with OGRSQL.
-            gfo.execute_sql(
-                prepared_path,
-                sql_stmt=f'DELETE FROM "{dst_layer}"',
-                sql_dialect="SQLITE",
+        # Prepare the file in a tmp file so the file is not visible to other
+        # processes until it is completely ready.
+        tmp_stem = f"{_geopath_util.stem(prepared_path)}_tmp"
+        tmp_path = _geopath_util.with_stem(prepared_path, tmp_stem)
+        layers = gfo.listlayers(testfile_path)
+        dst_info = _geofileinfo.get_geofileinfo(tmp_path)
+        if len(layers) > 1 and dst_info.is_singlelayer:
+            raise ValueError(
+                f"multilayer testfile ({testfile}) cannot be converted to single layer "
+                f"geofiletype: {dst_info.driver}"
             )
-        elif dimensions is not None:
-            if dimensions != "XYZ":
-                raise ValueError(f"unimplemented dimensions: {dimensions}")
 
-            prepared_info = gfo.get_layerinfo(
-                prepared_path, layer=dst_layer, raise_on_nogeom=False
+        # Convert all layers found
+        for src_layer in layers:
+            # Single layer files have stem as layername
+            assert isinstance(tmp_path, Path)
+            if dst_info.is_singlelayer:
+                dst_layer = tmp_stem
+                preserve_fid = False
+            else:
+                dst_layer = src_layer
+                preserve_fid = not explodecollections
+
+            gfo.copy_layer(
+                testfile_path,
+                tmp_path,
+                src_layer=src_layer,
+                dst_layer=dst_layer,
+                write_mode="add_layer",
+                dst_crs=epsg,
+                reproject=True,
+                preserve_fid=preserve_fid,
+                dst_dimensions=dimensions,
+                explodecollections=explodecollections,
             )
-            if prepared_info.geometrycolumn is not None:
-                gfo.update_column(
-                    prepared_path,
-                    name=prepared_info.geometrycolumn,
-                    expression=f"CastToXYZ({prepared_info.geometrycolumn}, 5.0)",
-                    layer=dst_layer,
+
+            if empty:
+                # Remove all rows from destination layer.
+                # GDAL only supports DELETE using SQLITE dialect, not with OGRSQL.
+                gfo.execute_sql(
+                    tmp_path,
+                    sql_stmt=f'DELETE FROM "{dst_layer}"',
+                    sql_dialect="SQLITE",
                 )
+            elif dimensions is not None:
+                if dimensions != "XYZ":
+                    raise ValueError(f"unimplemented dimensions: {dimensions}")
 
-    return prepared_path
+                prepared_info = gfo.get_layerinfo(
+                    tmp_path, layer=dst_layer, raise_on_nogeom=False
+                )
+                if prepared_info.geometrycolumn is not None:
+                    gfo.update_column(
+                        tmp_path,
+                        name=prepared_info.geometrycolumn,
+                        expression=f"CastToXYZ({prepared_info.geometrycolumn}, 5.0)",
+                        layer=dst_layer,
+                    )
+
+        # Rename tmp file to prepared file
+        gfo.move(tmp_path, prepared_path)
+
+        return prepared_path
+
+    except Exception:
+        gfo.remove(prepared_path, missing_ok=True)
+        raise
+    finally:
+        prepared_lock_path.unlink(missing_ok=True)
+
+
+def set_read_only(path: Path, read_only: bool) -> None:
+    """Set the file to read-only or read-write."""
+
+    def _read_only(path: Path) -> None:
+        # Set read-only
+        path.chmod(S_IRUSR | S_IRGRP | S_IROTH)
+
+    def _read_write(path: Path) -> None:
+        # Set read-write
+        path.chmod(S_IRWXU | S_IRWXG | S_IRWXO)
+
+    if path.exists():
+        _read_only(path) if read_only else _read_write(path)
+    else:
+        raise FileNotFoundError(f"File not found: {path}")
+
+    # For some file types, extra files need to be copied
+    src_info = _geofileinfo.get_geofileinfo(path)
+    for s in src_info.suffixes_extrafiles:
+        extra_file_path = path.parent / f"{path.stem}{s}"
+        if extra_file_path.exists():
+            _read_only(extra_file_path) if read_only else _read_write(extra_file_path)
 
 
 class TestData:
@@ -248,31 +348,12 @@ class TestData:
     )
 
 
-def create_tempdir(base_dirname: str, parent_dir: Optional[Path] = None) -> Path:
-    # Parent
-    if parent_dir is None:
-        parent_dir = Path(tempfile.gettempdir())
-
-    for i in range(1, 999999):
-        try:
-            tempdir = parent_dir / f"{base_dirname}_{i:06d}"
-            tempdir.mkdir(parents=True)
-            return Path(tempdir)
-        except FileExistsError:
-            continue
-
-    raise Exception(
-        "Wasn't able to create a temporary dir with basedir: "
-        f"{parent_dir / base_dirname}"
-    )
-
-
 def assert_geodataframe_equal(
     left: gpd.GeoDataFrame,
     right: gpd.GeoDataFrame,
     check_dtype=True,
-    check_index_type: Union[bool, str] = "equiv",
-    check_column_type: Union[bool, str] = "equiv",
+    check_index_type: bool | str = "equiv",
+    check_column_type: bool | str = "equiv",
     check_frame_type=True,
     check_like=False,
     check_less_precise=False,
@@ -283,7 +364,9 @@ def assert_geodataframe_equal(
     promote_to_multi=False,
     sort_columns=False,
     sort_values=False,
-    output_dir: Optional[Path] = None,
+    simplify: float | None = None,
+    check_geom_tolerance: float = 0.0,
+    output_dir: Path | None = None,
 ):
     """
     Check that two GeoDataFrames are equal/
@@ -306,6 +389,8 @@ def assert_geodataframe_equal(
         If True, check that all the geom types are equal.
     check_geom_empty_vs_None : bool, default True
         If False, ignore differences between empty and None geometries.
+    check_geom_equals : bool, default True
+        If False, ignore differences between geometries.
     check_crs: bool, default True
         If `check_frame_type` is True, then also check that the
         crs matches.
@@ -336,6 +421,10 @@ def assert_geodataframe_equal(
         right = right.copy()
         right.loc[right.geometry.is_empty, ["geometry"]] = None
 
+    if simplify is not None:
+        left.geometry = left.geometry.simplify(simplify)
+        right.geometry = right.geometry.simplify(simplify)
+
     if promote_to_multi:
         left.geometry = _geoseries_util.harmonize_geometrytypes(
             left.geometry, force_multitype=True
@@ -359,10 +448,29 @@ def assert_geodataframe_equal(
 
     if output_dir is not None:
         output_dir.mkdir(parents=True, exist_ok=True)
-        output_path = output_dir / "left.geojson"
-        gfo.to_file(left, output_path, create_spatial_index=None)
-        output_path = output_dir / "right.geojson"
-        gfo.to_file(right, output_path, create_spatial_index=None)
+        left.to_file(output_dir / "left.geojson")
+        right.to_file(output_dir / "right.geojson")
+
+    if check_geom_tolerance > 0.0:
+        # The symmetric difference should result in all empty geometries if the
+        # geometries are equal. Apply a negative buffer to the geometries with half the
+        # tolerance.
+        symdiff = shapely.symmetric_difference(left.geometry, right.geometry)
+        symdiff_tol = symdiff.buffer(-check_geom_tolerance / 2, join_style="mitre")
+        symdiff_tol_diff = symdiff_tol[~symdiff_tol.is_empty]
+
+        if not all(symdiff_tol_diff.is_empty):
+            if output_dir is not None:
+                # Write the differences to file
+                gdf = gpd.GeoDataFrame(geometry=symdiff_tol_diff, crs=left.crs)
+                gdf.to_file(output_dir / "symdiff_tol_not-empty.geojson")
+
+            raise AssertionError(
+                f"differences > {check_geom_tolerance} found in "
+                f"{len(symdiff_tol_diff)} geometries: {symdiff_tol_diff=}"
+            )
+
+        right.geometry = left.geometry
 
     gpd_testing.assert_geodataframe_equal(
         left=left,
@@ -377,3 +485,53 @@ def assert_geodataframe_equal(
         check_crs=check_crs,
         normalize=normalize,
     )
+
+
+def plot(
+    geofiles: list[Path],
+    output_path: Path,
+    title: str | None = None,
+    clean_name: bool = True,
+):
+    # If we are running on CI server, don't plot
+    if "GITHUB_ACTIONS" in os.environ:
+        return
+
+    if mpl_figure is None or mcolors is None:
+        raise ImportError(
+            "matplotlib is not installed, but needed to plot geofiles. "
+            "Please install matplotlib."
+        )
+
+    figure = mpl_figure.Figure(figsize=((len(geofiles) + 1) * 3, 3))
+    figure.subplots(1, len(geofiles) + 1, sharex=True, sharey=True)
+    if title is not None:
+        figure.suptitle(title)
+
+    colors = mcolors.TABLEAU_COLORS
+    for geofile_idx, geofile in enumerate(geofiles):
+        # Read the geofile
+        gdf = gfo.read_file(geofile)
+        if gdf is None:
+            continue
+
+        color = list(colors.keys())[geofile_idx % len(colors)]
+        figure.axes[geofile_idx].set_aspect("equal")
+        # add hatch to the last axis
+        gdf.plot(
+            ax=figure.axes[geofile_idx],
+            color=colors[color],
+            alpha=0.5,
+        )
+        gdf.plot(
+            ax=figure.axes[len(geofiles)],
+            color=colors[color],
+            alpha=0.5,
+        )
+        figure.axes[geofile_idx].set_title(geofile.stem)
+
+    if clean_name:
+        # Replace all possibly invalid characters by "_"
+        output_path = output_path.with_name(re.sub(r"[^\w_. -]", "_", output_path.name))
+
+    figure.savefig(str(output_path), dpi=72)
