@@ -948,14 +948,11 @@ def clip(
     # - is the IIF really needed/useful??? Without it result should be also correct?
     sql_template = f"""
         SELECT * FROM (
-          SELECT ( SELECT IIF(  ST_Union(layer2_sub.{{input2_geometrycolumn}}) IS NULL,
-                                NULL,
-                                ST_CollectionExtract(
-                                    ST_intersection(
-                                        layer1.{{input1_geometrycolumn}},
-                                        ST_Union(layer2_sub.{{input2_geometrycolumn}})),
-                                    {primitivetypeid}
-                                )
+          SELECT ( SELECT ST_CollectionExtract(
+                            ST_intersection(
+                                layer1.{{input1_geometrycolumn}},
+                                    ST_Union(layer2_sub.{{input2_geometrycolumn}})),
+                            {primitivetypeid}
                           ) AS geom_clipped
                        FROM {{input1_databasename}}."{input1_layer_rtree}" layer1tree
                        JOIN {{input2_databasename}}."{{input2_layer}}" layer2_sub
