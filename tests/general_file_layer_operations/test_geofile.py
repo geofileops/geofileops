@@ -1874,16 +1874,19 @@ def test_to_file(tmp_path, suffix, dimensions, engine_setter):
         expected_gdf.loc[47, "PM"] = None
 
         # Shapefile doesn't support DateTime, so another data type needs to be used.
-        if engine_setter in ("fiona", "pyogrio-arrow"):
-            # "fiona" and "pyogrio-arrow" write to a string.
-            written_gdf["DATUM"] = pd.to_datetime(
-                written_gdf["DATUM"], format="ISO8601"
-            ).astype("datetime64[ms, UTC]")
-        elif engine_setter == "pyogrio":
-            # "pyogrio" writes to Date (which looses data)
+        if engine_setter == "pyogrio" and _compat.GDAL_ST_311:
+            # "pyogrio" with GDAL < 3.11 writes to Date (which looses data)
             expected_gdf["DATUM"] = pd.to_datetime(
                 expected_gdf["DATUM"].dt.strftime("%Y-%m-%d"), yearfirst=True
             ).astype("datetime64[ms]")
+        else:
+            # "fiona" and "pyogrio-arrow" and "pyogrio" with GDAL >= 3.11 write to a
+            # string. Comparing the string is a pain though, as the format can differ.
+            # So convert the written to datetime for comparison.
+            assert pd.api.types.is_string_dtype(written_gdf["DATUM"])
+            written_gdf["DATUM"] = pd.to_datetime(
+                written_gdf["DATUM"], format="ISO8601"
+            ).astype("datetime64[ms, UTC]")
 
     assert_geodataframe_equal(written_gdf, expected_gdf)
 
