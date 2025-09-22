@@ -951,7 +951,7 @@ def clip(
           SELECT ( SELECT IIF(  ST_Union(layer2_sub.{{input2_geometrycolumn}}) IS NULL,
                                 NULL,
                                 ST_CollectionExtract(
-                                    ST_difference(
+                                    ST_intersection(
                                         layer1.{{input1_geometrycolumn}},
                                         ST_Union(layer2_sub.{{input2_geometrycolumn}})),
                                     {primitivetypeid}
