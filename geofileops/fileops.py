@@ -2598,17 +2598,17 @@ def copy_layer(
             stem is taken as layer name. Defaults to None.
         write_mode (str, optional): The write mode. Defaults to "create". Valid values:
 
-            - "create": create a new destination file. If the file already exists and
-                `force=True` the function just returns, if `force=False` the file is
-                overwritten.
-            - "add_layer": add the source layer to the destination file as a new layer.
-                When using "add_layer", `dst_layer` should be specified. If the layer
-                already exists and `force=True` the function just returns, if
-                `force=False` the layer is overwritten.
-            - "append": append the source layer to the destination layer, if the
-                layer already exists. If not, the file and/or layer will be created.
-                If the file already contains layers named differently than the default
-                layer name for the file, `dst_layer` becomes mandatory.
+            - **"create"**: create a new destination file. If the file already exists
+              and `force=True` the function just returns, if `force=False` the file is
+              overwritten.
+            - **"add_layer"**: add the source layer to the destination file as a new
+              layer. When using "add_layer", `dst_layer` should be specified. If the
+              layer already exists and `force=True` the function just returns, if
+              `force=False` the layer is overwritten.
+            - **"append"**: append the source layer to the destination layer, if the
+              layer already exists. If not, the file and/or layer will be created.
+              If the file already contains layers named differently than the default
+              layer name for the file, `dst_layer` becomes mandatory.
 
         src_crs (Union[str, int], optional): an epsg int or anything supported
             by the OGRSpatialReference.SetFromUserInput() call, which includes
