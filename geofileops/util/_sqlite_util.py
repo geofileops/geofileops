@@ -8,6 +8,7 @@ import shutil
 import sqlite3
 import time
 import warnings
+from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Union
 
@@ -90,6 +91,108 @@ def spatialite_version_info() -> dict[str, str]:
 class SqliteProfile(enum.Enum):
     DEFAULT = 0
     SPEED = 1
+
+
+def add_gpkg_ogr_contents(database: Any, layer: str | None, force_update: bool = False):
+    """Add a layer to the gpkg_ogr_contents table in a geopackage.
+
+    If the table doesn't exist yet, it will be created.
+
+    Args:
+        database (Any): the database to add the gpkg_ogr_contents to. This can be a path
+            to a file or an sqlite3.Connection object. If it is a connection, it won't
+            be closed when returning.
+        layer (str): the name of the layer to add to the gpkg_ogr_contents table.
+            If None, only the table will be created.
+        force_update (bool, optional): True to update the data if the layer already
+            exists. Defaults to False.
+
+    Raises:
+        RuntimeError: an error occured while creating the table.
+
+    Returns:
+        None
+    """
+    if isinstance(database, sqlite3.Connection):
+        # If a connection is passed, use it
+        conn = database
+    else:
+        conn = sqlite3.connect(database)
+
+    sql = None
+    try:
+        # Create gpkg_ogr_contents table if it doesn't exist yet
+        sql = """
+            CREATE TABLE IF NOT EXISTS gpkg_ogr_contents(
+                table_name TEXT NOT NULL PRIMARY KEY,
+                feature_count INTEGER DEFAULT 0
+            );
+        """
+        conn.execute(sql)
+
+        if layer is None:
+            conn.commit()
+            return
+
+        # Create triggers to keep the feature count up to date
+        sql = f"""
+            CREATE TRIGGER IF NOT EXISTS "trigger_insert_feature_count_{layer}"
+                AFTER INSERT ON "{layer}"
+            BEGIN
+                UPDATE gpkg_ogr_contents
+                    SET feature_count = feature_count + 1
+                WHERE lower(table_name) = lower('{layer}');
+            END;
+        """
+        conn.execute(sql)
+        sql = f"""
+            CREATE TRIGGER IF NOT EXISTS "trigger_delete_feature_count_{layer}"
+                AFTER DELETE ON "{layer}"
+            BEGIN
+                UPDATE gpkg_ogr_contents
+                    SET feature_count = feature_count - 1
+                WHERE lower(table_name) = lower('{layer}');
+            END;
+        """
+        conn.execute(sql)
+
+        # Check if the layer already exists in the gpkg_ogr_contents table
+        sql = f"""
+            SELECT * FROM gpkg_ogr_contents
+             WHERE lower(table_name) = '{layer.lower()}';
+        """
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute(sql)
+        contents = cursor.fetchall()
+        if len(contents) > 0:
+            # Layer already exists, check if we need to update it
+            if force_update:
+                sql = f"""
+                    UPDATE gpkg_ogr_contents
+                       SET feature_count = (SELECT COUNT(*) FROM "{layer}")
+                     WHERE lower(table_name) = '{layer.lower()}';
+                """
+                conn.execute(sql)
+            else:
+                # Layer already exists and we don't want to update it, so skip it
+                return
+        else:
+            # Layer doesn't exist yet, so add it to the gpkg_ogr_contents table
+            sql = f"""
+                INSERT INTO gpkg_ogr_contents (table_name, feature_count)
+                  VALUES ('{layer}', (SELECT COUNT(*) FROM "{layer}"));
+            """
+            conn.execute(sql)
+
+        conn.commit()
+
+    except Exception as ex:  # pragma: no cover
+        conn.rollback()
+        raise RuntimeError(f"Error executing {sql}") from ex
+    finally:
+        # If no existing connection was passed, close the connection
+        if not isinstance(database, sqlite3.Connection):
+            conn.close()
 
 
 def create_new_spatialdb(
@@ -202,7 +305,7 @@ def create_new_spatialdb(
     except ValueError:
         conn.close()
         raise
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
         conn.close()
         raise RuntimeError(f"Error creating spatial db {path} executing {sql}") from ex
 
@@ -361,7 +464,7 @@ def get_columns(
             else:
                 columns[columnname] = columntype
 
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
         conn.rollback()
         raise RuntimeError(f"Error {ex} executing {sql}") from ex
     finally:
@@ -377,6 +480,108 @@ def get_columns(
     return columns
 
 
+def copy_table(
+    input_path: Union[str, "os.PathLike[Any]"],
+    output_path: Union[str, "os.PathLike[Any]"],
+    input_table: str,
+    output_table: str,
+    columns: Iterable[str] | None = None,
+    where: str | None = None,
+    preserve_fid: bool = False,
+    profile: SqliteProfile = SqliteProfile.DEFAULT,
+) -> None:
+    """Copy data from one to another table.
+
+    Notes:
+        - At the moment only appending to an existing table is supported.
+        - At the moment only copying from one sqlite file to another is supported.
+
+    Args:
+        input_path (PathLike): The path to the input SQLite database.
+        output_path (PathLike): The path to the output SQLite database.
+        input_table (str): The name of the input table.
+        output_table (str): The name of the output table.
+        columns (Iterable[str] | None, optional): The list of columns to copy. If None,
+            all columns will be copied.
+        where (str | None, optional): An optional SQL WHERE clause to filter the rows
+            to copy. Defaults to None.
+        preserve_fid (bool, optional): Whether to preserve values in the input FID
+            column. Defaults to False.
+        profile (SqliteProfile, optional): The SQLite profile to use.
+            Defaults to SqliteProfile.DEFAULT.
+    """
+    # copy_table only supports local paths... so we can just use Path
+    input_path = Path(input_path)
+    output_path = Path(output_path)
+    if not input_path.exists():
+        raise FileNotFoundError(f"Input file not found: {input_path}")
+    if not output_path.exists():
+        raise FileNotFoundError(f"Output file not found: {output_path}")
+    if input_path.resolve() == output_path.resolve():
+        raise ValueError(f"Input and output paths cannot be the same: {input_path}")
+
+    conn = sqlite3.connect(str(output_path), uri=True)
+
+    # Execute the insert statement
+    sql = None
+    try:
+        load_spatialite(conn)
+
+        if Path(output_path).suffix.lower() == ".gpkg":
+            sql = "SELECT EnableGpkgMode();"
+            conn.execute(sql)
+
+        # Attach the input database
+        sql = "ATTACH DATABASE ? AS input_db"
+        dbSpec = (str(input_path),)
+        conn.execute(sql, dbSpec)
+
+        # Set some default performance options
+        database_names = ["main", "input_db"]
+        set_performance_options(conn, profile, database_names)
+
+        # Start transaction manually needed for performance
+        sql = "BEGIN TRANSACTION;"
+        conn.execute(sql)
+
+        if columns is None:
+            # If the columns are not specified, determine them from the input table.
+            # If the input layer has fewer columns than the output, those columns will
+            # simply get the default values...
+            # If the fid should not be preserved, don't include it in the column list
+            column_filter = "" if preserve_fid else "WHERE lower(name) <> 'fid'"
+            sql = f"""
+                SELECT name
+                FROM pragma_table_info('{input_table}', 'input_db')
+                {column_filter};
+            """
+            columns = [value[0] for value in conn.execute(sql).fetchall()]
+
+        elif preserve_fid and "fid" not in [col.lower() for col in columns]:
+            # If preserve_fid is asked, the fid should be in the list of columns.
+            columns = list(columns)
+            columns.append("fid")
+
+        columns_str = ", ".join([f'"{col}"' for col in columns])
+        where_clause = f"WHERE {where}" if where else ""
+        sql = f"""
+            INSERT INTO main."{output_table}"
+                ({columns_str})
+            SELECT {columns_str}
+              FROM input_db."{input_table}"
+             {where_clause};
+        """
+        conn.execute(sql)
+
+        conn.commit()
+    except Exception as ex:  # pragma: no cover
+        conn.rollback()
+
+        raise RuntimeError(f"Error {ex} executing {sql}") from ex
+    finally:
+        conn.close()
+
+
 def create_table_as_sql(
     input_databases: dict[str, Path],
     output_path: Path,
@@ -387,6 +592,7 @@ def create_table_as_sql(
     append: bool = False,
     update: bool = False,
     create_spatial_index: bool = False,
+    create_ogr_contents: bool = False,
     empty_output_ok: bool = True,
     column_datatypes: dict | None = None,
     profile: SqliteProfile = SqliteProfile.DEFAULT,
@@ -405,6 +611,8 @@ def create_table_as_sql(
         update (bool, optional): True to append to an existing layer. Defaults to False.
         create_spatial_index (bool, optional): True to create a spatial index on the
             output layer. Defaults to False.
+        create_ogr_contents (bool, optional): True to create the gpkg_ogr_contents table
+            in the output file and fill it up. Defaults to False.
         empty_output_ok (bool, optional): If the sql_stmt doesn't return any rows and
             True, create an empty output file. If False, throw EmptyResultError.
             Defaults to True.
@@ -612,8 +820,12 @@ def create_table_as_sql(
                 )
             raise
 
+        # Fill out the feature count in the gpkg_ogr_contents table + create triggers
+        if create_ogr_contents and output_suffix_lower == ".gpkg":
+            add_gpkg_ogr_contents(database=conn, layer=output_layer, force_update=True)
+
         # Create spatial index if needed
-        if "geom" in column_types and create_spatial_index:
+        if create_spatial_index and "geom" in column_types:
             sql = f"SELECT UpdateLayerStatistics('{output_layer}', 'geom');"
             conn.execute(sql)
             if output_suffix_lower == ".gpkg":
@@ -647,7 +859,7 @@ def create_table_as_sql(
         conn.close()
         if output_path.exists():
             output_path.unlink()
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
         raise RuntimeError(f"Error {ex} executing {sql}") from ex
     finally:
         if conn is not None:
@@ -683,7 +895,7 @@ def execute_sql(path: Path, sql_stmt: str | list[str], use_spatialite: bool = Tr
 
     except Exception as ex:
         conn.rollback()
-        raise Exception(f"Error executing {sql}") from ex
+        raise RuntimeError(f"Error executing {sql}") from ex
     finally:
         conn.close()
 
@@ -705,7 +917,32 @@ def get_gpkg_contents(path: Path) -> dict[str, dict]:
         cursor = conn.execute(sql)
         contents = cursor.fetchall()
         contents_dict = {row["table_name"]: dict(row) for row in contents}
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
+        raise RuntimeError(f"Error executing {sql}") from ex
+    finally:
+        conn.close()
+
+    return contents_dict
+
+
+def get_gpkg_ogr_contents(path: Path) -> dict[str, dict]:
+    """Get the contents of the gpkg_ogr_contents table of a geopackage.
+
+    Args:
+        path (Path): file path to the geopackage.
+
+    Returns:
+        dict[str, Any]: the contents of the geopackage.
+    """
+    conn = sqlite3.connect(path)
+    sql = None
+    try:
+        sql = "SELECT * FROM gpkg_ogr_contents;"
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute(sql)
+        contents = cursor.fetchall()
+        contents_dict = {row["table_name"]: dict(row) for row in contents}
+    except Exception as ex:  # pragma: no cover
         raise RuntimeError(f"Error executing {sql}") from ex
     finally:
         conn.close()
@@ -728,7 +965,7 @@ def get_tables(path: Path) -> list[str]:
         sql = "SELECT name FROM sqlite_master WHERE type='table';"
         cursor = conn.execute(sql)
         tables = [row[0] for row in cursor.fetchall()]
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
         raise RuntimeError(f"Error executing {sql}") from ex
     finally:
         conn.close()
@@ -766,8 +1003,8 @@ def test_data_integrity(path: Path, use_spatialite: bool = True):
                     # All data was fetched from layer
                     break
 
-    except Exception as ex:
-        raise Exception(f"Error executing {sql}") from ex
+    except Exception as ex:  # pragma: no cover
+        raise RuntimeError(f"Error executing {sql}") from ex
     finally:
         conn.close()
 
@@ -807,7 +1044,7 @@ def set_performance_options(
                 sql = f"PRAGMA {databasename}.synchronous=OFF;"
                 conn.execute(sql)
 
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
         raise RuntimeError(f"Error executing {sql}: {ex}") from ex
 
 

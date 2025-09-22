@@ -5,8 +5,11 @@ import logging
 import logging.config
 import math
 import multiprocessing
+import os
+import re
 import shutil
 import string
+import time
 import warnings
 from collections.abc import Iterable
 from concurrent import futures
@@ -16,9 +19,6 @@ from typing import Literal
 
 import numpy as np
 import pandas as pd
-import pygeoops
-import shapely
-import shapely.geometry.base
 
 import geofileops as gfo
 from geofileops import GeometryType, LayerInfo, PrimitiveType, fileops
@@ -29,6 +29,7 @@ from geofileops.util import (
     _general_util,
     _geofileinfo,
     _geoops_gpd,
+    _geoseries_util,
     _io_util,
     _ogr_sql_util,
     _ogr_util,
@@ -80,7 +81,7 @@ def buffer(
               {{batch_filter}}
     """
 
-    # Buffer operation always results in polygons...
+    # Buffer operation always results in 2D polygons...
     if explodecollections:
         force_output_geometrytype = GeometryType.POLYGON
     else:
@@ -347,7 +348,7 @@ def makevalid(
 
         # If we want a specific geometrytype, only extract the relevant type
         if force_output_geometrytype is not GeometryType.GEOMETRYCOLLECTION:
-            primitivetypeid = force_output_geometrytype.to_primitivetype.value
+            primitivetypeid = force_output_geometrytype.to_primitivetype.value  # type: ignore[union-attr]
             operation = f"ST_CollectionExtract({operation}, {primitivetypeid})"
 
     # Now we can prepare the entire statement
@@ -717,19 +718,19 @@ def _single_layer_vector_operation(
             batch_filter="{batch_filter}",
         )
 
-        logger.info(
-            f"Start processing ({processing_params.nb_parallel} "
-            f"parallel workers, batch size: {processing_params.batchsize})"
-        )
-
         # Prepare temp output filename
         tmp_output_path = tempdir / output_path.name
 
         # Processing in threads is 2x faster for small datasets (on Windows)
+        worker_type = _general_helper.worker_type_to_use(input_layer.featurecount)
+        logger.info(
+            f"Start processing ({processing_params.nb_parallel} "
+            f"{worker_type}, batch size: {processing_params.batchsize})"
+        )
         with _processing_util.PooledExecutorFactory(
-            threadpool=_general_helper.use_threads(input_layer.featurecount),
+            worker_type=worker_type,
             max_workers=processing_params.nb_parallel,
-            initializer=_processing_util.initialize_worker(),
+            initializer=_processing_util.initialize_worker(worker_type),
         ) as calculate_pool:
             batches: dict[int, dict] = {}
             future_to_batch_id = {}
@@ -806,28 +807,29 @@ def _single_layer_vector_operation(
                     continue
 
                 if (
-                    nb_batches == 1
-                    and tmp_partial_output_path.suffix == tmp_output_path.suffix
+                    tmp_partial_output_path.suffix == tmp_output_path.suffix
                     and where_post is None
+                    and not tmp_output_path.exists()
                 ):
-                    # If there is only one batch
+                    # If it is the first partial file
                     #   + partial file is already is correct file format
                     #   + no more where_post needs to be applied
-                    # -> just rename partial file, because it is already OK.
+                    # -> just rename partial file, as that's faster than copy_layer.
                     gfo.move(tmp_partial_output_path, tmp_output_path)
                 else:
-                    # Append partial file to full destination file
+                    # Copy partial file contents to full tmp output file
                     if where_post is not None:
                         info = gfo.get_layerinfo(tmp_partial_output_path, output_layer)
                         where_post = where_post.format(
                             geometrycolumn=info.geometrycolumn
                         )
+
+                    # force_output_geometrytype and explodecollections have already been
+                    # applied during calculation, so need to apply it here anymore.
                     fileops.copy_layer(
                         src=tmp_partial_output_path,
                         dst=tmp_output_path,
                         write_mode="append",
-                        explodecollections=explodecollections,
-                        force_output_geometrytype=force_output_geometrytype,
                         where=where_post,
                         create_spatial_index=False,
                         preserve_fid=preserve_fid,
@@ -894,12 +896,15 @@ def clip(
     where_post: str | None = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
+    subdivide_coords: int = 15000,
     force: bool = False,
     input_columns_prefix: str = "",
     output_with_spatial_index: bool | None = None,
 ):
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
+
+    operation_name = "clip"
 
     # In the query, important to only extract the geometry types that are expected
     if not isinstance(input_layer, LayerInfo):
@@ -912,53 +917,55 @@ def clip(
     if not explodecollections and force_output_geometrytype is not GeometryType.POINT:
         force_output_geometrytype = force_output_geometrytype.to_multitype
 
+    # Subdivide the clip layer if applicable to speed up further processing.
+    tmp_dir = _io_util.create_tempdir(f"geofileops/{operation_name}")
+    clip_subdivided_path = _subdivide_layer(
+        path=clip_path,
+        layer=clip_layer,
+        output_path=tmp_dir / "subdivided/clip_layer.gpkg",
+        subdivide_coords=subdivide_coords,
+        keep_fid=True,
+        nb_parallel=nb_parallel,
+        batchsize=batchsize,
+        operation_prefix=f"{operation_name}/",
+    )
+    if clip_subdivided_path is not None:
+        clip_path = clip_subdivided_path
+
     # Prepare sql template for this operation
     # Remarks:
-    # - ST_intersection(geometry , NULL) gives NULL as result! -> hence the CASE
-    # - use of the with instead of an inline view is a lot faster
+    # - ST_intersection(geometry , NULL) gives NULL as result
     # - use "LIMIT -1 OFFSET 0" to avoid the subquery flattening. Flattening e.g.
     #   "geom IS NOT NULL" leads to geom operation to be calculated twice!
-    # - WHERE geom IS NOT NULL to avoid rows with a NULL geom, they give issues in
-    #   later operations.
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
     input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
+
     sql_template = f"""
-        SELECT * FROM
-          ( WITH layer2_unioned AS (
-              SELECT layer1.rowid AS layer1_rowid
-                    ,ST_union(layer2.{{input2_geometrycolumn}}) AS geom
-                FROM {{input1_databasename}}."{{input1_layer}}" layer1
-                JOIN {{input1_databasename}}."{input1_layer_rtree}" layer1tree
-                  ON layer1.fid = layer1tree.id
-                JOIN {{input2_databasename}}."{{input2_layer}}" layer2
-                JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
-                  ON layer2.fid = layer2tree.id
-               WHERE 1=1
-                 {{batch_filter}}
-                 AND layer1tree.minx <= layer2tree.maxx
-                 AND layer1tree.maxx >= layer2tree.minx
-                 AND layer1tree.miny <= layer2tree.maxy
-                 AND layer1tree.maxy >= layer2tree.miny
-                 AND ST_Intersects(
-                        layer1.{{input1_geometrycolumn}},
-                        layer2.{{input2_geometrycolumn}}) = 1
-                 --AND ST_Touches(
-                 --       layer1.{{input1_geometrycolumn}},
-                 --       layer2.{{input2_geometrycolumn}}) = 0
-               GROUP BY layer1.rowid
-               LIMIT -1 OFFSET 0
-            )
-            SELECT CASE WHEN layer2_unioned.geom IS NULL THEN NULL
-                        ELSE ST_CollectionExtract(
-                               ST_intersection(layer1.{{input1_geometrycolumn}},
-                                               layer2_unioned.geom), {primitivetypeid})
-                   END as geom
-                  {{layer1_columns_prefix_alias_str}}
-              FROM {{input1_databasename}}."{{input1_layer}}" layer1
-              JOIN layer2_unioned ON layer1.rowid = layer2_unioned.layer1_rowid
-             WHERE 1=1
-               {{batch_filter}}
-             LIMIT -1 OFFSET 0
+        SELECT * FROM (
+          SELECT ( SELECT ST_CollectionExtract(
+                            ST_intersection(
+                                layer1.{{input1_geometrycolumn}},
+                                    ST_Union(layer2_sub.{{input2_geometrycolumn}})),
+                            {primitivetypeid}
+                          ) AS geom_clipped
+                       FROM {{input1_databasename}}."{input1_layer_rtree}" layer1tree
+                       JOIN {{input2_databasename}}."{{input2_layer}}" layer2_sub
+                       JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
+                         ON layer2_sub.rowid = layer2tree.id
+                      WHERE layer1tree.id = layer1.rowid
+                        AND layer1tree.minx <= layer2tree.maxx
+                        AND layer1tree.maxx >= layer2tree.minx
+                        AND layer1tree.miny <= layer2tree.maxy
+                        AND layer1tree.maxy >= layer2tree.miny
+                        AND ST_intersects(layer1.{{input1_geometrycolumn}},
+                                          layer2_sub.{{input2_geometrycolumn}}) = 1
+                      LIMIT -1 OFFSET 0
+                 ) AS geom
+                {{layer1_columns_prefix_alias_str}}
+            FROM {{input1_databasename}}."{{input1_layer}}" layer1
+           WHERE 1=1
+             {{batch_filter}}
+           LIMIT -1 OFFSET 0
           )
          WHERE geom IS NOT NULL
     """
@@ -969,7 +976,7 @@ def clip(
         input2_path=clip_path,
         output_path=output_path,
         sql_template=sql_template,
-        operation_name="clip",
+        operation_name=operation_name,
         input1_layer=input_layer,
         input1_columns=input_columns,
         input1_columns_prefix=input_columns_prefix,
@@ -1292,7 +1299,8 @@ def _subdivide_layer(
         layer (str, LayerInfo): layer in the file to be subdivided.
         output_path (Path): the path to create the subdivided file in. If the directory
             doesn't exist yet, it is created.
-        subdivide_coords (int): number of coordinates to aim for.
+        subdivide_coords (int): number of coordinates to aim for. A layer is subdivided
+            if it has at least 1 geometry with > `subdivide_coords` * 2 coordinates.
         keep_fid (bool): True to retain the fid column in the output file.
         nb_parallel (int, optional): _description_. Defaults to -1.
         batchsize (int, optional): _description_. Defaults to -1.
@@ -1310,101 +1318,30 @@ def _subdivide_layer(
     if layer.geometrytype == GeometryType.POINT:
         return None
 
-    # If layer has complex geometries, subdivide them.
-    complexgeom_sql = f"""
-        SELECT 1
-          FROM "{layer.name}" layer
-         WHERE ST_NPoints({layer.geometrycolumn}) > {subdivide_coords}
-         LIMIT 1
-    """
-    logger.info(
-        f"Check if complex geometries in {path.name}/{layer.name} (> {subdivide_coords}"
-        " coords)"
-    )
-    complexgeom_df = gfo.read_file(path, sql_stmt=complexgeom_sql, sql_dialect="SQLITE")
-    if len(complexgeom_df) <= 0:
+    has_complex_geoms = _has_complex_geoms(path, layer, subdivide_coords)
+    if not has_complex_geoms:
         return None
-
-    logger.info("Subdivide needed: complex geometries found")
-
-    # Do subdivide using python function, because all spatialite options didn't
-    # seem to work.
-    # Check out commits in https://github.com/geofileops/geofileops/pull/433
-    def subdivide(geom, num_coords_max):
-        if geom is None or geom.is_empty:
-            return geom
-
-        if isinstance(geom, shapely.geometry.base.BaseMultipartGeometry):
-            # Simple single geometry
-            result = shapely.get_parts(
-                pygeoops.subdivide(geom, num_coords_max=num_coords_max)
-            )
-        else:
-            geom = shapely.get_parts(geom)
-            if len(geom) == 1:
-                # There was only one geometry in the multigeometry
-                result = shapely.get_parts(
-                    pygeoops.subdivide(geom[0], num_coords_max=num_coords_max)
-                )
-            else:
-                to_subdivide = shapely.get_num_coordinates(geom) > num_coords_max
-                if np.any(to_subdivide):
-                    subdivided = np.concatenate(
-                        [
-                            shapely.get_parts(
-                                pygeoops.subdivide(g, num_coords_max=num_coords_max)
-                            )
-                            for g in geom[to_subdivide]
-                        ]
-                    )
-                    result = np.concatenate([subdivided, geom[~to_subdivide]])
-                else:
-                    result = geom
-
-        if result is None:
-            return None
-        if not hasattr(result, "__len__"):
-            return result
-        if len(result) == 1:
-            return result[0]
-
-        # Explode because
-        #   - they will be exploded anyway by spatialite.ST_Collect
-        #   - spatialite.ST_AsBinary and/or spatialite.ST_GeomFromWkb don't seem
-        #     to handle nested collections well.
-        return shapely.geometrycollections(result)
-
-    def subdivide_vectorized(geom, num_coords_max):
-        if geom is None:
-            return None
-
-        if not hasattr(geom, "__len__"):
-            return subdivide(geom, num_coords_max)
-
-        to_subdivide = shapely.get_num_coordinates(geom) > num_coords_max
-        geom[to_subdivide] = np.array(
-            [subdivide(g, num_coords_max=num_coords_max) for g in geom[to_subdivide]]
-        )
-
-        return geom
 
     # Keep the fid column if needed
     columns = ["fid"] if keep_fid else []
 
+    # Subdividing can be a relatively expensive operation, so use min_rows_per_batch=1.
     output_path.parent.mkdir(parents=True, exist_ok=True)
     _geoops_gpd.apply_vectorized(
         input_path=path,
         input_layer=layer,
         output_path=output_path,
         output_layer=layer.name,
-        func=lambda geom: subdivide_vectorized(geom, num_coords_max=subdivide_coords),
+        func=lambda geom: _geoseries_util.subdivide_vectorized(
+            geom, num_coords_max=subdivide_coords
+        ),
         operation_name=f"{operation_prefix}subdivide",
         columns=columns,
         explodecollections=True,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         parallelization_config=_geoops_gpd.ParallelizationConfig(
-            bytes_per_row=2000, max_rows_per_batch=50000
+            bytes_per_row=2000, max_rows_per_batch=50000, min_rows_per_batch=1
         ),
     )
     if keep_fid:
@@ -1414,6 +1351,99 @@ def _subdivide_layer(
         fileops.execute_sql(output_path, sql_stmt=sql_create_index)
 
     return output_path
+
+
+def _has_complex_geoms(path: Path, layer: LayerInfo, max_coords: int) -> bool:
+    """Check if a layer has complex geometries.
+
+    A layer is considered to have complex geometries if any of its geometries
+    have more than `max_coords` coordinates.
+
+    Parameters:
+        path (Path): The path to the data file.
+        layer (LayerInfo): The layer information.
+        max_coords (int): The number of coordinates to check against.
+
+    Returns:
+        bool: True if the layer has complex geometries, False otherwise.
+    """
+    start = time.perf_counter()
+
+    sql_template = f"""
+        SELECT 1 FROM "{layer.name}" layer
+         WHERE 1=1
+           {{batch_filter}}
+           AND ST_NPoints({layer.geometrycolumn}) > {max_coords}
+         LIMIT 1
+    """
+    complex_found = False
+    if layer.featurecount < ConfigOptions.subdivide_check_parallel_rows:
+        # For small files, simple check
+        logger.info(
+            f"Check for complex geometries in {path.name}/{layer.name} "
+            f"(> {max_coords} coords)"
+        )
+        sql = sql_template.format(batch_filter="")
+        complexgeom_df = gfo.read_file(path, sql_stmt=sql, sql_dialect="SQLITE")
+        if len(complexgeom_df) > 0:
+            complex_found = True
+
+    else:
+        # For large files, check for complex geometries in parallel + check a fraction
+        # of all rows.
+        nb_parallel = 4
+        fraction_to_check = ConfigOptions.subdivide_check_parallel_fraction
+        logger.info(
+            f"Check for complex geometries in 1/{fraction_to_check} rows in "
+            f"{path.name}/{layer.name} (> {max_coords} coords)"
+        )
+        processing_params = _prepare_processing_params(
+            input1_path=path,
+            input1_layer=layer,
+            input1_layer_alias="layer",
+            nb_parallel=nb_parallel,
+            batchsize=math.ceil(layer.featurecount / (nb_parallel * fraction_to_check)),
+        )
+        # If None is returned, just stop.
+        if processing_params is None or processing_params.batches is None:
+            return False
+
+        # On windows, use threads as processes have too much overhead
+        worker_type = "threads" if os.name == "nt" else "processes"
+        with _processing_util.PooledExecutorFactory(
+            worker_type=worker_type,
+            max_workers=processing_params.nb_parallel,
+            initializer=_processing_util.initialize_worker(worker_type, 0),
+        ) as pool:
+            process_futures = []
+            for batch_id, batch_info in processing_params.batches.items():
+                if batch_id % fraction_to_check != 0:
+                    # Only check a fraction of the batches
+                    continue
+
+                sql = sql_template.format(batch_filter=batch_info["batch_filter"])
+                process_futures.append(
+                    pool.submit(
+                        fileops.read_file,
+                        path,
+                        sql_stmt=sql,
+                        sql_dialect="SQLITE",
+                    )
+                )
+
+            # If any batch contains complex geometries, we can stop already
+            for future in futures.as_completed(process_futures):
+                result = future.result()
+                if len(result) > 0:
+                    complex_found = True
+                    pool.shutdown(wait=True, cancel_futures=True)
+                    break
+
+    took = time.perf_counter() - start
+    if took > 0:
+        logger.info(f"{complex_found=}, check took {took:.2f}s")
+
+    return complex_found
 
 
 def export_by_location(
@@ -1684,7 +1714,7 @@ def intersection(  # noqa: D417
     where_post: str | None = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    subdivide_coords: int = 7500,
+    subdivide_coords: int = 15000,
     force: bool = False,
     output_with_spatial_index: bool | None = None,
     operation_prefix: str = "",
@@ -2282,8 +2312,6 @@ def _prepare_spatial_relation_filter(query: str) -> str:
     }
 
     # Parse query and replace things that need to be replaced
-    import re
-
     query_tokens = re.split("([ =()])", query)
 
     query_tokens_prepared = []
@@ -3023,6 +3051,7 @@ def union(
             input1_subdivided_path=input1_subdivided_path,
             input2_subdivided_path=input2_subdivided_path,
         )
+        # Note: append will never create an index on an already existing layer.
         fileops.copy_layer(
             src=diff2_output_path,
             dst=intersection_output_path,
@@ -3164,6 +3193,7 @@ def _two_layer_vector_operation(
             force_output_geometrytype = input1_layer.geometrytype
         else:
             raise ValueError(f"unsupported {force_output_geometrytype=}")
+    assert isinstance(force_output_geometrytype, GeometryType | type(None))
 
     # For columns params, if a string is passed, convert to list
     if isinstance(input1_columns, str):
@@ -3428,14 +3458,35 @@ def _two_layer_vector_operation(
 
         # Calculate
         # ---------
+        # calculate_two_layers doesn't support explodecollections in one step:
+        # there is an extra layer copy involved.
+        # Normally explodecollections can be deferred to the appending of the
+        # partial files, but if explodecollections and there is a where_post to
+        # be applied, it needs to be applied during calculation already.
+        # Otherwise the where_post in the append of partial files later on
+        # won't give correct results!
+        explode_calc = True if explodecollections and where_post is not None else False
+        explode_append = True if explodecollections and not explode_calc else False
+
+        # Apply the geometrytype already during calculation
+        output_geometrytype_calc = force_output_geometrytype
+        if output_geometrytype_calc is not None and "geom" in column_datatypes:
+            column_datatypes["geom"] = output_geometrytype_calc.name
+        output_geometrytype_append = (
+            force_output_geometrytype
+            if explode_append or output_path.suffix == ".shp"
+            else None
+        )
+
+        worker_type = _general_helper.worker_type_to_use(input1_layer.featurecount)
         logger.info(
             f"Start processing ({processing_params.nb_parallel} "
-            f"parallel workers, batch size: {processing_params.batchsize})"
+            f"{worker_type}, batch size: {processing_params.batchsize})"
         )
         with _processing_util.PooledExecutorFactory(
-            threadpool=_general_helper.use_threads(input1_layer.featurecount),
+            worker_type=worker_type,
             max_workers=processing_params.nb_parallel,
-            initializer=_processing_util.initialize_worker(),
+            initializer=_processing_util.initialize_worker(worker_type),
         ) as calculate_pool:
             # Start looping
             batches: dict[int, dict] = {}
@@ -3459,28 +3510,6 @@ def _two_layer_vector_operation(
                 )
                 batches[batch_id]["sqlite_stmt"] = sql_stmt
 
-                # calculate_two_layers doesn't support explodecollections in one step:
-                # there is an extra layer copy involved.
-                # Normally explodecollections can be deferred to the appending of the
-                # partial files, but if explodecollections and there is a where_post to
-                # be applied, it needs to be applied now already. Otherwise the
-                # where_post in the append of partial files later on won't give correct
-                # results!
-                explodecollections_now = False
-                output_geometrytype_now = force_output_geometrytype
-                if explodecollections and where_post is not None:
-                    explodecollections_now = True
-                if (
-                    force_output_geometrytype is not None
-                    and explodecollections
-                    and not explodecollections_now
-                ):
-                    # convert geometrytype to multitype to avoid ogr warnings
-                    output_geometrytype_now = force_output_geometrytype.to_multitype
-                    if "geom" in column_datatypes:
-                        assert output_geometrytype_now is not None
-                        column_datatypes["geom"] = output_geometrytype_now.name
-
                 # Remark: this temp file doesn't need spatial index
                 future = calculate_pool.submit(
                     _calculate_two_layers,
@@ -3488,8 +3517,8 @@ def _two_layer_vector_operation(
                     output_path=tmp_partial_output_path,
                     sql_stmt=sql_stmt,
                     output_layer=output_layer,
-                    explodecollections=explodecollections_now,
-                    force_output_geometrytype=output_geometrytype_now,
+                    explodecollections=explode_calc,
+                    force_output_geometrytype=output_geometrytype_calc,
                     output_crs=output_crs,
                     use_ogr=use_ogr,
                     create_spatial_index=False,
@@ -3530,20 +3559,26 @@ def _two_layer_vector_operation(
                     logger.warning(f"Result file {tmp_partial_output_path} not found")
                     continue
 
-                # If there is only one tmp_partial file and it is already ok as
-                # output file, just rename/move it.
-                # Just for GPKG, don't do this, as there are small issues in the file
-                # created by spatialite that are fixed by copying with ogr2ogr.
+                # If this is the first partial file (no tmp output file yet), just
+                # rename/move it as that is faster.
                 if (
-                    nb_batches == 1
-                    and not explodecollections
-                    and force_output_geometrytype is None
+                    not explodecollections
+                    and output_geometrytype_append is None
                     and where_post is None
-                    and tmp_output_path.suffix.lower() != ".gpkg"
                     and tmp_partial_output_path.suffix.lower()
                     == tmp_output_path.suffix.lower()
+                    and not tmp_output_path.exists()
                 ):
                     gfo.move(tmp_partial_output_path, tmp_output_path)
+
+                    if tmp_output_path.suffix.lower() == ".gpkg":
+                        # If the output file is a geopackage, make sure
+                        # gpkg_ogr_contents exists
+                        _sqlite_util.add_gpkg_ogr_contents(
+                            database=tmp_output_path,
+                            layer=output_layer,
+                            force_update=False,
+                        )
                 else:
                     # If there is only one batch, it is faster to create the spatial
                     # index immediately
@@ -3557,8 +3592,8 @@ def _two_layer_vector_operation(
                         src_layer=output_layer,
                         dst_layer=output_layer,
                         write_mode="append",
-                        explodecollections=explodecollections,
-                        force_output_geometrytype=force_output_geometrytype,
+                        explodecollections=explode_append,
+                        force_output_geometrytype=output_geometrytype_append,
                         where=where_post,
                         create_spatial_index=create_spatial_index,
                         preserve_fid=False,
@@ -3784,7 +3819,7 @@ class ProcessingParams:
 
     def to_json(self, path: Path):
         prepared = _general_util.prepare_for_serialize(vars(self))
-        with open(path, "w") as file:
+        with path.open("w") as file:
             file.write(json.dumps(prepared, indent=4, sort_keys=True))
 
 
@@ -3878,8 +3913,8 @@ def _convert_to_spatialite_based(
 def _prepare_processing_params(
     input1_path: Path,
     input1_layer: LayerInfo,
-    tempdir: Path,
-    nb_parallel: int,
+    tempdir: Path | None = None,
+    nb_parallel: int = -1,
     batchsize: int = -1,
     input1_layer_alias: str | None = None,
     input1_is_subdivided: bool = False,
@@ -4009,7 +4044,9 @@ def _prepare_processing_params(
         batches=batches,
         batchsize=int(nb_rows_input_layer / len(batches)),
     )
-    returnvalue.to_json(tempdir / "processing_params.json")
+    if tempdir is not None:
+        returnvalue.to_json(tempdir / "processing_params.json")
+
     return returnvalue
 
 

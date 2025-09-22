@@ -4,7 +4,6 @@ Helper functions for all tests.
 
 import os
 import re
-import tempfile
 from pathlib import Path
 from stat import S_IRGRP, S_IROTH, S_IRUSR, S_IRWXG, S_IRWXO, S_IRWXU
 
@@ -21,6 +20,13 @@ from geofileops.util import (
     _io_util,
     geodataframe_util,
 )
+
+try:
+    import matplotlib.colors as mcolors
+    from matplotlib import figure as mpl_figure
+except ImportError:
+    mcolors = None  # type: ignore[assignment]
+    mpl_figure = None  # type: ignore[assignment]
 
 data_dir = Path(__file__).parent.resolve() / "data"
 data_url = "https://raw.githubusercontent.com/geofileops/geofileops/main/tests/data"
@@ -106,7 +112,7 @@ def prepare_test_file(
 ) -> Path:
     # Tmp dir
     if use_cachedir is True:
-        tmp_cache_dir = Path(tempfile.gettempdir()) / "geofileops_test_data"
+        tmp_cache_dir = _io_util.get_tempdir() / "geofileops_test_data"
         tmp_cache_dir.mkdir(parents=True, exist_ok=True)
     else:
         tmp_cache_dir = output_dir
@@ -187,7 +193,7 @@ def _get_testfile(
 
     # Prepare destination location
     if dst_dir is None:
-        dst_dir = Path(tempfile.gettempdir()) / "geofileops_test_data"
+        dst_dir = _io_util.get_tempdir() / "geofileops_test_data"
     assert isinstance(dst_dir, Path)
     dst_dir.mkdir(parents=True, exist_ok=True)
 
@@ -287,11 +293,11 @@ def set_read_only(path: Path, read_only: bool) -> None:
 
     def _read_only(path: Path) -> None:
         # Set read-only
-        os.chmod(path, S_IRUSR | S_IRGRP | S_IROTH)
+        path.chmod(S_IRUSR | S_IRGRP | S_IROTH)
 
     def _read_write(path: Path) -> None:
         # Set read-write
-        os.chmod(path, S_IRWXU | S_IRWXG | S_IRWXO)
+        path.chmod(S_IRWXU | S_IRWXG | S_IRWXO)
 
     if path.exists():
         _read_only(path) if read_only else _read_write(path)
@@ -339,25 +345,6 @@ class TestData:
     polygon_small_island = sh_geom.Polygon(
         shell=[(40, 40), (40, 50), (41, 50), (50, 50), (50, 40), (40, 40)],
         holes=[[(42, 42), (42, 43), (43, 43), (43, 42), (42, 42)]],
-    )
-
-
-def create_tempdir(base_dirname: str, parent_dir: Path | None = None) -> Path:
-    # Parent
-    if parent_dir is None:
-        parent_dir = Path(tempfile.gettempdir())
-
-    for i in range(1, 999999):
-        try:
-            tempdir = parent_dir / f"{base_dirname}_{i:06d}"
-            tempdir.mkdir(parents=True)
-            return Path(tempdir)
-        except FileExistsError:
-            continue
-
-    raise Exception(
-        "Wasn't able to create a temporary dir with basedir: "
-        f"{parent_dir / base_dirname}"
     )
 
 
@@ -510,8 +497,11 @@ def plot(
     if "GITHUB_ACTIONS" in os.environ:
         return
 
-    import matplotlib.colors as mcolors
-    from matplotlib import figure as mpl_figure
+    if mpl_figure is None or mcolors is None:
+        raise ImportError(
+            "matplotlib is not installed, but needed to plot geofiles. "
+            "Please install matplotlib."
+        )
 
     figure = mpl_figure.Figure(figsize=((len(geofiles) + 1) * 3, 3))
     figure.subplots(1, len(geofiles) + 1, sharex=True, sharey=True)

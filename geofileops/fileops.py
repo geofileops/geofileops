@@ -35,7 +35,13 @@ from geofileops.util import (
     _io_util,
     _ogr_sql_util,
     _ogr_util,
+    _sqlite_util,
 )
+
+try:
+    import fiona
+except ImportError:
+    fiona = None
 
 logger = logging.getLogger(__name__)
 
@@ -1039,6 +1045,7 @@ def add_column(
         else:
             type_str = type
 
+    start = time.perf_counter()
     layerinfo = get_layerinfo(path, layer, raise_on_nogeom=False)
     layer = layerinfo.name
 
@@ -1048,6 +1055,7 @@ def add_column(
         # If column doesn't exist yet, create it
         columns_upper = [column.upper() for column in layerinfo.columns]
         if name.upper() not in columns_upper:
+            logger.info(f"Add column {name} to {path}#{layer}")
             width_str = f"({width})" if width is not None else ""
             sql_stmt = (
                 f'ALTER TABLE "{layer}" ADD COLUMN "{name}" {type_str}{width_str}'
@@ -1056,7 +1064,7 @@ def add_column(
             _ogr_util.StartTransaction(datasource)
             datasource.ExecuteSQL(sql_stmt)
         else:
-            logger.warning(f"Column {name} existed already in {path}, layer {layer}")
+            logger.warning(f"Column {name} existed already in {path}#{layer}")
 
         # If an expression was provided and update can be done, go for it...
         if expression is not None and (
@@ -1076,6 +1084,11 @@ def add_column(
         raise
     finally:
         datasource = None
+
+        # Log time taken if it was slow.
+        took = time.perf_counter() - start
+        if took > 2:  # pragma: no cover
+            logger.info(f"Ready, add_column of {name} took {took:.2f}")
 
 
 def drop_column(
@@ -1182,6 +1195,9 @@ def update_column(
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
     """  # noqa: E501
     # Init
+    logger.info(f"Update column {name} in {path}#{layer}")
+
+    start = time.perf_counter()
     layerinfo = get_layerinfo(path, layer)
     columns_upper = [column.upper() for column in layerinfo.columns]
     if layerinfo.geometrycolumn is not None:
@@ -1204,6 +1220,11 @@ def update_column(
         raise
     finally:
         datasource = None
+
+        # Log time taken if it was slow.
+        took = time.perf_counter() - start
+        if took > 2:  # pragma: no cover
+            logger.info(f"Ready, update_column of {name} took {took:.2f}")
 
 
 def read_file(
@@ -1438,8 +1459,8 @@ def _read_file_base_fiona(
     The "fiona" IO engine is deprecated and will be removed in the future.
     """
     warnings.warn(
-        "The geofileops configuration option GFO_IO_ENGINE is deprecated. In a future "
-        "version it will be ignored and the pyogrio engine will always be used.",
+        "Using GFO_IO_ENGINE=fiona is deprecated. In a future version this will be"
+        "ignored.",
         FutureWarning,
         stacklevel=4,
     )
@@ -1534,7 +1555,11 @@ def _read_file_base_fiona(
         float_cols = list(result_gdf.select_dtypes(["float64"]).columns)
         if len(float_cols) > 0:
             # Check for all float columns found if they should be object columns instead
-            import fiona
+            if fiona is None:
+                raise ImportError(
+                    "fiona is not installed, but needed to read the file with"
+                    " GFO_IO_ENGINE=fiona. Please install fiona."
+                )
 
             with fiona.open(path, layer=layer) as collection:
                 assert collection.schema is not None
@@ -1844,7 +1869,7 @@ def to_file(
             raise ValueError(
                 f"Unsupported force_output_geometrytype: {force_output_geometrytype}"
             ) from None
-    if force_output_geometrytype is not None and force_output_geometrytype.is_multitype:
+    if force_output_geometrytype is not None and force_output_geometrytype.is_multitype:  # type: ignore[union-attr]
         force_multitype = True
 
     engine = ConfigOptions.io_engine
@@ -1900,8 +1925,8 @@ def _to_file_fiona(
     The "fiona" IO engine is deprecated and will be removed in the future.
     """
     warnings.warn(
-        "The geofileops configuration option GFO_IO_ENGINE is deprecated. In a future "
-        "version it will be ignored and the pyogrio engine will always be used.",
+        "Using GFO_IO_ENGINE=fiona is deprecated. In a future version this will be"
+        "ignored.",
         FutureWarning,
         stacklevel=3,
     )
@@ -2727,20 +2752,10 @@ def copy_layer(
         # creation option regarding spatial index creation should not be passed.
         create_spatial_index = None
 
-    if dst_layer is None:
-        dst_layer = get_default_layer(dst)
-
     # Check/clean input params
     if isinstance(columns, str):
         # If a string is passed, convert to list
         columns = [columns]
-
-    options = _ogr_util._prepare_gdal_options(options)
-    if (
-        create_spatial_index is not None
-        and "LAYER_CREATION.SPATIAL_INDEX" not in options
-    ):
-        options["LAYER_CREATION.SPATIAL_INDEX"] = create_spatial_index
 
     if where is not None:
         if not isinstance(src_layer, LayerInfo):
@@ -2753,13 +2768,65 @@ def copy_layer(
             path=src, layer=src_layer, sql_stmt=sql_stmt, columns=columns
         )
 
-    # When creating/appending to a shapefile, some extra things need to be done/checked.
+    if dst_layer is None:
+        dst_layer = get_default_layer(dst)
+    src_layername = src_layer.name if isinstance(src_layer, LayerInfo) else src_layer
+
+    # If the source and destination files are GeoPackages, and it involves a simple data
+    # copy, it is faster to copy the data directly in sqlite instead of via GDAL.
+    if (
+        access_mode == "append"
+        and Path(src).suffix.lower() == ".gpkg"
+        and Path(dst).suffix.lower() == ".gpkg"
+        and not sql_stmt
+        and (sql_dialect is None or sql_dialect == "SQLITE")
+        and not explodecollections
+        and not reproject
+        and force_output_geometrytype is None
+        and dst_dimensions is None
+        and (options is None or len(options) == 0)
+        and src_crs is None
+        and dst_crs is None
+        and Path(src).exists()
+        and Path(dst).exists()
+        and ConfigOptions.copy_layer_sqlite_direct
+    ):
+        # TODO: sql_stmt?, access_mode="create", create_spatial_index, dst_crs?
+        # TODO: create gfo config option to disable?
+        try:
+            name = src_layername if src_layername is not None else get_only_layer(src)
+            preserve_fid_local = preserve_fid if preserve_fid is not None else False
+            _sqlite_util.copy_table(
+                input_path=src,
+                output_path=dst,
+                input_table=name,
+                output_table=dst_layer,
+                columns=columns,
+                where=where,
+                preserve_fid=preserve_fid_local,
+            )
+            return
+
+        except Exception as ex:
+            logger.info(
+                f"Failed to copy data directly in sqlite, retry with gdal: {ex}"
+            )
+
+    options = _ogr_util._prepare_gdal_options(options)
+    if (
+        create_spatial_index is not None
+        and "LAYER_CREATION.SPATIAL_INDEX" not in options
+    ):
+        options["LAYER_CREATION.SPATIAL_INDEX"] = create_spatial_index
+
+    # When destination is a shapefile, some extra things need to be done/checked.
     if sql_stmt is None and Path(dst).suffix.lower() == ".shp":
         # If the destination file doesn't exist yet, and the source file has
         # geometrytype "Geometry", raise because type is not supported by shp (and will
         # default to linestring).
         if not isinstance(src_layer, LayerInfo):
             src_layer = get_layerinfo(src, src_layer, raise_on_nogeom=False)
+            src_layername = src_layer.name
         if (
             force_output_geometrytype is None
             and src_layer.geometrytypename in ["GEOMETRY", "GEOMETRYCOLLECTION"]
@@ -2795,7 +2862,6 @@ def copy_layer(
         columns = None
 
     # Go!
-    src_layername = src_layer.name if isinstance(src_layer, LayerInfo) else src_layer
     translate_info = _ogr_util.VectorTranslateInfo(
         input_path=src,
         output_path=dst,

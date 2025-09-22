@@ -13,6 +13,33 @@ class ConfigOptions:
     """
 
     @classproperty
+    def copy_layer_sqlite_direct(cls) -> bool:
+        """Should copy_layer use sqlite directly when possible.
+
+        This is significantly faster than using GDAL for large datasets. At the moment
+        only used for .gpkg files.
+
+        Returns:
+            bool: True to use sqlite directly to copy layers. Defaults to True.
+        """
+        return get_bool("GFO_COPY_LAYER_SQLITE_DIRECT", default=True)
+
+    @classproperty
+    def io_engine(cls):
+        """The IO engine to use."""
+        io_engine = (
+            os.environ.get("GFO_IO_ENGINE", default="pyogrio-arrow").strip().lower()
+        )
+        supported_values = ["pyogrio", "fiona", "pyogrio-arrow"]
+        if io_engine not in supported_values:
+            raise ValueError(
+                f"invalid value for configoption <GFO_IO_ENGINE>: '{io_engine}', "
+                f"should be one of {supported_values}"
+            )
+
+        return io_engine
+
+    @classproperty
     def on_data_error(cls) -> str:
         """The preferred action when a data error occurs.
 
@@ -35,16 +62,11 @@ class ConfigOptions:
         supported_values = ["raise", "warn"]
         if value_cleaned not in supported_values:
             raise ValueError(
-                f"invalid value for configoption <GFO_ON_DATA_ERROR>: {value}, should "
-                f"be one of {supported_values}"
+                f"invalid value for configoption <GFO_ON_DATA_ERROR>: '{value}', "
+                f"should be one of {supported_values}"
             )
 
         return value_cleaned
-
-    @classproperty
-    def io_engine(cls):
-        """The IO engine to use."""
-        return os.environ.get("GFO_IO_ENGINE", default="pyogrio-arrow").strip().lower()
 
     @classproperty
     def remove_temp_files(cls) -> bool:
@@ -56,18 +78,49 @@ class ConfigOptions:
         return get_bool("GFO_REMOVE_TEMP_FILES", default=True)
 
     @classproperty
+    def subdivide_check_parallel_fraction(cls) -> int:
+        """For a file being checked in parallel, the fraction of features to check.
+
+        Returns:
+            int: The fraction of features to check for subdivision. Defaults to 5.
+        """
+        fraction = os.environ.get("GFO_SUBDIVIDE_CHECK_PARALLEL_FRACTION", default="5")
+
+        return int(fraction)
+
+    @classproperty
+    def subdivide_check_parallel_rows(cls) -> int:
+        """If a file has more rows, check if subdivide is needed in parallel.
+
+        Returns:
+            int: The minimum number of rows a file must have to check for subdivision in
+                parallel. Defaults to 500000.
+        """
+        rows = os.environ.get("GFO_SUBDIVIDE_CHECK_PARALLEL_ROWS", default="500000")
+
+        return int(rows)
+
+    @classproperty
     def worker_type(cls) -> str:
         """The type of workers to use for parallel processing.
 
         Supported values (case insensitive):
-            - "thread": use threads when processing in parallel.
-            - "process": use processes when processing in parallel.
+            - "threads": use threads when processing in parallel.
+            - "processes": use processes when processing in parallel.
             - "auto": determine the type automatically.
 
         Returns:
             str: the type of workers to use. Defaults to "auto".
         """
-        return os.environ.get("GFO_WORKER_TYPE", default="auto").strip().lower()
+        worker_type = os.environ.get("GFO_WORKER_TYPE", default="auto").strip().lower()
+        supported_values = ["threads", "processes", "auto"]
+        if worker_type not in supported_values:
+            raise ValueError(
+                f"invalid value for configoption <GFO_WORKER_TYPE>: '{worker_type}', "
+                f"should be one of {supported_values}"
+            )
+
+        return worker_type
 
 
 def get_bool(key: str, default: bool) -> bool:
