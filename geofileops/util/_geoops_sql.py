@@ -935,17 +935,12 @@ def clip(
 
     # Prepare sql template for this operation
     # Remarks:
-    # - ST_intersection(geometry , NULL) gives NULL as result, shortcut using the IIF???
+    # - ST_intersection(geometry , NULL) gives NULL as result
     # - use "LIMIT -1 OFFSET 0" to avoid the subquery flattening. Flattening e.g.
     #   "geom IS NOT NULL" leads to geom operation to be calculated twice!
-    # - WHERE geom IS NOT NULL to avoid rows with a NULL geom, they give issues in
-    #   later operations.
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
     input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
 
-    # TODO:
-    # - first checks don't seem to give a differen memory usage than previous version
-    # - is the IIF really needed/useful??? Without it result should be also correct?
     sql_template = f"""
         SELECT * FROM (
           SELECT ( SELECT ST_CollectionExtract(
