@@ -32,6 +32,7 @@ setuptools.setup(
         "packaging",
         "pandas>=1.5",
         "psutil",
+        "pyarrow",
         "pygeoops>=0.4",
         "pyogrio>=0.7",
         "pyproj",
