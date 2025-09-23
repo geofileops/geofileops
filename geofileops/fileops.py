@@ -1261,7 +1261,7 @@ def read_file(
 
     The underlying library used to read the file can be choosen using the
     "GFO_IO_ENGINE" environment variable. Possible values are "pyogrio", "pyogrio-arrow"
-    and "fiona". This option is created so it can be uses as a temporary fallback for
+    and "fiona". This option is created so it can be used as a temporary fallback for
     cases where "pyogrio-arrow" gives issues, so please report issues if they are
     encountered. In the future support for the "fiona" engine most likely will be
     removed. Default engine is "pyogrio-arrow".
