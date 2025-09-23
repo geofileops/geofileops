@@ -1862,8 +1862,10 @@ def test_to_file(tmp_path, suffix, dimensions, engine_setter):
         if engine_setter == "pyogrio-arrow":
             expected_gdf["DATUM"] = expected_gdf["DATUM"].dt.tz_localize(None)
         elif engine_setter == "fiona":
-            # Fiona writes/reads LENGTE as string
-            expected_gdf["LENGTE"] = expected_gdf["LENGTE"].astype(str)
+            # Fiona writes/reads LENGTE as string, rounded to 12 decimals.
+            expected_gdf["LENGTE"] = expected_gdf["LENGTE"].applymap(
+                lambda x: f"{x:.12f}"
+            )
 
         # As there is no geometry column, a pd.Dataframe is returned
         assert_frame_equal(written_gdf, expected_gdf)
