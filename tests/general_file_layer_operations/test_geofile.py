@@ -1835,6 +1835,8 @@ def test_to_file(tmp_path, suffix, dimensions, engine_setter):
         pytest.xfail("writing a dataframe to gpkg.zip or .shp.zip has issue")
     if suffix == ".csv":
         read_gdf = read_gdf.drop(columns="geometry")
+    if suffix == ".shp" and engine_setter == "fiona":
+        pytest.xfail("fiona does not support writing datetimes to shapefile")
 
     output_path = tmp_path / f"{_geopath_util.stem(src)}-output{suffix}"
     gfo.to_file(read_gdf, str(output_path))
@@ -1859,6 +1861,9 @@ def test_to_file(tmp_path, suffix, dimensions, engine_setter):
 
         if engine_setter == "pyogrio-arrow":
             expected_gdf["DATUM"] = expected_gdf["DATUM"].dt.tz_localize(None)
+        elif engine_setter == "fiona":
+            # Fiona writes/reads LENGTE as string
+            expected_gdf["LENGTE"] = expected_gdf["LENGTE"].astype("string")
 
         # As there is no geometry column, a pd.Dataframe is returned
         assert_frame_equal(written_gdf, expected_gdf)
@@ -1910,6 +1915,8 @@ def test_to_file_2_roundtrip(tmp_path, suffix, dimensions, engine_setter):
 
     if suffix in (".gpkg.zip", ".shp.zip"):
         pytest.xfail("writing a dataframe to gpkg.zip or .shp.zip has issue")
+    if suffix == ".shp" and engine_setter == "fiona":
+        pytest.xfail("fiona writes datetimes to shapefile as Date, loosing data")
 
     output_path = tmp_path / f"{_geopath_util.stem(src)}-output{suffix}"
     gfo.to_file(read_gdf, str(output_path))
@@ -1959,6 +1966,8 @@ def test_to_file_append(tmp_path, suffix, engine_setter):
     if suffix == ".csv":
         # CSV doesn't support geometry column, so drop it.
         test_gdf = test_gdf.drop(columns="geometry")
+    if suffix == ".shp" and engine_setter == "fiona":
+        pytest.xfail("fiona does not support writing datetimes to shapefile")
 
     output_path = tmp_path / f"{_geopath_util.stem(src)}-output{suffix}"
     gfo.to_file(test_gdf, path=output_path)
