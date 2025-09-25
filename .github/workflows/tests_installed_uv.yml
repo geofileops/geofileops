@@ -63,6 +63,10 @@ jobs:
           uv venv --python ${{ matrix.python }}
           uv pip install gdal==${{ matrix.gdal_version }} geofileops~=${{ matrix.gfo_version }} pytest --no-binary pyogrio
 
+      - name: Print installed versions
+        run: |
+          uv python -c "import sys; import geofileops as gfo; import gdal; print(f'Python {sys.version}'); print(f'geofileops {gfo.__version__}'); print(f'GDAL {gdal.__version__}')"
+          uv pip list
       - name: Run tests
         run: |
           uv run pytest --color=yes tests/
