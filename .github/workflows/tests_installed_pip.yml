@@ -1,19 +1,19 @@
 # This workflow will install the latest version of geofileops and run will run its tests
 # For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
 
-name: TestsOnInstalled - pip
+name: TestsOnInstalled - uv
 
 on:
   workflow_dispatch:
   schedule:
-    # every Monday to Friday at 5:40 AM
-    - cron: "40 5 * * 1-5"
+    # every Monday at 5:40 AM
+    - cron: "40 5 * * 1"
   push:
     paths:
-      - ".github/workflows/tests_installed_pip.yml"
+      - ".github/workflows/tests_installed_uv.yml"
   pull_request:
     paths: 
-      - ".github/workflows/tests_installed_pip.yml"
+      - ".github/workflows/tests_installed_uv.yml"
 
 concurrency: 
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   TestsOnInstalled:    
-    name: gfo ${{ matrix.gfo_version }}, ${{ matrix.os }}
+    name: gfo ${{ matrix.gfo_version }}, python ${{ matrix.python }}, gdal ${{ matrix.gdal_version }}, ${{ matrix.os }}
     timeout-minutes: 30
     runs-on: "ubuntu-latest"
     defaults:
@@ -31,9 +31,11 @@ jobs:
       fail-fast: false
       matrix:
         os: ["ubuntu-latest"]
+        python: ["3.12"]
         include:
           - checkout_ref: "v0.10.x"
             gfo_version: "0.10"
+            gdal_version: "3.8.4"
 
     steps:
       - name: Checkout tests for label ${{ matrix.checkout_ref }}
@@ -43,6 +45,11 @@ jobs:
           sparse-checkout: |
             tests
 
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
       - name: Install GDAL and spatialite (Ubuntu default)
         run: |
           # Install system packages
@@ -51,10 +58,10 @@ jobs:
           echo "System GDAL version: $(gdal-config --version)"
           echo "✅ GDAL $(gdal-config --version) installed"
         
-      - name: Install geofileops and dependencies via pip (--no-binary pyogrio)
+      - name: Install geofileops via pip (gdal ${{ matrix.gdal_version }}, --no-binary pyogrio)
         run: |
-          pip install gdal==3.8.4 geofileops~=${{ matrix.gfo_version }} pytest --no-binary pyogrio
+          uv install python~=${{ matrix.python }} gdal==${{ matrix.gdal_version }} geofileops~=${{ matrix.gfo_version }} pytest --no-binary pyogrio
 
       - name: Run tests
         run: |
-          pytest --color=yes tests/
+          uv run pytest --color=yes tests/
