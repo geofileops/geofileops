@@ -50,9 +50,9 @@ jobs:
           echo "System GDAL version: $(gdal-config --version)"
           echo "✅ GDAL $(gdal-config --version) installed"
         
-      - name: Install geofileops and dependencies via pip
+      - name: Install geofileops and dependencies via pip (--no-binary pyogrio)
         run: |
-          pip install gdal==3.8.4 geofileops~=${{ matrix.geofileops_version }} pytest
+          pip install gdal==3.8.4 geofileops~=${{ matrix.geofileops_version }} pytest --no-binary pyogrio
 
       - name: Run tests
         run: |
