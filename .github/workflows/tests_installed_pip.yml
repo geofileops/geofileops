@@ -1,0 +1,59 @@
+# This workflow will install the latest version of geofileops and run will run its tests
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: TestsOnInstalled - pip
+
+on:
+  workflow_dispatch:
+  schedule:
+    # every Monday to Friday at 5:40 AM
+    - cron: "40 5 * * 1-5"
+  push:
+    paths:
+      - ".github/workflows/tests_installed.yml"
+  pull_request:
+    paths: 
+      - ".github/workflows/tests_installed.yml"
+
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  TestsOnInstalled:    
+    name: Installed  ${{ matrix.geofileops_version }} (pip)
+    timeout-minutes: 30
+    runs-on: "ubuntu-latest"
+    defaults:
+      run:
+        shell: bash -l {0}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - checkout_ref: "v0.10.x"
+            geofileops_version: "0.10"
+
+    steps:
+      - name: Checkout tests for label ${{ matrix.checkout_ref }}
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ matrix.checkout_ref }}
+          sparse-checkout: |
+            tests
+
+      - name: Install GDAL and spatialite (Ubuntu default)
+        run: |
+          # Install system packages
+          sudo apt-get update -qq
+          sudo apt-get install -y gdal-bin libgdal-dev libsqlite3-mod-spatialite
+          echo "System GDAL version: $(gdal-config --version)"
+          echo "✅ GDAL $(gdal-config --version) installed"
+        
+      - name: Install geofileops and dependencies via pip
+        run: |
+          pip install gdal==3.8.4 geofileops~=${{ matrix.geofileops_version }} pytest
+
+      - name: Run tests
+        run: |
+          pytest --color=yes tests/
