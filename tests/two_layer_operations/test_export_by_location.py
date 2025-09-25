@@ -13,7 +13,10 @@ from tests import test_helper
 from tests.test_helper import SUFFIXES_GEOOPS
 
 if compat.GDAL_GTE_38 and not compat.GDAL_GTE_39:
-    pytest.skip("These tests crash with GDAL>=3.8 and GDAL<3.9", allow_module_level=True)
+    pytest.skip(
+        "These tests crash with GDAL>=3.8 and GDAL<3.9", allow_module_level=True
+    )
+    assert False
 
 input_wkts_1 = [
     "POLYGON ((0 0, 3 0, 3 3, 0 3, 0 0))",

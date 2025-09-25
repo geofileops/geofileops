@@ -29,6 +29,7 @@ if compat.GDAL_GTE_38 and not compat.GDAL_GTE_39:
     pytest.skip(
         "These tests crash with GDAL>=3.8 and GDAL<3.9", allow_module_level=True
     )
+    assert False
 
 
 @pytest.mark.parametrize("testfile", TESTFILES)
