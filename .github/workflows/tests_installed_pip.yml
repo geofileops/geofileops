@@ -10,10 +10,10 @@ on:
     - cron: "40 5 * * 1-5"
   push:
     paths:
-      - ".github/workflows/tests_installed.yml"
+      - ".github/workflows/tests_installed_pip.yml"
   pull_request:
     paths: 
-      - ".github/workflows/tests_installed.yml"
+      - ".github/workflows/tests_installed_pip.yml"
 
 concurrency: 
   group: ${{ github.workflow }}-${{ github.ref }}
