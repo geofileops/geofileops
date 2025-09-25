@@ -65,7 +65,7 @@ jobs:
 
       - name: Print installed versions
         run: |
-          uv python -c "import sys; import geofileops as gfo; import gdal; print(f'Python {sys.version}'); print(f'geofileops {gfo.__version__}'); print(f'GDAL {gdal.__version__}')"
+          uv run python -c "import sys; import geofileops as gfo; import gdal; print(f'Python {sys.version}'); print(f'geofileops {gfo.__version__}'); print(f'GDAL {gdal.__version__}')"
           uv pip list
       - name: Run tests
         run: |
