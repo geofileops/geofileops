@@ -1,5 +1,7 @@
 """General helper functions, specific for geofileops."""
 
+import os
+
 from geofileops.helpers._configoptions_helper import ConfigOptions
 
 
@@ -9,7 +11,7 @@ def worker_type_to_use(input_layer_featurecount: int) -> str:
         return worker_type
 
     # Processing in threads is 2x faster for small datasets
-    if input_layer_featurecount <= 100:
+    if input_layer_featurecount <= 100 and os.name == "nt":
         return "threads"
 
     return "processes"
