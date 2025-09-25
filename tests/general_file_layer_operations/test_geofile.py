@@ -16,6 +16,7 @@ from pandas.testing import assert_frame_equal
 from pygeoops import GeometryType
 
 import geofileops as gfo
+from geofileops import _compat as compat
 from geofileops import fileops
 from geofileops.util import _geofileinfo, _geopath_util, _geoseries_util
 from tests import test_helper
@@ -33,6 +34,12 @@ except ImportError:
     ENGINES = ["pyogrio"]
 
 gdal.UseExceptions()
+
+if compat.GDAL_GTE_38 and not compat.GDAL_GTE_39:
+    pytest.skip(
+        "These tests crash with GDAL>=3.8 and GDAL<3.9", allow_module_level=True
+    )
+    assert False
 
 
 @pytest.fixture(scope="module", params=ENGINES)
