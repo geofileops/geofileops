@@ -7,6 +7,7 @@ import shapely
 
 import geofileops as gfo
 from geofileops import GeometryType
+from geofileops import _compat as compat
 from geofileops.util._geofileinfo import GeofileInfo
 from tests import test_helper
 from tests.test_helper import SUFFIXES_GEOOPS
@@ -214,6 +215,10 @@ def test_export_by_location_invalid_params(kwargs, expected_error):
         ("touches is False", 48),
         ("", 48),
     ],
+)
+@pytest.mark.skipif(
+    compat.GDAL_GTE_38 and not compat.GDAL_GTE_39,
+    reason="These tests crash with GDAL>=3.8 and GDAL<3.9",
 )
 def test_export_by_location_query(
     tmp_path, query, subdivide_coords, area_inters_column_name, exp_featurecount
