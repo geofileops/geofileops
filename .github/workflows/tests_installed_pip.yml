@@ -1,7 +1,7 @@
 # This workflow will install the latest version of geofileops and run will run its tests
 # For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
 
-name: TestsOnInstalled - pip
+name: TestsOnInstalled
 
 on:
   workflow_dispatch:
