@@ -567,11 +567,10 @@ def vector_translate(
             # detect this case later on, check here if the input file already has an
             # attribute column "geometry".
             if input_layers is None or len(input_layers) == 1:
-                input_layer = input_layers[0] if input_layers is not None else None
-                if input_layer is None:
+                if input_layers is None:
                     datasource_layer = input_ds.GetLayer()
                 else:
-                    datasource_layer = input_ds.GetLayerByName(input_layer)
+                    datasource_layer = input_ds.GetLayerByName(input_layers[0])
                 layer_defn = datasource_layer.GetLayerDefn()
                 for field in range(layer_defn.GetFieldCount()):
                     field_name_lower = layer_defn.GetFieldDefn(field).GetName().lower()
