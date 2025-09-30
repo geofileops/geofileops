@@ -587,7 +587,9 @@ def _get_only_layer(datasource: gdal.Dataset) -> ogr.Layer:
         if len(layers) == 1:
             return datasource.GetLayer(layers[0])
         else:
-            raise ValueError(f"input has > 1 layer, but no layer specified: {layers}")
+            raise ValueError(
+                f"input has > 1 layers: a layer must be specified: {layers}"
+            )
 
 
 def get_default_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
@@ -2652,8 +2654,10 @@ def copy_layer(
         src (PathLike): The source path. |GDAL_vsi| paths are also supported.
         dst (PathLike): The destination path. |GDAL_vsi| paths can be used for handlers
             with write support.
-        src_layer (str, optional): The source layer. If None and there is only
-            one layer in the src file, that layer is taken. Defaults to None.
+        src_layer (str, optional): The source layer. If the source contains a single
+            layer, that layer will be taken if `src_layer` is None. If it contains
+            multiple layers, `src_layer` is mandatory unless `sql_stmt` is specified.
+            Defaults to None.
         dst_layer (str, optional): The destination layer. If None, the destination file
             stem is taken as layer name. Defaults to None.
         write_mode (str, optional): The write mode. Defaults to "create". Valid values:
