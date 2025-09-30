@@ -769,7 +769,7 @@ def _validate_file(
                     f"{path=}"
                 )
 
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
         # In gdal 3.10, invalid gpkg files are still written when an invalid sql
         # is used if a new file is created or an existing one is overwritten.
         logger.warning(
