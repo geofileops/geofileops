@@ -645,6 +645,11 @@ def test_copy_layer_force_output_geometrytype(tmp_path, testfile, force_geometry
             ValueError,
             "append parameter is deprecated, use write_mode",
         ),
+        (
+            {"src": test_helper.get_testfile("polygon-twolayers")},
+            ValueError,
+            "input has > 1 layer, but no layer specified",
+        ),
     ],
 )
 def test_copy_layer_errors(tmp_path, kwargs, exp_ex, exp_error):
@@ -826,6 +831,26 @@ def test_copy_layer_to_gpkg_zip(tmp_path):
     src_gdf = gfo.read_file(src)
     dst_gdf = gfo.read_file(dst)
     assert_geodataframe_equal(src_gdf, dst_gdf)
+
+
+def test_copy_layer_twolayers(tmp_path):
+    src = test_helper.get_testfile("polygon-twolayers")
+
+    # Test first layer
+    dst_parcels = tmp_path / "output_parcels.gpkg"
+    gfo.copy_layer(src, dst_parcels, src_layer="parcels")
+    layerinfo_parcels = gfo.get_layerinfo(dst_parcels)
+    assert layerinfo_parcels.featurecount == 48
+    assert layerinfo_parcels.name == "output_parcels"
+    assert len(layerinfo_parcels.columns) == 11
+
+    # Test second layer
+    dst_zones = tmp_path / "output_zones.gpkg"
+    gfo.copy_layer(src, dst_zones, src_layer="zones")
+    layerinfo_zones = gfo.get_layerinfo(dst_zones)
+    assert layerinfo_zones.featurecount == 5
+    assert layerinfo_zones.name == "output_zones"
+    assert len(layerinfo_zones.columns) == 1
 
 
 @pytest.mark.parametrize(

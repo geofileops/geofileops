@@ -2592,8 +2592,10 @@ def copy_layer(
         src (PathLike): The source path. |GDAL_vsi| paths are also supported.
         dst (PathLike): The destination path. |GDAL_vsi| paths can be used for handlers
             with write support.
-        src_layer (str, optional): The source layer. If None and there is only
-            one layer in the src file, that layer is taken. Defaults to None.
+        src_layer (str, optional): The source layer. If the source contains a single
+            layer, that layer will be taken if `src_layer` is None. If it contains
+            multiple layers, `src_layer` is mandatory unless `sql_stmt` is specified.
+            Defaults to None.
         dst_layer (str, optional): The destination layer. If None, the destination file
             stem is taken as layer name. Defaults to None.
         write_mode (str, optional): The write mode. Defaults to "create". Valid values:
@@ -2717,6 +2719,9 @@ def copy_layer(
         sql_stmt = _fill_out_sql_placeholders(
             path=src, layer=src_layer, sql_stmt=sql_stmt, columns=columns
         )
+    elif src_layer is None:
+        # If no sql_stmt is specified, the src file should have only one layer
+        src_layer = get_only_layer(src)
 
     if dst_layer is None:
         dst_layer = get_default_layer(dst)
