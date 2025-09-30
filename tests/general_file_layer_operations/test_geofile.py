@@ -648,7 +648,7 @@ def test_copy_layer_force_output_geometrytype(tmp_path, testfile, force_geometry
         (
             {"src": test_helper.get_testfile("polygon-twolayers")},
             ValueError,
-            "input has > 1 layer, but no layer specified",
+            "input has > 1 layers: a layer must be specified",
         ),
     ],
 )
@@ -1248,7 +1248,9 @@ def test_get_layerinfo_twolayers():
     assert len(layerinfo.columns) == 1
 
     # Test error if no layer specified
-    with pytest.raises(ValueError, match="input has > 1 layer, but no layer specified"):
+    with pytest.raises(
+        ValueError, match="input has > 1 layers: a layer must be specified"
+    ):
         layerinfo = gfo.get_layerinfo(src)
 
 
@@ -1280,7 +1282,9 @@ def test_get_only_layer_two_layers():
     src = test_helper.get_testfile("polygon-twolayers")
     layers = gfo.listlayers(src)
     assert len(layers) == 2
-    with pytest.raises(ValueError, match="input has > 1 layer, but no layer specified"):
+    with pytest.raises(
+        ValueError, match="input has > 1 layers: a layer must be specified"
+    ):
         _ = gfo.get_only_layer(src)
 
 
@@ -1820,7 +1824,7 @@ def test_fill_out_sql_placeholders():
         (
             None,
             'SELECT * FROM "{input_layer}"',
-            "input has > 1 layer, but no layer specified",
+            "input has > 1 layers: a layer must be specified",
         ),
     ],
 )

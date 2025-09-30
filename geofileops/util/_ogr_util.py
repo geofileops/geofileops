@@ -528,7 +528,7 @@ def vector_translate(
                     input_layers = [input_ds.GetLayer(0).GetName()]
                 elif nb_layers > 1:
                     raise ValueError(
-                        f"input has > 1 layer, but no layer specified: {input_path}"
+                        f"input has > 1 layers: a layer must be specified: {input_path}"
                     )
 
             # If output_srs is not specified and the result has 0 rows, gdal creates the

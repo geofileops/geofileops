@@ -209,7 +209,9 @@ def test_vector_translate_input_multilayer_error(tmp_path):
     input_path = test_helper.get_testfile("polygon-twolayers")
 
     output_path = tmp_path / "output.gpkg"
-    with pytest.raises(ValueError, match="input has > 1 layer, but no layer specified"):
+    with pytest.raises(
+        ValueError, match="input has > 1 layers: a layer must be specified"
+    ):
         _ogr_util.vector_translate(str(input_path), output_path)
 
 

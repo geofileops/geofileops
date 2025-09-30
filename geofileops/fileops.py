@@ -527,7 +527,9 @@ def _get_only_layer(datasource: gdal.Dataset) -> ogr.Layer:
         if len(layers) == 1:
             return datasource.GetLayer(layers[0])
         else:
-            raise ValueError(f"input has > 1 layer, but no layer specified: {layers}")
+            raise ValueError(
+                f"input has > 1 layers: a layer must be specified: {layers}"
+            )
 
 
 def get_default_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
