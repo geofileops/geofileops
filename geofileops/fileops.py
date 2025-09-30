@@ -89,6 +89,66 @@ PRJ_EPSG_31370 = (
 )
 
 
+def concat(
+    src: Iterable[Union[str, "os.PathLike[Any]"]],
+    dst: Union[str, "os.PathLike[Any]"],
+    src_layers: Iterable[str | None] | None = None,
+    dst_layer: str | None = None,
+    force: bool = False,
+):
+    """Concatenate multiple geofiles into one output geofile.
+
+    Args:
+        src (Iterable[PathLike]): the paths to the files to concatenate.
+        dst (PathLike): the path to the output file.
+        src_layers (Iterable[str], optional): the layer names to use in the input
+            files. The layer names don't need to be specified for input files that only
+            contain a single layer. Defaults to None.
+        dst_layer (str, optional): the layer name to use in the destination file. If not
+            specified, the default layer name is used. Defaults to None.
+        force (bool, optional): True to overwrite the output file if it already exists.
+    """
+    # Validate + cleanup input parameters
+    src = list(src)
+    if src_layers is None:
+        src_layers = [None] * len(src)
+    else:
+        src_layers = list(src_layers)
+        if len(src_layers) != len(src):
+            raise ValueError(
+                "src_layers must have the same length as the src file list if specified"
+            )
+    if _vsi_exists(dst) and not force:
+        logger.info(f"Destination file already exists, so stop: {dst}")
+        return
+
+    # Concat all files
+    tmp_dir = _io_util.create_tempdir("concat")
+    tmp_dst = tmp_dir / Path(dst).name
+    is_first = True
+    for src_path, src_layer in zip(src, src_layers):
+        if is_first:
+            force_local = force
+            write_mode = "create"
+        else:
+            force_local = False
+            write_mode = "append"
+
+        copy_layer(
+            src=src_path,
+            dst=tmp_dst,
+            src_layer=src_layer,
+            dst_layer=dst_layer,
+            write_mode=write_mode,
+            force=force_local,
+        )
+
+        if is_first:
+            is_first = False
+
+    move(tmp_dst, dst)
+
+
 def listlayers(
     path: Union[str, "os.PathLike[Any]"], only_spatial_layers: bool = True
 ) -> list[str]:

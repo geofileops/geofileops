@@ -191,6 +191,24 @@ def test_cmp(tmp_path, suffix, keep_permissions):
     assert gfo.cmp(src2, dst) is False
 
 
+@pytest.mark.parametrize("output_suffix", SUFFIXES_FILEOPS)
+def test_concat(tmp_path, output_suffix):
+    """Test the concat function."""
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-twolayers", dst_dir=tmp_path)
+    dst = tmp_path / "output.gpkg"
+
+    # Test
+    gfo.concat([src, src, src], dst)
+
+    # Now check dst file
+    src_layerinfo = gfo.get_layerinfo(src)
+    dst_layerinfo = gfo.get_layerinfo(dst)
+    assert dst_layerinfo.featurecount == src_layerinfo.featurecount * 3
+    assert len(dst_layerinfo.columns) == len(src_layerinfo.columns)
+    assert dst_layerinfo.geometrytypename == src_layerinfo.geometrytypename
+
+
 def test_convert(tmp_path):
     """Test the convert function.
 
