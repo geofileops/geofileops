@@ -2719,9 +2719,6 @@ def copy_layer(
         sql_stmt = _fill_out_sql_placeholders(
             path=src, layer=src_layer, sql_stmt=sql_stmt, columns=columns
         )
-    elif src_layer is None:
-        # If no sql_stmt is specified, the src file should have only one layer
-        src_layer = get_only_layer(src)
 
     if dst_layer is None:
         dst_layer = get_default_layer(dst)

@@ -344,8 +344,10 @@ def vector_translate(
         # If a sql statement is passed, the input layers are not relevant,
         # and ogr2ogr will give a warning, so clear it.
         input_layers = None
-    if input_layers is not None and isinstance(input_layers, str):
+    if isinstance(input_layers, str):
         input_layers = [input_layers]
+    elif isinstance(input_layers, list) and len(input_layers) == 0:
+        input_layers = None
 
     # SRS
     if input_srs is not None and isinstance(input_srs, int):
@@ -518,6 +520,17 @@ def vector_translate(
 
                 raise
 
+            # if sql_stmt is None, input_layers must be specified if the input file has
+            # multiple layers.
+            if sql_stmt is None and input_layers is None:
+                nb_layers = input_ds.GetLayerCount()
+                if nb_layers == 1:
+                    input_layers = [input_ds.GetLayer(0).GetName()]
+                elif nb_layers > 1:
+                    raise ValueError(
+                        f"input has > 1 layer, but no layer specified: {input_path}"
+                    )
+
             # If output_srs is not specified and the result has 0 rows, gdal creates the
             # output file without srs.
             # documented in https://github.com/geofileops/geofileops/issues/313
@@ -553,14 +566,19 @@ def vector_translate(
             # creates an attribute column "geometry" in the output file. To be able to
             # detect this case later on, check here if the input file already has an
             # attribute column "geometry".
-            input_layer = input_ds.GetLayer()
-            layer_defn = input_layer.GetLayerDefn()
-            for field_idx in range(layer_defn.GetFieldCount()):
-                field_name_lower = layer_defn.GetFieldDefn(field_idx).GetName().lower()
-                if field_name_lower == "geom":
-                    input_has_geom_attribute = True
-                elif field_name_lower == "geometry":
-                    input_has_geometry_attribute = True
+            if input_layers is None or len(input_layers) == 1:
+                input_layer = input_layers[0] if input_layers is not None else None
+                if input_layer is None:
+                    datasource_layer = input_ds.GetLayer()
+                else:
+                    datasource_layer = input_ds.GetLayerByName(input_layer)
+                layer_defn = datasource_layer.GetLayerDefn()
+                for field in range(layer_defn.GetFieldCount()):
+                    field_name_lower = layer_defn.GetFieldDefn(field).GetName().lower()
+                    if field_name_lower == "geom":
+                        input_has_geom_attribute = True
+                    elif field_name_lower == "geometry":
+                        input_has_geometry_attribute = True
 
             # Consolidate all parameters
             # First take copy of args, because gdal.VectorTranslateOptions adds all
@@ -604,6 +622,8 @@ def vector_translate(
             raise RuntimeError("output_ds is None")
 
     except FileNotFoundError:
+        raise
+    except ValueError:
         raise
     except Exception as ex:
         output_ds = None
