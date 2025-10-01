@@ -1554,42 +1554,40 @@ def dissolve(
                     """
 
                 # Apply where_post parameter if needed/possible
-                if where_post is not None and not not explodecollections:
+                if where_post is not None and not explodecollections:
                     # explodecollections is not True, so we can add it to sql_stmt.
                     # If explodecollections would be True, we need to wait to apply the
-                    # where_post till after explodecollections is applied, so when
-                    # appending the partial results to the output file.
+                    # where_post till after explodecollections is applied to be sure it
+                    # gives correct results.
                     where_post = where_post.format(geometrycolumn="geom")
                     sql_stmt = f"""
                         SELECT * FROM
                             ( {sql_stmt}
                             )
-                        WHERE {where_post}
-                        ORDER BY layer.{geoindex_column}
+                         WHERE {where_post}
                     """
                     # where_post has been applied already so set to None.
                     where_post = None
 
+                # Execute the prepared sql statement
                 output_geometrytype = (
                     input_layer.geometrytype.to_singletype
                     if explodecollections
                     else input_layer.geometrytype.to_multitype
                 )
-
-                # Fill out + run the sql statement
-                output_spatial_index = GeofileInfo(output_path).default_spatial_index
-                if where_post is None:
-                    name = f"output_tmp2_final{output_path.suffix}"
-                else:
-                    name = f"output_tmp2_final{output_tmp_path.suffix}"
-                output_tmp_final_path = tempdir / name
                 sql_stmt = sql_stmt.format(
                     geometrycolumn="geom", input_layer=output_layer
                 )
 
-                create_spatial_index = (
-                    output_spatial_index if where_post is None else False
-                )
+                options = {}
+                if where_post is None:
+                    name = f"output_tmp2_final{output_path.suffix}"
+                else:
+                    # where_post still needs to be ran, so no index + to gpkg
+                    name = f"output_tmp2_final{output_tmp_path.suffix}"
+                    options["LAYER_CREATION.SPATIAL_INDEX"] = False
+                output_tmp_final_path = tempdir / name
+
                 _ogr_util.vector_translate(
                     input_path=output_tmp_path,
                     output_path=output_tmp_final_path,
@@ -1598,7 +1596,7 @@ def dissolve(
                     sql_dialect="SQLITE",
                     force_output_geometrytype=output_geometrytype,
                     explodecollections=explodecollections,
-                    options={"LAYER_CREATION.SPATIAL_INDEX": create_spatial_index},
+                    options=options,
                 )
 
                 # We still need to apply the where_post filter
