@@ -8,15 +8,17 @@ from tests import test_helper
 
 
 @pytest.mark.parametrize(
-    "columns, spatial_index, output_layer, output_suffix",
+    "columns, spatial_index, input_layers, output_layer, output_suffix",
     [
-        (None, None, None, ".gpkg"),
-        (None, None, None, ".shp"),
-        (["OIDN", "UIDN"], False, "custom", ".gpkg"),
-        (["OIDN"], True, None, ".shp"),
+        (None, None, [None, "parcels", "parcels"], None, ".gpkg"),
+        (None, None, "parcels", None, ".shp"),
+        (["OIDN", "UIDN"], False, "parcels", "custom", ".gpkg"),
+        (["OIDN"], True, ["parcels", "parcels", "parcels"], None, ".shp"),
     ],
 )
-def test_concat(tmp_path, columns, spatial_index, output_layer, output_suffix):
+def test_concat(
+    tmp_path, columns, spatial_index, input_layers, output_layer, output_suffix
+):
     """Test the concat function."""
     # Prepare test data
     input1 = test_helper.get_testfile("polygon-parcel")
@@ -27,7 +29,7 @@ def test_concat(tmp_path, columns, spatial_index, output_layer, output_suffix):
     gfo.concat(
         [input1, input1, input2],
         output,
-        input_layers=[None, "parcels", "parcels"],
+        input_layers=input_layers,
         output_layer=output_layer,
         columns=columns,
         create_spatial_index=spatial_index,

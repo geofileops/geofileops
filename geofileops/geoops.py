@@ -1956,7 +1956,7 @@ def clip(
 def concat(
     input_paths: list[Union[str, "os.PathLike[Any]"]],
     output_path: Union[str, "os.PathLike[Any]"],
-    input_layers: list[str | None] | None = None,
+    input_layers: list[str | None] | str | None = None,
     output_layer: str | None = None,
     columns: list[str] | None = None,
     explodecollections: bool = False,
@@ -1976,9 +1976,10 @@ def concat(
     Args:
         input_paths (list[PathLike]): the paths to the files to concatenate.
         output_path (PathLike): the path to the output file.
-        input_layers (list[str | None], optional): the layer names to use in the
-            input files. The layer names don't need to be specified for input files that
-            only contain a single layer. Defaults to None.
+        input_layers (list[str | None] | str, optional): the layer names to use in the
+            input files. The layer names can be None for input files that only contain a
+            single layer. If a single value is specified, this value is used for all
+            input files. Defaults to None.
         output_layer (str, optional): the layer name to use in the output file. If not
             specified, the default layer name is used. Defaults to None.
         columns (list[str], optional): the columns to keep in the output file.
@@ -1993,8 +1994,8 @@ def concat(
     """
     # Validate + cleanup input parameters
     logger = logging.getLogger("geofileops.concat")
-    if input_layers is None:
-        input_layers = [None] * len(input_paths)
+    if input_layers is None or isinstance(input_layers, str):
+        input_layers = [input_layers] * len(input_paths)
     elif len(input_layers) != len(input_paths):
         raise ValueError(
             "src_layers must have the same length as the src file list if specified"
