@@ -796,7 +796,6 @@ def _apply_geooperation_to_layer(
             parallelization_config=parallelization_config,
             tmp_dir=tmp_dir,
         )
-        assert process_params.batches is not None
 
         # Start processing
         worker_type = _general_helper.worker_type_to_use(
@@ -1005,7 +1004,6 @@ def _apply_geooperation(
 
     # If there is an fid column in the dataset, rename it, because the fid column is a
     # "special case" in gdal that should not be written.
-    assert isinstance(data_gdf, gpd.GeoDataFrame)
     columns_lower_lookup = {column.lower(): column for column in data_gdf.columns}
     if "fid" in columns_lower_lookup:
         fid_column = columns_lower_lookup["fid"]
@@ -1176,7 +1174,6 @@ def dissolve(
         # First take a deep copy, as values can be changed further on to treat columns
         # case insensitive
         agg_columns = json.loads(json.dumps(agg_columns))
-        assert agg_columns is not None
         if "json" in agg_columns:
             if agg_columns["json"] is None:
                 agg_columns["json"] = [
@@ -2004,10 +2001,8 @@ def _dissolve_polygons(
             # keep_geom_type=True gave sometimes error, and still does in 0.9.0
             # so use own implementation of keep_geom_type
             diss_gdf = gpd.clip(diss_gdf, bbox_gdf)  # , keep_geom_type=True)
-            assert isinstance(diss_gdf, gpd.GeoDataFrame)
 
         # Only keep geometries of the primitive type specified after clip...
-        assert isinstance(diss_gdf, gpd.GeoDataFrame)
         diss_gdf.geometry = pygeoops.collection_extract(
             diss_gdf.geometry, primitivetype=input_geometrytype.to_primitivetype
         )
@@ -2015,12 +2010,10 @@ def _dissolve_polygons(
         perfinfo["time_clip"] = (datetime.now() - start_clip).total_seconds()
 
     # Set empty geometries to None
-    assert isinstance(diss_gdf.geometry, gpd.GeoSeries)
     diss_gdf.loc[diss_gdf.geometry.is_empty, diss_gdf.geometry.name] = None
 
     if not keep_empty_geoms:
         # Remove rows where geom is None
-        assert isinstance(diss_gdf, gpd.GeoDataFrame)
         diss_gdf = diss_gdf[~diss_gdf.geometry.isna()]
 
     # If there is no result, return
@@ -2030,9 +2023,6 @@ def _dissolve_polygons(
         return_info["perfinfo"] = perfinfo
         return_info["total_time"] = (datetime.now() - start_time).total_seconds()
         return return_info
-
-    # Add column with tile_id
-    assert isinstance(diss_gdf, gpd.GeoDataFrame)
 
     # Split up in onborder and notonborder geometries
     if str(output_notonborder_path) == str(output_onborder_path):
@@ -2048,7 +2038,7 @@ def _dissolve_polygons(
         onborder_gdf = gpd.sjoin(diss_gdf, bbox_lines_gdf, predicate="intersects")
         onborder_gdf.drop("index_right", axis=1, inplace=True)
 
-        notonborder_gdf = diss_gdf[~diss_gdf.index.isin(onborder_gdf.index)]
+        notonborder_gdf = diss_gdf[~diss_gdf.index.isin(onborder_gdf.index)].copy()
 
     # Save the result to destination file(s)
     start_to_file = datetime.now()
@@ -2260,7 +2250,6 @@ def _dissolve(
     else:
         agg_data = data.groupby(**groupby_kwargs).agg(aggfunc)  # type: ignore[arg-type]
         # Check if all columns were properly aggregated
-        assert by_local is not None
         columns_to_agg = [column for column in data.columns if column not in by_local]
         if len(columns_to_agg) != len(agg_data.columns):
             dropped_columns = [
@@ -2300,7 +2289,6 @@ def _dissolve(
                 if col in aggregated.columns and df[col].dtype != aggregated[col].dtype:
                     aggregated[col] = aggregated[col].astype(df[col].dtype)
 
-    assert isinstance(aggregated, gpd.GeoDataFrame)
     return aggregated
 
 
