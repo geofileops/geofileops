@@ -101,6 +101,9 @@ def concat(
 ):
     """Concatenate multiple geofiles into one output geofile.
 
+    The input files will be appended one after the other in the output file, so only
+    output file types that support appending can be used.
+
     Args:
         input_paths (Iterable[PathLike]): the paths to the files to concatenate.
         output_path (PathLike): the path to the output file.
