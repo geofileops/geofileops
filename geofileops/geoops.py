@@ -1982,7 +1982,8 @@ def concat(
         output_layer (str, optional): the layer name to use in the output file. If not
             specified, the default layer name is used. Defaults to None.
         columns (list[str], optional): the columns to keep in the output file.
-            If not specified, all columns are kept. Defaults to None.
+            If None, all columns present in the first input file are retained.
+            Defaults to None.
         explodecollections (bool, optional): True to explode geometry collections
             into separate features. Defaults to False.
         create_spatial_index (bool, optional): True to create a spatial index on the
