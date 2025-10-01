@@ -2290,38 +2290,3 @@ def _dissolve(
                     aggregated[col] = aggregated[col].astype(df[col].dtype)
 
     return aggregated
-
-
-def _add_orderby_column(path: Path, layer: str, name: str):
-    # Prepare the expression to calculate the orderby column.
-    # In a spatial file, a spatial order will make later use more efficiënt,
-    # so use a geohash.
-    layerinfo = gfo.get_layerinfo(path, layer=layer)
-    if layerinfo.crs is not None and layerinfo.crs.is_geographic:
-        # If the coordinates are geographic (in lat/lon degrees), ok
-        expression = f"ST_GeoHash({layerinfo.geometrycolumn}, 10)"
-    else:
-        # If they are not geographic (in lat/lon degrees), they need to be
-        # converted to ~ degrees to be able to calculate a geohash.
-
-        # Properly calculating the transformation to eg. WGS is terribly slow...
-        # expression = f"""ST_GeoHash(ST_Transform(MakePoint(
-        #       (MbrMaxX(geom)+MbrMinX(geom))/2,
-        #       (MbrMinY(geom)+MbrMaxY(geom))/2, ST_SRID(geom)), 4326), 10)"""
-        # So, do something else that's faster and still gives a good
-        # geographic clustering.
-        to_geographic_factor_approx = 90 / max(layerinfo.total_bounds)
-        expression = f"""ST_GeoHash(MakePoint(
-                ((MbrMaxX({layerinfo.geometrycolumn})
-                  +MbrMinX({layerinfo.geometrycolumn}))/2
-                )*{to_geographic_factor_approx},
-                ((MbrMinY({layerinfo.geometrycolumn})
-                  +MbrMaxY({layerinfo.geometrycolumn}))/2
-                )*{to_geographic_factor_approx}, 4326), 10)"""
-
-    # Now we can actually add the column.
-    gfo.add_column(
-        path=path, layer=layer, name=name, type=gfo.DataType.TEXT, expression=expression
-    )
-    sqlite_stmt = f'CREATE INDEX {name}_idx ON "{layer}"({name})'
-    gfo.execute_sql(path=path, sql_stmt=sqlite_stmt)
