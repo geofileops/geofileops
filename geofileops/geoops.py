@@ -1968,7 +1968,7 @@ def concat(
     The input files will be appended one after the other in the output file, so only
     output file types that support appending can be used.
 
-    Only the columns that are present in the first input files are retained. If columns
+    Only the columns that are present in the first input file are retained. If columns
     are not present in other input files, the values for those rows will be NULL. If
     other input files contain columns that are not present in the first input file,
     those columns will be ignored.
