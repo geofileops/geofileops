@@ -27,6 +27,7 @@ import pygeoops
 import shapely
 import shapely.geometry as sh_geom
 from pygeoops import GeometryType, PrimitiveType
+from pyproj import Transformer
 
 import geofileops as gfo
 from geofileops import LayerInfo, fileops
@@ -1287,6 +1288,8 @@ def dissolve(
             prev_nb_batches = None
             last_pass = False
             pass_id = 0
+            geoindex_column = "__tmp_geoindex_column__"
+
             logger.info(f"Start, with input {input_path}")
             input_pass_path = input_path
             input_pass_layer = input_layer
@@ -1380,6 +1383,7 @@ def dissolve(
                     gridsize=gridsize,
                     keep_empty_geoms=False,
                     nb_parallel=nb_parallel,
+                    geoindex_column=geoindex_column,
                     on_data_error=on_data_error,
                 )
                 logger.info(f"Pass {pass_id} ready, took {datetime.now() - pass_start}")
@@ -1496,8 +1500,6 @@ def dissolve(
                             )
 
                 # Prepare SQL statement for final output file if one is needed.
-                sql_stmt = None
-                output_spatial_index = GeofileInfo(output_path).default_spatial_index
 
                 # All tiles are already dissolved to groups, but now the results from
                 # all tiles could still need to be grouped/collected together.
@@ -1506,8 +1508,13 @@ def dissolve(
                     # complicated.
                     if explodecollections:
                         # As explodecollections is also true, no grouping nor collecting
-                        # needed, so sql_stmt can just stay None.
-                        output_tmp2_final_path = output_tmp_path
+                        # needed.
+                        sql_stmt = f"""
+                            SELECT {{geometrycolumn}}
+                                  {groupby_select_prefixed_str.format(prefix="layer.")}
+                              FROM "{{input_layer}}" layer
+                             ORDER BY layer.{geoindex_column}
+                        """
                     else:
                         # No explodecollections, so collect to one geometry
                         # (per groupby if applicable).
@@ -1516,6 +1523,7 @@ def dissolve(
                                   {groupby_select_prefixed_str.format(prefix="layer.")}
                               FROM "{{input_layer}}" layer
                               {groupby_groupby_prefixed_str.format(prefix="layer.")}
+                             ORDER BY MIN(layer.{geoindex_column})
                         """
                 else:
                     # If agg_columns specified, postprocessing is a bit more
@@ -1528,6 +1536,7 @@ def dissolve(
                             SELECT ST_Collect(layer_geo.{{geometrycolumn}}
                                    ) AS {{geometrycolumn}}
                                   {groupby_select_prefixed_str.format(prefix="layer_geo.")}
+                                  ,MIN(layer_geo.{geoindex_column}) as {geoindex_column}
                               FROM "{{input_layer}}" layer_geo
                               {groupby_groupby_prefixed_str.format(prefix="layer_geo.")}
                             ) geo_data
@@ -1541,6 +1550,7 @@ def dissolve(
                          WHERE 1=1
                             {groupby_filter_str}
                           {groupby_groupby_prefixed_str.format(prefix="geo_data.")}
+                          ORDER BY geo_data.{geoindex_column}
                     """
 
                 # Apply where_post parameter if needed/possible
@@ -1550,17 +1560,12 @@ def dissolve(
                     # where_post till after explodecollections is applied, so when
                     # appending the partial results to the output file.
                     where_post = where_post.format(geometrycolumn="geom")
-                    if sql_stmt is None:
-                        sql_stmt = f"""
-                            SELECT {{geometrycolumn}}
-                                  {groupby_select_prefixed_str.format(prefix="layer.")}
-                              FROM "{{input_layer}}" layer
-                        """
                     sql_stmt = f"""
                         SELECT * FROM
                             ( {sql_stmt}
                             )
                         WHERE {where_post}
+                        ORDER BY layer.{geoindex_column}
                     """
                     # where_post has been applied already so set to None.
                     where_post = None
@@ -1570,73 +1575,57 @@ def dissolve(
                     if explodecollections
                     else input_layer.geometrytype.to_multitype
                 )
-                if sql_stmt is not None:
-                    if where_post is None:
-                        name = f"output_tmp2_final{output_path.suffix}"
-                    else:
-                        name = f"output_tmp2_final{output_tmp_path.suffix}"
-                    output_tmp2_final_path = tempdir / name
-                    sql_stmt = sql_stmt.format(
-                        geometrycolumn="geom", input_layer=output_layer
-                    )
 
-                    create_spatial_index = (
-                        output_spatial_index if where_post is None else False
-                    )
-                    _ogr_util.vector_translate(
-                        input_path=output_tmp_path,
-                        output_path=output_tmp2_final_path,
-                        output_layer=output_layer,
-                        sql_stmt=sql_stmt,
-                        sql_dialect="SQLITE",
-                        force_output_geometrytype=output_geometrytype,
-                        explodecollections=explodecollections,
-                        options={"LAYER_CREATION.SPATIAL_INDEX": create_spatial_index},
-                    )
+                # Fill out + run the sql statement
+                output_spatial_index = GeofileInfo(output_path).default_spatial_index
+                if where_post is None:
+                    name = f"output_tmp2_final{output_path.suffix}"
+                else:
+                    name = f"output_tmp2_final{output_tmp_path.suffix}"
+                output_tmp_final_path = tempdir / name
+                sql_stmt = sql_stmt.format(
+                    geometrycolumn="geom", input_layer=output_layer
+                )
+
+                create_spatial_index = (
+                    output_spatial_index if where_post is None else False
+                )
+                _ogr_util.vector_translate(
+                    input_path=output_tmp_path,
+                    output_path=output_tmp_final_path,
+                    output_layer=output_layer,
+                    sql_stmt=sql_stmt,
+                    sql_dialect="SQLITE",
+                    force_output_geometrytype=output_geometrytype,
+                    explodecollections=explodecollections,
+                    options={"LAYER_CREATION.SPATIAL_INDEX": create_spatial_index},
+                )
 
                 # We still need to apply the where_post filter
                 if where_post is not None:
                     name = f"output_tmp3_where{output_path.suffix}"
-                    output_tmp3_where_path = tempdir / name
-                    output_tmp2_info = gfo.get_layerinfo(output_tmp2_final_path)
+                    output_tmp_local_path = tempdir / name
+                    tmp_info = gfo.get_layerinfo(output_tmp_final_path, output_layer)
                     where_post = where_post.format(
-                        geometrycolumn=output_tmp2_info.geometrycolumn
+                        geometrycolumn=tmp_info.geometrycolumn
                     )
                     sql_stmt = f"""
                         SELECT * FROM "{output_layer}"
                          WHERE {where_post}
                     """
-                    tmp_info = gfo.get_layerinfo(output_tmp2_final_path, output_layer)
                     sql_stmt = sql_stmt.format(geometrycolumn=tmp_info.geometrycolumn)
                     _ogr_util.vector_translate(
-                        input_path=output_tmp2_final_path,
-                        output_path=output_tmp3_where_path,
+                        input_path=output_tmp_final_path,
+                        output_path=output_tmp_local_path,
                         output_layer=output_layer,
                         force_output_geometrytype=output_geometrytype,
                         sql_stmt=sql_stmt,
                         sql_dialect="SQLITE",
                     )
-                    output_tmp2_final_path = output_tmp3_where_path
+                    output_tmp_final_path = output_tmp_local_path
 
-                if output_path.suffix.lower() == output_tmp2_final_path.suffix.lower():
-                    # If output format is the same as tmp2 format, we can move it
-                    # directly to the final output path
-                    # Make sure the output has a spatial index if needed
-                    if output_spatial_index:
-                        gfo.create_spatial_index(
-                            output_tmp2_final_path, layer=output_layer, exist_ok=True
-                        )
-
-                    # Now we are ready to move the result to the final spot...
-                    gfo.move(output_tmp2_final_path, output_path)
-                else:
-                    # Different format, so copy the file
-                    _ogr_util.vector_translate(
-                        input_path=output_tmp2_final_path,
-                        output_path=output_path,
-                        output_layer=output_layer,
-                        force_output_geometrytype=output_geometrytype,
-                    )
+                # Now we are ready to move the result to the final spot...
+                gfo.move(output_tmp_final_path, output_path)
 
         finally:
             if ConfigOptions.remove_temp_files:
@@ -1663,6 +1652,7 @@ def _dissolve_polygons_pass(
     gridsize: float,
     keep_empty_geoms: bool,
     nb_parallel: int,
+    geoindex_column: str,
     on_data_error: str = "raise",
 ):
     start_time = datetime.now()
@@ -1724,6 +1714,7 @@ def _dissolve_polygons_pass(
                 tile_id=tile_id,
                 gridsize=gridsize,
                 keep_empty_geoms=keep_empty_geoms,
+                geoindex_column=geoindex_column,
                 on_data_error=on_data_error,
             )
             future_to_batch_id[future] = batch_id
@@ -1833,6 +1824,7 @@ def _dissolve_polygons(
     tile_id: int | None,
     gridsize: float,
     keep_empty_geoms: bool,
+    geoindex_column: str | None,
     on_data_error: str = "raise",
 ) -> dict:
     # Init
@@ -2043,29 +2035,12 @@ def _dissolve_polygons(
 
     # Add column with tile_id
     assert isinstance(diss_gdf, gpd.GeoDataFrame)
-    if tile_id is not None:
-        diss_gdf["tile_id"] = tile_id
 
-    # Save the result to destination file(s)
-    start_to_file = datetime.now()
-
-    # If explodecollections is False, force multitype to avoid warnings when some
-    # batches contain singletype and some contain multitype geometries.
-    force_multitype = not explodecollections
-
-    # If the tiles don't need to be merged afterwards, we can just save the result as
-    # it is.
+    # Split up in onborder and notonborder geometries
     if str(output_notonborder_path) == str(output_onborder_path):
-        # assert to avoid pyLance warning
-        assert isinstance(diss_gdf, gpd.GeoDataFrame)
-        gfo.to_file(
-            diss_gdf,
-            output_notonborder_path,
-            layer=output_layer,
-            force_multitype=force_multitype,
-            index=False,
-            create_spatial_index=False,
-        )
+        # If tiles don't need to be merged afterwards, treat everything as notonborder.
+        onborder_gdf = None
+        notonborder_gdf = diss_gdf
     else:
         # If not, save the polygons on the border seperately
         bbox_lines = pygeoops.explode(
@@ -2074,29 +2049,47 @@ def _dissolve_polygons(
         bbox_lines_gdf = gpd.GeoDataFrame(geometry=bbox_lines, crs=input_gdf.crs)
         onborder_gdf = gpd.sjoin(diss_gdf, bbox_lines_gdf, predicate="intersects")
         onborder_gdf.drop("index_right", axis=1, inplace=True)
-        if len(onborder_gdf) > 0:
-            # Use force_multitype, to avoid warnings when some batches contain
-            # singletype and some contain multitype geometries
-            gfo.to_file(
-                onborder_gdf,
-                output_onborder_path,
-                layer=output_layer,
-                force_multitype=force_multitype,
-                create_spatial_index=False,
-            )
 
         notonborder_gdf = diss_gdf[~diss_gdf.index.isin(onborder_gdf.index)]
-        if len(notonborder_gdf) > 0:
-            # Use force_multitype, to avoid warnings when some batches contain
-            # singletype and some contain multitype geometries
-            gfo.to_file(
-                notonborder_gdf,
-                output_notonborder_path,
-                layer=output_layer,
-                force_multitype=force_multitype,
-                index=False,
-                create_spatial_index=False,
+
+    # Save the result to destination file(s)
+    start_to_file = datetime.now()
+
+    # If explodecollections is False, force multitype to avoid warnings when some
+    # batches contain singletype and some contain multitype geometries.
+    force_multitype = not explodecollections
+    if onborder_gdf is not None and len(onborder_gdf) > 0:
+        gfo.to_file(
+            onborder_gdf,
+            output_onborder_path,
+            layer=output_layer,
+            force_multitype=force_multitype,
+            create_spatial_index=False,
+        )
+
+    if len(notonborder_gdf) > 0:
+        # Add tile_id to the notonborder_gdf if relevant
+        if tile_id is not None:
+            notonborder_gdf["tile_id"] = tile_id
+
+        # Add geoindex_column to the notonborder_gdf if asked
+        if geoindex_column is not None:
+            crs = notonborder_gdf.crs
+            transformer = Transformer.from_crs(crs.geodetic_crs, crs, always_xy=True)
+            crs_bounds = transformer.transform_bounds(*crs.area_of_use.bounds)
+            notonborder_gdf[geoindex_column] = notonborder_gdf.hilbert_distance(
+                crs_bounds
             )
+
+        gfo.to_file(
+            notonborder_gdf,
+            output_notonborder_path,
+            layer=output_layer,
+            force_multitype=force_multitype,
+            index=False,
+            create_spatial_index=False,
+        )
+
     perfinfo["time_to_file"] = (datetime.now() - start_to_file).total_seconds()
 
     # Finalise...
