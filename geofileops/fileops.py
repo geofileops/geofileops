@@ -1701,26 +1701,20 @@ def _read_file_base_pyogrio(
                 if column.upper() in columns_upper_lookup
             }
 
-        # When reading datetime columns, don't use arrow as this can give issues.
-        # See https://github.com/geopandas/pyogrio/issues/487
-        if use_arrow and (columns is None or len(columns) > 0):
-            if not isinstance(layer, LayerInfo):
-                layer = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
-
-            # Convert column names to upper to be able to check them case insensitive
-            columns_upper = None
-            if columns is not None:
-                columns_upper = {column.upper() for column in columns}
-
-            for column in layer.columns.values():
-                if columns_upper is None or column.name.upper() in columns_upper:
-                    if column.gdal_type in {"Date", "Time", "DateTime"}:
-                        use_arrow = False
-                        break
-
         # If no sql + no layer specified, there should be only one layer in the file.
         if layer is None:
             layer = get_only_layer(path)
+
+        # When reading datetime columns, don't use arrow as this can give issues.
+        # See https://github.com/geopandas/pyogrio/issues/487
+        if use_arrow and (columns is None or len(columns) > 0):
+            if _has_datetime_column(path, layer, columns):
+                use_arrow = False
+                logger.info(
+                    "arrow disabled to read layer: a datetime column is read, "
+                    f"which has known issues with arrow: {path}#{layer}"
+                )
+
     else:
         # Fill out placeholders, keep columns_prepared None because column filtering
         # should happen in sql_stmt.
@@ -1730,21 +1724,17 @@ def _read_file_base_pyogrio(
 
         # When reading datetime columns, don't use arrow as this can give issues.
         # See https://github.com/geopandas/pyogrio/issues/487
-        # Remark: is only checked if columns is not None, because otherwise the layer
-        # name needs to become mandatory without column names being specified, which
-        # would be a breaking and really wanted change.
+        # Remark: as an sql_stmt is used here, it is only checked if columns is not
+        # None, because otherwise the layer name needs to become mandatory without
+        # column names being specified, which would be a breaking and really unwanted
+        # change.
         if use_arrow and (columns is not None and len(columns) > 0):
-            if not isinstance(layer, LayerInfo):
-                layer = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
-
-            # Convert column names to upper to be able to check them case insensitive
-            columns_upper = {column.upper() for column in columns}
-
-            for column in layer.columns.values():
-                if columns is None or column.name.upper() in columns_upper:
-                    if column.gdal_type in {"Date", "Time", "DateTime"}:
-                        use_arrow = False
-                        break
+            if _has_datetime_column(path, layer, columns):
+                use_arrow = False
+                logger.info(
+                    "arrow disabled to read layer: a datetime column is read, "
+                    f"which has known issues with arrow: {path}#{layer}"
+                )
 
         # Specifying a layer as well as an SQL statement in pyogrio is not supported.
         layer = None
@@ -1788,6 +1778,28 @@ def _read_file_base_pyogrio(
 
     assert isinstance(result_gdf, gpd.GeoDataFrame | pd.DataFrame)
     return result_gdf
+
+
+def _has_datetime_column(
+    path: Union[str, "os.PathLike[Any]"],
+    layer: str | LayerInfo | None,
+    columns: Iterable[str] | None,
+) -> bool:
+    """Check if the layer has a datetime column."""
+    if not isinstance(layer, LayerInfo):
+        layer = get_layerinfo(path, layer=layer, raise_on_nogeom=False)
+
+    # Convert column names to upper to be able to check them case insensitive
+    columns_upper = None
+    if columns is not None:
+        columns_upper = {column.upper() for column in columns}
+
+    for column in layer.columns.values():
+        if columns_upper is None or column.name.upper() in columns_upper:
+            if column.gdal_type in {"Date", "Time", "DateTime"}:
+                return True
+
+    return False
 
 
 def _fill_out_sql_placeholders(
@@ -2192,6 +2204,18 @@ def _to_file_pyogrio(
                 "destination layer doesn't have the same columns as gdf: "
                 f"{file_cols} vs {gdf_cols}"
             )
+
+    # When writing datetime columns, don't use arrow as this can give issues.
+    # See https://github.com/geopandas/pyogrio/issues/487
+    # Remark: is only checked if columns is not None, because otherwise the layer
+    # name needs to become mandatory without column names being specified, which
+    # would be a breaking and really wanted change.
+    if use_arrow and len(gdf.select_dtypes(include=["datetime64"])) > 0:
+        use_arrow = False
+        logger.info(
+            "arrow disabled to write layer: a datetime column is written, "
+            f"which has known issues with arrow: {path}#{layer}"
+        )
 
     # Prepare kwargs to use in geopandas.to_file
     if create_spatial_index is not None:
