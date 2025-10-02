@@ -1988,19 +1988,9 @@ def _dissolve_polygons(
             data=[1], geometry=[bbox_polygon], crs=input_gdf.crs
         )
 
-        # Catch irrelevant pandas future warning
-        # TODO: when removed in later version of pandas, can be removed here
-        with warnings.catch_warnings():
-            message = (
-                "In a future version, `df.iloc[:, i] = newvals` will attempt to "
-                "set the values inplace instead of always setting a new array."
-            )
-            warnings.filterwarnings(
-                action="ignore", category=FutureWarning, message=re.escape(message)
-            )
-            # keep_geom_type=True gave sometimes error, and still does in 0.9.0
-            # so use own implementation of keep_geom_type
-            diss_gdf = gpd.clip(diss_gdf, bbox_gdf)  # , keep_geom_type=True)
+        # keep_geom_type=True gave sometimes error, and still does in 0.9.0
+        # so use own implementation of keep_geom_type
+        diss_gdf = gpd.clip(diss_gdf, bbox_gdf)  # , keep_geom_type=True)
 
         # Only keep geometries of the primitive type specified after clip...
         diss_gdf.geometry = pygeoops.collection_extract(
