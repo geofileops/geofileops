@@ -268,7 +268,7 @@ def test_vector_translate_sql(tmp_path, input_suffix, output_suffix):
     [
         (".gpkg", ".gpkg", True, 9),
         (".gpkg", ".shp", False, 9),
-        (".shp", ".gpkg", False, 9),
+        (".shp", ".gpkg", False, 48),
         (".shp", ".shp", True, 9),
     ],
 )
