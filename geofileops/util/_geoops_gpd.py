@@ -8,7 +8,6 @@ import logging.config
 import math
 import multiprocessing
 import pickle
-import re
 import shutil
 import time
 import warnings
