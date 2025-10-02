@@ -1975,18 +1975,7 @@ def _dissolve_polygons(
     # lines isn't so computationally heavy anyway, drop support here.
     if bbox is not None:
         start_clip = datetime.now()
-        bbox_polygon = sh_geom.Polygon(
-            [
-                (bbox[0], bbox[1]),
-                (bbox[0], bbox[3]),
-                (bbox[2], bbox[3]),
-                (bbox[2], bbox[1]),
-                (bbox[0], bbox[1]),
-            ]
-        )
-        bbox_gdf = gpd.GeoDataFrame(
-            data=[1], geometry=[bbox_polygon], crs=input_gdf.crs
-        )
+        bbox_gdf = gpd.GeoDataFrame(geometry=[sh_geom.box(*bbox)], crs=input_gdf.crs)
 
         # keep_geom_type=True gave sometimes error, and still does in 0.9.0
         # so use own implementation of keep_geom_type
