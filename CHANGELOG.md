@@ -9,15 +9,15 @@
 
 ### Improvements
 
-- Use io-engine `"pyogrio-arrow"` by default. This can increase performance to read and
-  write dataframes and can speed up geopandas based operations like `dissolve`,...
-  (#392)
 - Improve performance of clip with a complex clip layer (#740)
 - Improve performance of most operations by using a direct gpkg to gpkg append via
   sqlite where possible (#728)
 - Improve performance of the subdividividing used in many operations (#730)
 - Improve performance of `dissolve` (#748)
 - Improve performance of two-layer operations using `nb_parallel=1` (#692)
+- Add support for the `"pyogrio-arrow"` gfo io-engine, and use it by default. This
+  increases performance for reading and writing dataframes as well as for geopandas
+  based operations like `dissolve`,... (#392)
 - Alternative query for clip + default subdivide_coords to 15000 (#450)
 - Ensure that the featurecount is properly cached in GPKG files, also for older GDAL
   versions + small refactor (#693)

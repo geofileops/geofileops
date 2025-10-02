@@ -27,6 +27,11 @@ from tests.test_helper import (
     assert_geodataframe_equal,
 )
 
+try:
+    import simplification
+except ImportError:
+    simplification = None
+
 # Init gfo module
 current_geoops_module = "unknown"
 GEOOPS_MODULES = [
@@ -1203,6 +1208,12 @@ def test_simplify_algorithms(tmp_path, algorithm):
     """
     Rude check on supported algorithms.
     """
+    if not simplification and algorithm in [
+        "vw",
+        geoops.SimplifyAlgorithm.VISVALINGAM_WHYATT,
+    ]:
+        pytest.skip("Simplification not available, skipping vw tests")
+
     input_path = test_helper.get_testfile("polygon-parcel")
     output_path = tmp_path / f"{input_path.stem}_output.gpkg"
 
