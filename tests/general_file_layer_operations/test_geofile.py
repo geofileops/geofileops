@@ -2592,7 +2592,7 @@ def test_to_file_nogeom(tmp_path, suffix):
         raise ValueError(f"test not implemented for suffix {suffix}")
 
 
-@pytest.mark.skipif(not _compat.PYOGRIO_GTE_08, reason="Requires pyogrio>=0.8")
+@pytest.mark.skipif(not _compat.PYOGRIO_GTE_010, reason="Requires pyogrio>=0.10")
 def test_to_file_vsi(tmp_path):
     """Test writing to a file in vsimem."""
     # Prepare test data
