@@ -4,7 +4,8 @@
 
 ### Deprecations and compatibility notes
 
-- Minimum version of dependencies updated to GDAL 3.8, pyogrio 0.8, geopandas 0.13.
+- Minimum version of dependencies updated to GDAL 3.8, pyogrio 0.8, geopandas 0.13 and
+  spatialite 5.1.
 
 ### Improvements
 
