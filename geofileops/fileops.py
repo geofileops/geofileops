@@ -1343,7 +1343,7 @@ def read_file(
     The underlying library used to read the file can be choosen using the
     "GFO_IO_ENGINE" environment variable. Possible values are "pyogrio", "pyogrio-arrow"
     and "fiona". In the future support for the "fiona" engine most likely will be
-    removed. Default engine is "pyogrio".
+    removed. Default engine is "pyogrio-arrow".
 
     When a file with CURVE geometries is read, they are transformed on the fly to LINEAR
     geometries, as shapely/geopandas doesn't support CURVE geometries.
@@ -1896,7 +1896,7 @@ def to_file(
 
     The underlying library used to write the file can be choosen using the
     "GFO_IO_ENGINE" environment variable. Possible values are "pyogrio", "pyogrio-arrow"
-    and "fiona". Default engine is "pyogrio".
+    and "fiona". Default engine is "pyogrio-arrow".
 
     Args:
         gdf (gpd.GeoDataFrame): The GeoDataFrame to export to file.
