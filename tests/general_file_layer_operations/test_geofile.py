@@ -28,12 +28,9 @@ from tests.test_helper import (
 try:
     import fiona  # noqa: F401
 
-    ENGINES = ["fiona", "pyogrio"]
+    ENGINES = ["fiona", "pyogrio", "pyogrio-arrow"]
 except ImportError:
-    ENGINES = ["pyogrio"]
-
-if _compat.PYOGRIO_GTE_08:
-    ENGINES.append("pyogrio-arrow")
+    ENGINES = ["pyogrio", "pyogrio-arrow"]
 
 gdal.UseExceptions()
 

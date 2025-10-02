@@ -26,7 +26,6 @@ from osgeo import gdal, ogr
 from pandas.api.types import is_integer_dtype
 from pygeoops import GeometryType, PrimitiveType  # noqa: F401
 
-from geofileops._compat import PYOGRIO_GTE_08
 from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import (
     _geofileinfo,
@@ -42,6 +41,11 @@ try:
     import fiona
 except ImportError:
     fiona = None
+
+try:
+    import pyarrow
+except ImportError:
+    pyarrow = None
 
 logger = logging.getLogger(__name__)
 
@@ -1479,7 +1483,7 @@ def _read_file_base(
     # Read with the engine specified
     engine = ConfigOptions.io_engine
     if engine.startswith("pyogrio"):
-        use_arrow = True if engine.endswith("-arrow") else False
+        use_arrow = True if pyarrow and engine.endswith("-arrow") else False
         gdf = _read_file_base_pyogrio(
             path=path,
             layer=layer,
@@ -1967,8 +1971,7 @@ def to_file(
 
     # Write file with the correct engine
     if engine.startswith("pyogrio"):
-        # Writing with pyarrow only supported since pyogrio 0.8
-        use_arrow = True if engine.endswith("-arrow") and PYOGRIO_GTE_08 else False
+        use_arrow = True if pyarrow and engine.endswith("-arrow") else False
         return _to_file_pyogrio(
             gdf=gdf,
             path=path,

@@ -26,7 +26,7 @@ setuptools.setup(
     ),
     install_requires=[
         "cloudpickle",
-        "gdal>=3.6",
+        "gdal>=3.8",
         "geopandas>=0.13",
         "numpy",
         "packaging",
@@ -34,7 +34,7 @@ setuptools.setup(
         "psutil",
         "pyarrow",
         "pygeoops>=0.4",
-        "pyogrio>=0.7",
+        "pyogrio>=0.8",
         "pyproj",
         "shapely>=2",
     ],

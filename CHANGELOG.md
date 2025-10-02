@@ -2,8 +2,15 @@
 
 ## 0.11.0 (yyyy-mm-dd)
 
+### Deprecations and compatibility notes
+
+- Minimum version of dependencies updated to GDAL 3.8, pyogrio 0.8, geopandas 0.13.
+
 ### Improvements
 
+- Use io-engine `"pyogrio-arrow"` by default. This can increase performance to read and
+  write dataframes and can speed up geopandas based operations like `dissolve`,...
+  (#392)
 - Improve performance of clip with a complex clip layer (#740)
 - Improve performance of most operations by using a direct gpkg to gpkg append via
   sqlite where possible (#728)
@@ -77,8 +84,6 @@
 
 ### Improvements
 
-- Use `use_arrow=True` for reading and writing dataframes when possible to
-  improve performance (#392)
 - Add function `apply_vectorized` to apply a vectorized function on a geometry column
   and use it internally where possible (#588, #594)
 - Improve performance of `erase` and `intersection` for very complex input geometries.
