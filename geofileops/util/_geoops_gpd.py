@@ -900,7 +900,7 @@ def _apply_geooperation_to_layer(
                             )
                             gfo.remove(tmp_partial_output_path)
 
-                except Exception as ex:
+                except Exception as ex:  # pragma: no cover
                     batch_id = future_to_batch_id[future]
                     message = f"Error {ex} executing {batches[batch_id]}"
                     logger.exception(message)
@@ -1798,7 +1798,7 @@ def _dissolve_polygons_pass(
                             )
                             gfo.remove(output_onborder_tmp_partial_path)
 
-            except Exception as ex:
+            except Exception as ex:  # pragma: no cover
                 batch_id = future_to_batch_id[future]
                 message = f"Error executing {batches[batch_id]}: {ex}"
                 logger.exception(message)
@@ -1901,7 +1901,7 @@ def _dissolve_polygons(
                 agg_columns_needed.insert(0, fid_orig_column)
 
             break
-        except Exception as ex:
+        except Exception as ex:  # pragma: no cover
             if str(ex) == "database is locked":
                 if retry_count < 10:
                     retry_count += 1
@@ -1943,7 +1943,7 @@ def _dissolve_polygons(
             dropna=False,
             grid_size=gridsize,
         )
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
         # If a GEOS exception occurs, check on_data_error on how to proceed.
         if on_data_error == "warn":
             message = f"Error processing tile, ENTIRE TILE LOST!!!: {ex}"
