@@ -1954,6 +1954,15 @@ def test_to_file(tmp_path, suffix, dimensions, engine_setter):
         read_gdf = read_gdf.drop(columns="geometry")
     if suffix == ".shp" and engine_setter == "fiona":
         pytest.xfail("fiona does not support writing datetimes to shapefile")
+    if (
+        engine_setter == "pyogrio-arrow"
+        and suffix in (".shp", ".csv")
+        and not _compat.PANDAS_GTE_22
+    ):
+        pytest.xfail(
+            "pyogrio-arrow with an older version of pandas doesn't roundtrip datetimes "
+            "well"
+        )
 
     output_path = tmp_path / f"{_geopath_util.stem(src)}-output{suffix}"
     gfo.to_file(read_gdf, str(output_path))
@@ -2583,6 +2592,7 @@ def test_to_file_nogeom(tmp_path, suffix):
         raise ValueError(f"test not implemented for suffix {suffix}")
 
 
+@pytest.mark.skipif(not _compat.PYOGRIO_GTE_08, reason="Requires pyogrio>=0.8")
 def test_to_file_vsi(tmp_path):
     """Test writing to a file in vsimem."""
     # Prepare test data
