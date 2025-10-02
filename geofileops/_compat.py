@@ -2,7 +2,6 @@
 
 import geopandas as gpd
 import pandas as pd
-import pyogrio
 import shapely
 from osgeo import gdal
 from packaging import version
