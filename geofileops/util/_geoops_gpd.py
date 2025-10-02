@@ -1059,7 +1059,7 @@ def _apply_geooperation(
 def dissolve(
     input_path: Path,
     output_path: Path,
-    groupby_columns: Iterable[str] | None = None,
+    groupby_columns: list[str] | str | None = None,
     agg_columns: dict | None = None,
     explodecollections: bool = True,
     tiles_path: Path | None = None,
@@ -1131,8 +1131,15 @@ def dissolve(
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
-    if groupby_columns is not None and len(list(groupby_columns)) == 0:
-        raise ValueError("groupby_columns=[] is not supported. Use None.")
+    # Standardize parameter to simplify the rest of the code
+    if groupby_columns is not None:
+        if isinstance(groupby_columns, str):
+            # If a string is passed, convert to list
+            groupby_columns = [groupby_columns]
+        elif len(groupby_columns) == 0:
+            # If an empty list of geometry columns is passed, convert it to None
+            groupby_columns = None
+
     if input_path == output_path:
         raise ValueError("output_path must not equal input_path")
     if not input_path.exists():
