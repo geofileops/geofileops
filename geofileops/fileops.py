@@ -2,6 +2,7 @@
 
 import enum
 import filecmp
+import locale
 import logging
 import os
 import pprint
@@ -1694,6 +1695,17 @@ def _read_file_base_pyogrio(
     else:
         skip_features = 0
         max_features = None
+
+    # When reading a file type that could be written in non-utf-8 encoding, on a
+    # non-UTF8 system, disable arrow to avoid issues.
+    if use_arrow and (
+        Path(path).suffix in (".csv") and locale.getpreferredencoding(False) != "UTF-8"
+    ):
+        logger.info(
+            "arrow disabled to read layer: non-UTF8 system and file format could be "
+            f"non-UTF8 encoded: {path}"
+        )
+        use_arrow = False
 
     # If no sql_stmt specified
     columns_prepared = None
