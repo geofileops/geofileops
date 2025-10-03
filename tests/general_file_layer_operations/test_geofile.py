@@ -1568,19 +1568,15 @@ def test_read_file(suffix, dimensions, engine_setter):
 )
 def test_read_file_columns_geometry(tmp_path, suffix, columns, geometry, engine_setter):
     # Prepare test data
-    force_utf8 = False
-    if engine_setter == "pyogrio-arrow" and suffix in (".csv", ".shp"):
-        force_utf8 = True
-
     # For multi-layer filetype, use 2-layer file for better test coverage
     src_info = _geofileinfo.get_geofileinfo(suffix)
     if src_info.is_singlelayer:
         testfile = "polygon-parcel"
-        src = test_helper.get_testfile(testfile, suffix=suffix, force_utf8=force_utf8)
+        src = test_helper.get_testfile(testfile, suffix=suffix)
         layer = src.stem
     else:
         testfile = "polygon-twolayers"
-        src = test_helper.get_testfile(testfile, suffix=suffix, force_utf8=force_utf8)
+        src = test_helper.get_testfile(testfile, suffix=suffix)
         layer = "parcels"
 
     # Interprete the geometry parameter

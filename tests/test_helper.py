@@ -248,6 +248,8 @@ def _get_testfile(
             options = {}
             if force_utf8 and suffix in (".shp", ".shp.zip"):
                 options["LAYER_CREATION.ENCODING"] = "UTF-8"
+            if suffix == ".csv":
+                options["LAYER_CREATION.WRITE_BOM"] = "YES"
 
             gfo.copy_layer(
                 testfile_path,
