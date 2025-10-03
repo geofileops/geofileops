@@ -156,6 +156,7 @@ def get_testfile(
     dimensions: str | None = None,
     explodecollections: bool = False,
     read_only: bool | None = None,
+    force_utf8: bool = False,
 ) -> Path:
     if dst_dir is None:
         read_only = True
@@ -168,6 +169,7 @@ def get_testfile(
         empty=empty,
         dimensions=dimensions,
         explodecollections=explodecollections,
+        force_utf8=force_utf8,
     )
 
     # Make input read-only
