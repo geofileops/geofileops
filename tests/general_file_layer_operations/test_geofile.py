@@ -2012,7 +2012,7 @@ def test_to_file(tmp_path, suffix, dimensions, engine_setter):
         expected_gdf.loc[47, "PM"] = None
 
         # Shapefile doesn't support DateTime, so another data type needs to be used.
-        if engine_setter == "pyogrio" and _compat.GDAL_ST_311:
+        if engine_setter in ("pyogrio", "pyogrio-arrow") and _compat.GDAL_ST_311:
             # "pyogrio" with GDAL < 3.11 writes to Date (which looses data)
             expected_gdf["DATUM"] = pd.to_datetime(
                 expected_gdf["DATUM"].dt.strftime("%Y-%m-%d"), yearfirst=True
@@ -2082,6 +2082,8 @@ def test_to_file_2_roundtrip(tmp_path, suffix, dimensions, engine_setter):
         if engine_setter == "pyogrio-arrow" and _compat.GDAL_ST_311:
             # For minimal tests, the datum is a datetime
             expected_gdf["DATUM"] = pd.to_datetime(expected_gdf["DATUM"])
+            if _compat.PANDAS_GTE_20:
+                expected_gdf["DATUM"] = expected_gdf["DATUM"].dt.as_unit("ms")
 
     assert_geodataframe_equal(written_gdf, expected_gdf)
 
