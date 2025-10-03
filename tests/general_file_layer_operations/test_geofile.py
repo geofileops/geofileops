@@ -2035,11 +2035,12 @@ def test_to_file_2_roundtrip(tmp_path, suffix, dimensions, engine_setter):
     # Remark: geopandas doesn't seem seem to read the Z dimension, so writing can't be
     # tested?
     # Prepare the test data by copying it to a file in the format asked and reading it.
+    force_utf8 = False
+    if engine_setter == "pyogrio-arrow" and suffix in (".shp", ".shp.zip"):
+        force_utf8 = True
     src = test_helper.get_testfile(
-        "polygon-parcel", suffix=suffix, dimensions=dimensions
+        "polygon-parcel", suffix=suffix, dimensions=dimensions, force_utf8=force_utf8
     )
-    if suffix in (".csv", ".shp") and engine_setter == "pyogrio-arrow":
-        pytest.xfail("pyogrio-arrow seems to have issue with encoding?")
     read_gdf = gfo.read_file(src)
 
     if suffix in (".gpkg.zip", ".shp.zip"):
