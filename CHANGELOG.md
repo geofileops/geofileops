@@ -2,6 +2,10 @@
 
 ## 0.11.0 (yyyy-mm-dd)
 
+### Deprecations and compatibility notes
+
+- Minimum version of dependencies updated to spatialite 5.1.
+
 ### Improvements
 
 - Add `concat` function (#746, #747)
