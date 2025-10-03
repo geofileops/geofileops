@@ -2070,6 +2070,10 @@ def test_to_file_2_roundtrip(tmp_path, suffix, dimensions, engine_setter):
         ) and not pd.api.types.is_string_dtype(expected_gdf["DATUM"]):
             expected_gdf["DATUM"] = expected_gdf["DATUM"].apply(lambda x: x.isoformat())
 
+        if engine_setter == "pyogrio-arrow" and _compat.GDAL_ST_311:
+            # For minimal tests, the datum is a datetime
+            expected_gdf["DATUM"] = pd.to_datetime(expected_gdf["DATUM"])
+
     assert_geodataframe_equal(written_gdf, expected_gdf)
 
     # Validate if string (encoding) is correct for data read after writing.
