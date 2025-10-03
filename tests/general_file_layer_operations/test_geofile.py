@@ -2046,7 +2046,7 @@ def test_to_file_2_roundtrip(tmp_path, suffix, dimensions, engine_setter):
         pytest.xfail("fiona writes datetimes to shapefile as Date, loosing data")
 
     output_path = tmp_path / f"{_geopath_util.stem(src)}-output{suffix}"
-    gfo.to_file(read_gdf, str(output_path))
+    gfo.to_file(read_gdf, str(output_path), use_arrow=False)
     written_gdf = gfo.read_file(output_path)
 
     # Validate if data is as expected after writing.
