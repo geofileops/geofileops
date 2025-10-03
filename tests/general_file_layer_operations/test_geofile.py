@@ -2038,7 +2038,10 @@ def test_to_file_2_roundtrip(tmp_path, suffix, dimensions, engine_setter):
     src = test_helper.get_testfile(
         "polygon-parcel", suffix=suffix, dimensions=dimensions
     )
-    read_gdf = gfo.read_file(src)
+    kwargs = {}
+    if suffix in (".csv", ".shp") and engine_setter == "pyogrio-arrow":
+        kwargs["use_arrow"] = False
+    read_gdf = gfo.read_file(src, **kwargs)
 
     if suffix in (".gpkg.zip", ".shp.zip"):
         pytest.xfail("writing a dataframe to gpkg.zip or .shp.zip has issue")
@@ -2046,8 +2049,8 @@ def test_to_file_2_roundtrip(tmp_path, suffix, dimensions, engine_setter):
         pytest.xfail("fiona writes datetimes to shapefile as Date, loosing data")
 
     output_path = tmp_path / f"{_geopath_util.stem(src)}-output{suffix}"
-    gfo.to_file(read_gdf, str(output_path), use_arrow=False)
-    written_gdf = gfo.read_file(output_path)
+    gfo.to_file(read_gdf, str(output_path), **kwargs)
+    written_gdf = gfo.read_file(output_path, **kwargs)
 
     # Validate if data is as expected after writing.
     expected_gdf = read_gdf.copy()
