@@ -1347,7 +1347,8 @@ def read_file(
     The underlying library used to read the file can be choosen using the
     "GFO_IO_ENGINE" environment variable. Possible values are "pyogrio", "pyogrio-arrow"
     and "fiona". In the future support for the "fiona" engine most likely will be
-    removed. Default engine is "pyogrio-arrow".
+    removed. Default engine is "pyogrio-arrow". You can overrule whether arrow is used
+    by passing e.g. ``use_arrow=False`` as a parameter.
 
     When a file with CURVE geometries is read, they are transformed on the fly to LINEAR
     geometries, as shapely/geopandas doesn't support CURVE geometries.
@@ -1483,7 +1484,11 @@ def _read_file_base(
     # Read with the engine specified
     engine = ConfigOptions.io_engine
     if engine.startswith("pyogrio"):
-        use_arrow = True if pyarrow and engine.endswith("-arrow") else False
+        if "use_arrow" in kwargs:
+            use_arrow = kwargs["use_arrow"] if pyarrow else False
+            del kwargs["use_arrow"]
+        else:
+            use_arrow = True if pyarrow and engine.endswith("-arrow") else False
         gdf = _read_file_base_pyogrio(
             path=path,
             layer=layer,
@@ -1900,7 +1905,8 @@ def to_file(
 
     The underlying library used to write the file can be choosen using the
     "GFO_IO_ENGINE" environment variable. Possible values are "pyogrio", "pyogrio-arrow"
-    and "fiona". Default engine is "pyogrio-arrow".
+    and "fiona". Default engine is "pyogrio-arrow". You can force/disable the use of
+    arrow by passing e.g. `use_arrow=True`.
 
     Args:
         gdf (gpd.GeoDataFrame): The GeoDataFrame to export to file.
@@ -1971,7 +1977,11 @@ def to_file(
 
     # Write file with the correct engine
     if engine.startswith("pyogrio"):
-        use_arrow = True if pyarrow and engine.endswith("-arrow") else False
+        if "use_arrow" in kwargs:
+            use_arrow = kwargs["use_arrow"] if pyarrow else False
+            del kwargs["use_arrow"]
+        else:
+            use_arrow = True if pyarrow and engine.endswith("-arrow") else False
         return _to_file_pyogrio(
             gdf=gdf,
             path=path,
