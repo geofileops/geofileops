@@ -4,7 +4,6 @@ Tests for functionalities in ogr_util.
 
 import pytest
 import shapely.geometry as sh_geom
-from packaging import version
 
 import geofileops as gfo
 from tests import test_helper
