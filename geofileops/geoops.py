@@ -1831,9 +1831,9 @@ def simplify(
         )
 
 
-# -------------------------
-# Operations on more layers
-# -------------------------
+# -----------------------------
+# Operations on multiple layers
+# -----------------------------
 
 
 def clip(
