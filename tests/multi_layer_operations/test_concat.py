@@ -147,7 +147,7 @@ def test_concat_invalid_input(tmp_path):
     output = tmp_path / "output.gpkg"
     with pytest.raises(
         ValueError,
-        match="input_layers must have the same length as input_paths if specified",
+        match="input_layers must have the same length as input_paths if it is a list",
     ):
         gfo.concat([input, input], output, input_layers=["lines"])
 

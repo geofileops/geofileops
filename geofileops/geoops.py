@@ -1988,7 +1988,7 @@ def concat(
         input_layers = [input_layers] * len(input_paths)
     elif len(input_layers) != len(input_paths):
         raise ValueError(
-            "input_layers must have the same length as input_paths if specified"
+            "input_layers must have the same length as input_paths if it is a list"
         )
     output_path = Path(output_path)
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
