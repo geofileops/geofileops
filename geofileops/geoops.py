@@ -1956,12 +1956,12 @@ def concat(
     """Concatenate multiple geofiles into one output geofile.
 
     The input files will be appended one after the other in the output file, so only
-    output file types that support appending can be used.
+    output file types that support appending are supported.
 
-    Only the columns that are present in the first input file are retained. If columns
-    are not present in other input files, the values for those rows will be NULL. If
-    other input files contain columns that are not present in the first input file,
-    those columns will be ignored.
+    By default, all columns in any of the input files are retained. If columns are not
+    present in some input files, the values of these columns will be NULL for those
+    rows. If you want to retain only a subset of the columns, specify these in the
+    ``columns`` parameter.
 
     Args:
         input_paths (list[PathLike]): the paths to the files to concatenate.
@@ -2012,7 +2012,7 @@ def concat(
                 write_mode = "create"
             else:
                 force_local = False
-                write_mode = "append"
+                write_mode = "append_add_fields"
 
             fileops.copy_layer(
                 src=src_path,

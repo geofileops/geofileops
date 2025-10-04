@@ -88,7 +88,10 @@ def test_concat_explodecollections(tmp_path):
 
 
 def test_concat_input1_less_columns(tmp_path):
-    """Test how concat deals with different columns in input files."""
+    """Test result of concat if input1 has less columns than input2.
+
+    The missing columns in input1 should be filled with null values.
+    """
     # Prepare test data
     input1 = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
     input2 = test_helper.get_testfile("polygon-twolayers")
@@ -105,21 +108,27 @@ def test_concat_input1_less_columns(tmp_path):
 
     exp_featurecount = input1_info.featurecount + input2_info.featurecount
     assert output_info.featurecount == exp_featurecount
-    exp_nb_column = len(input1_info.columns)
+    exp_nb_column = len(input2_info.columns)
     assert len(output_info.columns) == exp_nb_column
     assert output_info.geometrytypename == input1_info.geometrytypename
-    assert "OIDN" not in output_info.columns
+
+    # The missing column in input1 should be filled with null values
+    output_gdf = gfo.read_file(output)
+    assert output_gdf["OIDN"].isnull().sum() == input1_info.featurecount
 
 
-def test_concat_input2_less_columns(tmp_path):
-    """Test how concat deals with different columns in input files."""
+def test_concat_input1_more_columns(tmp_path):
+    """Test result of concat if input1 has more columns than input2.
+
+    The missing columns in input2 should be filled with null values.
+    """
     # Prepare test data
     input1 = test_helper.get_testfile("polygon-parcel")
     input2 = test_helper.get_testfile("polygon-twolayers", dst_dir=tmp_path)
     gfo.drop_column(input2, column_name="OIDN", layer="parcels")
 
     # Test
-    output = tmp_path / "output_input2_less_columns.gpkg"
+    output = tmp_path / "output_input1_more_columns.gpkg"
     gfo.concat([input1, input2], output, input_layers=[None, "parcels"])
 
     # Now check result file
