@@ -60,6 +60,38 @@ def test_concat(
     assert gfo.has_spatial_index(output) is exp_spatial_index
 
 
+def test_concat_columns(tmp_path):
+    """Test the concat function with specific columns specified.
+
+    Special case tested: one of the columns specified does not exist in one of the input
+    files.
+    """
+    # Prepare test data
+    input = test_helper.get_testfile("polygon-parcel")
+    # Prepare input with UIDN column removed
+    input_uidn_removed = tmp_path / "input_UIDN_removed.gpkg"
+    gfo.copy(input, input_uidn_removed, keep_permissions=False)
+    gfo.drop_column(input_uidn_removed, column_name="OIDN")
+    dst_columns = ["OIDN", "UIDN"]
+
+    # Test
+    output = tmp_path / "output.gpkg"
+    gfo.concat([input, input_uidn_removed], output, columns=dst_columns)
+
+    # Now check result file
+    input_info = gfo.get_layerinfo(input)
+    output_info = gfo.get_layerinfo(output)
+
+    exp_featurecount = input_info.featurecount * 2
+    assert output_info.featurecount == exp_featurecount
+    assert len(output_info.columns) == 2
+    assert output_info.geometrytypename == input_info.geometrytypename
+
+    # Check that the OIDN column contains null values for half of the rows
+    output_gdf = gfo.read_file(output)
+    assert output_gdf["OIDN"].isnull().sum() == input_info.featurecount
+
+
 def test_concat_explodecollections(tmp_path):
     """Test the concat function with explodecollections."""
     # Prepare test data

@@ -1998,15 +1998,16 @@ def concat(
         output_geofileinfo = _geofileinfo.get_geofileinfo(output_path)
         create_spatial_index = output_geofileinfo.default_spatial_index
 
-    # Append all files to the first one.
     logger.info(f"Start concat to {output_path}")
 
     start_time = datetime.now()
     tmp_dir = _io_util.create_tempdir("geofileops/concat")
     try:
+        # Loop over all files and copy_layer them one by one together.
         tmp_dst = tmp_dir / output_path.name
         is_first = True
         for src_path, src_layer in zip(input_paths, input_layers):
+            # This first file will be created, the others appended
             if is_first:
                 force_local = force
                 write_mode = "create"
@@ -2014,13 +2015,24 @@ def concat(
                 force_local = False
                 write_mode = "append_add_fields"
 
+            # The columns specified should only be columns present in the file,
+            # otherwise the output is invalid.
+            if columns is None or len(columns) == 0:
+                columns_local = columns
+            else:
+                src_info = fileops.get_layerinfo(src_path, layer=src_layer)
+                src_columns_lower = {col.lower() for col in src_info.columns}
+                columns_local = [
+                    col for col in columns if col.lower() in src_columns_lower
+                ]
+
             fileops.copy_layer(
                 src=src_path,
                 dst=tmp_dst,
                 write_mode=write_mode,
                 src_layer=src_layer,
                 dst_layer=output_layer,
-                columns=columns,
+                columns=columns_local,
                 explodecollections=explodecollections,
                 create_spatial_index=False,
                 force=force_local,
