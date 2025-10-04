@@ -16,6 +16,7 @@ from geofileops import GeometryType, fileops, geoops
 from geofileops._compat import GDAL_GTE_39
 from geofileops.util import _general_util, _geofileinfo, _geoops_sql, _geopath_util
 from geofileops.util._geofileinfo import GeofileInfo
+from geofileops.util._geometry_util import SimplifyAlgorithm
 from tests import test_helper
 from tests.test_helper import (
     EPSGS,
@@ -26,6 +27,11 @@ from tests.test_helper import (
     WHERE_AREA_GT_400,
     assert_geodataframe_equal,
 )
+
+try:
+    import simplification
+except ImportError:
+    simplification = None
 
 # Init gfo module
 current_geoops_module = "unknown"
@@ -1189,16 +1195,19 @@ def test_simplify(
         "lang+",
         "rdp",
         "vw",
-        geoops.SimplifyAlgorithm.LANG,
-        geoops.SimplifyAlgorithm.LANGP,
-        geoops.SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER,
-        geoops.SimplifyAlgorithm.VISVALINGAM_WHYATT,
+        SimplifyAlgorithm.LANG,
+        SimplifyAlgorithm.LANGP,
+        SimplifyAlgorithm.RAMER_DOUGLAS_PEUCKER,
+        SimplifyAlgorithm.VISVALINGAM_WHYATT,
     ],
 )
 def test_simplify_algorithms(tmp_path, algorithm):
     """
     Rude check on supported algorithms.
     """
+    if not simplification and algorithm in ("vw", SimplifyAlgorithm.VISVALINGAM_WHYATT):
+        pytest.skip("Simplification not available, skipping vw tests")
+
     input_path = test_helper.get_testfile("polygon-parcel")
     output_path = tmp_path / f"{input_path.stem}_output.gpkg"
 

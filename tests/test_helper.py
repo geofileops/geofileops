@@ -156,6 +156,7 @@ def get_testfile(
     dimensions: str | None = None,
     explodecollections: bool = False,
     read_only: bool | None = None,
+    force_utf8: bool = False,
 ) -> Path:
     if dst_dir is None:
         read_only = True
@@ -168,6 +169,7 @@ def get_testfile(
         empty=empty,
         dimensions=dimensions,
         explodecollections=explodecollections,
+        force_utf8=force_utf8,
     )
 
     # Make input read-only
@@ -185,6 +187,7 @@ def _get_testfile(
     empty: bool = False,
     dimensions: str | None = None,
     explodecollections: bool = False,
+    force_utf8: bool = False,
 ) -> Path:
     # Prepare original filepath.
     testfile_path = data_dir / f"{testfile}.gpkg"
@@ -199,8 +202,10 @@ def _get_testfile(
 
     # Prepare file + return
     empty_str = "_empty" if empty else ""
+    utf8_str = "_utf8" if force_utf8 else ""
     prepared_path = (
-        dst_dir / f"{testfile_path.stem}_{epsg}_{dimensions}{empty_str}{suffix}"
+        dst_dir
+        / f"{testfile_path.stem}_{epsg}_{dimensions}{empty_str}{utf8_str}{suffix}"
     )
     if prepared_path.exists():
         return prepared_path
@@ -239,6 +244,12 @@ def _get_testfile(
             else:
                 dst_layer = src_layer
                 preserve_fid = not explodecollections
+
+            options = {}
+            if force_utf8 and suffix in (".shp", ".shp.zip"):
+                options["LAYER_CREATION.ENCODING"] = "UTF-8"
+            if suffix == ".csv":
+                options["LAYER_CREATION.WRITE_BOM"] = "YES"
 
             gfo.copy_layer(
                 testfile_path,
