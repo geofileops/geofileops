@@ -43,7 +43,7 @@ def engine_setter(request):
     else:
         os.environ["GFO_IO_ENGINE"] = engine
     yield engine
-    os.environ["GFO_IO_ENGINE"] = None
+    del os.environ["GFO_IO_ENGINE"]
 
 
 @pytest.fixture
