@@ -1991,9 +1991,12 @@ def concat(
             "src_layers must have the same length as the src file list if specified"
         )
     output_path = Path(output_path)
-
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
+
+    if create_spatial_index is None:
+        output_geofileinfo = _geofileinfo.get_geofileinfo(output_path)
+        create_spatial_index = output_geofileinfo.default_spatial_index
 
     # Append all files to the first one.
     logger.info(f"Start concat to {output_path}")
@@ -2027,10 +2030,6 @@ def concat(
                 is_first = False
 
         # Add a spatial index if needed
-        if create_spatial_index is None:
-            create_spatial_index = _geofileinfo.get_geofileinfo(
-                tmp_dst
-            ).default_spatial_index
         if create_spatial_index:
             fileops.create_spatial_index(tmp_dst, output_layer)
 
