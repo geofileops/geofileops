@@ -2,12 +2,19 @@
 
 ## 0.11.0 (yyyy-mm-dd)
 
+### Deprecations and compatibility notes
+
+- Minimum version of dependencies updated to spatialite 5.1.
+
 ### Improvements
 
+- Add `concat` function (#746, #747)
+- Add `write_mode="append_add_fields"` option to `copy_layer` (#750)
 - Improve performance of clip with a complex clip layer (#740)
 - Improve performance of most operations by using a direct gpkg to gpkg append via
   sqlite where possible (#728)
 - Improve performance of the subdividividing used in many operations (#730)
+- Improve performance of `dissolve` (#748)
 - Improve performance of two-layer operations using `nb_parallel=1` (#692)
 - Alternative query for clip + default subdivide_coords to 15000 (#450)
 - Ensure that the featurecount is properly cached in GPKG files, also for older GDAL
