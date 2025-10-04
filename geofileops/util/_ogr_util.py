@@ -539,9 +539,7 @@ def vector_translate(
             # If appending with add_fields, VectorTranslate does not give an error when
             # the columns don't match, but the output is not correct, so check here.
             if (
-                access_mode == "append"
-                and add_fields
-                and columns is not None
+                columns is not None
                 and len(list(columns)) > 0
                 and input_layers is not None
             ):
