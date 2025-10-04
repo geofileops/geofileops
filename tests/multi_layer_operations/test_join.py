@@ -98,13 +98,23 @@ def test_join_self(tmp_path: Path, input1_on, input2_on, explodecollections, suf
 
 
 @pytest.mark.parametrize(
-    "input1_on, input2_on, error",
+    "kwargs, error",
     [
-        (["fid", "OIDN"], ["fid"], "input1_on and input2_on must have the same length"),
-        (["fid"], ["fid", "OIDN"], "input1_on and input2_on must have the same length"),
+        (
+            {"input1_on": ["fid", "OIDN"], "input2_on": ["fid"]},
+            "input1_on and input2_on must have the same length",
+        ),
+        (
+            {"input1_on": ["fid"], "input2_on": ["fid", "OIDN"]},
+            "input1_on and input2_on must have the same length",
+        ),
+        (
+            {"input1_on": "fid", "input2_on": "fid", "join_type": "invalid"},
+            "Unsupported join_type 'invalid'",
+        ),
     ],
 )
-def test_join_invalid_params(tmp_path: Path, input1_on, input2_on, error):
+def test_join_invalid_params(tmp_path: Path, kwargs, error):
     input1_path = test_helper.get_testfile("polygon-parcel", tmp_path)
     input2_path = test_helper.get_testfile("polygon-twolayers", tmp_path)
 
@@ -116,6 +126,5 @@ def test_join_invalid_params(tmp_path: Path, input1_on, input2_on, error):
             input2_path,
             output_path,
             input2_layer="parcels",
-            input1_on=input1_on,
-            input2_on=input2_on,
+            **kwargs,
         )
