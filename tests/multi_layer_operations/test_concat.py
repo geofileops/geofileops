@@ -67,16 +67,47 @@ def test_concat_columns(tmp_path):
     files.
     """
     # Prepare test data
-    input = test_helper.get_testfile("polygon-parcel")
-    # Prepare input with UIDN column removed
-    input_uidn_removed = tmp_path / "input_UIDN_removed.gpkg"
-    gfo.copy(input, input_uidn_removed, keep_permissions=False)
-    gfo.drop_column(input_uidn_removed, column_name="OIDN")
+    # Input1 with UIDN and input2 with OIDN removed
+    input1 = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    input2 = tmp_path / "input_OIDN_removed.gpkg"
+    gfo.copy(input1, input2, keep_permissions=False)
+
+    gfo.drop_column(input1, column_name="UIDN")
+    gfo.drop_column(input2, column_name="OIDN")
     dst_columns = ["OIDN", "UIDN"]
 
     # Test
     output = tmp_path / "output.gpkg"
-    gfo.concat([input, input_uidn_removed], output, columns=dst_columns)
+    gfo.concat([input1, input2], output, columns=dst_columns)
+
+    # Now check result file
+    input1_info = gfo.get_layerinfo(input1)
+    input2_info = gfo.get_layerinfo(input2)
+    output_info = gfo.get_layerinfo(output)
+
+    exp_featurecount = input1_info.featurecount * 2
+    assert output_info.featurecount == exp_featurecount
+    assert len(output_info.columns) == 2
+    assert output_info.geometrytypename == input1_info.geometrytypename
+
+    # Check that the OIDN column contains null values for half of the rows
+    output_gdf = gfo.read_file(output)
+    assert output_gdf["UIDN"].isnull().sum() == input1_info.featurecount
+    assert output_gdf["OIDN"].isnull().sum() == input2_info.featurecount
+
+
+def test_concat_columns_empty(tmp_path):
+    """Test the concat function with specific columns specified.
+
+    Special case tested: one of the columns specified does not exist in one of the input
+    files.
+    """
+    # Prepare test data
+    input = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+
+    # Test
+    output = tmp_path / "output.gpkg"
+    gfo.concat([input, input], output, columns=[])
 
     # Now check result file
     input_info = gfo.get_layerinfo(input)
@@ -84,12 +115,8 @@ def test_concat_columns(tmp_path):
 
     exp_featurecount = input_info.featurecount * 2
     assert output_info.featurecount == exp_featurecount
-    assert len(output_info.columns) == 2
+    assert len(output_info.columns) == 0
     assert output_info.geometrytypename == input_info.geometrytypename
-
-    # Check that the OIDN column contains null values for half of the rows
-    output_gdf = gfo.read_file(output)
-    assert output_gdf["OIDN"].isnull().sum() == input_info.featurecount
 
 
 def test_concat_explodecollections(tmp_path):
