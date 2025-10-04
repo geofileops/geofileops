@@ -138,6 +138,20 @@ def test_concat_input2_less_columns(tmp_path):
     assert output_gdf["OIDN"].isnull().sum() == input2_info.featurecount
 
 
+def test_concat_invalid_input(tmp_path):
+    """Test the concat function with invalid input."""
+    # Prepare test data
+    input = test_helper.get_testfile("polygon-parcel")
+
+    # Test
+    output = tmp_path / "output.gpkg"
+    with pytest.raises(
+        ValueError,
+        match="input_layers must have the same length as input_paths if specified",
+    ):
+        gfo.concat([input, input], output, input_layers=["lines"])
+
+
 def test_concat_output_exists(tmp_path):
     """Test the concat function with an existing output file."""
     # Prepare test data
