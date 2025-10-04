@@ -16,6 +16,8 @@ def test_join(tmp_path: Path, join_type):
     input2_path = tmp_path / "input2.gpkg"
     df2 = pd.DataFrame({"hfdtlt_code": ["60", "201"], "name": ["Grasland", "Silomaïs"]})
     gfo.to_file(df2, input2_path)
+    input1_columns = ["lblhfdtlt", "hfdtlt"]
+    input2_columns = ["name"]
 
     output_path = tmp_path / "output.gpkg"
     gfo.join(
@@ -25,6 +27,8 @@ def test_join(tmp_path: Path, join_type):
         input1_on="hfdtlt",
         input2_on="hfdtlt_code",
         join_type=join_type,
+        input1_columns=input1_columns,
+        input2_columns=input2_columns,
         input1_columns_prefix="l1pr_",
         input2_columns_prefix="l2pr_",
     )
@@ -43,7 +47,7 @@ def test_join(tmp_path: Path, join_type):
     )
     assert output_info.featurecount == exp_featurecount
     assert output_info.geometrytypename == input1_info.geometrytypename
-    exp_columns = len(input1_info.columns) + len(input2_info.columns)
+    exp_columns = len(input1_columns) + len(input2_columns)
     assert len(output_info.columns) == exp_columns
 
     # Check the result content
@@ -58,7 +62,7 @@ def test_join(tmp_path: Path, join_type):
         # Check that all rows have a match in the joined columns
         assert output_df["l2pr_name"].isna().sum() == 0
         # Check that the joined columns have correct values
-        assert output_df["l2pr_name"].tolist() == output_df["l1pr_LBLHFDTLT"].tolist()
+        assert output_df["l2pr_name"].tolist() == output_df["l1pr_lblhfdtlt"].tolist()
 
 
 @pytest.mark.parametrize(
