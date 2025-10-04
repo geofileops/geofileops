@@ -1774,11 +1774,14 @@ def test_read_file_sql_no_geom(suffix, engine_setter):
         (".gpkg", "polygon-twolayers", "parcels"),
     ],
 )
-def test_read_file_sql_placeholders(suffix, testfile, layer, columns):
+def test_read_file_sql_placeholders(suffix, testfile, layer, columns, engine_setter):
+    """Test if placeholders are properly filled out.
+
+    Also verify if casing used in columns parameter is retained when using placeholders.
     """
-    Test if placeholders are properly filled out + if casing used in columns parameter
-    is retained when using placeholders.
-    """
+    if engine_setter == "fiona":
+        pytest.skip("sql_stmt param not supported for fiona engine")
+
     # Prepare test data
     src = test_helper.get_testfile(testfile, suffix=suffix)
 
