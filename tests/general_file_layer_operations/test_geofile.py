@@ -38,10 +38,10 @@ gdal.UseExceptions()
 @pytest.fixture(scope="module", params=ENGINES)
 def engine_setter(request):
     engine = request.param
-    if engine is None:
-        del os.environ["GFO_IO_ENGINE"]
-    else:
+    if engine is not None:
         os.environ["GFO_IO_ENGINE"] = engine
+    elif "GFO_IO_ENGINE" in os.environ:
+        del os.environ["GFO_IO_ENGINE"]
     yield engine
     del os.environ["GFO_IO_ENGINE"]
 
