@@ -538,6 +538,8 @@ def vector_translate(
 
             # If appending with add_fields, VectorTranslate does not give an error when
             # the columns don't match, but the output is not correct, so check here.
+            # Apparently with older versions of GDAL (3.8) the check isn't done either
+            # when creating a new file, so do the check always.
             if (
                 columns is not None
                 and len(list(columns)) > 0
