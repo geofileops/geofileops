@@ -437,6 +437,7 @@ def vector_translate(
         output_geometrytypes.append("PROMOTE_TO_MULTI")
 
     if preserve_fid is None:
+        preserve_fid = False
         if explodecollections:
             # If explodecollections is specified, explicitly disable fid to avoid errors
             args.append("-unsetFid")
