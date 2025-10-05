@@ -14,7 +14,7 @@ from pygeoops import GeometryType
 
 import geofileops as gfo
 from geofileops import _compat, fileops
-from geofileops.util import _geopath_util
+from geofileops.util import _geopath_util, _io_util
 from geofileops.util._general_util import MissingRuntimeDependencyError
 
 # Make sure only one instance per process is running
@@ -250,6 +250,7 @@ class VectorTranslateInfo:
         warp: dict | None = None,
         preserve_fid: bool | None = None,
         dst_dimensions: str | None = None,
+        add_fields: bool = False,
     ):
         self.input_path = input_path
         self.output_path = output_path
@@ -272,6 +273,7 @@ class VectorTranslateInfo:
         self.warp = warp
         self.preserve_fid = preserve_fid
         self.dst_dimensions = dst_dimensions
+        self.add_fields = add_fields
 
 
 def vector_translate_by_info(info: VectorTranslateInfo):
@@ -297,6 +299,7 @@ def vector_translate_by_info(info: VectorTranslateInfo):
         warp=info.warp,
         preserve_fid=info.preserve_fid,
         dst_dimensions=info.dst_dimensions,
+        add_fields=info.add_fields,
     )
 
 
@@ -322,6 +325,7 @@ def vector_translate(
     warp: dict | None = None,
     preserve_fid: bool | None = None,
     dst_dimensions: str | None = None,
+    add_fields: bool = False,
 ) -> bool:
     # API Doc of VectorTranslateOptions:
     #   https://gdal.org/en/stable/api/python/utilities.html#osgeo.gdal.VectorTranslateOptions
@@ -344,8 +348,10 @@ def vector_translate(
         # If a sql statement is passed, the input layers are not relevant,
         # and ogr2ogr will give a warning, so clear it.
         input_layers = None
-    if input_layers is not None and isinstance(input_layers, str):
+    if isinstance(input_layers, str):
         input_layers = [input_layers]
+    elif isinstance(input_layers, list) and len(input_layers) == 0:
+        input_layers = None
 
     # SRS
     if input_srs is not None and isinstance(input_srs, int):
@@ -357,15 +363,6 @@ def vector_translate(
         # VectorTranslate outputs no or an invalid file if the statement doesn't return
         # any rows...
         sql_stmt = sql_stmt.lstrip("\n\t ")
-    if clip_geometry is not None:
-        args.extend(["-clipsrc"])
-        if isinstance(clip_geometry, str):
-            args.extend([clip_geometry])
-        else:
-            bounds = [str(coord) for coord in clip_geometry]
-            args.extend(bounds)
-    if columns is not None:
-        args.extend(["-select", ",".join(columns)])
     if sql_stmt is not None and where is not None:
         raise ValueError("it is not supported to specify both sql_stmt and where")
 
@@ -414,8 +411,6 @@ def vector_translate(
             datasetCreationOptions.extend([f"{option_name}={value}"])
 
     # Output layer options
-    if explodecollections:
-        args.append("-explodecollections")
     output_geometrytypes = []
     if force_output_geometrytype is not None:
         if isinstance(force_output_geometrytype, GeometryType):
@@ -441,15 +436,12 @@ def vector_translate(
         # multiparts geometries, so promote to multi
         output_geometrytypes.append("PROMOTE_TO_MULTI")
 
-    if transaction_size is not None:
-        args.extend(["-gt", str(transaction_size)])
     if preserve_fid is None:
+        preserve_fid = False
         if explodecollections:
             # If explodecollections is specified, explicitly disable fid to avoid errors
             args.append("-unsetFid")
-    elif preserve_fid:
-        args.append("-preserve_fid")
-    else:
+    elif not preserve_fid:
         args.append("-unsetFid")
 
     # Prepare output layer creation options
@@ -491,7 +483,7 @@ def vector_translate(
     # with enable_debug=True nothing is logged. In addition, after
     # gdal.ConfigurePythonLogging is called, the CPL_LOG config setting is ignored.
     if "CPL_LOG" not in config_options:
-        gdal_cpl_log_dir = Path(tempfile.gettempdir()) / "geofileops/gdal_cpl_log"
+        gdal_cpl_log_dir = _io_util.get_tempdir() / "geofileops/gdal_cpl_log"
         gdal_cpl_log_dir.mkdir(parents=True, exist_ok=True)
         fd, gdal_cpl_log = tempfile.mkstemp(suffix=".log", dir=gdal_cpl_log_dir)
         os.close(fd)
@@ -534,6 +526,40 @@ def vector_translate(
 
                 raise
 
+            # if sql_stmt is None, input_layers must be specified if the input file has
+            # multiple layers.
+            # If there is only one layer, use that one.
+            if sql_stmt is None and input_layers is None:
+                nb_layers = input_ds.GetLayerCount()
+                if nb_layers == 1:
+                    input_layers = [input_ds.GetLayer(0).GetName()]
+                elif nb_layers > 1:
+                    raise ValueError(
+                        f"input has > 1 layers: a layer must be specified: {input_path}"
+                    )
+
+            # If appending with add_fields, VectorTranslate does not give an error when
+            # the columns don't match, but the output is not correct, so check here.
+            # Apparently with older versions of GDAL (3.8) the check isn't done either
+            # when creating a new file, so do the check always.
+            if (
+                columns is not None
+                and len(list(columns)) > 0
+                and input_layers is not None
+            ):
+                datasource_layer = input_ds.GetLayerByName(input_layers[0])
+                layer_defn = datasource_layer.GetLayerDefn()
+                columns_input = [
+                    layer_defn.GetFieldDefn(i).GetName().lower()
+                    for i in range(layer_defn.GetFieldCount())
+                ]
+                for column in columns:
+                    if column.lower() not in columns_input:
+                        raise ValueError(
+                            f"Field '{column}' not found in source layer "
+                            f"{input_path}#{input_layers[0]}"
+                        )
+
             # If output_srs is not specified and the result has 0 rows, gdal creates the
             # output file without srs.
             # documented in https://github.com/geofileops/geofileops/issues/313
@@ -569,14 +595,20 @@ def vector_translate(
             # creates an attribute column "geometry" in the output file. To be able to
             # detect this case later on, check here if the input file already has an
             # attribute column "geometry".
-            input_layer = input_ds.GetLayer()
-            layer_defn = input_layer.GetLayerDefn()
-            for field_idx in range(layer_defn.GetFieldCount()):
-                field_name_lower = layer_defn.GetFieldDefn(field_idx).GetName().lower()
-                if field_name_lower == "geom":
-                    input_has_geom_attribute = True
-                elif field_name_lower == "geometry":
-                    input_has_geometry_attribute = True
+            if input_layers is None or len(input_layers) == 1:
+                if input_layers is None:
+                    datasource_layer = input_ds.GetLayer()
+                else:
+                    datasource_layer = input_ds.GetLayerByName(input_layers[0])
+                layer_defn = datasource_layer.GetLayerDefn()
+                for field in range(layer_defn.GetFieldCount()):
+                    field_name_lower = layer_defn.GetFieldDefn(field).GetName().lower()
+                    if field_name_lower == "geom":
+                        input_has_geom_attribute = True
+                    elif field_name_lower == "geometry":
+                        input_has_geometry_attribute = True
+
+            datasource_layer = None
 
             # Consolidate all parameters
             # First take copy of args, because gdal.VectorTranslateOptions adds all
@@ -592,8 +624,8 @@ def vector_translate(
                 SQLStatement=sql_stmt,
                 SQLDialect=sql_dialect,
                 where=where,
-                selectFields=None,
-                addFields=False,
+                selectFields=columns,
+                addFields=add_fields,
                 forceNullable=False,
                 spatFilter=spatial_filter,
                 spatSRS=None,
@@ -603,7 +635,11 @@ def vector_translate(
                 layerName=output_layer,
                 geometryType=output_geometrytypes,
                 dim=dst_dimensions,
+                transactionSize=transaction_size,
+                clipSrc=clip_geometry,
+                preserveFID=preserve_fid,
                 segmentizeMaxDist=None,
+                explodeCollections=explodecollections,
                 zField=None,
                 skipFailures=False,
                 limit=None,
@@ -628,6 +664,8 @@ def vector_translate(
             raise RuntimeError("output_ds is None")
 
     except FileNotFoundError:
+        raise
+    except ValueError:
         raise
     except Exception as ex:
         output_ds = None
@@ -778,7 +816,7 @@ def _validate_file(
                     f"{path=}"
                 )
 
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
         # In gdal 3.10, invalid gpkg files are still written when an invalid sql
         # is used if a new file is created or an existing one is overwritten.
         logger.warning(

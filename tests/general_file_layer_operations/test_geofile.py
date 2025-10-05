@@ -38,16 +38,12 @@ gdal.UseExceptions()
 @pytest.fixture(scope="module", params=ENGINES)
 def engine_setter(request):
     engine = request.param
-    engine_backup = os.environ.get("GFO_IO_ENGINE", None)
-    if engine is None:
-        del os.environ["GFO_IO_ENGINE"]
-    else:
+    if engine is not None:
         os.environ["GFO_IO_ENGINE"] = engine
-    yield engine
-    if engine_backup is None:
+    elif "GFO_IO_ENGINE" in os.environ:
         del os.environ["GFO_IO_ENGINE"]
-    else:
-        os.environ["GFO_IO_ENGINE"] = engine_backup
+    yield engine
+    del os.environ["GFO_IO_ENGINE"]
 
 
 @pytest.fixture
@@ -336,14 +332,15 @@ def test_copy_layer_add_layer_shp(tmp_path):
     assert layer1_info.featurecount == 48
 
 
-def test_copy_layer_append_different_layer(tmp_path):
+@pytest.mark.parametrize("write_mode", ["append", "append_add_fields"])
+def test_copy_layer_append_different_layer(tmp_path, write_mode):
     # Prepare test data
     src_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
     dst_path = tmp_path / "dst.gpkg"
 
     # Copy src file to dst file to "layer1"
     gfo.copy_layer(
-        str(src_path), str(dst_path), dst_layer="layer1", write_mode="append"
+        str(src_path), str(dst_path), dst_layer="layer1", write_mode=write_mode
     )
     src_info = gfo.get_layerinfo(src_path)
     dst_layer1_info = gfo.get_layerinfo(dst_path, "layer1")
@@ -355,40 +352,52 @@ def test_copy_layer_append_different_layer(tmp_path):
     assert dst_layer1_info.featurecount == dst_layer2_info.featurecount
 
 
+@pytest.mark.parametrize("write_mode", ["append", "append_add_fields"])
+@pytest.mark.parametrize("limit_dst_columns", [True, False])
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
-def test_copy_layer_append_columns(tmp_path, suffix):
+def test_copy_layer_append_columns(tmp_path, write_mode, limit_dst_columns, suffix):
     """Test appending rows specifying some columns.
 
-    This does not seem to be supported by GDAL.
+    Both the situation where the dst file has the same columns as the columns being
+    appended, and where the dst file has more columns than the columns being appended
+    tested.
+
+    This doesn't seem to be supported by GDAL .csv.
     """
     # Prepare test data
-    src_path = test_helper.get_testfile(
-        "polygon-parcel", dst_dir=tmp_path, suffix=suffix
-    )
+    src_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     dst_path = tmp_path / f"dst{suffix}"
-    gfo.copy(src_path, dst_path)
-
-    src_info = gfo.get_layerinfo(src_path, raise_on_nogeom=False)
-    src_columns = list(src_info.columns)
+    gfo.copy(src_path, dst_path, keep_permissions=False)
     dst_columns = ["OIDN", "UIDN", "GEWASGROEP"]
-    for column in src_columns:
-        if column not in dst_columns:
-            gfo.drop_column(dst_path, column_name=column)
 
-    # For GPKG and CSV files, the append fails
-    if suffix in (".gpkg", ".csv"):
-        pytest.xfail(
-            "Appending only certain columns is not supported for GPKG and CSV files"
-        )
+    # Remove columns we are not going to copy from the dst file.
+    dst_info_orig = gfo.get_layerinfo(dst_path, raise_on_nogeom=False)
+    columns_orig = list(dst_info_orig.columns)
+    if limit_dst_columns:
+        for column in columns_orig:
+            if column not in dst_columns:
+                gfo.drop_column(dst_path, column_name=column)
+        exp_columns = len(dst_columns)
+    else:
+        exp_columns = len(columns_orig)
 
-    # For other file types, all rows are appended tot the dst layer, but the extra
-    # column is not!
-    gfo.copy_layer(src_path, dst_path, columns=dst_columns, write_mode="append")
+    if suffix == ".csv":
+        pytest.xfail("Appending only certain columns is not supported for .csv.")
+
+    dst_layer = "parcels" if suffix == ".gpkg" else None
+    gfo.copy_layer(
+        src_path,
+        dst_path,
+        columns=dst_columns,
+        dst_layer=dst_layer,
+        write_mode=write_mode,
+    )
 
     # Check results
+    src_info = gfo.get_layerinfo(src_path, raise_on_nogeom=False)
     dst_info = gfo.get_layerinfo(dst_path, raise_on_nogeom=False)
     assert (src_info.featurecount * 2) == dst_info.featurecount
-    assert len(dst_info.columns) == len(dst_columns)
+    assert len(dst_info.columns) == exp_columns
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
@@ -411,7 +420,8 @@ def test_copy_layer_append_default_layer(tmp_path, suffix):
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
-def test_copy_layer_append_different_columns(tmp_path, suffix):
+@pytest.mark.parametrize("write_mode", ["append", "append_add_fields"])
+def test_copy_layer_append_different_columns(tmp_path, write_mode, suffix):
     """Test appending rows to a file with a column less than in source file."""
     # Prepare test data
     src_path = test_helper.get_testfile(
@@ -420,36 +430,43 @@ def test_copy_layer_append_different_columns(tmp_path, suffix):
     dst_path = tmp_path / f"dst{suffix}"
     gfo.copy_layer(src_path, dst_path)
     gfo.add_column(src_path, name="extra_col", type=gfo.DataType.INTEGER)
+    raise_on_nogeom = False if suffix == ".csv" else True
+    dst_orig_info = gfo.get_layerinfo(dst_path, raise_on_nogeom=raise_on_nogeom)
 
     # All rows are appended tot the dst layer, but the extra column is not!
-    gfo.copy_layer(src_path, dst_path, write_mode="append")
+    gfo.copy_layer(src_path, dst_path, write_mode=write_mode)
 
     # Check results
-    raise_on_nogeom = False if suffix == ".csv" else True
-
     src_info = gfo.get_layerinfo(src_path, raise_on_nogeom=raise_on_nogeom)
     res_info = gfo.get_layerinfo(dst_path, raise_on_nogeom=raise_on_nogeom)
+    exp_columns = len(dst_orig_info.columns)
+    if write_mode == "append_add_fields":
+        # With add_fields, the extra column should is added to the dst layer
+        exp_columns += 1
+
     assert (src_info.featurecount * 2) == res_info.featurecount
-    assert len(src_info.columns) == len(res_info.columns) + 1
+    assert len(res_info.columns) == exp_columns
 
 
-def test_copy_layer_append_error_non_default_layer(tmp_path):
+@pytest.mark.parametrize("write_mode", ["append", "append_add_fields"])
+def test_copy_layer_append_error_non_default_layer(tmp_path, write_mode):
     # Prepare test data
-    src = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    src = test_helper.get_testfile("polygon-parcel")
     dst = tmp_path / "output.gpkg"
-    gfo.copy(src, dst)
+    gfo.copy(src, dst, keep_permissions=False)
 
     # Append fails if no layer is specified and a layer that does not have the default
     # layer name exists already
     with pytest.raises(ValueError, match="dst_layer is required when write_mode is"):
-        gfo.copy_layer(src, dst, write_mode="append")
+        gfo.copy_layer(src, dst, write_mode=write_mode)
 
 
-def test_copy_layer_append_error_other_layers(tmp_path):
+@pytest.mark.parametrize("write_mode", ["append", "append_add_fields"])
+def test_copy_layer_append_error_other_layers(tmp_path, write_mode):
     # Prepare test data
-    src = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    src = test_helper.get_testfile("polygon-parcel")
     dst = tmp_path / "output.gpkg"
-    gfo.copy(src, dst)
+    gfo.copy(src, dst, keep_permissions=False)
     gfo.copy_layer(
         src, dst, write_mode="add_layer", dst_layer=gfo.get_default_layer(dst)
     )
@@ -457,7 +474,7 @@ def test_copy_layer_append_error_other_layers(tmp_path):
     # Append fails if no layer is specified and multiple layers exist already, even if
     # one of them has the default layer name
     with pytest.raises(ValueError, match="dst_layer is required when write_mode is"):
-        gfo.copy_layer(src, dst, write_mode="append")
+        gfo.copy_layer(src, dst, write_mode=write_mode)
 
 
 @pytest.mark.parametrize("testfile", ["polygon-parcel", "curvepolygon"])
@@ -645,6 +662,11 @@ def test_copy_layer_force_output_geometrytype(tmp_path, testfile, force_geometry
             ValueError,
             "append parameter is deprecated, use write_mode",
         ),
+        (
+            {"src": test_helper.get_testfile("polygon-twolayers")},
+            ValueError,
+            "input has > 1 layers: a layer must be specified",
+        ),
     ],
 )
 def test_copy_layer_errors(tmp_path, kwargs, exp_ex, exp_error):
@@ -828,26 +850,50 @@ def test_copy_layer_to_gpkg_zip(tmp_path):
     assert_geodataframe_equal(src_gdf, dst_gdf)
 
 
+def test_copy_layer_twolayers(tmp_path):
+    src = test_helper.get_testfile("polygon-twolayers")
+
+    # Test first layer
+    dst_parcels = tmp_path / "output_parcels.gpkg"
+    gfo.copy_layer(src, dst_parcels, src_layer="parcels")
+    layerinfo_parcels = gfo.get_layerinfo(dst_parcels)
+    assert layerinfo_parcels.featurecount == 48
+    assert layerinfo_parcels.name == "output_parcels"
+    assert len(layerinfo_parcels.columns) == 11
+
+    # Test second layer
+    dst_zones = tmp_path / "output_zones.gpkg"
+    gfo.copy_layer(src, dst_zones, src_layer="zones")
+    layerinfo_zones = gfo.get_layerinfo(dst_zones)
+    assert layerinfo_zones.featurecount == 5
+    assert layerinfo_zones.name == "output_zones"
+    assert len(layerinfo_zones.columns) == 1
+
+
 @pytest.mark.parametrize(
     "src",
     [
+        f"{test_helper.data_dir.as_posix()}/polygon-parcel.gpkg",
+        f"/vsicurl/{test_helper.data_url}/polygon-parcel.gpkg",
         f"/vsizip//vsicurl/{test_helper.data_url}/poly_shp.zip",
         f"/vsizip//vsicurl/{test_helper.data_url}/poly_shp.zip/poly.shp",
         f"/vsizip/{test_helper.data_dir.as_posix()}/poly_shp.zip",
         f"/vsizip/{test_helper.data_dir.as_posix()}/poly_shp.zip/poly.shp",
     ],
 )
-def test_copy_layer_vsi(tmp_path, src):
-    # Prepare test data
-    dst = tmp_path / "output.gpkg"
+def test_copy_layer_vsi(src):
+    dst = "/vsimem/output.gpkg"
 
-    # copy_layer with vsi
-    gfo.copy_layer(src, dst)
+    try:
+        # copy_layer with vsi
+        gfo.copy_layer(src, dst)
 
-    # Now compare source and dst file
-    src_layerinfo = gfo.get_layerinfo(src)
-    dst_layerinfo = gfo.get_layerinfo(dst)
-    assert src_layerinfo.featurecount == dst_layerinfo.featurecount
+        # Now compare source and dst file
+        src_layerinfo = gfo.get_layerinfo(src)
+        dst_layerinfo = gfo.get_layerinfo(dst)
+        assert src_layerinfo.featurecount == dst_layerinfo.featurecount
+    finally:
+        gdal.Unlink(dst)
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
@@ -1219,7 +1265,9 @@ def test_get_layerinfo_twolayers():
     assert len(layerinfo.columns) == 1
 
     # Test error if no layer specified
-    with pytest.raises(ValueError, match="input has > 1 layer, but no layer specified"):
+    with pytest.raises(
+        ValueError, match="input has > 1 layers: a layer must be specified"
+    ):
         layerinfo = gfo.get_layerinfo(src)
 
 
@@ -1251,7 +1299,9 @@ def test_get_only_layer_two_layers():
     src = test_helper.get_testfile("polygon-twolayers")
     layers = gfo.listlayers(src)
     assert len(layers) == 2
-    with pytest.raises(ValueError, match="input has > 1 layer, but no layer specified"):
+    with pytest.raises(
+        ValueError, match="input has > 1 layers: a layer must be specified"
+    ):
         _ = gfo.get_only_layer(src)
 
 
@@ -1629,11 +1679,14 @@ def test_read_file_sql_no_geom(suffix, engine_setter):
         (".gpkg", "polygon-twolayers", "parcels"),
     ],
 )
-def test_read_file_sql_placeholders(suffix, testfile, layer, columns):
+def test_read_file_sql_placeholders(suffix, testfile, layer, columns, engine_setter):
+    """Test if placeholders are properly filled out.
+
+    Also verify if casing used in columns parameter is retained when using placeholders.
     """
-    Test if placeholders are properly filled out + if casing used in columns parameter
-    is retained when using placeholders.
-    """
+    if engine_setter == "fiona":
+        pytest.skip("sql_stmt param not supported for fiona engine")
+
     # Prepare test data
     src = test_helper.get_testfile(testfile, suffix=suffix)
 
@@ -1791,7 +1844,7 @@ def test_fill_out_sql_placeholders():
         (
             None,
             'SELECT * FROM "{input_layer}"',
-            "input has > 1 layer, but no layer specified",
+            "input has > 1 layers: a layer must be specified",
         ),
     ],
 )

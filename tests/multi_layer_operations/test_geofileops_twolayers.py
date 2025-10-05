@@ -17,7 +17,7 @@ import shapely.geometry as sh_geom
 
 import geofileops as gfo
 from geofileops import GeometryType
-from geofileops._compat import GEOPANDAS_110, GEOPANDAS_GTE_10, SPATIALITE_GTE_51
+from geofileops._compat import GEOPANDAS_110, GEOPANDAS_GTE_10
 from geofileops.util import _general_util, _geofileinfo, _sqlite_util
 from geofileops.util import _geoops_sql as geoops_sql
 from geofileops.util._geofileinfo import GeofileInfo
@@ -27,7 +27,8 @@ from tests.test_helper import SUFFIXES_GEOOPS, TESTFILES, assert_geodataframe_eq
 
 @pytest.mark.parametrize("testfile", TESTFILES)
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
-def test_clip(tmp_path, testfile, suffix):
+@pytest.mark.parametrize("subdivide_coords", [0, 5])
+def test_clip(tmp_path, testfile, suffix, subdivide_coords):
     input_path = test_helper.get_testfile(testfile, suffix=suffix)
     clip_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
@@ -39,6 +40,7 @@ def test_clip(tmp_path, testfile, suffix):
         output_path=str(output_path),
         where_post=None,
         batchsize=batchsize,
+        subdivide_coords=subdivide_coords,
     )
 
     # Compare result with geopandas
@@ -49,8 +51,16 @@ def test_clip(tmp_path, testfile, suffix):
     input_gdf = gfo.read_file(input_path)
     clip_gdf = gfo.read_file(clip_path)
     output_gpd_gdf = gpd.clip(input_gdf, clip_gdf, keep_geom_type=True)
+
+    # If input was subdivided, the output geometries will have some extra points
+    check_geom_tolerance = 0.0 if subdivide_coords == 0 else 1e-9
     assert_geodataframe_equal(
-        output_gdf, output_gpd_gdf, promote_to_multi=True, sort_values=True
+        output_gdf,
+        output_gpd_gdf,
+        normalize=True,
+        promote_to_multi=True,
+        sort_values=True,
+        check_geom_tolerance=check_geom_tolerance,
     )
 
 
@@ -1307,9 +1317,7 @@ def test_join_nearest(tmp_path, suffix, epsg):
     output_layerinfo = gfo.get_layerinfo(output_path)
     expected_featurecount = nb_nearest * (input1_layerinfo.featurecount - 1)
     assert output_layerinfo.featurecount == expected_featurecount
-    exp_columns = len(input1_columns) + len(input2_layerinfo.columns) + 2
-    if SPATIALITE_GTE_51:
-        exp_columns += 1
+    exp_columns = len(input1_columns) + len(input2_layerinfo.columns) + 2 + 1
     assert len(output_layerinfo.columns) == exp_columns
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
 
@@ -1324,24 +1332,15 @@ def test_join_nearest(tmp_path, suffix, epsg):
 
 
 @pytest.mark.parametrize(
-    "kwargs, error_spatialite51, error_spatialite50",
+    "kwargs, error",
     [
-        ({"expand": True}, "distance is mandatory", None),
-        (
-            {"expand": False},
-            "distance is mandatory with spatialite >= 5.1",
-            "expand=False is not supported with spatialite < 5.1",
-        ),
-        ({"distance": 1000}, "expand is mandatory with spatialite >= 5.1", None),
-        ({"distance": 1000, "expand": True}, None, None),
+        ({"expand": True}, "distance is mandatory"),
+        ({"expand": False}, "distance is mandatory with spatialite >= 5.1"),
+        ({"distance": 1000}, "expand is mandatory with spatialite >= 5.1"),
+        ({"distance": 1000, "expand": True}, None),
     ],
 )
-def test_join_nearest_invalid_params(
-    tmp_path, kwargs, error_spatialite51, error_spatialite50
-):
-    # Check what version of spatialite we are dealing with
-    error = error_spatialite51 if SPATIALITE_GTE_51 else error_spatialite50
-
+def test_join_nearest_invalid_params(tmp_path, kwargs, error):
     # Prepare test data
     input1_path = test_helper.get_testfile("polygon-parcel")
     input2_path = test_helper.get_testfile("polygon-zone")
