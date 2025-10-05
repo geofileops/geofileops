@@ -440,9 +440,7 @@ def vector_translate(
         if explodecollections:
             # If explodecollections is specified, explicitly disable fid to avoid errors
             args.append("-unsetFid")
-    elif preserve_fid:
-        args.append("-preserve_fid")
-    else:
+    elif not preserve_fid:
         args.append("-unsetFid")
 
     # Prepare output layer creation options
@@ -622,7 +620,7 @@ def vector_translate(
                 dim=dst_dimensions,
                 transactionSize=transaction_size,
                 clipSrc=clip_geometry,
-                preserveFid=preserve_fid,
+                preserveFID=preserve_fid,
                 segmentizeMaxDist=None,
                 explodeCollections=explodecollections,
                 zField=None,
