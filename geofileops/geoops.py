@@ -2798,6 +2798,9 @@ def join(
     ``input2_on`` parameters will determine which geometries of input1 will be matched
     with input2.
 
+    Alternative names:
+        - Pandas: merge, join
+
     Args:
         input1_path (PathLike): the 1st input file
         input2_path (PathLike): the 2nd input file
@@ -2841,9 +2844,7 @@ def join(
             Defaults to False.
 
     See Also:
-        * :func:`join_by_location`: join features that e.g. intersect with features of
-            another layer
-
+        * :func:`join_by_location`: join two layers based on their spatial relationship
 
     .. |spatialite_reference_link| raw:: html
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
@@ -2897,7 +2898,7 @@ def join_by_location(
     batchsize: int = -1,
     force: bool = False,
 ):
-    r"""Joins all features in input1 with all features in input2.
+    r"""Join two layers based on the spatial relationship between the geometries.
 
     The output will contain the geometries of input1. The ``spatial_relations_query``
     and ``min_area_intersect`` parameters will determine which geometries of input1 will
@@ -2923,6 +2924,7 @@ def join_by_location(
     Alternative names:
         - GeoPandas: sjoin
         - ArcGIS: spatial join
+        - QGIS: join attributes by location
 
     Args:
         input1_path (PathLike): the 1st input file
