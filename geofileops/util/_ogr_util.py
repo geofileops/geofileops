@@ -440,7 +440,9 @@ def vector_translate(
         if explodecollections:
             # If explodecollections is specified, explicitly disable fid to avoid errors
             args.append("-unsetFid")
-    elif not preserve_fid:
+    elif preserve_fid:
+        args.append("-preserve_fid")
+    else:
         args.append("-unsetFid")
 
     # Prepare output layer creation options
