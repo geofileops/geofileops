@@ -35,7 +35,6 @@ def test_join(tmp_path: Path, join_type):
 
     # Check results
     input1_info = gfo.get_layerinfo(input1_path)
-    input2_info = gfo.get_layerinfo(input2_path, raise_on_nogeom=False)
     output_info = gfo.get_layerinfo(output_path)
     input1_df = gfo.read_file(input1_path)
 
