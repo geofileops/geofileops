@@ -2847,6 +2847,7 @@ def join(
         * :func:`join_by_location`: join two layers based on their spatial relationship
 
     .. |spatialite_reference_link| raw:: html
+
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
 
     """  # noqa: E501
