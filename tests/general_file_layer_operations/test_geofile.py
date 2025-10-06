@@ -2463,27 +2463,29 @@ def test_zip_unzip(tmp_path):
 
     # Unzip and check result
     dst_dir = tmp_path / "unzipped"
-    fileops._unzip(zip_path, dst_dir)
+    dst_geofile_path = fileops._unzip(zip_path, dst_dir)
+    assert dst_geofile_path.exists()
+    assert dst_geofile_path == dst_dir / src.name
     assert len(list(dst_dir.iterdir())) == 1
     assert (dst_dir / src.name).exists()
 
 
-def test_zip_unzip_dir(tmp_path):
+@pytest.mark.parametrize("suffix, exp_nb_files", [(".gpkg", 1), (".shp", 4)])
+def test_zip_unzip_dir(tmp_path, suffix, exp_nb_files):
     # Prepare test data
-    src = test_helper.get_testfile("polygon-parcel")
+    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     zip_dir = tmp_path / "dir_to_zip"
     zip_dir.mkdir()
-    file1 = zip_dir / f"{src.stem}_1{src.suffix}"
-    file2 = zip_dir / f"{src.stem}_2{src.suffix}"
-    gfo.copy(src, file1)
-    gfo.copy(src, file2)
+    file = zip_dir / f"{src.stem}_{src.suffix}"
+    gfo.copy(src, file)
     zip_path = tmp_path / "zipped.zip"
     fileops._zip(zip_dir, zip_path)
 
     # Unzip and check result
     dst_dir = tmp_path / "unzipped"
-    fileops._unzip(zip_path, dst_dir)
+    dst_path = fileops._unzip(zip_path, dst_dir)
     assert dst_dir.exists()
-    assert len(list(dst_dir.iterdir())) == 2
-    assert (dst_dir / file1.name).exists()
-    assert (dst_dir / file2.name).exists()
+    assert dst_path.exists()
+    assert dst_path == dst_dir / file.name
+    assert len(list(dst_dir.iterdir())) == exp_nb_files
+    assert (dst_dir / file.name).exists()

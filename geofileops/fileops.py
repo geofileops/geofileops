@@ -2913,24 +2913,32 @@ def _unzip(
         dst (PathLike): the destination directory.
 
     Returns:
-        Path: The path to the unzipped file.
+        Path: The path to the unzipped geofile in the destination directory.
     """
-    # Unzip the file
     with zipfile.ZipFile(src, "r") as zipf:
+        # Determine the geofile in the zip to be able to return it
+        files = zipf.filelist
+        geofilename = None
+        if len(files) == 0:
+            raise ValueError(f"No files found in zip: {src}")
+        elif len(files) == 1:
+            geofilename = files[0].filename
+        else:
+            for file in files:
+                if file.filename.endswith((".shp", ".gpkg", ".geojson", ".json")):
+                    if geofilename is not None:
+                        raise ValueError(
+                            f"Multiple geofiles found in zip: {src}, so cannot "
+                            "determine which one to return."
+                        )
+                    geofilename = file.filename
+
+        if geofilename is None:
+            raise ValueError(f"No geofile found in zip: {src}")
+
         zipf.extractall(dst)
 
-    # Find the file corresponding to the suffix of the zip file to return it
-    src_suffix = geopath.suffix_nozip(src)
-    extracted_files = list(Path(dst).rglob(f"*{src_suffix}"))
-    if len(extracted_files) == 0:
-        raise FileNotFoundError(f"No file with suffix {src_suffix} found in {dst}")
-    elif len(extracted_files) > 1:
-        raise RuntimeError(
-            f"Multiple files with suffix {src_suffix} found in {dst}, unable to "
-            "determine which one to return."
-        )
-
-    return extracted_files[0]
+    return Path(dst) / geofilename
 
 
 def _determine_access_mode(
