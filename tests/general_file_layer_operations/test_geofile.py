@@ -18,7 +18,7 @@ from pygeoops import GeometryType
 import geofileops as gfo
 from geofileops import fileops
 from geofileops._compat import GDAL_GTE_311
-from geofileops.util import _geofileinfo, _geopath_util, _geoseries_util
+from geofileops.util import _geofileinfo, _geoseries_util, geopath
 from tests import test_helper
 from tests.test_helper import (
     SUFFIXES_FILEOPS,
@@ -1354,7 +1354,7 @@ def test_listlayers_one_layer(suffix, only_spatial_layers, expected):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     layers = gfo.listlayers(src, only_spatial_layers=only_spatial_layers)
 
-    expected = [exp.format(src_stem=_geopath_util.stem(src)) for exp in expected]
+    expected = [exp.format(src_stem=geopath.stem(src)) for exp in expected]
     assert layers == expected
 
 
@@ -1869,7 +1869,7 @@ def test_to_file(tmp_path, suffix, dimensions, engine_setter):
     src = test_helper.get_testfile(
         "polygon-parcel", suffix=suffix, dimensions=dimensions
     )
-    output_path = tmp_path / f"{_geopath_util.stem(src)}-output{suffix}"
+    output_path = tmp_path / f"{geopath.stem(src)}-output{suffix}"
     uidn = str(2318781) if suffix == ".csv" else 2318781
     encoding = "utf-8" if suffix == ".csv" else None
 

@@ -20,6 +20,7 @@ from geofileops.util import (
     _geoops_sql,
     _io_util,
     _sqlite_util,
+    geopath,
 )
 from geofileops.util._geometry_util import (
     BufferEndCapStyle,
@@ -1337,8 +1338,8 @@ def isvalid(
         output_path = Path(output_path)
     else:
         input_path = Path(input_path)
-        output_path = (
-            input_path.parent / f"{input_path.stem}_isvalid{input_path.suffix}"
+        output_path = Path(
+            geopath.with_stem(input_path, f"{geopath.stem(input_path)}_isvalid")
         )
 
     # Go!

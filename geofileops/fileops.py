@@ -30,12 +30,12 @@ from geofileops._compat import GDAL_GTE_311
 from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import (
     _geofileinfo,
-    _geopath_util,
     _geoseries_util,
     _io_util,
     _ogr_sql_util,
     _ogr_util,
     _sqlite_util,
+    geopath,
 )
 
 try:
@@ -116,7 +116,7 @@ def listlayers(
     if str(path).lower().endswith((".shp", ".shp.zip")):
         if not _vsi_exists(path):
             raise FileNotFoundError(f"File not found: {path}")
-        return [_geopath_util.stem(path)]
+        return [geopath.stem(path)]
 
     datasource = None
     try:
@@ -544,7 +544,7 @@ def get_default_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
     Returns:
         str: The default layer name.
     """
-    return _geopath_util.stem(path)
+    return geopath.stem(path)
 
 
 def execute_sql(
@@ -2903,16 +2903,34 @@ def _zip(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
                     zipf.write(file_path, file_path.relative_to(src))
 
 
-def _unzip(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]):
+def _unzip(
+    src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]
+) -> Path:
     """Unzip a zip file.
 
     Args:
         src (PathLike): the zip file to unzip.
         dst (PathLike): the destination directory.
+
+    Returns:
+        Path: The path to the unzipped file.
     """
     # Unzip the file
     with zipfile.ZipFile(src, "r") as zipf:
         zipf.extractall(dst)
+
+    # Find the file corresponding to the suffix of the zip file to return it
+    src_suffix = geopath.suffix_nozip(src)
+    extracted_files = list(Path(dst).rglob(f"*{src_suffix}"))
+    if len(extracted_files) == 0:
+        raise FileNotFoundError(f"No file with suffix {src_suffix} found in {dst}")
+    elif len(extracted_files) > 1:
+        raise RuntimeError(
+            f"Multiple files with suffix {src_suffix} found in {dst}, unable to "
+            "determine which one to return."
+        )
+
+    return extracted_files[0]
 
 
 def _determine_access_mode(

@@ -15,10 +15,10 @@ import shapely.geometry as sh_geom
 import geofileops as gfo
 from geofileops.util import (
     _geofileinfo,
-    _geopath_util,
     _geoseries_util,
     _io_util,
     geodataframe_util,
+    geopath,
 )
 
 try:
@@ -219,8 +219,8 @@ def _get_testfile(
 
         # Prepare the file in a tmp file so the file is not visible to other
         # processes until it is completely ready.
-        tmp_stem = f"{_geopath_util.stem(prepared_path)}_tmp"
-        tmp_path = _geopath_util.with_stem(prepared_path, tmp_stem)
+        tmp_stem = f"{geopath.stem(prepared_path)}_tmp"
+        tmp_path = geopath.with_stem(prepared_path, tmp_stem)
         layers = gfo.listlayers(testfile_path)
         dst_info = _geofileinfo.get_geofileinfo(tmp_path)
         if len(layers) > 1 and dst_info.is_singlelayer:

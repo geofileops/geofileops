@@ -21,6 +21,7 @@ from tests import test_helper
 from tests.test_helper import (
     EPSGS,
     SUFFIXES_GEOOPS,
+    SUFFIXES_GEOOPS_EXT,
     TESTFILES,
     WHERE_AREA_GT_5000,
     WHERE_LENGTH_GT_1000,
@@ -29,7 +30,7 @@ from tests.test_helper import (
 )
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS_EXT)
 @pytest.mark.parametrize(
     "epsg, gridsize, explodecollections, where_post",
     [
@@ -46,14 +47,11 @@ def test_dissolve_linestrings(
     input_path = test_helper.get_testfile(
         "linestring-watercourse", suffix=suffix, epsg=epsg
     )
-    output_basepath = tmp_path / f"{input_path.stem}-output{suffix}"
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
     # Dissolve, no groupby
-    output_path = (
-        output_basepath.parent / f"{output_basepath.stem}_expl{output_basepath.suffix}"
-    )
+    output_path = tmp_path / f"output_expl{suffix}"
     gfo.dissolve(
         input_path=str(input_path),
         output_path=str(output_path),
@@ -284,16 +282,16 @@ def test_dissolve_linestrings_aggcolumns_json(tmp_path, agg_columns):
         (".gpkg", 31370, False, "GEWASgroep", True, 0.0, "", 26),
         (".gpkg", 31370, False, ["GEWASgroep"], True, 0.01, "", 24),
         (".gpkg", 31370, False, ["GEWASGROEP"], False, 0.0, "", 6),
-        (".gpkg", 31370, True, ["GEWASGROEP"], False, 0.0, "", 6),
+        (".gpkg.zip", 31370, True, ["GEWASGROEP"], False, 0.0, "", 6),
         (".gpkg", 31370, False, ["gewasGROEP"], False, 0.01, WHERE_AREA_GT_5000, 4),
         (".gpkg", 31370, False, ["gewasGROEP"], True, 0.01, WHERE_AREA_GT_5000, 13),
         (".gpkg", 31370, False, ["gewasGROEP"], False, 0.0, WHERE_AREA_GT_5000, 4),
-        (".gpkg", 31370, False, ["gewasGROEP"], True, 0.0, WHERE_AREA_GT_5000, 13),
+        (".gpkg.zip", 31370, False, ["gewasGROEP"], True, 0.0, WHERE_AREA_GT_5000, 13),
         (".gpkg", 31370, False, [], True, 0.0, None, 24),
         (".gpkg", 31370, False, None, False, 0.0, None, 1),
         (".gpkg", 4326, False, ["GEWASGROEP"], True, 0.0, None, 26),
         (".shp", 31370, False, ["GEWASGROEP"], True, 0.0, None, 26),
-        (".shp", 31370, False, [], True, 0.0, None, 24),
+        (".shp.zip", 31370, False, [], True, 0.0, None, 24),
     ],
 )
 def test_dissolve_polygons(
@@ -335,7 +333,7 @@ def test_dissolve_polygons(
     # Test dissolve polygons with different options for groupby and explodecollections
     # --------------------------------------------------------------------------------
     groupby = True if (groupby_columns is None or len(groupby_columns) == 0) else False
-    name = f"{input_path.stem}_groupby-{groupby}_explode-{explode}_gridsize-{gridsize}"
+    name = f"input_groupby-{groupby}_explode-{explode}_gridsize-{gridsize}"
     output_path = tmp_path / f"{name}{suffix}"
     gfo.dissolve(
         input_path=input_path,
@@ -361,14 +359,14 @@ def test_dissolve_polygons(
     if groupby:
         # No groupby -> normally no columns.
         # Shapefile needs at least one column, if no columns: fid
-        if suffix == ".shp":
+        if suffix in [".shp", ".shp.zip"]:
             assert len(output_layerinfo.columns) == 1
         else:
             assert len(output_layerinfo.columns) == 0
     else:
         assert len(output_layerinfo.columns) == len(groupby_columns)
 
-    if not explode or suffix == ".shp":
+    if not explode or suffix in [".shp", ".shp.zip"]:
         # Shapefile always returns MultiPolygon
         assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
     else:
@@ -413,7 +411,7 @@ def test_dissolve_polygons(
     #     output_gdf, expected_gdf, promote_to_multi=True, sort_values=True,
     #     normalize=True, check_less_precise=True
     # )
-    if suffix != ".shp":
+    if suffix not in [".shp", ".shp.zip"]:
         # Shapefile needs at least one column, if no columns: fid
         assert list(output_gdf.columns) == list(expected_gdf.columns)
     assert len(output_gdf) == len(expected_gdf)

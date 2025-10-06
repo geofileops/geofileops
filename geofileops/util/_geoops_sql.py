@@ -34,6 +34,7 @@ from geofileops.util import (
     _ogr_util,
     _processing_util,
     _sqlite_util,
+    geopath,
 )
 from geofileops.util._geofileinfo import GeofileInfo
 
@@ -858,7 +859,6 @@ def _single_layer_vector_operation(
                 tmp_output_path = zipped_path
 
             # Move to final location
-            output_path.parent.mkdir(parents=True, exist_ok=True)
             gfo.move(tmp_output_path, output_path)
 
         elif (
@@ -4329,13 +4329,13 @@ def dissolve_singlethread(
     # Now we can really start
     tempdir = _io_util.create_tempdir("geofileops/dissolve_singlethread")
     try:
-        suffix = output_path.suffix
         options = {}
         if where_post is not None:
             # where_post needs to be applied still, so no spatial index needed
             options["LAYER_CREATION.SPATIAL_INDEX"] = False
-            suffix = ".gpkg"
-        tmp_output_path = tempdir / f"output_tmp{suffix}"
+            tmp_output_path = tempdir / f"{output_path.stem}.gpkg"
+        else:
+            tmp_output_path = tempdir / output_path.name
 
         _ogr_util.vector_translate(
             input_path=input_path,
@@ -4350,7 +4350,10 @@ def dissolve_singlethread(
 
         # We still need to apply the where_post filter
         if where_post is not None:
-            tmp_output_where_path = tempdir / f"output_tmp2_where{output_path.suffix}"
+            tmp_output_where_path = (
+                tempdir / f"output_tmp2_where{geopath.suffix(output_path)}"
+            )
+
             tmp_output_info = gfo.get_layerinfo(tmp_output_path)
             where_post = where_post.format(
                 geometrycolumn=tmp_output_info.geometrycolumn

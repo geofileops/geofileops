@@ -4,7 +4,22 @@ import os
 from pathlib import Path, PurePath
 from typing import Any, Union
 
-GEO_MULTI_SUFFIXES = [".gpkg.zip", ".shp.zip"]
+GEO_MULTI_SUFFIXES = (".gpkg.zip", ".shp.zip")
+
+
+def name_nozip(path: Union[str, "os.PathLike[Any]"]) -> str:
+    """Return the name of a path, removing a .zip suffix if present.
+
+    Args:
+        path (PathLike): The path to get the name of.
+
+    Returns:
+        str: The name of the path without a .zip suffix.
+    """
+    path = PurePath(path)
+    if path.suffix.lower() == ".zip":
+        return path.name[: -len(".zip")]
+    return path.name
 
 
 def stem(path: Union[str, "os.PathLike[Any]"]) -> str:
@@ -33,7 +48,7 @@ def stem(path: Union[str, "os.PathLike[Any]"]) -> str:
     return path.stem
 
 
-def suffixes(path: Union[str, "os.PathLike[Any]"]) -> str:
+def suffix(path: Union[str, "os.PathLike[Any]"]) -> str:
     """Return the suffixes of a path, supporting multi-suffixes for geo formats.
 
     Args:
@@ -53,7 +68,22 @@ def suffixes(path: Union[str, "os.PathLike[Any]"]) -> str:
     return path.suffix
 
 
-def with_stem(path: Union[str, "os.PathLike[Any]"], new_stem: str) -> str | Path:
+def suffix_nozip(path: Union[str, "os.PathLike[Any]"]) -> str:
+    """Return the suffixes of a path, removing a .zip suffix if present.
+
+    Args:
+        path (PathLike): The path to get the suffixes of.
+
+    Returns:
+        str: The suffixes of the path without a .zip suffix.
+    """
+    suffixes = suffix(path)
+    if suffixes.lower().endswith(".zip"):
+        return suffixes[: -len(".zip")]
+    return suffixes
+
+
+def with_stem(path: Union[str, "os.PathLike[Any]"], new_stem: str) -> Path:
     """Return a Path with a new stem, supporting multi-suffixes for geo formats.
 
     If the input is a string, the output will be a string. If the input is a Path, the
@@ -64,7 +94,7 @@ def with_stem(path: Union[str, "os.PathLike[Any]"], new_stem: str) -> str | Path
         new_stem (str): The new stem to set.
 
     Returns:
-        str | Path: The path with the new stem.
+        Path: The path with the new stem.
 
     """
     # If there are multiple "."s in the name, check if it is a geo multi-suffix
@@ -90,16 +120,7 @@ def with_stem(path: Union[str, "os.PathLike[Any]"], new_stem: str) -> str | Path
             new_path_str = f"{parent}/{new_name}"
 
     # If the input was a Path, return a Path
-    if isinstance(path, Path):
-        if new_path_str is not None:
-            return Path(new_path_str)
-        else:
-            return Path(path_p).with_stem(new_stem)
-
-    # The input was not a Path, return a string
     if new_path_str is not None:
-        return new_path_str
+        return Path(new_path_str)
     else:
-        # Retain forward/backward slashes in the path by using os.path.
-        parent, tail = os.path.split(path)
-        return f"{parent}/{new_stem}{path_p.suffix}"
+        return Path(path_p).with_stem(new_stem)

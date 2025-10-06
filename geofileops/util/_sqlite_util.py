@@ -17,7 +17,7 @@ from pyproj import CRS, Transformer
 
 import geofileops as gfo
 from geofileops.helpers._configoptions_helper import ConfigOptions
-from geofileops.util import _geopath_util, _sqlite_userdefined
+from geofileops.util import _sqlite_userdefined, geopath
 from geofileops.util._general_util import MissingRuntimeDependencyError
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -324,7 +324,7 @@ def get_columns(
     tmp_dir = None
 
     def get_filetype(path: Path) -> str:
-        if _geopath_util.suffixes(path).lower() in (".gpkg", ".gpkg.zip"):
+        if geopath.suffix(path).lower() in (".gpkg", ".gpkg.zip"):
             return "gpkg"
         return path.suffix.lstrip(".")
 

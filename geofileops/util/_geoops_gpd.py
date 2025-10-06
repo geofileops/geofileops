@@ -40,6 +40,7 @@ from geofileops.util import (
     _io_util,
     _ogr_util,
     _processing_util,
+    geopath,
 )
 from geofileops.util._geofileinfo import GeofileInfo
 from geofileops.util._geometry_util import (
@@ -797,12 +798,8 @@ def _apply_geooperation_to_layer(
         )
 
         # Prepare temp output filename
-        # If output is a zip file, drop the .zip for .gpkg.zip and .shp.zip files
-        if output_path.name.lower().endswith((".gpkg.zip", ".shp.zip")):
-            # stem will result here ending in .gpkg/.shp, which is what we want
-            tmp_output_path = tmp_dir / output_path.stem
-        else:
-            tmp_output_path = tmp_dir / output_path.name
+        # If output is a zip file, drop the .zip suffix
+        tmp_output_path = tmp_dir / geopath.name_nozip(output_path)
 
         # Start processing
         worker_type = _general_helper.worker_type_to_use(
@@ -938,7 +935,6 @@ def _apply_geooperation_to_layer(
                 tmp_output_path = zipped_path
 
             # Move to final location
-            output_path.parent.mkdir(parents=True, exist_ok=True)
             gfo.move(tmp_output_path, output_path)
         else:
             logger.debug("Result was empty")
@@ -1602,10 +1598,10 @@ def dissolve(
 
                 options = {}
                 if where_post is None:
-                    name = f"output_tmp2_final{output_path.suffix}"
+                    name = geopath.name_nozip(output_path)
                 else:
                     # where_post still needs to be ran, so no index + to gpkg
-                    name = f"output_tmp2_final{output_tmp_path.suffix}"
+                    name = "output_tmp2_final.gpkg"
                     options["LAYER_CREATION.SPATIAL_INDEX"] = False
                 output_tmp_final_path = tempdir / name
 
@@ -1622,7 +1618,7 @@ def dissolve(
 
                 # We still need to apply the where_post filter
                 if where_post is not None:
-                    name = f"output_tmp3_where{output_path.suffix}"
+                    name = f"output_tmp3_where_{geopath.suffix(output_path)}"
                     output_tmp_local_path = tempdir / name
                     tmp_info = gfo.get_layerinfo(output_tmp_final_path, output_layer)
                     where_post = where_post.format(
@@ -1642,6 +1638,15 @@ def dissolve(
                         sql_dialect="SQLITE",
                     )
                     output_tmp_final_path = output_tmp_local_path
+
+                # Zip if needed
+                if (
+                    output_path.suffix.lower() == ".zip"
+                    and not output_tmp_final_path.suffix.lower() == ".zip"
+                ):
+                    zipped_path = Path(f"{output_tmp_final_path.as_posix()}.zip")
+                    fileops.sozip(output_tmp_final_path, zipped_path)
+                    output_tmp_final_path = zipped_path
 
                 # Now we are ready to move the result to the final spot...
                 gfo.move(output_tmp_final_path, output_path)
@@ -1679,7 +1684,18 @@ def _dissolve_polygons_pass(
         input_layer = gfo.get_layerinfo(input_path, input_layer)
 
     # Make sure the input file has a spatial index
-    gfo.create_spatial_index(input_path, layer=input_layer, exist_ok=True)
+    tempdir = output_onborder_path.parent
+    # If it is not a .gpkg.zip that already has a spatial index, unzip the file if it is
+    # zipped and create a spatial index on it if it doesn't have one.
+    if not (
+        input_path.name.lower().endswith(".gpkg.zip")
+        and fileops.has_spatial_index(input_path)
+    ):
+        if input_path.name.lower().endswith(geopath.GEO_MULTI_SUFFIXES):
+            # Unzip, as we can't create a spatial index on a zipped file
+            unzipped_dir = tempdir / "input_unzipped"
+            input_path = fileops._unzip(input_path, unzipped_dir)
+        gfo.create_spatial_index(input_path, layer=input_layer, exist_ok=True)
 
     # Start calculation in parallel# Start processing
     worker_type = _general_helper.worker_type_to_use(input_layer.featurecount)
@@ -1688,9 +1704,6 @@ def _dissolve_polygons_pass(
         max_workers=nb_parallel,
         initializer=_processing_util.initialize_worker(worker_type),
     ) as calculate_pool:
-        # Prepare output filename
-        tempdir = output_onborder_path.parent
-
         batches: dict[int, dict] = {}
         nb_batches = len(tiles_gdf)
         nb_batches_done = 0

@@ -11,8 +11,14 @@ from shapely.geometry import Polygon
 import geofileops as gfo
 from geofileops import GeometryType
 from geofileops.util import _geoops_sql as geoops_sql
+from geofileops.util import geopath
 from tests import test_helper
-from tests.test_helper import EPSGS, SUFFIXES_GEOOPS, assert_geodataframe_equal
+from tests.test_helper import (
+    EPSGS,
+    SUFFIXES_GEOOPS,
+    SUFFIXES_GEOOPS_EXT,
+    assert_geodataframe_equal,
+)
 
 
 @pytest.mark.parametrize(
@@ -123,27 +129,35 @@ def test_dissolve_singlethread_output_exists(tmp_path):
     assert output_path.stat().st_size != 0
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS_EXT)
 @pytest.mark.parametrize("epsg", EPSGS)
 @pytest.mark.filterwarnings(
     "ignore: The default date converter is deprecated as of Python 3.12"
 )
 def test_isvalid(tmp_path, suffix, epsg):
     # Prepare test data
-    input_path = test_helper.get_testfile(
-        "polygon-invalid", dst_dir=tmp_path, suffix=suffix, epsg=epsg
+    input_tmp_path = test_helper.get_testfile(
+        "polygon-invalid",
+        dst_dir=tmp_path,
+        suffix=suffix.replace(".zip", ""),
+        epsg=epsg,
     )
 
     # For Geopackage, also test if fid is properly preserved
     preserve_fid = True if suffix == ".gpkg" else False
     # Delete 2nd row, so we can check properly if fid is retained for Geopackage
     # WHERE rowid = 2, because fid is not known for .shp file with sql_dialect="SQLITE"
-    input_layer = gfo.get_only_layer(input_path)
+    input_layer = gfo.get_only_layer(input_tmp_path)
     sql_stmt = f'DELETE FROM "{input_layer}" WHERE rowid = 2'
-    gfo.execute_sql(input_path, sql_stmt=sql_stmt, sql_dialect="SQLITE")
+    gfo.execute_sql(input_tmp_path, sql_stmt=sql_stmt, sql_dialect="SQLITE")
+    if suffix.endswith(".zip"):
+        input_path = input_tmp_path.with_suffix(suffix)
+        gfo.sozip(input_tmp_path, input_path)
+    else:
+        input_path = input_tmp_path
 
     # Now run test
-    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
+    output_path = tmp_path / f"output{suffix}"
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
     gfo.isvalid(input_path=input_path, output_path=output_path, batchsize=batchsize)
@@ -166,9 +180,7 @@ def test_isvalid(tmp_path, suffix, epsg):
     )
 
     # Now check if the tmp file is correctly created
-    output_auto_path = (
-        output_path.parent / f"{input_path.stem}_isvalid{output_path.suffix}"
-    )
+    output_auto_path = tmp_path / f"{geopath.stem(input_path)}_isvalid{suffix}"
     assert output_auto_path.exists()
     result_auto_layerinfo = gfo.get_layerinfo(output_auto_path)
     assert input_layerinfo.featurecount == result_auto_layerinfo.featurecount
