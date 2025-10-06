@@ -707,12 +707,8 @@ def _single_layer_vector_operation(
 
         # Prepare temp output filename
         # If output is a zip file, drop the .zip for .gpkg.zip and .shp.zip files
-        name_lower = output_path.name.lower()
-        if name_lower.endswith(".gpkg.zip"):
-            # stem will result here in .gpkg, which is what we want
-            tmp_output_path = tempdir / output_path.stem
-        elif name_lower.endswith(".shp.zip"):
-            # stem will result here in .shp, which is what we want
+        if output_path.name.lower().endswith((".gpkg.zip", ".shp.zip")):
+            # stem will result here ending in .gpkg/.shp, which is what we want
             tmp_output_path = tempdir / output_path.stem
         else:
             tmp_output_path = tempdir / output_path.name
