@@ -26,6 +26,7 @@ from osgeo import gdal, ogr
 from pandas.api.types import is_integer_dtype
 from pygeoops import GeometryType, PrimitiveType  # noqa: F401
 
+from geofileops._compat import GDAL_GTE_311
 from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import (
     _geofileinfo,
@@ -2848,7 +2849,7 @@ def copy_layer(
     _ogr_util.vector_translate_by_info(info=translate_info)
 
 
-def _sozip(
+def sozip(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
 ):
@@ -2861,6 +2862,9 @@ def _sozip(
         input_path (PathLike): the geofile to zip.
         output_path (PathLike): the output zip file.
     """
+    if not GDAL_GTE_311:
+        raise RuntimeError("sozip requires gdal>=3.11")
+
     # For some file types, extra files need to be included
     input_info = _geofileinfo.get_geofileinfo(input_path)
     input_paths = [input_path]

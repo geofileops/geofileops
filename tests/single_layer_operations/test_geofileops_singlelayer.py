@@ -13,7 +13,7 @@ import shapely
 from shapely import MultiPolygon, Polygon
 
 from geofileops import GeometryType, fileops, geoops
-from geofileops._compat import GDAL_GTE_39
+from geofileops._compat import GDAL_GTE_39, GDAL_GTE_311
 from geofileops.util import _general_util, _geofileinfo, _geoops_sql, _geopath_util
 from geofileops.util._geofileinfo import GeofileInfo
 from tests import test_helper
@@ -154,6 +154,10 @@ def basic_combinations_to_test(
 @pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
 def test_buffer(tmp_path, suffix, worker_type, geoops_module):
     """Buffer minimal test."""
+    if not GDAL_GTE_311 and suffix in {".gpkg.zip", ".shp.zip"}:
+        # Skip test for unsupported GDAL versions
+        pytest.skip(".zip support requires gdal>=3.11")
+
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     input_layerinfo = fileops.get_layerinfo(input_path)

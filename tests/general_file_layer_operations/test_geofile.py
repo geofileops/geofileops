@@ -17,6 +17,7 @@ from pygeoops import GeometryType
 
 import geofileops as gfo
 from geofileops import fileops
+from geofileops._compat import GDAL_GTE_311
 from geofileops.util import _geofileinfo, _geopath_util, _geoseries_util
 from tests import test_helper
 from tests.test_helper import (
@@ -2410,11 +2411,12 @@ def test_remove(tmp_path, suffix):
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
+@pytest.mark.skipif(not GDAL_GTE_311, reason="sozip requires gdal>=3.11")
 def test_sozip(tmp_path, suffix):
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
     sozip_path = tmp_path / "zipped.zip"
-    fileops._sozip(input_path, sozip_path)
+    fileops.sozip(input_path, sozip_path)
 
     # Check result
     assert sozip_path.exists()
