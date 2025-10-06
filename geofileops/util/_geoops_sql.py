@@ -706,7 +706,16 @@ def _single_layer_vector_operation(
         )
 
         # Prepare temp output filename
-        tmp_output_path = tempdir / output_path.name
+        # If output is a zip file, drop the .zip for .gpkg.zip and .shp.zip files
+        name_lower = output_path.name.lower()
+        if name_lower.endswith(".gpkg.zip"):
+            # stem will result here in .gpkg, which is what we want
+            tmp_output_path = tempdir / output_path.stem
+        elif name_lower.endswith(".shp.zip"):
+            # stem will result here in .shp, which is what we want
+            tmp_output_path = tempdir / output_path.stem
+        else:
+            tmp_output_path = tempdir / output_path.name
 
         # Processing in threads is 2x faster for small datasets (on Windows)
         worker_type = _general_helper.worker_type_to_use(input_layer.featurecount)
@@ -833,8 +842,8 @@ def _single_layer_vector_operation(
                 )
 
         # Round up and clean up
-        # Now create spatial index and move to output location
         if tmp_output_path.exists():
+            # Create spatial index if needed
             if GeofileInfo(tmp_output_path).default_spatial_index:
                 gfo.create_spatial_index(
                     path=tmp_output_path,
@@ -842,8 +851,20 @@ def _single_layer_vector_operation(
                     exist_ok=True,
                     no_geom_ok=True,
                 )
+
+            # Zip if needed
+            if (
+                output_path.suffix.lower() == ".zip"
+                and not tmp_output_path.suffix.lower() == ".zip"
+            ):
+                zipped_path = Path(f"{tmp_output_path.as_posix()}.zip")
+                fileops._sozip(tmp_output_path, zipped_path)
+                tmp_output_path = zipped_path
+
+            # Move to final location
             output_path.parent.mkdir(parents=True, exist_ok=True)
             gfo.move(tmp_output_path, output_path)
+
         elif (
             gfo.get_driver(tmp_output_path) == "ESRI Shapefile"
             and tmp_output_path.with_suffix(".dbf").exists()

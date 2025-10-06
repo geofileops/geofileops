@@ -796,6 +796,18 @@ def _apply_geooperation_to_layer(
             tmp_dir=tmp_dir,
         )
 
+        # Prepare temp output filename
+        # If output is a zip file, drop the .zip for .gpkg.zip and .shp.zip files
+        name_lower = output_path.name.lower()
+        if name_lower.endswith(".gpkg.zip"):
+            # stem will result here in .gpkg, which is what we want
+            tmp_output_path = tmp_dir / output_path.stem
+        elif name_lower.endswith(".shp.zip"):
+            # stem will result here in .shp, which is what we want
+            tmp_output_path = tmp_dir / output_path.stem
+        else:
+            tmp_output_path = tmp_dir / output_path.name
+
         # Start processing
         worker_type = _general_helper.worker_type_to_use(
             process_params.nb_rows_to_process
@@ -809,9 +821,6 @@ def _apply_geooperation_to_layer(
             max_workers=process_params.nb_parallel,
             initializer=_processing_util.initialize_worker(worker_type),
         ) as calculate_pool:
-            # Prepare output filename
-            tmp_output_path = tmp_dir / output_path.name
-
             batches: dict[int, dict] = {}
             future_to_batch_id = {}
 
@@ -919,8 +928,21 @@ def _apply_geooperation_to_layer(
         # Round up and clean up
         # Now create spatial index and move to output location
         if tmp_output_path.exists():
+            # Create spatial index if needed
             if GeofileInfo(tmp_output_path).default_spatial_index:
                 gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
+
+            # Zip if needed
+            if (
+                output_path.suffix.lower() == ".zip"
+                and not tmp_output_path.suffix.lower() == ".zip"
+            ):
+                zipped_path = Path(f"{tmp_output_path.as_posix()}.zip")
+                fileops._sozip(tmp_output_path, zipped_path)
+                tmp_output_path = zipped_path
+
+            # Move to final location
+            output_path.parent.mkdir(parents=True, exist_ok=True)
             gfo.move(tmp_output_path, output_path)
         else:
             logger.debug("Result was empty")

@@ -22,6 +22,7 @@ from tests import test_helper
 from tests.test_helper import (
     SUFFIXES_FILEOPS,
     SUFFIXES_FILEOPS_EXT,
+    SUFFIXES_GEOOPS,
     assert_geodataframe_equal,
 )
 
@@ -2406,6 +2407,23 @@ def test_remove(tmp_path, suffix):
     # Remove and check result
     gfo.remove(str(src))
     assert not src.exists()
+
+
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
+def test_sozip(tmp_path, suffix):
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+
+    sozip_path = tmp_path / "zipped.zip"
+    fileops._sozip(input_path, sozip_path)
+
+    # Check result
+    assert sozip_path.exists()
+    assert sozip_path.stat().st_size > 0
+
+    unzipped_dir = tmp_path / "unzipped"
+    fileops._unzip(sozip_path, unzipped_dir)
+    for path in input_path if isinstance(input_path, list) else [input_path]:
+        assert (unzipped_dir / path.name).exists()
 
 
 def test_launder_columns():

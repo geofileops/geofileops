@@ -2848,6 +2848,36 @@ def copy_layer(
     _ogr_util.vector_translate_by_info(info=translate_info)
 
 
+def _sozip(
+    input_path: Union[str, "os.PathLike[Any]"],
+    output_path: Union[str, "os.PathLike[Any]"],
+):
+    """Zip a geofile to a seek-optimized zip file.
+
+    For geofile types that consist of multiple files (eg. shapefiles), all relevant
+    (existing) files are included in the zip.
+
+    Args:
+        input_path (PathLike): the geofile to zip.
+        output_path (PathLike): the output zip file.
+    """
+    # For some file types, extra files need to be included
+    input_info = _geofileinfo.get_geofileinfo(input_path)
+    input_paths = [input_path]
+    input_path_suffix = Path(input_path).suffix
+    input_path_no_suffix = Path(input_path).with_suffix("").as_posix()
+    for suffix in input_info.suffixes_extrafiles:
+        if suffix == input_path_suffix:
+            continue
+        extra_path = f"{input_path_no_suffix}{suffix}"
+        if _vsi_exists(extra_path):
+            input_paths.append(extra_path)
+
+    gdal.Run(
+        "vsi", "sozip", "create", input=input_paths, output=output_path, no_paths=True
+    )
+
+
 def _zip(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]):
     """Zip a file or directory.
 

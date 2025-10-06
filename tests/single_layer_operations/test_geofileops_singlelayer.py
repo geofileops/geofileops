@@ -21,7 +21,7 @@ from tests.test_helper import (
     EPSGS,
     GRIDSIZE_DEFAULT,
     SUFFIXES_GEOOPS,
-    SUFFIXES_GEOOPS_INPUT,
+    SUFFIXES_GEOOPS_EXT,
     TESTFILES,
     WHERE_AREA_GT_400,
     assert_geodataframe_equal,
@@ -149,18 +149,18 @@ def basic_combinations_to_test(
     return result
 
 
-@pytest.mark.parametrize("suffix_input", SUFFIXES_GEOOPS_INPUT)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS_EXT)
 @pytest.mark.parametrize("worker_type", ["threads", "processes"])
 @pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
-def test_buffer(tmp_path, suffix_input, worker_type, geoops_module):
+def test_buffer(tmp_path, suffix, worker_type, geoops_module):
     """Buffer minimal test."""
     # Prepare test data
-    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix_input)
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     input_layerinfo = fileops.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
     # Now run test
-    output_path = tmp_path / "output.gpkg"
+    output_path = tmp_path / f"output{suffix}"
     set_geoops_module(geoops_module)
     with _general_util.TempEnv({"GFO_WORKER_TYPE": worker_type}):
         geoops.buffer(
