@@ -170,7 +170,7 @@ def _get_testfile(
 
     # Test file doesn't exist yet, so create it
     # To be safe for parallelized tests, lock the creation.
-    prepared_lock_path = Path(f"{prepared_path}.lock")
+    prepared_lock_path = Path(f"{prepared_path.as_posix()}.lock")
     try:
         _io_util.create_file_atomic_wait(
             prepared_lock_path, time_between_attempts=0.1, timeout=60
