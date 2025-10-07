@@ -423,7 +423,7 @@ def test_select_invalid_sql(tmp_path, suffix):
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
     # Now run test
-    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
+    output_path = tmp_path / f"{GeoPath(input_path).stem}-output{suffix}"
     sql_stmt = 'SELECT {geometrycolumn}, not_existing_column FROM "{input_layer}"'
 
     with pytest.raises(Exception, match="Error no such column"):

@@ -18,6 +18,7 @@ from geofileops import GeometryType
 from geofileops._compat import GDAL_GTE_311
 from geofileops.util import _general_util, _geofileinfo, _geoops_sql
 from geofileops.util._geofileinfo import GeofileInfo
+from geofileops.util._geopath_util import GeoPath
 from tests import test_helper
 from tests.test_helper import (
     EPSGS,
@@ -106,16 +107,12 @@ def test_dissolve_linestrings_groupby(tmp_path, suffix, epsg, groupby_columns):
     input_path = test_helper.get_testfile(
         "linestring-watercourse", suffix=suffix, epsg=epsg
     )
-    output_basepath = tmp_path / f"{input_path.stem}-output{suffix}"
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
     # Dissolve, groupby, explodecollections=False
     # -------------------------------------------
-    output_path = (
-        output_basepath.parent
-        / f"{output_basepath.stem}_groupby_noexpl{output_basepath.suffix}"
-    )
+    output_path = tmp_path / f"{GeoPath(input_path).stem}_groupby_noexpl{suffix}"
     gfo.dissolve(
         input_path=str(input_path),
         output_path=str(output_path),
@@ -465,7 +462,7 @@ def test_dissolve_emptyfile(tmp_path, testfile, suffix, explodecollections):
         expected_geometrytype = GeometryType.POINT
     else:
         raise ValueError(f"unimplimented testfile: {testfile}")
-    if not explodecollections or suffix == ".shp":
+    if not explodecollections or suffix in (".shp", ".shp.zip"):
         expected_geometrytype = expected_geometrytype.to_multitype
 
     gfo.dissolve(
@@ -642,21 +639,18 @@ def test_dissolve_polygons_process_threads(tmp_path, worker_type):
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 def test_dissolve_polygons_specialcases(tmp_path, suffix):
     # Prepare test data
+    # For shapefile, create in tmp dir because an index file will be created
     dst_dir = tmp_path if suffix == ".shp" else None
     input_path = test_helper.get_testfile(
         "polygon-parcel", suffix=suffix, dst_dir=dst_dir
     )
-    output_basepath = tmp_path / f"{input_path.stem}-output{suffix}"
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
     # Test dissolve polygons with specified output layer
     # --------------------------------------------------
     # A different output layer is not supported for shapefile!!!
-    output_path = (
-        output_basepath.parent
-        / f"{output_basepath.stem}_group_outputlayer{output_basepath.suffix}"
-    )
+    output_path = tmp_path / f"{GeoPath(input_path).stem}-output{suffix}"
     try:
         gfo.dissolve(
             input_path=input_path,
@@ -770,19 +764,16 @@ def test_dissolve_polygons_tiles_empty(tmp_path, suffix, nb_parallel):
 @pytest.mark.filterwarnings("ignore: .* field lbl_conc has been truncated to 254")
 def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
     # Prepare test data
+    # For shapefile, create in tmp_path because an index will need to be created on it.
     dst_dir = tmp_path if suffix == ".shp" else None
     input_path = test_helper.get_testfile(
         "polygon-parcel", suffix=suffix, dst_dir=dst_dir
     )
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
-    output_basepath = tmp_path / f"{input_path.stem}-output{suffix}"
+    output_path = tmp_path / f"{GeoPath(input_path).stem}-output{suffix}"
 
     # Test dissolve polygons with groupby + agg_columns to columns
-    output_path = (
-        output_basepath.parent
-        / f"{output_basepath.stem}_group_aggcolumns{output_basepath.suffix}"
-    )
     # Remarks:
     #     - column names are shortened so it also works for shapefile!
     #     - the columns for agg_columns are choosen so they do not contain
@@ -832,7 +823,7 @@ def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
             batchsize=batchsize,
         )
 
-    # Now check if the tmp file is correctly created
+    # Now check if the output file is correctly created
     assert output_path.exists()
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == 6
@@ -882,19 +873,18 @@ def test_dissolve_polygons_aggcolumns_columns(tmp_path, suffix):
     "agg_columns", [{"json": ["lengte", "oppervl", "lblhfdtlt"]}, {"json": None}]
 )
 def test_dissolve_polygons_aggcolumns_json(tmp_path, agg_columns):
-    # In shapefiles, the length of str columns is very limited, so the json
-    # test would fail.
+    """Test dissolce polygons with agg_columns to json.
+
+    Remark: only geopackage is used as output format for this test as the length of
+    string columns in shapefiles is very limited, so the json test would fail.
+    """
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel")
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
-    output_basepath = tmp_path / f"{input_path.stem}-output.gpkg"
 
     # Test dissolve polygons with groupby + agg_columns to json
-    output_path = (
-        output_basepath.parent
-        / f"{output_basepath.stem}_group_aggjson{output_basepath.suffix}"
-    )
+    output_path = tmp_path / f"{GeoPath(input_path).stem}-output.gpkg"
     gfo.dissolve(
         input_path=input_path,
         output_path=output_path,

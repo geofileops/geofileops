@@ -573,7 +573,7 @@ def _single_layer_vector_operation(
                 input1_path=input_path,
                 input1_layer=input_layer,
                 tempdir=tempdir,
-                unzip_gpkg=False,
+                unzip_gpkg=True,
             )
 
         processing_params = _prepare_processing_params(
