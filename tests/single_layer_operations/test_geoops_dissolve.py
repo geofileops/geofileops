@@ -45,6 +45,11 @@ from tests.test_helper import (
 def test_dissolve_linestrings(
     tmp_path, suffix, epsg, gridsize, explodecollections, where_post
 ):
+    """Test dissolve of linestrings with different options."""
+    if not GDAL_GTE_311 and suffix in {".gpkg.zip", ".shp.zip"}:
+        # Skip test for unsupported GDAL versions
+        pytest.skip(".zip support requires gdal>=3.11")
+
     # Prepare test data
     input_path = test_helper.get_testfile(
         "linestring-watercourse", suffix=suffix, epsg=epsg

@@ -9,6 +9,7 @@ from stat import S_IRGRP, S_IROTH, S_IRUSR, S_IRWXG, S_IRWXO, S_IRWXU
 
 import geopandas as gpd
 import geopandas.testing as gpd_testing
+import pytest
 import shapely
 import shapely.geometry as sh_geom
 
@@ -145,6 +146,9 @@ def _get_testfile(
     dimensions: str | None = None,
     explodecollections: bool = False,
 ) -> Path:
+    if suffix.lower() in (".gpkg.zip", ".shp.zip") and not GDAL_GTE_311:
+        pytest.skip("geo_sozip support requires gdal>=3.11")
+
     # Prepare original filepath.
     testfile_path = data_dir / f"{testfile}.gpkg"
     if not testfile_path.exists():
