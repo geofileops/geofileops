@@ -1497,7 +1497,7 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
         input2_path = input_geom_path
         geom_column = '"{input2_geometrycolumn}" AS geom'
         order_by_geom = "ORDER BY geom IS NULL"
-        layer1 = "input_nogeom layer1"
+        layer1 = '"{input1_layer}" layer1'
         layer2 = '"{input2_layer}" layer2'
         exp_output_geom = True
         exp_featurecount = 37
@@ -1507,7 +1507,7 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
         geom_column = '"{input1_geometrycolumn}" AS geom'
         order_by_geom = "ORDER BY geom IS NULL"
         layer1 = '"{input1_layer}" layer1'
-        layer2 = "input_nogeom layer2"
+        layer2 = '"{input2_layer}" layer2'
         exp_output_geom = True
         exp_featurecount = 37
     elif input_nogeom == "both":
@@ -1515,8 +1515,8 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
         input2_path = input_nogeom_path
         geom_column = "NULL AS TEST"
         order_by_geom = ""
-        layer1 = "input_nogeom layer1"
-        layer2 = "input_nogeom layer2"
+        layer1 = '"{input1_layer}" layer1'
+        layer2 = '"{input2_layer}" layer2'
         exp_output_geom = False
         exp_featurecount = 2
 
