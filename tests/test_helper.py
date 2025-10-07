@@ -13,6 +13,7 @@ import shapely
 import shapely.geometry as sh_geom
 
 import geofileops as gfo
+from geofileops._compat import PYTHON_313
 from geofileops.util import (
     _geofileinfo,
     _geoseries_util,
@@ -37,6 +38,8 @@ SUFFIXES_FILEOPS = [".gpkg", ".shp", ".csv"]
 SUFFIXES_FILEOPS_EXT = [".gpkg", ".gpkg.zip", ".shp.zip", ".shp", ".csv"]
 SUFFIXES_GEOOPS = [".gpkg", ".shp"]
 SUFFIXES_GEOOPS_EXT = [".gpkg", ".gpkg.zip", ".shp.zip", ".shp"]
+if PYTHON_313:
+    SUFFIXES_GEOOPS = SUFFIXES_GEOOPS_EXT
 TESTFILES = ["polygon-parcel", "linestring-row-trees", "point"]
 WHERE_AREA_GT_400 = "ST_Area({geometrycolumn}) > 400"
 WHERE_AREA_GT_5000 = "ST_Area({geometrycolumn}) > 5000"
