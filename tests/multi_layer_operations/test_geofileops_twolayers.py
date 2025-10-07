@@ -127,7 +127,7 @@ def test_clip_resultempty(tmp_path, suffix, clip_empty):
     not GEOPANDAS_GTE_10,
     reason="assert_geodataframe_equal with check_geom_gridsize requires gpd >= 1.0",
 )
-@pytest.mark.skipif(os.name == "nt", reason="crashes on windows")
+# @pytest.mark.skipif(os.name == "nt", reason="crashes on windows")
 def test_difference(
     tmp_path,
     suffix,
@@ -138,7 +138,7 @@ def test_difference(
     check_geom_tolerance,
 ):
     input1_path = test_helper.get_testfile(testfile, suffix=suffix)
-    if suffix == ".shp":
+    if suffix in (".shp", ".shp.zip"):
         input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
         input2_layer = None
     else:
@@ -146,7 +146,7 @@ def test_difference(
         input2_layer = "zones"
     input_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
-    output_path = tmp_path / f"{input1_path.stem}-output{suffix}"
+    output_path = tmp_path / f"{GeoPath(input1_path).stem}-output{suffix}"
 
     kwargs = {}
     if subdivide_coords is not None:
@@ -187,7 +187,7 @@ def test_difference(
     exp_gdf = exp_gdf[~exp_gdf.geometry.is_empty]
 
     if test_helper.RUNS_LOCAL:
-        output_exp_path = tmp_path / f"{input1_path.stem}-expected{suffix}"
+        output_exp_path = tmp_path / f"{GeoPath(input1_path).stem}-expected{suffix}"
         gfo.to_file(exp_gdf, output_exp_path)
 
     assert_geodataframe_equal(

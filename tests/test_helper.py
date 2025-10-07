@@ -106,50 +106,6 @@ def prepare_expected_result(
     return exp_gdf
 
 
-def prepare_test_file(
-    input_path: Path,
-    output_dir: Path,
-    suffix: str,
-    crs_epsg: int | None = None,
-    use_cachedir: bool = False,
-) -> Path:
-    # Tmp dir
-    if use_cachedir is True:
-        tmp_cache_dir = _io_util.get_tempdir() / "geofileops_test_data"
-        tmp_cache_dir.mkdir(parents=True, exist_ok=True)
-    else:
-        tmp_cache_dir = output_dir
-
-    # If crs_epsg specified and test input file in wrong crs_epsg, reproject
-    input_prepared_path = input_path
-    if crs_epsg is not None:
-        input_prepared_path = tmp_cache_dir / f"{input_path.stem}_{crs_epsg}{suffix}"
-        if input_prepared_path.exists() is False:
-            input_layerinfo = gfo.get_layerinfo(input_path)
-            assert input_layerinfo.crs is not None
-            if input_layerinfo.crs.to_epsg() == crs_epsg:
-                if input_path.suffix == suffix:
-                    gfo.copy(input_path, input_prepared_path)
-                else:
-                    gfo.copy_layer(input_path, input_prepared_path)
-            else:
-                test_gdf = gfo.read_file(input_path)
-                test_gdf = test_gdf.to_crs(crs_epsg)
-                assert isinstance(test_gdf, gpd.GeoDataFrame)
-                gfo.to_file(test_gdf, input_prepared_path)
-    elif input_path.suffix != suffix:
-        # No crs specified, but different suffix asked, so convert file
-        input_prepared_path = tmp_cache_dir / f"{input_path.stem}{suffix}"
-        if input_prepared_path.exists() is False:
-            gfo.copy_layer(input_path, input_prepared_path)
-
-    # Now copy the prepared file to the output dir
-    output_path = output_dir / input_prepared_path.name
-    if str(input_prepared_path) != str(output_path):
-        gfo.copy(input_prepared_path, output_path)
-    return output_path
-
-
 def get_testfile(
     testfile: str,
     dst_dir: Path | None = None,
@@ -223,7 +179,7 @@ def _get_testfile(
         # Prepare the file in a tmp file so the file is not visible to other
         # processes until it is completely ready.
         tmp_stem = f"{GeoPath(prepared_path).stem}_tmp"
-        tmp_path = GeoPath(prepared_path).with_stem(tmp_stem)
+        tmp_path = dst_dir / f"{tmp_stem}{GeoPath(prepared_path).suffix_nozip}"
         layers = gfo.listlayers(testfile_path)
         dst_info = _geofileinfo.get_geofileinfo(tmp_path)
         if len(layers) > 1 and dst_info.is_singlelayer:
@@ -278,6 +234,13 @@ def _get_testfile(
                         expression=f"CastToXYZ({prepared_info.geometrycolumn}, 5.0)",
                         layer=dst_layer,
                     )
+
+        # If the output should be zipped, zip it
+        if prepared_path.suffix == ".zip":
+            tmp_path_zipped_path = dst_dir / f"{tmp_path.name}.zip"
+            gfo.geo_sozip(tmp_path, tmp_path_zipped_path)
+            gfo.remove(tmp_path, missing_ok=True)
+            tmp_path = tmp_path_zipped_path
 
         # Rename tmp file to prepared file
         gfo.move(tmp_path, prepared_path)
