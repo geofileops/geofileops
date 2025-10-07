@@ -2461,15 +2461,17 @@ def test_launder_columns():
 def test_geo_unzip(tmp_path, suffix, exp_nb_files):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    zip_dir = tmp_path / "dir_to_zip"
+    zip_dir.mkdir()
+    gfo.copy(input_path, zip_dir)
     zip_path = tmp_path / "zipped.zip"
-    fileops._zip(input_path, zip_path)
+    fileops._zip(zip_dir, zip_path)
 
     # Unzip and check result
     output_dir = tmp_path / "unzipped"
     output_geofile_path = fileops.geo_unzip(zip_path, output_dir)
     assert output_dir.exists()
     assert output_geofile_path.exists()
-
     assert output_geofile_path == output_dir / input_path.name
     assert len(list(output_dir.iterdir())) == exp_nb_files
     assert (output_dir / input_path.name).exists()
