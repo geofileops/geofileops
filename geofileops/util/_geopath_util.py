@@ -58,17 +58,10 @@ class GeoPath:
         Returns:
             str: the stem of the path.
         """
-        # If there are multiple "."s in the name, check if it is a geo multi-suffix
-        if self._path.name.count(".") > 1:
-            name_lower = self._path.name.lower()
-            is_geo_multi_suffix = False
-            for suffixes in GEO_MULTI_SUFFIXES:
-                if name_lower.endswith(suffixes):
-                    is_geo_multi_suffix = True
-                    break
-
-            # A geo multi-suffix has been found
-            if is_geo_multi_suffix:
+        name_lower = self._path.name.lower()
+        for suffixes in GEO_MULTI_SUFFIXES:
+            if name_lower.endswith(suffixes):
+                # Geo multi-suffix found, remove it from the name to get the stem
                 return self._path.name[: -len(suffixes)]
 
         return self._path.stem
@@ -114,25 +107,23 @@ class GeoPath:
             Path: The path with the new stem.
 
         """
-        # If there are multiple "."s in the name, check if it is a geo multi-suffix
+        # Determine if the filename has a geo multi-suffix (case insensitive)
         new_path_str = None
-        if self._path.name.count(".") > 1:
-            # Determine if the filename has a geo multi-suffix (case insensitive)
-            name_lower = self._path.name.lower()
-            is_geo_multi_suffix = False
-            for suffixes in GEO_MULTI_SUFFIXES:
-                if name_lower.endswith(suffixes):
-                    is_geo_multi_suffix = True
-                    break
+        name_lower = self._path.name.lower()
+        is_geo_multi_suffix = False
+        for multi_suffix in GEO_MULTI_SUFFIXES:
+            if name_lower.endswith(multi_suffix):
+                is_geo_multi_suffix = True
+                break
 
-            # The file name has a geo multi-suffix
-            if is_geo_multi_suffix:
-                # Recover the suffixes from the file name to keep the casing
-                suffixes = self._path.name[-len(suffixes) :]
-                new_name = f"{stem}{suffixes}"
-                # Use os.path to retain forward/backward slashes in the path
-                parent, _ = os.path.split(self._path)
-                new_path_str = f"{parent}/{new_name}"
+        # The file name has a geo multi-suffix
+        if is_geo_multi_suffix:
+            # Recover the suffixes from the file name to keep the casing
+            multi_suffix = self._path.name[-len(multi_suffix) :]
+            new_name = f"{stem}{multi_suffix}"
+            # Use os.path to retain forward/backward slashes in the path
+            parent, _ = os.path.split(self._path)
+            new_path_str = f"{parent}/{new_name}"
 
         # If the input was a Path, return a Path
         if new_path_str is not None:

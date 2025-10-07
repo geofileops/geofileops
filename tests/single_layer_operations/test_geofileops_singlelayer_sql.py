@@ -560,7 +560,7 @@ def test_select_star(tmp_path, suffix, explodecollections):
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
     # Now run test
-    name = f"{input_path.stem}-output{suffix}"
+    name = f"{GeoPath(input_path).stem}-output{suffix}"
     output_path = tmp_path / name
     input_layerinfo = gfo.get_layerinfo(input_path)
     sql_stmt = 'SELECT * FROM "{input_layer}"'

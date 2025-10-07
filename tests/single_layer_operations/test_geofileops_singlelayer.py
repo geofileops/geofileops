@@ -337,6 +337,7 @@ def test_buffer_columns_fid(
 
 @pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
 def test_buffer_force(tmp_path, geoops_module):
+    suffix = ".gpkg"
     input_path = test_helper.get_testfile("polygon-parcel")
     input_layerinfo = fileops.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
@@ -344,7 +345,7 @@ def test_buffer_force(tmp_path, geoops_module):
     set_geoops_module(geoops_module)
 
     # Run buffer
-    output_path = tmp_path / f"{input_path.stem}-output{input_path.suffix}"
+    output_path = tmp_path / f"{GeoPath(input_path).stem}-output{suffix}"
     assert not output_path.exists()
 
     # Use "processes" worker type to test this as well
@@ -441,7 +442,7 @@ def test_buffer_negative(
     input_path = test_helper.get_testfile(testfile, suffix=suffix)
 
     # Now run test
-    output_path = tmp_path / f"{input_path.stem}-{geoops_module}{suffix}"
+    output_path = tmp_path / f"{GeoPath(input_path).stem}-{geoops_module}{suffix}"
     set_geoops_module(geoops_module)
     input_layerinfo = fileops.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
@@ -452,7 +453,7 @@ def test_buffer_negative(
     kwargs = {}
     if keep_empty_geoms is not None:
         kwargs["keep_empty_geoms"] = keep_empty_geoms
-    output_path = output_path.parent / f"{output_path.stem}_m10m{output_path.suffix}"
+    output_path = tmp_path / f"{GeoPath(output_path).stem}_m10m{suffix}"
     geoops.buffer(
         input_path=input_path,
         output_path=output_path,
@@ -510,17 +511,18 @@ def test_buffer_negative(
 @pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
 def test_buffer_negative_explode(tmp_path, geoops_module):
     """Buffer basics are available both in the gpd and sql implementations."""
+    suffix = ".gpkg"
     input_path = test_helper.get_testfile("polygon-parcel")
 
     # Now run test
-    output_path = tmp_path / f"{input_path.stem}-output{input_path.suffix}"
+    output_path = tmp_path / f"{GeoPath(input_path).stem}-output{suffix}"
     set_geoops_module(geoops_module)
     input_layerinfo = fileops.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
     # Test negative buffer with explodecollections
     output_path = (
-        output_path.parent / f"{output_path.stem}_m10m_explode{output_path.suffix}"
+        output_path.parent / f"{GeoPath(output_path).stem}_m10m_explode{suffix}"
     )
     distance = -10
     keep_empty_geoms = False
@@ -813,9 +815,7 @@ def test_makevalid(tmp_path, suffix, input_empty, geoops_module):
 
     # Make sure the input file is not valid
     if not input_empty:
-        output_isvalid_path = (
-            tmp_path / f"{input_path.stem}_is-valid{input_path.suffix}"
-        )
+        output_isvalid_path = tmp_path / f"{GeoPath(input_path).stem}_is-valid{suffix}"
         isvalid = _geoops_sql.isvalid(
             input_path=input_path, output_path=output_isvalid_path
         )
@@ -851,7 +851,7 @@ def test_makevalid(tmp_path, suffix, input_empty, geoops_module):
 
     # Check if the result file is valid
     output_new_isvalid_path = (
-        tmp_path / f"{output_path.stem}_new_is-valid{output_path.suffix}"
+        tmp_path / f"{GeoPath(output_path).stem}_new_is-valid{suffix}"
     )
     isvalid = _geoops_sql.isvalid(
         input_path=output_path, output_path=output_new_isvalid_path
