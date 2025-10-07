@@ -3834,11 +3834,11 @@ def _convert_to_spatialite_based(
     """
     # If input1 and/or input2 are a zipped gpkg, unzip.
     if unzip_gpkg:
-        if GeoPath(input1_path).suffix_full.lower() == ".gpkg.zip":
-            input1_unzipped_path = tempdir / input1_path.stem
+        if input1_path.name.lower().endswith(".gpkg.zip"):
+            input1_unzipped_path = tempdir / f"input1_{input1_path.stem}"
             input1_path = gfo.geo_unzip(input1_path, input1_unzipped_path)
-        if input2_path and GeoPath(input2_path).suffix_full.lower() == ".gpkg.zip":
-            input2_unzipped_path = tempdir / input2_path.stem
+        if input2_path and input2_path.name.lower().endswith(".gpkg.zip"):
+            input2_unzipped_path = tempdir / f"input2_{input2_path.stem}"
             input2_path = gfo.geo_unzip(input2_path, input2_unzipped_path)
 
     input1_info = _geofileinfo.get_geofileinfo(input1_path)
