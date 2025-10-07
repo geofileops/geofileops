@@ -35,8 +35,8 @@ from geofileops.util import (
     _ogr_sql_util,
     _ogr_util,
     _sqlite_util,
-    geopath,
 )
+from geofileops.util._geopath_util import GeoPath
 
 try:
     import fiona
@@ -116,7 +116,7 @@ def listlayers(
     if str(path).lower().endswith((".shp", ".shp.zip")):
         if not _vsi_exists(path):
             raise FileNotFoundError(f"File not found: {path}")
-        return [geopath.stem(path)]
+        return [GeoPath(path).stem]
 
     datasource = None
     try:
@@ -544,7 +544,7 @@ def get_default_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
     Returns:
         str: The default layer name.
     """
-    return geopath.stem(path)
+    return GeoPath(path).stem
 
 
 def execute_sql(

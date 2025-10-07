@@ -11,7 +11,7 @@ from shapely.geometry import Polygon
 import geofileops as gfo
 from geofileops import GeometryType
 from geofileops.util import _geoops_sql as geoops_sql
-from geofileops.util import geopath
+from geofileops.util._geopath_util import GeoPath
 from tests import test_helper
 from tests.test_helper import (
     EPSGS,
@@ -180,7 +180,7 @@ def test_isvalid(tmp_path, suffix, epsg):
     )
 
     # Now check if the tmp file is correctly created
-    output_auto_path = tmp_path / f"{geopath.stem(input_path)}_isvalid{suffix}"
+    output_auto_path = tmp_path / f"{GeoPath(input_path).stem}_isvalid{suffix}"
     assert output_auto_path.exists()
     result_auto_layerinfo = gfo.get_layerinfo(output_auto_path)
     assert input_layerinfo.featurecount == result_auto_layerinfo.featurecount

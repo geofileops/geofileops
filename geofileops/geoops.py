@@ -20,13 +20,13 @@ from geofileops.util import (
     _geoops_sql,
     _io_util,
     _sqlite_util,
-    geopath,
 )
 from geofileops.util._geometry_util import (
     BufferEndCapStyle,
     BufferJoinStyle,
     SimplifyAlgorithm,
 )
+from geofileops.util._geopath_util import GeoPath
 
 if TYPE_CHECKING:  # pragma: no cover
     import os
@@ -1334,19 +1334,18 @@ def isvalid(
 
     """
     # Check parameters
+    input_path = Path(input_path)
     if output_path is not None:
         output_path = Path(output_path)
     else:
-        input_path = Path(input_path)
-        output_path = Path(
-            geopath.with_stem(input_path, f"{geopath.stem(input_path)}_isvalid")
-        )
+        input_geopath = GeoPath(input_path)
+        output_path = input_geopath.with_stem(f"{input_geopath.stem}_isvalid")
 
     # Go!
     logger = logging.getLogger("geofileops.isvalid")
     logger.info(f"Start, on {input_path}")
     return _geoops_sql.isvalid(
-        input_path=Path(input_path),
+        input_path=input_path,
         output_path=output_path,
         input_layer=input_layer,
         output_layer=output_layer,

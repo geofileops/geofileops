@@ -14,8 +14,9 @@ from shapely import MultiPolygon, Polygon
 
 from geofileops import GeometryType, fileops, geoops
 from geofileops._compat import GDAL_GTE_39, GDAL_GTE_311
-from geofileops.util import _general_util, _geofileinfo, _geoops_sql, geopath
+from geofileops.util import _general_util, _geofileinfo, _geoops_sql
 from geofileops.util._geofileinfo import GeofileInfo
+from geofileops.util._geopath_util import GeoPath
 from tests import test_helper
 from tests.test_helper import (
     EPSGS,
@@ -1154,8 +1155,8 @@ def test_simplify(
     kwargs = {}
     if keep_empty_geoms is not None:
         kwargs["keep_empty_geoms"] = keep_empty_geoms
-    output_path = geopath.with_stem(
-        input_path, f"{output_path.stem}_{keep_empty_geoms}"
+    output_path = GeoPath(input_path).with_stem(
+        f"{GeoPath(output_path).stem}_{keep_empty_geoms}"
     )
     geoops.simplify(
         input_path=input_path,

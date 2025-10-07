@@ -34,9 +34,9 @@ from geofileops.util import (
     _ogr_util,
     _processing_util,
     _sqlite_util,
-    geopath,
 )
 from geofileops.util._geofileinfo import GeofileInfo
+from geofileops.util._geopath_util import GeoPath
 
 logger = logging.getLogger(__name__)
 
@@ -4351,7 +4351,7 @@ def dissolve_singlethread(
         # We still need to apply the where_post filter
         if where_post is not None:
             tmp_output_where_path = (
-                tempdir / f"output_tmp2_where{geopath.suffix(output_path)}"
+                tempdir / f"output_tmp2_where{GeoPath(output_path).suffix_full}"
             )
 
             tmp_output_info = gfo.get_layerinfo(tmp_output_path)

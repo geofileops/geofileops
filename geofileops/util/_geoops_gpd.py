@@ -40,7 +40,6 @@ from geofileops.util import (
     _io_util,
     _ogr_util,
     _processing_util,
-    geopath,
 )
 from geofileops.util._geofileinfo import GeofileInfo
 from geofileops.util._geometry_util import (
@@ -48,6 +47,7 @@ from geofileops.util._geometry_util import (
     BufferJoinStyle,
     SimplifyAlgorithm,
 )
+from geofileops.util._geopath_util import GeoPath
 
 # Don't show this geopandas warning...
 warnings.filterwarnings("ignore", "GeoSeries.isna", UserWarning)
@@ -799,7 +799,7 @@ def _apply_geooperation_to_layer(
 
         # Prepare temp output filename
         # If output is a zip file, drop the .zip suffix
-        tmp_output_path = tmp_dir / geopath.name_nozip(output_path)
+        tmp_output_path = tmp_dir / GeoPath(output_path).name_nozip
 
         # Start processing
         worker_type = _general_helper.worker_type_to_use(
@@ -1598,7 +1598,7 @@ def dissolve(
 
                 options = {}
                 if where_post is None:
-                    name = geopath.name_nozip(output_path)
+                    name = GeoPath(output_path).name_nozip
                 else:
                     # where_post still needs to be ran, so no index + to gpkg
                     name = "output_tmp2_final.gpkg"
@@ -1618,7 +1618,7 @@ def dissolve(
 
                 # We still need to apply the where_post filter
                 if where_post is not None:
-                    name = f"output_tmp3_where_{geopath.suffix(output_path)}"
+                    name = f"output_tmp3_where_{GeoPath(output_path).suffix_full}"
                     output_tmp_local_path = tempdir / name
                     tmp_info = gfo.get_layerinfo(output_tmp_final_path, output_layer)
                     where_post = where_post.format(
@@ -1691,7 +1691,7 @@ def _dissolve_polygons_pass(
         input_path.name.lower().endswith(".gpkg.zip")
         and fileops.has_spatial_index(input_path)
     ):
-        if input_path.name.lower().endswith(geopath.GEO_MULTI_SUFFIXES):
+        if GeoPath(input_path).is_multi_suffix:
             # Unzip, as we can't create a spatial index on a zipped file
             unzipped_dir = tempdir / "input_unzipped"
             input_path = fileops._unzip(input_path, unzipped_dir)

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Union
 from osgeo import gdal
 from osgeo_utils.auxiliary.util import GetOutputDriversFor
 
-from geofileops.util import geopath
+from geofileops.util._geopath_util import GeoPath
 
 if TYPE_CHECKING:  # pragma: no cover
     import os
@@ -242,7 +242,7 @@ def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
 
     """  # noqa: E501
     # gdal.OpenEx is relatively slow on windows, so for straightforward cases, avoid it.
-    suffix = geopath.suffix(path).lower()
+    suffix = GeoPath(path).suffix_full.lower()
     if suffix in (".gpkg", ".gpkg.zip"):
         return "GPKG"
     elif suffix in (".shp", ".shp.zip"):

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from geofileops.util import geopath
+from geofileops.util._geopath_util import GeoPath
 
 
 @pytest.mark.parametrize(
@@ -22,11 +22,11 @@ from geofileops.util import geopath
     ],
 )
 def test_stem(path, exp_stem):
-    assert geopath.stem(path) == exp_stem
+    assert GeoPath(path).stem == exp_stem
 
 
 @pytest.mark.parametrize(
-    "path, exp_suffixes",
+    "path, exp_suffix_full",
     [
         (Path("/tmp/testje.gpkg"), ".gpkg"),
         ("/tmp/testje.gpkg.zip", ".gpkg.zip"),
@@ -39,8 +39,8 @@ def test_stem(path, exp_stem):
         ("/tmp/t.estj.e.gpkg.zip", ".gpkg.zip"),
     ],
 )
-def test_suffixes(path, exp_suffixes):
-    assert geopath.suffix(path) == exp_suffixes
+def test_suffix_full(path, exp_suffix_full):
+    assert GeoPath(path).suffix_full == exp_suffix_full
 
 
 @pytest.mark.parametrize(
@@ -58,8 +58,4 @@ def test_suffixes(path, exp_suffixes):
     ],
 )
 def test_with_stem(path, new_stem, exp_path):
-    # If input is a string, output should be a string
-    assert geopath.with_stem(path, new_stem) == exp_path
-
-    # If input is a Path, output should be a Path
-    assert geopath.with_stem(Path(path), new_stem) == Path(exp_path)
+    assert GeoPath(path).with_stem(new_stem) == Path(exp_path)
