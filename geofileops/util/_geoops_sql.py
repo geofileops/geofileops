@@ -822,9 +822,6 @@ def _single_layer_vector_operation(
 
                     # force_output_geometrytype and explodecollections have already been
                     # applied during calculation, so need to apply it here anymore.
-                    options = {}
-                    if tmp_output_path.suffix == ".shp":
-                        options["CONFIG.SHAPE_ENCODING"] = "UTF-8"
                     fileops.copy_layer(
                         src=tmp_partial_output_path,
                         dst=tmp_output_path,
@@ -832,7 +829,6 @@ def _single_layer_vector_operation(
                         where=where_post,
                         create_spatial_index=False,
                         preserve_fid=preserve_fid,
-                        options=options,
                     )
                     gfo.remove(tmp_partial_output_path)
 
@@ -881,9 +877,7 @@ def _single_layer_vector_operation(
             ):
                 # Add a .cpg file, otherwise the zipped shapefile will not be recognized
                 tmp_output_cpg_path = tmp_output_path.with_suffix(".cpg")
-                if not tmp_output_cpg_path.exists():
-                    with tmp_output_cpg_path.open("w", encoding="UTF-8") as f:
-                        f.write("UTF-8")
+                tmp_output_cpg_path.touch(exist_ok=True)
 
                 zipped_path = Path(f"{tmp_output_path.as_posix()}.zip")
                 fileops.geo_sozip(tmp_output_path, zipped_path)
