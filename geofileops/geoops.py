@@ -1490,7 +1490,7 @@ def makevalid(
     # If asked and output is spatialite based, check if all data can be read
     if validate_attribute_data:
         output_geofileinfo = _geofileinfo.get_geofileinfo(input_path)
-        if output_geofileinfo.is_spatialite_based:
+        if input_path.suffix != ".zip" and output_geofileinfo.is_spatialite_based:
             _sqlite_util.test_data_integrity(path=input_path)
 
 
