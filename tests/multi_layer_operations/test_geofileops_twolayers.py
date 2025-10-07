@@ -17,10 +17,11 @@ import shapely.geometry as sh_geom
 
 import geofileops as gfo
 from geofileops import GeometryType
-from geofileops._compat import GEOPANDAS_110, GEOPANDAS_GTE_10
+from geofileops._compat import GDAL_GTE_311, GEOPANDAS_110, GEOPANDAS_GTE_10
 from geofileops.util import _general_util, _geofileinfo, _sqlite_util
 from geofileops.util import _geoops_sql as geoops_sql
 from geofileops.util._geofileinfo import GeofileInfo
+from geofileops.util._geopath_util import GeoPath
 from tests import test_helper
 from tests.test_helper import SUFFIXES_GEOOPS, TESTFILES, assert_geodataframe_equal
 
@@ -637,12 +638,14 @@ def test_intersect_deprecated(tmp_path):
     "suffix_in, suffix_out, epsg, gridsize, explodecollections, worker_type, "
     "nb_parallel",
     [
-        (".gpkg.zip", ".gpkg", 31370, 0.0, True, "threads", 1),
+        (".gpkg.zip", ".gpkg.zip", 31370, 0.0, True, "threads", 1),
         (".gpkg", ".gpkg", 31370, 0.01, True, "threads", 1),
-        (".gpkg", ".gpkg", 31370, 0.0, False, "processes", 2),
+        (".gpkg.zip", ".gpkg.zip", 31370, 0.0, False, "processes", 2),
         (".gpkg", ".gpkg", 4326, 0.0, True, "threads", 2),
         (".shp", ".shp", 31370, 0.0, True, "threads", 1),
+        (".shp.zip", ".shp.zip", 31370, 0.0, True, "threads", 1),
         (".shp", ".shp", 31370, 0.0, False, "processes", 2),
+        (".shp.zip", ".shp.zip", 31370, 0.0, False, "processes", 2),
     ],
 )
 def test_intersection(
@@ -655,10 +658,8 @@ def test_intersection(
     worker_type,
     nb_parallel,
 ):
-    if suffix_in == ".gpkg.zip":
-        pytest.xfail(
-            "Two layer operations use sqlite directly, so .gpkg.zip does not work"
-        )
+    if not GDAL_GTE_311 and suffix_in in [".gpkg.zip", ".shp.zip"]:
+        pytest.skip("zip files require gdal >= 3.1.1")
 
     # Prepare test data/parameters
     input1_path = test_helper.get_testfile(
@@ -666,7 +667,10 @@ def test_intersection(
     )
     input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix_in, epsg=epsg)
 
-    output_path = tmp_path / f"{input1_path.stem}_inters_{input2_path.stem}{suffix_out}"
+    output_path = (
+        tmp_path
+        / f"{GeoPath(input1_path).stem}_inters_{GeoPath(input2_path).stem}{suffix_out}"
+    )
     batchsize = -1
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     if nb_parallel > 1:
@@ -694,7 +698,7 @@ def test_intersection(
         len(input1_layerinfo.columns) + len(input2_layerinfo.columns)
     )
 
-    if explodecollections and suffix_out != ".shp":
+    if explodecollections and suffix_out not in (".shp", ".shp.zip"):
         assert output_layerinfo.geometrytype == GeometryType.POLYGON
     else:
         assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON

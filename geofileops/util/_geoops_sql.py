@@ -570,7 +570,10 @@ def _single_layer_vector_operation(
         # able to determine the columns later on.
         if gridsize != 0.0 or geom_selected is None:
             input_path, input_layer, _, _ = _convert_to_spatialite_based(
-                input1_path=input_path, input1_layer=input_layer, tempdir=tempdir
+                input1_path=input_path,
+                input1_layer=input_layer,
+                tempdir=tempdir,
+                unzip_gpkg=False,
             )
 
         processing_params = _prepare_processing_params(
@@ -3214,7 +3217,7 @@ def _two_layer_vector_operation(
     output_crs = _check_crs(input1_layer, input2_layer)
 
     # Prepare tmp output filename
-    tmp_output_path = tmp_dir / output_path.name
+    tmp_output_path = tmp_dir / GeoPath(output_path).name_nozip
     tmp_output_path.parent.mkdir(exist_ok=True, parents=True)
     gfo.remove(tmp_output_path, missing_ok=True)
 
@@ -3227,6 +3230,7 @@ def _two_layer_vector_operation(
                 input1_path=input1_path,
                 input1_layer=input1_layer,
                 tempdir=tmp_dir,
+                unzip_gpkg=True,
                 input2_path=input2_path,
                 input2_layer=input2_layer,
             )
@@ -3447,7 +3451,8 @@ def _two_layer_vector_operation(
             column_datatypes["geom"] = output_geometrytype_calc.name
         output_geometrytype_append = (
             force_output_geometrytype
-            if explode_append or output_path.suffix == ".shp"
+            if explode_append
+            or GeoPath(output_path).suffix_full in (".shp", ".shp.zip")
             else None
         )
 
@@ -3585,6 +3590,7 @@ def _two_layer_vector_operation(
         # Round up and clean up
         # Now create spatial index and move to output location
         if tmp_output_path.exists():
+            # Create spatial index if needed
             if output_with_spatial_index:
                 gfo.create_spatial_index(
                     path=tmp_output_path,
@@ -3592,9 +3598,15 @@ def _two_layer_vector_operation(
                     exist_ok=True,
                     no_geom_ok=True,
                 )
-            if tmp_output_path != output_path:
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-                gfo.move(tmp_output_path, output_path)
+
+            # Zip if needed
+            if output_path.suffix == ".zip":
+                tmp_output_zipped_path = tmp_dir / output_path.name
+                gfo.geo_sozip(tmp_output_path, tmp_output_zipped_path)
+                tmp_output_path = tmp_output_zipped_path
+
+            # Move to final location
+            gfo.move(tmp_output_path, output_path)
         else:
             logger.debug("Result was empty!")
 
@@ -3800,6 +3812,7 @@ def _convert_to_spatialite_based(
     input1_path: Path,
     input1_layer: LayerInfo,
     tempdir: Path,
+    unzip_gpkg: bool,
     input2_path: Path | None = None,
     input2_layer: LayerInfo | None = None,
 ) -> tuple[Path, LayerInfo, Path | None, LayerInfo | None]:
@@ -3808,9 +3821,26 @@ def _convert_to_spatialite_based(
     The input files should be spatialite based, and should be of the same type: either
     both GPKG, or both SQLite.
 
+    Args:
+        input1_path (Path): path to the 1st input
+        input1_layer (LayerInfo): the layer info of the 1st input file
+        tempdir (Path): the temp dir to use
+        unzip_gpkg (bool): if True, zipped gpkg files will be unzipped
+        input2_path (Optional[Path]): path to the 2nd input file
+        input2_layer (Optional[LayerInfo]): the layer info of the 2nd input file
+
     Returns:
         the input1_path, input1_layer, input2_path, input2_layer
     """
+    # If input1 and/or input2 are a zipped gpkg, unzip.
+    if unzip_gpkg:
+        if GeoPath(input1_path).suffix_full.lower() == ".gpkg.zip":
+            input1_unzipped_path = tempdir / input1_path.stem
+            input1_path = gfo.geo_unzip(input1_path, input1_unzipped_path)
+        if input2_path and GeoPath(input2_path).suffix_full.lower() == ".gpkg.zip":
+            input2_unzipped_path = tempdir / input2_path.stem
+            input2_path = gfo.geo_unzip(input2_path, input2_unzipped_path)
+
     input1_info = _geofileinfo.get_geofileinfo(input1_path)
     input2_info = (
         None if input2_path is None else _geofileinfo.get_geofileinfo(input2_path)
