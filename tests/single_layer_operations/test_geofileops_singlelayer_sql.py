@@ -352,7 +352,7 @@ def test_select_equal_columns(tmp_path, suffix):
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
     # Now run test
-    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
+    output_path = tmp_path / f"{GeoPath(input_path).stem}-output{suffix}"
     sql_stmt = 'SELECT {geometrycolumn}, oidn, uidn AS oidn FROM "{input_layer}"'
 
     gfo.select(input_path=input_path, output_path=output_path, sql_stmt=sql_stmt)
@@ -366,9 +366,9 @@ def test_select_equal_columns(tmp_path, suffix):
     assert len(layerinfo_output.columns) == 2
     columns_output_upper = [col.upper() for col in layerinfo_output.columns]
     assert "OIDN" in columns_output_upper
-    if suffix == ".gpkg":
+    if suffix in (".gpkg", ".gpkg.zip"):
         assert "OIDN:1" in columns_output_upper
-    elif suffix == ".shp":
+    elif suffix in (".shp", ".shp.zip"):
         assert "OIDN_1" in columns_output_upper
     else:
         raise ValueError(f"Test doesn't support {suffix=}")
@@ -438,11 +438,11 @@ def test_select_nogeom_in_input(tmp_path, suffix, gridsize):
     # Prepare test data
     input_geom_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     data_df = gfo.read_file(input_geom_path, ignore_geometry=True)
-    input_path = tmp_path / f"{input_geom_path.stem}_nogeom{suffix}"
+    input_path = tmp_path / f"{GeoPath(input_geom_path).stem}_nogeom{suffix}"
     gfo.to_file(data_df, input_path)
 
     # Now run test
-    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
+    output_path = tmp_path / f"{GeoPath(input_path).stem}-output{suffix}"
     sql_stmt = 'SELECT * FROM "{input_layer}"'
 
     # Column casing seems to behave odd: without gridsize (=subselect) results in upper

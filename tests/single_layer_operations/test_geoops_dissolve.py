@@ -146,16 +146,12 @@ def test_dissolve_linestrings_aggcolumns_columns(tmp_path, suffix, epsg):
     input_path = test_helper.get_testfile(
         "linestring-watercourse", suffix=suffix, epsg=epsg
     )
-    output_basepath = tmp_path / f"{input_path.stem}-output{suffix}"
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
     # Dissolve, groupby, explodecollections=False
     # -------------------------------------------
-    output_path = (
-        output_basepath.parent
-        / f"{output_basepath.stem}_groupby_noexpl{output_basepath.suffix}"
-    )
+    output_path = tmp_path / f"{GeoPath(input_path).stem}_groupby_noexpl{suffix}"
     # Also play a bit with casing to check case insnsitivity towards input file, but
     # retaining the casing used in the groupby_columns parameter in output.
     groupby_columns = ["NIScode"]
@@ -206,16 +202,12 @@ def test_dissolve_linestrings_aggcolumns_columns(tmp_path, suffix, epsg):
 def test_dissolve_linestrings_aggcolumns_json(tmp_path, agg_columns):
     # Prepare test data
     input_path = test_helper.get_testfile("linestring-watercourse")
-    output_basepath = tmp_path / f"{input_path.stem}-output.gpkg"
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
     # Dissolve, groupby, explodecollections=False
     # -------------------------------------------
-    output_path = (
-        output_basepath.parent
-        / f"{output_basepath.stem}_groupby_noexpl{output_basepath.suffix}"
-    )
+    output_path = tmp_path / f"{GeoPath(input_path).stem}_groupby_noexpl.gpkg"
     # Also play a bit with casing to check case insnsitivity towards input file, but
     # retaining the casing used in the groupby_columns parameter in output.
     groupby_columns = ["NIScode"]
@@ -664,10 +656,10 @@ def test_dissolve_polygons_specialcases(tmp_path, suffix):
     except Exception:
         # A different output_layer is not supported for shapefile, so normal
         # that an exception is thrown!
-        assert output_path.suffix.lower() == ".shp"
+        assert output_path.suffix.lower() in (".shp", ".shp.zip")
 
     # Now check if the tmp file is correctly created
-    if output_path.suffix.lower() != ".shp":
+    if suffix not in (".shp", ".shp.zip"):
         assert output_path.exists()
         output_layerinfo = gfo.get_layerinfo(output_path)
         assert output_layerinfo.featurecount == 26

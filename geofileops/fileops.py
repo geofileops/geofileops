@@ -2867,9 +2867,12 @@ def geo_sozip(
 
     # For some file types, extra files need to be included
     input_info = _geofileinfo.get_geofileinfo(input_path)
-    input_paths = [input_path]
     input_path_suffix = Path(input_path).suffix
     input_path_no_suffix = Path(input_path).with_suffix("").as_posix()
+
+    input_paths = []
+    if _vsi_exists(input_path):
+        input_paths.append(input_path)
     for suffix in input_info.suffixes_extrafiles:
         if suffix == input_path_suffix:
             continue

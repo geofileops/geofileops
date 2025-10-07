@@ -735,7 +735,7 @@ def _single_layer_vector_operation(
                 batches[batch_id]["layer"] = output_layer
 
                 tmp_partial_output_path = (
-                    tempdir / f"{output_path.stem}_{batch_id}.gpkg"
+                    tempdir / f"{GeoPath(output_path).stem}_{batch_id}.gpkg"
                 )
                 batches[batch_id]["tmp_partial_output_path"] = tmp_partial_output_path
 
@@ -789,7 +789,7 @@ def _single_layer_vector_operation(
                     error = str(ex).partition("\n")[0]
                     message = f"Error <{error}> executing {batches[batch_id]}"
                     logger.exception(message)
-                    raise Exception(message) from ex
+                    raise RuntimeError(message) from ex
 
                 # Start copy of the result to a common file
                 # Remark: give higher priority, because this is the slowest factor
@@ -822,6 +822,9 @@ def _single_layer_vector_operation(
 
                     # force_output_geometrytype and explodecollections have already been
                     # applied during calculation, so need to apply it here anymore.
+                    options = {}
+                    if tmp_output_path.suffix == ".shp":
+                        options["CONFIG.SHAPE_ENCODING"] = "UTF-8"
                     fileops.copy_layer(
                         src=tmp_partial_output_path,
                         dst=tmp_output_path,
@@ -829,6 +832,7 @@ def _single_layer_vector_operation(
                         where=where_post,
                         create_spatial_index=False,
                         preserve_fid=preserve_fid,
+                        options=options,
                     )
                     gfo.remove(tmp_partial_output_path)
 
@@ -870,10 +874,26 @@ def _single_layer_vector_operation(
         ):
             # If the output shapefile doesn't have a geometry column, the .shp file
             # doesn't exist but the .dbf does
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            gfo.move(
-                tmp_output_path.with_suffix(".dbf"), output_path.with_suffix(".dbf")
-            )
+            # Zip if needed
+            if (
+                output_path.suffix.lower() == ".zip"
+                and not tmp_output_path.suffix.lower() == ".zip"
+            ):
+                # Add a .cpg file, otherwise the zipped shapefile will not be recognized
+                tmp_output_cpg_path = tmp_output_path.with_suffix(".cpg")
+                if not tmp_output_cpg_path.exists():
+                    with tmp_output_cpg_path.open("w", encoding="UTF-8") as f:
+                        f.write("UTF-8")
+
+                zipped_path = Path(f"{tmp_output_path.as_posix()}.zip")
+                fileops.geo_sozip(tmp_output_path, zipped_path)
+                tmp_output_path = zipped_path
+                gfo.move(tmp_output_path, output_path)
+
+            else:
+                gfo.move(
+                    tmp_output_path.with_suffix(".dbf"), output_path.with_suffix(".dbf")
+                )
         else:
             logger.debug("Result was empty!")
 
@@ -3865,7 +3885,7 @@ def _convert_to_spatialite_based(
         suffix = ".gpkg"
         if input2_info is not None and input2_info.driver == "SQLite":
             suffix = ".sqlite"
-        input1_tmp_path = tempdir / f"{input1_path.stem}{suffix}"
+        input1_tmp_path = tempdir / f"{GeoPath(input1_path).stem}{suffix}"
         gfo.copy_layer(
             src=input1_path,
             src_layer=input1_layer.name,
@@ -3892,11 +3912,11 @@ def _convert_to_spatialite_based(
             suffix = ".gpkg"
             if input1_info is not None and input1_info.driver == "SQLite":
                 suffix = ".sqlite"
-            input2_tmp_path = tempdir / f"{input2_path.stem}{suffix}"
+            input2_tmp_path = tempdir / f"{GeoPath(input2_path).stem}{suffix}"
 
             # Make sure the copy is taken to a separate file.
             if input2_tmp_path.exists():
-                input2_tmp_path = tempdir / f"{input2_path.stem}2{suffix}"
+                input2_tmp_path = tempdir / f"{GeoPath(input2_path).stem}2{suffix}"
             assert input2_layer is not None
             gfo.copy_layer(
                 src=input2_path,

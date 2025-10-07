@@ -807,14 +807,6 @@ def test_makevalid(tmp_path, suffix, input_empty, geoops_module):
 
     # If the input file is not empty, it should have invalid geoms
     if not input_empty:
-        input_isvalid_path = tmp_path / f"{input_path.stem}_is-valid{suffix}"
-        isvalid = _geoops_sql.isvalid(
-            input_path=input_path, output_path=input_isvalid_path
-        )
-        assert isvalid is False, "Input file should contain invalid features"
-
-    # Make sure the input file is not valid
-    if not input_empty:
         output_isvalid_path = tmp_path / f"{GeoPath(input_path).stem}_is-valid{suffix}"
         isvalid = _geoops_sql.isvalid(
             input_path=input_path, output_path=output_isvalid_path
