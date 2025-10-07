@@ -402,9 +402,12 @@ def get_layerinfo(
             errors.append("Layer doesn't have a geometry column!")
 
         # If there were no errors, everything was OK so we can return.
+        layername = datasource_layer.GetName()
+        if layername.endswith(".shp"):
+            layername = layername[: -len(".shp")]
         if len(errors) == 0:
             return LayerInfo(
-                name=datasource_layer.GetName(),
+                name=layername,
                 featurecount=datasource_layer.GetFeatureCount(),
                 total_bounds=total_bounds,  # type: ignore[arg-type]
                 geometrycolumn=geometrycolumn,  # type: ignore[arg-type]

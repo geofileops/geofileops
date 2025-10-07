@@ -1522,9 +1522,9 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
 
     if suffix == ".shp" and not exp_output_geom:
         # For shapefiles, if there is no geometry only the .dbf file is written
-        output_path = tmp_path / f"{input1_path.stem}-output.dbf"
+        output_path = tmp_path / f"{GeoPath(input1_path).stem}-output.dbf"
     else:
-        output_path = tmp_path / f"{input1_path.stem}-output{suffix}"
+        output_path = tmp_path / f"{GeoPath(input1_path).stem}-output{suffix}"
 
     # Prepare query to execute.
     # order_by_geom is needed to avoid creating GEOMETRY type output, as a NULL geometry

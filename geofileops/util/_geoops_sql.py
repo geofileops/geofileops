@@ -842,54 +842,8 @@ def _single_layer_vector_operation(
                 )
 
         # Round up and clean up
-        if tmp_output_path.exists():
-            # Create spatial index if needed
-            if GeofileInfo(tmp_output_path).default_spatial_index:
-                gfo.create_spatial_index(
-                    path=tmp_output_path,
-                    layer=output_layer,
-                    exist_ok=True,
-                    no_geom_ok=True,
-                )
-
-            # Zip if needed
-            if (
-                output_path.suffix.lower() == ".zip"
-                and not tmp_output_path.suffix.lower() == ".zip"
-            ):
-                zipped_path = Path(f"{tmp_output_path.as_posix()}.zip")
-                fileops.geo_sozip(tmp_output_path, zipped_path)
-                tmp_output_path = zipped_path
-
-            # Move to final location
-            gfo.move(tmp_output_path, output_path)
-
-        elif (
-            gfo.get_driver(tmp_output_path) == "ESRI Shapefile"
-            and tmp_output_path.with_suffix(".dbf").exists()
-        ):
-            # If the output shapefile doesn't have a geometry column, the .shp file
-            # doesn't exist but the .dbf does
-            # Zip if needed
-            if (
-                output_path.suffix.lower() == ".zip"
-                and not tmp_output_path.suffix.lower() == ".zip"
-            ):
-                # Add a .cpg file, otherwise the zipped shapefile will not be recognized
-                tmp_output_cpg_path = tmp_output_path.with_suffix(".cpg")
-                tmp_output_cpg_path.touch(exist_ok=True)
-
-                zipped_path = Path(f"{tmp_output_path.as_posix()}.zip")
-                fileops.geo_sozip(tmp_output_path, zipped_path)
-                tmp_output_path = zipped_path
-                gfo.move(tmp_output_path, output_path)
-
-            else:
-                gfo.move(
-                    tmp_output_path.with_suffix(".dbf"), output_path.with_suffix(".dbf")
-                )
-        else:
-            logger.debug("Result was empty!")
+        _finalize_output()
+        _finalize_output(output_path, output_layer, logger, tmp_output_path)
 
     finally:
         # Clean tmp dir
@@ -3488,7 +3442,7 @@ def _two_layer_vector_operation(
                 batches[batch_id]["layer"] = output_layer
 
                 tmp_partial_output_path = (
-                    tmp_dir / f"{output_path.stem}_{batch_id}.gpkg"
+                    tmp_dir / f"{GeoPath(output_path).stem}_{batch_id}.gpkg"
                 )
                 batches[batch_id]["tmp_partial_output_path"] = tmp_partial_output_path
 
@@ -3602,27 +3556,7 @@ def _two_layer_vector_operation(
                 )
 
         # Round up and clean up
-        # Now create spatial index and move to output location
-        if tmp_output_path.exists():
-            # Create spatial index if needed
-            if output_with_spatial_index:
-                gfo.create_spatial_index(
-                    path=tmp_output_path,
-                    layer=output_layer,
-                    exist_ok=True,
-                    no_geom_ok=True,
-                )
-
-            # Zip if needed
-            if output_path.suffix == ".zip":
-                tmp_output_zipped_path = tmp_dir / output_path.name
-                gfo.geo_sozip(tmp_output_path, tmp_output_zipped_path)
-                tmp_output_path = tmp_output_zipped_path
-
-            # Move to final location
-            gfo.move(tmp_output_path, output_path)
-        else:
-            logger.debug("Result was empty!")
+        _finalize_output(tmp_output_path, output_path, output_layer)
 
         logger.info(f"Ready, took {datetime.now() - start_time}")
 
@@ -3925,6 +3859,59 @@ def _convert_to_spatialite_based(
             input2_layer = gfo.get_layerinfo(input2_path, raise_on_nogeom=False)
 
     return input1_path, input1_layer, input2_path, input2_layer
+
+
+def _finalize_output(
+    tmp_output_path: Path, output_path: Path, output_layer: str | None
+):
+    if tmp_output_path.exists():
+        # Create spatial index if needed
+        if GeofileInfo(tmp_output_path).default_spatial_index:
+            gfo.create_spatial_index(
+                path=tmp_output_path,
+                layer=output_layer,
+                exist_ok=True,
+                no_geom_ok=True,
+            )
+
+        # Zip if needed
+        if (
+            output_path.suffix.lower() == ".zip"
+            and not tmp_output_path.suffix.lower() == ".zip"
+        ):
+            zipped_path = Path(f"{tmp_output_path.as_posix()}.zip")
+            fileops.geo_sozip(tmp_output_path, zipped_path)
+            tmp_output_path = zipped_path
+
+            # Move to final location
+        gfo.move(tmp_output_path, output_path)
+
+    elif (
+        gfo.get_driver(tmp_output_path) == "ESRI Shapefile"
+        and tmp_output_path.with_suffix(".dbf").exists()
+    ):
+        # If the output shapefile doesn't have a geometry column, the .shp file
+        # doesn't exist but the .dbf does
+        # Zip if needed
+        if (
+            output_path.suffix.lower() == ".zip"
+            and not tmp_output_path.suffix.lower() == ".zip"
+        ):
+            # Add a .cpg file, otherwise the zipped shapefile will not be recognized
+            tmp_output_cpg_path = tmp_output_path.with_suffix(".cpg")
+            tmp_output_cpg_path.touch(exist_ok=True)
+
+            zipped_path = Path(f"{tmp_output_path.as_posix()}.zip")
+            fileops.geo_sozip(tmp_output_path, zipped_path)
+            tmp_output_path = zipped_path
+            gfo.move(tmp_output_path, output_path)
+
+        else:
+            gfo.move(
+                tmp_output_path.with_suffix(".dbf"), output_path.with_suffix(".dbf")
+            )
+    else:
+        logger.debug("Result was empty!")
 
 
 def _prepare_processing_params(
