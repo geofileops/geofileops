@@ -51,6 +51,8 @@ def test_dissolve_linestrings(
         pytest.skip(".zip support requires gdal>=3.11")
 
     # Prepare test data
+    # For shapefile, create in tmp dir because an index file will be created
+    dst_dir = tmp_path if suffix == ".shp" else None
     input_path = test_helper.get_testfile(
         "linestring-watercourse", suffix=suffix, epsg=epsg
     )
@@ -109,6 +111,8 @@ def test_dissolve_linestrings(
 @pytest.mark.parametrize("groupby_columns", [["NiScoDe"], "NiScoDe"])
 def test_dissolve_linestrings_groupby(tmp_path, suffix, epsg, groupby_columns):
     # Prepare test data
+    # Linestring dissolve is without tiling, so no index will be created on input
+    # shapefiles. Therefore not needed to create shapefile in tmp dir.
     input_path = test_helper.get_testfile(
         "linestring-watercourse", suffix=suffix, epsg=epsg
     )
@@ -148,6 +152,8 @@ def test_dissolve_linestrings_groupby(tmp_path, suffix, epsg, groupby_columns):
 @pytest.mark.parametrize("epsg", EPSGS)
 def test_dissolve_linestrings_aggcolumns_columns(tmp_path, suffix, epsg):
     # Prepare test data
+    # Linestring dissolve is without tiling, so no index will be created on input
+    # shapefiles. Therefore not needed to create shapefile in tmp dir.
     input_path = test_helper.get_testfile(
         "linestring-watercourse", suffix=suffix, epsg=epsg
     )
