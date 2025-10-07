@@ -51,8 +51,8 @@ def test_dissolve_linestrings(
         pytest.skip(".zip support requires gdal>=3.11")
 
     # Prepare test data
-    # For shapefile, create in tmp dir because an index file will be created
-    dst_dir = tmp_path if suffix == ".shp" else None
+    # Linestring dissolve is without tiling, so no index will be created on input
+    # shapefiles. Therefore not needed to create shapefile in tmp dir.
     input_path = test_helper.get_testfile(
         "linestring-watercourse", suffix=suffix, epsg=epsg
     )
