@@ -402,11 +402,9 @@ def get_layerinfo(
             errors.append("Layer doesn't have a geometry column!")
 
         # If there were no errors, everything was OK so we can return.
-        """
-        layername = datasource_layer.GetName()
-        if layername.endswith(".shp"):
-            layername = layername[: -len(".shp")]
-        """
+        # Remark: for e.g. for a ".shp.zip" file the layer name will include .shp at the
+        # end, but this is not an error! If it isn't there, using the layer name in SQL
+        # statements on the ".shp.zip" file will lead to "table not found" errors.
         if len(errors) == 0:
             return LayerInfo(
                 name=datasource_layer.GetName(),
