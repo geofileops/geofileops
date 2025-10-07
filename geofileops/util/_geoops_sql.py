@@ -842,8 +842,7 @@ def _single_layer_vector_operation(
                 )
 
         # Round up and clean up
-        _finalize_output()
-        _finalize_output(output_path, output_layer, logger, tmp_output_path)
+        _finalize_output(tmp_output_path, output_path, output_layer)
 
     finally:
         # Clean tmp dir
@@ -3883,7 +3882,7 @@ def _finalize_output(
             fileops.geo_sozip(tmp_output_path, zipped_path)
             tmp_output_path = zipped_path
 
-            # Move to final location
+        # Move to final location
         gfo.move(tmp_output_path, output_path)
 
     elif (
