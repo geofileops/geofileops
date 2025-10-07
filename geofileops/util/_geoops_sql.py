@@ -855,7 +855,7 @@ def _single_layer_vector_operation(
                 and not tmp_output_path.suffix.lower() == ".zip"
             ):
                 zipped_path = Path(f"{tmp_output_path.as_posix()}.zip")
-                fileops.sozip(tmp_output_path, zipped_path)
+                fileops.geo_sozip(tmp_output_path, zipped_path)
                 tmp_output_path = zipped_path
 
             # Move to final location

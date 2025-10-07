@@ -26,21 +26,22 @@ def test_stem(path, exp_stem):
 
 
 @pytest.mark.parametrize(
-    "path, exp_suffix_full",
+    "path, exp_suffix_full, exp_suffix_nozip",
     [
-        (Path("/tmp/testje.gpkg"), ".gpkg"),
-        ("/tmp/testje.gpkg.zip", ".gpkg.zip"),
-        ("/tmp/testje.shp", ".shp"),
-        ("/tmp/testje.shp.zip", ".shp.zip"),
-        ("/tmp/testje.txt", ".txt"),
-        ("/tmp/testje", ""),
-        ("/tmp/testje.tar.gz", ".gz"),
-        ("/tmp/t.estj.e.gpkg", ".gpkg"),
-        ("/tmp/t.estj.e.gpkg.zip", ".gpkg.zip"),
+        (Path("/tmp/testje.gpkg"), ".gpkg", ".gpkg"),
+        ("/tmp/testje.gpkg.zip", ".gpkg.zip", ".gpkg"),
+        ("/tmp/testje.shp", ".shp", ".shp"),
+        ("/tmp/testje.shp.zip", ".shp.zip", ".shp"),
+        ("/tmp/testje.txt", ".txt", ".txt"),
+        ("/tmp/testje", "", ""),
+        ("/tmp/testje.tar.gz", ".gz", ".gz"),
+        ("/tmp/t.estj.e.gpkg", ".gpkg", ".gpkg"),
+        ("/tmp/t.estj.e.gpkg.zip", ".gpkg.zip", ".gpkg"),
     ],
 )
-def test_suffix_full(path, exp_suffix_full):
+def test_suffix(path, exp_suffix_full, exp_suffix_nozip):
     assert GeoPath(path).suffix_full == exp_suffix_full
+    assert GeoPath(path).suffix_nozip == exp_suffix_nozip
 
 
 @pytest.mark.parametrize(

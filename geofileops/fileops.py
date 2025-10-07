@@ -2849,7 +2849,7 @@ def copy_layer(
     _ogr_util.vector_translate_by_info(info=translate_info)
 
 
-def sozip(
+def geo_sozip(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
 ):
@@ -2903,42 +2903,48 @@ def _zip(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
                     zipf.write(file_path, file_path.relative_to(src))
 
 
-def _unzip(
-    src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]
+def geo_unzip(
+    input_path: Union[str, "os.PathLike[Any]"],
+    output_path: Union[str, "os.PathLike[Any]"],
 ) -> Path:
-    """Unzip a zip file.
+    """Unzip a zipped geofile and return the path to the unzipped geofile.
+
+    The zip file should contain a single geofile. If the file contains a single file,
+    that file is returned. If it contains multiple files, the geofile is determined
+    based on the file extension. If multiple geofiles are found, an error is raised.
 
     Args:
-        src (PathLike): the zip file to unzip.
-        dst (PathLike): the destination directory.
+        input_path (PathLike): the zip file to unzip.
+        output_path (PathLike): the output directory.
 
     Returns:
         Path: The path to the unzipped geofile in the destination directory.
     """
-    with zipfile.ZipFile(src, "r") as zipf:
+    geo_suffixes = (".gpkg", ".shp", ".geojson", ".json", ".gpkg.zip", ".shp.zip")
+    with zipfile.ZipFile(input_path, "r") as zipf:
         # Determine the geofile in the zip to be able to return it
         files = zipf.filelist
         geofilename = None
         if len(files) == 0:
-            raise ValueError(f"No files found in zip: {src}")
+            raise ValueError(f"No files found in zip: {input_path}")
         elif len(files) == 1:
             geofilename = files[0].filename
         else:
             for file in files:
-                if file.filename.endswith((".shp", ".gpkg", ".geojson", ".json")):
+                if file.filename.endswith(geo_suffixes):
                     if geofilename is not None:
                         raise ValueError(
-                            f"Multiple geofiles found in zip: {src}, so cannot "
+                            f"Multiple geofiles found in zip: {input_path}, so cannot "
                             "determine which one to return."
                         )
                     geofilename = file.filename
 
         if geofilename is None:
-            raise ValueError(f"No geofile found in zip: {src}")
+            raise ValueError(f"No geofile found in zip: {input_path}")
 
-        zipf.extractall(dst)
+        zipf.extractall(output_path)
 
-    return Path(dst) / geofilename
+    return Path(output_path) / geofilename
 
 
 def _determine_access_mode(

@@ -139,3 +139,20 @@ class GeoPath:
             return Path(new_path_str)
         else:
             return self._path.with_stem(stem)
+
+    def with_stem_suffix(self, stem_suffix: str) -> Path:
+        """Return a Path with a new stem by adding a stem_suffix.
+
+        Multiple suffixes are supported for geo formats.
+
+        If the input is a string, the output will be a string. If the input is a Path,
+        the output will be a Path.
+
+        Args:
+            stem_suffix (str): The suffix to add to the stem.
+
+        Returns:
+            Path: The path with the new stem.
+
+        """
+        return self._path.parent / f"{self.stem}{stem_suffix}{self.suffix_full}"

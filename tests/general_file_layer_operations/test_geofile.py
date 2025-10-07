@@ -25,6 +25,7 @@ from tests.test_helper import (
     SUFFIXES_FILEOPS,
     SUFFIXES_FILEOPS_EXT,
     SUFFIXES_GEOOPS,
+    SUFFIXES_GEOOPS_EXT,
     assert_geodataframe_equal,
 )
 
@@ -2413,18 +2414,18 @@ def test_remove(tmp_path, suffix):
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.skipif(not GDAL_GTE_311, reason="sozip requires gdal>=3.11")
-def test_sozip(tmp_path, suffix):
+def test_geo_sozip(tmp_path, suffix):
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
     sozip_path = tmp_path / "zipped.zip"
-    fileops.sozip(input_path, sozip_path)
+    fileops.geo_sozip(input_path, sozip_path)
 
     # Check result
     assert sozip_path.exists()
     assert sozip_path.stat().st_size > 0
 
     unzipped_dir = tmp_path / "unzipped"
-    fileops._unzip(sozip_path, unzipped_dir)
+    fileops.geo_unzip(sozip_path, unzipped_dir)
     for path in input_path if isinstance(input_path, list) else [input_path]:
         assert (unzipped_dir / path.name).exists()
 
@@ -2456,37 +2457,68 @@ def test_launder_columns():
         laundered = fileops._launder_column_names(columns)
 
 
-def test_zip_unzip(tmp_path):
+@pytest.mark.parametrize("suffix, exp_nb_files", [(".gpkg", 1), (".shp", 4)])
+def test_geo_unzip(tmp_path, suffix, exp_nb_files):
     # Prepare test data
-    src = test_helper.get_testfile("polygon-parcel")
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     zip_path = tmp_path / "zipped.zip"
-    fileops._zip(src, zip_path)
+    fileops._zip(input_path, zip_path)
 
     # Unzip and check result
-    dst_dir = tmp_path / "unzipped"
-    dst_geofile_path = fileops._unzip(zip_path, dst_dir)
-    assert dst_geofile_path.exists()
-    assert dst_geofile_path == dst_dir / src.name
-    assert len(list(dst_dir.iterdir())) == 1
-    assert (dst_dir / src.name).exists()
+    output_dir = tmp_path / "unzipped"
+    output_geofile_path = fileops.geo_unzip(zip_path, output_dir)
+    assert output_dir.exists()
+    assert output_geofile_path.exists()
+
+    assert output_geofile_path == output_dir / input_path.name
+    assert len(list(output_dir.iterdir())) == exp_nb_files
+    assert (output_dir / input_path.name).exists()
 
 
-@pytest.mark.parametrize("suffix, exp_nb_files", [(".gpkg", 1), (".shp", 4)])
-def test_zip_unzip_dir(tmp_path, suffix, exp_nb_files):
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS_EXT)
+def test_geo_unzip_error_multi_files(tmp_path, suffix):
     # Prepare test data
-    src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     zip_dir = tmp_path / "dir_to_zip"
     zip_dir.mkdir()
-    file = zip_dir / f"{src.stem}_{src.suffix}"
-    gfo.copy(src, file)
+    file = zip_dir / GeoPath(input_path).with_stem_suffix("_1").name
+    gfo.copy(input_path, file)
+    file = zip_dir / GeoPath(input_path).with_stem_suffix("_2").name
+    gfo.copy(input_path, file)
     zip_path = tmp_path / "zipped.zip"
     fileops._zip(zip_dir, zip_path)
 
     # Unzip and check result
-    dst_dir = tmp_path / "unzipped"
-    dst_path = fileops._unzip(zip_path, dst_dir)
-    assert dst_dir.exists()
-    assert dst_path.exists()
-    assert dst_path == dst_dir / file.name
-    assert len(list(dst_dir.iterdir())) == exp_nb_files
-    assert (dst_dir / file.name).exists()
+    output_dir = tmp_path / "unzipped"
+    with pytest.raises(ValueError, match="Multiple geofiles found in zip"):
+        _ = fileops.geo_unzip(zip_path, output_dir)
+
+
+def test_geo_unzip_error_no_files(tmp_path):
+    # Prepare test data
+    zip_dir = tmp_path / "dir_to_zip"
+    zip_dir.mkdir()
+    zip_path = tmp_path / "zipped.zip"
+    fileops._zip(zip_dir, zip_path)
+
+    # Unzip and check result
+    output_dir = tmp_path / "unzipped"
+    with pytest.raises(ValueError, match="No files found in zip"):
+        _ = fileops.geo_unzip(zip_path, output_dir)
+
+
+def test_geo_unzip_error_no_geofiles(tmp_path):
+    # Prepare test data
+    zip_dir = tmp_path / "dir_to_zip"
+    zip_dir.mkdir()
+    file1 = zip_dir / "no_geo_file1.txt"
+    file1.touch()
+    file2 = zip_dir / "no_geo_file2.txt"
+    file2.touch()
+    zip_path = tmp_path / "zipped.zip"
+    fileops._zip(zip_dir, zip_path)
+
+    # Unzip and check result
+    output_dir = tmp_path / "unzipped"
+    with pytest.raises(ValueError, match="No geofile found in zip"):
+        _ = fileops.geo_unzip(zip_path, output_dir)
