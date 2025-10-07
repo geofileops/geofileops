@@ -10,6 +10,7 @@ from shapely.geometry import Polygon
 
 import geofileops as gfo
 from geofileops import GeometryType
+from geofileops._compat import GDAL_GTE_311
 from geofileops.util import _geoops_sql as geoops_sql
 from geofileops.util._geopath_util import GeoPath
 from tests import test_helper
@@ -135,6 +136,11 @@ def test_dissolve_singlethread_output_exists(tmp_path):
     "ignore: The default date converter is deprecated as of Python 3.12"
 )
 def test_isvalid(tmp_path, suffix, epsg):
+    """Test isvalid operation."""
+    if not GDAL_GTE_311 and suffix in {".gpkg.zip", ".shp.zip"}:
+        # Skip test for unsupported GDAL versions
+        pytest.skip(".zip support requires gdal>=3.11")
+
     # Prepare test data
     input_tmp_path = test_helper.get_testfile(
         "polygon-invalid",

@@ -15,6 +15,7 @@ import shapely.geometry as sh_geom
 
 import geofileops as gfo
 from geofileops import GeometryType
+from geofileops._compat import GDAL_GTE_311
 from geofileops.util import _general_util, _geofileinfo, _geoops_sql
 from geofileops.util._geofileinfo import GeofileInfo
 from tests import test_helper
@@ -305,6 +306,10 @@ def test_dissolve_polygons(
     where_post,
     expected_featurecount,
 ):
+    """Test dissolve of polygons with different options."""
+    if not GDAL_GTE_311 and suffix in {".gpkg.zip", ".shp.zip"}:
+        # Skip test for unsupported GDAL versions
+        pytest.skip(".zip support requires gdal>=3.11")
     if gridsize > 0.0:
         pytest.xfail("Geopandas doesn't support dissolve with gridsize yet")
 
