@@ -842,7 +842,8 @@ def _single_layer_vector_operation(
                 )
 
         # Round up and clean up
-        _finalize_output(tmp_output_path, output_path, output_layer)
+        spatial_index = GeofileInfo(tmp_output_path).default_spatial_index
+        _finalize_output(tmp_output_path, output_path, output_layer, spatial_index)
 
     finally:
         # Clean tmp dir
@@ -3555,7 +3556,9 @@ def _two_layer_vector_operation(
                 )
 
         # Round up and clean up
-        _finalize_output(tmp_output_path, output_path, output_layer)
+        _finalize_output(
+            tmp_output_path, output_path, output_layer, output_with_spatial_index
+        )
 
         logger.info(f"Ready, took {datetime.now() - start_time}")
 
@@ -3861,11 +3864,14 @@ def _convert_to_spatialite_based(
 
 
 def _finalize_output(
-    tmp_output_path: Path, output_path: Path, output_layer: str | None
+    tmp_output_path: Path,
+    output_path: Path,
+    output_layer: str | None,
+    output_with_spatial_index: bool,
 ):
     if tmp_output_path.exists():
         # Create spatial index if needed
-        if GeofileInfo(tmp_output_path).default_spatial_index:
+        if output_with_spatial_index:
             gfo.create_spatial_index(
                 path=tmp_output_path,
                 layer=output_layer,
