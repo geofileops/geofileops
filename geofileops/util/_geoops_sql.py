@@ -3455,24 +3455,26 @@ def _two_layer_vector_operation(
             # First add the regular columns so they end up first in the output
             types = {"geom": force_output_geometrytype.name}
 
-            # Determine the columns and types using the colums asked.
+            # Get the types of all columns in the input files.
             input1_column_types = _sqlite_util.get_column_types(
                 database_path=input1_path, table=input1_layer.name
             )
+            input1_column_types = {k.lower(): v for k, v in input1_column_types.items()}
             input2_column_types = _sqlite_util.get_column_types(
                 database_path=input2_path, table=input2_layer.name
             )
+            input2_column_types = {k.lower(): v for k, v in input2_column_types.items()}
 
             columns_aliases = zip(
-                input1_col_strs._columns_asked, input1_col_strs._aliases()
+                input1_col_strs.columns_asked_list(), input1_col_strs.aliases_list()
             )
             for column, alias in columns_aliases:
-                types[alias] = input1_column_types[column]
+                types[alias] = input1_column_types[column.lower()]
             columns_aliases = zip(
-                input2_col_strs._columns_asked, input2_col_strs._aliases()
+                input2_col_strs.columns_asked_list(), input2_col_strs.aliases_list()
             )
             for column, alias in columns_aliases:
-                types[alias] = input2_column_types[column]
+                types[alias] = input2_column_types[column.lower()]
 
             # Now add any extra columns at the end
             types.update(column_types)

@@ -1,5 +1,6 @@
 """Module with utilities to format sql statements meant for use with ogr."""
 
+import copy
 from collections.abc import Iterable
 
 
@@ -116,7 +117,8 @@ class ColumnFormatter:
 
         return columns
 
-    def _aliases(self) -> list[str]:
+    def aliases_list(self) -> list[str]:
+        """Get the list of column aliases to be used in the select statement."""
         if self._aliases_cache is not None:
             return self._aliases_cache
 
@@ -139,6 +141,24 @@ class ColumnFormatter:
         self._aliases_cache = aliases
         return self._aliases_cache
 
+    def columns_asked_list(self) -> list[str]:
+        """Get the list of columns to be used in the select statement.
+
+        The "fid" column is replaced by the actual fid column name if needed.
+        """
+        if len(self._columns) == 0:
+            return []
+
+        if self._fid_column == "":
+            return copy.deepcopy(self._columns_asked)
+        else:
+            # The fid column is not "fid", so replace fid by it
+            cols = [
+                col if col.lower() != "fid" else self._fid_column
+                for col in self._columns_asked
+            ]
+            return cols
+
     def quoted(self) -> str:
         if len(self._columns) == 0:
             return ""
@@ -159,7 +179,7 @@ class ColumnFormatter:
         columns_prefixed_aliased = [
             f'{column_prefixed} "{column_alias}"'
             for column_prefixed, column_alias in zip(
-                self._columns_prefixed(), self._aliases()
+                self._columns_prefixed(), self.aliases_list()
             )
         ]
         return f",{', '.join(columns_prefixed_aliased)}"
@@ -168,7 +188,7 @@ class ColumnFormatter:
         if len(self._columns) == 0:
             return ""
 
-        columns_null_aliased = [f'NULL "{alias}"' for alias in self._aliases()]
+        columns_null_aliased = [f'NULL "{alias}"' for alias in self.aliases_list()]
         return f",{', '.join(columns_null_aliased)}"
 
     def from_subselect(self, subselect_alias: str = "sub"):
@@ -176,7 +196,7 @@ class ColumnFormatter:
             return ""
 
         prefix = "" if subselect_alias == "" else f"{subselect_alias}."
-        columns_from_subselect = [f'{prefix}"{alias}"' for alias in self._aliases()]
+        columns_from_subselect = [f'{prefix}"{alias}"' for alias in self.aliases_list()]
         return f",{', '.join(columns_from_subselect)}"
 
 
