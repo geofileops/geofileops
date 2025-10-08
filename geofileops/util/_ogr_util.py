@@ -14,8 +14,9 @@ from pygeoops import GeometryType
 
 import geofileops as gfo
 from geofileops import _compat, fileops
-from geofileops.util import _geopath_util, _io_util
+from geofileops.util import _io_util
 from geofileops.util._general_util import MissingRuntimeDependencyError
+from geofileops.util._geopath_util import GeoPath
 
 # Make sure only one instance per process is running
 lock = Lock()
@@ -363,15 +364,6 @@ def vector_translate(
         # VectorTranslate outputs no or an invalid file if the statement doesn't return
         # any rows...
         sql_stmt = sql_stmt.lstrip("\n\t ")
-    if clip_geometry is not None:
-        args.extend(["-clipsrc"])
-        if isinstance(clip_geometry, str):
-            args.extend([clip_geometry])
-        else:
-            bounds = [str(coord) for coord in clip_geometry]
-            args.extend(bounds)
-    if columns is not None:
-        args.extend(["-select", ",".join(columns)])
     if sql_stmt is not None and where is not None:
         raise ValueError("it is not supported to specify both sql_stmt and where")
 
@@ -402,7 +394,7 @@ def vector_translate(
 
     # Shapefiles only can have one layer, and the layer name == the stem of the file
     if output_info.driver == "ESRI Shapefile":
-        output_layer = _geopath_util.stem(output_path)
+        output_layer = GeoPath(output_path).stem
 
     # SRS
     if output_srs is not None and isinstance(output_srs, int):
@@ -420,8 +412,6 @@ def vector_translate(
             datasetCreationOptions.extend([f"{option_name}={value}"])
 
     # Output layer options
-    if explodecollections:
-        args.append("-explodecollections")
     output_geometrytypes = []
     if force_output_geometrytype is not None:
         if isinstance(force_output_geometrytype, GeometryType):
@@ -447,15 +437,12 @@ def vector_translate(
         # multiparts geometries, so promote to multi
         output_geometrytypes.append("PROMOTE_TO_MULTI")
 
-    if transaction_size is not None:
-        args.extend(["-gt", str(transaction_size)])
     if preserve_fid is None:
+        preserve_fid = False
         if explodecollections:
             # If explodecollections is specified, explicitly disable fid to avoid errors
             args.append("-unsetFid")
-    elif preserve_fid:
-        args.append("-preserve_fid")
-    else:
+    elif not preserve_fid:
         args.append("-unsetFid")
 
     # Prepare output layer creation options
@@ -622,7 +609,7 @@ def vector_translate(
                 SQLStatement=sql_stmt,
                 SQLDialect=sql_dialect,
                 where=where,
-                selectFields=None,
+                selectFields=columns,
                 addFields=add_fields,
                 forceNullable=False,
                 spatFilter=spatial_filter,
@@ -633,7 +620,11 @@ def vector_translate(
                 layerName=output_layer,
                 geometryType=output_geometrytypes,
                 dim=dst_dimensions,
+                transactionSize=transaction_size,
+                clipSrc=clip_geometry,
+                preserveFID=preserve_fid,
                 segmentizeMaxDist=None,
+                explodeCollections=explodecollections,
                 zField=None,
                 skipFailures=False,
                 limit=None,
