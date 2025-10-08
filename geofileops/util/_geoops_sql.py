@@ -1955,6 +1955,82 @@ def intersection(  # noqa: D417
     logger.info(f"Ready, full intersection took {datetime.now() - start_time}")
 
 
+def join(
+    input1_path: Path,
+    input2_path: Path,
+    output_path: Path,
+    input1_on: list[str] | str,
+    input2_on: list[str] | str,
+    join_type: str = "INNER",
+    input1_layer: str | LayerInfo | None = None,
+    input1_columns: list[str] | None = None,
+    input1_columns_prefix: str = "l1_",
+    input2_layer: str | LayerInfo | None = None,
+    input2_columns: list[str] | None = None,
+    input2_columns_prefix: str = "l2_",
+    output_layer: str | None = None,
+    explodecollections: bool = False,
+    gridsize: float = 0.0,
+    where_post: str | None = None,
+    nb_parallel: int = 1,
+    batchsize: int = -1,
+    force: bool = False,
+):
+    # Prepare the join clause
+    if isinstance(input1_on, str):
+        input1_on = [input1_on]
+    if isinstance(input2_on, str):
+        input2_on = [input2_on]
+    if len(input1_on) != len(input2_on):
+        raise ValueError("input1_on and input2_on must have the same length")
+    joins = [
+        f"layer1.{col1} = layer2.{col2}" for col1, col2 in zip(input1_on, input2_on)
+    ]
+    join_clause = " AND ".join(joins)
+
+    # Prepare the join type
+    if join_type.upper() == "INNER":
+        join_str = "INNER JOIN"
+    elif join_type.upper() == "LEFT":
+        join_str = "LEFT JOIN"
+    else:
+        raise ValueError(f"Unsupported join_type '{join_type}'")
+
+    # Prepare sql template for this operation
+    sql_template = f"""
+        SELECT layer1.{{input1_geometrycolumn}} as geom
+                {{layer1_columns_prefix_alias_str}}
+                {{layer2_columns_prefix_alias_str}}
+          FROM {{input1_databasename}}."{{input1_layer}}" layer1
+          {join_str} {{input2_databasename}}."{{input2_layer}}" layer2
+            ON {join_clause}
+         WHERE 1=1
+           {{batch_filter}}
+    """
+
+    return _two_layer_vector_operation(
+        input1_path=input1_path,
+        input2_path=input2_path,
+        output_path=output_path,
+        sql_template=sql_template,
+        operation_name="join",
+        input1_layer=input1_layer,
+        input1_columns=input1_columns,
+        input1_columns_prefix=input1_columns_prefix,
+        input2_layer=input2_layer,
+        input2_columns=input2_columns,
+        input2_columns_prefix=input2_columns_prefix,
+        output_layer=output_layer,
+        explodecollections=explodecollections,
+        force_output_geometrytype="KEEP_INPUT",
+        gridsize=gridsize,
+        where_post=where_post,
+        nb_parallel=nb_parallel,
+        batchsize=batchsize,
+        force=force,
+    )
+
+
 def join_by_location(
     input1_path: Path,
     input2_path: Path,
