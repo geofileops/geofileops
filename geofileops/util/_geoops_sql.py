@@ -3438,46 +3438,21 @@ def _two_layer_vector_operation(
             batch_filter="{batch_filter}",
         )
 
-        # Determine column names and types based on sql statement
-        if column_types is None or force_output_geometrytype is None:
-            # Determine the columns and types based on the sql statement
-            # Use first batch_filter to improve performance
-            sql_stmt = sql_template.format(
-                batch_filter=processing_params.batches[0]["batch_filter"]
-            )
-            column_types = _sqlite_util.get_columns(
-                sql_stmt=sql_stmt,
-                input_databases=input_db_names,
-                output_geometrytype=force_output_geometrytype,
-            )
-        else:
-            # First add the regular columns so they end up first in the output
-            types = {"geom": force_output_geometrytype.name}
-
-            # Get the types of all columns in the input files.
-            input1_column_types = _sqlite_util.get_column_types(
-                database_path=input1_path, table=input1_layer.name
-            )
-            input1_column_types = {k.lower(): v for k, v in input1_column_types.items()}
-            input2_column_types = _sqlite_util.get_column_types(
-                database_path=input2_path, table=input2_layer.name
-            )
-            input2_column_types = {k.lower(): v for k, v in input2_column_types.items()}
-
-            columns_aliases = zip(
-                input1_col_strs.columns_asked_list(), input1_col_strs.aliases_list()
-            )
-            for column, alias in columns_aliases:
-                types[alias] = input1_column_types[column.lower()]
-            columns_aliases = zip(
-                input2_col_strs.columns_asked_list(), input2_col_strs.aliases_list()
-            )
-            for column, alias in columns_aliases:
-                types[alias] = input2_column_types[column.lower()]
-
-            # Now add any extra columns at the end
-            types.update(column_types)
-            column_types = types
+        # Determine the columns and column types to be used to created the output layer
+        # based on the sql_template and/or the input files.
+        column_types = _determine_column_types(
+            input_column_types=column_types,
+            input1_path=input1_path,
+            input2_path=input2_path,
+            input1_layer=input1_layer,
+            input2_layer=input2_layer,
+            sql_template=sql_template,
+            force_output_geometrytype=force_output_geometrytype,
+            input1_col_strs=input1_col_strs,
+            input2_col_strs=input2_col_strs,
+            processing_params=processing_params,
+            input_db_names=input_db_names,
+        )
 
         # Apply gridsize if it is specified
         if gridsize != 0.0:
@@ -3698,6 +3673,80 @@ def _two_layer_vector_operation(
     finally:
         if ConfigOptions.remove_temp_files:
             shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def _determine_column_types(
+    input_column_types: dict[str, str] | None,
+    input1_path: Path,
+    input2_path: Path,
+    input1_layer: LayerInfo,
+    input2_layer: LayerInfo,
+    sql_template: str,
+    force_output_geometrytype: GeometryType | None,
+    input1_col_strs,
+    input2_col_strs,
+    processing_params,
+    input_db_names,
+) -> dict[str, str]:
+    """Determine the column types to use in the output layer."""
+    column_types_tmp = {}
+    column_types_from_sql = False
+    if input_column_types is None or force_output_geometrytype is None:
+        # Determine the columns and types based on the sql statement
+        # Use first batch_filter to improve performance
+        sql_stmt = sql_template.format(
+            batch_filter=processing_params.batches[0]["batch_filter"]
+        )
+        column_types_tmp = _sqlite_util.get_columns(
+            sql_stmt=sql_stmt,
+            input_databases=input_db_names,
+            output_geometrytype=force_output_geometrytype,
+        )
+        column_types_from_sql = True
+
+    # Fill out the column_types dict, or overrule existing types based on the
+    # columns asked and the types in the input layers.
+    # If an output_geometrytype is known, use it.
+    if force_output_geometrytype is not None:
+        column_types_tmp["geom"] = force_output_geometrytype.name
+
+    # Get the types of all columns in the input files.
+    input1_column_types = _sqlite_util.get_column_types(
+        database_path=input1_path, table=input1_layer.name
+    )
+    input1_column_types = {k.lower(): v for k, v in input1_column_types.items()}
+    input2_column_types = _sqlite_util.get_column_types(
+        database_path=input2_path, table=input2_layer.name
+    )
+    input2_column_types = {k.lower(): v for k, v in input2_column_types.items()}
+
+    # The types determined from the input layers for the columns asked are the most
+    # detailed/correct ones possible, so use them.
+    columns_aliases = zip(
+        input1_col_strs.columns_asked_list(), input1_col_strs.aliases_list()
+    )
+    for column, alias in columns_aliases:
+        if column_types_from_sql and alias not in column_types_tmp:
+            # If the types were determined from the sql, only overrule types for
+            # columns that were actually found in the sql.
+            continue
+        column_types_tmp[alias] = input1_column_types[column.lower()]
+
+    columns_aliases = zip(
+        input2_col_strs.columns_asked_list(), input2_col_strs.aliases_list()
+    )
+    for column, alias in columns_aliases:
+        if column_types_from_sql and alias not in column_types_tmp:
+            # If the types were determined from the sql, only overrule types for
+            # columns that were actually found in the sql.
+            continue
+        column_types_tmp[alias] = input2_column_types[column.lower()]
+
+    # Now add any extra columns at the end
+    if input_column_types is not None and len(input_column_types) > 0:
+        column_types_tmp.update(input_column_types)
+
+    return column_types_tmp
 
 
 def _validate_params(
