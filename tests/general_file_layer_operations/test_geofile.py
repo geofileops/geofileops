@@ -2414,7 +2414,7 @@ def test_remove(tmp_path, suffix):
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.skipif(not GDAL_GTE_311, reason="sozip requires gdal>=3.11")
-def test_geo_sozip(tmp_path, suffix):
+def test_zip_geofile(tmp_path, suffix):
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
     sozip_path = tmp_path / "zipped.zip"
@@ -2458,7 +2458,7 @@ def test_launder_columns():
 
 
 @pytest.mark.parametrize("suffix, exp_nb_files", [(".gpkg", 1), (".shp", 4)])
-def test_geo_unzip(tmp_path, suffix, exp_nb_files):
+def test_unzip_geofile(tmp_path, suffix, exp_nb_files):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     zip_dir = tmp_path / "dir_to_zip"
@@ -2478,7 +2478,7 @@ def test_geo_unzip(tmp_path, suffix, exp_nb_files):
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS_EXT)
-def test_geo_unzip_error_multi_files(tmp_path, suffix):
+def test_unzip_geofile_error_multi_files(tmp_path, suffix):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     zip_dir = tmp_path / "dir_to_zip"
@@ -2496,7 +2496,7 @@ def test_geo_unzip_error_multi_files(tmp_path, suffix):
         _ = fileops.unzip_geofile(zip_path, output_dir)
 
 
-def test_geo_unzip_error_no_files(tmp_path):
+def test_unzip_geofile_error_no_files(tmp_path):
     # Prepare test data
     zip_dir = tmp_path / "dir_to_zip"
     zip_dir.mkdir()
@@ -2509,7 +2509,7 @@ def test_geo_unzip_error_no_files(tmp_path):
         _ = fileops.unzip_geofile(zip_path, output_dir)
 
 
-def test_geo_unzip_error_no_geofiles(tmp_path):
+def test_unzip_geofile_error_no_geofiles(tmp_path):
     # Prepare test data
     zip_dir = tmp_path / "dir_to_zip"
     zip_dir.mkdir()
