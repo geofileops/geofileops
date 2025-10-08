@@ -967,6 +967,7 @@ def clip(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        column_types={},
     )
 
 
@@ -1248,6 +1249,7 @@ def difference(  # noqa: D417
         force=force,
         output_with_spatial_index=output_with_spatial_index,
         tmp_dir=tempdir,
+        column_types={},
     )
 
     # Print time taken
@@ -1603,6 +1605,7 @@ def export_by_location(
         batchsize=batchsize,
         force=force,
         tmp_dir=tmp_dir,
+        column_types={},
     )
 
     # Print time taken
@@ -1669,6 +1672,7 @@ def export_by_distance(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        column_types={},
     )
 
 
@@ -1949,6 +1953,7 @@ def intersection(  # noqa: D417
         input1_subdivided_path=input1_subdivided_path,
         input2_subdivided_path=input2_subdivided_path,
         output_with_spatial_index=output_with_spatial_index,
+        column_types={},
     )
 
     # Print time taken
@@ -2028,6 +2033,7 @@ def join(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        column_types={},
     )
 
 
@@ -2059,6 +2065,7 @@ def join_by_location(
     area_inters_column_in_output = ""
     area_inters_column_0_in_output = ""
     area_inters_filter = ""
+    area_inters_column_name_touse = None
     if area_inters_column_name is not None or min_area_intersect is not None:
         if area_inters_column_name is not None:
             area_inters_column_name_touse = area_inters_column_name
@@ -2154,6 +2161,10 @@ def join_by_location(
                    SELECT l1_fid FROM layer1_relations_filtered)
         """
 
+    column_types = {}
+    if area_inters_column_name_touse is not None:
+        column_types[area_inters_column_name_touse] = "REAL"
+
     return _two_layer_vector_operation(
         input1_path=input1_path,
         input2_path=input2_path,
@@ -2174,6 +2185,7 @@ def join_by_location(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        column_types=column_types,
     )
 
 
@@ -2526,6 +2538,7 @@ def join_nearest(
         batchsize=batchsize,
         force=force,
         use_ogr=True,
+        column_types={"pos": "INTEGER", "distance": "REAL", "distance_crs": "REAL"},
     )
 
 
@@ -2573,6 +2586,7 @@ def select_two_layers(
         batchsize=batchsize,
         force=force,
         output_with_spatial_index=output_with_spatial_index,
+        column_types=None,
     )
 
 
@@ -3137,6 +3151,7 @@ def _two_layer_vector_operation(
     use_ogr: bool = False,
     output_with_spatial_index: bool | None = None,
     tmp_dir: Path | None = None,
+    column_types: dict[str, str] | None = None,
 ):
     """Executes an operation that needs 2 input files.
 
@@ -3188,6 +3203,11 @@ def _two_layer_vector_operation(
         tmp_dir (Path, optional): If None, a new temp dir will be created. if not None,
             the temp dir specified will be used. In both cases the tmp_dir will be
             removed after the operation if ConfigOptions.remove_temp_files is not False!
+        column_types (dict, optional): an optional dictionary with columns with their
+            types. If a dict is passed, the column types specified in it combined with
+            the lists of columns in input1_columns and input2_columns should contain all
+            columns to be created in the output layer. If None, the output columns are
+            determined using the sql_stmt. Defaults to None.
 
     Raises:
         ValueError: [description]
@@ -3414,17 +3434,43 @@ def _two_layer_vector_operation(
         )
 
         # Determine column names and types based on sql statement
-        column_datatypes = None
-        # Use first batch_filter to improve performance
-        sql_stmt = sql_template.format(
-            batch_filter=processing_params.batches[0]["batch_filter"]
-        )
+        if column_types is None or force_output_geometrytype is None:
+            # Determine the columns and types based on the sql statement
+            # Use first batch_filter to improve performance
+            sql_stmt = sql_template.format(
+                batch_filter=processing_params.batches[0]["batch_filter"]
+            )
+            column_types = _sqlite_util.get_columns(
+                sql_stmt=sql_stmt,
+                input_databases=input_db_names,
+                output_geometrytype=force_output_geometrytype,
+            )
+        else:
+            # First add the regular columns so they end up first in the output
+            types = {"geom": force_output_geometrytype.name}
 
-        column_datatypes = _sqlite_util.get_columns(
-            sql_stmt=sql_stmt,
-            input_databases=input_db_names,
-            output_geometrytype=force_output_geometrytype,
-        )
+            # Determine the columns and types using the colums asked.
+            input1_column_types = _sqlite_util.get_column_types(
+                database_path=input1_path, table=input1_layer.name
+            )
+            input2_column_types = _sqlite_util.get_column_types(
+                database_path=input2_path, table=input2_layer.name
+            )
+
+            columns_aliases = zip(
+                input1_col_strs._columns_asked, input1_col_strs._aliases()
+            )
+            for column, alias in columns_aliases:
+                types[alias] = input1_column_types[column]
+            columns_aliases = zip(
+                input2_col_strs._columns_asked, input2_col_strs._aliases()
+            )
+            for column, alias in columns_aliases:
+                types[alias] = input2_column_types[column]
+
+            # Now add any extra columns at the end
+            types.update(column_types)
+            column_types = types
 
         # Apply gridsize if it is specified
         if gridsize != 0.0:
@@ -3447,7 +3493,7 @@ def _two_layer_vector_operation(
             # Remark:
             # - use "LIMIT -1 OFFSET 0" to avoid the subquery flattening. Flattening
             #   "geom IS NOT NULL" leads to GFO_Difference_Collection calculated double!
-            cols = [col for col in column_datatypes if col.lower() != "geom"]
+            cols = [col for col in column_types if col.lower() != "geom"]
             columns_to_select = _ogr_sql_util.columns_quoted(cols)
             sql_template = f"""
                 SELECT * FROM
@@ -3491,8 +3537,8 @@ def _two_layer_vector_operation(
 
         # Apply the geometrytype already during calculation
         output_geometrytype_calc = force_output_geometrytype
-        if output_geometrytype_calc is not None and "geom" in column_datatypes:
-            column_datatypes["geom"] = output_geometrytype_calc.name
+        if output_geometrytype_calc is not None and "geom" in column_types:
+            column_types["geom"] = output_geometrytype_calc.name
         output_geometrytype_append = (
             force_output_geometrytype
             if explode_append
@@ -3544,7 +3590,7 @@ def _two_layer_vector_operation(
                     output_crs=output_crs,
                     use_ogr=use_ogr,
                     create_spatial_index=False,
-                    column_datatypes=column_datatypes,
+                    column_datatypes=column_types,
                 )
                 future_to_batch_id[future] = batch_id
 
