@@ -3033,57 +3033,21 @@ def union(
 
         # Difference input1 from input2 to another temporary output gfo.
         logger.info("Step 3 of 5: difference of input 1 from input 2")
-        diff1_output_path = tempdir / "diff_input1_from_input2_output.gpkg"
-        difference(
-            input1_path=input2_path,
-            input2_path=input1_path,
-            output_path=diff1_output_path,
-            overlay_self=overlay_self,
-            input1_layer=input2_layer,
-            input1_columns=input2_columns,
-            input_columns_prefix=input2_columns_prefix,
-            input2_layer=input1_layer,
-            output_layer=output_layer,
-            explodecollections=explodecollections,
-            gridsize=gridsize,
-            where_post=where_post,
-            nb_parallel=nb_parallel,
-            batchsize=batchsize,
-            subdivide_coords=subdivide_coords,
-            force=force,
-            output_with_spatial_index=False,
-            operation_prefix="union/",
-            input1_subdivided_path=input2_subdivided_path,
-            input2_subdivided_path=input1_subdivided_path,
-        )
-        # Note: append will never create an index on an already existing layer.
-        fileops.copy_layer(
-            src=diff1_output_path,
-            dst=intersection_output_path,
-            src_layer=output_layer,
-            dst_layer=output_layer,
-            write_mode="append",
-        )
-        gfo.remove(diff1_output_path)
-
-        # Difference input1 from input2 to and add to temporary output file.
-        logger.info("Step 4 of 5: difference input 2 from input 1")
         if overlay_self and not include_duplicates:
             logger.info(
-                "For a self-union with include_duplicates=False, step 4 is skipped"
+                "For a self-union with include_duplicates=False, step 3 is skipped"
             )
         else:
-            diff2_output_path = tempdir / "diff_input2_from_input1_output.gpkg"
-
+            diff1_output_path = tempdir / "diff_input1_from_input2_output.gpkg"
             difference(
-                input1_path=input1_path,
-                input2_path=input2_path,
-                output_path=diff2_output_path,
+                input1_path=input2_path,
+                input2_path=input1_path,
+                output_path=diff1_output_path,
                 overlay_self=overlay_self,
-                input1_layer=input1_layer,
-                input1_columns=input1_columns,
-                input_columns_prefix=input1_columns_prefix,
-                input2_layer=input2_layer,
+                input1_layer=input2_layer,
+                input1_columns=input2_columns,
+                input_columns_prefix=input2_columns_prefix,
+                input2_layer=input1_layer,
                 output_layer=output_layer,
                 explodecollections=explodecollections,
                 gridsize=gridsize,
@@ -3094,18 +3058,54 @@ def union(
                 force=force,
                 output_with_spatial_index=False,
                 operation_prefix="union/",
-                input1_subdivided_path=input1_subdivided_path,
-                input2_subdivided_path=input2_subdivided_path,
+                input1_subdivided_path=input2_subdivided_path,
+                input2_subdivided_path=input1_subdivided_path,
             )
             # Note: append will never create an index on an already existing layer.
             fileops.copy_layer(
-                src=diff2_output_path,
+                src=diff1_output_path,
                 dst=intersection_output_path,
                 src_layer=output_layer,
                 dst_layer=output_layer,
                 write_mode="append",
             )
-            gfo.remove(diff2_output_path)
+            gfo.remove(diff1_output_path)
+
+        # Difference input1 from input2 to and add to temporary output file.
+        logger.info("Step 4 of 5: difference input 2 from input 1")
+        diff2_output_path = tempdir / "diff_input2_from_input1_output.gpkg"
+
+        difference(
+            input1_path=input1_path,
+            input2_path=input2_path,
+            output_path=diff2_output_path,
+            overlay_self=overlay_self,
+            input1_layer=input1_layer,
+            input1_columns=input1_columns,
+            input_columns_prefix=input1_columns_prefix,
+            input2_layer=input2_layer,
+            output_layer=output_layer,
+            explodecollections=explodecollections,
+            gridsize=gridsize,
+            where_post=where_post,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+            subdivide_coords=subdivide_coords,
+            force=force,
+            output_with_spatial_index=False,
+            operation_prefix="union/",
+            input1_subdivided_path=input1_subdivided_path,
+            input2_subdivided_path=input2_subdivided_path,
+        )
+        # Note: append will never create an index on an already existing layer.
+        fileops.copy_layer(
+            src=diff2_output_path,
+            dst=intersection_output_path,
+            src_layer=output_layer,
+            dst_layer=output_layer,
+            write_mode="append",
+        )
+        gfo.remove(diff2_output_path)
 
         # Convert or add spatial index
         logger.info("Step 5 of 5: finalize")

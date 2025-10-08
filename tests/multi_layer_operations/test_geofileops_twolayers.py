@@ -593,7 +593,9 @@ def test_identity_self(tmp_path, subdivide_coords, include_duplicates):
     batchsize = math.ceil(input1_layerinfo.featurecount / 2)
 
     # Now run test
-    output_path = tmp_path / f"{input1_path.stem}_identity_self.gpkg"
+    output_path = (
+        tmp_path / f"{input1_path.stem}_identity_self_dupl-{include_duplicates}.gpkg"
+    )
     gfo.identity(
         input1_path=input1_path,
         input2_path=None,
@@ -908,7 +910,9 @@ def test_intersection_self(tmp_path, subdivide, include_duplicates):
         subdivide_coords = 7500
 
     # Now run test
-    output_path = tmp_path / f"{input1_path.stem}_inters_self.gpkg"
+    output_path = (
+        tmp_path / f"{input1_path.stem}_inters_self_dupl-{include_duplicates}.gpkg"
+    )
     gfo.intersection(
         input1_path=input1_path,
         input2_path=None,
@@ -2304,7 +2308,9 @@ def test_union_self(tmp_path, subdivide_coords, include_duplicates):
     batchsize = math.ceil(input1_layerinfo.featurecount / 2)
 
     # Now run test
-    output_path = tmp_path / f"{input1_path.stem}_union_self.gpkg"
+    output_path = (
+        tmp_path / f"{input1_path.stem}_union_self_dupl-{include_duplicates}.gpkg"
+    )
     gfo.union(
         input1_path=input1_path,
         input2_path=None,
@@ -2325,3 +2331,14 @@ def test_union_self(tmp_path, subdivide_coords, include_duplicates):
         assert output_layerinfo.featurecount == 12
     else:
         assert output_layerinfo.featurecount == 6
+
+    # Check the contents of the result file
+    output_gdf = gfo.read_file(output_path)
+    if not include_duplicates:
+        # For the non-intersecting polygons, the l2_... columns should be NULL.
+        null_counts = (output_gdf.filter(like="l2_").isnull()).sum().item()
+        assert null_counts == 3
+
+        # The l1_... columns should NOT be NULL.
+        null_counts = (output_gdf.filter(like="l1_").isnull()).sum().item()
+        assert null_counts == 0
