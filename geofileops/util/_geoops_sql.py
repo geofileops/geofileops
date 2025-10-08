@@ -1584,6 +1584,11 @@ def export_by_location(
             WHERE sub_area.{area_inters_column_name} >= {min_area_intersect}
         """
 
+    # Add the columns that won't be read from the input files.
+    column_types = {}
+    if area_inters_column_name is not None:
+        column_types[area_inters_column_name] = "REAL"
+
     _two_layer_vector_operation(
         input1_path=input_path,
         input2_path=input_to_compare_with_path,
@@ -1605,7 +1610,7 @@ def export_by_location(
         batchsize=batchsize,
         force=force,
         tmp_dir=tmp_dir,
-        column_types={},
+        column_types=column_types,
     )
 
     # Print time taken
@@ -2161,6 +2166,7 @@ def join_by_location(
                    SELECT l1_fid FROM layer1_relations_filtered)
         """
 
+    # Add the columns that won't be read from the input files.
     column_types = {}
     if area_inters_column_name_touse is not None:
         column_types[area_inters_column_name_touse] = "REAL"
