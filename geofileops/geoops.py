@@ -2457,18 +2457,18 @@ def identity(
 
     If ``input2_path`` is None, a self-identity is performed. This means the 1st input
     layer is used for both inputs but interactions between the same rows in this layer
-    are ignored.
-        - If ``include_duplicates`` is True, the same logic is used as described above,
-          leading to each (part of a) geometry that has an intersection being duplicated
-          with the attribute column values "switched". Hence, each intersecting pair of
-          geometries A and B will lead to two rows in the output: one with the
-          attributes of A in the columns with ``input1_columns_prefix`` and the
-          attribute of B in the columns with ``input2_columns_prefix``, and another one
-          the other way around. A non-intersecting geometry will not lead to duplicates
-          for identity.
-        - If ``include_duplicates`` is False, only one of the duplicates is kept in the
+    are ignored. The output can be influenced via the ``include_duplicates`` parameter:
+        - If True (the default), the logic explained above is applied as-such. The
+          result is that each (part of a) geometry that has an intersection is
+          duplicated in the output with the attribute column values "switched". Hence,
+          each intersecting pair of geometries A and B will lead to two rows in the
+          output: one row with the attributes of A in the columns with
+          ``input1_columns_prefix`` and the attributes of B in the columns with
+          ``input2_columns_prefix``, and a second row with the column values saved the
+          other way around. Non-intersecting areas will not lead to duplicates in
+          identity.
+        - If False, only one of the duplicates is kept in the
           output with the column values only available "in one direction".
-        - The ``include_duplicates`` defaults to True.
 
     Notes:
         - The result will contain the attribute columns from both input layers. The
@@ -2698,16 +2698,17 @@ def intersection(
 
     If ``input2_path`` is None, a self-intersection is performed. This means the 1st
     input layer is used for both inputs but interactions between the same rows in this
-    layer are ignored.
-        - If ``include_duplicates`` is True, the same logic is used as described above,
-          leading to each geometry being duplicated with the attribute column values
-          "switched". Hence, each intersecting pair of geometries A and B will lead to
-          two rows in the output: one with the attributes of A in the columns with
-          ``input1_columns_prefix`` and the attribute of B in the columns with
-          ``input2_columns_prefix``, and another one the other way around.
+    layer are ignored. The output can be influenced with the ``include_duplicates``
+    parameter:
+        - If True (the default), the logic described above is applied as-such. The
+          result is that each geometry is duplicated in the output with the attribute
+          column values "switched". Hence, each intersecting pair of geometries A and B
+          will lead to two rows in the output: one row with the attributes of A in the
+          columns with ``input1_columns_prefix`` and the attributes of B in the columns
+          with ``input2_columns_prefix``, and another row with the columns filled up the
+          other way around.
         - If ``include_duplicates`` is False, only one of the duplicates is kept in the
-          output with the column values only available "in one direction".
-        - The ``include_duplicates`` defaults to True.
+          output with the column values only saved "in one direction".
 
     Notes:
         - The result will contain the attribute columns from both input layers. The
@@ -3576,20 +3577,21 @@ def union(
 
     If ``input2_path`` is None, a self-union is performed. This means the 1st input
     layer is used for both inputs but interactions between the same rows in this layer
-    are ignored.
-        - If ``include_duplicates`` is True, the same logic is used as described above,
-          leading to each geometry being duplicated with the attribute column values
-          "switched". Hence, each intersecting pair of geometries A and B will lead to
-          two rows in the output: one with the attributes of A in the columns with
-          ``input1_columns_prefix`` and the attribute of B in the columns with
-          ``input2_columns_prefix``, and another one the other way around. A
-          non-intersecting geometry will lead to one row in the output with the
+    are ignored. The output can be influenced with the ``include_duplicates``
+    parameter:
+        - If True (the default), the logic explained above is applied as-such. The
+          result is that each geometry is duplicated in the output with the attribute
+          column values "switched". Hence, each intersecting pair of geometries A and B
+          will lead to two rows in the output: one row with the attributes of A in the
+          columns with ``input1_columns_prefix`` and the attributes of B in the columns
+          with ``input2_columns_prefix``, and a second row with the columns filled up
+          the other way around.
+          A non-intersecting geometry will lead to one row in the output with the
           attribute values in the columns with ``input1_columns_prefix`` and NULL values
-          in the columns with ``input2_columns_prefix``, and also another one the other
-          way around.
-        - If ``include_duplicates`` is False, only one of the duplicates is kept in the
-          output with the column values only available "in one direction".
-        - The ``include_duplicates`` defaults to True.
+          in the columns with ``input2_columns_prefix``, and a second row with the
+          columns filled up the other way around.
+        - If False, only one of the duplicates is kept in the output with the column
+          values only available "in one direction".
 
     Notes:
         - The result will contain the attribute columns from both input layers. The
