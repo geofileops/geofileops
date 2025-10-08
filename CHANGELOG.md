@@ -1,11 +1,58 @@
 # CHANGELOG
 
-## 0.10.1 (yyyy-mm-dd)
+## 0.11.0 (yyyy-mm-dd)
+
+### Deprecations and compatibility notes
+
+- Minimum version of dependencies updated to spatialite 5.1.
+
+### Improvements
+
+- Add `concat` function (#746, #747)
+- Add `write_mode="append_add_fields"` option to `copy_layer` (#750)
+- Add `geo_sozip` and `geo_unzip` functions (#754)
+- Add support for ".gpkg.zip" and ".shp.zip" input and output files for geo operations
+  (#754)
+- Improve performance of clip with a complex clip layer (#740)
+- Improve performance of most operations by using a direct gpkg to gpkg append via
+  sqlite where possible (#728)
+- Improve performance of the subdividividing used in many operations (#730)
+- Improve performance of `dissolve` (#748)
+- Improve performance of two-layer operations using `nb_parallel=1` (#692)
+- Alternative query for clip + default subdivide_coords to 15000 (#450)
+- Ensure that the featurecount is properly cached in GPKG files, also for older GDAL
+  versions + small refactor (#693)
+- Add checks on invalid values in `ConfigOptions` (#711)
+- Add worker_type used to progress logging (#715)
+- Write gdal log files to `GFO_TMPDIR` if specified (#727)
+- Reduce memory being committed on hardware with many cores (#739, #717)
+
+### Bugs fixed
+
+- `copy_layer` should give an error if `src_layer` is not specified for multi-layer src
+  files (#745)
+
+## 0.10.2 (2025-08-20)
+
+### Improvements
+
+- Improve performance of `makevalid` by using `apply_vectorized` under the hood (#713)
+- Support to specify the directory used by geofileops to put temporary files via an
+  environment variable (GFO_TMPDIR) (#707)
+
+### Bugs fixed
+
+- Disable arrow in `gdal.VectorTranslate` to avoid random crashes (#714)
+- Fix `copy_file` for some special vsi cases (#703)
+- Fix handling `None` values for environment variables in the `gfo.TempEnv` context
+  manager (#710)
+
+## 0.10.1 (2025-05-16)
 
 ### Deprecations and compatibility notes
 
 - Add warning when the GFO_IO_ENGINE configuration option is used with engine "fiona"
-  that this is deprecated and will be removed/ignored in a future version (#688)
+  that this is deprecated and will be removed/ignored in a future version (#688, #701)
 
 ### Improvements
 

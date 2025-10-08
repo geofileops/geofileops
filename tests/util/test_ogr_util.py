@@ -94,7 +94,7 @@ def test_read_cpl_log(tmp_path):
         "\n",
         "logging line 3\n",
     ]
-    with open(cpl_log_path, mode="w") as file:
+    with cpl_log_path.open(mode="w") as file:
         file.writelines(test_log_lines)
 
     # Test
@@ -162,6 +162,24 @@ def test_RollbackTransaction_None():
     assert not _ogr_util.RollbackTransaction(None)
 
 
+@pytest.mark.parametrize("access_mode, add_fields", [("append", True), (None, False)])
+def test_vector_translate_columns_nonexisting(tmp_path, access_mode, add_fields):
+    """Specify non-existing column in the columns parameter."""
+    input_path = test_helper.get_testfile("polygon-parcel")
+    columns = ["OIDN", "NOT_EXISTING_COLUMN"]
+    output_path = tmp_path / "output.gpkg"
+    with pytest.raises(
+        Exception, match="Field 'NOT_EXISTING_COLUMN' not found in source layer"
+    ):
+        _ogr_util.vector_translate(
+            input_path,
+            output_path,
+            columns=columns,
+            access_mode=access_mode,
+            add_fields=add_fields,
+        )
+
+
 @pytest.mark.parametrize(
     "output_geometrytype, exp_geometrytype",
     [
@@ -205,6 +223,16 @@ def test_vector_translate_geometrytype_error(tmp_path, output_geometrytype, exp_
         )
 
 
+def test_vector_translate_input_multilayer_error(tmp_path):
+    input_path = test_helper.get_testfile("polygon-twolayers")
+
+    output_path = tmp_path / "output.gpkg"
+    with pytest.raises(
+        ValueError, match="input has > 1 layers: a layer must be specified"
+    ):
+        _ogr_util.vector_translate(str(input_path), output_path)
+
+
 def test_vector_translate_input_nolayer(tmp_path):
     input_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
     output_path = tmp_path / f"output{input_path.suffix}"
@@ -212,7 +240,7 @@ def test_vector_translate_input_nolayer(tmp_path):
     gfo.execute_sql(input_path, sql_stmt=f'DROP TABLE "{layer}"')
 
     with pytest.raises(
-        Exception, match="Error .* not recognized as .*a supported file format"
+        Exception, match=r"Error .* not recognized as .*a supported file format"
     ):
         _ogr_util.vector_translate(str(input_path), output_path)
 
@@ -342,6 +370,12 @@ def test_vector_translate_sql_input_empty(tmp_path, input_suffix, output_suffix)
 @pytest.mark.parametrize("input_suffix", test_helper.SUFFIXES_GEOOPS)
 @pytest.mark.parametrize("output_suffix", test_helper.SUFFIXES_GEOOPS)
 def test_vector_translate_sql_invalid_new_output(tmp_path, input_suffix, output_suffix):
+    """When an invalid sql query is used, the output file should not be created.
+
+    Note: GDAL does create an output file without any layers in it, but apparently this
+    is not trivial and/or riskful to change, so this won't be changed:
+    https://github.com/OSGeo/gdal/issues/12284
+    """
     input_path = test_helper.get_testfile(
         "polygon-parcel", suffix=input_suffix, empty=True
     )

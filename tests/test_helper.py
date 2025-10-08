@@ -4,23 +4,31 @@ Helper functions for all tests.
 
 import os
 import re
-import tempfile
 from pathlib import Path
 from stat import S_IRGRP, S_IROTH, S_IRUSR, S_IRWXG, S_IRWXO, S_IRWXU
 
 import geopandas as gpd
 import geopandas.testing as gpd_testing
+import pytest
 import shapely
 import shapely.geometry as sh_geom
 
 import geofileops as gfo
+from geofileops._compat import GDAL_GTE_311, PYTHON_313
 from geofileops.util import (
     _geofileinfo,
-    _geopath_util,
     _geoseries_util,
     _io_util,
     geodataframe_util,
 )
+from geofileops.util._geopath_util import GeoPath
+
+try:
+    import matplotlib.colors as mcolors
+    from matplotlib import figure as mpl_figure
+except ImportError:
+    mcolors = None  # type: ignore[assignment]
+    mpl_figure = None  # type: ignore[assignment]
 
 data_dir = Path(__file__).parent.resolve() / "data"
 data_url = "https://raw.githubusercontent.com/geofileops/geofileops/main/tests/data"
@@ -30,7 +38,9 @@ GRIDSIZE_DEFAULT = 0.0
 SUFFIXES_FILEOPS = [".gpkg", ".shp", ".csv"]
 SUFFIXES_FILEOPS_EXT = [".gpkg", ".gpkg.zip", ".shp.zip", ".shp", ".csv"]
 SUFFIXES_GEOOPS = [".gpkg", ".shp"]
-SUFFIXES_GEOOPS_INPUT = [".gpkg", ".gpkg.zip", ".shp.zip", ".shp"]
+SUFFIXES_GEOOPS_EXT = [".gpkg", ".gpkg.zip", ".shp.zip", ".shp"]
+if GDAL_GTE_311 and PYTHON_313:
+    SUFFIXES_GEOOPS = SUFFIXES_GEOOPS_EXT
 TESTFILES = ["polygon-parcel", "linestring-row-trees", "point"]
 WHERE_AREA_GT_400 = "ST_Area({geometrycolumn}) > 400"
 WHERE_AREA_GT_5000 = "ST_Area({geometrycolumn}) > 5000"
@@ -97,50 +107,6 @@ def prepare_expected_result(
     return exp_gdf
 
 
-def prepare_test_file(
-    input_path: Path,
-    output_dir: Path,
-    suffix: str,
-    crs_epsg: int | None = None,
-    use_cachedir: bool = False,
-) -> Path:
-    # Tmp dir
-    if use_cachedir is True:
-        tmp_cache_dir = Path(tempfile.gettempdir()) / "geofileops_test_data"
-        tmp_cache_dir.mkdir(parents=True, exist_ok=True)
-    else:
-        tmp_cache_dir = output_dir
-
-    # If crs_epsg specified and test input file in wrong crs_epsg, reproject
-    input_prepared_path = input_path
-    if crs_epsg is not None:
-        input_prepared_path = tmp_cache_dir / f"{input_path.stem}_{crs_epsg}{suffix}"
-        if input_prepared_path.exists() is False:
-            input_layerinfo = gfo.get_layerinfo(input_path)
-            assert input_layerinfo.crs is not None
-            if input_layerinfo.crs.to_epsg() == crs_epsg:
-                if input_path.suffix == suffix:
-                    gfo.copy(input_path, input_prepared_path)
-                else:
-                    gfo.copy_layer(input_path, input_prepared_path)
-            else:
-                test_gdf = gfo.read_file(input_path)
-                test_gdf = test_gdf.to_crs(crs_epsg)
-                assert isinstance(test_gdf, gpd.GeoDataFrame)
-                gfo.to_file(test_gdf, input_prepared_path)
-    elif input_path.suffix != suffix:
-        # No crs specified, but different suffix asked, so convert file
-        input_prepared_path = tmp_cache_dir / f"{input_path.stem}{suffix}"
-        if input_prepared_path.exists() is False:
-            gfo.copy_layer(input_path, input_prepared_path)
-
-    # Now copy the prepared file to the output dir
-    output_path = output_dir / input_prepared_path.name
-    if str(input_prepared_path) != str(output_path):
-        gfo.copy(input_prepared_path, output_path)
-    return output_path
-
-
 def get_testfile(
     testfile: str,
     dst_dir: Path | None = None,
@@ -180,6 +146,9 @@ def _get_testfile(
     dimensions: str | None = None,
     explodecollections: bool = False,
 ) -> Path:
+    if suffix.lower() in (".gpkg.zip", ".shp.zip") and not GDAL_GTE_311:
+        pytest.skip("geo_sozip support requires gdal>=3.11")
+
     # Prepare original filepath.
     testfile_path = data_dir / f"{testfile}.gpkg"
     if not testfile_path.exists():
@@ -187,7 +156,7 @@ def _get_testfile(
 
     # Prepare destination location
     if dst_dir is None:
-        dst_dir = Path(tempfile.gettempdir()) / "geofileops_test_data"
+        dst_dir = _io_util.get_tempdir() / "geofileops_test_data"
     assert isinstance(dst_dir, Path)
     dst_dir.mkdir(parents=True, exist_ok=True)
 
@@ -201,7 +170,7 @@ def _get_testfile(
 
     # Test file doesn't exist yet, so create it
     # To be safe for parallelized tests, lock the creation.
-    prepared_lock_path = Path(f"{prepared_path}.lock")
+    prepared_lock_path = Path(f"{prepared_path.as_posix()}.lock")
     try:
         _io_util.create_file_atomic_wait(
             prepared_lock_path, time_between_attempts=0.1, timeout=60
@@ -213,8 +182,8 @@ def _get_testfile(
 
         # Prepare the file in a tmp file so the file is not visible to other
         # processes until it is completely ready.
-        tmp_stem = f"{_geopath_util.stem(prepared_path)}_tmp"
-        tmp_path = _geopath_util.with_stem(prepared_path, tmp_stem)
+        tmp_stem = f"{GeoPath(prepared_path).stem}_tmp"
+        tmp_path = dst_dir / f"{tmp_stem}{GeoPath(prepared_path).suffix_nozip}"
         layers = gfo.listlayers(testfile_path)
         dst_info = _geofileinfo.get_geofileinfo(tmp_path)
         if len(layers) > 1 and dst_info.is_singlelayer:
@@ -270,6 +239,13 @@ def _get_testfile(
                         layer=dst_layer,
                     )
 
+        # If the output should be zipped, zip it
+        if prepared_path.suffix == ".zip":
+            tmp_path_zipped_path = dst_dir / f"{tmp_path.name}.zip"
+            gfo.geo_sozip(tmp_path, tmp_path_zipped_path)
+            gfo.remove(tmp_path, missing_ok=True)
+            tmp_path = tmp_path_zipped_path
+
         # Rename tmp file to prepared file
         gfo.move(tmp_path, prepared_path)
 
@@ -287,11 +263,11 @@ def set_read_only(path: Path, read_only: bool) -> None:
 
     def _read_only(path: Path) -> None:
         # Set read-only
-        os.chmod(path, S_IRUSR | S_IRGRP | S_IROTH)
+        path.chmod(S_IRUSR | S_IRGRP | S_IROTH)
 
     def _read_write(path: Path) -> None:
         # Set read-write
-        os.chmod(path, S_IRWXU | S_IRWXG | S_IRWXO)
+        path.chmod(S_IRWXU | S_IRWXG | S_IRWXO)
 
     if path.exists():
         _read_only(path) if read_only else _read_write(path)
@@ -339,25 +315,6 @@ class TestData:
     polygon_small_island = sh_geom.Polygon(
         shell=[(40, 40), (40, 50), (41, 50), (50, 50), (50, 40), (40, 40)],
         holes=[[(42, 42), (42, 43), (43, 43), (43, 42), (42, 42)]],
-    )
-
-
-def create_tempdir(base_dirname: str, parent_dir: Path | None = None) -> Path:
-    # Parent
-    if parent_dir is None:
-        parent_dir = Path(tempfile.gettempdir())
-
-    for i in range(1, 999999):
-        try:
-            tempdir = parent_dir / f"{base_dirname}_{i:06d}"
-            tempdir.mkdir(parents=True)
-            return Path(tempdir)
-        except FileExistsError:
-            continue
-
-    raise Exception(
-        "Wasn't able to create a temporary dir with basedir: "
-        f"{parent_dir / base_dirname}"
     )
 
 
@@ -510,8 +467,11 @@ def plot(
     if "GITHUB_ACTIONS" in os.environ:
         return
 
-    import matplotlib.colors as mcolors
-    from matplotlib import figure as mpl_figure
+    if mpl_figure is None or mcolors is None:
+        raise ImportError(
+            "matplotlib is not installed, but needed to plot geofiles. "
+            "Please install matplotlib."
+        )
 
     figure = mpl_figure.Figure(figsize=((len(geofiles) + 1) * 3, 3))
     figure.subplots(1, len(geofiles) + 1, sharex=True, sharey=True)

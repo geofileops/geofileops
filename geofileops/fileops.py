@@ -26,15 +26,22 @@ from osgeo import gdal, ogr
 from pandas.api.types import is_integer_dtype
 from pygeoops import GeometryType, PrimitiveType  # noqa: F401
 
+from geofileops._compat import GDAL_GTE_311
 from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import (
     _geofileinfo,
-    _geopath_util,
     _geoseries_util,
     _io_util,
     _ogr_sql_util,
     _ogr_util,
+    _sqlite_util,
 )
+from geofileops.util._geopath_util import GeoPath
+
+try:
+    import fiona
+except ImportError:
+    fiona = None
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +116,7 @@ def listlayers(
     if str(path).lower().endswith((".shp", ".shp.zip")):
         if not _vsi_exists(path):
             raise FileNotFoundError(f"File not found: {path}")
-        return [_geopath_util.stem(path)]
+        return [GeoPath(path).stem]
 
     datasource = None
     try:
@@ -395,6 +402,9 @@ def get_layerinfo(
             errors.append("Layer doesn't have a geometry column!")
 
         # If there were no errors, everything was OK so we can return.
+        # Remark: for e.g. for a ".shp.zip" file the layer name will include .shp at the
+        # end, but this is not an error! If it isn't there, using the layer name in SQL
+        # statements on the ".shp.zip" file will lead to "table not found" errors.
         if len(errors) == 0:
             return LayerInfo(
                 name=datasource_layer.GetName(),
@@ -521,7 +531,9 @@ def _get_only_layer(datasource: gdal.Dataset) -> ogr.Layer:
         if len(layers) == 1:
             return datasource.GetLayer(layers[0])
         else:
-            raise ValueError(f"input has > 1 layer, but no layer specified: {layers}")
+            raise ValueError(
+                f"input has > 1 layers: a layer must be specified: {layers}"
+            )
 
 
 def get_default_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
@@ -535,7 +547,7 @@ def get_default_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
     Returns:
         str: The default layer name.
     """
-    return _geopath_util.stem(path)
+    return GeoPath(path).stem
 
 
 def execute_sql(
@@ -1038,6 +1050,7 @@ def add_column(
         else:
             type_str = type
 
+    start = time.perf_counter()
     layerinfo = get_layerinfo(path, layer, raise_on_nogeom=False)
     layer = layerinfo.name
 
@@ -1047,6 +1060,7 @@ def add_column(
         # If column doesn't exist yet, create it
         columns_upper = [column.upper() for column in layerinfo.columns]
         if name.upper() not in columns_upper:
+            logger.info(f"Add column {name} to {path}#{layer}")
             width_str = f"({width})" if width is not None else ""
             sql_stmt = (
                 f'ALTER TABLE "{layer}" ADD COLUMN "{name}" {type_str}{width_str}'
@@ -1055,7 +1069,7 @@ def add_column(
             _ogr_util.StartTransaction(datasource)
             datasource.ExecuteSQL(sql_stmt)
         else:
-            logger.warning(f"Column {name} existed already in {path}, layer {layer}")
+            logger.warning(f"Column {name} existed already in {path}#{layer}")
 
         # If an expression was provided and update can be done, go for it...
         if expression is not None and (
@@ -1075,6 +1089,11 @@ def add_column(
         raise
     finally:
         datasource = None
+
+        # Log time taken if it was slow.
+        took = time.perf_counter() - start
+        if took > 2:  # pragma: no cover
+            logger.info(f"Ready, add_column of {name} took {took:.2f}")
 
 
 def drop_column(
@@ -1181,6 +1200,9 @@ def update_column(
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
     """  # noqa: E501
     # Init
+    logger.info(f"Update column {name} in {path}#{layer}")
+
+    start = time.perf_counter()
     layerinfo = get_layerinfo(path, layer)
     columns_upper = [column.upper() for column in layerinfo.columns]
     if layerinfo.geometrycolumn is not None:
@@ -1203,6 +1225,11 @@ def update_column(
         raise
     finally:
         datasource = None
+
+        # Log time taken if it was slow.
+        took = time.perf_counter() - start
+        if took > 2:  # pragma: no cover
+            logger.info(f"Ready, update_column of {name} took {took:.2f}")
 
 
 def read_file(
@@ -1434,8 +1461,8 @@ def _read_file_base_fiona(
     The "fiona" IO engine is deprecated and will be removed in the future.
     """
     warnings.warn(
-        "The geofileops configuration option GFO_IO_ENGINE is deprecated. In a future "
-        "version it will be ignored and the pyogrio engine will always be used.",
+        "Using GFO_IO_ENGINE=fiona is deprecated. In a future version this will be"
+        "ignored.",
         FutureWarning,
         stacklevel=4,
     )
@@ -1530,7 +1557,11 @@ def _read_file_base_fiona(
         float_cols = list(result_gdf.select_dtypes(["float64"]).columns)
         if len(float_cols) > 0:
             # Check for all float columns found if they should be object columns instead
-            import fiona
+            if fiona is None:
+                raise ImportError(
+                    "fiona is not installed, but needed to read the file with"
+                    " GFO_IO_ENGINE=fiona. Please install fiona."
+                )
 
             with fiona.open(path, layer=layer) as collection:
                 assert collection.schema is not None
@@ -1734,8 +1765,9 @@ def to_file(
     The fileformat is detected based on the filepath extension.
 
     The underlying library used to write the file can be choosen using the
-    "GFO_IO_ENGINE" environment variable. Possible values are "fiona" and "pyogrio".
-    Default engine is "pyogrio".
+    "GFO_IO_ENGINE" environment variable. Possible values are "fiona" and "pyogrio", but
+    using "fiona" is deprecated and will be ignored in a future version. The default
+    engine is "pyogrio".
 
     Args:
         gdf (gpd.GeoDataFrame): The GeoDataFrame to export to file.
@@ -1799,7 +1831,7 @@ def to_file(
             raise ValueError(
                 f"Unsupported force_output_geometrytype: {force_output_geometrytype}"
             ) from None
-    if force_output_geometrytype is not None and force_output_geometrytype.is_multitype:
+    if force_output_geometrytype is not None and force_output_geometrytype.is_multitype:  # type: ignore[union-attr]
         force_multitype = True
 
     engine = ConfigOptions.io_engine
@@ -1852,8 +1884,8 @@ def _to_file_fiona(
     The "fiona" IO engine is deprecated and will be removed in the future.
     """
     warnings.warn(
-        "The geofileops configuration option GFO_IO_ENGINE is deprecated. In a future "
-        "version it will be ignored and the pyogrio engine will always be used.",
+        "Using GFO_IO_ENGINE=fiona is deprecated. In a future version this will be"
+        "ignored.",
         FutureWarning,
         stacklevel=3,
     )
@@ -2566,8 +2598,10 @@ def copy_layer(
         src (PathLike): The source path. |GDAL_vsi| paths are also supported.
         dst (PathLike): The destination path. |GDAL_vsi| paths can be used for handlers
             with write support.
-        src_layer (str, optional): The source layer. If None and there is only
-            one layer in the src file, that layer is taken. Defaults to None.
+        src_layer (str, optional): The source layer. If the source contains a single
+            layer, that layer will be taken if `src_layer` is None. If it contains
+            multiple layers, `src_layer` is mandatory unless `sql_stmt` is specified.
+            Defaults to None.
         dst_layer (str, optional): The destination layer. If None, the destination file
             stem is taken as layer name. Defaults to None.
         write_mode (str, optional): The write mode. Defaults to "create". Valid values:
@@ -2581,6 +2615,11 @@ def copy_layer(
                 `force=False` the layer is overwritten.
             - "append": append the source layer to the destination layer, if the
                 layer already exists. If not, the file and/or layer will be created.
+                If the file already contains layers named differently than the default
+                layer name for the file, `dst_layer` becomes mandatory.
+            - "append_add_fields": append the source layer to the destination layer,
+                adding fields from the source layer that are not present in the
+                destination layer. If the layer doesn't exist, it will be created.
                 If the file already contains layers named differently than the default
                 layer name for the file, `dst_layer` becomes mandatory.
 
@@ -2663,7 +2702,8 @@ def copy_layer(
         )
         write_mode = "append"
 
-    # Determine the access mode
+    # Determine the access mode and whether to add missing fields when appending
+    add_fields = False
     access_mode = _determine_access_mode(dst, dst_layer, write_mode, force)
     if access_mode is None:
         # The file/layer exists already and force is false, so we can return
@@ -2675,21 +2715,13 @@ def copy_layer(
         # As we will actually be appending to an existing layer, the layer
         # creation option regarding spatial index creation should not be passed.
         create_spatial_index = None
-
-    if dst_layer is None:
-        dst_layer = get_default_layer(dst)
+        if write_mode == "append_add_fields":
+            add_fields = True
 
     # Check/clean input params
     if isinstance(columns, str):
         # If a string is passed, convert to list
         columns = [columns]
-
-    options = _ogr_util._prepare_gdal_options(options)
-    if (
-        create_spatial_index is not None
-        and "LAYER_CREATION.SPATIAL_INDEX" not in options
-    ):
-        options["LAYER_CREATION.SPATIAL_INDEX"] = create_spatial_index
 
     if where is not None:
         if not isinstance(src_layer, LayerInfo):
@@ -2702,13 +2734,65 @@ def copy_layer(
             path=src, layer=src_layer, sql_stmt=sql_stmt, columns=columns
         )
 
-    # When creating/appending to a shapefile, some extra things need to be done/checked.
+    if dst_layer is None:
+        dst_layer = get_default_layer(dst)
+    src_layername = src_layer.name if isinstance(src_layer, LayerInfo) else src_layer
+
+    # If the source and destination files are GeoPackages, and it involves a simple data
+    # copy, it is faster to copy the data directly in sqlite instead of via GDAL.
+    if (
+        access_mode == "append"
+        and not add_fields
+        and Path(src).suffix.lower() == ".gpkg"
+        and Path(dst).suffix.lower() == ".gpkg"
+        and not sql_stmt
+        and (sql_dialect is None or sql_dialect == "SQLITE")
+        and not explodecollections
+        and not reproject
+        and force_output_geometrytype is None
+        and dst_dimensions is None
+        and (options is None or len(options) == 0)
+        and src_crs is None
+        and dst_crs is None
+        and Path(src).exists()
+        and Path(dst).exists()
+        and ConfigOptions.copy_layer_sqlite_direct
+    ):
+        # TODO: sql_stmt?, access_mode="create", create_spatial_index, dst_crs?
+        try:
+            name = src_layername if src_layername is not None else get_only_layer(src)
+            preserve_fid_local = preserve_fid if preserve_fid is not None else False
+            _sqlite_util.copy_table(
+                input_path=src,
+                output_path=dst,
+                input_table=name,
+                output_table=dst_layer,
+                columns=columns,
+                where=where,
+                preserve_fid=preserve_fid_local,
+            )
+            return
+
+        except Exception as ex:
+            logger.info(
+                f"Failed to copy data directly in sqlite, retry with gdal: {ex}"
+            )
+
+    options = _ogr_util._prepare_gdal_options(options)
+    if (
+        create_spatial_index is not None
+        and "LAYER_CREATION.SPATIAL_INDEX" not in options
+    ):
+        options["LAYER_CREATION.SPATIAL_INDEX"] = create_spatial_index
+
+    # When destination is a shapefile, some extra things need to be done/checked.
     if sql_stmt is None and Path(dst).suffix.lower() == ".shp":
         # If the destination file doesn't exist yet, and the source file has
         # geometrytype "Geometry", raise because type is not supported by shp (and will
         # default to linestring).
         if not isinstance(src_layer, LayerInfo):
             src_layer = get_layerinfo(src, src_layer, raise_on_nogeom=False)
+            src_layername = src_layer.name
         if (
             force_output_geometrytype is None
             and src_layer.geometrytypename in ["GEOMETRY", "GEOMETRYCOLLECTION"]
@@ -2744,7 +2828,6 @@ def copy_layer(
         columns = None
 
     # Go!
-    src_layername = src_layer.name if isinstance(src_layer, LayerInfo) else src_layer
     translate_info = _ogr_util.VectorTranslateInfo(
         input_path=src,
         output_path=dst,
@@ -2764,8 +2847,45 @@ def copy_layer(
         options=options,
         preserve_fid=preserve_fid,
         dst_dimensions=dst_dimensions,
+        add_fields=add_fields,
     )
     _ogr_util.vector_translate_by_info(info=translate_info)
+
+
+def geo_sozip(
+    input_path: Union[str, "os.PathLike[Any]"],
+    output_path: Union[str, "os.PathLike[Any]"],
+):
+    """Zip a geofile to a seek-optimized zip file.
+
+    For geofile types that consist of multiple files (eg. shapefiles), all relevant
+    (existing) files are included in the zip.
+
+    Args:
+        input_path (PathLike): the geofile to zip.
+        output_path (PathLike): the output zip file.
+    """
+    if not GDAL_GTE_311:
+        raise RuntimeError("sozip requires gdal>=3.11")
+
+    # For some file types, extra files need to be included
+    input_info = _geofileinfo.get_geofileinfo(input_path)
+    input_path_suffix = Path(input_path).suffix
+    input_path_no_suffix = Path(input_path).with_suffix("").as_posix()
+
+    input_paths = []
+    if _vsi_exists(input_path):
+        input_paths.append(input_path)
+    for suffix in input_info.suffixes_extrafiles:
+        if suffix == input_path_suffix:
+            continue
+        extra_path = f"{input_path_no_suffix}{suffix}"
+        if _vsi_exists(extra_path):
+            input_paths.append(extra_path)
+
+    gdal.Run(
+        "vsi", "sozip", "create", input=input_paths, output=output_path, no_paths=True
+    )
 
 
 def _zip(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]):
@@ -2789,16 +2909,48 @@ def _zip(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
                     zipf.write(file_path, file_path.relative_to(src))
 
 
-def _unzip(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]):
-    """Unzip a zip file.
+def geo_unzip(
+    input_path: Union[str, "os.PathLike[Any]"],
+    output_path: Union[str, "os.PathLike[Any]"],
+) -> Path:
+    """Unzip a zipped geofile and return the path to the unzipped geofile.
+
+    The zip file should contain a single geofile. If the file contains a single file,
+    that file is returned. If it contains multiple files, the geofile is determined
+    based on the file extension. If multiple geofiles are found, an error is raised.
 
     Args:
-        src (PathLike): the zip file to unzip.
-        dst (PathLike): the destination directory.
+        input_path (PathLike): the zip file to unzip.
+        output_path (PathLike): the output directory.
+
+    Returns:
+        Path: The path to the unzipped geofile in the destination directory.
     """
-    # Unzip the file
-    with zipfile.ZipFile(src, "r") as zipf:
-        zipf.extractall(dst)
+    geo_suffixes = (".gpkg", ".shp", ".geojson", ".json", ".gpkg.zip", ".shp.zip")
+    with zipfile.ZipFile(input_path, "r") as zipf:
+        # Determine the geofile in the zip to be able to return it
+        files = zipf.filelist
+        geofilename = None
+        if len(files) == 0:
+            raise ValueError(f"No files found in zip: {input_path}")
+        elif len(files) == 1:
+            geofilename = files[0].filename
+        else:
+            for file in files:
+                if file.filename.endswith(geo_suffixes):
+                    if geofilename is not None:
+                        raise ValueError(
+                            f"Multiple geofiles found in zip: {input_path}, so cannot "
+                            "determine which one to return."
+                        )
+                    geofilename = file.filename
+
+        if geofilename is None:
+            raise ValueError(f"No geofile found in zip: {input_path}")
+
+        zipf.extractall(output_path)
+
+    return Path(output_path) / geofilename
 
 
 def _determine_access_mode(
@@ -2858,7 +3010,7 @@ def _determine_access_mode(
         else:
             return "update"
 
-    elif write_mode == "append":
+    elif write_mode in ("append", "append_add_fields"):
         layers = try_listlayers(dst, only_spatial_layers=False)
         if layers is None:
             # The file doesn't seem to exist yet... just continue, the file and layer
@@ -2872,16 +3024,17 @@ def _determine_access_mode(
             dst_layer = get_default_layer(dst)
             if dst_layer not in layers:
                 raise ValueError(
-                    "dst_layer is required when write_mode is 'append' and "
-                    "there are already other layers than the default layername."
+                    "dst_layer is required when write_mode is 'append' or "
+                    "'append_add_fields' and there are already other layers than the "
+                    "default layername."
                 )
             return "append"
 
         elif dst_layer is None:
             # No dst_layer specified and multiple layers: raise error
             raise ValueError(
-                "dst_layer is required when write_mode is 'append' and "
-                "there are multiple other layers."
+                "dst_layer is required when write_mode is 'append' or "
+                "'append_add_fields' and there are multiple other layers."
             )
         elif dst_layer in layers:
             return "append"

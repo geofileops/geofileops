@@ -2,6 +2,7 @@ import pytest
 
 import geofileops as gfo
 from geofileops.util import _geoops_sql
+from geofileops.util._geopath_util import GeoPath
 from tests import test_helper
 
 
@@ -52,22 +53,26 @@ def test_determine_nb_batches(
 
 
 @pytest.mark.parametrize(
-    "input1_suffix, input2_suffix, output1_suffix, output2_suffix",
+    "input1_suffix, input2_suffix, output1_suffix, output2_suffix, unzip_gpkg",
     [
-        (".gpkg", None, ".gpkg", None),
-        (".gpkg", ".gpkg", ".gpkg", ".gpkg"),
-        (".gpkg", ".shp", ".gpkg", ".gpkg"),
-        (".gpkg", ".sqlite", ".gpkg", ".gpkg"),
-        (".shp", None, ".gpkg", None),
-        (".shp", ".gpkg", ".gpkg", ".gpkg"),
-        (".shp", ".sqlite", ".sqlite", ".sqlite"),
-        (".sqlite", None, ".sqlite", None),
-        (".sqlite", ".shp", ".sqlite", ".sqlite"),
-        (".sqlite", ".sqlite", ".sqlite", ".sqlite"),
+        (".gpkg", None, ".gpkg", None, False),
+        (".gpkg.zip", None, ".gpkg.zip", None, False),
+        (".gpkg.zip", None, ".gpkg", None, True),
+        (".gpkg", ".gpkg", ".gpkg", ".gpkg", True),
+        (".gpkg.zip", ".gpkg.zip", ".gpkg", ".gpkg", True),
+        (".gpkg", ".shp", ".gpkg", ".gpkg", False),
+        (".gpkg", ".sqlite", ".gpkg", ".gpkg", False),
+        (".shp", None, ".gpkg", None, False),
+        (".shp", ".gpkg.zip", ".gpkg", ".gpkg", True),
+        (".shp", ".gpkg.zip", ".gpkg", ".gpkg.zip", False),
+        (".shp", ".sqlite", ".sqlite", ".sqlite", False),
+        (".sqlite", None, ".sqlite", None, True),
+        (".sqlite", ".shp", ".sqlite", ".sqlite", False),
+        (".sqlite", ".sqlite", ".sqlite", ".sqlite", False),
     ],
 )
 def test_convert_to_spatialite_based(
-    tmp_path, input1_suffix, input2_suffix, output1_suffix, output2_suffix
+    tmp_path, input1_suffix, input2_suffix, output1_suffix, output2_suffix, unzip_gpkg
 ):
     input1_path = test_helper.get_testfile("polygon-parcel", suffix=input1_suffix)
     input1_layer = gfo.get_layerinfo(input1_path)
@@ -82,25 +87,26 @@ def test_convert_to_spatialite_based(
             input1_path=input1_path,
             input1_layer=input1_layer,
             tempdir=tmp_path,
+            unzip_gpkg=unzip_gpkg,
             input2_path=input2_path,
             input2_layer=input2_layer,
         )
     )
 
-    assert input1_out_path.suffix == output1_suffix
+    assert GeoPath(input1_out_path).suffix_full == output1_suffix
     assert input1_out_path.exists()
     assert input1_out_layer.name in gfo.listlayers(input1_out_path)
 
     # If the file format hasn't changed, the file should not be copied
-    if input1_path.suffix == input1_out_path.suffix:
+    if GeoPath(input1_path).suffix_full == GeoPath(input1_out_path).suffix_full:
         assert input1_path == input1_out_path
 
     if input2_suffix is not None:
         assert input2_out_path.exists()
         assert input2_out_layer.name in gfo.listlayers(input2_out_path)
-        assert input2_out_path.suffix == output2_suffix
+        assert GeoPath(input2_out_path).suffix_full == output2_suffix
         # If the file format hasn't changed, the file should not be copied
-        if input2_out_path.suffix == input2_path.suffix:
+        if GeoPath(input2_out_path).suffix_full == GeoPath(input2_path).suffix_full:
             assert input2_out_path == input2_path
         # If both input files were copied, they should have been copied to seperate
         # files
@@ -136,6 +142,29 @@ def test_subdivide_layer(
         assert result is not None
     else:
         assert result is None
+
+
+@pytest.mark.parametrize(
+    "nb_rows, fraction", [("1000", "1"), ("10", "5"), ("10", "1"), (None, None)]
+)
+def test_subdivide_layer_check_parallel(tmp_path, nb_rows, fraction):
+    path = test_helper.get_testfile("polygon-parcel")
+    layer = gfo.get_layerinfo(path)
+
+    envs = {
+        "GFO_SUBDIVIDE_CHECK_PARALLEL_FRACTION": fraction,
+        "GFO_SUBDIVIDE_CHECK_PARALLEL_ROWS": nb_rows,
+    }
+    with gfo.TempEnv(envs):
+        result = _geoops_sql._subdivide_layer(
+            path=path,
+            layer=layer,
+            output_path=tmp_path,
+            subdivide_coords=1,
+            keep_fid=False,
+        )
+
+    assert result is not None
 
 
 @pytest.mark.parametrize(

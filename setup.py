@@ -1,11 +1,13 @@
 """Setup file to package geofileops."""
 
+from pathlib import Path
+
 import setuptools
 
-with open("README.md") as fh:
+with Path("README.md").open() as fh:
     long_description = fh.read()
 
-with open("geofileops/version.txt") as file:
+with Path("geofileops/version.txt").open() as file:
     version = file.readline()
 
 setuptools.setup(
@@ -25,7 +27,7 @@ setuptools.setup(
     install_requires=[
         "cloudpickle",
         "gdal>=3.6",
-        "geopandas>=0.12",
+        "geopandas>=0.13",
         "numpy",
         "packaging",
         "pandas>=1.5",

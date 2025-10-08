@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any, Literal, Union
 from pygeoops import GeometryType
 
 from geofileops import fileops
-from geofileops._compat import SPATIALITE_GTE_51
 from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import (
     _geofileinfo,
@@ -27,6 +26,7 @@ from geofileops.util._geometry_util import (
     BufferJoinStyle,
     SimplifyAlgorithm,
 )
+from geofileops.util._geopath_util import GeoPath
 
 if TYPE_CHECKING:  # pragma: no cover
     import os
@@ -1126,7 +1126,7 @@ def dissolve(
         explodecollections (bool): True to output only simple geometries. If
             False, this can result in huge geometries for large files,
             especially if no ``groupby_columns`` are specified.
-        groupby_columns (Union[List[str], str], optional): columns (case insensitive) to
+        groupby_columns (list[str] or str, optional): columns (case insensitive) to
             group on while aggregating. Defaults to None, resulting in a spatial union
             of all geometries that touch.
         agg_columns (dict, optional): columns to aggregate based on
@@ -1204,15 +1204,6 @@ def dissolve(
     # Init
     if tiles_path is not None:
         tiles_path = Path(tiles_path)
-
-    # Standardize parameter to simplify the rest of the code
-    if groupby_columns is not None:
-        if isinstance(groupby_columns, str):
-            # If a string is passed, convert to list
-            groupby_columns = [groupby_columns]
-        elif len(groupby_columns) == 0:
-            # If an empty list of geometry columns is passed, convert it to None
-            groupby_columns = None
 
     logger = logging.getLogger("geofileops.dissolve")
     logger.info(f"Start, on {input_path} to {output_path}")
@@ -1343,19 +1334,18 @@ def isvalid(
 
     """
     # Check parameters
+    input_path = Path(input_path)
     if output_path is not None:
         output_path = Path(output_path)
     else:
-        input_path = Path(input_path)
-        output_path = (
-            input_path.parent / f"{input_path.stem}_isvalid{input_path.suffix}"
-        )
+        input_geopath = GeoPath(input_path)
+        output_path = input_geopath.with_stem(f"{input_geopath.stem}_isvalid")
 
     # Go!
     logger = logging.getLogger("geofileops.isvalid")
     logger.info(f"Start, on {input_path}")
     return _geoops_sql.isvalid(
-        input_path=Path(input_path),
+        input_path=input_path,
         output_path=output_path,
         input_layer=input_layer,
         output_layer=output_layer,
@@ -1461,7 +1451,7 @@ def makevalid(
             stacklevel=2,
         )
 
-    if SPATIALITE_GTE_51 and gridsize == 0.0:
+    if gridsize == 0.0:
         # If spatialite >= 5.1 available use faster/less memory using SQL implementation
         # Only use this version if gridsize is 0.0, because when gridsize applied it is
         # less robust than the gpd implementation.
@@ -1500,7 +1490,7 @@ def makevalid(
     # If asked and output is spatialite based, check if all data can be read
     if validate_attribute_data:
         output_geofileinfo = _geofileinfo.get_geofileinfo(input_path)
-        if output_geofileinfo.is_spatialite_based:
+        if input_path.suffix != ".zip" and output_geofileinfo.is_spatialite_based:
             _sqlite_util.test_data_integrity(path=input_path)
 
 
@@ -1841,9 +1831,9 @@ def simplify(
         )
 
 
-# ------------------------
-# Operations on two layers
-# ------------------------
+# -----------------------------
+# Operations on multiple layers
+# -----------------------------
 
 
 def clip(
@@ -1859,6 +1849,7 @@ def clip(
     where_post: str | None = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
+    subdivide_coords: int = 15000,
     force: bool = False,
 ):
     """Clip the input layer with the clip layer.
@@ -1912,7 +1903,12 @@ def clip(
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
-        force (bool, optional): overwrite existing output file(s).
+        subdivide_coords (int, optional): the input geometries will be subdivided to
+            parts with about ``subdivide_coords`` coordinates during processing which
+            can offer a large speed up for complex geometries. Subdividing can result in
+            extra collinear points being added to the boundaries of the output. If 0, no
+            subdividing is applied. Defaults to 15000.
+        force (bool, optional): True to overwrite existing output file(s).
             Defaults to False.
 
     See Also:
@@ -1942,8 +1938,120 @@ def clip(
         where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
+        subdivide_coords=subdivide_coords,
         force=force,
     )
+
+
+def concat(
+    input_paths: list[Union[str, "os.PathLike[Any]"]],
+    output_path: Union[str, "os.PathLike[Any]"],
+    input_layers: list[str | None] | str | None = None,
+    output_layer: str | None = None,
+    columns: list[str] | None = None,
+    explodecollections: bool = False,
+    create_spatial_index: bool | None = None,
+    force: bool = False,
+):
+    """Concatenate multiple geofiles into one output geofile.
+
+    The input files will be appended one after the other in the output file, so only
+    output file types that support appending are supported.
+
+    By default, all columns in any of the input files are retained. If columns are not
+    present in some input files, the values of these columns will be NULL for those
+    rows. If you want to retain only a subset of the columns, specify these in the
+    ``columns`` parameter.
+
+    Args:
+        input_paths (list[PathLike]): the paths to the files to concatenate.
+        output_path (PathLike): the path to the output file.
+        input_layers (list[str | None] | str, optional): the layer names to use in the
+            input files. The layer names can be None for input files that only contain a
+            single layer. If a single value is specified, this value is used for all
+            input files. Defaults to None.
+        output_layer (str, optional): the layer name to use in the output file. If not
+            specified, the default layer name is used. Defaults to None.
+        columns (list[str], optional): the columns to keep in the output file.
+            If None, all columns present in the first input file are retained.
+            Defaults to None.
+        explodecollections (bool, optional): True to explode geometry collections
+            into separate features. Defaults to False.
+        create_spatial_index (bool, optional): True to create a spatial index on the
+            output file/layer. If None, the default behaviour by gdal for that file
+            type is respected. Defaults to None.
+        force (bool, optional): True to overwrite the output file if it already exists.
+    """
+    # Validate + cleanup input parameters
+    logger = logging.getLogger("geofileops.concat")
+    if input_layers is None or isinstance(input_layers, str):
+        input_layers = [input_layers] * len(input_paths)
+    elif len(input_layers) != len(input_paths):
+        raise ValueError(
+            "input_layers must have the same length as input_paths if it is a list"
+        )
+    output_path = Path(output_path)
+    if _io_util.output_exists(path=output_path, remove_if_exists=force):
+        return
+
+    if create_spatial_index is None:
+        output_geofileinfo = _geofileinfo.get_geofileinfo(output_path)
+        create_spatial_index = output_geofileinfo.default_spatial_index
+
+    logger.info(f"Start concat to {output_path}")
+
+    start_time = datetime.now()
+    tmp_dir = _io_util.create_tempdir("geofileops/concat")
+    try:
+        # Loop over all files and copy_layer them one by one together.
+        tmp_dst = tmp_dir / output_path.name
+        is_first = True
+        for src_path, src_layer in zip(input_paths, input_layers):
+            # This first file will be created, the others appended
+            if is_first:
+                force_local = force
+                write_mode = "create"
+            else:
+                force_local = False
+                write_mode = "append_add_fields"
+
+            # The columns specified should only be columns present in the file,
+            # otherwise the output is invalid.
+            if columns is None or len(columns) == 0:
+                columns_local = columns
+            else:
+                src_info = fileops.get_layerinfo(src_path, layer=src_layer)
+                src_columns_lower = {col.lower() for col in src_info.columns}
+                columns_local = [
+                    col for col in columns if col.lower() in src_columns_lower
+                ]
+
+            fileops.copy_layer(
+                src=src_path,
+                dst=tmp_dst,
+                write_mode=write_mode,
+                src_layer=src_layer,
+                dst_layer=output_layer,
+                columns=columns_local,
+                explodecollections=explodecollections,
+                create_spatial_index=False,
+                force=force_local,
+            )
+
+            if is_first:
+                is_first = False
+
+        # Add a spatial index if needed
+        if create_spatial_index:
+            fileops.create_spatial_index(tmp_dst, output_layer)
+
+        fileops.move(tmp_dst, output_path)
+
+    finally:
+        if ConfigOptions.remove_temp_files:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    logger.info(f"Ready, took {datetime.now() - start_time}")
 
 
 def difference(
@@ -2552,7 +2660,7 @@ def intersection(
     where_post: str | None = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    subdivide_coords: int = 7500,
+    subdivide_coords: int = 15000,
     force: bool = False,
 ):
     r"""Calculates the pairwise intersection of the two input layers.
@@ -2614,7 +2722,7 @@ def intersection(
             parts with about ``subdivide_coords`` coordinates during processing which
             can offer a large speed up for complex geometries. Subdividing can result in
             extra collinear points being added to the boundaries of the output. If 0, no
-            subdividing is applied. Defaults to 20000.
+            subdividing is applied. Defaults to 15000.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
 
