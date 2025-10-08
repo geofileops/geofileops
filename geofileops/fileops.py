@@ -2852,7 +2852,7 @@ def copy_layer(
     _ogr_util.vector_translate_by_info(info=translate_info)
 
 
-def geo_sozip(
+def zip_geofile(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
 ):
@@ -2909,7 +2909,7 @@ def _zip(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
                     zipf.write(file_path, file_path.relative_to(src))
 
 
-def geo_unzip(
+def unzip_geofile(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
 ) -> Path:
