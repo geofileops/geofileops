@@ -1677,6 +1677,7 @@ def intersection(  # noqa: D417
     input2_path: Path,
     output_path: Path,
     overlay_self: bool,
+    include_duplicates: bool,
     input1_layer: str | LayerInfo | None = None,
     input1_columns: list[str] | None = None,
     input1_columns_prefix: str = "l1_",
@@ -1794,10 +1795,16 @@ def intersection(  # noqa: D417
     where_clause_self = "1=1"
     if overlay_self:
         if input1_subdivided_path is None:
-            where_clause_self = "layer1.rowid <> layer2.rowid"
-        else:
-            # Filter out the same rowids using the original fids!
-            where_clause_self = "layer1_subdiv.fid_1 <> layer2_subdiv.fid_1"
+            if include_duplicates:
+                where_clause_self = "layer1.rowid <> layer2.rowid"
+            else:
+                where_clause_self = "layer1.rowid < layer2.rowid"
+        else:  # noqa: PLR5501
+            if include_duplicates:
+                # Filter out the same rowids using the original fids!
+                where_clause_self = "layer1_subdiv.fid_1 <> layer2_subdiv.fid_1"
+            else:
+                where_clause_self = "layer1_subdiv.fid_1 < layer2_subdiv.fid_1"
 
     # Prepare sql template for this operation
     #
@@ -2581,6 +2588,7 @@ def identity(
     input2_path: Path,
     output_path: Path,
     overlay_self: bool,
+    include_duplicates: bool,
     input1_layer: str | LayerInfo | None = None,
     input1_columns: list[str] | None = None,
     input1_columns_prefix: str = "l1_",
@@ -2662,6 +2670,7 @@ def identity(
             input2_path=input2_path,
             output_path=intersection_output_path,
             overlay_self=overlay_self,
+            include_duplicates=include_duplicates,
             input1_layer=input1_layer,
             input1_columns=input1_columns,
             input1_columns_prefix=input1_columns_prefix,
@@ -2918,6 +2927,7 @@ def union(
     input2_path: Path,
     output_path: Path,
     overlay_self: bool,
+    include_duplicates: bool,
     input1_layer: str | LayerInfo | None = None,
     input1_columns: list[str] | None = None,
     input1_columns_prefix: str = "l1_",
@@ -3001,6 +3011,7 @@ def union(
             input2_path=input2_path,
             output_path=intersection_output_path,
             overlay_self=overlay_self,
+            include_duplicates=include_duplicates,
             input1_layer=input1_layer,
             input1_columns=input1_columns,
             input1_columns_prefix=input1_columns_prefix,
@@ -3057,39 +3068,44 @@ def union(
 
         # Difference input1 from input2 to and add to temporary output file.
         logger.info("Step 4 of 5: difference input 2 from input 1")
-        diff2_output_path = tempdir / "diff_input2_from_input1_output.gpkg"
+        if overlay_self and not include_duplicates:
+            logger.info(
+                "For a self-union with include_duplicates=False, step 4 is skipped"
+            )
+        else:
+            diff2_output_path = tempdir / "diff_input2_from_input1_output.gpkg"
 
-        difference(
-            input1_path=input1_path,
-            input2_path=input2_path,
-            output_path=diff2_output_path,
-            overlay_self=overlay_self,
-            input1_layer=input1_layer,
-            input1_columns=input1_columns,
-            input_columns_prefix=input1_columns_prefix,
-            input2_layer=input2_layer,
-            output_layer=output_layer,
-            explodecollections=explodecollections,
-            gridsize=gridsize,
-            where_post=where_post,
-            nb_parallel=nb_parallel,
-            batchsize=batchsize,
-            subdivide_coords=subdivide_coords,
-            force=force,
-            output_with_spatial_index=False,
-            operation_prefix="union/",
-            input1_subdivided_path=input1_subdivided_path,
-            input2_subdivided_path=input2_subdivided_path,
-        )
-        # Note: append will never create an index on an already existing layer.
-        fileops.copy_layer(
-            src=diff2_output_path,
-            dst=intersection_output_path,
-            src_layer=output_layer,
-            dst_layer=output_layer,
-            write_mode="append",
-        )
-        gfo.remove(diff2_output_path)
+            difference(
+                input1_path=input1_path,
+                input2_path=input2_path,
+                output_path=diff2_output_path,
+                overlay_self=overlay_self,
+                input1_layer=input1_layer,
+                input1_columns=input1_columns,
+                input_columns_prefix=input1_columns_prefix,
+                input2_layer=input2_layer,
+                output_layer=output_layer,
+                explodecollections=explodecollections,
+                gridsize=gridsize,
+                where_post=where_post,
+                nb_parallel=nb_parallel,
+                batchsize=batchsize,
+                subdivide_coords=subdivide_coords,
+                force=force,
+                output_with_spatial_index=False,
+                operation_prefix="union/",
+                input1_subdivided_path=input1_subdivided_path,
+                input2_subdivided_path=input2_subdivided_path,
+            )
+            # Note: append will never create an index on an already existing layer.
+            fileops.copy_layer(
+                src=diff2_output_path,
+                dst=intersection_output_path,
+                src_layer=output_layer,
+                dst_layer=output_layer,
+                write_mode="append",
+            )
+            gfo.remove(diff2_output_path)
 
         # Convert or add spatial index
         logger.info("Step 5 of 5: finalize")
