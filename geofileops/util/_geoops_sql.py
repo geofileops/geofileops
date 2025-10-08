@@ -956,7 +956,7 @@ def clip(
         input1_columns=input_columns,
         input1_columns_prefix=input_columns_prefix,
         input2_layer=clip_layer,
-        input2_columns=None,
+        input2_columns=[],
         input2_columns_prefix="",
         output_layer=output_layer,
         explodecollections=explodecollections,
@@ -1584,7 +1584,7 @@ def export_by_location(
             WHERE sub_area.{area_inters_column_name} >= {min_area_intersect}
         """
 
-    # Add the columns that won't be read from the input files.
+    # Pass the columns that won't be read from the input files.
     column_types = {}
     if area_inters_column_name is not None:
         column_types[area_inters_column_name] = "REAL"
@@ -2070,7 +2070,6 @@ def join_by_location(
     area_inters_column_in_output = ""
     area_inters_column_0_in_output = ""
     area_inters_filter = ""
-    area_inters_column_name_touse = None
     if area_inters_column_name is not None or min_area_intersect is not None:
         if area_inters_column_name is not None:
             area_inters_column_name_touse = area_inters_column_name
@@ -2166,10 +2165,10 @@ def join_by_location(
                    SELECT l1_fid FROM layer1_relations_filtered)
         """
 
-    # Add the columns that won't be read from the input files.
+    # Pass the columns that won't be read from the input files.
     column_types = {}
-    if area_inters_column_name_touse is not None:
-        column_types[area_inters_column_name_touse] = "REAL"
+    if area_inters_column_name is not None:
+        column_types[area_inters_column_name] = "REAL"
 
     return _two_layer_vector_operation(
         input1_path=input1_path,
