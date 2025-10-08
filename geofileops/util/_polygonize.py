@@ -112,7 +112,7 @@ def polygonize(
 
     # Determine the bounding box of the input raster + the number of tiles to create
     input = gdal.OpenEx(str(input_path), gdal.OF_RASTER)
-    xmin, xres, xskew, ymax, yskew, yres = input.GetGeoTransform()
+    xmin, xres, _xskew, ymax, _yskew, yres = input.GetGeoTransform()
     xmax = xmin + (input.RasterXSize * xres)
     ymin = ymax + (input.RasterYSize * yres)
     total_nb_pixels = input.RasterXSize * input.RasterYSize
@@ -157,9 +157,9 @@ def polygonize(
 
     try:
         with _processing_util.PooledExecutorFactory(
-            threadpool=False,
+            worker_type="processes",
             max_workers=nb_parallel,
-            initializer=_processing_util.initialize_worker(),
+            initializer=_processing_util.initialize_worker(worker_type="processes"),
         ) as calculate_pool:
             batches = {}
             polygonized_path = tmp_dir / output_path.name
