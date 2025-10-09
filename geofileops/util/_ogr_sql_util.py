@@ -101,7 +101,7 @@ class ColumnFormatter:
         """
         columns = list(columns)
         fid_column_indexes = [
-            idx for idx, col in enumerate(self._columns) if col.upper() == "FID"
+            idx for idx, col in enumerate(self._columns) if col.lower() == "fid"
         ]
         if self._fid_column.lower() == "fid":
             # Put CAST() around "fid"
@@ -149,13 +149,18 @@ class ColumnFormatter:
         if len(self._columns) == 0:
             return []
 
-        # Replace "fid" by the actual fid column name for files with a "custom" fid
-        # column name.
-        cols = [
-            col if col.lower() != "fid" else self._fid_column
-            for col in self._columns_asked
-        ]
-        return cols
+        if self._fid_column.lower() in ("", "fid"):
+            # The fid is not saved in the file ("") or the fid column name is "fid"...
+            # so just return the asked columns as-is.
+            return copy.deepcopy(self._columns_asked)
+        else:
+            # The fid is saved in a column with a custom name, so replace "fid" by the
+            # actual fid column name.
+            cols = [
+                col if col.lower() != "fid" else self._fid_column
+                for col in self._columns_asked
+            ]
+            return cols
 
     def quoted(self) -> str:
         if len(self._columns) == 0:
