@@ -1247,9 +1247,9 @@ def difference(  # noqa: D417
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        column_types={},
         output_with_spatial_index=output_with_spatial_index,
         tmp_dir=tempdir,
-        column_types={},
     )
 
     # Print time taken
@@ -1609,8 +1609,8 @@ def export_by_location(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
-        tmp_dir=tmp_dir,
         column_types=column_types,
+        tmp_dir=tmp_dir,
     )
 
     # Print time taken
@@ -1955,10 +1955,10 @@ def intersection(  # noqa: D417
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        column_types={},
         input1_subdivided_path=input1_subdivided_path,
         input2_subdivided_path=input2_subdivided_path,
         output_with_spatial_index=output_with_spatial_index,
-        column_types={},
     )
 
     # Print time taken
@@ -2542,8 +2542,8 @@ def join_nearest(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
-        use_ogr=True,
         column_types={"pos": "INTEGER", "distance": "REAL", "distance_crs": "REAL"},
+        use_ogr=True,
     )
 
 
@@ -2590,8 +2590,8 @@ def select_two_layers(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        column_types=None,  # pass None as we don't know the columns here
         output_with_spatial_index=output_with_spatial_index,
-        column_types=None,
     )
 
 
@@ -3137,6 +3137,7 @@ def _two_layer_vector_operation(
     output_path: Path,
     sql_template: str,
     operation_name: str,
+    *,
     input1_layer: str | LayerInfo | None,
     input1_columns: list[str] | None,
     input1_columns_prefix: str,
@@ -3151,12 +3152,12 @@ def _two_layer_vector_operation(
     nb_parallel: int,
     batchsize: int,
     force: bool,
+    column_types: dict[str, str] | None,
     input1_subdivided_path: Path | None = None,
     input2_subdivided_path: Path | None = None,
     use_ogr: bool = False,
     output_with_spatial_index: bool | None = None,
     tmp_dir: Path | None = None,
-    column_types: dict[str, str] | None = None,
 ):
     """Executes an operation that needs 2 input files.
 
