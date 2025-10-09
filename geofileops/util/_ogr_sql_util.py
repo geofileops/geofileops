@@ -149,15 +149,13 @@ class ColumnFormatter:
         if len(self._columns) == 0:
             return []
 
-        if self._fid_column == "":
-            return copy.deepcopy(self._columns_asked)
-        else:
-            # The fid column is not "fid", so replace fid by it
-            cols = [
-                col if col.lower() != "fid" else self._fid_column
-                for col in self._columns_asked
-            ]
-            return cols
+        # Replace "fid" by the actual fid column name for files with a "custom" fid
+        # column name.
+        cols = [
+            col if col.lower() != "fid" else self._fid_column
+            for col in self._columns_asked
+        ]
+        return cols
 
     def quoted(self) -> str:
         if len(self._columns) == 0:
