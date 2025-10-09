@@ -3198,6 +3198,11 @@ def _two_layer_vector_operation(
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): [description]. Defaults to False.
+        column_types (dict, optional): an optional dictionary with columns with their
+            types. If a dict is passed, the column types specified in it combined with
+            the lists of columns in input1_columns and input2_columns should contain all
+            columns to be created in the output layer. If None, the output columns are
+            determined using the sql_stmt, which can be slow for slow queries.
         input1_subdivided_path (Path, optional): subdivided version of input1.
         input2_subdivided_path (Path, optional): subdivided version of input2.
         use_ogr (bool, optional): If True, ogr is used to do the processing,
@@ -3209,11 +3214,6 @@ def _two_layer_vector_operation(
         tmp_dir (Path, optional): If None, a new temp dir will be created. if not None,
             the temp dir specified will be used. In both cases the tmp_dir will be
             removed after the operation if ConfigOptions.remove_temp_files is not False!
-        column_types (dict, optional): an optional dictionary with columns with their
-            types. If a dict is passed, the column types specified in it combined with
-            the lists of columns in input1_columns and input2_columns should contain all
-            columns to be created in the output layer. If None, the output columns are
-            determined using the sql_stmt. Defaults to None.
 
     Raises:
         ValueError: [description]
