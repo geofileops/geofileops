@@ -3705,3 +3705,36 @@ def union(
         subdivide_coords=subdivide_coords,
         force=force,
     )
+
+
+def union_self_loopy(
+    input_path: Path,
+    output_path: Path,
+    input_layer: str | None = None,
+    input_columns: list[str] | None = None,
+    output_layer: str | None = None,
+    explodecollections: bool = False,
+    gridsize: float = 0.0,
+    where_post: str | None = None,
+    nb_parallel: int = -1,
+    batchsize: int = -1,
+    subdivide_coords: int = 2000,
+    force: bool = False,
+):
+    r"""Calculates the union of all features in a single layer."""
+    logger = logging.getLogger("geofileops.union_self_loopy")
+    logger.info(f"Start, with input: {input_path}, output: {output_path}")
+
+    return _geoops_sql.union_self_loopy(
+        input_path=Path(input_path),
+        output_path=Path(output_path),
+        input_layer=input_layer,
+        input_columns=input_columns,
+        explodecollections=explodecollections,
+        gridsize=gridsize,
+        where_post=where_post,
+        nb_parallel=nb_parallel,
+        batchsize=batchsize,
+        subdivide_coords=subdivide_coords,
+        force=force,
+    )

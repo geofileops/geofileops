@@ -26,7 +26,8 @@ from tests.test_helper import (
     "priority_column, priority_ascending",
     [(None, True), (None, False), ("priority", True), ("priority", False)],
 )
-def test_delete_duplicate_geoms(tmp_path, priority_column, priority_ascending):
+@pytest.mark.parametrize("suffix", [".gpkg", ".gpkg.zip"])
+def test_delete_duplicate_geoms(tmp_path, priority_column, priority_ascending, suffix):
     # Prepare test data
     test_gdf = gpd.GeoDataFrame(
         {"fid": [1, 2, 3, 4, 5], "priority": [5, 3, 3, 4, 5]},
@@ -50,13 +51,12 @@ def test_delete_duplicate_geoms(tmp_path, priority_column, priority_ascending):
         else:
             expected_gdf = test_gdf.iloc[[0, 3, 4]].set_index(keys="fid")
 
-    suffix = ".gpkg"
     input_path = tmp_path / f"input_test_data{suffix}"
     gfo.to_file(test_gdf, input_path)
     batchsize = math.ceil(gfo.get_layerinfo(input_path).featurecount / 2)
 
     # Run test
-    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
+    output_path = tmp_path / f"{GeoPath(input_path).stem}-output{suffix}"
     gfo.delete_duplicate_geometries(
         input_path=input_path,
         output_path=output_path,
