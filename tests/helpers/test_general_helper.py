@@ -7,23 +7,23 @@ from geofileops.util import _general_util
 
 
 def test_create_gfo_tmp_dir(tmp_path):
-    """Test the creation of a temporary directory in the default tempdir."""
+    """Test the creation of a temporary directory in the default tmp dir."""
     with _general_util.TempEnv({"GFO_TMPDIR": None}):
-        tempdir = _general_helper.create_gfo_tmp_dir("testje")
+        tmp_dir = _general_helper.create_gfo_tmp_dir("testje")
 
-    assert tempdir.exists()
-    assert tempdir.parent.name == "geofileops"
-    assert tempdir.name.startswith("testje")
+    assert tmp_dir.exists()
+    assert tmp_dir.parent.name == "geofileops"
+    assert tmp_dir.name.startswith("testje")
 
 
 def test_create_gfo_tmp_dir_env(tmp_path):
     """Test the creation of a temporary directory in a dir specified via GFO_TMPDIR."""
     with _general_util.TempEnv({"GFO_TMPDIR": str(tmp_path)}):
-        tempdir = _general_helper.create_gfo_tmp_dir("testje")
+        tmp_dir = _general_helper.create_gfo_tmp_dir("testje")
 
-    assert tempdir.exists()
-    assert str(tempdir).startswith(str(tmp_path))
-    assert tempdir.name.startswith("testje")
+    assert tmp_dir.exists()
+    assert str(tmp_dir).startswith(str(tmp_path))
+    assert tmp_dir.name.startswith("testje")
 
 
 def test_create_gfo_tmp_dir_env_invalid(tmp_path):

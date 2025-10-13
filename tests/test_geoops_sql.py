@@ -86,7 +86,7 @@ def test_convert_to_spatialite_based(
         _geoops_sql._convert_to_spatialite_based(  # type: ignore[assignment]
             input1_path=input1_path,
             input1_layer=input1_layer,
-            tempdir=tmp_path,
+            tmp_dir=tmp_path,
             unzip_gpkg=unzip_gpkg,
             input2_path=input2_path,
             input2_layer=input2_layer,

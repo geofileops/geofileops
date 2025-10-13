@@ -493,6 +493,7 @@ def _single_layer_vector_operation(
     nb_parallel: int,
     batchsize: int,
     force: bool,
+    tmp_basedir: Path | None = None,
 ):
     """Execute a sql query template on the input layer.
 
@@ -516,6 +517,11 @@ def _single_layer_vector_operation(
         nb_parallel (int): _description_
         batchsize (int): _description_
         force (bool): _description_
+        tmp_basedir (Optional[Path], optional): The directory to create the temporary
+            directory in for this operation call. If None, it is created in the default
+            geofileops temporary directory. Useful to keep all temporary files for an
+            operation that uses multiple steps in one temporary directory.
+            Defaults to None.
 
     Raises:
         ValueError: _description_
@@ -564,7 +570,8 @@ def _single_layer_vector_operation(
         preserve_fid = True
 
     # Calculate
-    tempdir = _general_helper.create_gfo_tmp_dir(f"{operation_name.replace(' ', '_')}")
+    subdir = operation_name.replace("/", "_").replace(" ", "_")
+    tmp_dir = _general_helper.create_gfo_tmp_dir(subdir, tmp_basedir)
     try:
         # If gridsize != 0.0 or if geom_selected is None we need an sqlite file to be
         # able to determine the columns later on.
@@ -572,7 +579,7 @@ def _single_layer_vector_operation(
             input_path, input_layer, _, _ = _convert_to_spatialite_based(
                 input1_path=input_path,
                 input1_layer=input_layer,
-                tempdir=tempdir,
+                tmp_dir=tmp_dir,
                 unzip_gpkg=True,
             )
 
@@ -580,7 +587,7 @@ def _single_layer_vector_operation(
             input1_path=input_path,
             input1_layer=input_layer,
             input1_layer_alias="layer",
-            tempdir=tempdir,
+            tmp_dir=tmp_dir,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
         )
@@ -713,9 +720,9 @@ def _single_layer_vector_operation(
         # If output is a zip file, drop the .zip for .gpkg.zip and .shp.zip files
         if output_path.name.lower().endswith((".gpkg.zip", ".shp.zip")):
             # stem will result here ending in .gpkg/.shp, which is what we want
-            tmp_output_path = tempdir / output_path.stem
+            tmp_output_path = tmp_dir / output_path.stem
         else:
-            tmp_output_path = tempdir / output_path.name
+            tmp_output_path = tmp_dir / output_path.name
 
         # Processing in threads is 2x faster for small datasets (on Windows)
         worker_type = _general_helper.worker_type_to_use(input_layer.featurecount)
@@ -735,7 +742,7 @@ def _single_layer_vector_operation(
                 batches[batch_id]["layer"] = output_layer
 
                 tmp_partial_output_path = (
-                    tempdir / f"{GeoPath(output_path).stem}_{batch_id}.gpkg"
+                    tmp_dir / f"{GeoPath(output_path).stem}_{batch_id}.gpkg"
                 )
                 batches[batch_id]["tmp_partial_output_path"] = tmp_partial_output_path
 
@@ -851,7 +858,7 @@ def _single_layer_vector_operation(
     finally:
         # Clean tmp dir
         if ConfigOptions.remove_temp_files:
-            shutil.rmtree(tempdir, ignore_errors=True)
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
     logger.info(f"Ready, took {datetime.now() - start_time}")
 
@@ -2513,8 +2520,8 @@ def join_nearest(
         input2_tmp_layer = input2_layer
     else:
         # Put input2 layer in sqlite gfo...
-        tempdir = _general_helper.create_gfo_tmp_dir("join_nearest")
-        input1_tmp_path = tempdir / "both_input_layers.sqlite"
+        tmp_dir = _general_helper.create_gfo_tmp_dir("join_nearest")
+        input1_tmp_path = tmp_dir / "both_input_layers.sqlite"
         input1_tmp_layer = "input1_layer"
         gfo.copy_layer(
             src=input1_path,
@@ -3343,7 +3350,8 @@ def _two_layer_vector_operation(
 
     # Init layer info
     start_time = datetime.now()
-    tmp_dir = _general_helper.create_gfo_tmp_dir(operation_name, tmp_basedir)
+    subdir = operation_name.replace("/", "_").replace(" ", "_")
+    tmp_dir = _general_helper.create_gfo_tmp_dir(subdir, tmp_basedir)
 
     # Check if crs are the same in the input layers + use it (if there is one)
     output_crs = _check_crs(input1_layer, input2_layer)
@@ -3356,12 +3364,12 @@ def _two_layer_vector_operation(
     try:
         # Prepare tmp files/batches
         # -------------------------
-        logger.debug(f"Prepare input (params), tempdir: {tmp_dir}")
+        logger.debug(f"Prepare input (params), {tmp_dir=}")
         input1_path, input1_layer, input2_path, input2_layer = (
             _convert_to_spatialite_based(  # type: ignore[assignment]
                 input1_path=input1_path,
                 input1_layer=input1_layer,
-                tempdir=tmp_dir,
+                tmp_dir=tmp_dir,
                 unzip_gpkg=True,
                 input2_path=input2_path,
                 input2_layer=input2_layer,
@@ -3401,7 +3409,7 @@ def _two_layer_vector_operation(
             filter_column=filter_column,
             input2_path=input2_path,
             input2_layer=input2_layer,
-            tempdir=tmp_dir,
+            tmp_dir=tmp_dir,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
         )
@@ -4002,7 +4010,7 @@ class ProcessingParams:
 def _convert_to_spatialite_based(
     input1_path: Path,
     input1_layer: LayerInfo,
-    tempdir: Path,
+    tmp_dir: Path,
     unzip_gpkg: bool,
     input2_path: Path | None = None,
     input2_layer: LayerInfo | None = None,
@@ -4015,7 +4023,7 @@ def _convert_to_spatialite_based(
     Args:
         input1_path (Path): path to the 1st input
         input1_layer (LayerInfo): the layer info of the 1st input file
-        tempdir (Path): the temp dir to use
+        tmp_dir (Path): the temporary directory to use
         unzip_gpkg (bool): if True, zipped gpkg files will be unzipped
         input2_path (Optional[Path]): path to the 2nd input file
         input2_layer (Optional[LayerInfo]): the layer info of the 2nd input file
@@ -4026,10 +4034,10 @@ def _convert_to_spatialite_based(
     # If input1 and/or input2 are a zipped gpkg, unzip.
     if unzip_gpkg:
         if input1_path.name.lower().endswith(".gpkg.zip"):
-            input1_unzipped_path = tempdir / f"input1_{input1_path.stem}"
+            input1_unzipped_path = tmp_dir / f"input1_{input1_path.stem}"
             input1_path = gfo.unzip_geofile(input1_path, input1_unzipped_path)
         if input2_path and input2_path.name.lower().endswith(".gpkg.zip"):
-            input2_unzipped_path = tempdir / f"input2_{input2_path.stem}"
+            input2_unzipped_path = tmp_dir / f"input2_{input2_path.stem}"
             input2_path = gfo.unzip_geofile(input2_path, input2_unzipped_path)
 
     input1_info = _geofileinfo.get_geofileinfo(input1_path)
@@ -4056,7 +4064,7 @@ def _convert_to_spatialite_based(
         suffix = ".gpkg"
         if input2_info is not None and input2_info.driver == "SQLite":
             suffix = ".sqlite"
-        input1_tmp_path = tempdir / f"{GeoPath(input1_path).stem}{suffix}"
+        input1_tmp_path = tmp_dir / f"{GeoPath(input1_path).stem}{suffix}"
         gfo.copy_layer(
             src=input1_path,
             src_layer=input1_layer.name,
@@ -4083,11 +4091,11 @@ def _convert_to_spatialite_based(
             suffix = ".gpkg"
             if input1_info is not None and input1_info.driver == "SQLite":
                 suffix = ".sqlite"
-            input2_tmp_path = tempdir / f"{GeoPath(input2_path).stem}{suffix}"
+            input2_tmp_path = tmp_dir / f"{GeoPath(input2_path).stem}{suffix}"
 
             # Make sure the copy is taken to a separate file.
             if input2_tmp_path.exists():
-                input2_tmp_path = tempdir / f"{GeoPath(input2_path).stem}2{suffix}"
+                input2_tmp_path = tmp_dir / f"{GeoPath(input2_path).stem}2{suffix}"
             assert input2_layer is not None
             gfo.copy_layer(
                 src=input2_path,
@@ -4163,7 +4171,7 @@ def _finalize_output(
 def _prepare_processing_params(
     input1_path: Path,
     input1_layer: LayerInfo,
-    tempdir: Path | None = None,
+    tmp_dir: Path | None = None,
     nb_parallel: int = -1,
     batchsize: int = -1,
     input1_layer_alias: str | None = None,
@@ -4294,8 +4302,8 @@ def _prepare_processing_params(
         batches=batches,
         batchsize=int(nb_rows_input_layer / len(batches)),
     )
-    if tempdir is not None:
-        returnvalue.to_json(tempdir / "processing_params.json")
+    if tmp_dir is not None:
+        returnvalue.to_json(tmp_dir / "processing_params.json")
 
     return returnvalue
 
@@ -4619,15 +4627,15 @@ def dissolve_singlethread(  # noqa: D417
         """
 
     # Now we can really start
-    tempdir = _general_helper.create_gfo_tmp_dir("dissolve_singlethread", tmp_basedir)
+    tmp_dir = _general_helper.create_gfo_tmp_dir("dissolve_singlethread", tmp_basedir)
     try:
         options = {}
         if where_post is not None:
             # where_post needs to be applied still, so no spatial index needed
             options["LAYER_CREATION.SPATIAL_INDEX"] = False
-            tmp_output_path = tempdir / f"{output_path.stem}.gpkg"
+            tmp_output_path = tmp_dir / f"{output_path.stem}.gpkg"
         else:
-            tmp_output_path = tempdir / output_path.name
+            tmp_output_path = tmp_dir / output_path.name
 
         _ogr_util.vector_translate(
             input_path=input_path,
@@ -4643,7 +4651,7 @@ def dissolve_singlethread(  # noqa: D417
         # We still need to apply the where_post filter
         if where_post is not None:
             tmp_output_where_path = (
-                tempdir / f"output_tmp2_where{GeoPath(output_path).suffix_full}"
+                tmp_dir / f"output_tmp2_where{GeoPath(output_path).suffix_full}"
             )
 
             tmp_output_info = gfo.get_layerinfo(tmp_output_path)
@@ -4669,7 +4677,7 @@ def dissolve_singlethread(  # noqa: D417
 
     finally:
         if ConfigOptions.remove_temp_files:
-            shutil.rmtree(tempdir, ignore_errors=True)
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
     logger.info(f"Ready, took {datetime.now() - start_time}")
 

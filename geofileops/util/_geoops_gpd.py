@@ -806,7 +806,8 @@ def _apply_geooperation_to_layer(
             where_post = where_post.format(geometrycolumn="geom")
 
     # Prepare tmp files
-    tmp_dir = _general_helper.create_gfo_tmp_dir(f"{operation.value}", tmp_basedir)
+    subdir = operation.value.replace("/", "_").replace(" ", "_")
+    tmp_dir = _general_helper.create_gfo_tmp_dir(subdir, tmp_basedir)
     logger.debug(f"Start calculation to temp files in {tmp_dir}")
 
     try:
@@ -1333,11 +1334,11 @@ def dissolve(  # noqa: D417
         # The dissolve for polygons is done in several passes, and after the first
         # pass, only the 'onborder' features are further dissolved, as the
         # 'notonborder' features are already OK.
-        tempdir = _general_helper.create_gfo_tmp_dir(operation_name, tmp_basedir)
+        tmp_dir = _general_helper.create_gfo_tmp_dir(operation_name, tmp_basedir)
         try:
             if output_layer is None:
                 output_layer = gfo.get_default_layer(output_path)
-            output_tmp_path = tempdir / "output_tmp.gpkg"
+            output_tmp_path = tmp_dir / "output_tmp.gpkg"
             prev_nb_batches = None
             last_pass = False
             pass_id = 0
@@ -1401,7 +1402,7 @@ def dissolve(  # noqa: D417
                     tiles_gdf.geometry = shapely.set_precision(
                         tiles_gdf.geometry, grid_size=gridsize
                     )
-                gfo.to_file(tiles_gdf, tempdir / f"output_{pass_id}_tiles.gpkg")
+                gfo.to_file(tiles_gdf, tmp_dir / f"output_{pass_id}_tiles.gpkg")
 
                 # If the number of tiles ends up as 1, it is the last pass anyway...
                 if len(tiles_gdf) == 1:
@@ -1412,7 +1413,7 @@ def dissolve(  # noqa: D417
                 # gfo. The notonborder rows are final immediately
                 if last_pass is not True:
                     output_tmp_onborder_path = (
-                        tempdir / f"output_{pass_id}_onborder.gpkg"
+                        tmp_dir / f"output_{pass_id}_onborder.gpkg"
                     )
                 else:
                     output_tmp_onborder_path = output_tmp_path
@@ -1639,7 +1640,7 @@ def dissolve(  # noqa: D417
                     # where_post still needs to be ran, so no index + to gpkg
                     name = "output_tmp2_final.gpkg"
                     options["LAYER_CREATION.SPATIAL_INDEX"] = False
-                output_tmp_final_path = tempdir / name
+                output_tmp_final_path = tmp_dir / name
 
                 _ogr_util.vector_translate(
                     input_path=output_tmp_path,
@@ -1655,7 +1656,7 @@ def dissolve(  # noqa: D417
                 # We still need to apply the where_post filter
                 if where_post is not None:
                     name = f"output_tmp3_where_{GeoPath(output_path).suffix_full}"
-                    output_tmp_local_path = tempdir / name
+                    output_tmp_local_path = tmp_dir / name
                     tmp_info = gfo.get_layerinfo(output_tmp_final_path, output_layer)
                     where_post = where_post.format(
                         geometrycolumn=tmp_info.geometrycolumn
@@ -1689,7 +1690,7 @@ def dissolve(  # noqa: D417
 
         finally:
             if ConfigOptions.remove_temp_files:
-                shutil.rmtree(tempdir, ignore_errors=True)
+                shutil.rmtree(tmp_dir, ignore_errors=True)
 
         logger.info(f"Ready, full dissolve took {datetime.now() - start_time}")
 
@@ -1720,7 +1721,7 @@ def _dissolve_polygons_pass(
         input_layer = gfo.get_layerinfo(input_path, input_layer)
 
     # Make sure the input file has a spatial index
-    tempdir = output_onborder_path.parent
+    tmp_dir = output_onborder_path.parent
     # If it is not a .gpkg.zip that already has a spatial index, unzip the file if it is
     # zipped and create a spatial index on it if it doesn't have one.
     if not (
@@ -1729,7 +1730,7 @@ def _dissolve_polygons_pass(
     ):
         if GeoPath(input_path).is_multi_suffix:
             # Unzip, as we can't create a spatial index on a zipped file
-            unzipped_dir = tempdir / "input_unzipped"
+            unzipped_dir = tmp_dir / "input_unzipped"
             input_path = fileops.unzip_geofile(input_path, unzipped_dir)
         gfo.create_spatial_index(input_path, layer=input_layer, exist_ok=True)
 
@@ -1754,12 +1755,12 @@ def _dissolve_polygons_pass(
             # are timeout issues when processing large files
             suffix = output_notonborder_path.suffix
             name = f"{output_notonborder_path.stem}_{batch_id}{suffix}"
-            output_notonborder_tmp_partial_path = tempdir / name
+            output_notonborder_tmp_partial_path = tmp_dir / name
             batches[batch_id]["output_notonborder_tmp_partial_path"] = (
                 output_notonborder_tmp_partial_path
             )
             name = f"{output_onborder_path.stem}_{batch_id}{suffix}"
-            output_onborder_tmp_partial_path = tempdir / name
+            output_onborder_tmp_partial_path = tmp_dir / name
             batches[batch_id]["output_onborder_tmp_partial_path"] = (
                 output_onborder_tmp_partial_path
             )
