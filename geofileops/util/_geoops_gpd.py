@@ -410,11 +410,10 @@ def apply(
     )
 
 
-def apply_vectorized(
+def apply_vectorized(  # noqa: D417
     input_path: Path,
     output_path: Path,
     func: Callable[[Any], Any],
-    operation_name: str | None = None,
     input_layer: str | LayerInfo | None = None,
     output_layer: str | None = None,
     columns: list[str] | None = None,
@@ -427,7 +426,24 @@ def apply_vectorized(
     batchsize: int = -1,
     force: bool = False,
     parallelization_config: ParallelizationConfig | None = None,
+    operation_name: str | None = None,
+    tmp_basedir: Path | None = None,
 ):
+    """Applies a vectorized function to all geometries in a layer.
+
+    Only arguments specific to the internal difference operation are documented here.
+    For the other arguments, check out the corresponding function in geoops.py.
+
+    Args:
+        operation_name (str, optional): The name of the operation. Will be used in
+            logging,... if specified. Defaults to None.
+        tmp_basedir (Optional[Path], optional): The directory to create the temporary
+            directory in for this operation call. If None, it is created in the default
+            geofileops temporary directory. Useful to keep all temporary files for an
+            operation that uses multiple steps in one temporary directory.
+            Defaults to None.
+
+    """
     # Init
     operation_params = {"pickled_func": cloudpickle.dumps(func)}
     if operation_name is not None:
@@ -451,6 +467,7 @@ def apply_vectorized(
         batchsize=batchsize,
         force=force,
         parallelization_config=parallelization_config,
+        tmp_basedir=tmp_basedir,
     )
 
 
@@ -474,6 +491,7 @@ def buffer(
     batchsize: int = -1,
     force: bool = False,
     operation_prefix: str = "",
+    tmp_basedir: Path | None = None,
 ):
     # Init
     operation_params = {
@@ -509,6 +527,7 @@ def buffer(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        tmp_basedir=tmp_basedir,
     )
 
 
@@ -664,6 +683,7 @@ def _apply_geooperation_to_layer(
     batchsize: int,  # = -1
     force: bool,  # = False
     parallelization_config: ParallelizationConfig | None = None,
+    tmp_basedir: Path | None = None,
 ):
     """Applies a geo operation on a layer.
 
@@ -728,6 +748,10 @@ def _apply_geooperation_to_layer(
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): [description]. Defaults to False.
         parallelization_config (ParallelizationConfig, optional): Defaults to None.
+        tmp_basedir (Optional[Path], optional): The directory to create the temporary
+            directory in for this operation call. If None, it is created in the default
+            geofileops temporary directory. Useful to keep all temporary files for an
+            operation that uses multiple steps in one temporary directory.
 
     Technical remarks:
         - Retaining None geometry values in the output files is hard, because when
@@ -782,7 +806,7 @@ def _apply_geooperation_to_layer(
             where_post = where_post.format(geometrycolumn="geom")
 
     # Prepare tmp files
-    tmp_dir = _io_util.create_tempdir(f"geofileops/{operation.value}")
+    tmp_dir = _general_helper.create_gfo_tmp_dir(f"{operation.value}", tmp_basedir)
     logger.debug(f"Start calculation to temp files in {tmp_dir}")
 
     try:
@@ -1068,7 +1092,7 @@ def _apply_geooperation(
     return message
 
 
-def dissolve(
+def dissolve(  # noqa: D417
     input_path: Path,
     output_path: Path,
     groupby_columns: list[str] | str | None = None,
@@ -1084,6 +1108,7 @@ def dissolve(
     batchsize: int = -1,
     force: bool = False,
     operation_prefix: str = "",
+    tmp_basedir: Path | None = None,
 ):
     """Function that applies a dissolve.
 
@@ -1133,6 +1158,16 @@ def dissolve(
         in the correct list of JSON strings that should be used to base the agregations
         on. The only caveat is that the order of the columns in the JSON strings always
         needs to be the same.
+
+    Only arguments specific to the internal dissolve operation are documented here.
+    For the other arguments, check out the corresponding function in geoops.py.
+
+    Args:
+        tmp_basedir (Optional[Path], optional): The directory to create the temporary
+            directory in for this operation call. If None, it is created in the default
+            geofileops temporary directory. Useful to keep all temporary files for an
+            operation that uses multiple steps in one temporary directory.
+            Defaults to None.
     """
     # Init and validate input parameters
     # ----------------------------------
@@ -1238,6 +1273,7 @@ def dissolve(
             keep_empty_geoms=False,
             where_post=where_post,
             force=force,
+            tmp_basedir=tmp_basedir,
         )
 
     elif input_layer.geometrytype.to_primitivetype is PrimitiveType.POLYGON:
@@ -1297,7 +1333,7 @@ def dissolve(
         # The dissolve for polygons is done in several passes, and after the first
         # pass, only the 'onborder' features are further dissolved, as the
         # 'notonborder' features are already OK.
-        tempdir = _io_util.create_tempdir(f"geofileops/{operation_name}")
+        tempdir = _general_helper.create_gfo_tmp_dir(operation_name, tmp_basedir)
         try:
             if output_layer is None:
                 output_layer = gfo.get_default_layer(output_path)

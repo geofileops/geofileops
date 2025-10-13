@@ -564,7 +564,7 @@ def _single_layer_vector_operation(
         preserve_fid = True
 
     # Calculate
-    tempdir = _io_util.create_tempdir(f"geofileops/{operation_name.replace(' ', '_')}")
+    tempdir = _general_helper.create_gfo_tmp_dir(f"{operation_name.replace(' ', '_')}")
     try:
         # If gridsize != 0.0 or if geom_selected is None we need an sqlite file to be
         # able to determine the columns later on.
@@ -896,7 +896,7 @@ def clip(
         force_output_geometrytype = force_output_geometrytype.to_multitype
 
     # Subdivide the clip layer if applicable to speed up further processing.
-    tmp_dir = _io_util.create_tempdir(f"geofileops/{operation_name}")
+    tmp_dir = _general_helper.create_gfo_tmp_dir(operation_name)
     clip_subdivided_path = _subdivide_layer(
         path=clip_path,
         layer=clip_layer,
@@ -906,6 +906,7 @@ def clip(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         operation_prefix=f"{operation_name}/",
+        tmp_basedir=tmp_dir,
     )
     if clip_subdivided_path is not None:
         clip_path = clip_subdivided_path
@@ -993,6 +994,7 @@ def difference(  # noqa: D417
     input_columns_prefix: str = "",
     output_with_spatial_index: bool | None = None,
     operation_prefix: str = "",
+    tmp_basedir: Path | None = None,
     input1_subdivided_path: Path | None = None,
     input2_subdivided_path: Path | None = None,
 ):
@@ -1009,6 +1011,11 @@ def difference(  # noqa: D417
         operation_prefix (str, optional): When this function is called from a compounded
             spatial operation, the name of this operation can be specified to show
             clearer progress messages,... Defaults to "".
+        tmp_basedir (Optional[Path], optional): The directory to create the temporary
+            directory in for this operation call. If None, it is created in the default
+            geofileops temporary directory. Useful to keep all temporary files for an
+            operation that uses multiple steps in one temporary directory.
+            Defaults to None.
         input1_subdivided_path (Path | None, optional): If a Path to a file,
             the subdivided version of input1 can be found here. If a Path to root
             (Path("/")), input1 was tested, but it does not need subdividing. If None,
@@ -1024,8 +1031,9 @@ def difference(  # noqa: D417
     if subdivide_coords < 0:
         raise ValueError("subdivide_coords < 0 is not allowed")
 
-    operation_name = f"{operation_prefix}difference"
-    logger = logging.getLogger(f"geofileops.{operation_name}")
+    operation = "difference"
+    operation_full = f"{operation_prefix}{operation}"
+    logger = logging.getLogger(f"geofileops.{operation_full}")
 
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
@@ -1037,7 +1045,7 @@ def difference(  # noqa: D417
         input1_layer=input1_layer,
         input2_layer=input2_layer,
         output_layer=output_layer,
-        operation_name=operation_name,
+        operation_name=operation_full,
     )
 
     # Determine output_geometrytype
@@ -1052,18 +1060,19 @@ def difference(  # noqa: D417
         force_output_geometrytype = force_output_geometrytype.to_multitype
 
     # Subdivide the input layers speeds up further processing if they are complex.
-    tempdir = _io_util.create_tempdir(f"geofileops/{operation_name}")
+    tmp_dir = _general_helper.create_gfo_tmp_dir(operation, tmp_basedir)
 
     if input1_subdivided_path is None:
         # input1_subdivided_path is None: try to subdivide.
         input1_subdivided_path = _subdivide_layer(
             path=input1_path,
             layer=input1_layer,
-            output_path=tempdir / "subdivided/input1_layer.gpkg",
+            output_path=tmp_dir / "subdivided/input1_subdivided.gpkg",
             subdivide_coords=subdivide_coords,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
-            operation_prefix=f"{operation_name}/",
+            operation_prefix=f"{operation_full}/",
+            tmp_basedir=tmp_dir,
         )
     elif input1_subdivided_path == Path("/"):
         # input1_subdivided_path is Path("/"): input1 doesn't contain complex geoms.
@@ -1088,11 +1097,12 @@ def difference(  # noqa: D417
         input2_subdivided_path = _subdivide_layer(
             path=input2_path,
             layer=input2_layer,
-            output_path=tempdir / "subdivided/input2_layer.gpkg",
+            output_path=tmp_dir / "subdivided/input2_layer.gpkg",
             subdivide_coords=subdivide_coords,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
-            operation_prefix=f"{operation_name}/",
+            operation_prefix=f"{operation_full}/",
+            tmp_basedir=tmp_dir,
         )
 
     elif input2_subdivided_path == Path("/"):
@@ -1235,7 +1245,7 @@ def difference(  # noqa: D417
         input2_path=input2_path,
         output_path=output_path,
         sql_template=sql_template,
-        operation_name=operation_name,
+        operation_name=operation_full,
         input1_layer=input1_layer,
         input1_columns=input1_columns,
         input1_columns_prefix=input_columns_prefix,
@@ -1252,7 +1262,7 @@ def difference(  # noqa: D417
         force=force,
         column_types={},
         output_with_spatial_index=output_with_spatial_index,
-        tmp_dir=tempdir,
+        tmp_dir=tmp_dir,
     )
 
     # Print time taken
@@ -1263,11 +1273,13 @@ def _subdivide_layer(
     path: Path,
     layer: str | LayerInfo | None,
     output_path: Path,
+    *,
     subdivide_coords: int,
+    operation_prefix: str = "",
+    tmp_basedir: Path | None,
     keep_fid: bool = True,
     nb_parallel: int = -1,
     batchsize: int = -1,
-    operation_prefix: str = "",
 ) -> Path | None:
     """Subdivide a layer if needed.
 
@@ -1285,6 +1297,10 @@ def _subdivide_layer(
         nb_parallel (int, optional): _description_. Defaults to -1.
         batchsize (int, optional): _description_. Defaults to -1.
         operation_prefix (str, optional): Prefix to use in logging,... Defaults to "".
+        tmp_basedir (Optional[Path], optional): The directory to create the temporary
+            directory in for this operation call. If None, it is created in the default
+            geofileops temporary directory. Useful to keep all temporary files for an
+            operation that uses multiple steps in one temporary directory.
 
     Returns:
         Optional[Path]: path to the result or None if it didn't need subdivision.
@@ -1315,7 +1331,6 @@ def _subdivide_layer(
         func=lambda geom: _geoseries_util.subdivide_vectorized(
             geom, num_coords_max=subdivide_coords
         ),
-        operation_name=f"{operation_prefix}subdivide",
         columns=columns,
         explodecollections=True,
         nb_parallel=nb_parallel,
@@ -1323,6 +1338,8 @@ def _subdivide_layer(
         parallelization_config=_geoops_gpd.ParallelizationConfig(
             bytes_per_row=2000, max_rows_per_batch=50000, min_rows_per_batch=1
         ),
+        operation_name=f"{operation_prefix}subdivide",
+        tmp_basedir=tmp_basedir,
     )
     if keep_fid:
         sql_create_index = (
@@ -1461,7 +1478,7 @@ def export_by_location(
     input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
 
     # Subdivide the 2nd layer if applicable to speed up further processing.
-    tmp_dir = _io_util.create_tempdir(f"geofileops/{operation_name}")
+    tmp_dir = _general_helper.create_gfo_tmp_dir(operation_name)
     input_to_compare_with_subdivided_path = _subdivide_layer(
         path=input_to_compare_with_path,
         layer=input_to_compare_with_layer,
@@ -1471,6 +1488,7 @@ def export_by_location(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         operation_prefix=f"{operation_name}/",
+        tmp_basedir=tmp_dir,
     )
     if input_to_compare_with_subdivided_path is not None:
         input_to_compare_with_path = input_to_compare_with_subdivided_path
@@ -1706,6 +1724,7 @@ def intersection(  # noqa: D417
     force: bool = False,
     output_with_spatial_index: bool | None = None,
     operation_prefix: str = "",
+    tmp_basedir: Path | None = None,
     input1_subdivided_path: Path | None = None,
     input2_subdivided_path: Path | None = None,
 ):
@@ -1721,6 +1740,11 @@ def intersection(  # noqa: D417
         operation_prefix (str, optional): When this function is called from a compounded
             spatial operation, the name of this operation can be specified to show
             clearer progress messages,... Defaults to "".
+        tmp_basedir (Optional[Path], optional): The directory to create the temporary
+            directory in for this operation call. If None, it is created in the default
+            geofileops temporary directory. Useful to keep all temporary files for an
+            operation that uses multiple steps in one temporary directory.
+            Defaults to None.
         input1_subdivided_path (Path | None, optional): If a Path to a file,
             the subdivided version of input1 can be found here. If a Path to root
             (Path("/")), input1 was tested, but it does not need subdividing. If None,
@@ -1767,18 +1791,19 @@ def intersection(  # noqa: D417
         force_output_geometrytype = primitivetype_to_extract.to_multitype
 
     # Subdivide input1 layer if needed to speed up further processing.
-    tempdir = _io_util.create_tempdir(f"geofileops/{operation_name}")
+    tmp_dir = _general_helper.create_gfo_tmp_dir(operation_name, tmp_basedir)
 
     if input1_subdivided_path is None:
         # input1_subdivided_path is None: try to subdivide.
         input1_subdivided_path = _subdivide_layer(
             path=input1_path,
             layer=input1_layer,
-            output_path=tempdir / "subdivided/input1_layer.gpkg",
+            output_path=tmp_dir / "subdivided/input1_layer.gpkg",
             subdivide_coords=subdivide_coords,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             operation_prefix=f"{operation_name}/",
+            tmp_basedir=tmp_dir,
         )
     elif input1_subdivided_path == Path("/"):
         # input1_subdivided_path is Path("/"): input1 doesn't contain complex geoms.
@@ -1793,11 +1818,12 @@ def intersection(  # noqa: D417
         input2_subdivided_path = _subdivide_layer(
             path=input2_path,
             layer=input2_layer,
-            output_path=tempdir / "subdivided/input2_layer.gpkg",
+            output_path=tmp_dir / "subdivided/input2_layer.gpkg",
             subdivide_coords=subdivide_coords,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             operation_prefix=f"{operation_name}/",
+            tmp_basedir=tmp_dir,
         )
     elif input2_subdivided_path == Path("/"):
         # input2_subdivided_path is Path("/"): input2 doesn't contain complex geoms.
@@ -2487,7 +2513,7 @@ def join_nearest(
         input2_tmp_layer = input2_layer
     else:
         # Put input2 layer in sqlite gfo...
-        tempdir = _io_util.create_tempdir("geofileops/join_nearest")
+        tempdir = _general_helper.create_gfo_tmp_dir("join_nearest")
         input1_tmp_path = tempdir / "both_input_layers.sqlite"
         input1_tmp_layer = "input1_layer"
         gfo.copy_layer(
@@ -2577,6 +2603,7 @@ def select_two_layers(
     batchsize: int = -1,
     force: bool = False,
     operation_prefix: str = "",
+    tmp_dir: Path | None = None,
     output_with_spatial_index: bool | None = None,
 ):
     # Go!
@@ -2602,6 +2629,7 @@ def select_two_layers(
         force=force,
         column_types=None,  # pass None as we don't know the columns here
         output_with_spatial_index=output_with_spatial_index,
+        tmp_dir=tmp_dir,
     )
 
 
@@ -2650,18 +2678,19 @@ def identity(
         operation_name="identity",
     )
 
-    tempdir = _io_util.create_tempdir("geofileops/identity")
+    tmp_dir = _general_helper.create_gfo_tmp_dir("identity")
     try:
         # Prepare the input files
         logger.info("Step 1 of 4: prepare input files")
         input1_subdivided_path = _subdivide_layer(
             path=input1_path,
             layer=input1_layer,
-            output_path=tempdir / "subdivided/input1_layer.gpkg",
+            output_path=tmp_dir / "subdivided/input1_layer.gpkg",
             subdivide_coords=subdivide_coords,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             operation_prefix="identity/",
+            tmp_basedir=tmp_dir,
         )
         if input1_subdivided_path is None:
             # Hardcoded optimization: root means that no subdivide was needed
@@ -2674,11 +2703,12 @@ def identity(
             input2_subdivided_path = _subdivide_layer(
                 path=input2_path,
                 layer=input2_layer,
-                output_path=tempdir / "subdivided/input2_layer.gpkg",
+                output_path=tmp_dir / "subdivided/input2_layer.gpkg",
                 subdivide_coords=subdivide_coords,
                 nb_parallel=nb_parallel,
                 batchsize=batchsize,
                 operation_prefix="identity/",
+                tmp_basedir=tmp_dir,
             )
             if input2_subdivided_path is None:
                 # Hardcoded optimization: root means that no subdivide was needed
@@ -2686,7 +2716,7 @@ def identity(
 
         # Calculate intersection of input1 with input2 to a temporary output file
         logger.info("Step 2 of 4: intersection")
-        intersection_output_path = tempdir / "intersection_output.gpkg"
+        intersection_output_path = tmp_dir / "intersection_output.gpkg"
         intersection(
             input1_path=input1_path,
             input2_path=input2_path,
@@ -2708,13 +2738,14 @@ def identity(
             force=force,
             output_with_spatial_index=False,
             operation_prefix="identity/",
+            tmp_basedir=tmp_dir,
             input1_subdivided_path=input1_subdivided_path,
             input2_subdivided_path=input2_subdivided_path,
         )
 
         # Now difference input1 from input2 to another temporary output gfo...
         logger.info("Step 3 of 4: difference")
-        difference_output_path = tempdir / "difference_output.gpkg"
+        difference_output_path = tmp_dir / "difference_output.gpkg"
         difference(
             input1_path=input1_path,
             input2_path=input2_path,
@@ -2734,6 +2765,7 @@ def identity(
             force=force,
             output_with_spatial_index=False,
             operation_prefix="identity/",
+            tmp_basedir=tmp_dir,
             input1_subdivided_path=input1_subdivided_path,
             input2_subdivided_path=input2_subdivided_path,
         )
@@ -2753,7 +2785,7 @@ def identity(
         tmp_output_path = intersection_output_path
         if intersection_output_path.suffix != output_path.suffix:
             # Output file should be in different format, so convert
-            tmp_output_path = tempdir / output_path.name
+            tmp_output_path = tmp_dir / output_path.name
             gfo.copy_layer(src=intersection_output_path, dst=tmp_output_path)
         elif GeofileInfo(tmp_output_path).default_spatial_index:
             gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
@@ -2763,7 +2795,7 @@ def identity(
 
     finally:
         if ConfigOptions.remove_temp_files:
-            shutil.rmtree(tempdir, ignore_errors=True)
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
     logger.info(f"Ready, full identity took {datetime.now() - start_time}")
 
@@ -2817,18 +2849,19 @@ def symmetric_difference(
         operation_name="symmetric_difference",
     )
 
-    tempdir = _io_util.create_tempdir("geofileops/symmdiff")
+    tmp_dir = _general_helper.create_gfo_tmp_dir("symmdiff")
     try:
         # Prepare the input files
         logger.info("Step 1 of 4: prepare input files")
         input1_subdivided_path = _subdivide_layer(
             path=input1_path,
             layer=input1_layer,
-            output_path=tempdir / "subdivided/input1_layer.gpkg",
+            output_path=tmp_dir / "subdivided/input1_layer.gpkg",
             subdivide_coords=subdivide_coords,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             operation_prefix="symmetric_difference/",
+            tmp_basedir=tmp_dir,
         )
         if input1_subdivided_path is None:
             # Hardcoded optimization: root means that no subdivide was needed
@@ -2841,11 +2874,12 @@ def symmetric_difference(
             input2_subdivided_path = _subdivide_layer(
                 path=input2_path,
                 layer=input2_layer,
-                output_path=tempdir / "subdivided/input2_layer.gpkg",
+                output_path=tmp_dir / "subdivided/input2_layer.gpkg",
                 subdivide_coords=subdivide_coords,
                 nb_parallel=nb_parallel,
                 batchsize=batchsize,
                 operation_prefix="symmetric_difference/",
+                tmp_basedir=tmp_dir,
             )
             if input2_subdivided_path is None:
                 # Hardcoded optimization: root means that no subdivide was needed
@@ -2853,7 +2887,7 @@ def symmetric_difference(
 
         # Difference input2 from input1 to a temporary output file
         logger.info("Step 2 of 4: difference 1")
-        diff1_output_path = tempdir / "layer1_diff_layer2_output.gpkg"
+        diff1_output_path = tmp_dir / "layer1_diff_layer2_output.gpkg"
         difference(
             input1_path=input1_path,
             input2_path=input2_path,
@@ -2873,6 +2907,7 @@ def symmetric_difference(
             force=force,
             output_with_spatial_index=False,
             operation_prefix="symmetric_difference/",
+            tmp_basedir=tmp_dir,
             input1_subdivided_path=input1_subdivided_path,
             input2_subdivided_path=input2_subdivided_path,
         )
@@ -2890,7 +2925,7 @@ def symmetric_difference(
 
         # Now difference input1 from input2 to another temporary output file
         logger.info("Step 3 of 4: difference 2")
-        diff2_output_path = tempdir / "layer2_diff_layer1_output.gpkg"
+        diff2_output_path = tmp_dir / "layer2_diff_layer1_output.gpkg"
         difference(
             input1_path=input2_path,
             input2_path=input1_path,
@@ -2910,6 +2945,7 @@ def symmetric_difference(
             force=force,
             output_with_spatial_index=False,
             operation_prefix="symmetric_difference/",
+            tmp_basedir=tmp_dir,
             input1_subdivided_path=input2_subdivided_path,
             input2_subdivided_path=input1_subdivided_path,
         )
@@ -2929,7 +2965,7 @@ def symmetric_difference(
         tmp_output_path = diff1_output_path
         if diff1_output_path.suffix != output_path.suffix:
             # Output file should be in diffent format, so convert
-            tmp_output_path = tempdir / output_path.name
+            tmp_output_path = tmp_dir / output_path.name
             gfo.copy_layer(src=diff1_output_path, dst=tmp_output_path)
         elif GeofileInfo(tmp_output_path).default_spatial_index:
             gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
@@ -2939,7 +2975,7 @@ def symmetric_difference(
 
     finally:
         if ConfigOptions.remove_temp_files:
-            shutil.rmtree(tempdir, ignore_errors=True)
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
     logger.info(f"Ready, full symmetric_difference took {datetime.now() - start_time}")
 
@@ -2991,18 +3027,19 @@ def union(
     )
 
     start_time = datetime.now()
-    tempdir = _io_util.create_tempdir("geofileops/union")
+    tmp_dir = _general_helper.create_gfo_tmp_dir("union")
     try:
         # Prepare the input files
         logger.info("Step 1 of 5: prepare input files")
         input1_subdivided_path = _subdivide_layer(
             path=input1_path,
             layer=input1_layer,
-            output_path=tempdir / "subdivided/input1_layer.gpkg",
+            output_path=tmp_dir / "subdivided/input1_layer.gpkg",
             subdivide_coords=subdivide_coords,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             operation_prefix="union/",
+            tmp_basedir=tmp_dir,
         )
         if input1_subdivided_path is None:
             # Hardcoded optimization: root means that no subdivide was needed
@@ -3015,11 +3052,12 @@ def union(
             input2_subdivided_path = _subdivide_layer(
                 path=input2_path,
                 layer=input2_layer,
-                output_path=tempdir / "subdivided/input2_layer.gpkg",
+                output_path=tmp_dir / "subdivided/input2_layer.gpkg",
                 subdivide_coords=subdivide_coords,
                 nb_parallel=nb_parallel,
                 batchsize=batchsize,
                 operation_prefix="union/",
+                tmp_basedir=tmp_dir,
             )
             if input2_subdivided_path is None:
                 # Hardcoded optimization: root means that no subdivide was needed
@@ -3027,7 +3065,7 @@ def union(
 
         # First apply intersection of input1 with input2 to a temporary output file...
         logger.info("Step 2 of 5: intersection")
-        intersection_output_path = tempdir / "intersection_output.gpkg"
+        intersection_output_path = tmp_dir / "intersection_output.gpkg"
         intersection(
             input1_path=input1_path,
             input2_path=input2_path,
@@ -3049,6 +3087,7 @@ def union(
             force=force,
             output_with_spatial_index=False,
             operation_prefix="union/",
+            tmp_basedir=tmp_dir,
             input1_subdivided_path=input1_subdivided_path,
             input2_subdivided_path=input2_subdivided_path,
         )
@@ -3060,7 +3099,7 @@ def union(
                 "For a self-union with include_duplicates=False, step 3 is skipped"
             )
         else:
-            diff1_output_path = tempdir / "diff_input1_from_input2_output.gpkg"
+            diff1_output_path = tmp_dir / "diff_input1_from_input2_output.gpkg"
             difference(
                 input1_path=input2_path,
                 input2_path=input1_path,
@@ -3080,6 +3119,7 @@ def union(
                 force=force,
                 output_with_spatial_index=False,
                 operation_prefix="union/",
+                tmp_basedir=tmp_dir,
                 input1_subdivided_path=input2_subdivided_path,
                 input2_subdivided_path=input1_subdivided_path,
             )
@@ -3095,7 +3135,7 @@ def union(
 
         # Difference input1 from input2 to and add to temporary output file.
         logger.info("Step 4 of 5: difference input 2 from input 1")
-        diff2_output_path = tempdir / "diff_input2_from_input1_output.gpkg"
+        diff2_output_path = tmp_dir / "diff_input2_from_input1_output.gpkg"
 
         difference(
             input1_path=input1_path,
@@ -3116,6 +3156,7 @@ def union(
             force=force,
             output_with_spatial_index=False,
             operation_prefix="union/",
+            tmp_basedir=tmp_dir,
             input1_subdivided_path=input1_subdivided_path,
             input2_subdivided_path=input2_subdivided_path,
         )
@@ -3135,7 +3176,7 @@ def union(
         tmp_output_path = intersection_output_path
         if intersection_output_path.suffix != output_path.suffix:
             # Output file should be in different format, so convert
-            tmp_output_path = tempdir / output_path.name
+            tmp_output_path = tmp_dir / output_path.name
             gfo.copy_layer(src=intersection_output_path, dst=tmp_output_path)
         elif GeofileInfo(tmp_output_path).default_spatial_index:
             gfo.create_spatial_index(path=tmp_output_path, layer=output_layer)
@@ -3145,7 +3186,7 @@ def union(
 
     finally:
         if ConfigOptions.remove_temp_files:
-            shutil.rmtree(tempdir, ignore_errors=True)
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
     logger.info(f"Ready, full union took {datetime.now() - start_time}")
 
@@ -3300,7 +3341,9 @@ def _two_layer_vector_operation(
     # Init layer info
     start_time = datetime.now()
     if tmp_dir is None:
-        tmp_dir = _io_util.create_tempdir(f"geofileops/{operation_name}")
+        tmp_dir = _general_helper.create_gfo_tmp_dir(operation_name)
+    else:
+        tmp_dir.mkdir(exist_ok=True, parents=True)
 
     # Check if crs are the same in the input layers + use it (if there is one)
     output_crs = _check_crs(input1_layer, input2_layer)
@@ -4342,7 +4385,7 @@ def _determine_nb_batches(
     return (nb_parallel, nb_batches)
 
 
-def dissolve_singlethread(
+def dissolve_singlethread(  # noqa: D417
     input_path: Path,
     output_path: Path,
     groupby_columns: str | Iterable[str] | None = None,
@@ -4354,8 +4397,23 @@ def dissolve_singlethread(
     input_layer: str | LayerInfo | None = None,
     output_layer: str | None = None,
     force: bool = False,
+    tmp_basedir: Path | None = None,
 ):
-    """Remark: this is not a parallelized version!!!"""
+    """Dissolve geometries in a singlethreaded way.
+
+    Remark: this is not a parallelized version!!!
+
+    Only arguments that are relevant for the internal use of the dissolve operation are
+    included here. For a full description of all parameters, see the documentation of
+    :py:func:`geofileops.dissolve`.
+
+    Args:
+        tmp_basedir (Optional[Path], optional): The directory to create the temporary
+            directory in for this operation call. If None, it is created in the default
+            geofileops temporary directory. Useful to keep all temporary files for an
+            operation that uses multiple steps in one temporary directory.
+            Defaults to None.
+    """
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
@@ -4561,7 +4619,7 @@ def dissolve_singlethread(
         """
 
     # Now we can really start
-    tempdir = _io_util.create_tempdir("geofileops/dissolve_singlethread")
+    tempdir = _general_helper.create_gfo_tmp_dir("dissolve_singlethread", tmp_basedir)
     try:
         options = {}
         if where_post is not None:

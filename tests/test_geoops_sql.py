@@ -136,6 +136,7 @@ def test_subdivide_layer(
         output_path=tmp_path,
         subdivide_coords=subdivide_coords,
         keep_fid=False,
+        tmp_basedir=tmp_path,
     )
 
     if expected_subdivided:
