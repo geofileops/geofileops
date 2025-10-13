@@ -2,7 +2,6 @@
 
 import logging
 import logging.config
-import shutil
 import warnings
 from collections.abc import Callable
 from datetime import datetime
@@ -13,7 +12,6 @@ from pygeoops import GeometryType
 
 from geofileops import fileops
 from geofileops.helpers import _general_helper
-from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import (
     _geofileinfo,
     _geoops_gpd,
@@ -106,8 +104,7 @@ def dissolve_within_distance(
     logger = logging.getLogger(f"geofileops.{operation_name}")
     nb_steps = 9
 
-    tmp_dir = _general_helper.create_gfo_tmp_dir(operation_name)
-    try:
+    with _general_helper.create_gfo_tmp_dir(operation_name) as tmp_dir:
         # First dissolve the input.
         #
         # Note: this reduces the complexity of operations to be executed later on.
@@ -385,10 +382,6 @@ def dissolve_within_distance(
             operation_prefix=f"{operation_name}-",
             tmp_basedir=tmp_dir,
         )
-
-    finally:
-        if ConfigOptions.remove_temp_files:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
 
     logger.info(f"Ready, took {datetime.now() - start_time}")
 
@@ -2017,8 +2010,7 @@ def concat(
     logger.info(f"Start concat to {output_path}")
 
     start_time = datetime.now()
-    tmp_dir = _general_helper.create_gfo_tmp_dir("concat")
-    try:
+    with _general_helper.create_gfo_tmp_dir("concat") as tmp_dir:
         # Loop over all files and copy_layer them one by one together.
         tmp_dst = tmp_dir / output_path.name
         is_first = True
@@ -2062,10 +2054,6 @@ def concat(
             fileops.create_spatial_index(tmp_dst, output_layer)
 
         fileops.move(tmp_dst, output_path)
-
-    finally:
-        if ConfigOptions.remove_temp_files:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
 
     logger.info(f"Ready, took {datetime.now() - start_time}")
 

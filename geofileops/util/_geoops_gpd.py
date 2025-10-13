@@ -8,7 +8,6 @@ import logging.config
 import math
 import multiprocessing
 import pickle
-import shutil
 import time
 import warnings
 from collections.abc import Callable, Iterable
@@ -810,11 +809,7 @@ def _apply_geooperation_to_layer(
             # doesn't seem to work... so create temp partial files always as gpkg.
             where_post = where_post.format(geometrycolumn="geom")
 
-    # Prepare tmp files
-    tmp_dir = _general_helper.create_gfo_tmp_dir(operation.value, tmp_basedir)
-    logger.debug(f"Start calculation to temp files in {tmp_dir}")
-
-    try:
+    with _general_helper.create_gfo_tmp_dir(operation.value, tmp_basedir) as tmp_dir:
         # Calculate the best number of parallel processes and batches for
         # the available resources
         process_params = _prepare_processing_params(
@@ -967,10 +962,6 @@ def _apply_geooperation_to_layer(
             gfo.move(tmp_output_path, output_path)
         else:
             logger.debug("Result was empty")
-
-    finally:
-        if ConfigOptions.remove_temp_files:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
 
     logger.info(f"Ready, took {datetime.now() - start_time_global}")
 
@@ -1338,8 +1329,7 @@ def dissolve(  # noqa: D417
         # The dissolve for polygons is done in several passes, and after the first
         # pass, only the 'onborder' features are further dissolved, as the
         # 'notonborder' features are already OK.
-        tmp_dir = _general_helper.create_gfo_tmp_dir(operation_name, tmp_basedir)
-        try:
+        with _general_helper.create_gfo_tmp_dir(operation_name, tmp_basedir) as tmp_dir:
             if output_layer is None:
                 output_layer = gfo.get_default_layer(output_path)
             output_tmp_path = tmp_dir / "output_tmp.gpkg"
@@ -1691,10 +1681,6 @@ def dissolve(  # noqa: D417
 
                 # Now we are ready to move the result to the final spot...
                 gfo.move(output_tmp_final_path, output_path)
-
-        finally:
-            if ConfigOptions.remove_temp_files:
-                shutil.rmtree(tmp_dir, ignore_errors=True)
 
         logger.info(f"Ready, full dissolve took {datetime.now() - start_time}")
 

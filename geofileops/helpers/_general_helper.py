@@ -1,15 +1,24 @@
 """General helper functions, specific for geofileops."""
 
 import os
+import shutil
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import _io_util
 
 
-def create_gfo_tmp_dir(base_dirname: str, parent_dir: Path | None = None) -> Path:
-    """Create a temporary directory for geofileops operations.
+@contextmanager
+def create_gfo_tmp_dir(
+    base_dirname: str, parent_dir: Path | None = None
+) -> Iterator[Path]:
+    """Context manager that creates a temporary directory for geofileops operations.
+
+    The directory and its contents are removed when the context is exited, unless
+    `ConfigOptions.remove_temp_files` is set to False.
 
     Args:
         base_dirname (str): The base name of the temporary directory to create. The
@@ -26,7 +35,12 @@ def create_gfo_tmp_dir(base_dirname: str, parent_dir: Path | None = None) -> Pat
         parent_dir = get_gfo_tmp_dir()
     base_dirname = base_dirname.replace("/", "_").replace(" ", "_")
 
-    return _io_util.create_tempdir(base_dirname, parent_dir)
+    tmp_dir = _io_util.create_tempdir(base_dirname, parent_dir)
+    try:
+        yield tmp_dir
+    finally:
+        if ConfigOptions.remove_temp_files:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 def get_gfo_tmp_dir() -> Path:
