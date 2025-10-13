@@ -130,10 +130,11 @@ def test_subdivide_layer(
     desc, tmp_path, testfile, subdivide_coords, expected_subdivided: bool
 ):
     path = test_helper.get_testfile(testfile)
+    output_path = tmp_path / "output.gpkg"
     result = _geoops_sql._subdivide_layer(
         path=path,
         layer=None,
-        output_path=tmp_path,
+        output_path=output_path,
         subdivide_coords=subdivide_coords,
         keep_fid=False,
         tmp_basedir=tmp_path,
@@ -156,11 +157,12 @@ def test_subdivide_layer_check_parallel(tmp_path, nb_rows, fraction):
         "GFO_SUBDIVIDE_CHECK_PARALLEL_FRACTION": fraction,
         "GFO_SUBDIVIDE_CHECK_PARALLEL_ROWS": nb_rows,
     }
+    output_path = tmp_path / "output.gpkg"
     with gfo.TempEnv(envs):
         result = _geoops_sql._subdivide_layer(
             path=path,
             layer=layer,
-            output_path=tmp_path,
+            output_path=output_path,
             subdivide_coords=1,
             tmp_basedir=None,
             keep_fid=False,
