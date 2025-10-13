@@ -603,6 +603,7 @@ def apply_vectorized(
     return _geoops_gpd.apply_vectorized(
         input_path=Path(input_path),
         output_path=Path(output_path),
+        operation_name=None,
         func=func,
         input_layer=input_layer,
         output_layer=output_layer,
@@ -615,6 +616,8 @@ def apply_vectorized(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        parallelization_config=None,
+        tmp_basedir=None,
     )
 
 

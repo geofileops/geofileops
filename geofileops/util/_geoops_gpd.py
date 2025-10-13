@@ -406,6 +406,7 @@ def apply(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        tmp_basedir=None,
         parallelization_config=parallelization_config,
     )
 
@@ -413,21 +414,22 @@ def apply(
 def apply_vectorized(  # noqa: D417
     input_path: Path,
     output_path: Path,
+    operation_name: str | None,
     func: Callable[[Any], Any],
-    input_layer: str | LayerInfo | None = None,
-    output_layer: str | None = None,
-    columns: list[str] | None = None,
-    explodecollections: bool = False,
-    force_output_geometrytype: GeometryType | str | None = None,
-    gridsize: float = 0.0,
-    keep_empty_geoms: bool = False,
-    where_post: str | None = None,
-    nb_parallel: int = -1,
-    batchsize: int = -1,
-    force: bool = False,
-    parallelization_config: ParallelizationConfig | None = None,
-    operation_name: str | None = None,
-    tmp_basedir: Path | None = None,
+    *,
+    input_layer: str | LayerInfo | None,
+    output_layer: str | None,
+    columns: list[str] | None,
+    explodecollections: bool,
+    force_output_geometrytype: GeometryType | str | None,
+    gridsize: float,
+    keep_empty_geoms: bool,
+    where_post: str | None,
+    nb_parallel: int,
+    batchsize: int,
+    force: bool,
+    parallelization_config: ParallelizationConfig | None,
+    tmp_basedir: Path | None,
 ):
     """Applies a vectorized function to all geometries in a layer.
 
@@ -436,12 +438,11 @@ def apply_vectorized(  # noqa: D417
 
     Args:
         operation_name (str, optional): The name of the operation. Will be used in
-            logging,... if specified. Defaults to None.
+            logging,... if specified.
         tmp_basedir (Optional[Path], optional): The directory to create the temporary
             directory in for this operation call. If None, it is created in the default
             geofileops temporary directory. Useful to keep all temporary files for an
             operation that uses multiple steps in one temporary directory.
-            Defaults to None.
 
     """
     # Init
@@ -565,6 +566,7 @@ def convexhull(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        tmp_basedir=None,
     )
 
 
@@ -604,10 +606,10 @@ def makevalid(
     apply_vectorized(
         input_path=Path(input_path),
         output_path=Path(output_path),
+        operation_name="makevalid",
         func=lambda geom: pygeoops.make_valid(
             geom, keep_collapsed=keep_collapsed, only_if_invalid=True
         ),
-        operation_name="makevalid",
         input_layer=input_layer,
         output_layer=output_layer,
         columns=columns,
@@ -619,6 +621,8 @@ def makevalid(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        parallelization_config=None,
+        tmp_basedir=None,
     )
 
 
@@ -663,6 +667,7 @@ def simplify(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        tmp_basedir=None,
     )
 
 
@@ -682,8 +687,8 @@ def _apply_geooperation_to_layer(
     nb_parallel: int,  # = -1
     batchsize: int,  # = -1
     force: bool,  # = False
+    tmp_basedir: Path | None,
     parallelization_config: ParallelizationConfig | None = None,
-    tmp_basedir: Path | None = None,
 ):
     """Applies a geo operation on a layer.
 
@@ -747,11 +752,11 @@ def _apply_geooperation_to_layer(
             smaller nb_parallel, will reduce the memory usage.
             Defaults to -1: (try to) determine optimal size automatically.
         force (bool, optional): [description]. Defaults to False.
-        parallelization_config (ParallelizationConfig, optional): Defaults to None.
         tmp_basedir (Optional[Path], optional): The directory to create the temporary
             directory in for this operation call. If None, it is created in the default
             geofileops temporary directory. Useful to keep all temporary files for an
             operation that uses multiple steps in one temporary directory.
+        parallelization_config (ParallelizationConfig, optional): Defaults to None.
 
     Technical remarks:
         - Retaining None geometry values in the output files is hard, because when

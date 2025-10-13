@@ -106,6 +106,7 @@ def buffer(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        tmp_basedir=None,
     )
 
 
@@ -151,6 +152,7 @@ def convexhull(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        tmp_basedir=None,
     )
 
 
@@ -217,6 +219,7 @@ def delete_duplicate_geometries(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        tmp_basedir=None,
     )
 
 
@@ -261,6 +264,7 @@ def isvalid(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        tmp_basedir=None,
     )
 
     # Check the number of invalid files
@@ -365,6 +369,7 @@ def makevalid(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        tmp_basedir=None,
     )
 
 
@@ -425,6 +430,7 @@ def select(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        tmp_basedir=None,
     )
 
 
@@ -472,6 +478,7 @@ def simplify(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        tmp_basedir=None,
     )
 
 
@@ -493,7 +500,7 @@ def _single_layer_vector_operation(
     nb_parallel: int,
     batchsize: int,
     force: bool,
-    tmp_basedir: Path | None = None,
+    tmp_basedir: Path | None,
 ):
     """Execute a sql query template on the input layer.
 
@@ -517,11 +524,10 @@ def _single_layer_vector_operation(
         nb_parallel (int): _description_
         batchsize (int): _description_
         force (bool): _description_
-        tmp_basedir (Optional[Path], optional): The directory to create the temporary
+        tmp_basedir (Optional[Path]): The directory to create the temporary
             directory in for this operation call. If None, it is created in the default
             geofileops temporary directory. Useful to keep all temporary files for an
             operation that uses multiple steps in one temporary directory.
-            Defaults to None.
 
     Raises:
         ValueError: _description_
@@ -977,6 +983,7 @@ def clip(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        tmp_basedir=tmp_dir,
         column_types={},
     )
 
@@ -1331,19 +1338,24 @@ def _subdivide_layer(
     _geoops_gpd.apply_vectorized(
         input_path=path,
         input_layer=layer,
-        output_path=output_path,
-        output_layer=layer.name,
+        operation_name=f"{operation_prefix}subdivide",
         func=lambda geom: _geoseries_util.subdivide_vectorized(
             geom, num_coords_max=subdivide_coords
         ),
+        output_path=output_path,
+        output_layer=layer.name,
         columns=columns,
         explodecollections=True,
+        force_output_geometrytype=None,
+        gridsize=0.0,
+        keep_empty_geoms=False,
+        where_post=None,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
+        force=True,
         parallelization_config=_geoops_gpd.ParallelizationConfig(
             bytes_per_row=2000, max_rows_per_batch=50000, min_rows_per_batch=1
         ),
-        operation_name=f"{operation_prefix}subdivide",
         tmp_basedir=tmp_basedir,
     )
     if keep_fid:
@@ -1703,6 +1715,7 @@ def export_by_distance(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        tmp_basedir=None,
         column_types={},
     )
 
@@ -1996,6 +2009,7 @@ def intersection(  # noqa: D417
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        tmp_basedir=tmp_dir,
         column_types={},
         input1_subdivided_path=input1_subdivided_path,
         input2_subdivided_path=input2_subdivided_path,
@@ -2079,6 +2093,7 @@ def join(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        tmp_basedir=None,
         column_types={},
     )
 
@@ -2231,6 +2246,7 @@ def join_by_location(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        tmp_basedir=None,
         column_types=column_types,
     )
 
@@ -2510,6 +2526,7 @@ def join_nearest(
     # Prepare input files
     # To use knn index, the input layers need to be in sqlite file format
     # (not a .gpkg!), so prepare this
+    tmp_dir = None
     if input1_path == input2_path and gfo.get_driver(input1_path) == "SQLite":
         # Input files already ok...
         input1_tmp_path = input1_path
@@ -2583,6 +2600,7 @@ def join_nearest(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        tmp_basedir=tmp_dir,
         column_types={"pos": "INTEGER", "distance": "REAL", "distance_crs": "REAL"},
         use_ogr=True,
     )
@@ -3217,12 +3235,12 @@ def _two_layer_vector_operation(
     nb_parallel: int,
     batchsize: int,
     force: bool,
+    tmp_basedir: Path | None,
     column_types: dict[str, str] | None,
     input1_subdivided_path: Path | None = None,
     input2_subdivided_path: Path | None = None,
     use_ogr: bool = False,
     output_with_spatial_index: bool | None = None,
-    tmp_basedir: Path | None = None,
 ):
     """Executes an operation that needs 2 input files.
 
@@ -3276,12 +3294,12 @@ def _two_layer_vector_operation(
             Defaults to False.
         output_with_spatial_index (bool, optional): True to create output file with
             spatial index. None to use the GDAL default. Defaults to None.
-        tmp_basedir (Optional[Path], optional): The directory to create the temporary
-            directory in for this operation call. If None, it is created in the default
+        tmp_basedir (Optional[Path]): The directory to create the temporary directory in
+            for this operation execution. If None, it is created in the default
             geofileops temporary directory. Useful to keep all temporary files for an
             operation that uses multiple steps in one temporary directory.
-            Defaults to None. The temporary directory created and its contents will be
-            removed after the operation if ConfigOptions.remove_temp_files is not False!
+            The temporary directory created and its contents will be removed after the
+            operation if ConfigOptions.remove_temp_files is not False!
 
     Raises:
         ValueError: [description]
