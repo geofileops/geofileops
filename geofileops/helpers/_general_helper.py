@@ -12,7 +12,8 @@ def create_gfo_tmp_dir(base_dirname: str, parent_dir: Path | None = None) -> Pat
     """Create a temporary directory for geofileops operations.
 
     Args:
-        base_dirname (str): The base name of the temporary directory to create.
+        base_dirname (str): The base name of the temporary directory to create. The
+            following characters are replaced to "_": "/", " ".
         parent_dir (Path | None, optional): The parent directory to create the
             temporary directory in. If None, the directory specified in the environment
             variable `GFO_TMPDIR` is used. If that  that does not exist, a "geofileops"
@@ -23,6 +24,7 @@ def create_gfo_tmp_dir(base_dirname: str, parent_dir: Path | None = None) -> Pat
     """
     if parent_dir is None:
         parent_dir = get_gfo_tmp_dir()
+    base_dirname = base_dirname.replace("/", "_").replace(" ", "_")
 
     return _io_util.create_tempdir(base_dirname, parent_dir)
 

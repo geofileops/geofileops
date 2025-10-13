@@ -570,8 +570,7 @@ def _single_layer_vector_operation(
         preserve_fid = True
 
     # Calculate
-    subdir = operation_name.replace("/", "_").replace(" ", "_")
-    tmp_dir = _general_helper.create_gfo_tmp_dir(subdir, tmp_basedir)
+    tmp_dir = _general_helper.create_gfo_tmp_dir(operation_name, tmp_basedir)
     try:
         # If gridsize != 0.0 or if geom_selected is None we need an sqlite file to be
         # able to determine the columns later on.
@@ -1038,9 +1037,8 @@ def difference(  # noqa: D417
     if subdivide_coords < 0:
         raise ValueError("subdivide_coords < 0 is not allowed")
 
-    operation = "difference"
-    operation_full = f"{operation_prefix}{operation}"
-    logger = logging.getLogger(f"geofileops.{operation_full}")
+    operation_name = f"{operation_prefix}difference"
+    logger = logging.getLogger(f"geofileops.{operation_name}")
 
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
@@ -1052,7 +1050,7 @@ def difference(  # noqa: D417
         input1_layer=input1_layer,
         input2_layer=input2_layer,
         output_layer=output_layer,
-        operation_name=operation_full,
+        operation_name=operation_name,
     )
 
     # Determine output_geometrytype
@@ -1067,7 +1065,7 @@ def difference(  # noqa: D417
         force_output_geometrytype = force_output_geometrytype.to_multitype
 
     # Subdivide the input layers speeds up further processing if they are complex.
-    tmp_dir = _general_helper.create_gfo_tmp_dir(operation, tmp_basedir)
+    tmp_dir = _general_helper.create_gfo_tmp_dir(operation_name, tmp_basedir)
 
     if input1_subdivided_path is None:
         # input1_subdivided_path is None: try to subdivide.
@@ -1078,7 +1076,7 @@ def difference(  # noqa: D417
             subdivide_coords=subdivide_coords,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
-            operation_prefix=f"{operation_full}/",
+            operation_prefix=f"{operation_name}/",
             tmp_basedir=tmp_dir,
         )
     elif input1_subdivided_path == Path("/"):
@@ -1108,7 +1106,7 @@ def difference(  # noqa: D417
             subdivide_coords=subdivide_coords,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
-            operation_prefix=f"{operation_full}/",
+            operation_prefix=f"{operation_name}/",
             tmp_basedir=tmp_dir,
         )
 
@@ -1252,7 +1250,7 @@ def difference(  # noqa: D417
         input2_path=input2_path,
         output_path=output_path,
         sql_template=sql_template,
-        operation_name=operation_full,
+        operation_name=operation_name,
         input1_layer=input1_layer,
         input1_columns=input1_columns,
         input1_columns_prefix=input_columns_prefix,
@@ -3350,8 +3348,7 @@ def _two_layer_vector_operation(
 
     # Init layer info
     start_time = datetime.now()
-    subdir = operation_name.replace("/", "_").replace(" ", "_")
-    tmp_dir = _general_helper.create_gfo_tmp_dir(subdir, tmp_basedir)
+    tmp_dir = _general_helper.create_gfo_tmp_dir(operation_name, tmp_basedir)
 
     # Check if crs are the same in the input layers + use it (if there is one)
     output_crs = _check_crs(input1_layer, input2_layer)

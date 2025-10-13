@@ -806,8 +806,7 @@ def _apply_geooperation_to_layer(
             where_post = where_post.format(geometrycolumn="geom")
 
     # Prepare tmp files
-    subdir = operation.value.replace("/", "_").replace(" ", "_")
-    tmp_dir = _general_helper.create_gfo_tmp_dir(subdir, tmp_basedir)
+    tmp_dir = _general_helper.create_gfo_tmp_dir(operation.value, tmp_basedir)
     logger.debug(f"Start calculation to temp files in {tmp_dir}")
 
     try:
