@@ -4,9 +4,7 @@ Tests for functionalities in _io_util.
 
 import tempfile
 
-import pytest
-
-from geofileops.util import _general_util, _io_util
+from geofileops.util import _io_util
 
 
 def test_create_tempdir():
