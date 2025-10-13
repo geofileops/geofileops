@@ -471,7 +471,7 @@ def vector_translate(
     # with enable_debug=True nothing is logged. In addition, after
     # gdal.ConfigurePythonLogging is called, the CPL_LOG config setting is ignored.
     if "CPL_LOG" not in config_options:
-        gdal_cpl_log_dir = _general_helper.get_gfo_tmp_dir() / "geofileops/gdal_cpl_log"
+        gdal_cpl_log_dir = _general_helper.get_gfo_tmp_dir() / "gdal_cpl_log"
         gdal_cpl_log_dir.mkdir(parents=True, exist_ok=True)
         fd, gdal_cpl_log = tempfile.mkstemp(suffix=".log", dir=gdal_cpl_log_dir)
         os.close(fd)
