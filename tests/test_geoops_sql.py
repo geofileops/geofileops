@@ -162,6 +162,7 @@ def test_subdivide_layer_check_parallel(tmp_path, nb_rows, fraction):
             layer=layer,
             output_path=tmp_path,
             subdivide_coords=1,
+            tmp_basedir=None,
             keep_fid=False,
         )
 
