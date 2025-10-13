@@ -1262,7 +1262,7 @@ def difference(  # noqa: D417
         force=force,
         column_types={},
         output_with_spatial_index=output_with_spatial_index,
-        tmp_dir=tmp_dir,
+        tmp_basedir=tmp_dir,
     )
 
     # Print time taken
@@ -1631,7 +1631,7 @@ def export_by_location(
         batchsize=batchsize,
         force=force,
         column_types=column_types,
-        tmp_dir=tmp_dir,
+        tmp_basedir=tmp_dir,
     )
 
     # Print time taken
@@ -2629,7 +2629,7 @@ def select_two_layers(
         force=force,
         column_types=None,  # pass None as we don't know the columns here
         output_with_spatial_index=output_with_spatial_index,
-        tmp_dir=tmp_dir,
+        tmp_basedir=tmp_dir,
     )
 
 
@@ -3217,7 +3217,7 @@ def _two_layer_vector_operation(
     input2_subdivided_path: Path | None = None,
     use_ogr: bool = False,
     output_with_spatial_index: bool | None = None,
-    tmp_dir: Path | None = None,
+    tmp_basedir: Path | None = None,
 ):
     """Executes an operation that needs 2 input files.
 
@@ -3271,8 +3271,11 @@ def _two_layer_vector_operation(
             Defaults to False.
         output_with_spatial_index (bool, optional): True to create output file with
             spatial index. None to use the GDAL default. Defaults to None.
-        tmp_dir (Path, optional): If None, a new temp dir will be created. if not None,
-            the temp dir specified will be used. In both cases the tmp_dir will be
+        tmp_basedir (Optional[Path], optional): The directory to create the temporary
+            directory in for this operation call. If None, it is created in the default
+            geofileops temporary directory. Useful to keep all temporary files for an
+            operation that uses multiple steps in one temporary directory.
+            Defaults to None. The temporary directory created and its contents will be
             removed after the operation if ConfigOptions.remove_temp_files is not False!
 
     Raises:
@@ -3340,10 +3343,7 @@ def _two_layer_vector_operation(
 
     # Init layer info
     start_time = datetime.now()
-    if tmp_dir is None:
-        tmp_dir = _general_helper.create_gfo_tmp_dir(operation_name)
-    else:
-        tmp_dir.mkdir(exist_ok=True, parents=True)
+    tmp_dir = _general_helper.create_gfo_tmp_dir(operation_name, tmp_basedir)
 
     # Check if crs are the same in the input layers + use it (if there is one)
     output_crs = _check_crs(input1_layer, input2_layer)
