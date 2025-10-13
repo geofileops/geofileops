@@ -9,21 +9,19 @@ from geofileops.util import _general_util
 def test_create_gfo_tmp_dir(tmp_path):
     """Test the creation of a temporary directory in the default tmp dir."""
     with _general_util.TempEnv({"GFO_TMPDIR": None}):
-        tmp_dir = _general_helper.create_gfo_tmp_dir("testje")
-
-    assert tmp_dir.exists()
-    assert tmp_dir.parent.name == "geofileops"
-    assert tmp_dir.name.startswith("testje")
+        with _general_helper.create_gfo_tmp_dir("testje") as tmp_dir:
+            assert tmp_dir.exists()
+            assert tmp_dir.parent.name == "geofileops"
+            assert tmp_dir.name.startswith("testje")
 
 
 def test_create_gfo_tmp_dir_env(tmp_path):
     """Test the creation of a temporary directory in a dir specified via GFO_TMPDIR."""
     with _general_util.TempEnv({"GFO_TMPDIR": str(tmp_path)}):
-        tmp_dir = _general_helper.create_gfo_tmp_dir("testje")
-
-    assert tmp_dir.exists()
-    assert str(tmp_dir).startswith(str(tmp_path))
-    assert tmp_dir.name.startswith("testje")
+        with _general_helper.create_gfo_tmp_dir("testje") as tmp_dir:
+            assert tmp_dir.exists()
+            assert str(tmp_dir).startswith(str(tmp_path))
+            assert tmp_dir.name.startswith("testje")
 
 
 def test_create_gfo_tmp_dir_env_invalid(tmp_path):
@@ -34,7 +32,8 @@ def test_create_gfo_tmp_dir_env_invalid(tmp_path):
             RuntimeError,
             match="GFO_TMPDIR='' environment variable found which is not supported",
         ):
-            _general_helper.create_gfo_tmp_dir("testje")
+            with _general_helper.create_gfo_tmp_dir("testje") as _tmp_dir:
+                pass
 
 
 @pytest.mark.parametrize(

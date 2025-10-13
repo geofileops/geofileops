@@ -122,7 +122,7 @@ def test_convert_to_spatialite_based(
         ("input poly not complex", "polygon-zone", 1000, False),
         ("input poly complex", "polygon-zone", 1, True),
         ("input line not complex", "linestring-watercourse", 10_000, False),
-        ("input line complex", "linestring-watercourse", 1, True),
+        ("input line complex", "linestring-watercourse", 2, True),
         ("input point complex", "point", 1, False),
     ],
 )
