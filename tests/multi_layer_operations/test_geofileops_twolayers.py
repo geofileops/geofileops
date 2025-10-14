@@ -2316,7 +2316,7 @@ def test_union_invalid_params(kwargs, expected_error):
         )
 
 
-@pytest.mark.parametrize("remove_temp_files", [True, False])
+@pytest.mark.parametrize("remove_temp_files", [True, False, None])
 def test_union_remove_temp_files(tmp_path, remove_temp_files):
     """Test if temporary files created during union are correctly removed afterwards."""
     input1_path = test_helper.get_testfile("polygon-parcel")
@@ -2326,7 +2326,7 @@ def test_union_remove_temp_files(tmp_path, remove_temp_files):
     # Now run test
     tmp_dir = tmp_path / "gfo_tmpdir"
     with gfo.TempEnv(
-        {"GFO_REMOVE_TEMP_FILES": str(remove_temp_files), "GFO_TMPDIR": str(tmp_dir)}
+        {"GFO_REMOVE_TEMP_FILES": remove_temp_files, "GFO_TMPDIR": tmp_dir}
     ):
         gfo.union(
             input1_path=input1_path,
@@ -2344,7 +2344,7 @@ def test_union_remove_temp_files(tmp_path, remove_temp_files):
     assert tmp_dir.exists()
     tmp_dir = list(tmp_dir.iterdir())
 
-    if remove_temp_files:
+    if remove_temp_files is None or remove_temp_files:
         # Temporary files/directories should be removed
         assert len(tmp_dir) == 0
     else:
