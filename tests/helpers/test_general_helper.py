@@ -33,7 +33,7 @@ def test_create_gfo_tmp_dir_env_invalid():
     # GFO_TMPDIR set to an empty string is not supported.
     with _general_util.TempEnv({"GFO_TMPDIR": ""}):
         with pytest.raises(
-            RuntimeError,
+            ValueError,
             match="GFO_TMPDIR='' environment variable found which is not supported",
         ):
             with _general_helper.create_gfo_tmp_dir("testje") as _tmp_dir:
