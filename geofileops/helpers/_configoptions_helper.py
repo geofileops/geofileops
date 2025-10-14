@@ -109,15 +109,16 @@ class ConfigOptions:
         """
         tmp_dir_str = os.environ.get("GFO_TMPDIR")
         if tmp_dir_str is None:
-            return Path(tempfile.gettempdir())
+            tmpdir = Path(tempfile.gettempdir()) / "geofileops"
         elif tmp_dir_str.strip() == "":
             raise RuntimeError(
                 "GFO_TMPDIR='' environment variable found which is not supported."
             )
         else:
             tmpdir = Path(tmp_dir_str.strip())
-            tmpdir.mkdir(parents=True, exist_ok=True)
-            return tmpdir
+
+        tmpdir.mkdir(parents=True, exist_ok=True)
+        return tmpdir
 
     @classproperty
     def worker_type(cls) -> str:
