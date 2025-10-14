@@ -152,7 +152,7 @@ def test_copy_table_columns(tmp_path):
     # For all appended rows, the columns that were not copied should be NULL
     for column in result.columns:
         if column in ("geometry", "OIDN"):
-            warnings.filterwarnings('ignore', 'GeoSeries.notna', UserWarning)
+            warnings.filterwarnings("ignore", "GeoSeries.notna", UserWarning)
             assert result[column].iloc[info.featurecount :].notnull().all()
         else:
             assert result[column].iloc[info.featurecount :].isnull().all()
