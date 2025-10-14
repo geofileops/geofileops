@@ -111,7 +111,7 @@ class ConfigOptions:
         if tmp_dir_str is None:
             tmpdir = Path(tempfile.gettempdir()) / "geofileops"
         elif tmp_dir_str.strip() == "":
-            raise RuntimeError(
+            raise ValueError(
                 "GFO_TMPDIR='' environment variable found which is not supported."
             )
         else:
