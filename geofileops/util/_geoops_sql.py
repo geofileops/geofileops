@@ -157,21 +157,34 @@ def convexhull(
     )
 
 
-def delete_duplicate_geometries(
+def delete_duplicate_geometries(  # noqa: D417
     input_path: Path,
     output_path: Path,
-    input_layer: str | LayerInfo | None = None,
-    output_layer: str | None = None,
-    columns: list[str] | None = None,
-    priority_column: str | None = None,
-    priority_ascending: bool = True,
-    explodecollections: bool = False,
-    keep_empty_geoms: bool = False,
-    where_post: str | None = None,
-    nb_parallel: int = -1,
-    batchsize: int = -1,
-    force: bool = False,
+    input_layer: str | LayerInfo | None,
+    output_layer: str | None,
+    columns: list[str] | None,
+    priority_column: str | None,
+    priority_ascending: bool,
+    explodecollections: bool,
+    keep_empty_geoms: bool,
+    where_post: str | None,
+    nb_parallel: int,
+    batchsize: int,
+    force: bool,
+    tmp_basedir: Path | None,
 ):
+    """Delete duplicates in the input file and write the result to the output file.
+
+    Only arguments specific to the internal difference operation are documented here.
+    For the other arguments, check out the corresponding function in geoops.py.
+
+    Args:
+        tmp_basedir (Optional[Path], optional): The directory to create the temporary
+            directory in for this operation call. If None, it is created in the default
+            geofileops temporary directory. Useful to keep all temporary files for an
+            operation that uses multiple steps in one temporary directory.
+            Defaults to None.
+    """
     if priority_column is None:
         priority_column = "rowid"
     priority_order = "ASC" if priority_ascending else "DESC"
@@ -221,7 +234,7 @@ def delete_duplicate_geometries(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
-        tmp_basedir=None,
+        tmp_basedir=tmp_basedir,
     )
 
 
@@ -3244,19 +3257,20 @@ def union_self_loopy(
         operation_name=operation_name,
     )
 
+    os.environ["GFO_REMOVE_TEMP_FILES"] = "FALSE"
     start_time = datetime.now()
-    tempdir = _io_util.create_tempdir(f"geofileops/{operation_name}")
-    try:
+    with _general_helper.create_gfo_tmp_dir(operation_name) as tmp_dir:
         # Prepare the input files
         logger.info("Step 1 of 3: prepare input file")
         input_subdivided_path = _subdivide_layer(
             path=input_path,
             layer=input_layer,
-            output_path=tempdir / "subdivided/input_layer.gpkg",
+            output_path=tmp_dir / "subdivided/input_layer.gpkg",
             subdivide_coords=subdivide_coords,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             operation_prefix="union/",
+            tmp_basedir=tmp_dir,
         )
         if input_subdivided_path is None:
             # Hardcoded optimization: root means that no subdivide was needed
@@ -3264,38 +3278,45 @@ def union_self_loopy(
 
         # Loop until all intersections are gone...
         logger.info("Step 2 of 3: prepare non-intersecting base layer")
-        non_intersecting_path = tempdir / "union_self_non_intersecting.gpkg"
+        non_intersecting_path = tmp_dir / "union_self_non_intersecting.gpkg"
         intersection_output_prev_path = None
         if input_columns is None:
             input_columns = list(input_layer.columns)
-        if "fid" not in [col.lower() for col in input_columns]:
-            input_columns = ["fid"] + input_columns
+        else:
+            # Remove fid here, as we don't want to keep adding new fid's in the coming
+            # loop
+            input_columns = [col for col in input_columns if col.lower() != "fid"]
+
         intersection_prev_count = -1
         loop_id = 0
         while True:
             # Apply intersection to a temporary output file.
-            intersection_output_path = tempdir / f"intersection_output_{loop_id}.gpkg"
+            intersection_output_path = tmp_dir / f"intersection_output_{loop_id}.gpkg"
 
+            input_columns_fid = ["fid"] + input_columns
             if loop_id == 0:
-                input1_columns = input_columns
-                input2_columns = input_columns
-                where_post_full = where_post
+                # In the first loop, include the original fid column
+                input1_columns = input_columns_fid
+                input2_columns = input1_columns
+                input1_columns_prefix = f"is{loop_id:02d}_"
+                input2_columns_prefix = f"is{loop_id + 1:02d}_"
+                where_post_cur = None
             else:
                 input1_columns = None  # all columns
-                input2_columns = input_columns  # only the original columns
-                where_extra = "fid_1 <> is01_fid"
-                for loop_id2 in range(1, loop_id + 1):
-                    where_extra += (
+                input2_columns = [
+                    f"is{loop_id:02d}_{col}" for col in input_columns_fid
+                ]  # only the "right" columns
+                input1_columns_prefix = ""
+                input2_columns_prefix = f"is{loop_id + 1:02d}_"
+                where_post_cur = "is00_fid <> is01_fid"
+                for loop_id2 in range(1, loop_id):
+                    where_post_cur += (
                         f" AND is{loop_id2:02d}_fid <> is{loop_id2 + 1:02d}_fid"
                     )
-                if where_post is None:
-                    where_post_full = where_extra
-                else:
-                    where_post_full = f"({where_post}) AND ({where_extra})"
-
-            # input1_columns_prefix = "" if loop_id == 0 else f"is{loop_id:02d}_"
-            input1_columns_prefix = ""
-            input2_columns_prefix = f"is{loop_id + 1:02d}_"
+                where_post_cur += (
+                    f" AND is{loop_id:02d}_fid <> "
+                    f"is{loop_id + 1:02d}_is{loop_id:02d}_fid"
+                )
 
             intersection(
                 input1_path=input_path,
@@ -3312,18 +3333,48 @@ def union_self_loopy(
                 output_layer=output_layer,
                 explodecollections=explodecollections,
                 gridsize=gridsize,
-                where_post=where_post_full,
+                where_post=where_post_cur,
                 nb_parallel=nb_parallel,
                 batchsize=batchsize,
                 force=force,
                 output_with_spatial_index=False,
                 operation_prefix=f"{operation_name}/",
+                tmp_basedir=tmp_dir,
                 input1_subdivided_path=input_subdivided_path,
                 input2_subdivided_path=input_subdivided_path,
             )
 
+            # Rename columns to avoid complicated names
+            if loop_id > 0:
+                for col in input_columns_fid:
+                    gfo.rename_column(
+                        intersection_output_path,
+                        column_name=f"is{loop_id + 1:02d}_is{loop_id:02d}_{col}",
+                        new_column_name=f"is{loop_id + 1:02d}_{col}",
+                    )
+
+            # Delete duplicates from the intersections.
+            deldups_path = tmp_dir / f"intersection_no_dups_{loop_id}.gpkg"
+            delete_duplicate_geometries(
+                input_path=intersection_output_path,
+                output_path=deldups_path,
+                input_layer=output_layer,
+                output_layer=output_layer,
+                columns=None,
+                priority_column=None,
+                priority_ascending=True,
+                explodecollections=False,
+                keep_empty_geoms=False,
+                where_post=None,
+                nb_parallel=nb_parallel,
+                batchsize=batchsize,
+                force=force,
+                tmp_basedir=tmp_dir,
+            )
+            intersection_output_path = deldups_path
+
             # Difference to another temporary output file.
-            diff_output_path = tempdir / f"diff_output_{loop_id}.gpkg"
+            diff_output_path = tmp_dir / f"diff_output_{loop_id}.gpkg"
 
             difference(
                 input1_path=input_path,
@@ -3344,6 +3395,7 @@ def union_self_loopy(
                 force=force,
                 output_with_spatial_index=False,
                 operation_prefix=f"{operation_name}/",
+                tmp_basedir=tmp_dir,
                 input1_subdivided_path=input_subdivided_path,
                 input2_subdivided_path=input_subdivided_path,
             )
@@ -3368,18 +3420,6 @@ def union_self_loopy(
             if inters_info.featurecount == 0:
                 break
 
-            # Starting from loop_id=3, delete duplicates from the intersections as they
-            # start to accumulate...
-            if loop_id >= 3:
-                deldups_path = tempdir / f"intersection_no_dups_{loop_id}.gpkg"
-                gfo.delete_duplicate_geometries(
-                    input_path=intersection_output_path,
-                    output_path=deldups_path,
-                    input_layer=output_layer,
-                    output_layer=output_layer,
-                )
-                intersection_output_path = deldups_path
-
             # Init for the next loop
             # if intersection_output_prev_path is not None:
             #    gfo.remove(intersection_output_prev_path)
@@ -3393,7 +3433,7 @@ def union_self_loopy(
 
         if non_intersecting_path.suffix != output_path.suffix:
             # Output file should be in different format, so convert
-            output_tmp2_path = tempdir / output_path.name
+            output_tmp2_path = tmp_dir / output_path.name
             gfo.copy_layer(src=non_intersecting_path, dst=output_tmp2_path)
             non_intersecting_path = output_tmp2_path
         elif GeofileInfo(non_intersecting_path).default_spatial_index:
@@ -3401,10 +3441,6 @@ def union_self_loopy(
 
         # Now we are ready to move the result to the final spot...
         gfo.move(non_intersecting_path, output_path)
-
-    finally:
-        if ConfigOptions.remove_temp_files:
-            shutil.rmtree(tempdir, ignore_errors=True)
 
     logger.info(f"Ready, full {operation_name} took {datetime.now() - start_time}")
 

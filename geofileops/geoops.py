@@ -1041,6 +1041,7 @@ def delete_duplicate_geometries(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
+        tmp_basedir=None,
     )
 
 
