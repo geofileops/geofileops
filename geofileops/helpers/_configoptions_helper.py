@@ -1,4 +1,6 @@
 import os
+import tempfile
+from pathlib import Path
 
 
 class classproperty(property):
@@ -97,6 +99,25 @@ class ConfigOptions:
         rows = os.environ.get("GFO_SUBDIVIDE_CHECK_PARALLEL_ROWS", default="500000")
 
         return int(rows)
+
+    @classproperty
+    def tmp_dir(cls) -> Path:
+        """The temporary directory to use for processing.
+
+        Returns:
+            Path: The temporary directory path. Defaults to a system temp directory.
+        """
+        tmp_dir_str = os.environ.get("GFO_TMPDIR")
+        if tmp_dir_str is None:
+            return Path(tempfile.gettempdir())
+        elif tmp_dir_str.strip() == "":
+            raise RuntimeError(
+                "GFO_TMPDIR='' environment variable found which is not supported."
+            )
+        else:
+            tmpdir = Path(tmp_dir_str.strip())
+            tmpdir.mkdir(parents=True, exist_ok=True)
+            return tmpdir
 
     @classproperty
     def worker_type(cls) -> str:

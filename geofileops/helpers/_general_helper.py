@@ -1,8 +1,6 @@
 """General helper functions, specific for geofileops."""
 
-import os
 import shutil
-import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -32,7 +30,7 @@ def create_gfo_tmp_dir(
         Path: The path to the created temporary directory.
     """
     if parent_dir is None:
-        parent_dir = get_gfo_tmp_dir()
+        parent_dir = ConfigOptions.tmp_dir
     base_dirname = base_dirname.replace("/", "_").replace(" ", "_")
 
     tmp_dir = _io_util.create_tempdir(base_dirname, parent_dir)
@@ -41,32 +39,6 @@ def create_gfo_tmp_dir(
     finally:
         if ConfigOptions.remove_temp_files:
             shutil.rmtree(tmp_dir, ignore_errors=True)
-
-
-def get_gfo_tmp_dir() -> Path:
-    """Get the base temporary directory for geofileops operations.
-
-    This is either the directory specified in the environment variable `GFO_TMPDIR` or
-    a subdirectory "geofileops" in :func:`tempfile.gettempdir`.
-
-    Returns:
-        Path: The base temporary directory for geofileops operations.
-    """
-    # Check if a custom temp dir is specified in environment variable GFO_TMPDIR.
-    tmp_dir = os.environ.get("GFO_TMPDIR")
-    if tmp_dir is None:
-        gfo_tmp_dir = Path(tempfile.gettempdir()) / "geofileops"
-    elif tmp_dir != "":
-        gfo_tmp_dir = Path(tmp_dir)
-    else:
-        raise RuntimeError(
-            "GFO_TMPDIR='' environment variable found which is not supported."
-        )
-
-    # Make sure the dir exists
-    gfo_tmp_dir.mkdir(parents=True, exist_ok=True)
-
-    return gfo_tmp_dir
 
 
 def worker_type_to_use(input_layer_featurecount: int) -> str:
