@@ -45,6 +45,7 @@ version = release = geofileops.__version__
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    "matplotlib.sphinxext.plot_directive",
     "sphinx.ext.napoleon",
     "sphinx_automodapi.automodapi",
     "sphinx.ext.autosummary",

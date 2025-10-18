@@ -584,6 +584,8 @@ def apply_vectorized(
                 func=lambda geom: pygeoops.centerline(geom, densify_distance=0),
             )
 
+        .. plot:: code/apply_vectorized_centerline.py
+
 
     .. |spatialite_reference_link| raw:: html
 
