@@ -3708,12 +3708,13 @@ def union(
     )
 
 
-def union_self_loopy(
+def union_self(
     input_path: Path,
     output_path: Path,
+    union_type: str = "NO_INTERSECTIONS_NO_ATTRIBUTES",
     input_layer: str | None = None,
-    input_columns: list[str] | None = None,
     output_layer: str | None = None,
+    columns: list[str] | None = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
     where_post: str | None = None,
@@ -3722,15 +3723,75 @@ def union_self_loopy(
     subdivide_coords: int = 2000,
     force: bool = False,
 ):
-    r"""Calculates the union of all features in a single layer."""
+    """Calculates the union of all features in a single layer.
+
+    This function calculates the union of all features in a single layer by iteratively
+    applying pairwise union operations in a loopy way till all features have been merged.
+
+    Args:
+        input_path (PathLike): the input file.
+        output_path (PathLike): the file to write the result to
+        union_type (str): the type of union to perform. Defaults to
+            "NO_INTERSECTIONS_NO_ATTRIBUTES". Possible values are:
+
+            - "NO_INTERSECTIONS_NO_ATTRIBUTES": the output won't contain any
+              intersections between features. Attribute columns are not preserved in the
+              output.
+            - "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS": the output won't contain any
+              intersections between features. Attribute columns are preserved as columns
+              prefixed with "isXX_", where for each extra intersection a new set of
+              prefixed columns is created.
+            - "NO_INTERSECTIONS_ATTRIBUTE_LISTS": the output won't contain any
+              intersections between features. Attribute columns are retained and values
+              will be stored in a list the length of the number of intersections.
+            - "REPEATED_INTERSECTIONS": each location where the input features intersect
+              is duplicated the number of time that area is covered by an input feature.
+              Hence, the output may contain repeated intersections between features.
+              Attribute columns are retained, which each intersection having the
+              attribute values of one of the intersecting input features on that
+              location.
+
+        input_layer (str, optional): input layer name. If None, ``input_path``
+            should contain only one layer. Defaults to None.
+        output_layer (str, optional): output layer name. If None, the ``output_path``
+            stem is used. Defaults to None.
+        columns (List[str], optional): list of columns to retain. If None, all
+            standard columns are retained. In addition to standard columns, it is also
+            possible to retain custom columns by specifying their names in this list.
+            Note that the "fid" column is always retained even if not specified here.
+            Defaults to None.
+        explodecollections (bool, optional): True to convert all multi-geometries to
+            singular ones after the dissolve. Defaults to False.
+        gridsize (float, optional): the size of the grid the coordinates of the ouput
+            will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
+            the precision. Defaults to 0.0.
+        where_post (str, optional): SQL filter to apply after all other processing,
+            including e.g. explodecollections. It should be in sqlite syntax and
+            |spatialite_reference_link| functions can be used. Defaults to None.
+        nb_parallel (int, optional): the number of parallel processes to use.
+            Defaults to -1: use all available CPUs.
+        batchsize (int, optional): indicative number of rows to process per batch.
+            A smaller batch size, possibly in combination with a
+            smaller ``nb_parallel``, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
+        subdivide_coords (int, optional): the input geometries will be subdivided to
+            parts with about ``subdivide_coords`` coordinates during processing which
+            can offer a large speed up for complex geometries. Subdividing can result in
+            extra collinear points being added to the boundaries of the output. If 0, no
+            subdividing is applied. Defaults to 2000.
+        force (bool, optional): overwrite existing output file(s).
+            Defaults to False.
+    """
     logger = logging.getLogger("geofileops.union_self_loopy")
     logger.info(f"Start, with input: {input_path}, output: {output_path}")
 
-    return _geoops_sql.union_self_loopy(
+    _geoops_sql.union_self_loopy(
         input_path=Path(input_path),
         output_path=Path(output_path),
+        union_type=union_type,
         input_layer=input_layer,
-        input_columns=input_columns,
+        output_layer=output_layer,
+        columns=columns,
         explodecollections=explodecollections,
         gridsize=gridsize,
         where_post=where_post,
