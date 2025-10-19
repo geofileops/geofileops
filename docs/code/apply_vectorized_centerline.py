@@ -21,13 +21,12 @@ tmp_dir = Path(tempfile.gettempdir())
 
 # Just a single example
 # ---------------------
-ax.set_aspect("equal")
-
 poly1 = shapely.from_wkt(fancy_t_poly_wkt)
 poly2 = shapely.transform(poly1, lambda x, y: (x + 15, y), interleaved=False)
 poly_gdf = gpd.GeoDataFrame(geometry=[poly1, poly2], crs="EPSG:31370")
 poly_path = tmp_dir / "fancy_t_polygons.gpkg"
 poly_gdf.to_file(poly_path)
+
 centerline_path = tmp_dir / "fancy_t_centerlines.gpkg"
 gfo.apply_vectorized(
     input_path=poly_path,
@@ -36,6 +35,6 @@ gfo.apply_vectorized(
 )
 centerlines_gdf = gpd.read_file(centerline_path)
 poly_gdf.plot(ax=ax, color=GRAY, alpha=0.3)
-centerlines_gdf.plot(ax=ax, color=BLUE, alpha=0.7)
+centerlines_gdf.plot(ax=ax, color=BLUE, alpha=0.7, markersize=5)
 
 plt.show()
