@@ -581,7 +581,7 @@ def apply_vectorized(
             gfo.apply_vectorized(
                 input_path="input.gpkg",
                 output_path="output.gpkg",
-                func=lambda geom: pygeoops.centerline(geom, densify_distance=0),
+                func=lambda geom: pygeoops.centerline(geom),
             )
 
         .. plot:: code/apply_vectorized_centerline.py
