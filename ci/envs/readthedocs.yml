@@ -24,3 +24,4 @@ dependencies:
   - pydata-sphinx-theme
   - sphinx
   - sphinx-automodapi
+  - sphinx-copybutton

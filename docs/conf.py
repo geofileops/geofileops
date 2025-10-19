@@ -46,9 +46,10 @@ version = release = geofileops.__version__
 # ones.
 extensions = [
     "matplotlib.sphinxext.plot_directive",
-    "sphinx.ext.napoleon",
     "sphinx_automodapi.automodapi",
+    "sphinx_copybutton",
     "sphinx.ext.autosummary",
+    "sphinx.ext.napoleon",
 ]
 
 autosummary_generate = True
