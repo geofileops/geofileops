@@ -38,13 +38,13 @@ gfo.apply(
 )
 removed_gdf = gpd.read_file(removed_path)
 
-ax1.set_title("a) Polygon with 2 inner rings")
+ax1.set_title("a) input: 2 inner rings")
 poly_gdf.plot(ax=ax1, color=GRAY, alpha=0.5, linewidth=3, edgecolor=GRAY)
 poly_gdf["geometry"].apply(lambda x: MultiPoint(shapely.get_coordinates(x))).plot(
     ax=ax1, color=GRAY, alpha=0.7
 )
 
-ax2.set_title("b) Small inner ring removed")
+ax2.set_title("b) output: small inner ring removed")
 removed_gdf.plot(ax=ax2, color=BLUE, alpha=0.5, linewidth=3, edgecolor=BLUE)
 removed_gdf["geometry"].apply(lambda x: MultiPoint(shapely.get_coordinates(x))).plot(
     ax=ax2, color=BLUE, alpha=0.7
