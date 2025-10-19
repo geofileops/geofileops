@@ -1,3 +1,5 @@
+"""Example of applying the pygeoops centerline function to a set of polygons."""
+
 import tempfile
 from pathlib import Path
 
@@ -5,12 +7,10 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import pygeoops
 import shapely
-from shapely import LineString
-from shapely.plotting import plot_line, plot_polygon
+from figures import BLUE, GRAY, W
+from shapely import MultiPoint
 
 import geofileops as gfo
-
-from figures import W, BLACK, BLUE, GRAY, YELLOW
 
 fig, ax = plt.subplots(figsize=(W, W / 2), dpi=90)
 
@@ -35,6 +35,9 @@ gfo.apply_vectorized(
 )
 centerlines_gdf = gpd.read_file(centerline_path)
 poly_gdf.plot(ax=ax, color=GRAY, alpha=0.3)
-centerlines_gdf.plot(ax=ax, color=BLUE, alpha=0.7, markersize=5)
+centerlines_gdf.plot(ax=ax, color=BLUE, alpha=0.7)
+centerlines_gdf["geometry"].apply(
+    lambda x: MultiPoint(shapely.get_coordinates(x))
+).plot(ax=ax, color=BLUE, alpha=0.7)
 
 plt.show()
