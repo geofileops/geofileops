@@ -465,6 +465,8 @@ def apply(
                 func=lambda geom: pygeoops.remove_inner_rings(geom, min_area_to_keep=1),
             )
 
+        .. plot:: code/apply_remove_inner_rings.py
+
         If you need to use the contents of other columns in your lambda function, you can
         call ``gfo.apply`` like this:
 
