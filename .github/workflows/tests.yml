@@ -62,6 +62,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Set environment variables
+        run: echo "PYTHONTRACEMALLOC=1" >> $GITHUB_ENV
+        
       - name: Install Conda environment with Micromamba
         uses: mamba-org/setup-micromamba@v2
         with:
@@ -73,7 +76,6 @@ jobs:
         
       - name: Test
         run: >-
-          echo "PYTHONTRACEMALLOC=1" >> $GITHUB_ENV
           pytest
           --numprocesses 4 --color=yes 
           --cov=geofileops --cov-append --cov-report term-missing --cov-report 
