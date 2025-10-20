@@ -352,6 +352,7 @@ def get_columns(
         return path.suffix.lstrip(".")
 
     # Connect to/create sqlite main database
+    conn = None
     if "main" in input_databases:
         # If an input database is main, use it as the main database
         main_db_path = input_databases["main"]
@@ -492,6 +493,7 @@ def get_columns(
         raise RuntimeError(f"Error {ex} executing {sql}") from ex
     finally:
         conn.close()
+        conn = None
         if ConfigOptions.remove_temp_files:
             if tmp_dir is not None:
                 shutil.rmtree(tmp_dir, ignore_errors=True)
@@ -676,6 +678,8 @@ def create_table_as_sql(
             output_geometrytype=output_geometrytype,
         )
 
+    # Create or open output database
+    conn = None
     if not output_path.exists():
         # Output file doesn't exist yet: create and init it
         conn = create_new_spatialdb(path=output_path, crs_epsg=output_crs)
@@ -887,6 +891,7 @@ def create_table_as_sql(
     finally:
         if conn is not None:
             conn.close()
+            conn = None
 
 
 def execute_sql(path: Path, sql_stmt: str | list[str], use_spatialite: bool = True):
