@@ -12,7 +12,7 @@ from tests.test_helper import SUFFIXES_GEOOPS
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
-def test_union_self_3circles(tmp_path, suffix: str):
+def test_union_full_self_3circles(tmp_path, suffix: str):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-3overlappingcircles", suffix=suffix)
     input_layerinfo = gfo.get_layerinfo(input_path)
@@ -21,7 +21,7 @@ def test_union_self_3circles(tmp_path, suffix: str):
 
     # Also run some tests on basic data with circles
     # Union the single circle towards the 2 circles
-    gfo.union_self(
+    gfo.union_full_self(
         input_path=input_path,
         output_path=output_path,
         batchsize=batchsize,
@@ -42,7 +42,7 @@ def test_union_self_3circles(tmp_path, suffix: str):
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
-def test_union_self_4circles(tmp_path, suffix: str):
+def test_union_full_self_4circles(tmp_path, suffix: str):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-4overlappingcircles", suffix=suffix)
     input_layerinfo = gfo.get_layerinfo(input_path)
@@ -51,7 +51,7 @@ def test_union_self_4circles(tmp_path, suffix: str):
 
     # Also run some tests on basic data with circles
     # Union the single circle towards the 2 circles
-    gfo.union_self(
+    gfo.union_full_self(
         input_path=input_path,
         output_path=output_path,
         batchsize=batchsize,
@@ -95,7 +95,7 @@ def test_union_self_4circles(tmp_path, suffix: str):
         (5, "REPEATED_INTERSECTIONS", ["fid", "value", "name"], 37),
     ],
 )
-def test_union_self_boxes(
+def test_union_full_self_boxes(
     tmp_path, suffix, nb_boxes, union_type, columns, exp_features
 ):
     # Prepare test data
@@ -135,7 +135,7 @@ def test_union_self_boxes(
 
     # Run test
     output_path = tmp_path / f"output_boxes-{nb_boxes}_{union_type}{suffix}"
-    gfo.union_self(
+    gfo.union_full_self(
         input_path=input_path,
         output_path=output_path,
         union_type=union_type,

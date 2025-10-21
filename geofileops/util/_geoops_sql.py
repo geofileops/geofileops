@@ -3220,7 +3220,7 @@ def union(
     logger.info(f"Ready, full union took {datetime.now() - start_time}")
 
 
-def union_self_loopy(
+def union_full_self(
     input_path: Path,
     output_path: Path,
     union_type: str,

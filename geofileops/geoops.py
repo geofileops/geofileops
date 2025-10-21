@@ -3712,7 +3712,7 @@ def union(
     )
 
 
-def union_self(
+def union_full_self(
     input_path: Path,
     output_path: Path,
     union_type: str = "NO_INTERSECTIONS_NO_ATTRIBUTES",
@@ -3786,10 +3786,10 @@ def union_self(
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
     """
-    logger = logging.getLogger("geofileops.union_self_loopy")
+    logger = logging.getLogger("geofileops.union_full_self")
     logger.info(f"Start, with input: {input_path}, output: {output_path}")
 
-    _geoops_sql.union_self_loopy(
+    _geoops_sql.union_full_self(
         input_path=Path(input_path),
         output_path=Path(output_path),
         union_type=union_type,
