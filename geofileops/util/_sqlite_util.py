@@ -66,6 +66,7 @@ def spatialite_version_info() -> dict[str, str]:
         raise RuntimeError(f"Error {ex} executing {sql}") from ex
     finally:
         conn.close()
+        conn = None  # type: ignore[assignment]
 
     if not spatialite_version:  # pragma: no cover
         warnings.warn(
@@ -86,6 +87,7 @@ def spatialite_version_info() -> dict[str, str]:
         "spatialite_version": spatialite_version,
         "geos_version": geos_version,
     }
+
     return versions
 
 
@@ -194,6 +196,7 @@ def add_gpkg_ogr_contents(database: Any, layer: str | None, force_update: bool =
         # If no existing connection was passed, close the connection
         if not isinstance(database, sqlite3.Connection):
             conn.close()
+            conn = None  # type: ignore[assignment]
 
 
 def create_new_spatialdb(
@@ -305,9 +308,11 @@ def create_new_spatialdb(
 
     except ValueError:
         conn.close()
+        conn = None  # type: ignore[assignment]
         raise
     except Exception as ex:  # pragma: no cover
         conn.close()
+        conn = None  # type: ignore[assignment]
         raise RuntimeError(f"Error creating spatial db {path} executing {sql}") from ex
 
     return conn
@@ -331,6 +336,7 @@ def get_column_types(database_path: Path, table: str) -> dict[str, str]:
 
     finally:
         conn.close()
+        conn = None  # type: ignore[assignment]
 
     return column_types
 
@@ -605,6 +611,7 @@ def copy_table(
         raise RuntimeError(f"Error {ex} executing {sql}") from ex
     finally:
         conn.close()
+        conn = None  # type: ignore[assignment]
 
 
 def create_table_as_sql(
@@ -884,6 +891,7 @@ def create_table_as_sql(
     except EmptyResultError:
         logger.info(f"Query didn't return any rows: {sql_stmt}")
         conn.close()
+        conn = None
         if output_path.exists():
             output_path.unlink()
     except Exception as ex:  # pragma: no cover
@@ -974,6 +982,7 @@ def get_gpkg_ogr_contents(path: Path) -> dict[str, dict]:
         raise RuntimeError(f"Error executing {sql}") from ex
     finally:
         conn.close()
+        conn = None  # type: ignore[assignment]
 
     return contents_dict
 
@@ -997,6 +1006,7 @@ def get_tables(path: Path) -> list[str]:
         raise RuntimeError(f"Error executing {sql}") from ex
     finally:
         conn.close()
+        conn = None  # type: ignore[assignment]
 
     return tables
 
@@ -1035,6 +1045,7 @@ def test_data_integrity(path: Path, use_spatialite: bool = True):
         raise RuntimeError(f"Error executing {sql}") from ex
     finally:
         conn.close()
+        conn = None  # type: ignore[assignment]
 
 
 def set_performance_options(
