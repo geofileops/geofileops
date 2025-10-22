@@ -13,9 +13,22 @@ from tests.test_helper import SUFFIXES_GEOOPS
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
-def test_union_full_self_3circles(tmp_path, suffix: str):
+@pytest.mark.parametrize(
+    "testfile, nb_intersections, union_type, exp_features",
+    [
+        ("polygon-3overlappingcircles", 3, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", 7),
+        ("polygon-3overlappingcircles", 3, "NO_INTERSECTIONS_ATTRIBUTE_LISTS", 7),
+        ("polygon-3overlappingcircles", 3, "REPEATED_INTERSECTIONS", 17),
+        ("polygon-4overlappingcircles", 4, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", 11),
+        ("polygon-4overlappingcircles", 4, "NO_INTERSECTIONS_ATTRIBUTE_LISTS", 11),
+        ("polygon-4overlappingcircles", 4, "REPEATED_INTERSECTIONS", 28),
+    ],
+)
+def test_union_full_self_circles(
+    tmp_path, testfile: str, nb_intersections, suffix: str, union_type, exp_features
+):
     # Prepare test data
-    input_path = test_helper.get_testfile("polygon-3overlappingcircles", suffix=suffix)
+    input_path = test_helper.get_testfile(testfile, suffix=suffix)
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
@@ -25,6 +38,7 @@ def test_union_full_self_3circles(tmp_path, suffix: str):
     gfo.union_full_self(
         input_path=input_path,
         output_path=output_path,
+        union_type=union_type,
         batchsize=batchsize,
     )
 
@@ -33,39 +47,34 @@ def test_union_full_self_3circles(tmp_path, suffix: str):
     exp_spatial_index = GeofileInfo(output_path).default_spatial_index
     assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
-    assert output_layerinfo.featurecount == 7
-    assert ((len(input_layerinfo.columns) + 1) * 3) == len(output_layerinfo.columns)
+    assert output_layerinfo.featurecount == exp_features
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
 
-    # Check the contents of the result file
-    output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
+    # Check columns
+    if union_type == "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS":
+        # asked columns * nb_intersections (=circles)
+        asked_columns = list(input_layerinfo.columns)
+        exp_columns = [
+            f"is{idx}_{col}"
+            for idx, col in product(range(nb_intersections), asked_columns)
+        ]
+    elif union_type == "NO_INTERSECTIONS_ATTRIBUTE_LISTS":
+        # asked columns + "nb_intersections"
+        asked_columns = list(input_layerinfo.columns)
+        exp_columns = [col if col != "fid" else "fid_1" for col in asked_columns]
+        if suffix in (".shp", ".shp.zip"):
+            exp_columns += ["nb_interse"]
+        else:
+            exp_columns += ["nb_intersections"]
+    elif union_type == "REPEATED_INTERSECTIONS":
+        # asked columns + "union_fid"
+        asked_columns = list(input_layerinfo.columns)
+        exp_columns = [col if col != "fid" else "fid_1" for col in asked_columns]
+        exp_columns += ["union_fid"]
+    else:
+        raise ValueError(f"Unsupported union_type for this test: {union_type}")
 
-
-@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
-def test_union_full_self_4circles(tmp_path, suffix: str):
-    # Prepare test data
-    input_path = test_helper.get_testfile("polygon-4overlappingcircles", suffix=suffix)
-    input_layerinfo = gfo.get_layerinfo(input_path)
-    batchsize = math.ceil(input_layerinfo.featurecount / 2)
-    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
-
-    # Also run some tests on basic data with circles
-    # Union the single circle towards the 2 circles
-    gfo.union_full_self(
-        input_path=input_path,
-        output_path=output_path,
-        batchsize=batchsize,
-    )
-
-    # Check if the tmp file is correctly created
-    assert output_path.exists()
-    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
-    assert gfo.has_spatial_index(output_path) is exp_spatial_index
-    output_layerinfo = gfo.get_layerinfo(output_path)
-    assert output_layerinfo.featurecount == 11
-    assert ((len(input_layerinfo.columns) + 1) * 4) == len(output_layerinfo.columns)
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+    assert sorted(output_layerinfo.columns) == sorted(exp_columns)
 
     # Check the contents of the result file
     output_gdf = gfo.read_file(output_path)
