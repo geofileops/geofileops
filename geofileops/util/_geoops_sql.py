@@ -837,6 +837,7 @@ def _single_layer_vector_operation(
                 operation=operation_name,
                 nb_parallel=processing_params.nb_parallel,
             )
+            tmp_output_not_exists_or_empty = True
             for future in futures.as_completed(future_to_batch_id):
                 try:
                     _ = future.result()
@@ -861,13 +862,20 @@ def _single_layer_vector_operation(
                 if (
                     tmp_partial_output_path.suffix == tmp_output_path.suffix
                     and where_post is None
-                    and not tmp_output_path.exists()
+                    and tmp_output_not_exists_or_empty
                 ):
-                    # If it is the first partial file
+                    # If it is the first partial file or if tmp_output is empty
                     #   + partial file is already is correct file format
                     #   + no more where_post needs to be applied
                     # -> just rename partial file, as that's faster than copy_layer.
                     gfo.move(tmp_partial_output_path, tmp_output_path)
+
+                    # If featurecount is 0, column types can be wrong, so in that case
+                    # overwrite tmp_output if there are more batches.
+                    info = gfo.get_layerinfo(tmp_output_path, output_layer)
+                    if info.featurecount > 0:
+                        tmp_output_not_exists_or_empty = False
+
                 else:
                     # Copy partial file contents to full tmp output file
                     if where_post is not None:
