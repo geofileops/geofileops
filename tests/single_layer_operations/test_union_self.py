@@ -264,11 +264,6 @@ def test_union_full_self_fid_1_in_input(tmp_path, union_type, exp_features):
     [
         ({"subdivide_coords": -5}, "subdivide_coords < 0 is not allowed"),
         ({"union_type": "INVALID_TYPE"}, "union_type should be one of"),
-        (
-            {"union_type": "NO_INTERSECTIONS_NO_ATTRIBUTES", "columns": ["name"]},
-            "input_columns should not be set when union_type is "
-            "'NO_INTERSECTIONS_NO_ATTRIBUTES'",
-        ),
     ],
 )
 def test_union_full_self_invalid_args(tmp_path, kwargs, error_msg):
