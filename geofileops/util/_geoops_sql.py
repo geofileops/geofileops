@@ -872,14 +872,18 @@ def _single_layer_vector_operation(
 
                     # If featurecount is 0, column types can be wrong, so in that case
                     # overwrite tmp_output if there are more batches.
-                    info = gfo.get_layerinfo(tmp_output_path, output_layer)
+                    info = gfo.get_layerinfo(
+                        tmp_output_path, output_layer, raise_on_nogeom=False
+                    )
                     if info.featurecount > 0:
                         tmp_output_not_exists_or_empty = False
 
                 else:
                     # Copy partial file contents to full tmp output file
                     if where_post is not None:
-                        info = gfo.get_layerinfo(tmp_partial_output_path, output_layer)
+                        info = gfo.get_layerinfo(
+                            tmp_partial_output_path, output_layer, raise_on_nogeom=False
+                        )
                         where_post = where_post.format(
                             geometrycolumn=info.geometrycolumn
                         )
