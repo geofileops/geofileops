@@ -28,6 +28,10 @@ from tests.test_helper import (
 )
 @pytest.mark.parametrize("suffix", [".gpkg", ".gpkg.zip"])
 def test_delete_duplicate_geoms(tmp_path, priority_column, priority_ascending, suffix):
+    if not GDAL_GTE_311 and suffix == ".gpkg.zip":
+        # Skip test for unsupported GDAL versions
+        pytest.skip(".zip support requires gdal>=3.11")
+
     # Prepare test data
     test_gdf = gpd.GeoDataFrame(
         {"fid": [1, 2, 3, 4, 5], "priority": [5, 3, 3, 4, 5]},
