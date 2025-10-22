@@ -3717,7 +3717,7 @@ def union(
 def union_full_self(
     input_path: Path,
     output_path: Path,
-    union_type: UnionFullSelfTypes = "NO_INTERSECTIONS_NO_ATTRIBUTES",  # type: ignore[assignment]
+    union_type: UnionFullSelfTypes = "REPEATED_INTERSECTIONS",  # type: ignore[assignment]
     input_layer: str | None = None,
     output_layer: str | None = None,
     columns: list[str] | None = None,
@@ -3739,11 +3739,8 @@ def union_full_self(
         input_path (PathLike): the input file.
         output_path (PathLike): the file to write the result to
         union_type (UnionFullSelfTypes): the type of union to perform. Defaults to
-            "NO_INTERSECTIONS_NO_ATTRIBUTES". Possible values are:
+            "REPEATED_INTERSECTIONS". Possible values are:
 
-            - "NO_INTERSECTIONS_NO_ATTRIBUTES": the output won't contain any
-              intersections between features. Attribute columns are not preserved in the
-              output.
             - "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS": the output won't contain any
               intersections between features. Attribute columns are preserved as columns
               prefixed with "isXX_", where for each extra intersection a new set of
@@ -3751,6 +3748,8 @@ def union_full_self(
             - "NO_INTERSECTIONS_ATTRIBUTE_LISTS": the output won't contain any
               intersections between features. Attribute columns are retained and values
               will be stored in a list the length of the number of intersections.
+              A column "nb_intersections" is added to indicate the number of
+              intersections per feature.
             - "REPEATED_INTERSECTIONS": each location where the input features intersect
               is duplicated the number of time that area is covered by an input feature.
               Hence, the output may contain repeated intersections between features.
