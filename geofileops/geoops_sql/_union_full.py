@@ -48,7 +48,7 @@ def union_full_self(
     if subdivide_coords < 0:
         raise ValueError("subdivide_coords < 0 is not allowed")
     if union_type not in get_args(UnionFullSelfTypes):
-        raise ValueError(f"union_type should be one of {UnionFullSelfTypes}")
+        raise ValueError(f"union_type should be one of {get_args(UnionFullSelfTypes)}")
 
     operation_name = "union_full_self"
     logger = logging.getLogger(f"geofileops.{operation_name}")
