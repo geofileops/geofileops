@@ -1,4 +1,5 @@
 import math
+from itertools import product
 
 import geopandas as gpd
 import pytest
@@ -145,18 +146,26 @@ def test_union_full_self_boxes(
 
     # Check if the output file is correctly created
     input_layerinfo = gfo.get_layerinfo(input_path)
-    nb_asked_columns = (
-        len(columns) if columns is not None else len(input_layerinfo.columns)
-    )
+    asked_columns = columns if columns is not None else list(input_layerinfo.columns)
     if union_type == "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS":
         # asked columns * nb_intersections (=boxes)
-        exp_columns = nb_asked_columns * nb_boxes
+        exp_columns = [
+            f"is{idx}_{col}" for idx, col in product(range(len(boxes)), asked_columns)
+        ]
+        # The "nb_intersections" column is not available in this union_type
+        exp_max_nb_intersections = None
     elif union_type == "NO_INTERSECTIONS_ATTRIBUTE_LISTS":
-        # asked columns + union_fid
-        exp_columns = nb_asked_columns + 1
+        # asked columns + "nb_intersections"
+        exp_columns = [col if col != "fid" else "fid_1" for col in asked_columns]
+        exp_columns += ["nb_intersections"]
+        # The "nb_intersections" column is filled out for this union_type
+        exp_max_nb_intersections = nb_boxes - 1
     elif union_type == "REPEATED_INTERSECTIONS":
-        # asked columns + union_fid
-        exp_columns = nb_asked_columns + 1
+        # asked columns + "union_fid"
+        exp_columns = [col if col != "fid" else "fid_1" for col in asked_columns]
+        exp_columns += ["union_fid"]
+        # The "nb_intersections" column is not available in this union_type
+        exp_max_nb_intersections = None
     else:
         raise ValueError(f"Unsupported union_type for this test: {union_type}")
 
@@ -165,12 +174,17 @@ def test_union_full_self_boxes(
     assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == exp_features
-    assert len(output_layerinfo.columns) == exp_columns
+    assert sorted(output_layerinfo.columns) == sorted(exp_columns)
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
 
     # Check the contents of the result file
     output_gdf = gfo.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
+    if exp_max_nb_intersections is not None:
+        assert "nb_intersections" in output_gdf.columns
+        assert output_gdf["nb_intersections"].max().item() == exp_max_nb_intersections
+    else:
+        assert "nb_intersections" not in output_gdf.columns
 
 
 @pytest.mark.parametrize(

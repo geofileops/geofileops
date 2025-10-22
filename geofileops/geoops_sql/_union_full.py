@@ -43,10 +43,6 @@ def union_full_self(
     force: bool = False,
     output_with_spatial_index: bool | None = None,
 ):
-    # A union is the combination of the results of an intersection of input1 and input2,
-    # the result of an difference of input2 with input1 and the difference of input1
-    # with input2.
-
     # Because the calculations of the intermediate results will be towards temp files,
     # we need to do some additional init + checks here...
     if subdivide_coords < 0:
@@ -104,17 +100,17 @@ def union_full_self(
                 # In the first loop, include the original fid column
                 input1_columns = columns_loop
                 input2_columns = input1_columns
-                input1_columns_prefix = f"is{loop_id:02d}_"
-                input2_columns_prefix = f"is{loop_id + 1:02d}_"
+                input1_columns_prefix = f"is{loop_id}_"
+                input2_columns_prefix = f"is{loop_id + 1}_"
 
             elif loop_id == 1:
                 # In the second loop, we need to include the original fid column
                 input1_columns = None  # all columns
                 input2_columns = [
-                    f"is{loop_id:02d}_{col}" for col in columns_loop
+                    f"is{loop_id}_{col}" for col in columns_loop
                 ]  # only the "right" columns
                 input1_columns_prefix = ""
-                input2_columns_prefix = f"is{loop_id + 1:02d}_"
+                input2_columns_prefix = f"is{loop_id + 1}_"
 
                 # After the 0th loop, we cannot use the subdivided input anymore
                 input_subdivided_cur_path = None
@@ -342,7 +338,7 @@ def _get_union_full_attr_sql_stmt(
             columns_list = []
             for col in columns:
                 if col.lower() == "fid":
-                    column_str = f'json_group_array("{col}") AS "fid_orig"'
+                    column_str = f'json_group_array("{col}") AS "fid_1"'
                 else:
                     column_str = f'json_group_array("{col}") AS "{col}"'
                 columns_list.append(column_str)
@@ -354,13 +350,13 @@ def _get_union_full_attr_sql_stmt(
 
         # An index on union_fid does not speed this up/decrease memory usage
         sql_stmt = f"""
-            SELECT {{geometrycolumn}}
-                    ,union_fid
-                    {columns_str}
-                FROM "{{input_layer}}" layer
-                WHERE 1=1
-                {{batch_filter}}
-                GROUP BY union_fid
+            SELECT layer.{{geometrycolumn}}
+                  ,COUNT(*) - 1 AS nb_intersections
+                  {columns_str}
+              FROM "{{input_layer}}" layer
+             WHERE 1=1
+               {{batch_filter}}
+             GROUP BY union_fid
         """
 
     elif union_type == "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS":
@@ -370,9 +366,9 @@ def _get_union_full_attr_sql_stmt(
             # First determine the maximum number of intersections
             sql_stmt_max = """
                 SELECT MAX(counts.count) AS max_intersections
-                    FROM ( SELECT COUNT(*) AS count
+                  FROM  ( SELECT COUNT(*) AS count
                             FROM "{input_layer}" layer
-                            GROUP BY union_fid
+                           GROUP BY union_fid
                         ) counts
             """
             df = fileops.read_file(union_multirow_path, sql_stmt=sql_stmt_max)
@@ -398,18 +394,19 @@ def _get_union_full_attr_sql_stmt(
             columns_str = ""
 
         sql_stmt = f"""
-            SELECT layer.{{geometrycolumn}}
-                    {columns_str}
-                FROM (
-                SELECT layer_ext.{{geometrycolumn}}
-                        ,layer_ext.union_fid
-                        {{columns_to_select_str}}
-                        ,row_number() OVER (PARTITION BY union_fid) AS rn
-                    FROM "{{input_layer}}" layer_ext
-                ) layer
-            WHERE 1=1
-                {{batch_filter}}
-            GROUP BY layer.union_fid
+            SELECT data.{{geometrycolumn}}
+                  {columns_str}
+              FROM (
+                SELECT layer.{{geometrycolumn}}
+                      ,layer.union_fid
+                      {{columns_to_select_str}}
+                      ,row_number() OVER (PARTITION BY union_fid) AS rn
+                  FROM "{{input_layer}}" layer
+                 WHERE 1=1
+                   {{batch_filter}}
+                ) data
+             WHERE 1=1
+             GROUP BY data.union_fid
         """
 
     else:
