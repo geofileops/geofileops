@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING, Any, Literal, Union
 from pygeoops import GeometryType
 
 from geofileops import fileops
+from geofileops.geoops_sql import _union_full
+from geofileops.geoops_sql._union_full import UnionFullSelfTypes
 from geofileops.helpers import _general_helper
 from geofileops.util import (
     _geofileinfo,
@@ -3715,7 +3717,7 @@ def union(
 def union_full_self(
     input_path: Path,
     output_path: Path,
-    union_type: str = "NO_INTERSECTIONS_NO_ATTRIBUTES",
+    union_type: UnionFullSelfTypes = "NO_INTERSECTIONS_NO_ATTRIBUTES",  # type: ignore[assignment]
     input_layer: str | None = None,
     output_layer: str | None = None,
     columns: list[str] | None = None,
@@ -3730,12 +3732,13 @@ def union_full_self(
     """Calculates the union of all features in a single layer.
 
     This function calculates the union of all features in a single layer by iteratively
-    applying pairwise union operations in a loopy way till all features have been merged.
+    applying pairwise union operations in a loopy way till all features have been
+    merged.
 
     Args:
         input_path (PathLike): the input file.
         output_path (PathLike): the file to write the result to
-        union_type (str): the type of union to perform. Defaults to
+        union_type (UnionFullSelfTypes): the type of union to perform. Defaults to
             "NO_INTERSECTIONS_NO_ATTRIBUTES". Possible values are:
 
             - "NO_INTERSECTIONS_NO_ATTRIBUTES": the output won't contain any
@@ -3789,7 +3792,7 @@ def union_full_self(
     logger = logging.getLogger("geofileops.union_full_self")
     logger.info(f"Start, with input: {input_path}, output: {output_path}")
 
-    _geoops_sql.union_full_self(
+    _union_full.union_full_self(
         input_path=Path(input_path),
         output_path=Path(output_path),
         union_type=union_type,

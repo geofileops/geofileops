@@ -102,6 +102,7 @@ def buffer(
         keep_empty_geoms=keep_empty_geoms,
         where_post=where_post,
         sql_dialect="SQLITE",
+        preserve_fid=None,
         gpkg_needed=False,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -149,6 +150,7 @@ def convexhull(
         keep_empty_geoms=keep_empty_geoms,
         where_post=where_post,
         sql_dialect="SQLITE",
+        preserve_fid=None,
         gpkg_needed=False,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -171,7 +173,8 @@ def delete_duplicate_geometries(  # noqa: D417
     nb_parallel: int,
     batchsize: int,
     force: bool,
-    tmp_basedir: Path | None,
+    operation_prefix: str = "",
+    tmp_basedir: Path | None = None,
 ):
     """Delete duplicates in the input file and write the result to the output file.
 
@@ -179,12 +182,17 @@ def delete_duplicate_geometries(  # noqa: D417
     For the other arguments, check out the corresponding function in geoops.py.
 
     Args:
+        operation_prefix (str, optional): A prefix to add to the operation name for
+            logging. Defaults to "".
         tmp_basedir (Optional[Path], optional): The directory to create the temporary
             directory in for this operation call. If None, it is created in the default
             geofileops temporary directory. Useful to keep all temporary files for an
             operation that uses multiple steps in one temporary directory.
             Defaults to None.
     """
+    operation_name = f"{operation_prefix}delete_duplicate_geometries"
+
+    # Prepare sql template for this operation
     if priority_column is None:
         priority_column = "rowid"
     priority_order = "ASC" if priority_ascending else "DESC"
@@ -220,7 +228,7 @@ def delete_duplicate_geometries(  # noqa: D417
         output_path=output_path,
         sql_template=sql_template,
         geom_selected=True,
-        operation_name="delete_duplicate_geometries",
+        operation_name=operation_name,
         input_layer=input_layer,
         output_layer=output_layer,
         columns=columns,
@@ -230,6 +238,7 @@ def delete_duplicate_geometries(  # noqa: D417
         keep_empty_geoms=keep_empty_geoms,
         where_post=where_post,
         sql_dialect="SQLITE",
+        preserve_fid=None,
         gpkg_needed=True,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -276,6 +285,7 @@ def isvalid(
         keep_empty_geoms=False,
         where_post=None,
         sql_dialect="SQLITE",
+        preserve_fid=None,
         gpkg_needed=False,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -382,6 +392,7 @@ def makevalid(
         keep_empty_geoms=keep_empty_geoms,
         where_post=where_post,
         sql_dialect="SQLITE",
+        preserve_fid=None,
         gpkg_needed=False,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -402,10 +413,13 @@ def select(
     force_output_geometrytype: GeometryType | None = None,
     gridsize: float = 0.0,
     keep_empty_geoms: bool = False,
+    preserve_fid: bool | None = None,
     nb_parallel: int = 1,
     batchsize: int = -1,
     force: bool = False,
     operation_prefix: str = "",
+    batch_filter_column: str = "rowid",
+    tmp_basedir: Path | None = None,
 ):
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
@@ -444,11 +458,13 @@ def select(
         keep_empty_geoms=keep_empty_geoms,
         where_post=None,
         sql_dialect=sql_dialect,
+        preserve_fid=preserve_fid,
         gpkg_needed=False,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
-        tmp_basedir=None,
+        tmp_basedir=tmp_basedir,
+        batch_filter_column=batch_filter_column,
     )
 
 
@@ -493,6 +509,7 @@ def simplify(
         keep_empty_geoms=keep_empty_geoms,
         where_post=where_post,
         sql_dialect="SQLITE",
+        preserve_fid=None,
         gpkg_needed=False,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -516,11 +533,13 @@ def _single_layer_vector_operation(
     keep_empty_geoms: bool,
     where_post: str | None,
     sql_dialect: Literal["SQLITE", "OGRSQL"] | None,
+    preserve_fid: bool | None,
     gpkg_needed: bool,
     nb_parallel: int,
     batchsize: int,
     force: bool,
     tmp_basedir: Path | None,
+    batch_filter_column: str = "rowid",
 ):
     """Execute a sql query template on the input layer.
 
@@ -541,6 +560,7 @@ def _single_layer_vector_operation(
         keep_empty_geoms (bool): _description_
         where_post (Optional[str]): _description_
         sql_dialect (Optional[Literal["SQLITE", "OGRSQL"]]): _description_
+        preserve_fid (Optional[bool]): Whether to preserve the fid column if possible.
         gpkg_needed (bool): True if the input needs to be converted to a GeoPackage.
         nb_parallel (int): _description_
         batchsize (int): _description_
@@ -549,6 +569,7 @@ def _single_layer_vector_operation(
             directory in for this operation call. If None, it is created in the default
             geofileops temporary directory. Useful to keep all temporary files for an
             operation that uses multiple steps in one temporary directory.
+        batch_filter_column (str): The column to use for batching.
 
     Raises:
         ValueError: _description_
@@ -588,13 +609,14 @@ def _single_layer_vector_operation(
             raise ValueError(f"unsupported {force_output_geometrytype=}")
 
     # Determine if fid can be preserved
-    preserve_fid = False
-    if (
-        not explodecollections
-        and _geofileinfo.get_geofileinfo(input_path).is_spatialite_based
-        and _geofileinfo.get_geofileinfo(output_path).is_spatialite_based
-    ):
-        preserve_fid = True
+    if preserve_fid is None:
+        preserve_fid = False
+        if (
+            not explodecollections
+            and _geofileinfo.get_geofileinfo(input_path).is_spatialite_based
+            and _geofileinfo.get_geofileinfo(output_path).is_spatialite_based
+        ):
+            preserve_fid = True
 
     # Calculate
     with _general_helper.create_gfo_tmp_dir(operation_name, tmp_basedir) as tmp_dir:
@@ -615,6 +637,7 @@ def _single_layer_vector_operation(
             tmp_dir=tmp_dir,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
+            batch_filter_column=batch_filter_column,
         )
         # If None is returned, just stop.
         if processing_params is None or processing_params.batches is None:
@@ -1065,7 +1088,7 @@ def difference(  # noqa: D417
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
-    input1_layer, input2_layer, output_layer = _validate_params(
+    input1_layer, input2_layer, output_layer = _validate_params_two_layers(
         input1_path=input1_path,
         input2_path=input2_path,
         output_path=output_path,
@@ -1805,7 +1828,7 @@ def intersection(  # noqa: D417
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
-    input1_layer, input2_layer, output_layer = _validate_params(
+    input1_layer, input2_layer, output_layer = _validate_params_two_layers(
         input1_path=input1_path,
         input2_path=input2_path,
         output_path=output_path,
@@ -2140,7 +2163,11 @@ def join_by_location(
     batchsize: int = -1,
     force: bool = False,
     output_with_spatial_index: bool | None = None,
+    operation_prefix: str = "",
+    tmp_basedir: Path | None = None,
 ):
+    operation_name = f"{operation_prefix}join_by_location"
+
     # Prepare sql template for this operation
     # Prepare intersection area columns/filter
     area_inters_column_expression = ""
@@ -2252,7 +2279,7 @@ def join_by_location(
         input2_path=input2_path,
         output_path=output_path,
         sql_template=sql_template,
-        operation_name="join_by_location",
+        operation_name=operation_name,
         input1_layer=input1_layer,
         input1_columns=input1_columns,
         input1_columns_prefix=input1_columns_prefix,
@@ -2267,7 +2294,7 @@ def join_by_location(
         nb_parallel=nb_parallel,
         batchsize=batchsize,
         force=force,
-        tmp_basedir=None,
+        tmp_basedir=tmp_basedir,
         column_types=column_types,
         output_with_spatial_index=output_with_spatial_index,
     )
@@ -2712,7 +2739,7 @@ def identity(
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
-    input1_layer, input2_layer, output_layer = _validate_params(
+    input1_layer, input2_layer, output_layer = _validate_params_two_layers(
         input1_path=input1_path,
         input2_path=input2_path,
         output_path=output_path,
@@ -2878,7 +2905,7 @@ def symmetric_difference(
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
-    input1_layer, input2_layer, output_layer = _validate_params(
+    input1_layer, input2_layer, output_layer = _validate_params_two_layers(
         input1_path=input1_path,
         input2_path=input2_path,
         output_path=output_path,
@@ -3050,7 +3077,7 @@ def union(
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
-    input1_layer, input2_layer, output_layer = _validate_params(
+    input1_layer, input2_layer, output_layer = _validate_params_two_layers(
         input1_path=input1_path,
         input2_path=input2_path,
         output_path=output_path,
@@ -3220,373 +3247,6 @@ def union(
     logger.info(f"Ready, full union took {datetime.now() - start_time}")
 
 
-def union_full_self(
-    input_path: Path,
-    output_path: Path,
-    union_type: str,
-    input_layer: str | LayerInfo | None = None,
-    output_layer: str | None = None,
-    columns: list[str] | None = None,
-    explodecollections: bool = False,
-    gridsize: float = 0.0,
-    where_post: str | None = None,
-    nb_parallel: int = -1,
-    batchsize: int = -1,
-    subdivide_coords: int = 2000,
-    force: bool = False,
-    output_with_spatial_index: bool | None = None,
-):
-    # A union is the combination of the results of an intersection of input1 and input2,
-    # the result of an difference of input2 with input1 and the difference of input1
-    # with input2.
-
-    # Because the calculations of the intermediate results will be towards temp files,
-    # we need to do some additional init + checks here...
-    if subdivide_coords < 0:
-        raise ValueError("subdivide_coords < 0 is not allowed")
-    union_types = (
-        "NO_INTERSECTIONS_NO_ATTRIBUTES",
-        "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS",
-        "NO_INTERSECTIONS_ATTRIBUTE_LISTS",
-        "REPEATED_INTERSECTIONS",
-    )
-    if union_type not in union_types:
-        raise ValueError(f"union_type should be one of {union_types}")
-    if union_type == "NO_INTERSECTIONS" and columns is not None:
-        raise ValueError(
-            "input_columns should not be set when union_type is 'NO_INTERSECTIONS'"
-        )
-
-    operation_name = "union_self_loopy"
-    logger = logging.getLogger(f"geofileops.{operation_name}")
-
-    if _io_util.output_exists(path=output_path, remove_if_exists=force):
-        return
-
-    input_layer, _, output_layer = _validate_params(
-        input1_path=input_path,
-        input2_path=None,
-        output_path=output_path,
-        input1_layer=input_layer,
-        input2_layer=None,
-        output_layer=output_layer,
-        operation_name=operation_name,
-    )
-
-    os.environ["GFO_REMOVE_TEMP_FILES"] = "FALSE"
-    start_time = datetime.now()
-    with _general_helper.create_gfo_tmp_dir(operation_name) as tmp_dir:
-        # Prepare the input files
-        logger.info("Step 1 of 3: prepare input file")
-        input_subdivided_path = _subdivide_layer(
-            path=input_path,
-            layer=input_layer,
-            output_path=tmp_dir / "subdivided/input_layer.gpkg",
-            subdivide_coords=subdivide_coords,
-            nb_parallel=nb_parallel,
-            batchsize=batchsize,
-            operation_prefix="union/",
-            tmp_basedir=tmp_dir,
-        )
-        if input_subdivided_path is None:
-            # Hardcoded optimization: root means that no subdivide was needed
-            input_subdivided_path = Path("/")
-
-        # Loop until all intersections are gone...
-        logger.info("Step 2 of 3: create a 'flat union' layer (=no intersections)")
-        non_intersecting_path = tmp_dir / "union_self_non_intersecting.gpkg"
-        columns_loop = list(input_layer.columns) if columns is None else columns
-
-        loop_id = 0
-        input_loop_path = input_path
-        input_loop_layer: str | LayerInfo = input_layer
-        input_subdivided_cur_path: Path | None = input_subdivided_path
-        while True:
-            if loop_id == 0:
-                # In the first loop, include the original fid column
-                input1_columns = columns_loop
-                input2_columns = input1_columns
-                input1_columns_prefix = f"is{loop_id:02d}_"
-                input2_columns_prefix = f"is{loop_id + 1:02d}_"
-
-            elif loop_id == 1:
-                # In the second loop, we need to include the original fid column
-                input1_columns = None  # all columns
-                input2_columns = [
-                    f"is{loop_id:02d}_{col}" for col in columns_loop
-                ]  # only the "right" columns
-                input1_columns_prefix = ""
-                input2_columns_prefix = f"is{loop_id + 1:02d}_"
-
-                # After the 0th loop, we cannot use the subdivided input anymore
-                input_subdivided_cur_path = None
-
-                # The input_loop layer becomes the output layer after 1st loop
-                input_loop_layer = output_layer
-
-            else:
-                input1_columns = []  # No columns
-                input2_columns = []  # No columns
-
-            # Parts of geometries that don't intersect in the input layer are ready for
-            # the output.
-            diff_output_path = tmp_dir / f"diff_output_{loop_id}.gpkg"
-            difference(
-                input1_path=input_loop_path,
-                input2_path=input_loop_path,
-                output_path=diff_output_path,
-                overlay_self=True,
-                input1_layer=input_loop_layer,
-                input1_columns=input1_columns,
-                input_columns_prefix=input1_columns_prefix,
-                input2_layer=input_loop_layer,
-                output_layer=output_layer,
-                explodecollections=explodecollections,
-                gridsize=gridsize,
-                where_post=where_post,
-                nb_parallel=nb_parallel,
-                batchsize=batchsize,
-                subdivide_coords=subdivide_coords,
-                force=force,
-                output_with_spatial_index=False,
-                operation_prefix=f"{operation_name}/",
-                tmp_basedir=tmp_dir,
-                input1_subdivided_path=input_subdivided_cur_path,
-                input2_subdivided_path=input_subdivided_cur_path,
-            )
-
-            if loop_id == 0:
-                # First loop, so we can just rename
-                gfo.move(diff_output_path, non_intersecting_path)
-            else:
-                # Append
-                fileops.copy_layer(
-                    src=diff_output_path,
-                    dst=non_intersecting_path,
-                    src_layer=output_layer,
-                    dst_layer=output_layer,
-                    write_mode="append_add_fields",
-                )
-
-            # Determine the parts of geometries in the input layer that intersect.
-            intersection_output_path = tmp_dir / f"intersection_output_{loop_id}.gpkg"
-            intersection(
-                input1_path=input_loop_path,
-                input2_path=input_loop_path,
-                output_path=intersection_output_path,
-                overlay_self=True,
-                include_duplicates=False,
-                input1_layer=input_loop_layer,
-                input1_columns=input1_columns,
-                input1_columns_prefix=input1_columns_prefix,
-                input2_layer=input_loop_layer,
-                input2_columns=input2_columns,
-                input2_columns_prefix=input2_columns_prefix,
-                output_layer=output_layer,
-                explodecollections=explodecollections,
-                gridsize=gridsize,
-                where_post=None,
-                nb_parallel=nb_parallel,
-                batchsize=batchsize,
-                force=force,
-                output_with_spatial_index=False,
-                operation_prefix=f"{operation_name}/",
-                tmp_basedir=tmp_dir,
-                input1_subdivided_path=input_subdivided_cur_path,
-                input2_subdivided_path=input_subdivided_cur_path,
-            )
-
-            # If the intersection output is empty, we are ready...
-            inters_info = gfo.get_layerinfo(path=intersection_output_path)
-            if inters_info.featurecount == 0:
-                attributes_in_flat_union = True if loop_id <= 1 else False
-                break
-
-            # Delete duplicates from the intersections before starting next loop.
-            deldups_path = tmp_dir / f"{intersection_output_path.stem}_no-dups.gpkg"
-            delete_duplicate_geometries(
-                input_path=intersection_output_path,
-                output_path=deldups_path,
-                input_layer=output_layer,
-                output_layer=output_layer,
-                columns=None,
-                priority_column=None,
-                priority_ascending=True,
-                explodecollections=False,
-                keep_empty_geoms=False,
-                where_post=None,
-                nb_parallel=nb_parallel,
-                batchsize=batchsize,
-                force=force,
-                tmp_basedir=tmp_dir,
-            )
-            intersection_output_path = deldups_path
-
-            # Init for the next loop
-            # if intersection_output_prev_path is not None:
-            #    gfo.remove(intersection_output_prev_path)
-            input_loop_path = intersection_output_path
-            loop_id += 1
-
-        if union_type == "NO_INTERSECTIONS_NO_ATTRIBUTES":
-            # Almost ready, just make sure there are no output attribute columns
-            info = gfo.get_layerinfo(path=non_intersecting_path, layer=output_layer)
-            for col in info.columns:
-                gfo.drop_column(
-                    path=non_intersecting_path, layer=output_layer, column_name=col
-                )
-
-            output_tmp_path = non_intersecting_path
-
-        elif (
-            union_type == "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS"
-            and attributes_in_flat_union
-        ):
-            # If the attributes are already in the result of the "flat union", not
-            # needed to join them.
-            output_tmp_path = non_intersecting_path
-
-        else:
-            # Join the "flat union" with the original input layer to:
-            #   - add the attributes of the input layer
-            #   - duplicate the polygon parts as many times as they overlap in the
-            #     input layer
-            union_multirow_path = tmp_dir / "union_multirow.gpkg"
-            join_by_location(
-                input1_path=non_intersecting_path,
-                input2_path=input_path,
-                output_path=union_multirow_path,
-                spatial_relations_query="intersects is True and touches is False",
-                input1_layer=output_layer,
-                input2_layer=input_layer,
-                output_layer=output_layer,
-                input1_columns=["fid"],
-                input2_columns=columns,
-                input1_columns_prefix="union_",
-                input2_columns_prefix="",
-                explodecollections=explodecollections,
-                gridsize=gridsize,
-                where_post=where_post,
-                nb_parallel=nb_parallel,
-                batchsize=batchsize,
-                force=False,
-                output_with_spatial_index=False,
-            )
-            output_tmp_path = union_multirow_path
-            columns_local = list(input_layer.columns) if columns is None else columns
-
-            if union_type == "NO_INTERSECTIONS_ATTRIBUTE_LISTS":
-                if len(columns_local) > 0:
-                    columns_list = []
-                    for col in columns_local:
-                        if col.lower() == "fid":
-                            column_str = f'json_group_array("{col}") AS "fid_orig"'
-                        else:
-                            column_str = f'json_group_array("{col}") AS "{col}"'
-                        columns_list.append(column_str)
-
-                    columns_str = f", {', '.join(columns_list)}"
-
-                else:
-                    columns_str = ""
-
-                sql_stmt = f"""
-                    SELECT {{geometrycolumn}}
-                          ,union_fid
-                          {columns_str}
-                      FROM "{{input_layer}}" layer
-                     GROUP BY union_fid
-                """
-                select_output_path = tmp_dir / "union_attributes_list.gpkg"
-                select(
-                    input_path=output_tmp_path,
-                    output_path=select_output_path,
-                    sql_stmt=sql_stmt,
-                    input_layer=output_layer,
-                    output_layer=output_layer,
-                    nb_parallel=1,
-                    batchsize=batchsize,
-                )
-                output_tmp_path = select_output_path
-
-            elif union_type == "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS":
-                if columns is None:
-                    columns = list(input_layer.columns)
-
-                if len(columns) > 0:
-                    # First determine the maximum number of intersections
-                    sql_stmt_max = """
-                        SELECT MAX(counts.count) AS max_intersections
-                          FROM ( SELECT COUNT(*) AS count
-                                   FROM "{input_layer}" layer
-                                  GROUP BY union_fid
-                               ) counts
-                    """
-                    df = fileops.read_file(output_tmp_path, sql_stmt=sql_stmt_max)
-                    max_intersections = df.iloc[0]["max_intersections"]
-
-                    # Now create the columns for in the select
-                    columns_list = []
-                    for is_id in range(max_intersections):
-                        for input_col in columns:
-                            if input_col.lower() == "fid":
-                                input_col = "fid_1"
-                                col_alias = f"is{is_id}_fid"
-                            else:
-                                col_alias = f"is{is_id}_{input_col}"
-                            columns_list.append(
-                                f'MIN(CASE WHEN rn = {is_id + 1} THEN "{input_col}" END'
-                                f') AS "{col_alias}"'
-                            )
-
-                    columns_str = f", {', '.join(columns_list)}"
-
-                else:
-                    columns_str = ""
-
-                sql_stmt = f"""
-                    SELECT {{geometrycolumn}}
-                          {columns_str}
-                      FROM (
-                        SELECT {{geometrycolumn}}
-                              ,union_fid
-                              {{columns_to_select_str}}
-                              ,row_number() OVER (PARTITION BY union_fid) AS rn
-                          FROM "{{input_layer}}" layer
-                      ) data
-                    GROUP BY union_fid
-                """
-                select_output_path = tmp_dir / "union_attributes_list.gpkg"
-                select(
-                    input_path=output_tmp_path,
-                    output_path=select_output_path,
-                    sql_stmt=sql_stmt,
-                    input_layer=output_layer,
-                    output_layer=output_layer,
-                    nb_parallel=1,
-                    batchsize=batchsize,
-                )
-                output_tmp_path = select_output_path
-
-        # Convert or add spatial index
-        logger.info("Step 3 of 3: finalize")
-
-        if output_tmp_path.suffix != output_path.suffix:
-            # Output file should be in different format, so convert
-            output_tmp2_path = tmp_dir / output_path.name
-            gfo.copy_layer(src=output_tmp_path, dst=output_tmp2_path)
-            output_tmp_path = output_tmp2_path
-        elif GeofileInfo(output_tmp_path).default_spatial_index:
-            gfo.create_spatial_index(
-                path=output_tmp_path, layer=output_layer, exist_ok=True
-            )
-
-        # Now we are ready to move the result to the final spot...
-        gfo.move(output_tmp_path, output_path)
-
-    logger.info(f"Ready, full {operation_name} took {datetime.now() - start_time}")
-
-
 def _two_layer_vector_operation(
     input1_path: Path,
     input2_path: Path,
@@ -3689,7 +3349,7 @@ def _two_layer_vector_operation(
         return
 
     # Validate the input and output layer parameter
-    input1_layer, input2_layer, output_layer = _validate_params(
+    input1_layer, input2_layer, output_layer = _validate_params_two_layers(
         input1_path=input1_path,
         input2_path=input2_path,
         output_path=output_path,
@@ -3776,23 +3436,23 @@ def _two_layer_vector_operation(
             input1_for_prepare_path = input1_subdivided_path
             input1_for_prepare_layer = input1_subdivided_layer
             input1_layer_alias = "layer1_subdiv"
-            filter_column = "fid_1"
+            batch_filter_column = "fid_1"
             input1_is_subdivided = True
 
         elif input2_subdivided_path is not None:
             input1_layer_alias = "layer1_subdiv"
-            filter_column = "fid"
+            batch_filter_column = "fid"
 
         else:
             input1_layer_alias = "layer1"
-            filter_column = "rowid"
+            batch_filter_column = "rowid"
 
         processing_params = _prepare_processing_params(
             input1_path=input1_for_prepare_path,
             input1_layer=input1_for_prepare_layer,
             input1_layer_alias=input1_layer_alias,
             input1_is_subdivided=input1_is_subdivided,
-            filter_column=filter_column,
+            batch_filter_column=batch_filter_column,
             input2_path=input2_path,
             input2_layer=input2_layer,
             tmp_dir=tmp_dir,
@@ -4198,7 +3858,50 @@ def _determine_column_types(
     return column_types_tmp
 
 
-def _validate_params(
+def _validate_params_single_layer(
+    input_path: Path,
+    output_path: Path,
+    input_layer: str | LayerInfo | None,
+    output_layer: str | None,
+    operation_name: str,
+) -> tuple[LayerInfo, str]:
+    """Validate the input parameters, return the layer names.
+
+    Args:
+        input_path (Path): path to the input file
+        output_path (Path): path to the output file
+        input_layer (Optional[Union[str, LayerInfo]]): the layer name or the LayerInfo
+            of the input file
+        output_layer (Optional[str]): the layer name of the output file
+        operation_name (str): the operation name, used to get clearer errors.
+
+    Raises:
+        ValueError: when an invalid parameter was passed.
+
+    Returns:
+        a tuple with the layers:
+        input_layer (LayerInfo), output_layer (str)
+    """
+    if output_path == input_path:
+        raise ValueError(
+            f"{operation_name}: output_path must not equal one of input paths"
+        )
+    if not input_path.exists():
+        raise FileNotFoundError(f"{operation_name}: input_path not found: {input_path}")
+
+    # Get layer info
+    if not isinstance(input_layer, LayerInfo):
+        input_layer = gfo.get_layerinfo(
+            input_path, layer=input_layer, raise_on_nogeom=False
+        )
+
+    if output_layer is None:
+        output_layer = gfo.get_default_layer(output_path)
+
+    return input_layer, output_layer
+
+
+def _validate_params_two_layers(
     input1_path: Path,
     input2_path: Path | None,
     output_path: Path,
@@ -4206,7 +3909,7 @@ def _validate_params(
     input2_layer: str | LayerInfo | None,
     output_layer: str | None,
     operation_name: str,
-) -> tuple[LayerInfo, LayerInfo | None, str]:
+) -> tuple[LayerInfo, LayerInfo, str]:
     """Validate the input parameters, return the layer names.
 
     Args:
@@ -4555,7 +4258,7 @@ def _prepare_processing_params(
     batchsize: int = -1,
     input1_layer_alias: str | None = None,
     input1_is_subdivided: bool = False,
-    filter_column: str = "rowid",
+    batch_filter_column: str = "rowid",
     input2_path: Path | None = None,
     input2_layer: LayerInfo | None = None,
 ) -> ProcessingParams | None:
@@ -4658,10 +4361,12 @@ def _prepare_processing_params(
         # Now loop over all batch ranges to build up the necessary filters
         for batch_id, start_id, end_id in batch_info_df.itertuples(index=False):
             # The batch filter
-            batch_filter = f"{layer_alias_d}{filter_column} >= {int(start_id)}"
+            batch_filter = f"{layer_alias_d}{batch_filter_column} >= {int(start_id)}"
             if not np.isnan(end_id).item():
                 # There is an end_id specified, so add it to the filter
-                batch_filter += f" AND {layer_alias_d}{filter_column} <= {int(end_id)}"
+                batch_filter += (
+                    f" AND {layer_alias_d}{batch_filter_column} <= {int(end_id)}"
+                )
             batch_filter = f"AND ({batch_filter}) "
 
             # Fill out the batch properties

@@ -81,14 +81,14 @@ def test_union_full_self_4circles(tmp_path, suffix: str):
         (3, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", None, 7),
         (4, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", None, 9),
         (5, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", ["fid", "value", "name"], 17),
+        (2, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", [], 3),
+        (3, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", [], 7),
+        (4, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", [], 9),
+        (5, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", [], 17),
         (2, "NO_INTERSECTIONS_ATTRIBUTE_LISTS", None, 3),
         (3, "NO_INTERSECTIONS_ATTRIBUTE_LISTS", None, 7),
         (4, "NO_INTERSECTIONS_ATTRIBUTE_LISTS", None, 9),
         (5, "NO_INTERSECTIONS_ATTRIBUTE_LISTS", ["fid", "value", "name"], 17),
-        (2, "NO_INTERSECTIONS_NO_ATTRIBUTES", None, 3),
-        (3, "NO_INTERSECTIONS_NO_ATTRIBUTES", None, 7),
-        (4, "NO_INTERSECTIONS_NO_ATTRIBUTES", None, 9),
-        (5, "NO_INTERSECTIONS_NO_ATTRIBUTES", None, 17),
         (2, "REPEATED_INTERSECTIONS", None, 4),
         (3, "REPEATED_INTERSECTIONS", None, 12),
         (4, "REPEATED_INTERSECTIONS", None, 16),
@@ -145,15 +145,15 @@ def test_union_full_self_boxes(
 
     # Check if the output file is correctly created
     input_layerinfo = gfo.get_layerinfo(input_path)
-    nb_asked_columns = len(columns) if columns else len(input_layerinfo.columns)
+    nb_asked_columns = (
+        len(columns) if columns is not None else len(input_layerinfo.columns)
+    )
     if union_type == "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS":
         # asked columns * nb_intersections (=boxes)
         exp_columns = nb_asked_columns * nb_boxes
     elif union_type == "NO_INTERSECTIONS_ATTRIBUTE_LISTS":
         # asked columns + union_fid
         exp_columns = nb_asked_columns + 1
-    elif union_type == "NO_INTERSECTIONS_NO_ATTRIBUTES":
-        exp_columns = 0
     elif union_type == "REPEATED_INTERSECTIONS":
         # asked columns + union_fid
         exp_columns = nb_asked_columns + 1
@@ -171,3 +171,28 @@ def test_union_full_self_boxes(
     # Check the contents of the result file
     output_gdf = gfo.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
+
+
+@pytest.mark.parametrize(
+    "kwargs, error_msg",
+    [
+        ({"subdivide_coords": -5}, "subdivide_coords < 0 is not allowed"),
+        ({"union_type": "INVALID_TYPE"}, "union_type should be one of"),
+        (
+            {"union_type": "NO_INTERSECTIONS_NO_ATTRIBUTES", "columns": ["name"]},
+            "input_columns should not be set when union_type is "
+            "'NO_INTERSECTIONS_NO_ATTRIBUTES'",
+        ),
+    ],
+)
+def test_union_full_self_invalid_args(tmp_path, kwargs, error_msg):
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-3overlappingcircles", suffix=".gpkg")
+    output_path = tmp_path / "output_invalid_union_type.gpkg"
+
+    with pytest.raises(ValueError, match=error_msg):
+        gfo.union_full_self(
+            input_path=input_path,
+            output_path=output_path,
+            **kwargs,
+        )
