@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Literal, TypeAlias, get_args
 
 import geofileops as gfo
-from geofileops import LayerInfo, fileops
+from geofileops import GeometryType, LayerInfo, fileops
 from geofileops.helpers import _general_helper
 from geofileops.util import _io_util, _ogr_sql_util
 from geofileops.util._geofileinfo import GeofileInfo
@@ -63,6 +63,16 @@ def union_full_self(
         output_layer=output_layer,
         operation_name=operation_name,
     )
+
+    # Determine output_geometrytype
+    force_output_geometrytype = input_layer.geometrytype
+    if explodecollections:
+        force_output_geometrytype = force_output_geometrytype.to_singletype
+    elif force_output_geometrytype is not GeometryType.POINT:
+        # If explodecollections is False and the input type is not point, force the
+        # output type to multi, because difference can cause eg. polygons to be split to
+        # multipolygons.
+        force_output_geometrytype = force_output_geometrytype.to_multitype
 
     start_time = datetime.now()
     with _general_helper.create_gfo_tmp_dir(operation_name) as tmp_dir:
@@ -162,6 +172,7 @@ def union_full_self(
                     src_layer=output_layer,
                     dst_layer=output_layer,
                     write_mode="append_add_fields",
+                    force_output_geometrytype=force_output_geometrytype,
                 )
 
             # Determine the parts of geometries in the input layer that intersect.
