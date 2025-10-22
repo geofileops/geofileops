@@ -188,6 +188,69 @@ def test_union_full_self_boxes(
 
 
 @pytest.mark.parametrize(
+    "union_type, exp_features",
+    [
+        ("NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", 3),
+        ("NO_INTERSECTIONS_ATTRIBUTE_LISTS", 3),
+        ("REPEATED_INTERSECTIONS", 4),
+    ],
+)
+def test_union_full_self_fid_1_in_input(tmp_path, union_type, exp_features):
+    """Test behaviour if the input file has already a column "fid_1."""
+    # Prepare test data
+    input_gdf = gpd.GeoDataFrame(
+        {
+            "geometry": [box(0, 0, 10, 10), box(8, 0, 18, 10)],
+            "fid_1": [100, 200],
+            "value": [1, 2],
+            "name": ["box_1", "box_2"],
+        },
+        crs="EPSG:31370",
+    )
+    input_path = tmp_path / "input_fid_1.gpkg"
+    input_gdf.to_file(input_path)
+
+    # Run test
+    output_path = tmp_path / "output_fid_1.gpkg"
+    gfo.union_full_self(
+        input_path=input_path,
+        output_path=output_path,
+        union_type=union_type,
+        columns=["fid", "fid_1", "value", "name"],
+    )
+
+    # Check if the output file is correctly created
+    assert output_path.exists()
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.featurecount == exp_features
+
+    # Check that the values for fid and fid_1 are correctly stored
+    output_gdf = gfo.read_file(output_path)
+    if union_type == "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS":
+        assert "is0_fid" in output_gdf.columns
+        assert "is1_fid" in output_gdf.columns
+        assert "is0_fid_1" in output_gdf.columns
+        assert "is1_fid_1" in output_gdf.columns
+        assert all(output_gdf["is0_fid"] * 100 == output_gdf["is0_fid_1"])
+    elif union_type == "NO_INTERSECTIONS_ATTRIBUTE_LISTS":
+        # The original "fid_1" column should stay "fid_1"
+        assert "fid_1" in output_gdf.columns
+        all(value in ["[100]", "[200]", "[100,200]"] for value in output_gdf["fid_1"])
+        # The "fid" column asked will be aliased to "fid_2" as "fid_1" is already in use
+        assert "fid_2" in output_gdf.columns
+        all(value in ["[1]", "[2]", "[1,2]"] for value in output_gdf["fid_1"])
+    elif union_type == "REPEATED_INTERSECTIONS":
+        # The original "fid_1" column should stay "fid_1"
+        assert "fid_1" in output_gdf.columns
+        all(value in ["100", "200"] for value in output_gdf["fid_1"])
+        # The "fid" column asked will be aliased to "fid_2" as "fid_1" is already in use
+        assert "fid_2" in output_gdf.columns
+        all(value in ["1", "2"] for value in output_gdf["fid_2"])
+    else:
+        raise ValueError(f"Unsupported union_type for this test: {union_type}")
+
+
+@pytest.mark.parametrize(
     "kwargs, error_msg",
     [
         ({"subdivide_coords": -5}, "subdivide_coords < 0 is not allowed"),

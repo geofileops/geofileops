@@ -8,7 +8,7 @@ from typing import Literal, TypeAlias, get_args
 import geofileops as gfo
 from geofileops import LayerInfo, fileops
 from geofileops.helpers import _general_helper
-from geofileops.util import _io_util
+from geofileops.util import _io_util, _ogr_sql_util
 from geofileops.util._geofileinfo import GeofileInfo
 from geofileops.util._geoops_sql import (
     _subdivide_layer,
@@ -338,7 +338,9 @@ def _get_union_full_attr_sql_stmt(
             columns_list = []
             for col in columns:
                 if col.lower() == "fid":
-                    column_str = f'json_group_array("{col}") AS "fid_1"'
+                    # The fid column will be aliased already in union_multirow_path!
+                    alias = _ogr_sql_util.get_unique_fid_alias(col, columns)
+                    column_str = f'json_group_array("{alias}") AS "{alias}"'
                 else:
                     column_str = f'json_group_array("{col}") AS "{col}"'
                 columns_list.append(column_str)
