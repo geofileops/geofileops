@@ -623,13 +623,16 @@ def test_copy_layer_explodecollections(tmp_path, testfile, expected_count):
 
 
 @pytest.mark.parametrize("suffix_input, suffix_output", [(".shp", ".kml")])
+@pytest.mark.filterwarnings("ignore: Multiple drivers found, using first one of")
 def test_copy_layer_extra_formats(tmp_path, suffix_input, suffix_output):
     # Prepare test data
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix_input)
 
-    # copy_layer
+    # Run test
     dst = tmp_path / f"output{suffix_output}"
     gfo.copy_layer(src=src, dst=dst)
+
+    # Check result
     result_gdf = gfo.read_file(dst)
     assert len(result_gdf) == 48
 
