@@ -274,7 +274,7 @@ def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
                 f"Multiple drivers found, using first one of: {drivers}. If you want "
                 "another driver, you can try to specify the driver by prefixing the "
                 f"file path with '<DRIVER>:', e.g. 'GPKG:path'. Path: {input_path}",
-                RuntimeWarning,
+                UserWarning,
                 stacklevel=2,
             )
             return drivers[0]
