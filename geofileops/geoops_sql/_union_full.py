@@ -8,8 +8,7 @@ from typing import Literal, TypeAlias, get_args
 import geofileops as gfo
 from geofileops import GeometryType, LayerInfo, fileops
 from geofileops.helpers import _general_helper
-from geofileops.util import _io_util, _ogr_sql_util
-from geofileops.util._geofileinfo import GeofileInfo
+from geofileops.util import _geoops_sql, _io_util, _ogr_sql_util
 from geofileops.util._geoops_sql import (
     _subdivide_layer,
     _validate_params_single_layer,
@@ -312,18 +311,12 @@ def union_full_self(
         # Convert or add spatial index
         logger.info("Step 4 of 4: finalize")
 
-        if output_tmp_path.suffix != output_path.suffix:
-            # Output file should be in different format, so convert
-            output_tmp2_path = tmp_dir / output_path.name
-            gfo.copy_layer(src=output_tmp_path, dst=output_tmp2_path)
-            output_tmp_path = output_tmp2_path
-        elif GeofileInfo(output_tmp_path).default_spatial_index:
-            gfo.create_spatial_index(
-                path=output_tmp_path, layer=output_layer, exist_ok=True
-            )
-
-        # Now we are ready to move the result to the final spot...
-        gfo.move(output_tmp_path, output_path)
+        _geoops_sql._finalize_output(
+            output_tmp_path=output_tmp_path,
+            output_path=output_path,
+            output_layer=output_layer,
+            output_with_spatial_index=output_with_spatial_index,
+        )
 
     logger.info(f"Ready, full {operation_name} took {datetime.now() - start_time}")
 

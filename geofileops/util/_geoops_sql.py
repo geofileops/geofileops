@@ -4207,56 +4207,77 @@ def _convert_to_spatialite_based(
 
 
 def _finalize_output(
-    tmp_output_path: Path,
+    output_tmp_path: Path,
     output_path: Path,
     output_layer: str | None,
-    output_with_spatial_index: bool,
+    output_with_spatial_index: bool | None,
 ):
-    if tmp_output_path.exists():
+    """Finalize the output file: create spatial index, zip, move to final location.
+
+    Args:
+        output_tmp_path (Path): path to the temporary output file
+        output_path (Path): path to the final output file
+        output_layer (Optional[str]): the layer name of the output file
+        output_with_spatial_index (Optional[bool]): if True, create spatial index.
+            If None, the default for the output file type will be used.
+    """
+    if output_tmp_path.exists():
+        # First make sure the tmp file is in the right format
+        output_geopath = GeoPath(output_path)
+        if output_tmp_path.suffix.lower() != output_geopath.suffix_nozip.lower():
+            output_tmp2_path = output_tmp_path.with_suffix(output_geopath.suffix_full)
+            gfo.copy_layer(
+                src=output_tmp_path,
+                dst=output_tmp2_path,
+                src_layer=output_layer,
+                dst_layer=output_layer,
+            )
+            output_tmp_path = output_tmp2_path
+
         # Create spatial index if needed
+        if output_with_spatial_index is None:
+            output_with_spatial_index = GeofileInfo(output_path).default_spatial_index
+
         if output_with_spatial_index:
             gfo.create_spatial_index(
-                path=tmp_output_path,
-                layer=output_layer,
-                exist_ok=True,
-                no_geom_ok=True,
+                path=output_tmp_path, layer=output_layer, exist_ok=True, no_geom_ok=True
             )
 
         # Zip if needed
         if (
             output_path.suffix.lower() == ".zip"
-            and not tmp_output_path.suffix.lower() == ".zip"
+            and not output_tmp_path.suffix.lower() == ".zip"
         ):
-            zipped_path = Path(f"{tmp_output_path.as_posix()}.zip")
-            fileops.zip_geofile(tmp_output_path, zipped_path)
-            tmp_output_path = zipped_path
+            zipped_path = Path(f"{output_tmp_path.as_posix()}.zip")
+            fileops.zip_geofile(output_tmp_path, zipped_path)
+            output_tmp_path = zipped_path
 
         # Move to final location
-        gfo.move(tmp_output_path, output_path)
+        gfo.move(output_tmp_path, output_path)
 
     elif (
-        gfo.get_driver(tmp_output_path) == "ESRI Shapefile"
-        and tmp_output_path.with_suffix(".dbf").exists()
+        gfo.get_driver(output_tmp_path) == "ESRI Shapefile"
+        and output_tmp_path.with_suffix(".dbf").exists()
     ):
         # If the output shapefile doesn't have a geometry column, the .shp file
         # doesn't exist but the .dbf does
         # Zip if needed
         if (
             output_path.suffix.lower() == ".zip"
-            and not tmp_output_path.suffix.lower() == ".zip"
+            and not output_tmp_path.suffix.lower() == ".zip"
         ):
             # Add a .cpg file, otherwise the zipped shapefile will not be recognized
-            tmp_output_cpg_path = tmp_output_path.with_suffix(".cpg")
+            tmp_output_cpg_path = output_tmp_path.with_suffix(".cpg")
             tmp_output_cpg_path.touch(exist_ok=True)
 
-            zipped_path = Path(f"{tmp_output_path.as_posix()}.zip")
-            fileops.zip_geofile(tmp_output_path, zipped_path)
-            tmp_output_path = zipped_path
-            gfo.move(tmp_output_path, output_path)
+            zipped_path = Path(f"{output_tmp_path.as_posix()}.zip")
+            fileops.zip_geofile(output_tmp_path, zipped_path)
+            output_tmp_path = zipped_path
+            gfo.move(output_tmp_path, output_path)
 
         else:
             gfo.move(
-                tmp_output_path.with_suffix(".dbf"), output_path.with_suffix(".dbf")
+                output_tmp_path.with_suffix(".dbf"), output_path.with_suffix(".dbf")
             )
     else:
         logger.debug("Result was empty!")

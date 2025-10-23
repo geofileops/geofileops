@@ -8,6 +8,7 @@ from shapely import box
 import geofileops as gfo
 from geofileops import GeometryType
 from geofileops.util._geofileinfo import GeofileInfo
+from geofileops.util._geopath_util import GeoPath
 from tests import test_helper
 from tests.test_helper import SUFFIXES_GEOOPS
 
@@ -31,7 +32,7 @@ def test_union_full_self_circles(
     input_path = test_helper.get_testfile(testfile, suffix=suffix)
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
-    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
+    output_path = tmp_path / f"{GeoPath(input_path).stem}-output{suffix}"
 
     # Also run some tests on basic data with circles
     # Union the single circle towards the 2 circles
