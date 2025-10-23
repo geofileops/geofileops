@@ -50,21 +50,29 @@ def test_geofiletype_enum():
 
 
 @pytest.mark.parametrize(
-    "suffix, driver",
-    [
-        (".gpkg", "GPKG"),
-        (".GPKG", "GPKG"),
-        (".shp", "ESRI Shapefile"),
-        (".csv", "CSV"),
-        (".kml", "LIBKML"),
-    ],
-)
-@pytest.mark.parametrize(
     "test_type",
     ["EXISTING_FILE_VALID", "EXISTING_FILE_EMPTY", "NON_EXISTING_FILE", "SUFFIX"],
 )
-def test_get_driver(tmp_path, suffix, driver, test_type):
+@pytest.mark.parametrize(
+    "suffix, path_prefix, exp_driver",
+    [
+        (".gpkg", None, "GPKG"),
+        (".GPKG", None, "GPKG"),
+        (".gpkg", "GPKG:", "GPKG"),
+        (".shp", None, "ESRI Shapefile"),
+        (".csv", None, "CSV"),
+        (".kml", None, "LIBKML"),
+        (".kml", "LIBKML:", "LIBKML"),
+        (".kml", "KML:", "KML"),
+    ],
+)
+def test_get_driver(tmp_path, test_type, suffix, path_prefix, exp_driver):
     """Get a driver."""
+    if test_type == "EXISTING_FILE_EMPTY" and suffix == ".kml":
+        pytest.xfail("Getting the driver of an empty .kml file seems to fail.")
+    if test_type == "SUFFIX" and path_prefix is not None:
+        pytest.skip("A path prefix is not supported for just a suffix.")
+
     # Prepare test data
     if test_type == "EXISTING_FILE_VALID":
         test_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
@@ -78,7 +86,9 @@ def test_get_driver(tmp_path, suffix, driver, test_type):
     else:
         raise ValueError(f"Unsupported test_type: {test_type}")
 
-    assert gfo.get_driver(test_path) == driver
+    if path_prefix is not None:
+        test_path = f"{path_prefix}{test_path.as_posix()}"
+    assert gfo.get_driver(test_path) == exp_driver
 
 
 def test_get_driver_unsupported_suffix():

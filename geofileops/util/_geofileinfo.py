@@ -249,7 +249,9 @@ def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
     elif suffix in (".shp", ".shp.zip"):
         return "ESRI Shapefile"
 
-    def get_driver_for_path(input_path: Union[str, "os.PathLike[Any]"]) -> str:
+    def get_driver_for_path(
+        input_path: Union[str, "os.PathLike[Any]"], driver_prefix: str | None
+    ) -> str:
         # If there is no suffix, possibly it is only a suffix, so prefix with filename
         local_path = input_path
         if Path(input_path).suffix == "":
@@ -265,6 +267,9 @@ def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
                 f"Path: {input_path}"
             )
         else:
+            if driver_prefix is not None and driver_prefix in drivers:
+                return driver_prefix
+
             warnings.warn(
                 f"Multiple drivers found, using first one of: {drivers}. If you want "
                 "another driver, you can try to specify the driver by prefixing the "
@@ -283,16 +288,23 @@ def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
         drivername = driver.ShortName
     except Exception as ex:
         ex_str = str(ex).lower()
+        driver_prefix_list = str(path).split(":", 1)
+        driver_prefix = (
+            driver_prefix_list[0]
+            if len(driver_prefix_list) > 0 and len(driver_prefix_list[0]) > 1
+            else None
+        )
         if (
             "no such file or directory" in ex_str
             or "not recognized as being in a supported file format" in ex_str
             or "not recognized as a supported file format" in ex_str
+            or driver_prefix is not None
         ):
             # If the file does not exist or if, for some cases like a csv file,
             # it is e.g. an empty file that was not recognized yet, try to get the
             # driver based on only the path.
             try:
-                drivername = get_driver_for_path(path)
+                drivername = get_driver_for_path(path, driver_prefix)
             except Exception:
                 ex.args = (f"get_driver error for {path}: {ex}",)
                 raise
