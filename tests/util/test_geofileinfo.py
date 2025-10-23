@@ -51,7 +51,13 @@ def test_geofiletype_enum():
 
 @pytest.mark.parametrize(
     "suffix, driver",
-    [(".gpkg", "GPKG"), (".GPKG", "GPKG"), (".shp", "ESRI Shapefile"), (".csv", "CSV")],
+    [
+        (".gpkg", "GPKG"),
+        (".GPKG", "GPKG"),
+        (".shp", "ESRI Shapefile"),
+        (".csv", "CSV"),
+        (".kml", "LIBKML"),
+    ],
 )
 @pytest.mark.parametrize(
     "test_type",

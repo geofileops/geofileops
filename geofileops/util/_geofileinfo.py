@@ -3,6 +3,7 @@
 import ast
 import csv
 import enum
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Union
@@ -257,12 +258,21 @@ def get_driver(path: Union[str, "os.PathLike[Any]"]) -> str:
         drivers = GetOutputDriversFor(local_path, is_raster=False)
         if len(drivers) == 1:
             return drivers[0]
-        else:
+        elif len(drivers) == 0:
             raise ValueError(
-                "Could not infer driver from path. Please specify driver explicitly by "
-                "prefixing the file path with '<DRIVER>:', e.g. 'GPKG:path'. "
+                "Could not infer driver from path. You can try to specify the driver "
+                "by prefixing the file path with '<DRIVER>:', e.g. 'GPKG:path'. "
                 f"Path: {input_path}"
             )
+        else:
+            warnings.warn(
+                f"Multiple drivers found, using first one of: {drivers}. If you want "
+                "another driver, you can try to specify the driver by prefixing the "
+                f"file path with '<DRIVER>:', e.g. 'GPKG:path'. Path: {input_path}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return drivers[0]
 
     # Try to determine the driver by opening the file.
     try:
