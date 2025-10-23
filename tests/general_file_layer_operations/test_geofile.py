@@ -627,12 +627,9 @@ def test_copy_layer_extra_formats(tmp_path, suffix_input, suffix_output):
     # Prepare test data
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix_input)
 
-    import pyogrio
-    drivers = pyogrio.list_drivers()
-
     # copy_layer
     dst = tmp_path / f"output{suffix_output}"
-    gfo.copy_layer(src=src, dst=f"{dst!s}")
+    gfo.copy_layer(src=src, dst=dst)
     result_gdf = gfo.read_file(dst)
     assert len(result_gdf) == 48
 
