@@ -3,7 +3,7 @@ from itertools import product
 
 import geopandas as gpd
 import pytest
-from shapely import box
+from shapely import MultiPolygon, box
 
 import geofileops as gfo
 from geofileops import GeometryType
@@ -84,47 +84,57 @@ def test_union_full_self_circles(
 
 @pytest.mark.parametrize("suffix", [".gpkg"])
 @pytest.mark.parametrize(
-    "nb_boxes, union_type, columns, exp_features",
+    "nb_boxes, union_type, columns, explodecollections, exp_features",
     [
-        (2, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", None, 3),
-        (2, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", ["name"], 3),
-        (2, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", ["fid", "value", "name"], 3),
-        (3, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", None, 7),
-        (4, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", None, 9),
-        (5, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", ["fid", "value", "name"], 17),
-        (2, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", [], 3),
-        (3, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", [], 7),
-        (4, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", [], 9),
-        (5, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", [], 17),
-        (2, "NO_INTERSECTIONS_ATTRIBUTE_LISTS", None, 3),
-        (3, "NO_INTERSECTIONS_ATTRIBUTE_LISTS", None, 7),
-        (4, "NO_INTERSECTIONS_ATTRIBUTE_LISTS", None, 9),
-        (5, "NO_INTERSECTIONS_ATTRIBUTE_LISTS", ["fid", "value", "name"], 17),
-        (2, "REPEATED_INTERSECTIONS", None, 4),
-        (3, "REPEATED_INTERSECTIONS", None, 12),
-        (4, "REPEATED_INTERSECTIONS", None, 16),
-        (5, "REPEATED_INTERSECTIONS", ["fid", "value", "name"], 37),
+        (2, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", None, False, 3),
+        (2, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", ["name"], False, 3),
+        (2, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", ["fid", "value", "name"], False, 3),
+        (3, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", None, False, 7),
+        (4, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", None, False, 9),
+        (5, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", ["fid", "value", "name"], False, 17),
+        (2, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", [], False, 3),
+        (3, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", [], False, 7),
+        (4, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", [], False, 9),
+        (5, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", [], False, 17),
+        (5, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", [], True, 18),
+        (2, "NO_INTERSECTIONS_ATTRIBUTE_LISTS", None, False, 3),
+        (3, "NO_INTERSECTIONS_ATTRIBUTE_LISTS", None, False, 7),
+        (4, "NO_INTERSECTIONS_ATTRIBUTE_LISTS", None, False, 9),
+        (4, "NO_INTERSECTIONS_ATTRIBUTE_LISTS", None, True, 10),
+        (5, "NO_INTERSECTIONS_ATTRIBUTE_LISTS", ["fid", "value", "name"], False, 17),
+        (2, "REPEATED_INTERSECTIONS", None, False, 4),
+        (3, "REPEATED_INTERSECTIONS", None, False, 12),
+        (4, "REPEATED_INTERSECTIONS", None, False, 16),
+        (4, "REPEATED_INTERSECTIONS", None, True, 17),
+        (5, "REPEATED_INTERSECTIONS", ["fid", "value", "name"], False, 37),
     ],
 )
 def test_union_full_self_boxes(
-    tmp_path, suffix, nb_boxes, union_type, columns, exp_features
+    tmp_path, suffix, nb_boxes, union_type, columns, explodecollections, exp_features
 ):
     # Prepare test data
     if nb_boxes == 2:
-        boxes = [box(0, 0, 10, 10), box(8, 0, 18, 10)]
+        boxes = [
+            box(0, 0, 10, 10),
+            MultiPolygon([box(8, 0, 18, 10), box(28, 0, 38, 10)]),
+        ]
     elif nb_boxes == 3:
-        boxes = [box(0, 0, 10, 10), box(8, 0, 18, 10), box(5, 8, 15, 18)]
+        boxes = [
+            box(0, 0, 10, 10),
+            MultiPolygon([box(8, 0, 18, 10), box(28, 0, 38, 10)]),
+            box(5, 8, 15, 18),
+        ]
     elif nb_boxes == 4:
         boxes = [
             box(0, 0, 10, 10),
-            box(8, 0, 18, 10),
+            MultiPolygon([box(8, 0, 18, 10), box(28, 0, 38, 10)]),
             box(0, 8, 10, 18),
             box(8, 8, 18, 18),
         ]
     elif nb_boxes == 5:
         boxes = [
             box(0, 0, 10, 10),
-            box(8, 0, 18, 10),
+            MultiPolygon([box(8, 0, 18, 10), box(28, 0, 38, 10)]),
             box(0, 8, 10, 18),
             box(8, 8, 18, 18),
             box(5, 5, 15, 15),
@@ -151,6 +161,7 @@ def test_union_full_self_boxes(
         output_path=output_path,
         union_type=union_type,
         columns=columns,
+        explodecollections=explodecollections,
         batchsize=batchsize,
     )
 
@@ -185,7 +196,11 @@ def test_union_full_self_boxes(
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == exp_features
     assert sorted(output_layerinfo.columns) == sorted(exp_columns)
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+
+    if explodecollections:
+        assert output_layerinfo.geometrytype == GeometryType.POLYGON
+    else:
+        assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
 
     # Check the contents of the result file
     output_gdf = gfo.read_file(output_path)
