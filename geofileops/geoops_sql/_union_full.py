@@ -8,10 +8,10 @@ from typing import Literal, TypeAlias, get_args
 import geofileops as gfo
 from geofileops import GeometryType, LayerInfo, fileops
 from geofileops.helpers import _general_helper
+from geofileops.helpers._parameter_helper import validate_params_single_layer
 from geofileops.util import _geoops_sql, _io_util, _ogr_sql_util
 from geofileops.util._geoops_sql import (
     _subdivide_layer,
-    _validate_params_single_layer,
     delete_duplicate_geometries,
     difference,
     intersection,
@@ -55,7 +55,7 @@ def union_full_self(
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
-    input_layer, output_layer = _validate_params_single_layer(
+    input_layer, output_layer = validate_params_single_layer(
         input_path=input_path,
         output_path=output_path,
         input_layer=input_layer,

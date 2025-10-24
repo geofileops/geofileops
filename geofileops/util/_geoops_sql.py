@@ -21,8 +21,12 @@ import pandas as pd
 
 import geofileops as gfo
 from geofileops import GeometryType, LayerInfo, PrimitiveType, fileops
-from geofileops.helpers import _general_helper, _parameter_helper
+from geofileops.helpers import _general_helper
 from geofileops.helpers._configoptions_helper import ConfigOptions
+from geofileops.helpers._parameter_helper import (
+    validate_agg_columns,
+    validate_params_two_layers,
+)
 from geofileops.util import (
     _general_util,
     _geofileinfo,
@@ -1100,7 +1104,7 @@ def difference(  # noqa: D417
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
-    input1_layer, input2_layer, output_layer = _validate_params_two_layers(
+    input1_layer, input2_layer, output_layer = validate_params_two_layers(
         input1_path=input1_path,
         input2_path=input2_path,
         output_path=output_path,
@@ -1840,7 +1844,7 @@ def intersection(  # noqa: D417
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
-    input1_layer, input2_layer, output_layer = _validate_params_two_layers(
+    input1_layer, input2_layer, output_layer = validate_params_two_layers(
         input1_path=input1_path,
         input2_path=input2_path,
         output_path=output_path,
@@ -2751,7 +2755,7 @@ def identity(
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
-    input1_layer, input2_layer, output_layer = _validate_params_two_layers(
+    input1_layer, input2_layer, output_layer = validate_params_two_layers(
         input1_path=input1_path,
         input2_path=input2_path,
         output_path=output_path,
@@ -2917,7 +2921,7 @@ def symmetric_difference(
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
-    input1_layer, input2_layer, output_layer = _validate_params_two_layers(
+    input1_layer, input2_layer, output_layer = validate_params_two_layers(
         input1_path=input1_path,
         input2_path=input2_path,
         output_path=output_path,
@@ -3089,7 +3093,7 @@ def union(
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
-    input1_layer, input2_layer, output_layer = _validate_params_two_layers(
+    input1_layer, input2_layer, output_layer = validate_params_two_layers(
         input1_path=input1_path,
         input2_path=input2_path,
         output_path=output_path,
@@ -3361,7 +3365,7 @@ def _two_layer_vector_operation(
         return
 
     # Validate the input and output layer parameter
-    input1_layer, input2_layer, output_layer = _validate_params_two_layers(
+    input1_layer, input2_layer, output_layer = validate_params_two_layers(
         input1_path=input1_path,
         input2_path=input2_path,
         output_path=output_path,
@@ -3868,107 +3872,6 @@ def _determine_column_types(
         column_types_tmp.update(input_column_types)
 
     return column_types_tmp
-
-
-def _validate_params_single_layer(
-    input_path: Path,
-    output_path: Path,
-    input_layer: str | LayerInfo | None,
-    output_layer: str | None,
-    operation_name: str,
-) -> tuple[LayerInfo, str]:
-    """Validate the input parameters, return the layer names.
-
-    Args:
-        input_path (Path): path to the input file
-        output_path (Path): path to the output file
-        input_layer (Optional[Union[str, LayerInfo]]): the layer name or the LayerInfo
-            of the input file
-        output_layer (Optional[str]): the layer name of the output file
-        operation_name (str): the operation name, used to get clearer errors.
-
-    Raises:
-        ValueError: when an invalid parameter was passed.
-
-    Returns:
-        a tuple with the layers:
-        input_layer (LayerInfo), output_layer (str)
-    """
-    if output_path == input_path:
-        raise ValueError(
-            f"{operation_name}: output_path must not equal one of input paths"
-        )
-    if not input_path.exists():
-        raise FileNotFoundError(f"{operation_name}: input_path not found: {input_path}")
-
-    # Get layer info
-    if not isinstance(input_layer, LayerInfo):
-        input_layer = gfo.get_layerinfo(
-            input_path, layer=input_layer, raise_on_nogeom=False
-        )
-
-    if output_layer is None:
-        output_layer = gfo.get_default_layer(output_path)
-
-    return input_layer, output_layer
-
-
-def _validate_params_two_layers(
-    input1_path: Path,
-    input2_path: Path | None,
-    output_path: Path,
-    input1_layer: str | LayerInfo | None,
-    input2_layer: str | LayerInfo | None,
-    output_layer: str | None,
-    operation_name: str,
-) -> tuple[LayerInfo, LayerInfo, str]:
-    """Validate the input parameters, return the layer names.
-
-    Args:
-        input1_path (Path): path to the 1st input file
-        input2_path (Path, optional): path to the 2nd input file
-        output_path (Path): path to the output file
-        input1_layer (Optional[Union[str, LayerInfo]]): the layer name or the LayerInfo
-            of the 1st input file
-        input2_layer (Optional[Union[str, LayerInfo]]): the layer name or the LayerInfo
-            of the 2nd input file
-        output_layer (Optional[str]): the layer name of the output file
-        operation_name (str): the operation name, used to get clearer errors.
-
-    Raises:
-        ValueError: when an invalid parameter was passed.
-
-    Returns:
-        a tuple with the layers:
-        input1_layer (LayerInfo), input2_layer (LayerInfo), output_layer (str)
-    """
-    if output_path in (input1_path, input2_path):
-        raise ValueError(
-            f"{operation_name}: output_path must not equal one of input paths"
-        )
-    if not input1_path.exists():
-        raise FileNotFoundError(
-            f"{operation_name}: input1_path not found: {input1_path}"
-        )
-    if input2_path is not None and not input2_path.exists():
-        raise FileNotFoundError(
-            f"{operation_name}: input2_path not found: {input2_path}"
-        )
-
-    # Get layer info
-    if not isinstance(input1_layer, LayerInfo):
-        input1_layer = gfo.get_layerinfo(
-            input1_path, layer=input1_layer, raise_on_nogeom=False
-        )
-    if input2_path is not None and not isinstance(input2_layer, LayerInfo):
-        input2_layer = gfo.get_layerinfo(
-            input2_path, layer=input2_layer, raise_on_nogeom=False
-        )
-
-    if output_layer is None:
-        output_layer = gfo.get_default_layer(output_path)
-
-    return input1_layer, input2_layer, output_layer  # type: ignore[return-value]
 
 
 def _prepare_input_db_names(
@@ -4599,7 +4502,7 @@ def dissolve_singlethread(  # noqa: D417
     agg_columns_str = ""
     if agg_columns is not None:
         # Validate the dict structure, so we can assume everything is OK further on
-        _parameter_helper.validate_agg_columns(agg_columns)
+        validate_agg_columns(agg_columns)
 
         # Start preparation of agg_columns_str
         if "json" in agg_columns:
