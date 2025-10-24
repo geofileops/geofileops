@@ -87,6 +87,7 @@ def test_union_full_self_circles(
     "nb_boxes, union_type, columns, explodecollections, exp_features",
     [
         (2, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", None, False, 3),
+        (2, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", None, True, 4),
         (2, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", ["name"], False, 3),
         (2, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", ["fid", "value", "name"], False, 3),
         (3, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", None, False, 7),
