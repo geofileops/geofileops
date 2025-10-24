@@ -275,6 +275,22 @@ def test_union_full_self_fid_1_in_input(tmp_path, union_type, exp_features):
         raise ValueError(f"Unsupported union_type for this test: {union_type}")
 
 
+def test_union_full_self_force(tmp_path):
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-3overlappingcircles", suffix=".gpkg")
+    output_path = tmp_path / "output_force.gpkg"
+    output_path.touch()
+
+    # Test with force False (the default): existing output file should stay the same
+    mtime_orig = output_path.stat().st_mtime
+    gfo.union_full_self(input_path=input_path, output_path=output_path)
+    assert output_path.stat().st_mtime == mtime_orig
+
+    # With force=True
+    gfo.union_full_self(input_path=input_path, output_path=output_path, force=True)
+    assert output_path.stat().st_mtime != mtime_orig
+
+
 @pytest.mark.parametrize(
     "kwargs, error_msg",
     [
