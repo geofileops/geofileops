@@ -1,7 +1,6 @@
 """Tests for union_full_self operation."""
 
 import math
-import re
 from itertools import product
 from pathlib import Path
 
