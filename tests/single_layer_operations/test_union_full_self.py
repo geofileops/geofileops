@@ -1,5 +1,8 @@
+"""Tests for union_full_self operation."""
+
 import math
 from itertools import product
+from pathlib import Path
 
 import geopandas as gpd
 import pytest
@@ -7,10 +10,50 @@ from shapely import MultiPolygon, box
 
 import geofileops as gfo
 from geofileops import GeometryType
+from geofileops.geoops_sql import _union_full
 from geofileops.util._geofileinfo import GeofileInfo
 from geofileops.util._geopath_util import GeoPath
 from tests import test_helper
 from tests.test_helper import SUFFIXES_GEOOPS
+
+
+@pytest.mark.parametrize(
+    "union_type, columns",
+    [
+        ("NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", ["fid", "value"]),
+        ("NO_INTERSECTIONS_ATTRIBUTE_LISTS", ["fid", "value"]),
+        ("NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", []),
+        ("NO_INTERSECTIONS_ATTRIBUTE_LISTS", []),
+    ],
+)
+def test_get_union_full_attr_sql_stmt_no_cols(tmp_path, union_type, columns):
+    # Having an existing file with a union_fid column is needed for union_type
+    # NO_INTERSECTIONS_ATTRIBUTE_COLUMNS with columns.
+    test_path = test_helper.get_testfile(
+        "polygon-3overlappingcircles", dst_dir=tmp_path
+    )
+    gfo.add_column(test_path, name="union_fid", type="INT", expression=1)
+    stmt = _union_full._get_union_full_attr_sql_stmt(
+        union_multirow_path=test_path, union_type=union_type, columns=columns
+    )
+
+    if columns == []:
+        # When no columns are asked, no attribute handling should be done
+        assert "CASE WHEN" not in stmt
+        assert "json_group_array" not in stmt
+    elif union_type == "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS":
+        assert "CASE WHEN" in stmt
+    elif union_type == "NO_INTERSECTIONS_ATTRIBUTE_LISTS":
+        assert "json_group_array" in stmt
+    else:
+        raise ValueError(f"Unsupported union_type for this test: {union_type}")
+
+
+def test_get_union_full_attr_sql_stmt_invalid():
+    with pytest.raises(ValueError, match="Unsupported union_type"):
+        _ = _union_full._get_union_full_attr_sql_stmt(
+            union_multirow_path=Path("file"), union_type="INVALID_TYPE", columns=[]
+        )
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
@@ -99,9 +142,11 @@ def test_union_full_self_circles(
         (5, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", [], False, 17),
         (5, "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS", [], True, 18),
         (2, "NO_INTERSECTIONS_ATTRIBUTE_LISTS", None, False, 3),
+        (2, "NO_INTERSECTIONS_ATTRIBUTE_LISTS", [], False, 3),
         (3, "NO_INTERSECTIONS_ATTRIBUTE_LISTS", None, False, 7),
         (4, "NO_INTERSECTIONS_ATTRIBUTE_LISTS", None, False, 9),
         (4, "NO_INTERSECTIONS_ATTRIBUTE_LISTS", None, True, 10),
+        (4, "NO_INTERSECTIONS_ATTRIBUTE_LISTS", [], True, 10),
         (5, "NO_INTERSECTIONS_ATTRIBUTE_LISTS", ["fid", "value", "name"], False, 17),
         (2, "REPEATED_INTERSECTIONS", None, False, 4),
         (3, "REPEATED_INTERSECTIONS", None, False, 12),
