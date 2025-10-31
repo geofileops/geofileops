@@ -1109,8 +1109,26 @@ def add_columns(
 ):
     """Add multiple columns to a layer of the geofile.
 
-    Only supported for files containing a single layer.
+    The file is copied to a temporary location, the columns are added there, and then
+    the file is moved back to the original location (or to `output_path` if specified).
 
+    Args:
+        path (PathLike): Path to the geofile.
+        new_columns (list of tuples): list of new columns to add. Each tuple should
+            contain 2 or 3 elements: (name, type, optional expression). The `type` can
+            be a string or a DataType enum value. The optional `expression` is a SQL
+            expression to use to fill out the column value. It should be in SQLite
+            syntax and |spatialite_reference_link| functions can be used.
+        layer (str, optional): The layer name. If None and the geofile
+            has only one layer, that layer is used. Defaults to None.
+        output_path (PathLike, optional): If specified, the modified file is written
+            to this location. If not specified, the original file is overwritten.
+        output_layer (str, optional): If `output_path` is specified, this can be used
+            to specify the layer name in the output file. If not specified, the same
+            layer name is used. Defaults to None.
+        force_update (bool, optional): If a column already exists, execute
+            the update expression even if it means overwriting existing data.
+            Defaults to False.
     """
     layers = listlayers(path)
     if len(layers) != 1:
