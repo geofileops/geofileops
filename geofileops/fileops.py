@@ -1038,8 +1038,7 @@ def add_column(
     if expression_dialect is not None:
         logger.warning("expression_dialect is deprecated and will be ignored")
 
-    # type_str = _datatype_to_sqlite(type)
-    type_str = type
+    type_str = _datatype_to_sqlite(type)
 
     start = time.perf_counter()
     layerinfo = get_layerinfo(path, layer, raise_on_nogeom=False)
@@ -1094,6 +1093,34 @@ def add_column(
         took = time.perf_counter() - start
         if took > 2:  # pragma: no cover
             logger.info(f"Ready, add_column of {name} took {took:.2f}")
+
+
+def _datatype_to_sqlite(type: str | DataType) -> str:
+    """Validate the datatype specified for a column.
+
+    Args:
+        type (str or DataType): the datatype.
+
+    Returns:
+        str: the validated datatype.
+    """
+    if isinstance(type, DataType):
+        type_str = type.value
+    else:
+        type_upper = type.upper()
+        if type_upper == "STRING":
+            # TODO: think whether being flexible here is a good idea...
+            type_str = "TEXT"
+        elif type_upper == "BINARY":
+            type_str = "BLOB"
+        elif type_upper == "TIME":
+            type_str = "DATETIME"
+        elif type_upper == "INTEGER64":
+            type_str = "INTEGER"
+        else:
+            type_str = type_upper
+
+    return type_str
 
 
 def drop_column(
