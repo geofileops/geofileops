@@ -194,8 +194,8 @@ def test_add_column_update_error(tmp_path, suffix, transaction_supported):
         assert "ERROR_COL" in list(info.columns)
 
 
-@pytest.mark.parametrize("output_name", [None, "new_parcels"])
-def test_add_columns(tmp_path, output_name):
+@pytest.mark.parametrize("output_stem", [None, "new_parcels"])
+def test_add_columns(tmp_path, output_stem):
     """Test the add_columns function.
 
     Test only on gpkg, as adding columns to shapefiles is not supported.
@@ -222,12 +222,13 @@ def test_add_columns(tmp_path, output_name):
         else:
             assert col_name not in layerinfo.columns
 
-    output_path = test_path if output_name is None else tmp_path / "output.gpkg"
+    output_path = None if output_stem is None else tmp_path / f"{output_stem}.gpkg"
     gfo.add_columns(
         test_path, layer="parcels", new_columns=new_columns, output_path=output_path
     )
 
     # Check result
+    output_path = test_path if output_path is None else output_path
     output_layerinfo = gfo.get_layerinfo(path=output_path, layer="parcels")
 
     # Check if columns were added
@@ -329,6 +330,54 @@ def test_append_to(tmp_path):
     # Test if number of rows is correct
     info = gfo.get_layerinfo(dst)
     assert info.featurecount == 96
+
+
+@pytest.mark.parametrize("force_update", [True, False])
+def test_add_columns_existing(tmp_path, force_update):
+    """Test adding columns that already exist."""
+    test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+
+    # Columns to add
+    new_columns = [
+        ("GEWASGROEP", "string", "'testdata'"),
+        ("UIDN", "integer64", "9999"),
+    ]
+
+    # Make sure the columns are in the test file already
+    layerinfo = gfo.get_layerinfo(path=test_path, layer="parcels")
+    for col_name, _, _ in new_columns:
+        assert col_name in layerinfo.columns
+
+    gfo.add_columns(
+        test_path,
+        layer="parcels",
+        new_columns=new_columns,
+        force_update=force_update,
+    )
+
+    # Check result
+    output_layerinfo = gfo.get_layerinfo(path=test_path, layer="parcels")
+
+    # Check if columns are still there
+    for col_name, type, _ in new_columns:
+        assert col_name in output_layerinfo.columns
+        exp_type = (type if isinstance(type, str) else type.value).lower()
+        output_type = output_layerinfo.columns[col_name].gdal_type.lower()
+        assert output_type == exp_type, (
+            f"Column {col_name}: expected {exp_type}, got {output_type}"
+        )
+
+    # Check content
+    gdf = gfo.read_file(test_path)
+
+    if force_update:
+        # If force_update, the new values should be there
+        assert all(gdf["GEWASGROEP"] == "testdata")
+        assert all(gdf["UIDN"] == 9999)
+    else:
+        # If not force_update, the original values should be kept
+        assert all(gdf["GEWASGROEP"] != "testdata")
+        assert all(gdf["UIDN"] != 9999)
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS_EXT)
