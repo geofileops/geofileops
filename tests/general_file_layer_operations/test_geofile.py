@@ -194,6 +194,105 @@ def test_add_column_update_error(tmp_path, suffix, transaction_supported):
         assert "ERROR_COL" in list(info.columns)
 
 
+@pytest.mark.parametrize("output_name", [None, "new_parcels"])
+def test_add_columns(tmp_path, output_name):
+    """Test the add_columns function.
+
+    Test only on gpkg, as adding columns to shapefiles is not supported.
+    """
+    test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+
+    # Columns to add
+    new_columns = [
+        ("TEST_AREA", "real", "ST_area(geom)"),
+        ("TEST_PERIMETER", gfo.DataType.REAL, "ST_perimeter(geom)"),
+        ("TEST_INT", "integer64", "1"),
+        ("TEST_STRING", "string", "'test'"),
+        ("TEST_NULL_STRING", "string", None),
+        ("TEST_NULL_REAL", "real", None),
+        ("TEST_NULL_INT", "integer64", None),
+    ]
+
+    # Make sure the columns are not in the test file yet
+    layerinfo = gfo.get_layerinfo(path=test_path, layer="parcels")
+    for col_name, _, _ in new_columns:
+        assert col_name not in layerinfo.columns
+
+    output_path = test_path if output_name is None else tmp_path / "output.gpkg"
+    gfo.add_columns(
+        test_path, layer="parcels", new_columns=new_columns, output_path=output_path
+    )
+
+    # Check result
+    output_layerinfo = gfo.get_layerinfo(path=output_path, layer="parcels")
+
+    # Check if columns were added
+    for col_name, type, _ in new_columns:
+        assert col_name in output_layerinfo.columns
+        exp_type = (type if isinstance(type, str) else type.value).lower()
+        output_type = output_layerinfo.columns[col_name].gdal_type.lower()
+        assert output_type == exp_type, (
+            f"Column {col_name}: expected {exp_type}, got {output_type}"
+        )
+
+    gdf = gfo.read_file(output_path)
+    assert round(gdf["TEST_AREA"].astype("float")[0], 1) == round(
+        gdf["OPPERVL"].astype("float")[0], 1
+    )
+    assert round(gdf["TEST_PERIMETER"].astype("float")[0], 1) == round(
+        gdf["LENGTE"].astype("float")[0], 1
+    )
+    assert pd.isna(gdf["TEST_NULL_STRING"][0])
+
+
+@pytest.mark.parametrize(
+    "kwargs, exp_exception, exp_error",
+    [
+        (
+            {"new_columns": ("AREA", "real", "ST_area(geom)")},
+            TypeError,
+            "new_columns should be a non-empty list of tuples",
+        ),
+        (
+            {"new_columns": [("AREA", "real", "ST_area(geom)", "extra")]},
+            TypeError,
+            "each element in new_columns should be a tuple with 2 or 3 elements",
+        ),
+        (
+            {"new_columns": [("AREA")]},
+            TypeError,
+            "each element in new_columns should be a tuple with 2 or 3 elements",
+        ),
+        (
+            {"new_columns": ["AREA"]},
+            TypeError,
+            "each element in new_columns should be a tuple with 2 or 3 elements",
+        ),
+        (
+            {
+                "new_columns": [("AREA", "real", "ST_area(geom)")],
+                "output_layer": "new_parcels",
+            },
+            ValueError,
+            "output_layer can only be used together with output_path",
+        ),
+        (
+            {"new_columns": [("AREA", "INVALID", "ST_area(geom)")]},
+            RuntimeError,
+            "add_columns of name='AREA', type_str='INVALID' failed",
+        ),
+    ],
+)
+@pytest.mark.filterwarnings("ignore:Field format 'INVALID' not supported")
+@pytest.mark.filterwarnings("ignore:geometry column 'AREA' of type 'INVALID' ignored")
+def test_add_columns_errors(tmp_path, kwargs, exp_exception, exp_error):
+    test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+
+    # new_columns not a list
+    with pytest.raises(exp_exception, match=exp_error):
+        gfo.add_columns(test_path, layer="parcels", **kwargs)
+
+
 def test_append_to(tmp_path):
     """Test the append_to function.
 

@@ -27,6 +27,7 @@ from pandas.api.types import is_integer_dtype
 from pygeoops import GeometryType, PrimitiveType  # noqa: F401
 
 from geofileops._compat import GDAL_GTE_311
+from geofileops.helpers import _general_helper
 from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import (
     _geofileinfo,
@@ -1095,6 +1096,242 @@ def add_column(
         took = time.perf_counter() - start
         if took > 2:  # pragma: no cover
             logger.info(f"Ready, add_column of {name} took {took:.2f}")
+
+
+def add_columns(
+    path: Union[str, "os.PathLike[Any]"],
+    new_columns: list[tuple[str, str | DataType, str | None, str | None]],
+    *,
+    layer: str | None = None,
+    output_path: Union[str, "os.PathLike[Any]"] | None = None,
+    output_layer: str | None = None,
+    force_update: bool = False,
+):
+    """Add multiple columns to a layer of the geofile.
+
+    Only supported for files containing a single layer.
+
+    """
+    layers = listlayers(path)
+    if len(layers) != 1:
+        raise ValueError(
+            "add_columns is only supported for single-layer files, please use "
+            "add_column in a loop"
+        )
+    if output_layer is not None and output_path is None:
+        raise ValueError("output_layer can only be used together with output_path")
+    if output_layer is None and output_path is None:
+        output_layer = layer
+
+    # Prepare new columns expression
+    if not isinstance(new_columns, list) or len(new_columns) == 0:
+        raise TypeError(
+            "new_columns should be a non-empty list of tuples, each with 2 or 3 "
+            "elements: [(name, type, optional expression),...]"
+        )
+
+    # Validate new_columns
+    for new_column in new_columns:
+        if not isinstance(new_column, tuple) or len(new_column) not in (2, 3):
+            raise TypeError(
+                "each element in new_columns should be a tuple with 2 or 3 elements:"
+                f" (name, type, optional expression), not: {new_column}"
+            )
+
+    # Add all columns one by one + update them all together in a transaction
+    if Path(path).suffix.lower() == ".gpkg":
+        # Set some config options to improve performance for GPKG
+        gdal_handler = _ogr_util.set_config_options(
+            {"OGR_SQLITE_SYNCHRONOUS": "OFF", "OGR_SQLITE_JOURNAL": "OFF"}
+        )
+    with _general_helper.create_gfo_tmp_dir("add_columns") as tmp_dir, gdal_handler:
+        # First make a local copy
+        output_tmp_path = tmp_dir / Path(path).name
+        copy(path, tmp_dir / Path(path).name)
+
+        start = time.perf_counter()
+        layerinfo = get_layerinfo(output_tmp_path, layer, raise_on_nogeom=False)
+        layer = layerinfo.name
+
+        # Go!
+        datasource = None
+        try:
+            # If column doesn't exist yet, create it
+            update_set_expressions = []
+            columns_upper = [column.upper() for column in layerinfo.columns]
+            column_added = False
+            for new_column in new_columns:
+                name = new_column[0]
+                type_str = _datatype_to_sqlite(new_column[1])
+                expression = new_column[2] if len(new_column) >= 3 else None
+
+                if expression is not None:
+                    update_set_expressions.append(f'"{name}" = {expression}')
+
+                if name.upper() in columns_upper:
+                    logger.warning(f"Column {name} existed already in {path}#{layer}")
+                    continue
+
+                column_added = True
+
+                # Open datasource if not opened yet
+                if datasource is None:
+                    datasource = gdal.OpenEx(
+                        str(output_tmp_path), nOpenFlags=gdal.OF_UPDATE
+                    )
+                    _ogr_util.StartTransaction(datasource)
+
+                sql_stmt = f'ALTER TABLE "{layer}" ADD COLUMN "{name}" {type_str}'
+                datasource.ExecuteSQL(sql_stmt)
+
+            # check if the columns were really added
+            if column_added and datasource is not None:
+                datasource_layer = datasource.GetLayer(layer)
+                layer_defn = datasource_layer.GetLayerDefn()
+                for new_column in new_columns:
+                    name = new_column[0]
+                    field_index = layer_defn.GetFieldIndex(name)
+                    if field_index == -1:
+                        raise RuntimeError(
+                            f"add_columns of {name=}, {type_str=} failed for "
+                            f"{path}#{layer}"
+                        )
+
+            # If an expression was provided and update can be done, go for it...
+            if len(update_set_expressions) > 0 and (column_added or force_update):
+                # Open datasource if not opened yet
+                if datasource is None:
+                    datasource = gdal.OpenEx(
+                        str(output_tmp_path), nOpenFlags=gdal.OF_UPDATE
+                    )
+                    _ogr_util.StartTransaction(datasource)
+
+                set_expr = "\n,".join(update_set_expressions)
+                sql_stmt = f"""
+                    UPDATE "{layer}"
+                       SET {set_expr}
+                """
+                datasource.ExecuteSQL(sql_stmt, dialect="SQLITE")
+
+            _ogr_util.CommitTransaction(datasource)
+
+            # Move file to final location
+            datasource = None
+            if output_path is None:
+                move(output_tmp_path, path)
+            else:
+                move(output_tmp_path, output_path)
+
+        except Exception as ex:
+            _ogr_util.RollbackTransaction(datasource)
+
+            if str(ex).startswith("add_columns"):
+                raise
+
+            ex.args = (f"add_columns error for {path}#{layer}:\n  {ex}",)
+            raise
+
+        finally:
+            datasource = None
+
+            # Log time taken if it was slow.
+            took = time.perf_counter() - start
+            if took > 2:  # pragma: no cover
+                logger.info(f"Ready, add_columns of {name} took {took:.2f}")
+
+
+def add_columns2(
+    path: Union[str, "os.PathLike[Any]"],
+    new_columns: list[tuple[str, str | DataType, str | None]],
+    *,
+    layer: str | None = None,
+    output_path: Union[str, "os.PathLike[Any]"] | None = None,
+    output_layer: str | None = None,
+):
+    """Add multiple columns to a layer of the geofile.
+
+    Only supported for files containing a single layer.
+
+    """
+    layers = listlayers(path)
+    if len(layers) != 1:
+        raise ValueError(
+            "add_columns is only supported for single-layer files, please use "
+            "add_column in a loop"
+        )
+    if output_layer is not None and output_path is None:
+        raise ValueError("output_layer can only be used together with output_path")
+    if output_layer is None and output_path is None:
+        output_layer = layer
+
+    # Prepare new columns expression
+    if not isinstance(new_columns, list) or len(new_columns) == 0:
+        raise TypeError(
+            "new_columns should be a non-empty list of tuples, each with 2 or 3 "
+            "elements: [(name, type, optional expression)]"
+        )
+
+    new_columns_expr = ""
+    for new_column in new_columns:
+        if not isinstance(new_column, tuple) or len(new_column) not in (2, 3):
+            raise TypeError(
+                "each element in new_columns should be a tuple with 2 or 3 elements: "
+                f"(name, type, optional expression), not: {new_column}"
+            )
+        column_name = new_column[0]
+        column_type = new_column[1]
+        column_expression = new_column[2]  # or "NULL"
+
+        column_type = _datatype_to_sqlite(column_type)
+        if column_expression is None:
+            if column_type == "INTEGER":
+                new_columns_expr += (
+                    f',CASE WHEN fid < 0 THEN 0 ELSE NULL END AS "{column_name}"\n'
+                )
+            elif column_type == "REAL":
+                new_columns_expr += (
+                    f',CASE WHEN fid < 0 THEN 0.0 ELSE NULL END AS "{column_name}"\n'
+                )
+            elif column_type == "TEXT":
+                new_columns_expr += (
+                    f",CASE WHEN fid < 0 THEN '' ELSE NULL END AS \"{column_name}\"\n"
+                )
+            elif column_type == "BLOB":
+                new_columns_expr += f',CAST(NULL AS BLOB) AS "{column_name}"\n'
+            else:
+                raise ValueError(
+                    "When no expression is provided, only 'INTEGER', 'REAL' or "
+                    f"'STRING' are supported, not: {column_type}"
+                )
+        else:
+            new_columns_expr += (
+                f',CAST({column_expression} AS {column_type}) AS "{column_name}"\n'
+            )
+
+    # Prepare sql statement
+    sql_stmt = f"""
+        SELECT {{geometrycolumn}}
+              {{columns_to_select_str}}
+              {new_columns_expr}
+          FROM "{{input_layer}}" layer
+    """
+
+    # We'll add the columns by running a select into a new file with the extra columns.
+    with _general_helper.create_gfo_tmp_dir("add_columns") as tmp_dir:
+        if output_path is None:
+            output_tmp_path = tmp_dir / Path(path).name
+
+        copy_layer(
+            src=path,
+            dst=output_path or output_tmp_path,
+            sql_stmt=sql_stmt,
+            sql_dialect="SQLITE",
+            src_layer=layer,
+            dst_layer=layer,
+        )
+
+        if output_path is None:
+            copy(output_tmp_path, path)
 
 
 def _datatype_to_sqlite(type: str | DataType) -> str:
