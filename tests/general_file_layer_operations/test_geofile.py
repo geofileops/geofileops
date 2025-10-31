@@ -204,6 +204,7 @@ def test_add_columns(tmp_path, output_name):
 
     # Columns to add
     new_columns = [
+        ("GEWASGROEP", "string", "'testdata'"),
         ("TEST_AREA", "real", "ST_area(geom)"),
         ("TEST_PERIMETER", gfo.DataType.REAL, "ST_perimeter(geom)"),
         ("TEST_INT", "integer64", "1"),
@@ -213,10 +214,13 @@ def test_add_columns(tmp_path, output_name):
         ("TEST_NULL_INT", "integer64", None),
     ]
 
-    # Make sure the columns are not in the test file yet
+    # Make sure the columns are not in the test file yet, except for GEWASGROEP
     layerinfo = gfo.get_layerinfo(path=test_path, layer="parcels")
     for col_name, _, _ in new_columns:
-        assert col_name not in layerinfo.columns
+        if col_name == "GEWASGROEP":
+            assert col_name in layerinfo.columns
+        else:
+            assert col_name not in layerinfo.columns
 
     output_path = test_path if output_name is None else tmp_path / "output.gpkg"
     gfo.add_columns(
@@ -235,14 +239,28 @@ def test_add_columns(tmp_path, output_name):
             f"Column {col_name}: expected {exp_type}, got {output_type}"
         )
 
+    # Check content
     gdf = gfo.read_file(output_path)
+
+    # The area and perimeter columns added should have similar values as the original
     assert round(gdf["TEST_AREA"].astype("float")[0], 1) == round(
         gdf["OPPERVL"].astype("float")[0], 1
     )
     assert round(gdf["TEST_PERIMETER"].astype("float")[0], 1) == round(
         gdf["LENGTE"].astype("float")[0], 1
     )
+
+    # The NULL columns should have NaN values
     assert pd.isna(gdf["TEST_NULL_STRING"][0])
+    assert pd.isna(gdf["TEST_NULL_REAL"][0])
+    assert pd.isna(gdf["TEST_NULL_INT"][0])
+
+    # The columns added with constant values should have those values
+    assert all(gdf["TEST_INT"] == 1)
+    assert all(gdf["TEST_STRING"] == "test")
+
+    # For the GEWASGROEP column, all values should be overwritten to 'testdata'
+    assert all(gdf["GEWASGROEP"] == "testdata")
 
 
 @pytest.mark.parametrize(

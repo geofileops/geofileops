@@ -1130,12 +1130,6 @@ def add_columns(
             the update expression even if it means overwriting existing data.
             Defaults to False.
     """
-    layers = listlayers(path)
-    if len(layers) != 1:
-        raise ValueError(
-            "add_columns is only supported for single-layer files, please use "
-            "add_column in a loop"
-        )
     if output_layer is not None and output_path is None:
         raise ValueError("output_layer can only be used together with output_path")
     if output_layer is None and output_path is None:
