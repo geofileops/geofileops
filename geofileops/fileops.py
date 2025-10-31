@@ -1035,8 +1035,10 @@ def add_column(
 
     """  # noqa: E501
     # Init
-    if expression_dialect is not None:
-        logger.warning("expression_dialect is deprecated and will be ignored")
+    if expression_dialect is not None:  # pragma: no cover
+        warnings.warn(
+            "expression_dialect is deprecated and will be ignored", stacklevel=2
+        )
 
     type_str = _datatype_to_sqlite(type)
 

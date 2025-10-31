@@ -131,6 +131,7 @@ def test_add_column(tmp_path, suffix):
         (".gpkg", "Text", True, "String"),
         (".gpkg", "Time", True, "DateTime"),
         (".gpkg", "Real", True, "Real"),
+        (".gpkg", "Invalid", False, "Invalid"),
         (".shp", "Binary", True, "String"),
         (".shp", "Blob", True, "String"),
         (".shp", "Date", True, "Date"),
