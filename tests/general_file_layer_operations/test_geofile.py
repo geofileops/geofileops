@@ -144,6 +144,11 @@ def test_add_column(tmp_path, suffix):
 )
 def test_add_column_types(tmp_path, suffix, type, type_supported, exp_gdal_type):
     """Test adding columns of different types."""
+    # Before GDAL 3.11, Datetimes were saved in a Date column instead of a String column
+    # for shapefiles
+    if not GDAL_GTE_311 and suffix == ".shp" and type in ("DateTime", "Time"):
+        exp_gdal_type = "Date"
+
     test_path = test_helper.get_testfile(
         "polygon-parcel", suffix=suffix, dst_dir=tmp_path
     )
