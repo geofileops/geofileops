@@ -1110,16 +1110,17 @@ def add_columns(
     output_layer: str | None = None,
     force_update: bool = False,
 ):
-    """Add multiple columns to a layer of a geofile.
+    """Add columns to a layer of a geofile and optionally fill them out.
 
     If columns are being filled out or updated, the file is copied to a temporary
     location, the columns are added there, and then the file is moved back to the
-    original location (or to `output_path` if specified).
+    original location (or to `output_path` if specified). If just adding columns without
+    filling them out, the columns are added in place.
 
     If `output_path` is specified, but `output_layer` is None, the output layer name is
-    determined like this:
+    determined like this for file types that support multiple layers:
        - if the input layer contains a single spatial layer, :func:`get_default_layer`
-         on `output_path` will be used to determine `output_layername`.
+         on `output_path` will be used to determine `output_layer`.
        - otherwise, the input layername is used/retained.
 
     Args:
@@ -1135,8 +1136,10 @@ def add_columns(
             to this location. If not specified, the original file is overwritten or the
             columns are added in place.
         output_layer (str, optional): Only if `output_path` is specified, this can be
-            used to specify the layer name in the output file. If not specified, the
-            `layer` of the input file is used. Defaults to None.
+            used to specify the layer name in the output file. If None, for multi-layer
+            file types :func:`get_default_layer` of `output_path` is used if the input
+            contains a single spatial layer. If the input contains multiple spatial
+            layers, the input layer name is used/retained. Defaults to None.
         force_update (bool, optional): If a column already exists, execute
             the update expression even if it means overwriting existing data.
             Defaults to False.
