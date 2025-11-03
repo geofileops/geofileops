@@ -1,5 +1,6 @@
 """Module with helper functions for geo files."""
 
+import contextlib
 import enum
 import filecmp
 import logging
@@ -825,7 +826,7 @@ def rename_layer(
     # Renaming the layer name is not possible for single layer file formats.
     path_info = _geofileinfo.get_geofileinfo(path)
     if path_info.is_singlelayer:
-        raise ValueError(f"rename_layer not possible for {path_info.driver} file")
+        raise ValueError(f"rename_layer not supported for {path_info.driver} file")
 
     # Now really rename
     try:
@@ -834,7 +835,7 @@ def rename_layer(
         layername = datasource_layer.GetName()
 
         if not datasource_layer.TestCapability(gdal.ogr.OLCRename):
-            raise ValueError(f"rename_layer not supported for {path}")
+            raise ValueError(f"rename_layer not supported for {path}#{layer}")
 
         # If the layer name only differs in case, we need to rename it first to a
         # temporary layer name to avoid an error.
@@ -843,6 +844,8 @@ def rename_layer(
 
         # Rename layer
         datasource_layer.Rename(new_layer)
+    except ValueError:
+        raise
     except Exception as ex:
         ex.args = (f"rename_layer error: {ex}, for {path}#{layer}",)
         raise
@@ -1107,10 +1110,17 @@ def add_columns(
     output_layer: str | None = None,
     force_update: bool = False,
 ):
-    """Add multiple columns to a layer of the geofile.
+    """Add multiple columns to a layer of a geofile.
 
-    The file is copied to a temporary location, the columns are added there, and then
-    the file is moved back to the original location (or to `output_path` if specified).
+    If columns are being filled out or updated, the file is copied to a temporary
+    location, the columns are added there, and then the file is moved back to the
+    original location (or to `output_path` if specified).
+
+    If `output_path` is specified, but `output_layer` is None, the output layer name is
+    determined like this:
+       - if the input layer contains a single spatial layer, :func:`get_default_layer`
+         on `output_path` will be used to determine `output_layername`.
+       - otherwise, the input layername is used/retained.
 
     Args:
         path (PathLike): Path to the geofile.
@@ -1122,48 +1132,66 @@ def add_columns(
         layer (str, optional): The layer name. If None and the geofile
             has only one layer, that layer is used. Defaults to None.
         output_path (PathLike, optional): If specified, the modified file is written
-            to this location. If not specified, the original file is overwritten.
-        output_layer (str, optional): If `output_path` is specified, this can be used
-            to specify the layer name in the output file. If not specified, the same
-            layer name is used. Defaults to None.
+            to this location. If not specified, the original file is overwritten or the
+            columns are added in place.
+        output_layer (str, optional): Only if `output_path` is specified, this can be
+            used to specify the layer name in the output file. If not specified, the
+            `layer` of the input file is used. Defaults to None.
         force_update (bool, optional): If a column already exists, execute
             the update expression even if it means overwriting existing data.
             Defaults to False.
     """
+    # Validate input parameters
     if output_layer is not None and output_path is None:
         raise ValueError("output_layer can only be used together with output_path")
-    if output_layer is None and output_path is None:
-        output_layer = layer
 
-    # Prepare new columns expression
+    # Validate new_columns
     if not isinstance(new_columns, list) or len(new_columns) == 0:
         raise TypeError(
             "new_columns should be a non-empty list of tuples, each with 2 or 3 "
             "elements: [(name, type, optional expression),...]"
         )
-
-    # Validate new_columns
+    updates_needed = False
     for new_column in new_columns:
         if not isinstance(new_column, tuple) or len(new_column) not in (2, 3):
             raise TypeError(
                 "each element in new_columns should be a tuple with 2 or 3 elements:"
                 f" (name, type, optional expression), not: {new_column}"
             )
+        if len(new_column) >= 3 and new_column[2] is not None:
+            updates_needed = True
 
-    # Add all columns one by one + update them all together in a transaction
-    if Path(path).suffix.lower() == ".gpkg":
-        # Set some config options to improve performance for GPKG
+    # Set some config options to improve performance for GPKG if updates are done
+    if updates_needed and Path(path).suffix.lower() == ".gpkg":
         gdal_handler = _ogr_util.set_config_options(
             {"OGR_SQLITE_SYNCHRONOUS": "OFF", "OGR_SQLITE_JOURNAL": "OFF"}
         )
-    with _general_helper.create_gfo_tmp_dir("add_columns") as tmp_dir, gdal_handler:
-        # First make a local copy
-        output_tmp_path = tmp_dir / Path(path).name
-        copy(path, tmp_dir / Path(path).name)
+    else:
+        gdal_handler = contextlib.nullcontext()  # type: ignore[assignment]
+
+    # If columns are being updated or if there is an output_path, create a tmp_dir to
+    # first make a local copy. If just adding columns, do it in place.
+    if updates_needed or output_path is not None:
+        tmp_dir_handler = _general_helper.create_gfo_tmp_dir("add_columns")
+    else:
+        tmp_dir_handler = contextlib.nullcontext()  # type: ignore[assignment]
+
+    # Add all columns one by one + update them all together in a transaction
+    with tmp_dir_handler as tmp_dir, gdal_handler:
+        if tmp_dir is not None:
+            # Add columns to tmp copy
+            output_tmp_path = tmp_dir / Path(path).name
+            copy(path, output_tmp_path)
+        else:
+            # Add columns in place
+            output_tmp_path = path  # type: ignore[assignment]
 
         start = time.perf_counter()
+
+        # get layerinfo and determine `layer` and `output_layer` if not specified
         layerinfo = get_layerinfo(output_tmp_path, layer, raise_on_nogeom=False)
-        layer = layerinfo.name
+        if layer is None:
+            layer = layerinfo.name
 
         # Go!
         datasource = None
@@ -1226,13 +1254,36 @@ def add_columns(
                 datasource.ExecuteSQL(sql_stmt, dialect="SQLITE")
 
             _ogr_util.CommitTransaction(datasource)
-
-            # Move file to final location
             datasource = None
-            if output_path is None:
-                move(output_tmp_path, path)
-            else:
-                move(output_tmp_path, output_path)
+
+            # If an output_path is specified, but no output_layer, determine if the
+            # output layer needs to be changed and change output_layer accordingly.
+            if output_path is not None and output_layer is None:
+                # If the input file contains a single spatial layer, the default
+                # layername should be used for output_layer.
+                if len(listlayers(path, only_spatial_layers=True)) == 1:
+                    # Rename output_tmp_path to the output_path name so get_only_layer
+                    # returns the correct layer name for e.g. shapefiles.
+                    output_tmp2_path = tmp_dir / Path(output_path).name
+                    move(output_tmp_path, output_tmp2_path)
+                    output_tmp_path = output_tmp2_path
+
+                    # Now check the layer names
+                    current_output_layer = get_only_layer(output_tmp_path)
+                    default_output_layer = get_default_layer(output_path)
+                    if current_output_layer != default_output_layer:
+                        # The output layer needs to be changed
+                        output_layer = default_output_layer
+
+            if output_layer is not None:
+                rename_layer(output_tmp_path, new_layer=output_layer, layer=layer)
+
+            # Move file to final location if were working on a temp copy
+            if tmp_dir is not None:
+                if output_path is None:
+                    move(output_tmp_path, path)
+                else:
+                    move(output_tmp_path, output_path)
 
         except Exception as ex:
             _ogr_util.RollbackTransaction(datasource)

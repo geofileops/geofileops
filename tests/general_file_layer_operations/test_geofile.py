@@ -19,6 +19,7 @@ from pygeoops import GeometryType
 import geofileops as gfo
 from geofileops import fileops
 from geofileops._compat import GDAL_GTE_311
+from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import _geofileinfo, _geoseries_util
 from geofileops.util._geopath_util import GeoPath
 from tests import test_helper
@@ -195,48 +196,59 @@ def test_add_column_update_error(tmp_path, suffix, transaction_supported):
 
 
 @pytest.mark.parametrize("output_stem", [None, "new_parcels"])
-def test_add_columns(tmp_path, output_stem):
-    """Test the add_columns function.
+@pytest.mark.parametrize("do_updates", [True, False])
+@pytest.mark.parametrize("suffix", [".gpkg", ".shp"])
+def test_add_columns(tmp_path, output_stem, do_updates, suffix):
+    """Test the add_columns function."""
+    test_path = test_helper.get_testfile(
+        "polygon-parcel", dst_dir=tmp_path, suffix=suffix
+    )
+    test_input_gdf = gfo.read_file(test_path)
 
-    Test only on gpkg, as adding columns to shapefiles is not supported.
-    """
-    test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
-
-    # Columns to add
+    # Columns to add. Column lengths max 10 characters for shapefiles
+    test_info = gfo.get_layerinfo(path=test_path)
     new_columns = [
         ("GEWASGROEP", "string", "'testdata'"),
-        ("TEST_AREA", "real", "ST_area(geom)"),
-        ("TEST_PERIMETER", gfo.DataType.REAL, "ST_perimeter(geom)"),
-        ("TEST_INT", "integer64", "1"),
-        ("TEST_STRING", "string", "'test'"),
-        ("TEST_NULL_STRING", "string", None),
-        ("TEST_NULL_REAL", "real", None),
-        ("TEST_NULL_INT", "integer64", None),
+        ("TST_AREA", "real", f"ST_area({test_info.geometrycolumn})"),
+        ("TST_PERIM", gfo.DataType.REAL, f"ST_perimeter({test_info.geometrycolumn})"),
+        ("TST_INT", "integer", "1"),
+        ("TST_STR", "string", "'test'"),
+        ("TST_STR_N", "string", None),
+        ("TST_REAL_N", "real", None),
+        ("TST_INT_N", "integer", None),
     ]
 
+    # If no updates to be done, set expressions to None
+    if not do_updates:
+        new_columns = [(name, type, None) for name, type, _ in new_columns]
+
     # Make sure the columns are not in the test file yet, except for GEWASGROEP
-    layerinfo = gfo.get_layerinfo(path=test_path, layer="parcels")
+    layerinfo = gfo.get_layerinfo(path=test_path)
     for col_name, _, _ in new_columns:
         if col_name == "GEWASGROEP":
             assert col_name in layerinfo.columns
         else:
             assert col_name not in layerinfo.columns
 
-    output_path = None if output_stem is None else tmp_path / f"{output_stem}.gpkg"
-    gfo.add_columns(
-        test_path, layer="parcels", new_columns=new_columns, output_path=output_path
-    )
+    # This is the test dir that most likely will be created during the operation. Make
+    # sure it doesn't exist yet.
+    tmp_dir = ConfigOptions.tmp_dir / "add_columns_000001"
+    shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    output_path = None if output_stem is None else tmp_path / f"{output_stem}{suffix}"
+    with gfo.TempEnv({"GFO_REMOVE_TEMP_FILES": False}):
+        gfo.add_columns(test_path, new_columns=new_columns, output_path=output_path)
 
     # Check result
     output_path = test_path if output_path is None else output_path
-    output_layerinfo = gfo.get_layerinfo(path=output_path, layer="parcels")
+    output_layerinfo = gfo.get_layerinfo(path=output_path)
 
     # Check if columns were added
     for col_name, type, _ in new_columns:
         assert col_name in output_layerinfo.columns
         exp_type = (type if isinstance(type, str) else type.value).lower()
         output_type = output_layerinfo.columns[col_name].gdal_type.lower()
-        assert output_type == exp_type, (
+        assert output_type.startswith(exp_type), (
             f"Column {col_name}: expected {exp_type}, got {output_type}"
         )
 
@@ -244,24 +256,40 @@ def test_add_columns(tmp_path, output_stem):
     gdf = gfo.read_file(output_path)
 
     # The area and perimeter columns added should have similar values as the original
-    assert round(gdf["TEST_AREA"].astype("float")[0], 1) == round(
-        gdf["OPPERVL"].astype("float")[0], 1
-    )
-    assert round(gdf["TEST_PERIMETER"].astype("float")[0], 1) == round(
-        gdf["LENGTE"].astype("float")[0], 1
-    )
+    if do_updates:
+        assert round(gdf["TST_AREA"].astype("float")[0], 1) == round(
+            gdf["OPPERVL"].astype("float")[0], 1
+        )
+        assert round(gdf["TST_PERIM"].astype("float")[0], 1) == round(
+            gdf["LENGTE"].astype("float")[0], 1
+        )
+
+        # do_updates: the columns added with constant values should have those values
+        assert all(gdf["TST_INT"] == 1)
+        assert all(gdf["TST_STR"] == "test")
+
+        # do_updates: GEWASGROEP column should be overwritten to 'testdata'
+        assert all(gdf["GEWASGROEP"] == "testdata")
+    else:
+        # No updates, so new columns should have NaN values
+        assert all(pd.isna(gdf["TST_INT"]))
+        assert all(pd.isna(gdf["TST_STR"]))
+
+        # No updates, so GEWASGROEP column should NOT be overwritten to 'testdata'
+        assert all(gdf["GEWASGROEP"] == test_input_gdf["GEWASGROEP"])
 
     # The NULL columns should have NaN values
-    assert pd.isna(gdf["TEST_NULL_STRING"][0])
-    assert pd.isna(gdf["TEST_NULL_REAL"][0])
-    assert pd.isna(gdf["TEST_NULL_INT"][0])
+    assert all(pd.isna(gdf["TST_STR_N"]))
+    assert all(pd.isna(gdf["TST_REAL_N"]))
+    assert all(pd.isna(gdf["TST_INT_N"]))
 
-    # The columns added with constant values should have those values
-    assert all(gdf["TEST_INT"] == 1)
-    assert all(gdf["TEST_STRING"] == "test")
-
-    # For the GEWASGROEP column, all values should be overwritten to 'testdata'
-    assert all(gdf["GEWASGROEP"] == "testdata")
+    # Check the tmp_dir
+    if output_stem is not None or do_updates:
+        # If an output_path is given or if updates are done, the tmp dir should exist
+        assert tmp_dir.exists()
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+    else:
+        assert not tmp_dir.exists()
 
 
 @pytest.mark.parametrize(
@@ -310,6 +338,62 @@ def test_add_columns_errors(tmp_path, kwargs, exp_exception, exp_error):
     # new_columns not a list
     with pytest.raises(exp_exception, match=exp_error):
         gfo.add_columns(test_path, layer="parcels", **kwargs)
+
+
+@pytest.mark.parametrize(
+    "testfile, suffix, input_layer, output_layer, exp_output_layer",
+    [
+        ("polygon-parcel", ".shp", "DEFAULT", None, "output_file"),
+        ("polygon-parcel", ".gpkg", "parcels", "output_layer", "output_layer"),
+        ("polygon-parcel", ".gpkg", "parcels", None, "output_file"),
+        ("polygon-parcel", ".gpkg", "DEFAULT", "output_layer", "output_layer"),
+        ("polygon-parcel", ".gpkg", "DEFAULT", None, "output_file"),
+        ("polygon-twolayers", ".gpkg", "parcels", None, "parcels"),
+        ("polygon-twolayers", ".gpkg", "DEFAULT", None, "INPUT_LAYER"),
+        ("polygon-twolayers", ".gpkg", "parcels", "output_layer", "output_layer"),
+    ],
+)
+def test_add_columns_output_layer(
+    tmp_path, testfile, suffix, input_layer, output_layer, exp_output_layer
+):
+    """Test the add_columns function with output_layer parameter.
+
+    Remark: output_layer is ignored for single-layer file formats such as shapefiles.
+    """
+    test_path = test_helper.get_testfile(testfile, dst_dir=tmp_path, suffix=suffix)
+    if input_layer == "DEFAULT":
+        input_layer = gfo.get_default_layer(test_path)
+    if suffix == ".gpkg":
+        gfo.rename_layer(test_path, new_layer=input_layer, layer="parcels")
+
+    # Columns to add
+    new_columns = [("new_column", "string")]
+
+    output_path = tmp_path / f"output_file{suffix}"
+    gfo.add_columns(
+        test_path,
+        layer=input_layer,
+        new_columns=new_columns,
+        output_path=output_path,
+        output_layer=output_layer,
+    )
+
+    # Check result
+    if exp_output_layer == "DEFAULT":
+        exp_output_layer = gfo.get_default_layer(output_path)
+    elif exp_output_layer == "INPUT_LAYER":
+        exp_output_layer = input_layer
+    output_layerinfo = gfo.get_layerinfo(path=output_path, layer=exp_output_layer)
+    assert output_layerinfo.name == exp_output_layer
+
+    # Check if columns were added
+    for col_name, type in new_columns:
+        assert col_name in output_layerinfo.columns
+        exp_type = (type if isinstance(type, str) else type.value).lower()
+        output_type = output_layerinfo.columns[col_name].gdal_type.lower()
+        assert output_type.startswith(exp_type), (
+            f"Column {col_name}: expected {exp_type}, got {output_type}"
+        )
 
 
 def test_append_to(tmp_path):
@@ -2006,7 +2090,7 @@ def test_rename_layer(tmp_path):
 
 def test_rename_layer_unsupported(tmp_path):
     path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=".shp")
-    with pytest.raises(ValueError, match="rename_layer not possible for"):
+    with pytest.raises(ValueError, match="rename_layer not supported for"):
         _ = gfo.rename_layer(path, layer="layer", new_layer="new_layer")
 
 
