@@ -142,6 +142,7 @@ def test_add_column(tmp_path, suffix):
         (".shp", "Text", True, "String"),
         (".shp", "Time", True, "String"),
         (".shp", "Real", True, "Real"),
+        (".shp", "Invalid", True, "String"),
     ],
 )
 def test_add_column_types(tmp_path, suffix, type, type_supported, exp_gdal_type):
@@ -155,18 +156,26 @@ def test_add_column_types(tmp_path, suffix, type, type_supported, exp_gdal_type)
         "polygon-parcel", suffix=suffix, dst_dir=tmp_path
     )
 
-    column_name = f"column_{type}"
-    if suffix == ".shp" and len(column_name) > 10:
+    column_name_add_column = f"tst_{type}"
+    column_name_add_columns = f"tst2_{type}"
+    if suffix == ".shp":
         # Shapefile column name length limit = 10
-        column_name = column_name[:10]
+        column_name_add_column = column_name_add_column[:10]
+        column_name_add_columns = column_name_add_columns[:10]
 
     handler = nullcontext() if type_supported else pytest.raises(RuntimeError)
     with handler:
-        gfo.add_column(test_path, name=column_name, type=type)
+        gfo.add_column(test_path, name=column_name_add_column, type=type)
 
         info = gfo.get_layerinfo(test_path)
-        assert column_name in info.columns.keys()
-        assert info.columns[column_name].gdal_type == exp_gdal_type
+        assert column_name_add_column in info.columns.keys()
+        assert info.columns[column_name_add_column].gdal_type == exp_gdal_type
+
+        gfo.add_columns(test_path, [(column_name_add_columns, type)])
+
+        info = gfo.get_layerinfo(test_path)
+        assert column_name_add_columns in info.columns.keys()
+        assert info.columns[column_name_add_columns].gdal_type == exp_gdal_type
 
 
 @pytest.mark.parametrize(
@@ -324,7 +333,7 @@ def test_add_columns(tmp_path, output_stem, do_updates, suffix):
             "output_layer can only be used together with output_path",
         ),
         (
-            {"new_columns": [("AREA", "INVALID", "ST_area(geom)")]},
+            {"new_columns": [("AREA", "INVALID", "ST_area(geometry)")]},
             RuntimeError,
             "add_columns of name='AREA', type_str='INVALID' failed",
         ),
@@ -337,7 +346,7 @@ def test_add_columns_errors(tmp_path, kwargs, exp_exception, exp_error):
 
     # new_columns not a list
     with pytest.raises(exp_exception, match=exp_error):
-        gfo.add_columns(test_path, layer="parcels", **kwargs)
+        gfo.add_columns(test_path, **kwargs)
 
 
 def test_add_columns_errors_different_output_suffix(tmp_path):

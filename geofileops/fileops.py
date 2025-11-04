@@ -1052,7 +1052,7 @@ def add_column(
             "expression_dialect is deprecated and will be ignored", stacklevel=2
         )
 
-    type_str = _datatype_to_sqlite(type)
+    type_str = _validate_datatype(type)
 
     start = time.perf_counter()
     layerinfo = get_layerinfo(path, layer, raise_on_nogeom=False)
@@ -1223,7 +1223,7 @@ def add_columns(
             column_added = False
             for new_column in new_columns:
                 name = new_column[0]
-                type_str = _datatype_to_sqlite(new_column[1])
+                type_str = _validate_datatype(new_column[1])
                 expression = new_column[2] if len(new_column) >= 3 else None
 
                 if expression is not None:
@@ -1317,7 +1317,7 @@ def add_columns(
                 logger.info(f"Ready, add_columns of {name} took {took:.2f}")
 
 
-def _datatype_to_sqlite(type: str | DataType) -> str:
+def _validate_datatype(type: str | DataType) -> str:
     """Validate the datatype specified for a column.
 
     Args:
