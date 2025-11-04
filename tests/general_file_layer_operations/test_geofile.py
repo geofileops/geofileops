@@ -340,10 +340,25 @@ def test_add_columns_errors(tmp_path, kwargs, exp_exception, exp_error):
         gfo.add_columns(test_path, layer="parcels", **kwargs)
 
 
+def test_add_columns_errors_different_output_suffix(tmp_path):
+    """Test error when output_path has a different suffix than input file."""
+    test_path = test_helper.get_testfile("polygon-parcel", suffix=".gpkg")
+
+    # Create an output path with different suffix
+    output_path = tmp_path / "output.shp"
+    with pytest.raises(
+        ValueError, match="output_path should have the same suffix as the input path"
+    ):
+        gfo.add_columns(
+            test_path, new_columns=[("AREA", "real")], output_path=output_path
+        )
+
+
 @pytest.mark.parametrize(
     "testfile, suffix, input_layer, output_layer, exp_output_layer",
     [
         ("polygon-parcel", ".shp", "DEFAULT", None, "output_file"),
+        ("polygon-parcel", ".shp", "DEFAULT", "output_layer", "output_file"),
         ("polygon-parcel", ".gpkg", "parcels", "output_layer", "output_layer"),
         ("polygon-parcel", ".gpkg", "parcels", None, "output_file"),
         ("polygon-parcel", ".gpkg", "DEFAULT", "output_layer", "output_layer"),
@@ -2088,10 +2103,19 @@ def test_rename_layer(tmp_path):
     assert len(gfo.get_layerstyles(test_path, layer="PARCELS_RENAMED")) == 1
 
 
-def test_rename_layer_unsupported(tmp_path):
-    path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=".shp")
-    with pytest.raises(ValueError, match="rename_layer not supported for"):
-        _ = gfo.rename_layer(path, layer="layer", new_layer="new_layer")
+@pytest.mark.parametrize(
+    "suffix, layer, expected_error",
+    [
+        (".shp", None, "rename_layer not supported for"),
+        (".shp.zip", None, "rename_layer not supported for"),
+        (".shp", "layer", "rename_layer not supported for"),
+        (".shp.zip", "layer", "rename_layer not supported for"),
+    ],
+)
+def test_rename_layer_unsupported(tmp_path, suffix, layer, expected_error):
+    path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=suffix)
+    with pytest.raises(ValueError, match=expected_error):
+        _ = gfo.rename_layer(path, layer=layer, new_layer="new_layer")
 
 
 def test_execute_sql(tmp_path):

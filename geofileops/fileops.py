@@ -816,6 +816,9 @@ def rename_layer(
 ):
     """Rename the layer specified.
 
+    `rename_layer` can only be used on file types that support multiple layers, so
+    for drivers that have the `GDAL_DCAP_MULTIPLE_VECTOR_LAYERS` capability.
+
     Args:
         path (PathLike): The file path.
         layer (Optional[str]): The layer name. If not specified, and there is only
@@ -823,14 +826,19 @@ def rename_layer(
         new_layer (str): The new layer name. If not specified, and there is only
             one layer in the file, this layer is used. Otherwise exception.
     """
-    # Renaming the layer name is not possible for single layer file formats.
-    path_info = _geofileinfo.get_geofileinfo(path)
-    if path_info.is_singlelayer:
-        raise ValueError(f"rename_layer not supported for {path_info.driver} file")
-
-    # Now really rename
+    # Rename
     try:
         datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
+        driver = datasource.GetDriver()
+        is_multi_layer = (
+            driver.GetMetadataItem(gdal.DCAP_MULTIPLE_VECTOR_LAYERS) == "YES"
+        )
+        if not is_multi_layer:
+            raise ValueError(
+                "rename_layer not supported for single layer file types. You can use "
+                f"move to rename the file: {path}"
+            )
+
         datasource_layer = _get_layer(datasource, layer)
         layername = datasource_layer.GetName()
 
@@ -846,7 +854,7 @@ def rename_layer(
         datasource_layer.Rename(new_layer)
     except ValueError:
         raise
-    except Exception as ex:
+    except Exception as ex:  # pragma: no cover
         ex.args = (f"rename_layer error: {ex}, for {path}#{layer}",)
         raise
     finally:
@@ -1135,11 +1143,11 @@ def add_columns(
         output_path (PathLike, optional): If specified, the modified file is written
             to this location. If not specified, the original file is overwritten or the
             columns are added in place.
-        output_layer (str, optional): Only if `output_path` is specified, this can be
-            used to specify the layer name in the output file. If None, for multi-layer
-            file types :func:`get_default_layer` of `output_path` is used if the input
-            contains a single spatial layer. If the input contains multiple spatial
-            layers, the input layer name is used/retained. Defaults to None.
+        output_layer (str, optional): the layer name to use if `output_path` is
+            specified. For single-layer file types `output_layer` is ignored. If None,
+            :func:`get_default_layer` of `output_path` is used if the input contains a
+            single spatial layer. If the input contains multiple spatial layers, the
+            input layer name is used/retained. Defaults to None.
         force_update (bool, optional): If a column already exists, execute
             the update expression even if it means overwriting existing data.
             Defaults to False.
@@ -1147,6 +1155,10 @@ def add_columns(
     # Validate input parameters
     if output_layer is not None and output_path is None:
         raise ValueError("output_layer can only be used together with output_path")
+    if output_path is not None and (
+        GeoPath(path).suffix_full.lower() != GeoPath(output_path).suffix_full.lower()
+    ):
+        raise ValueError("output_path should have the same suffix as the input path")
 
     # Validate new_columns
     if not isinstance(new_columns, list) or len(new_columns) == 0:
@@ -1191,7 +1203,10 @@ def add_columns(
 
         start = time.perf_counter()
 
-        # get layerinfo and determine `layer` and `output_layer` if not specified
+        # Get layerinfo and determine `layer` and `output_layer` if not specified
+        # Remark: don't reuse the opened datasource here, because then the layer info
+        # is cached and the check if the columns are added correctly later on does not
+        # work correctly anymore.
         layerinfo = get_layerinfo(output_tmp_path, layer, raise_on_nogeom=False)
         if layer is None:
             layer = layerinfo.name
@@ -1199,7 +1214,10 @@ def add_columns(
         # Go!
         datasource = None
         try:
+            datasource = gdal.OpenEx(str(output_tmp_path), nOpenFlags=gdal.OF_UPDATE)
+
             # If column doesn't exist yet, create it
+            _ogr_util.StartTransaction(datasource)
             update_set_expressions = []
             columns_upper = [column.upper() for column in layerinfo.columns]
             column_added = False
@@ -1218,17 +1236,11 @@ def add_columns(
                 column_added = True
 
                 # Open datasource if not opened yet
-                if datasource is None:
-                    datasource = gdal.OpenEx(
-                        str(output_tmp_path), nOpenFlags=gdal.OF_UPDATE
-                    )
-                    _ogr_util.StartTransaction(datasource)
-
                 sql_stmt = f'ALTER TABLE "{layer}" ADD COLUMN "{name}" {type_str}'
                 datasource.ExecuteSQL(sql_stmt)
 
             # check if the columns were really added
-            if column_added and datasource is not None:
+            if column_added:
                 datasource_layer = datasource.GetLayer(layer)
                 layer_defn = datasource_layer.GetLayerDefn()
                 for new_column in new_columns:
@@ -1242,13 +1254,6 @@ def add_columns(
 
             # If an expression was provided and update can be done, go for it...
             if len(update_set_expressions) > 0 and (column_added or force_update):
-                # Open datasource if not opened yet
-                if datasource is None:
-                    datasource = gdal.OpenEx(
-                        str(output_tmp_path), nOpenFlags=gdal.OF_UPDATE
-                    )
-                    _ogr_util.StartTransaction(datasource)
-
                 set_expr = "\n,".join(update_set_expressions)
                 sql_stmt = f"""
                     UPDATE "{layer}"
@@ -1257,11 +1262,16 @@ def add_columns(
                 datasource.ExecuteSQL(sql_stmt, dialect="SQLITE")
 
             _ogr_util.CommitTransaction(datasource)
+            driver = datasource.GetDriver()
+            is_multi_layer = (
+                driver.GetMetadataItem(gdal.DCAP_MULTIPLE_VECTOR_LAYERS) == "YES"
+            )
             datasource = None
 
-            # If an output_path is specified, but no output_layer, determine if the
-            # output layer needs to be changed and change output_layer accordingly.
-            if output_path is not None and output_layer is None:
+            # For multilayer file types, if an output_path is specified, but no
+            # output_layer, determine if the output output layer needs to be changed
+            # and change output_layer accordingly.
+            if is_multi_layer and output_path is not None and output_layer is None:
                 # If the input file contains a single spatial layer, the default
                 # layername should be used for output_layer.
                 if len(listlayers(path, only_spatial_layers=True)) == 1:
@@ -1278,10 +1288,11 @@ def add_columns(
                         # The output layer needs to be changed
                         output_layer = default_output_layer
 
-            if output_layer is not None:
+            # Rename layer if needed
+            if is_multi_layer and output_layer is not None:
                 rename_layer(output_tmp_path, new_layer=output_layer, layer=layer)
 
-            # Move file to final location if were working on a temp copy
+            # Move file to final location if we were working on a temp copy
             if tmp_dir is not None:
                 if output_path is None:
                     move(output_tmp_path, path)
