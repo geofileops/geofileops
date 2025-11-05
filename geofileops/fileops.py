@@ -2797,6 +2797,7 @@ def copy_layer(
     reproject: bool = False,
     explodecollections: bool = False,
     force_output_geometrytype: GeometryType | str | None = None,
+    gridsize: float = 0.0,
     create_spatial_index: bool | None = None,
     transaction_size: int = 50000,
     preserve_fid: bool | None = None,
@@ -2906,6 +2907,12 @@ def copy_layer(
             possible to specify PROMOTE_TO_MULTI to convert all geometries to
             multigeometries or CONVERT_TO_LINEAR to convert CURVE geometries to linear.
             Defaults to None.
+        gridsize (float, optional): the size of the grid the coordinates of the ouput
+            will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
+            the precision. Contrary to all other geofileops functions, `gridsize` here
+            is only applied after the `sql_stmt` or `where` statements, so it is not
+            possible to filter out geometries becoming empty due to application of
+            `gridsize`. Defaults to 0.0.
         create_spatial_index (bool, optional): True to create a spatial index
             on the destination file/layer. If None, the default behaviour by gdal for
             that file type is respected. If the LAYER_CREATION.SPATIAL_INDEX
@@ -2999,6 +3006,7 @@ def copy_layer(
         and not explodecollections
         and not reproject
         and force_output_geometrytype is None
+        and gridsize == 0.0
         and dst_dimensions is None
         and (options is None or len(options) == 0)
         and src_crs is None
@@ -3093,6 +3101,7 @@ def copy_layer(
         transaction_size=transaction_size,
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
+        gridsize=gridsize,
         options=options,
         preserve_fid=preserve_fid,
         dst_dimensions=dst_dimensions,
