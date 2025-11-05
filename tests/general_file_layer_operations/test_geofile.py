@@ -58,7 +58,7 @@ def points_gdf():
     gdf = gpd.GeoDataFrame(
         [
             {"geometry": sh_geom.Point(x, y), "value1": x + y, "value2": x * y}
-            for x, y in zip(range(nb_points), range(nb_points))
+            for x, y in zip(range(nb_points), range(nb_points), strict=True)
         ],
         crs="epsg:4326",
     )

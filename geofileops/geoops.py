@@ -2018,7 +2018,7 @@ def concat(
         # Loop over all files and copy_layer them one by one together.
         tmp_dst = tmp_dir / output_path.name
         is_first = True
-        for src_path, src_layer in zip(input_paths, input_layers):
+        for src_path, src_layer in zip(input_paths, input_layers, strict=True):
             # This first file will be created, the others appended
             if is_first:
                 force_local = force

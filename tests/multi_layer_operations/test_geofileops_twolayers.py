@@ -504,7 +504,7 @@ def test_identity(tmp_path, suffix, epsg, gridsize, subdivide_coords):
     input1_gdf = gfo.read_file(input1_path)
     input2_gdf = gfo.read_file(input2_path)
     exp_gdf = input1_gdf.overlay(input2_gdf, how="identity", keep_geom_type=True)
-    renames = dict(zip(exp_gdf.columns, output_gdf.columns))
+    renames = dict(zip(exp_gdf.columns, output_gdf.columns, strict=True))
     exp_gdf = exp_gdf.rename(columns=renames)
     # For text columns, gfo gives None rather than np.nan for missing values.
     for column in exp_gdf.select_dtypes(include="O").columns:
@@ -732,7 +732,7 @@ def test_intersection(
     expected_gdf = input1_gdf.overlay(
         input2_gdf, how=overlay_operation, keep_geom_type=True
     )
-    renames = dict(zip(expected_gdf.columns, output_gdf.columns))
+    renames = dict(zip(expected_gdf.columns, output_gdf.columns, strict=True))
     expected_gdf = expected_gdf.rename(columns=renames)
     if gridsize != 0.0:
         expected_gdf.geometry = shapely.set_precision(
@@ -1082,7 +1082,7 @@ def test_intersection_subdivide(
     expected_gdf = input1_gdf.overlay(
         input2_gdf, how=overlay_operation, keep_geom_type=True
     )
-    renames = dict(zip(expected_gdf.columns, output_gdf.columns))
+    renames = dict(zip(expected_gdf.columns, output_gdf.columns, strict=True))
     expected_gdf = expected_gdf.rename(columns=renames)
     if gridsize != 0.0:
         expected_gdf.geometry = shapely.set_precision(
@@ -1952,7 +1952,7 @@ def test_symmetric_difference(tmp_path, suffix, epsg, gridsize, subdivide_coords
     exp_gdf = input1_gdf.overlay(
         input2_gdf, how="symmetric_difference", keep_geom_type=True
     )
-    renames = dict(zip(exp_gdf.columns, output_gdf.columns))
+    renames = dict(zip(exp_gdf.columns, output_gdf.columns, strict=True))
     exp_gdf = exp_gdf.rename(columns=renames)
     # For text columns, gfo gives None rather than np.nan for missing values.
     for column in exp_gdf.select_dtypes(include="O").columns:
@@ -2122,7 +2122,7 @@ def test_union(
         input1_gdf["l1_fid"] = input1_gdf.index
         input2_gdf["l2_fid"] = input2_gdf.index
     exp_gdf = input1_gdf.overlay(input2_gdf, how="union", keep_geom_type=True)
-    renames = dict(zip(exp_gdf.columns, output_gdf.columns))
+    renames = dict(zip(exp_gdf.columns, output_gdf.columns, strict=True))
     exp_gdf = exp_gdf.rename(columns=renames)
     # For text columns, gfo gives None rather than np.nan for missing values.
     for column in exp_gdf.select_dtypes(include="O").columns:
@@ -2195,7 +2195,7 @@ def test_union_circles(tmp_path, suffix, epsg):
     input1_gdf = gfo.read_file(input1_path)
     input2_gdf = gfo.read_file(input2_path)
     exp_gdf = input1_gdf.overlay(input2_gdf, how="union", keep_geom_type=True)
-    renames = dict(zip(exp_gdf.columns, output_gdf.columns))
+    renames = dict(zip(exp_gdf.columns, output_gdf.columns, strict=True))
     exp_gdf = exp_gdf.rename(columns=renames)
     # For text columns, gfo gives None rather than np.nan for missing values.
     for column in exp_gdf.select_dtypes(include="O").columns:
@@ -2253,7 +2253,7 @@ def test_union_circles(tmp_path, suffix, epsg):
     input1_gdf = gfo.read_file(input1_path)
     input2_gdf = gfo.read_file(input2_path)
     exp_gdf = input1_gdf.overlay(input2_gdf, how="union", keep_geom_type=True)
-    renames = dict(zip(exp_gdf.columns, output_gdf.columns))
+    renames = dict(zip(exp_gdf.columns, output_gdf.columns, strict=True))
     exp_gdf = exp_gdf.rename(columns=renames)
     # For text columns, gfo gives None rather than np.nan for missing values.
     for column in exp_gdf.select_dtypes(include="O").columns:

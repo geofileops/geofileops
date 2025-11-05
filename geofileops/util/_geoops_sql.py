@@ -2047,7 +2047,8 @@ def join(
     if len(input1_on) != len(input2_on):
         raise ValueError("input1_on and input2_on must have the same length")
     joins = [
-        f"layer1.{col1} = layer2.{col2}" for col1, col2 in zip(input1_on, input2_on)
+        f"layer1.{col1} = layer2.{col2}"
+        for col1, col2 in zip(input1_on, input2_on, strict=True)
     ]
     join_clause = " AND ".join(joins)
 
@@ -3781,7 +3782,9 @@ def _determine_column_types(
     # The types determined from the input layers for the columns asked are the most
     # detailed/correct ones possible, so use them.
     columns_aliases = zip(
-        input1_col_strs.columns_asked_list(), input1_col_strs.aliases_list()
+        input1_col_strs.columns_asked_list(),
+        input1_col_strs.aliases_list(),
+        strict=True,
     )
     for column, alias in columns_aliases:
         if column_types_from_sql and alias not in column_types_tmp:
@@ -3791,7 +3794,9 @@ def _determine_column_types(
         column_types_tmp[alias] = input1_column_types[column.lower()]
 
     columns_aliases = zip(
-        input2_col_strs.columns_asked_list(), input2_col_strs.aliases_list()
+        input2_col_strs.columns_asked_list(),
+        input2_col_strs.aliases_list(),
+        strict=True,
     )
     for column, alias in columns_aliases:
         if column_types_from_sql and alias not in column_types_tmp:

@@ -57,38 +57,21 @@ select = [
 
 ignore = [
     ### Intentionally disabled
-    # module level import not at top of file
-    "E402",
-    # do not assign a lambda expression, use a def
-    "E731",
-    # mutable-argument-default
-    "B006",
-    # unused-loop-control-variable
-    "B007",
-    # get-attr-with-constant
-    "B009",
-    # Only works with python >=3.10
-    "B905",
-    # dict literals
-    "C408",
-    # Too many arguments to function call
-    "PLR0913",
-    # Too many returns
-    "PLR0911",
-    # Too many branches
-    "PLR0912",
-    # Too many statements
-    "PLR0915",
-    # Magic number
-    "PLR2004",
-    # Redefined loop name
-    "PLW2901",
-    # Global statements are discouraged
-    "PLW0603",
-    # compare-to-empty-string
-    "PLC1901",
-    # collection-literal-concatenation
-    "RUF005",
+    "E402",  # module level import not at top of file
+    "E731",  # do not assign a lambda expression, use a def
+    "B006",  # mutable-argument-default
+    "B007",  # unused-loop-control-variable
+    "B009",  # get-attr-with-constant
+    "C408",  # dict literals
+    "PLR0913",  # Too many arguments to function call
+    "PLR0911",  # Too many returns
+    "PLR0912",  # Too many branches
+    "PLR0915",  # Too many statements
+    "PLR2004",  # Magic number
+    "PLW2901",  # Redefined loop name
+    "PLW0603",  # Global statements are discouraged
+    "PLC1901",  # compare-to-empty-string
+    "RUF005",  # collection-literal-concatenation
 ]
 
 [tool.ruff.lint.per-file-ignores]
