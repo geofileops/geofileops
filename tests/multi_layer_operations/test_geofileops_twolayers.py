@@ -2077,8 +2077,8 @@ def test_union(
     input2_columns = None
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     if keep_fid:
-        input1_columns = list(input1_layerinfo.columns) + ["fid"]
-        input2_columns = list(input2_layerinfo.columns) + ["fid"]
+        input1_columns = [*list(input1_layerinfo.columns), "fid"]
+        input2_columns = [*list(input2_layerinfo.columns), "fid"]
 
     # Test
     gfo.union(

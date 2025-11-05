@@ -38,13 +38,13 @@ GEOOPS_MODULES = [
 
 
 def set_geoops_module(geoops_module: str):
-    global current_geoops_module
+    global current_geoops_module  # noqa: PLW0603
     if current_geoops_module == geoops_module:
         # The right module is already loaded, so don't do anything
         return
     else:
         # Load the desired module as fileops
-        global geoops
+        global geoops  # noqa: PLW0603
         geoops = import_module(geoops_module, __package__)
         current_geoops_module = geoops_module
         print(f"gfo module switched to: {current_geoops_module}")

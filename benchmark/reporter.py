@@ -17,7 +17,7 @@ A4_LONG_SIDE = 11.69
 A4_SHORT_SIDE = 8.27
 
 
-def generate_reports(results_path: Path, output_dir: Path):
+def generate_reports(results_path: Path, output_dir: Path) -> None:
     """Generate the benchmarking reports.
 
     Args:
@@ -128,7 +128,7 @@ def save_chart(
     ] = "line",
     gridlines: Literal["both", "x", "y"] | None = None,
     linestyle: str | None = None,
-):
+) -> None:
     """Render and save a chart.
 
     Args:

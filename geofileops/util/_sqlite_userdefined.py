@@ -214,7 +214,7 @@ def gfo_split(
         return None
 
 
-def gfo_subdivide(geom_wkb: bytes, coords: int = 2000):
+def gfo_subdivide(geom_wkb: bytes, coords: int = 2000) -> bytes | None:
     """Divide the input geometry to smaller parts using rectilinear lines.
 
     Args:

@@ -59,7 +59,7 @@ def buffer(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     # Init + prepare sql template for this operation
     # ----------------------------------------------
     operation = f"ST_Buffer({{geometrycolumn}}, {distance}, {quadrantsegments})"
@@ -122,7 +122,7 @@ def convexhull(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     # Init + prepare sql template for this operation
     sql_template = """
         SELECT ST_ConvexHull({geometrycolumn}) AS {geometrycolumn}
@@ -169,7 +169,7 @@ def delete_duplicate_geometries(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     if priority_column is None:
         priority_column = "rowid"
     priority_order = "ASC" if priority_ascending else "DESC"
@@ -311,7 +311,7 @@ def makevalid(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
@@ -388,7 +388,7 @@ def select(
     batchsize: int = -1,
     force: bool = False,
     operation_prefix: str = "",
-):
+) -> None:
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
@@ -447,7 +447,7 @@ def simplify(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     # Init + prepare sql template for this operation
     # ----------------------------------------------
     sql_template = f"""
@@ -500,7 +500,7 @@ def _single_layer_vector_operation(
     batchsize: int,
     force: bool,
     tmp_basedir: Path | None,
-):
+) -> None:
     """Execute a sql query template on the input layer.
 
     Args:
@@ -736,7 +736,8 @@ def _single_layer_vector_operation(
         with _processing_util.PooledExecutorFactory(
             worker_type=worker_type,
             max_workers=processing_params.nb_parallel,
-            initializer=_processing_util.initialize_worker(worker_type),
+            initializer=_processing_util.initialize_worker,
+            initargs=(worker_type,),
         ) as calculate_pool:
             batches: dict[int, dict] = {}
             future_to_batch_id = {}
@@ -883,7 +884,7 @@ def clip(
     force: bool = False,
     input_columns_prefix: str = "",
     output_with_spatial_index: bool | None = None,
-):
+) -> None:
     if _io_util.output_exists(path=output_path, remove_if_exists=force):
         return
 
@@ -1003,7 +1004,7 @@ def difference(  # noqa: D417
     tmp_basedir: Path | None = None,
     input1_subdivided_path: Path | None = None,
     input2_subdivided_path: Path | None = None,
-):
+) -> None:
     """Calculate the difference between two layers.
 
     Only arguments specific to the internal difference operation are documented here.
@@ -1424,7 +1425,8 @@ def _has_complex_geoms(path: Path, layer: LayerInfo, max_coords: int) -> bool:
         with _processing_util.PooledExecutorFactory(
             worker_type=worker_type,
             max_workers=processing_params.nb_parallel,
-            initializer=_processing_util.initialize_worker(worker_type, 0),
+            initializer=_processing_util.initialize_worker,
+            initargs=(worker_type, 0),
         ) as pool:
             process_futures = []
             for batch_id, batch_info in processing_params.batches.items():
@@ -1474,7 +1476,7 @@ def export_by_location(
     batchsize: int = -1,
     subdivide_coords: int = 10000,
     force: bool = False,
-):
+) -> None:
     # Because there might be extra preparation of the 2nd layer before going ahead
     # with the real calculation, do some additional init + checks here...
     if subdivide_coords < 0:
@@ -1668,7 +1670,7 @@ def export_by_distance(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     # Prepare sql template for this operation
     input1_layer_rtree = "rtree_{input1_layer}_{input1_geometrycolumn}"
     input2_layer_rtree = "rtree_{input2_layer}_{input2_geometrycolumn}"
@@ -1744,7 +1746,7 @@ def intersection(  # noqa: D417
     tmp_basedir: Path | None = None,
     input1_subdivided_path: Path | None = None,
     input2_subdivided_path: Path | None = None,
-):
+) -> None:
     """Calculate the intersection between two layers.
 
     Only arguments specific to the internal difference operation are documented here.
@@ -2038,7 +2040,7 @@ def join(
     nb_parallel: int = 1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     # Prepare the join clause
     if isinstance(input1_on, str):
         input1_on = [input1_on]
@@ -2118,7 +2120,7 @@ def join_by_location(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     # Prepare sql template for this operation
     # Prepare intersection area columns/filter
     area_inters_column_expression = ""
@@ -2400,7 +2402,7 @@ def _prepare_filter_by_location_params(
 
 
 def _is_query_true_for_disjoint_features(
-    spatial_relations_column, spatial_relations_filter, subquery_alias
+    spatial_relations_column: str, spatial_relations_filter: str, subquery_alias: str
 ) -> bool:
     # Determine if the spatial_relations_query returns True for disjoint features
     spatial_relation_column_disjoint = spatial_relations_column.format(
@@ -2504,7 +2506,7 @@ def join_nearest(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     # Init some things...
     # Because there is preprocessing done in this function, check output path
     # here already
@@ -2626,7 +2628,7 @@ def select_two_layers(
     operation_prefix: str = "",
     tmp_dir: Path | None = None,
     output_with_spatial_index: bool | None = None,
-):
+) -> None:
     # Go!
     return _two_layer_vector_operation(
         input1_path=input1_path,
@@ -2674,7 +2676,7 @@ def identity(
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
-):
+) -> None:
     # An identity is the combination of the results of an "intersection" of input1 and
     # input2 and an difference of input2 with input1.
 
@@ -2835,7 +2837,7 @@ def symmetric_difference(
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
-):
+) -> None:
     # A symmetric difference can be simulated by doing an difference of input1
     # and input2 and then append the result of an difference of input2 with
     # input1...
@@ -3011,7 +3013,7 @@ def union(
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
-):
+) -> None:
     # A union is the combination of the results of an intersection of input1 and input2,
     # the result of an difference of input2 with input1 and the difference of input1
     # with input2.
@@ -3224,7 +3226,7 @@ def _two_layer_vector_operation(
     input2_subdivided_path: Path | None = None,
     use_ogr: bool = False,
     output_with_spatial_index: bool | None = None,
-):
+) -> None:
     """Executes an operation that needs 2 input files.
 
     Args:
@@ -3472,7 +3474,7 @@ def _two_layer_vector_operation(
             )
 
         # Prepare the database names to fill out in the sql_template
-        input_db_placeholders, input_db_names = _prepare_input_db_names(
+        input_db_placeholders, input_databases = _prepare_input_db_names(
             {
                 "input1_databasename": input1_path,
                 "input2_databasename": input2_path,
@@ -3518,7 +3520,7 @@ def _two_layer_vector_operation(
             input1_col_strs=input1_col_strs,
             input2_col_strs=input2_col_strs,
             processing_params=processing_params,
-            input_db_names=input_db_names,
+            input_databases=input_databases,
         )
 
         # Apply gridsize if it is specified
@@ -3603,7 +3605,8 @@ def _two_layer_vector_operation(
         with _processing_util.PooledExecutorFactory(
             worker_type=worker_type,
             max_workers=processing_params.nb_parallel,
-            initializer=_processing_util.initialize_worker(worker_type),
+            initializer=_processing_util.initialize_worker,
+            initargs=(worker_type,),
         ) as calculate_pool:
             # Start looping
             batches: dict[int, dict] = {}
@@ -3630,7 +3633,7 @@ def _two_layer_vector_operation(
                 # Remark: this temp file doesn't need spatial index
                 future = calculate_pool.submit(
                     _calculate_two_layers,
-                    input_databases=input_db_names,
+                    input_databases=input_databases,
                     output_path=tmp_partial_output_path,
                     sql_stmt=sql_stmt,
                     output_layer=output_layer,
@@ -3734,6 +3737,23 @@ def _two_layer_vector_operation(
         logger.info(f"Ready, took {datetime.now() - start_time}")
 
 
+class ProcessingParams:
+    def __init__(
+        self,
+        nb_parallel: int,
+        batches: dict,
+        batchsize: int,
+    ) -> None:
+        self.nb_parallel = nb_parallel
+        self.batches = batches
+        self.batchsize = batchsize
+
+    def to_json(self, path: Path) -> None:
+        prepared = _general_util.prepare_for_serialize(vars(self))
+        with path.open("w") as file:
+            file.write(json.dumps(prepared, indent=4, sort_keys=True))
+
+
 def _determine_column_types(
     input_column_types: dict[str, str] | None,
     input1_path: Path,
@@ -3742,10 +3762,10 @@ def _determine_column_types(
     input2_layer: LayerInfo,
     sql_template: str,
     force_output_geometrytype: GeometryType | None,
-    input1_col_strs,
-    input2_col_strs,
-    processing_params,
-    input_db_names,
+    input1_col_strs: _ogr_sql_util.ColumnFormatter,
+    input2_col_strs: _ogr_sql_util.ColumnFormatter,
+    processing_params: ProcessingParams,
+    input_databases: dict[str, Path],
 ) -> dict[str, str]:
     """Determine the column types to use in the output layer."""
     column_types_tmp = {}
@@ -3758,7 +3778,7 @@ def _determine_column_types(
         )
         column_types_tmp = _sqlite_util.get_columns(
             sql_stmt=sql_stmt,
-            input_databases=input_db_names,
+            input_databases=input_databases,
             output_geometrytype=force_output_geometrytype,
         )
         column_types_from_sql = True
@@ -3932,7 +3952,7 @@ def _calculate_two_layers(
     create_spatial_index: bool,
     column_datatypes: dict,
     use_ogr: bool,
-):
+) -> None:
     if not use_ogr:
         # If explodecollections, write first to tmp file, then apply explodecollections
         # to the final output file.
@@ -3980,23 +4000,6 @@ def _calculate_two_layers(
             force_output_geometrytype=force_output_geometrytype,
             options={"LAYER_CREATION.SPATIAL_INDEX": create_spatial_index},
         )
-
-
-class ProcessingParams:
-    def __init__(
-        self,
-        nb_parallel: int,
-        batches: dict,
-        batchsize: int,
-    ):
-        self.nb_parallel = nb_parallel
-        self.batches = batches
-        self.batchsize = batchsize
-
-    def to_json(self, path: Path):
-        prepared = _general_util.prepare_for_serialize(vars(self))
-        with path.open("w") as file:
-            file.write(json.dumps(prepared, indent=4, sort_keys=True))
 
 
 def _convert_to_spatialite_based(
@@ -4109,7 +4112,7 @@ def _finalize_output(
     output_path: Path,
     output_layer: str | None,
     output_with_spatial_index: bool,
-):
+) -> None:
     if tmp_output_path.exists():
         # Create spatial index if needed
         if output_with_spatial_index:
@@ -4398,7 +4401,7 @@ def dissolve_singlethread(  # noqa: D417
     output_layer: str | None = None,
     force: bool = False,
     tmp_basedir: Path | None = None,
-):
+) -> None:
     """Dissolve geometries in a singlethreaded way.
 
     Remark: this is not a parallelized version!!!
@@ -4439,7 +4442,7 @@ def dissolve_singlethread(  # noqa: D417
     fid_column = input_layer.fid_column if input_layer.fid_column != "" else "rowid"
 
     # Prepare some lists for later use
-    columns_available = list(input_layer.columns) + ["fid"]
+    columns_available = [*list(input_layer.columns), "fid"]
     columns_available_upper = [column.upper() for column in columns_available]
     groupby_columns_upper_dict = {}
     if groupby_columns is not None:

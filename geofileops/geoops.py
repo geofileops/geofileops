@@ -44,7 +44,7 @@ def dissolve_within_distance(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     """Dissolve geometries that are within the distance specified.
 
     The output layer will contain the dissolved geometries where all gaps between the
@@ -402,7 +402,7 @@ def apply(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     """Apply a python function on the geometry column of the input file.
 
     The result is written to the output file specified.
@@ -524,7 +524,7 @@ def apply_vectorized(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     """Apply a vectorized python function on the geometry column of the input file.
 
     The result is written to the output file specified.
@@ -637,7 +637,7 @@ def buffer(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     """Applies a buffer operation on geometry column of the input file.
 
     The result is written to the output file specified.
@@ -845,7 +845,7 @@ def clip_by_geometry(
     columns: list[str] | None = None,
     explodecollections: bool = False,
     force: bool = False,
-):
+) -> None:
     """Clip all geometries in the input file by the geometry provided.
 
     If ``explodecollections`` is False and the input and output file type is GeoPackage,
@@ -900,7 +900,7 @@ def convexhull(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     """Applies a convexhull operation on the input file.
 
     The result is written to the output file specified.
@@ -976,7 +976,7 @@ def delete_duplicate_geometries(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     """Copy all rows to the output file, except for duplicate geometries.
 
     The check for duplicates is done using ``ST_Equals``. ``ST_Equals`` is ``True`` if`
@@ -1063,7 +1063,7 @@ def dissolve(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     """Applies a dissolve operation on the input file.
 
     If columns are specified with ``groupby_columns``, the data is first grouped
@@ -1243,7 +1243,7 @@ def export_by_bounds(
     columns: list[str] | None = None,
     explodecollections: bool = False,
     force: bool = False,
-):
+) -> None:
     """Export the rows that intersect with the bounds specified.
 
     If ``explodecollections`` is False and the input and output file type is GeoPackage,
@@ -1383,7 +1383,7 @@ def makevalid(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     """Makes all geometries in the input file valid.
 
     Writes the result to the output path.
@@ -1514,7 +1514,7 @@ def warp(
     columns: list[str] | None = None,
     explodecollections: bool = False,
     force: bool = False,
-):
+) -> None:
     """Warp all input features to the output file according to the gcps specified.
 
     Alternative names:
@@ -1576,7 +1576,7 @@ def select(
     nb_parallel: int = 1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     '''Execute a SELECT SQL statement on the input file.
 
     The ``sql_stmt`` must be in SQLite dialect and can contain placeholders that will be
@@ -1742,7 +1742,7 @@ def simplify(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     """Applies a simplify operation on geometry column of the input file.
 
     The result is written to the output file specified.
@@ -1860,7 +1860,7 @@ def clip(
     batchsize: int = -1,
     subdivide_coords: int = 15000,
     force: bool = False,
-):
+) -> None:
     """Clip the input layer with the clip layer.
 
     The resulting layer will contain the parts of the geometries in the
@@ -1965,7 +1965,7 @@ def concat(
     explodecollections: bool = False,
     create_spatial_index: bool | None = None,
     force: bool = False,
-):
+) -> None:
     """Concatenate multiple geofiles into one output geofile.
 
     The input files will be appended one after the other in the output file, so only
@@ -2077,7 +2077,7 @@ def difference(
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
-):
+) -> None:
     """Calculate the difference of the input1 layer and input2 layer.
 
     If ``input2_path`` is None, the 1st input layer is used for both inputs but
@@ -2196,7 +2196,7 @@ def erase(
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
-):
+) -> None:
     """DEPRECATED: please use difference."""
     warnings.warn(  # pragma: no cover
         "erase is deprecated because it was renamed to difference. "
@@ -2239,7 +2239,7 @@ def export_by_location(
     batchsize: int = -1,
     subdivide_coords: int = 7500,
     force: bool = False,
-):
+) -> None:
     """Exports all features filtered by the specified spatial query.
 
     All features in ``input_to_select_from_path`` that comply to the
@@ -2362,7 +2362,7 @@ def export_by_distance(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     """Exports all features within the distance specified.
 
     Features in ``input_to_select_from_path`` that are within the distance specified of
@@ -2453,7 +2453,7 @@ def identity(
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
-):
+) -> None:
     r"""Calculates the pairwise identity of the two input layers.
 
     The result is the equivalent of the intersection between the two layers + layer 1
@@ -2598,7 +2598,7 @@ def split(
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
-):
+) -> None:
     """DEPRECATED: please use identity."""
     warnings.warn(
         "split is deprecated because it was renamed to identity. "
@@ -2647,7 +2647,7 @@ def intersect(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     """DEPRECATED: please use intersection."""
     warnings.warn(  # pragma: no cover
         "intersect is deprecated because it was renamed intersection. "
@@ -2693,7 +2693,7 @@ def intersection(
     batchsize: int = -1,
     subdivide_coords: int = 15000,
     force: bool = False,
-):
+) -> None:
     r"""Calculates the pairwise intersection of the two input layers.
 
     Pairwise intersection means that the intersection of each geometry in the 1st input
@@ -2844,7 +2844,7 @@ def join(
     nb_parallel: int = 1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     r"""Joins two layers based on attribute values.
 
     The output will contain the geometries of input1. The ``input1_on`` and
@@ -2951,7 +2951,7 @@ def join_by_location(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     r"""Join two layers based on the spatial relationship between the geometries.
 
     The output will contain the geometries of input1. The ``spatial_relations_query``
@@ -3085,7 +3085,7 @@ def join_nearest(
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     r"""Joins features of ``input1`` with the ``nb_nearest`` ones in ``input2``.
 
     In addition to the columns requested via the ``input*_columns`` parameters, the
@@ -3196,7 +3196,7 @@ def select_two_layers(
     nb_parallel: int = 1,
     batchsize: int = -1,
     force: bool = False,
-):
+) -> None:
     r'''Execute a SELECT SQL statement on the input files.
 
     The ``sql_stmt`` must be in SQLite dialect and can contain placeholders that will be
@@ -3425,7 +3425,7 @@ def symmetric_difference(
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
-):
+) -> None:
     r"""Calculates the pairwise symmetric difference of the two input layers.
 
     The result will be a layer containing features from both the input and overlay
@@ -3568,7 +3568,7 @@ def union(
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
-):
+) -> None:
     r"""Calculates the pairwise union of the two input layers.
 
     Union needs to be interpreted here as such: the output layer will contain the

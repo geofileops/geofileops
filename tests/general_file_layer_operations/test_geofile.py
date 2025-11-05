@@ -2572,7 +2572,7 @@ def test_to_file_index(tmp_path, points_gdf, suffix, engine_setter):
             expected_cols = []
         if index_is_used:
             expected_cols += index_cols
-        expected_cols += other_cols + ["geometry"]
+        expected_cols += [*other_cols, "geometry"]
         assert list(df_check.columns) == expected_cols
 
         # check GeoDataFrame with index=True
@@ -2586,9 +2586,9 @@ def test_to_file_index(tmp_path, points_gdf, suffix, engine_setter):
         gfo.to_file(df, tempfilename, index=False)
         df_check = gfo.read_file(tempfilename)
         if len(other_cols) == 0:
-            expected_cols = driver_col + ["geometry"]
+            expected_cols = [*driver_col, "geometry"]
         else:
-            expected_cols = other_cols + ["geometry"]
+            expected_cols = [*other_cols, "geometry"]
         assert list(df_check.columns) == expected_cols
 
     # Checks where index is not used/saved

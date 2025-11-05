@@ -24,7 +24,7 @@ def test_perf_gdal_openex(tmp_path):
     # Test!
     start = perf_counter()
 
-    for i in range(5000):
+    for _i in range(5000):
         with gdal.OpenEx(str(src), gdal.OF_VECTOR):
             pass
 
@@ -42,7 +42,7 @@ def test_perf_gdal_vectortranslate(tmp_path):
     # Test!
     start = perf_counter()
 
-    for i in range(500):
+    for _i in range(500):
         gdal.VectorTranslate(destNameOrDestDS=dst, srcDS=src)
         dst.unlink()
 
@@ -61,7 +61,7 @@ def test_perf_gfo_buffer(tmp_path):
     start = perf_counter()
 
     with cProfile.Profile() as pr:
-        for i in range(100):
+        for _i in range(100):
             gfo.buffer(input, output, distance=10)
             output.unlink()
 
@@ -88,7 +88,7 @@ def test_perf_gfo_intersection(tmp_path):
     start = perf_counter()
 
     with cProfile.Profile() as pr:
-        for i in range(10):
+        for _i in range(10):
             gfo.intersection(input1, input2, output)
             output.unlink()
 
@@ -111,7 +111,7 @@ def test_perf_gfo_layerinfo(tmp_path):
     # Test!
     start = perf_counter()
 
-    for i in range(5000):
+    for _i in range(5000):
         gfo.get_layerinfo(src)
 
     elapsed = perf_counter() - start
