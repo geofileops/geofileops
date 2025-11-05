@@ -73,9 +73,9 @@ def test_export_by_bounds(tmp_path, suffix):
 
     # Do operation
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
-    filter = (156036, 196691, 156368, 196927)
+    bounds_filter = (156036, 196691, 156368, 196927)
     gfo.export_by_bounds(
-        input_path=str(input_path), output_path=str(output_path), bounds=filter
+        input_path=str(input_path), output_path=str(output_path), bounds=bounds_filter
     )
 
     # Now check if the output file is correctly created

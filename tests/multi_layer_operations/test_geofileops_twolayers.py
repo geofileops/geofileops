@@ -1182,8 +1182,8 @@ def test_prepare_spatial_relations_filter():
     ]
     for relation in named_relations:
         query = f"{relation} is True"
-        filter = geoops_sql._prepare_spatial_relation_filter(query)
-        assert filter is not None and filter != ""
+        relation_filter = geoops_sql._prepare_spatial_relation_filter(query)
+        assert relation_filter is not None and relation_filter != ""
 
     # Test extra queries that should work
     ok_queries = [
@@ -1192,8 +1192,8 @@ def test_prepare_spatial_relations_filter():
         "(((T******** is False)))",
     ]
     for query in ok_queries:
-        filter = geoops_sql._prepare_spatial_relation_filter(query)
-        assert filter is not None and filter != ""
+        relation_filter = geoops_sql._prepare_spatial_relation_filter(query)
+        assert relation_filter is not None and relation_filter != ""
 
     # Test queries that should fail
     error_queries = [

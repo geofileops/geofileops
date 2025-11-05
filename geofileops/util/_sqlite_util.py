@@ -702,11 +702,11 @@ def create_table_as_sql(
     sql = None
     try:
 
-        def to_string_for_sql(input: object) -> str:
-            if input is None:
+        def to_string_for_sql(value: object) -> str:
+            if value is None:
                 return "NULL"
             else:
-                return str(input)
+                return str(value)
 
         # Connect to output database file so it is main, otherwise the
         # gpkg... functions don't work

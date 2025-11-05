@@ -911,7 +911,10 @@ class set_config_options:
             gdal.SetConfigOption(str(name), value)
 
     def __exit__(
-        self, type: type, value: Exception | None, traceback: TracebackType | None
+        self,
+        type: type,  # noqa: A002
+        value: Exception | None,
+        traceback: TracebackType | None,
     ) -> None:
         # Remove config options that were set
         # TODO: delete loop + uncomment if SetConfigOptions() is supported

@@ -966,7 +966,7 @@ class DataType(enum.Enum):
 def add_column(
     path: Union[str, "os.PathLike[Any]"],
     name: str,
-    type: DataType | str,
+    type: DataType | str,  # noqa: A002
     expression: str | float | None = None,
     expression_dialect: str | None = None,
     layer: str | None = None,
@@ -1317,19 +1317,19 @@ def add_columns(
                 logger.info(f"Ready, add_columns of {name} took {took:.2f}")
 
 
-def _validate_datatype(type: str | DataType) -> str:
+def _validate_datatype(datatype: str | DataType) -> str:
     """Validate the datatype specified for a column.
 
     Args:
-        type (str or DataType): the datatype.
+        datatype (str or DataType): the datatype.
 
     Returns:
         str: the validated datatype.
     """
-    if isinstance(type, DataType):
-        type_str = type.value
+    if isinstance(datatype, DataType):
+        type_str = datatype.value
     else:
-        type_upper = type.upper()
+        type_upper = datatype.upper()
         if type_upper == "STRING":
             # TODO: think whether being flexible here is a good idea...
             type_str = "TEXT"

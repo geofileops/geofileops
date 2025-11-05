@@ -145,19 +145,19 @@ def test_add_column(tmp_path, suffix):
         (".shp", "Invalid", True, "String"),
     ],
 )
-def test_add_column_types(tmp_path, suffix, type, type_supported, exp_gdal_type):
+def test_add_column_types(tmp_path, suffix, col_type, type_supported, exp_gdal_type):
     """Test adding columns of different types."""
     # Before GDAL 3.11, Datetimes were saved in a Date column instead of a String column
     # for shapefiles
-    if not GDAL_GTE_311 and suffix == ".shp" and type in ("DateTime", "Time"):
+    if not GDAL_GTE_311 and suffix == ".shp" and col_type in ("DateTime", "Time"):
         exp_gdal_type = "Date"
 
     test_path = test_helper.get_testfile(
         "polygon-parcel", suffix=suffix, dst_dir=tmp_path
     )
 
-    column_name_add_column = f"tst_{type}"
-    column_name_add_columns = f"tst2_{type}"
+    column_name_add_column = f"tst_{col_type}"
+    column_name_add_columns = f"tst2_{col_type}"
     if suffix == ".shp":
         # Shapefile column name length limit = 10
         column_name_add_column = column_name_add_column[:10]
@@ -165,13 +165,13 @@ def test_add_column_types(tmp_path, suffix, type, type_supported, exp_gdal_type)
 
     handler = nullcontext() if type_supported else pytest.raises(RuntimeError)
     with handler:
-        gfo.add_column(test_path, name=column_name_add_column, type=type)
+        gfo.add_column(test_path, name=column_name_add_column, type=col_type)
 
         info = gfo.get_layerinfo(test_path)
         assert column_name_add_column in info.columns.keys()
         assert info.columns[column_name_add_column].gdal_type == exp_gdal_type
 
-        gfo.add_columns(test_path, [(column_name_add_columns, type)])
+        gfo.add_columns(test_path, [(column_name_add_columns, col_type)])
 
         info = gfo.get_layerinfo(test_path)
         assert column_name_add_columns in info.columns.keys()
@@ -229,7 +229,7 @@ def test_add_columns(tmp_path, output_stem, do_updates, suffix):
 
     # If no updates to be done, set expressions to None
     if not do_updates:
-        new_columns = [(name, type, None) for name, type, _ in new_columns]
+        new_columns = [(name, col_type, None) for name, col_type, _ in new_columns]
 
     # Make sure the columns are not in the test file yet, except for GEWASGROEP
     layerinfo = gfo.get_layerinfo(path=test_path)
@@ -253,9 +253,9 @@ def test_add_columns(tmp_path, output_stem, do_updates, suffix):
     output_layerinfo = gfo.get_layerinfo(path=output_path)
 
     # Check if columns were added
-    for col_name, type, _ in new_columns:
+    for col_name, col_type, _ in new_columns:
         assert col_name in output_layerinfo.columns
-        exp_type = (type if isinstance(type, str) else type.value).lower()
+        exp_type = (col_type if isinstance(col_type, str) else col_type.value).lower()
         output_type = output_layerinfo.columns[col_name].gdal_type.lower()
         assert output_type.startswith(exp_type), (
             f"Column {col_name}: expected {exp_type}, got {output_type}"
@@ -411,9 +411,9 @@ def test_add_columns_output_layer(
     assert output_layerinfo.name == exp_output_layer
 
     # Check if columns were added
-    for col_name, type in new_columns:
+    for col_name, col_type in new_columns:
         assert col_name in output_layerinfo.columns
-        exp_type = (type if isinstance(type, str) else type.value).lower()
+        exp_type = (col_type if isinstance(col_type, str) else col_type.value).lower()
         output_type = output_layerinfo.columns[col_name].gdal_type.lower()
         assert output_type.startswith(exp_type), (
             f"Column {col_name}: expected {exp_type}, got {output_type}"
@@ -467,9 +467,9 @@ def test_add_columns_existing(tmp_path, force_update):
     output_layerinfo = gfo.get_layerinfo(path=test_path, layer="parcels")
 
     # Check if columns are still there
-    for col_name, type, _ in new_columns:
+    for col_name, col_type, _ in new_columns:
         assert col_name in output_layerinfo.columns
-        exp_type = (type if isinstance(type, str) else type.value).lower()
+        exp_type = (col_type if isinstance(col_type, str) else col_type.value).lower()
         output_type = output_layerinfo.columns[col_name].gdal_type.lower()
         assert output_type == exp_type, (
             f"Column {col_name}: expected {exp_type}, got {output_type}"

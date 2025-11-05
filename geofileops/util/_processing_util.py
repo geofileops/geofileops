@@ -78,7 +78,10 @@ class PooledExecutorFactory:
         return self.pool
 
     def __exit__(
-        self, type: type, value: Exception | None, traceback: TracebackType | None
+        self,
+        type: type,  # noqa: A002
+        value: Exception | None,
+        traceback: TracebackType | None,
     ) -> None:
         if self.pool is not None:
             self.pool.shutdown(wait=True)

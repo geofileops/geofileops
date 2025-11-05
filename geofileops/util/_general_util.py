@@ -146,9 +146,9 @@ def format_progress(
         return message
 
 
-def formatbytes(bytes: float) -> str:
+def formatbytes(nb_bytes: float) -> str:
     """Return the given bytes as a human friendly KB, MB, GB, or TB string."""
-    bytes_float = float(bytes)
+    bytes_float = float(nb_bytes)
     KB = float(1024)
     MB = float(KB**2)  # 1,048,576
     GB = float(KB**3)  # 1,073,741,824
@@ -209,7 +209,7 @@ class TempEnv:
             else:
                 os.environ[name] = str(value)
 
-    def __exit__(self, type: type, value: Exception, traceback: TracebackType) -> None:
+    def __exit__(self, type: type, value: Exception, traceback: TracebackType) -> None:  # noqa: A002
         # Set variables that were backed up back to original value
         for name, env_value in self._envs_backup.items():
             # Recover backed up value

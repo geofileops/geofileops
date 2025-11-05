@@ -114,7 +114,7 @@ def add_layerstyle(
         conn.close()
 
 
-def remove_layerstyle(path: Path, id: int) -> None:
+def remove_layerstyle(path: Path, id: int) -> None:  # noqa: A002
     """Remove a layer style.
 
     Only styles saved according to the QGIS Geopackage styling extension are removed:

@@ -53,8 +53,8 @@ def test_perf_gdal_vectortranslate(tmp_path):
 def test_perf_gfo_buffer(tmp_path):
     gfo_uri = "https://github.com/geofileops/geofileops/raw/refs/heads/main"
     remote_src = f"{gfo_uri}/tests/data/polygon-parcel.gpkg"
-    input = tmp_path / "input.gpkg"
-    urllib.request.urlretrieve(remote_src, input)
+    input_path = tmp_path / "input.gpkg"
+    urllib.request.urlretrieve(remote_src, input_path)
 
     # Test!
     output = tmp_path / "output.gpkg"
@@ -62,7 +62,7 @@ def test_perf_gfo_buffer(tmp_path):
 
     with cProfile.Profile() as pr:
         for _i in range(100):
-            gfo.buffer(input, output, distance=10)
+            gfo.buffer(input_path, output, distance=10)
             output.unlink()
 
         s = io.StringIO()

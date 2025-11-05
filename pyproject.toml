@@ -36,14 +36,15 @@ extend-exclude = ["docs/conf.py", "local_ignore/*"]
 select = [
     "YTT",  # flake8-2020
     "ANN",  # flake8-annotations
+    "B",  # flake8-bugbear
+    "A",  # flake8-builtins
+    "PTH",  # flake8-pathlib
+    "T10",  # flake8-debugger
+    # "SIM",  # flake8-simplify
     "F",  # pyflakes
     "E",  # pycodestyle
     "W",
     "UP",  # pyupgrade
-    "B",  # flake8-bugbear
-    "PTH",  # flake8-pathlib
-    "T10",  # flake8-debugger
-    # "SIM",  # flake8-simplify
     "PLC",  # pylint
     "PLE",
     "PLR",

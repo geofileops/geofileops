@@ -26,12 +26,12 @@ def generate_reports(results_path: Path, output_dir: Path) -> None:
     """
     benchmark_df = pd.read_csv(results_path)
 
-    def format_run_details(input: dict) -> str:
-        if input is None or input == np.nan:  # noqa: PLW0177
+    def format_run_details(run_details: dict) -> str:
+        if run_details is None or run_details == np.nan:  # noqa: PLW0177
             return ""
-        if isinstance(input, str):
-            input = ast.literal_eval(input)
-            result_list = [f"{key}:{input[key]}" for key in input]
+        if isinstance(run_details, str):
+            run_details = ast.literal_eval(run_details)
+            result_list = [f"{key}:{run_details[key]}" for key in run_details]
             return ";".join(result_list)
 
         return ""
