@@ -377,7 +377,8 @@ def get_columns(
     try:
         if not new_db:
             # If an existing database is opened, we still need to load spatialite
-            load_spatialite(conn)
+            if use_spatialite:
+                load_spatialite(conn)
 
         if filetype == "gpkg":
             sql = "SELECT EnableGpkgMode();"

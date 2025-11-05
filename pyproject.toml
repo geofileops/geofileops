@@ -38,8 +38,9 @@ select = [
     "ANN",  # flake8-annotations
     "B",  # flake8-bugbear
     "A",  # flake8-builtins
-    "PTH",  # flake8-pathlib
     "T10",  # flake8-debugger
+    "ARG",  # flake8-unused-arguments
+    "PTH",  # flake8-use-pathlib
     # "SIM",  # flake8-simplify
     "F",  # pyflakes
     "E",  # pycodestyle

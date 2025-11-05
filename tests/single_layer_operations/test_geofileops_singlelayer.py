@@ -469,14 +469,14 @@ def test_buffer_layer_special_cases(tmp_path, suffix, geoops_module):
 def test_buffer_negative(
     tmp_path,
     suffix,
-    epsg,
+    epsg,  # noqa: ARG001
     geoops_module,
     testfile,
-    empty_input,
+    empty_input,  # noqa: ARG001
     gridsize,
     keep_empty_geoms,
     where_post,
-    dimensions,
+    dimensions,  # noqa: ARG001
 ):
     """Buffer basics are available both in the gpd and sql implementations."""
     input_path = test_helper.get_testfile(testfile, suffix=suffix)
@@ -1153,7 +1153,7 @@ def test_simplify(
     gridsize,
     keep_empty_geoms,
     where_post,
-    dimensions,
+    dimensions,  # noqa: ARG001
 ):
     # Prepare test data
     tmp_dir = tmp_path / f"{geoops_module}_{epsg}"

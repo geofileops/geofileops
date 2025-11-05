@@ -1451,7 +1451,7 @@ def test_get_layer_geometrytypes_geometry(tmp_path):
     assert geometrytypes == ["POLYGON", "MULTIPOLYGON"]
 
 
-def test_get_layer_geometrytypes_vsi(tmp_path):
+def test_get_layer_geometrytypes_vsi():
     """Test get_layer_geometrytypes on an online zipped shapefile via vsi."""
     src = f"/vsizip//vsicurl/{test_helper.data_url}/poly_shp.zip/poly.shp"
 
@@ -1781,7 +1781,7 @@ def test_update_column_error(tmp_path):
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS_EXT)
 @pytest.mark.parametrize("dimensions", [None, "XYZ"])
-def test_read_file(suffix, dimensions, engine_setter):
+def test_read_file(suffix, dimensions, engine_setter):  # noqa: ARG001
     # Remark: it seems like Z dimensions aren't read in geopandas.
     # Prepare and validate test data
     if dimensions == "XYZ" and suffix == ".gpkg.zip":
@@ -1823,7 +1823,7 @@ def test_read_file(suffix, dimensions, engine_setter):
         (["OIDN", "GEWASGROEP", "lengte"], "IGNORE"),
     ],
 )
-def test_read_file_columns_geometry(tmp_path, suffix, columns, geometry, engine_setter):
+def test_read_file_columns_geometry(tmp_path, suffix, columns, geometry, engine_setter):  # noqa: ARG001
     # Prepare test data
     # For multi-layer filetype, use 2-layer file for better test coverage
     src_info = _geofileinfo.get_geofileinfo(suffix)
@@ -1902,7 +1902,7 @@ def test_read_file_curve():
     assert isinstance(read_gdf.geometry[0], sh_geom.Polygon)
 
 
-def test_read_file_invalid_params(tmp_path, engine_setter):
+def test_read_file_invalid_params(tmp_path, engine_setter):  # noqa: ARG001
     src = tmp_path / "nonexisting_file.gpkg"
 
     with pytest.raises(FileNotFoundError, match="File not found:"):
@@ -1910,7 +1910,7 @@ def test_read_file_invalid_params(tmp_path, engine_setter):
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
-def test_read_file_fid_as_index(suffix, engine_setter):
+def test_read_file_fid_as_index(suffix, engine_setter):  # noqa: ARG001
     # Prepare test data
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     if suffix == ".csv":
@@ -2034,7 +2034,7 @@ def test_read_file_sql_placeholders(suffix, testfile, layer, columns, engine_set
     assert_geodataframe_equal(read_gdf, read_sql_gdf)
 
 
-def test_read_file_two_layers(engine_setter):
+def test_read_file_two_layers(engine_setter):  # noqa: ARG001
     src = test_helper.get_testfile("polygon-twolayers")
     layers = gfo.listlayers(src)
     assert "parcels" in layers
@@ -2245,7 +2245,7 @@ def test_to_file(tmp_path, suffix, dimensions, engine_setter):
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
-def test_to_file_append(tmp_path, suffix, engine_setter):
+def test_to_file_append(tmp_path, suffix, engine_setter):  # noqa: ARG001
     test_path = test_helper.get_testfile(
         "polygon-parcel", dst_dir=tmp_path, suffix=suffix
     )
@@ -2261,7 +2261,7 @@ def test_to_file_append(tmp_path, suffix, engine_setter):
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
-def test_to_file_append_to_unexisting_file(tmp_path, suffix, engine_setter):
+def test_to_file_append_to_unexisting_file(tmp_path, suffix, engine_setter):  # noqa: ARG001
     test_path = test_helper.get_testfile(
         "polygon-parcel", dst_dir=tmp_path, suffix=suffix
     )
@@ -2290,7 +2290,8 @@ def test_to_file_append_different_columns(tmp_path, engine_setter):
         gfo.to_file(test_gdf, path=test_path, append=True)
 
 
-def test_to_file_attribute_table_gpkg(tmp_path, engine_setter):
+def test_to_file_attribute_table_gpkg(tmp_path, engine_setter):  # noqa: ARG001
+    """Test writing a DataFrame without geometry to a geopackage."""
     # Prepare test data
     test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
 
@@ -2322,7 +2323,7 @@ def test_to_file_create_spatial_index(
     suffix: str,
     create_spatial_index: bool,
     expected_spatial_index: bool,
-    engine_setter,
+    engine_setter,  # noqa: ARG001
 ):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     output_path = tmp_path / f"{src.stem}-output{suffix}"
@@ -2362,7 +2363,7 @@ def test_to_file_emptyfile(tmp_path, suffix):
     assert input_layerinfo.geometrytype == output_layerinfo.geometrytype
 
 
-def test_to_file_fid_append_to(tmp_path, engine_setter):
+def test_to_file_fid_append_to(tmp_path, engine_setter):  # noqa: ARG001
     """Write 2 gpkg files with fid, then use append_to to merge them."""
     # Prepare test data
     suffix = ".gpkg"
@@ -2412,7 +2413,7 @@ def test_to_file_fid_append_to(tmp_path, engine_setter):
     assert_geodataframe_equal(written_gdf, expected_gdf)
 
 
-def test_to_file_force_geometrytype_multitype(tmp_path, engine_setter):
+def test_to_file_force_geometrytype_multitype(tmp_path, engine_setter):  # noqa: ARG001
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel")
     read_gdf = gfo.read_file(input_path)
@@ -2447,7 +2448,7 @@ def test_to_file_force_geometrytype_multitype(tmp_path, engine_setter):
 
 
 @pytest.mark.parametrize("suffix", [s for s in SUFFIXES_FILEOPS if s != ".csv"])
-def test_to_file_geomempty(tmp_path, suffix, engine_setter):
+def test_to_file_geomempty(tmp_path, suffix, engine_setter):  # noqa: ARG001
     # Test for gdf with an empty polygon + a polygon
     test_gdf = gpd.GeoDataFrame(
         geometry=[
@@ -2487,7 +2488,7 @@ def test_to_file_geomempty(tmp_path, suffix, engine_setter):
 
 
 @pytest.mark.parametrize("suffix", [s for s in SUFFIXES_FILEOPS if s != ".csv"])
-def test_to_file_geomnone(tmp_path, suffix, engine_setter):
+def test_to_file_geomnone(tmp_path, suffix, engine_setter):  # noqa: ARG001
     # Test for gdf with a None geometry + a polygon
     test_gdf = gpd.GeoDataFrame(
         geometry=[None, test_helper.TestData.polygon_with_island], crs=31370
@@ -2515,7 +2516,7 @@ def test_to_file_geomnone(tmp_path, suffix, engine_setter):
 
 
 @pytest.mark.parametrize("suffix", [s for s in SUFFIXES_FILEOPS if s != ".csv"])
-def test_to_file_index(tmp_path, points_gdf, suffix, engine_setter):
+def test_to_file_index(tmp_path, points_gdf, suffix, engine_setter):  # noqa: ARG001
     """Strongly based on similar test in geopandas."""
 
     class FileNumber:
@@ -2720,7 +2721,7 @@ def test_to_file_nogeom(tmp_path, suffix):
         raise ValueError(f"test not implemented for suffix {suffix}")
 
 
-def test_to_file_vsi(tmp_path):
+def test_to_file_vsi():
     """Test writing to a file in vsimem."""
     # Prepare test data
     src = test_helper.get_testfile("polygon-parcel")

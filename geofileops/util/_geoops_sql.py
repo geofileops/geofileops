@@ -654,7 +654,6 @@ def _single_layer_vector_operation(
             gridsize_op = _format_apply_gridsize_operation(
                 geometrycolumn=f"sub_gridsize.{input_layer.geometrycolumn}",
                 gridsize=gridsize,
-                force_output_geometrytype=force_output_geometrytype,
             )
 
             # Get all columns of the sql_template
@@ -4571,9 +4570,7 @@ def dissolve_singlethread(  # noqa: D417
     # Apply tolerance gridsize on result
     if gridsize != 0.0:
         operation = _format_apply_gridsize_operation(
-            geometrycolumn=operation,
-            gridsize=gridsize,
-            force_output_geometrytype=force_output_geometrytype,
+            geometrycolumn=operation, gridsize=gridsize
         )
 
     # Now the sql query can be assembled
@@ -4674,9 +4671,7 @@ def dissolve_singlethread(  # noqa: D417
     logger.info(f"Ready, took {datetime.now() - start_time}")
 
 
-def _format_apply_gridsize_operation(
-    geometrycolumn: str, gridsize: float, force_output_geometrytype: GeometryType
-) -> str:
+def _format_apply_gridsize_operation(geometrycolumn: str, gridsize: float) -> str:
     # It is not possible to return the original geometry if error stays after
     # makevalid, because spatialite functions return NULL for failures as well as
     # when the result is correctly NULL, so not possible to make the distinction.

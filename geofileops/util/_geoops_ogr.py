@@ -122,8 +122,6 @@ def _run_ogr(
     sql_stmt: str | None = None,
     sql_dialect: Literal["SQLITE", "OGRSQL"] | None = None,
     transaction_size: int = 65536,
-    append: bool = False,
-    update: bool = False,
     explodecollections: bool = False,
     force_output_geometrytype: GeometryType | str | Iterable[str] | None = None,
     options: dict | None = None,

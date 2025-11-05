@@ -296,7 +296,7 @@ def get_layer_geometrytypes(
                END AS geom_type
           FROM "{input_layer}" layer
     """
-    result_df = read_file(path, sql_stmt=sql_stmt, sql_dialect="SQLITE")
+    result_df = read_file(path, layer=layer, sql_stmt=sql_stmt, sql_dialect="SQLITE")
     return result_df["geom_type"].to_list()
 
 
@@ -2298,7 +2298,6 @@ def _to_file_pyogrio(
     force_output_geometrytype: GeometryType | str | None = None,
     force_multitype: bool = False,
     append: bool = False,
-    append_timeout_s: int = 600,
     index: bool | None = None,
     create_spatial_index: bool | None = None,
     **kwargs: object,

@@ -1290,7 +1290,7 @@ def export_by_bounds(
 def isvalid(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]", None] = None,
-    only_invalid: bool = True,
+    only_invalid: bool = True,  # noqa: ARG001
     input_layer: str | None = None,
     output_layer: str | None = None,
     columns: list[str] | None = None,

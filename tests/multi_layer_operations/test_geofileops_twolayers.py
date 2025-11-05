@@ -834,7 +834,7 @@ def test_intersection_invalid_params2(kwargs, expected_error):
         gfo.intersection(input1_path="input1.gpkg", output_path="output.gpkg", **kwargs)
 
 
-def test_intersection_output_path_exists(tmp_path):
+def test_intersection_output_path_exists():
     # Prepare test data
     input1_path = test_helper.get_testfile("polygon-parcel")
     input2_path = test_helper.get_testfile("polygon-parcel")
@@ -1244,7 +1244,6 @@ def test_prepare_spatial_relations_filter():
 )
 def test_join_by_location(
     tmp_path,
-    recwarn,
     suffix: str,
     spatial_relations_query: str,
     epsg: int,
@@ -1641,7 +1640,7 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
     ],
 )
 def test_select_two_layers_invalid_paths(
-    tmp_path, input1_path, input2_path, output_path, exp_ex, exp_error
+    input1_path, input2_path, output_path, exp_ex, exp_error
 ):
     """
     select_two_layers doesn't get info on input layers up-front, so this is the best

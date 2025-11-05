@@ -581,7 +581,7 @@ def makevalid(
     gridsize: float = 0.0,
     keep_empty_geoms: bool = False,
     where_post: str | None = None,
-    validate_attribute_data: bool = False,
+    validate_attribute_data: bool = False,  # noqa: ARG001
     nb_parallel: int = -1,
     batchsize: int = -1,
     force: bool = False,
