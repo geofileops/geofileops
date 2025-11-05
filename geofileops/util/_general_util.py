@@ -216,6 +216,5 @@ class TempEnv:
             os.environ[name] = env_value
         # For variables without backup, remove them
         for name, _ in self._envs.items():
-            if name not in self._envs_backup:
-                if name in os.environ:
-                    del os.environ[name]
+            if name not in self._envs_backup and name in os.environ:
+                del os.environ[name]

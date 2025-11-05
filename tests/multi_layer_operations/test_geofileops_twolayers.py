@@ -445,7 +445,7 @@ def test_export_by_distance(tmp_path, testfile, suffix):
 
     # Check if columns exist and have the same data type
     for col_name, col_infos in input_layerinfo.columns.items():
-        assert col_name in output_layerinfo.columns.keys()
+        assert col_name in output_layerinfo.columns
         assert col_infos.gdal_type == output_layerinfo.columns.get(col_name).gdal_type
 
     # Compare attribute values of a selected column

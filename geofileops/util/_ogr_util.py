@@ -409,10 +409,12 @@ def vector_translate(
     datasetCreationOptions = []
     if access_mode is None:
         dataset_creation_options = gdal_options["DATASET_CREATION"]
-        if output_info.driver == "SQLite":
-            # If SQLite file, use the spatialite type of sqlite by default
-            if "SPATIALITE" not in dataset_creation_options:
-                dataset_creation_options["SPATIALITE"] = "YES"
+        # If SQLite file, use the spatialite type of sqlite by default
+        if (
+            output_info.driver == "SQLite"
+            and "SPATIALITE" not in dataset_creation_options
+        ):
+            dataset_creation_options["SPATIALITE"] = "YES"
         for option_name, value in dataset_creation_options.items():
             datasetCreationOptions.extend([f"{option_name}={value}"])
 
@@ -459,10 +461,12 @@ def vector_translate(
     # Remark: passing them as parameter using --config doesn't work, but they are set as
     # runtime config options later on (using a context manager).
     config_options = dict(gdal_options["CONFIG"])
-    if input_info.is_spatialite_based or output_info.is_spatialite_based:
-        # If spatialite based file, increase SQLITE cache size by default
-        if "OGR_SQLITE_CACHE" not in config_options:
-            config_options["OGR_SQLITE_CACHE"] = "128"
+
+    # If spatialite based file, increase SQLITE cache size by default
+    if (
+        input_info.is_spatialite_based or output_info.is_spatialite_based
+    ) and "OGR_SQLITE_CACHE" not in config_options:
+        config_options["OGR_SQLITE_CACHE"] = "128"
 
     # Have gdal throw exception on error
     gdal.UseExceptions()

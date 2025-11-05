@@ -155,9 +155,12 @@ def _determine_nb_batches(
         config_local = copy.deepcopy(parallelization_config)
 
     # If the number of rows is really low, just use one batch
-    if nb_parallel < 1 and batchsize < 1:
-        if nb_rows_total <= config_local.min_rows_per_batch:
-            return (1, 1)
+    if (
+        nb_parallel < 1
+        and batchsize < 1
+        and nb_rows_total <= config_local.min_rows_per_batch
+    ):
+        return (1, 1)
 
     if nb_parallel <= 0:
         nb_parallel = config_local.cpu_count
@@ -954,7 +957,7 @@ def _apply_geooperation_to_layer(
             # Zip if needed
             if (
                 output_path.suffix.lower() == ".zip"
-                and not tmp_output_path.suffix.lower() == ".zip"
+                and tmp_output_path.suffix.lower() != ".zip"
             ):
                 zipped_path = Path(f"{tmp_output_path.as_posix()}.zip")
                 fileops.zip_geofile(tmp_output_path, zipped_path)
@@ -1196,12 +1199,11 @@ def dissolve(  # noqa: D417
     if input_layer.geometrytype.to_primitivetype in [
         PrimitiveType.POINT,
         PrimitiveType.LINESTRING,
-    ]:
-        if tiles_path is not None or nb_squarish_tiles > 1:
-            raise ValueError(
-                f"Dissolve to tiles is not supported for {input_layer.geometrytype}"
-                ", so tiles_path should be None and nb_squarish_tiles should be 1)"
-            )
+    ] and (tiles_path is not None or nb_squarish_tiles > 1):
+        raise ValueError(
+            f"Dissolve to tiles is not supported for {input_layer.geometrytype}"
+            ", so tiles_path should be None and nb_squarish_tiles should be 1)"
+        )
 
     if output_layer is None:
         output_layer = gfo.get_default_layer(output_path)
@@ -1675,7 +1677,7 @@ def dissolve(  # noqa: D417
                 # Zip if needed
                 if (
                     output_path.suffix.lower() == ".zip"
-                    and not output_tmp_final_path.suffix.lower() == ".zip"
+                    and output_tmp_final_path.suffix.lower() != ".zip"
                 ):
                     zipped_path = Path(f"{output_tmp_final_path.as_posix()}.zip")
                     fileops.zip_geofile(output_tmp_final_path, zipped_path)

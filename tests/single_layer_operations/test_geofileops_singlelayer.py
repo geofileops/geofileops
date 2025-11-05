@@ -268,7 +268,7 @@ def test_buffer_basic(
     # More detailed check
     output_gdf = fileops.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
-    check_less_precise = True if input_layerinfo.crs.is_projected is False else False
+    check_less_precise = not input_layerinfo.crs.is_projected
     assert_geodataframe_equal(
         output_gdf,
         expected_gdf,
@@ -1166,11 +1166,8 @@ def test_simplify(
     input_layerinfo = fileops.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
     assert input_layerinfo.crs is not None
-    if input_layerinfo.crs.is_projected:
-        tolerance = 5
-    else:
-        # 1 degree = 111 km or 111000 m
-        tolerance = 5 / 111000
+    # 1 degree = 111 km or 111000 m
+    tolerance = 5 if input_layerinfo.crs.is_projected else 5 / 111000
     keep_empty_geoms_prepped = False if keep_empty_geoms is None else keep_empty_geoms
 
     # Prepare expected result

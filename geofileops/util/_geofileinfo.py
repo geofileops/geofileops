@@ -152,10 +152,7 @@ class GeofileType(enum.Enum):
     @property
     def is_singlelayer(self) -> bool:
         """Returns True if a file of this GeofileType can only have one layer."""
-        if self.is_spatialite_based:
-            return False
-        else:
-            return True
+        return not self.is_spatialite_based
 
 
 # Init!

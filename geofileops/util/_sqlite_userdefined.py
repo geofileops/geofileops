@@ -378,7 +378,4 @@ def _int2bool(value: int, variable_name: str) -> bool:
     if value not in [0, 1]:
         raise ValueError(f"{variable_name} has invalid value (0=False/1=True): {value}")
 
-    if value == 0:
-        return False
-    else:
-        return True
+    return value != 0

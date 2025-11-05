@@ -360,11 +360,9 @@ def test_simplify_lang(tmp_path, suffix, epsg, testfile, gridsize):
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
     assert input_layerinfo.crs is not None
-    if input_layerinfo.crs.is_projected:
-        tolerance = 5
-    else:
-        # 1 degree = 111 km or 111000 m
-        tolerance = 5 / 111000
+    # 1 degree = 111 km or 111000 m
+    tolerance = 5 if input_layerinfo.crs.is_projected else 5 / 111000
+
     # Test lang algorithm
     output_path = tmp_path / f"{input_path.stem}-output_lang{suffix}"
     gfo.simplify(
@@ -421,11 +419,8 @@ def test_simplify_vw(tmp_path, suffix, epsg, testfile, gridsize):
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
     assert input_layerinfo.crs is not None
-    if input_layerinfo.crs.is_projected:
-        tolerance = 5
-    else:
-        # 1 degree = 111 km or 111000 m
-        tolerance = 5 / 111000
+    # 1 degree = 111 km or 111000 m
+    tolerance = 5 if input_layerinfo.crs.is_projected else 5 / 111000
 
     # Test vw (visvalingam-whyatt) algorithm
     output_path = tmp_path / f"{input_path.stem}-output_vw{suffix}"

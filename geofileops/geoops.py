@@ -220,10 +220,8 @@ def dissolve_within_distance(
 
         # To avoid parts not being detected as touching to 2 neighbours because of
         # rounding issues, apply a small buffer to them.
-        if gridsize > 0.0:
-            distance_parts_to_add = gridsize / 10
-        else:
-            distance_parts_to_add = 0.0000000001
+        distance_parts_to_add = gridsize / 10 if gridsize > 0.0 else 0.0000000001
+
         step += 1
         logger.info(f"Step {step} of {nb_steps}")
         parts_to_add_bufp_path = tmp_dir / "200_parts_to_add_bufp.gpkg"

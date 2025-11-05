@@ -2417,7 +2417,7 @@ def _is_query_true_for_disjoint_features(
          WHERE {spatial_relations_filter}
     """
     df = fileops.read_file(test_path, sql_stmt=sql_stmt)
-    true_for_disjoint = True if len(df) > 0 else False
+    true_for_disjoint = len(df) > 0
 
     return true_for_disjoint
 
@@ -3432,12 +3432,11 @@ def _two_layer_vector_operation(
 
         # If multiple batches, mandatory "batch_filter" placeholder in sql_template
         nb_batches = len(processing_params.batches)
-        if nb_batches > 1:
-            if "batch_filter" not in sql_template_placeholders:
-                raise ValueError(
-                    "Number batches > 1 requires a batch_filter placeholder in "
-                    f"sql_template {sql_template}"
-                )
+        if nb_batches > 1 and "batch_filter" not in sql_template_placeholders:
+            raise ValueError(
+                "Number batches > 1 requires a batch_filter placeholder in "
+                f"sql_template {sql_template}"
+            )
 
         # Prepare column names,... to format the select
         # ---------------------------------------------
@@ -3582,8 +3581,8 @@ def _two_layer_vector_operation(
         # be applied, it needs to be applied during calculation already.
         # Otherwise the where_post in the append of partial files later on
         # won't give correct results!
-        explode_calc = True if explodecollections and where_post is not None else False
-        explode_append = True if explodecollections and not explode_calc else False
+        explode_calc = bool(explodecollections and where_post is not None)
+        explode_append = bool(explodecollections and not explode_calc)
 
         # Apply the geometrytype already during calculation
         output_geometrytype_calc = force_output_geometrytype
@@ -3701,8 +3700,8 @@ def _two_layer_vector_operation(
                 else:
                     # If there is only one batch, it is faster to create the spatial
                     # index immediately
-                    create_spatial_index = (
-                        True if nb_batches == 1 and output_with_spatial_index else False
+                    create_spatial_index = bool(
+                        nb_batches == 1 and output_with_spatial_index
                     )
 
                     fileops.copy_layer(
@@ -3902,11 +3901,8 @@ def _prepare_input_db_names(
                 break
 
         if db_name is None and path is not None:
-            if use_ogr:
-                # use_ogr needs main as dbname
-                db_name = "main"
-            else:
-                db_name = f"input{index + 1}"
+            # use_ogr needs main as dbname
+            db_name = "main" if use_ogr else f"input{index + 1}"
 
         placeholders_to_name[placeholder] = db_name
         if db_name is not None and path is not None:
@@ -4125,7 +4121,7 @@ def _finalize_output(
         # Zip if needed
         if (
             output_path.suffix.lower() == ".zip"
-            and not tmp_output_path.suffix.lower() == ".zip"
+            and tmp_output_path.suffix.lower() != ".zip"
         ):
             zipped_path = Path(f"{tmp_output_path.as_posix()}.zip")
             fileops.zip_geofile(tmp_output_path, zipped_path)
@@ -4143,7 +4139,7 @@ def _finalize_output(
         # Zip if needed
         if (
             output_path.suffix.lower() == ".zip"
-            and not tmp_output_path.suffix.lower() == ".zip"
+            and tmp_output_path.suffix.lower() != ".zip"
         ):
             # Add a .cpg file, otherwise the zipped shapefile will not be recognized
             tmp_output_cpg_path = tmp_output_path.with_suffix(".cpg")
@@ -4335,11 +4331,7 @@ def _determine_nb_batches(
     # Determine the optimal number of parallel workers
     if nb_parallel == -1:
         # If no batch size specified, put at least 100 rows in a batch
-        if batchsize <= 0:
-            min_rows_per_batch = 100
-        else:
-            # If batchsize is specified, use the batch size
-            min_rows_per_batch = batchsize
+        min_rows_per_batch = 100 if batchsize <= 0 else batchsize
 
         max_parallel = max(int(nb_rows_input_layer / min_rows_per_batch), 1)
         nb_parallel = min(cpu_count, max_parallel)

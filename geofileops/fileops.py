@@ -363,20 +363,22 @@ def get_layerinfo(
                 name=name, gdal_type=gdal_type, width=width, precision=precision
             )
             columns[name] = column_info
-            if driver == "ESRI Shapefile":
-                if name.casefold() == "geometry":
-                    errors.append(
-                        "An attribute column 'geometry' is not supported in a shapefile"
-                    )
+            if driver == "ESRI Shapefile" and name.casefold() == "geometry":
+                errors.append(
+                    "An attribute column 'geometry' is not supported in a shapefile"
+                )
 
         # Get geometry column name.
         geometrytypename = _ogr_util.ogrtype_to_name(datasource_layer.GetGeomType())
 
         # For shape files, the difference between the 'MULTI' variant and the
         # single one doesn't exists... so always report MULTI variant by convention.
-        if geometrytypename != "NONE" and driver == "ESRI Shapefile":
-            if not geometrytypename.startswith("MULTI"):
-                geometrytypename = f"MULTI{geometrytypename}"
+        if (
+            geometrytypename != "NONE"
+            and driver == "ESRI Shapefile"
+            and not geometrytypename.startswith("MULTI")
+        ):
+            geometrytypename = f"MULTI{geometrytypename}"
 
         # If the geometry type is not None, fill out the extra properties
         geometrycolumn = None
@@ -1646,9 +1648,8 @@ def _read_file_base(
     if isinstance(columns, str):
         # If a string is passed, convert to list
         columns = [columns]
-    if columns is not None:
-        if "fid" in [column.lower() for column in columns]:
-            fid_as_column = True
+    if columns is not None and "fid" in [column.lower() for column in columns]:
+        fid_as_column = True
 
     # Read with the engine specified
     engine = ConfigOptions.io_engine
@@ -2202,10 +2203,7 @@ def _to_file_fiona(
         **kwargs: object,
     ) -> None:
         # Prepare args for to_file
-        if append:
-            mode = "a"
-        else:
-            mode = "w"
+        mode = "a" if append else "w"
 
         kwargs["engine"] = "fiona"
         kwargs["mode"] = mode
@@ -3369,11 +3367,10 @@ def _launder_column_names(columns: Iterable) -> list[tuple[str, str]]:
     laundered_upper = []
     for column in columns:
         # Doubles in casing aree not allowed either
-        if len(column) <= 10:
-            if column.upper() not in laundered_upper:
-                laundered_upper.append(column.upper())
-                laundered.append((column, column))
-                continue
+        if len(column) <= 10 and column.upper() not in laundered_upper:
+            laundered_upper.append(column.upper())
+            laundered.append((column, column))
+            continue
 
         # Laundering is needed
         column_laundered = column[:10]

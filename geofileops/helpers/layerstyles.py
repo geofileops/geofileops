@@ -74,10 +74,7 @@ def add_layerstyle(
     """
     # Make sure the layer_styles table exists
     _init_layerstyles(path, exist_ok=True)
-    if use_as_default:
-        use_as_default_str = 1
-    else:
-        use_as_default_str = 0
+    use_as_default_str = 1 if use_as_default else 0
 
     # Get existing layer styles
     layer_styles_df = get_layerstyles(path, layer=layer, name=name)

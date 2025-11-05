@@ -168,13 +168,13 @@ def test_add_column_types(tmp_path, suffix, col_type, type_supported, exp_gdal_t
         gfo.add_column(test_path, name=column_name_add_column, type=col_type)
 
         info = gfo.get_layerinfo(test_path)
-        assert column_name_add_column in info.columns.keys()
+        assert column_name_add_column in info.columns
         assert info.columns[column_name_add_column].gdal_type == exp_gdal_type
 
         gfo.add_columns(test_path, [(column_name_add_columns, col_type)])
 
         info = gfo.get_layerinfo(test_path)
-        assert column_name_add_columns in info.columns.keys()
+        assert column_name_add_columns in info.columns
         assert info.columns[column_name_add_columns].gdal_type == exp_gdal_type
 
 
@@ -746,7 +746,7 @@ def test_copy_layer_append_different_columns(tmp_path, write_mode, suffix):
     dst_path = tmp_path / f"dst{suffix}"
     gfo.copy_layer(src_path, dst_path)
     gfo.add_column(src_path, name="extra_col", type=gfo.DataType.INTEGER)
-    raise_on_nogeom = False if suffix == ".csv" else True
+    raise_on_nogeom = suffix != ".csv"
     dst_orig_info = gfo.get_layerinfo(dst_path, raise_on_nogeom=raise_on_nogeom)
 
     # All rows are appended tot the dst layer, but the extra column is not!
@@ -902,7 +902,7 @@ def test_copy_layer_emptyfile(tmp_path, dimensions, suffix):
         empty=True,
         dimensions=dimensions,
     )
-    raise_on_nogeom = False if suffix == ".csv" else True
+    raise_on_nogeom = suffix != ".csv"
     dst = tmp_path / f"{src.stem}-output{suffix}"
 
     # Convert
@@ -1136,7 +1136,7 @@ def test_copy_layer_sql(tmp_path, suffix):
     gfo.copy_layer(src, dst, src_layer=src_layer, sql_stmt=sql_stmt)
     read_gdf = gfo.read_file(src, sql_stmt=sql_stmt)
     assert isinstance(read_gdf, pd.DataFrame)
-    if not suffix == ".csv":
+    if suffix != ".csv":
         assert isinstance(read_gdf, gpd.GeoDataFrame)
     assert len(read_gdf) == 48
 
@@ -1337,7 +1337,7 @@ def test_drop_column(tmp_path, suffix):
     test_path = test_helper.get_testfile(
         "polygon-parcel", dst_dir=tmp_path, suffix=suffix
     )
-    raise_on_nogeom = False if suffix == ".csv" else True
+    raise_on_nogeom = suffix != ".csv"
     original_info = gfo.get_layerinfo(test_path, raise_on_nogeom=raise_on_nogeom)
     assert "GEWASGROEP" in original_info.columns
 
@@ -1863,19 +1863,13 @@ def test_read_file_columns_geometry(tmp_path, suffix, columns, geometry, engine_
     else:
         raise ValueError(f"Invalid value for geometry: {geometry}")
 
-    if ignore_geometry or src_info.driver == "CSV":
-        expect_geometry = False
-    else:
-        expect_geometry = True
+    expect_geometry = not (ignore_geometry or src_info.driver == "CSV")
 
     exp_columns = list(columns) if isinstance(columns, list) else [columns]
     if expect_geometry:
         exp_columns += ["geometry"]
 
-    if columns == [] and not expect_geometry:
-        exp_featurecount = 0
-    else:
-        exp_featurecount = 48
+    exp_featurecount = 0 if columns == [] and not expect_geometry else 48
 
     # Test
     read_gdf = gfo.read_file(
@@ -1913,11 +1907,8 @@ def test_read_file_invalid_params(tmp_path, engine_setter):  # noqa: ARG001
 def test_read_file_fid_as_index(suffix, engine_setter):  # noqa: ARG001
     # Prepare test data
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
-    if suffix == ".csv":
-        # if no geometry column available in file, a pd.DataFrame is returned
-        exp_columns = 11
-    else:
-        exp_columns = 12
+    # if no geometry column available in file, a pd.DataFrame is returned
+    exp_columns = 11 if suffix == ".csv" else 12
 
     # First read without fid_as_index=True
     read_gdf = gfo.read_file(src, rows=slice(5, 10))
@@ -1970,7 +1961,7 @@ def test_read_file_sql(suffix, engine_setter):
 def test_read_file_sql_deprecated(suffix, engine_setter):
     if engine_setter == "fiona":
         pytest.skip("sql_stmt param not supported for fiona engine")
-    raise_on_nogeom = False if suffix == ".csv" else True
+    raise_on_nogeom = suffix != ".csv"
 
     # Prepare test data
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
@@ -1987,7 +1978,7 @@ def test_read_file_sql_deprecated(suffix, engine_setter):
 def test_read_file_sql_no_geom(suffix, engine_setter):
     if engine_setter == "fiona":
         pytest.skip("sql_stmt param not supported for fiona engine")
-    raise_on_nogeom = False if suffix == ".csv" else True
+    raise_on_nogeom = suffix != ".csv"
 
     # Prepare test data
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
@@ -2062,7 +2053,7 @@ def test_rename_column(tmp_path, suffix):
     test_path = test_helper.get_testfile(
         "polygon-parcel", dst_dir=tmp_path, suffix=suffix
     )
-    raise_on_nogeom = False if suffix == ".csv" else True
+    raise_on_nogeom = suffix != ".csv"
 
     # Check if input file is ok
     orig_layerinfo = gfo.get_layerinfo(test_path, raise_on_nogeom=raise_on_nogeom)
@@ -2249,7 +2240,7 @@ def test_to_file_append(tmp_path, suffix, engine_setter):  # noqa: ARG001
     test_path = test_helper.get_testfile(
         "polygon-parcel", dst_dir=tmp_path, suffix=suffix
     )
-    raise_on_nogeom = False if suffix == ".csv" else True
+    raise_on_nogeom = suffix != ".csv"
 
     test_gdf = gfo.read_file(test_path)
     gfo.to_file(test_gdf, path=test_path, append=True)
@@ -2265,7 +2256,7 @@ def test_to_file_append_to_unexisting_file(tmp_path, suffix, engine_setter):  # 
     test_path = test_helper.get_testfile(
         "polygon-parcel", dst_dir=tmp_path, suffix=suffix
     )
-    raise_on_nogeom = False if suffix == ".csv" else True
+    raise_on_nogeom = suffix != ".csv"
 
     test_gdf = gfo.read_file(test_path)
     dst_path = tmp_path / f"dst{suffix}"
@@ -2338,7 +2329,7 @@ def test_to_file_create_spatial_index(
 def test_to_file_emptyfile(tmp_path, suffix):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
-    raise_on_nogeom = False if suffix == ".csv" else True
+    raise_on_nogeom = suffix != ".csv"
     input_layerinfo = gfo.get_layerinfo(input_path, raise_on_nogeom=raise_on_nogeom)
     read_gdf = gfo.read_file(input_path)
     empty_gdf = read_gdf.drop(read_gdf.index)
@@ -2544,11 +2535,8 @@ def test_to_file_index(tmp_path, points_gdf, suffix, engine_setter):  # noqa: AR
         other_cols = list(df.columns)
         other_cols.remove("geometry")
 
-        if suffix == ".shp":
-            # ESRI Shapefile will add FID if no other columns exist
-            driver_col = ["FID"]
-        else:
-            driver_col = []
+        # ESRI Shapefile will add FID if no other columns exist
+        driver_col = ["FID"] if suffix == ".shp" else []
 
         if index_is_used:
             index_cols = list(df.index.names)
@@ -2567,10 +2555,8 @@ def test_to_file_index(tmp_path, points_gdf, suffix, engine_setter):  # noqa: AR
         tempfilename = next(fngen)
         gfo.to_file(df, tempfilename, index=None)
         df_check = gfo.read_file(tempfilename)
-        if len(other_cols) == 0:
-            expected_cols = driver_col[:]
-        else:
-            expected_cols = []
+        expected_cols = driver_col[:] if len(other_cols) == 0 else []
+
         if index_is_used:
             expected_cols += index_cols
         expected_cols += [*other_cols, "geometry"]

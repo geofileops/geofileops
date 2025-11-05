@@ -38,25 +38,28 @@ select = [
     "ANN",  # flake8-annotations
     "B",  # flake8-bugbear
     "A",  # flake8-builtins
+    "C4",  # flake8-comprehensions
     "T10",  # flake8-debugger
+    "ISC",  # flake8-implicit string concatenation
+    # "G",  # flake8-logging-format
+    "PIE",  # flake8-pie misc lints
+    # "SIM",  # flake8-simplify
+    "TC",  # flake8-type-checking imports
     "ARG",  # flake8-unused-arguments
     "PTH",  # flake8-use-pathlib
-    # "SIM",  # flake8-simplify
-    "F",  # pyflakes
-    "E",  # pycodestyle
-    "W",
-    "UP",  # pyupgrade
-    "PLC",  # pylint
-    "PLE",
-    "PLR",
-    "PLW",
-    "PIE",  # misc lints
-    "ISC",  # implicit string concatenation
-    "TCH",  # type-checking imports
-    "C4",  # comprehensions
-    "RUF",  # Ruff-specific rules
+    "FLY",  # flynt
     "I",  # isort
+    "NPY",  # NumPy-specific rules
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
     "D",  # pydocstyle
+    "F",  # pyflakes
+    "PLC",  # pylint convention
+    "PLE",  # pylint error
+    "PLR",  # pylint refactor
+    "PLW",  # pylint warning
+    "UP",  # pyupgrade
+    "RUF",  # Ruff-specific rules
 ]
 
 ignore = [

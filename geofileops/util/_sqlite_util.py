@@ -375,10 +375,9 @@ def get_columns(
 
     sql = None
     try:
-        if not new_db:
-            # If an existing database is opened, we still need to load spatialite
-            if use_spatialite:
-                load_spatialite(conn)
+        # If an existing database is opened, we still need to load spatialite
+        if not new_db and use_spatialite:
+            load_spatialite(conn)
 
         if filetype == "gpkg":
             sql = "SELECT EnableGpkgMode();"
@@ -502,9 +501,8 @@ def get_columns(
     finally:
         conn.close()
         conn = None
-        if ConfigOptions.remove_temp_files:
-            if tmp_dir is not None:
-                shutil.rmtree(tmp_dir, ignore_errors=True)
+        if ConfigOptions.remove_temp_files and tmp_dir is not None:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
     time_taken = time.perf_counter() - start
     if time_taken > 5:  # pragma: no cover
