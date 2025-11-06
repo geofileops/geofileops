@@ -268,6 +268,7 @@ def test_buffer_basic(
     # More detailed check
     output_gdf = fileops.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
+    # Check less precise for geographic CRS (WGS84)
     check_less_precise = not input_layerinfo.crs.is_projected
     assert_geodataframe_equal(
         output_gdf,
