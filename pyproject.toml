@@ -34,50 +34,40 @@ extend-exclude = ["docs/conf.py", "local_ignore/*"]
 
 [tool.ruff.lint]
 select = [
-    "F",  # pyflakes
-    "E",  # pycodestyle
-    "W",
-    "UP",  # pyupgrade
+    "YTT",  # flake8-2020
+    "ANN",  # flake8-annotations
     "B",  # flake8-bugbear
-    "PTH",  # flake8-pathlib
+    "A",  # flake8-builtins
+    "C4",  # flake8-comprehensions
     "T10",  # flake8-debugger
+    "ISC",  # flake8-implicit string concatenation
+    # "G",  # flake8-logging-format
+    "PIE",  # flake8-pie misc lints
     # "SIM",  # flake8-simplify
-    "PLC",  # pylint
-    "PLE",
-    "PLR",
-    "PLW",
-    "PIE",  # misc lints
-    "ISC",  # implicit string concatenation
-    "TCH",  # type-checking imports
-    "C4",  # comprehensions
-    "RUF",  # Ruff-specific rules
+    "TC",  # flake8-type-checking imports
+    "ARG",  # flake8-unused-arguments
+    "PTH",  # flake8-use-pathlib
+    "FLY",  # flynt
     "I",  # isort
+    "NPY",  # NumPy-specific rules
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
     "D",  # pydocstyle
+    "F",  # pyflakes
+    "PLC",  # pylint convention
+    "PLE",  # pylint error
+    "PLR",  # pylint refactor
+    "PLW",  # pylint warning
+    "UP",  # pyupgrade
+    "RUF",  # Ruff-specific rules
 ]
 
 ignore = [
     ### Intentionally disabled
-    "E402",  # module level import not at top of file
-    "E731",  # do not assign a lambda expression, use a def
-    "B006",  # mutable-argument-default
-    "B007",  # unused-loop-control-variable
-    "B009",  # get-attr-with-constant
-    "B905",  # Only works with python >=3.10
-    "C408",  # dict literals
     "PLR0913",  # Too many arguments to function call
     "PLR0911",  # Too many returns
     "PLR0912",  # Too many branches
     "PLR0915",  # Too many statements
     "PLR2004",  # Magic number
-    "PLW2901",  # Redefined loop name
-    "PLW0603",  # Global statements are discouraged
-    "PLC1901",  # compare-to-empty-string
-    "RUF005",  # collection-literal-concatenation
+    "PLW2901",  # loop variable overwritten by assignment target
 ]
-
-[tool.ruff.lint.per-file-ignores]
-"tests/*" = ["D"]
-"perftests/*" = ["D"]
-
-[tool.ruff.lint.pydocstyle]
-convention = "google"
