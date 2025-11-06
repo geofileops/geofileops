@@ -2038,9 +2038,7 @@ def to_file(
             Defaults to False.
         append (bool, optional): True to append to the file/layer if it already exists.
             If it doesn't exist yet, it is created. Defaults to False.
-        append_timeout_s (int, optional): The maximum timeout to wait when the
-            output file is already being written to by another process.
-            Defaults to 600.
+        append_timeout_s (int, optional): This parameter is deprecated and is ignored.
         index (bool, optional): If True, write index into one or more columns (for
             MultiIndex). None writes the index into one or more columns only if the
             index is named, is a MultiIndex, or has a non-integer data type.
@@ -2095,7 +2093,6 @@ def to_file(
             force_output_geometrytype=force_output_geometrytype,
             force_multitype=force_multitype,
             append=append,
-            append_timeout_s=append_timeout_s,
             index=index,
             create_spatial_index=create_spatial_index,
             **kwargs,
