@@ -3726,7 +3726,7 @@ def union_full_self(
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
-):
+) -> None:
     """Calculates the union of all features in a single layer.
 
     This function calculates the union of all features in a single layer by iteratively

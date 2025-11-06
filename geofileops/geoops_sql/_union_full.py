@@ -41,7 +41,7 @@ def union_full_self(
     subdivide_coords: int = 2000,
     force: bool = False,
     output_with_spatial_index: bool | None = None,
-):
+) -> None:
     # Because the calculations of the intermediate results will be towards temp files,
     # we need to do some additional init + checks here...
     if subdivide_coords < 0:
