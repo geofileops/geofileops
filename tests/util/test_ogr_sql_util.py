@@ -93,7 +93,7 @@ def test_columns_quoted(columns, exp_quoted):
     ],
 )
 def test_ColumnFormatter(
-    descr: str,
+    descr: str,  # noqa: ARG001
     columns_specified: list[str] | None,
     columns_available: Iterable[str],
     table_alias: str,
