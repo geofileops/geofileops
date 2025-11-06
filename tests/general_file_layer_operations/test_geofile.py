@@ -122,7 +122,7 @@ def test_add_column(tmp_path, suffix):
 
 
 @pytest.mark.parametrize(
-    "suffix, type, type_supported, exp_gdal_type",
+    "suffix, col_type, col_type_supported, exp_gdal_type",
     [
         (".gpkg", "Binary", True, "Binary"),
         (".gpkg", "Blob", True, "Binary"),
@@ -145,7 +145,7 @@ def test_add_column(tmp_path, suffix):
         (".shp", "Invalid", True, "String"),
     ],
 )
-def test_add_column_types(tmp_path, suffix, col_type, type_supported, exp_gdal_type):
+def test_add_column_types(tmp_path, suffix, col_type, col_type_supported, exp_gdal_type):
     """Test adding columns of different types."""
     # Before GDAL 3.11, Datetimes were saved in a Date column instead of a String column
     # for shapefiles
@@ -163,7 +163,7 @@ def test_add_column_types(tmp_path, suffix, col_type, type_supported, exp_gdal_t
         column_name_add_column = column_name_add_column[:10]
         column_name_add_columns = column_name_add_columns[:10]
 
-    handler = nullcontext() if type_supported else pytest.raises(RuntimeError)
+    handler = nullcontext() if col_type_supported else pytest.raises(RuntimeError)
     with handler:
         gfo.add_column(test_path, name=column_name_add_column, type=col_type)
 
