@@ -145,7 +145,9 @@ def test_add_column(tmp_path, suffix):
         (".shp", "Invalid", True, "String"),
     ],
 )
-def test_add_column_types(tmp_path, suffix, col_type, col_type_supported, exp_gdal_type):
+def test_add_column_types(
+    tmp_path, suffix, col_type, col_type_supported, exp_gdal_type
+):
     """Test adding columns of different types."""
     # Before GDAL 3.11, Datetimes were saved in a Date column instead of a String column
     # for shapefiles
