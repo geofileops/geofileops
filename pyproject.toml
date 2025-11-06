@@ -71,3 +71,10 @@ ignore = [
     "PLR2004",  # Magic number
     "PLW2901",  # loop variable overwritten by assignment target
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ANN", "D"]
+"perftests/*" = ["ANN", "D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
