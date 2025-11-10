@@ -12,6 +12,7 @@ from shapely import box
 
 import geofileops as gfo
 from geofileops import fileops
+from geofileops._compat import GDAL_GTE_311
 from geofileops.util import _sqlite_util as sqlite_util
 from geofileops.util._geofileinfo import GeofileInfo
 from tests import test_helper
@@ -117,6 +118,14 @@ def test_copy_table(tmp_path, layer1_empty, layer2_empty):
     Test with combinations of empty and non-empty input layers to make sure the
     total_bounds are handled correctly.
     """
+    if not GDAL_GTE_311 and (
+        (layer1_empty and not layer2_empty) or (not layer1_empty and layer2_empty)
+    ):
+        pytest.skip(
+            "GDAL versions < 3.11 have issues with calculating total_bounds when "
+            "one of the layers is empty."
+        )
+
     layer1_path = test_helper.get_testfile(
         "polygon-parcel", geom_name="geometry", dst_dir=tmp_path, empty=layer1_empty
     )
