@@ -608,18 +608,13 @@ def copy_table(
     if input_path.resolve() == output_path.resolve():
         raise ValueError(f"Input and output paths cannot be the same: {input_path}")
 
-    conn = sqlite3.connect(str(output_path), uri=True)
+    # Connect with spatialite loaded, as get_total_bounds needs spatialite
+    conn = connect(output_path, use_spatialite=True)
 
     # Execute the insert statement
     is_gpkg = Path(output_path).suffix.lower() == ".gpkg"
     sql = None
     try:
-        load_spatialite(conn)
-
-        if is_gpkg:
-            sql = "SELECT EnableGpkgMode();"
-            conn.execute(sql)
-
         # Attach the input database
         sql = "ATTACH DATABASE ? AS input_db"
         dbSpec = (str(input_path),)
