@@ -1135,8 +1135,8 @@ def get_gpkg_geometry_column(
 ) -> dict[str, Any]:
     """Get information about the geometry column of a specific table in a geopackage.
 
-    This function retrieves the following metadata from the `gpkg_geometry_columns` table for
-    the specified table:
+    This function retrieves the following metadata from the `gpkg_geometry_columns`
+    table for the specified table:
         - column_name: Name of the geometry column.
         - geometry_type_name: Type of geometry (e.g., POINT, LINESTRING, POLYGON).
         - srs_id: Spatial Reference System Identifier.
