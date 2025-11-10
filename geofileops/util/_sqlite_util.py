@@ -1277,12 +1277,8 @@ def get_total_bounds(
             # If a connection is passed, use it
             conn = database
         else:
-            conn = sqlite3.connect(database)
-            load_spatialite(conn)
-
-            if Path(database).suffix.lower() == ".gpkg":
-                sql = "SELECT EnableGpkgMode();"
-                conn.execute(sql)
+            # Connect with spatialite loaded
+            conn = connect(database, use_spatialite=True)
 
         if geometry_column is None:
             # If geometry column is not specified, get it from gpkg_geometry_columns
