@@ -1317,17 +1317,11 @@ def test_data_integrity(path: Path, use_spatialite: bool = True) -> None:
     # Get list of layers in database
     layers = gfo.listlayers(path=path)
 
-    # Connect to database file
-    conn = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
+    # Connect to database file, with spatialite if needed
+    conn = connect(path, use_spatialite=use_spatialite)
     sql = None
 
     try:
-        if use_spatialite:
-            load_spatialite(conn)
-        if path.suffix.lower() == ".gpkg":
-            sql = "SELECT EnableGpkgMode();"
-            conn.execute(sql)
-
         # Set some basic default performance options
         set_performance_options(conn)
 
