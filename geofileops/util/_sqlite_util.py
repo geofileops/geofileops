@@ -109,8 +109,8 @@ def add_gpkg_ogr_contents(
 
     Args:
         database (Any): the database to add the gpkg_ogr_contents to. This can be a path
-            to a file or an sqlite3.Connection object. If it is a connection, it won't
-            be closed when returning.
+            to a file or an sqlite3.Connection object. If it is a connection, it does
+            not need to have spatialite loaded and it won't be closed when returning.
         layer (str): the name of the layer to add to the gpkg_ogr_contents table.
             If None, only the table will be created.
         force_update (bool, optional): True to update the data if the layer already
@@ -207,6 +207,9 @@ def connect(
 ) -> sqlite3.Connection:
     """Connect to an existing spatialite database file.
 
+    Spatialite is loaded by default, and if the file is a geopackage, geopackage mode
+    is enabled.
+
     Args:
         path (PathLike): the path to the database file.
         use_spatialite (bool, optional): True to load spatialite extension.
@@ -228,9 +231,9 @@ def connect(
         if use_spatialite:
             load_spatialite(conn)
 
-        if Path(path).suffix.lower() == ".gpkg":
-            sql = "SELECT EnableGpkgMode();"
-            conn.execute(sql)
+            if Path(path).suffix.lower() == ".gpkg":
+                sql = "SELECT EnableGpkgMode();"
+                conn.execute(sql)
 
     except Exception:  # pragma: no cover
         conn.close()
@@ -245,7 +248,7 @@ def create_new_spatialdb(
     crs_epsg: int | None = None,
     filetype: str | None = None,
 ) -> sqlite3.Connection:
-    """Create a new spatialite database file.
+    """Create a new spatialite database file and returns an open connection to it.
 
     Notes:
         - the bounds filled out in the gpkg_contents table will be the bounds of the crs
@@ -263,7 +266,8 @@ def create_new_spatialdb(
         RuntimeError: an error occured while creating the database.
 
     Returns:
-        sqlite3.Connection: the connection to the created database.
+        sqlite3.Connection: the connection to the created database. Spatialite will be
+            loaded on the connection.
     """
     # Check input parameters
     if filetype is not None:
@@ -359,12 +363,25 @@ def create_new_spatialdb(
     return conn
 
 
-def get_column_types(database_path: Path, table: str) -> dict[str, str]:
+def get_column_types(database: Path, table: str) -> dict[str, str]:
+    """Get the column types of a table in a sqlite database.
+
+    Args:
+        database (Path): the path to the sqlite database.
+        table (str): the name of the table to get the column types from.
+
+    Raises:
+        RuntimeError: an error occured while fetching the column types.
+
+    Returns:
+        dict[str, str]: a dict with the column names as keys and the column types as
+            values.
+    """
     column_types = {}
 
-    # Connect to the input databases and fetch the column types
+    # Connect to the input database and fetch the column types
+    conn = sqlite3.connect(database)
     try:
-        conn = sqlite3.connect(database_path)
         # Get column types
         sql = f"PRAGMA table_info('{table}');"
         cur = conn.execute(sql)
@@ -1042,6 +1059,7 @@ def get_gpkg_content(
 
     Args:
         database (PathLike or Connection): file path or connection to the geopackage.
+            If a connection is passed, it is not closed by this function.
         table_name (str): name of the table to get the contents for.
         db_name (str, optional): name of the database to use in case of
             an attached database. Defaults to "main".
@@ -1054,6 +1072,7 @@ def get_gpkg_content(
         # If a connection is passed, use it
         conn = database
     else:
+        # Otherwise create a new connection, but we don't need spatialite here
         conn = sqlite3.connect(database)
 
     sql = None
@@ -1102,6 +1121,7 @@ def get_gpkg_contents(
         # If a connection is passed, use it
         conn = database
     else:
+        # Otherwise create a new connection, but we don't need spatialite here
         conn = sqlite3.connect(database)
 
     sql = None
@@ -1157,6 +1177,7 @@ def get_gpkg_geometry_column(
         # If a connection is passed, use it
         conn = database
     else:
+        # Otherwise create a new connection, but we don't need spatialite here
         conn = sqlite3.connect(database)
 
     sql = None
@@ -1191,7 +1212,9 @@ def get_gpkg_ogr_contents(path: Path) -> dict[str, dict]:
     Returns:
         dict[str, Any]: the contents of the geopackage.
     """
+    # Connect to database file, we don't need spatialite here
     conn = sqlite3.connect(path)
+
     sql = None
     try:
         sql = "SELECT * FROM gpkg_ogr_contents;"
@@ -1217,7 +1240,9 @@ def get_tables(path: Path) -> list[str]:
     Returns:
         list[str]: the list of all tables in the database.
     """
+    # Connect to database file, we don't need spatialite here
     conn = sqlite3.connect(path)
+
     sql = None
     try:
         sql = "SELECT name FROM sqlite_master WHERE type='table';"
