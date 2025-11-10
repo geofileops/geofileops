@@ -1001,16 +1001,10 @@ def execute_sql(
     path: Path, sql_stmt: str | list[str], use_spatialite: bool = True
 ) -> None:
     # Connect to database file
-    conn = sqlite3.connect(path)
+    conn = connect(path, use_spatialite=use_spatialite)
     sql = None
 
     try:
-        if use_spatialite is True:
-            load_spatialite(conn)
-            if path.suffix.lower() == ".gpkg":
-                sql = "SELECT EnableGpkgMode();"
-                conn.execute(sql)
-
         """
         # Set nb KB of cache
         sql = "PRAGMA cache_size=-50000;"
