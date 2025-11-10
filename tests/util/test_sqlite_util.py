@@ -488,6 +488,24 @@ def test_create_table_as_sql_single_input(tmp_path):
     assert_geodataframe_equal(output_gdf, expected_gdf)
 
 
+def test_get_gpkg_content():
+    input_path = test_helper.get_testfile(testfile="polygon-parcel")
+
+    layer = gfo.get_only_layer(input_path)
+    layer_info = gfo.get_layerinfo(input_path, layer)
+
+    content_info = sqlite_util.get_gpkg_content(input_path, layer)
+    assert content_info["table_name"] == layer
+    assert content_info["data_type"] == "features"
+    assert content_info["srs_id"] == layer_info.crs.to_epsg()
+    assert round(content_info["min_x"]) == round(layer_info.total_bounds[0])
+    assert round(content_info["min_y"]) == round(layer_info.total_bounds[1])
+    assert round(content_info["max_x"]) == round(layer_info.total_bounds[2])
+    assert round(content_info["max_y"]) == round(layer_info.total_bounds[3])
+    for idx, value in enumerate(content_info["total_bounds"]):
+        assert round(value) == round(layer_info.total_bounds[idx])
+
+
 def test_get_gpkg_contents():
     input_path = test_helper.get_testfile(testfile="polygon-parcel")
 
@@ -504,25 +522,6 @@ def test_get_gpkg_contents():
     assert round(content_info["min_y"]) == round(layer_info.total_bounds[1])
     assert round(content_info["max_x"]) == round(layer_info.total_bounds[2])
     assert round(content_info["max_y"]) == round(layer_info.total_bounds[3])
-
-
-def test_get_gpkg_contents_table():
-    input_path = test_helper.get_testfile(testfile="polygon-parcel")
-
-    layer = gfo.get_only_layer(input_path)
-    layer_info = gfo.get_layerinfo(input_path, layer)
-
-    content_info = sqlite_util.get_gpkg_content(input_path, layer)
-    assert content_info["table_name"] == layer
-    assert content_info["data_type"] == "features"
-    assert content_info["srs_id"] == layer_info.crs.to_epsg()
-    assert round(content_info["min_x"]) == round(layer_info.total_bounds[0])
-    assert round(content_info["min_y"]) == round(layer_info.total_bounds[1])
-    assert round(content_info["max_x"]) == round(layer_info.total_bounds[2])
-    assert round(content_info["max_y"]) == round(layer_info.total_bounds[3])
-    assert isinstance(content_info["total_bounds"], shapely.Polygon)
-    for idx, value in enumerate(content_info["total_bounds"].bounds):
-        assert round(value) == round(layer_info.total_bounds[idx])
 
 
 @pytest.mark.parametrize("empty", [True, False])
