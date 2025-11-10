@@ -7,6 +7,8 @@ import warnings
 from pathlib import Path
 
 import pytest
+import shapely
+from shapely import box
 
 import geofileops as gfo
 from geofileops import fileops
@@ -105,25 +107,54 @@ def test_add_gpkg_ogr_contents_layer_force_update(tmp_path):
     assert ogr_contents[layer]["feature_count"] == featurecount_orig
 
 
-def test_copy_table(tmp_path):
-    """Test the copy_table function."""
-    input_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
-    layer = gfo.get_only_layer(input_path)
-    info = gfo.get_layerinfo(input_path, layer)
-    output_path = tmp_path / "output.gpkg"
-    gfo.copy(input_path, output_path)
+@pytest.mark.parametrize(
+    "layer1_empty, layer2_empty",
+    [(True, True), (True, False), (False, True), (False, False)],
+)
+def test_copy_table(tmp_path, layer1_empty, layer2_empty):
+    """Test the copy_table function.
 
-    # Append the layer to itself
+    Test with combinations of empty and non-empty input layers to make sure the
+    total_bounds are handled correctly.
+    """
+    layer1_path = test_helper.get_testfile(
+        "polygon-parcel", geom_name="geometry", dst_dir=tmp_path, empty=layer1_empty
+    )
+    layer2_path = test_helper.get_testfile(
+        "polygon-zone", geom_name="geometry", dst_dir=tmp_path, empty=layer2_empty
+    )
+    gfo.drop_column(layer2_path, column_name="naam")
+    layer1_info = gfo.get_layerinfo(layer1_path)
+    layer2_info = gfo.get_layerinfo(layer2_path)
+
+    # Append layer2 to layer1
     sqlite_util.copy_table(
-        input_path=input_path,
-        output_path=output_path,
-        input_table=layer,
-        output_table=layer,
+        input_path=layer2_path,
+        output_path=layer1_path,
+        input_table=layer2_info.name,
+        output_table=layer1_info.name,
     )
 
     # Check if the rows were appended
-    result = gfo.read_file(output_path)
-    assert info.featurecount * 2 == len(result)
+    result_info = gfo.get_layerinfo(layer1_path)
+    assert (
+        result_info.featurecount == layer1_info.featurecount + layer2_info.featurecount
+    )
+
+    # Check total bounds
+    # total_bounds with all zero values are ignored
+    exp_bounds_list = [
+        bounds
+        for bounds in [layer1_info.total_bounds, layer2_info.total_bounds]
+        if not all(value == 0 for value in bounds)
+    ]
+    exp_total_bounds = (
+        shapely.MultiPolygon([box(*bounds) for bounds in exp_bounds_list]).bounds
+        if len(exp_bounds_list) > 0
+        else (0, 0, 0, 0)
+    )
+    for idx, value in enumerate(result_info.total_bounds):
+        assert round(value) == round(exp_total_bounds[idx])
 
 
 def test_copy_table_columns(tmp_path):
@@ -455,3 +486,55 @@ def test_create_table_as_sql_single_input(tmp_path):
     # EMPTY geometry becomes NULL/None...
     expected_gdf.loc[expected_gdf.geometry.is_empty, "geometry"] = None
     assert_geodataframe_equal(output_gdf, expected_gdf)
+
+
+def test_get_gpkg_contents():
+    input_path = test_helper.get_testfile(testfile="polygon-parcel")
+
+    gpkg_contents = sqlite_util.get_gpkg_contents(input_path)
+    layer = gfo.get_only_layer(input_path)
+    layer_info = gfo.get_layerinfo(input_path, layer)
+
+    assert layer in gpkg_contents
+    content_info = gpkg_contents[layer]
+    assert content_info["table_name"] == layer
+    assert content_info["data_type"] == "features"
+    assert content_info["srs_id"] == layer_info.crs.to_epsg()
+    assert round(content_info["min_x"]) == round(layer_info.total_bounds[0])
+    assert round(content_info["min_y"]) == round(layer_info.total_bounds[1])
+    assert round(content_info["max_x"]) == round(layer_info.total_bounds[2])
+    assert round(content_info["max_y"]) == round(layer_info.total_bounds[3])
+
+
+def test_get_gpkg_contents_table():
+    input_path = test_helper.get_testfile(testfile="polygon-parcel")
+
+    layer = gfo.get_only_layer(input_path)
+    layer_info = gfo.get_layerinfo(input_path, layer)
+
+    content_info = sqlite_util.get_gpkg_content(input_path, layer)
+    assert content_info["table_name"] == layer
+    assert content_info["data_type"] == "features"
+    assert content_info["srs_id"] == layer_info.crs.to_epsg()
+    assert round(content_info["min_x"]) == round(layer_info.total_bounds[0])
+    assert round(content_info["min_y"]) == round(layer_info.total_bounds[1])
+    assert round(content_info["max_x"]) == round(layer_info.total_bounds[2])
+    assert round(content_info["max_y"]) == round(layer_info.total_bounds[3])
+    assert isinstance(content_info["total_bounds"], shapely.Polygon)
+    for idx, value in enumerate(content_info["total_bounds"].bounds):
+        assert round(value) == round(layer_info.total_bounds[idx])
+
+
+@pytest.mark.parametrize("empty", [True, False])
+def test_get_total_bounds(empty):
+    input_path = test_helper.get_testfile(testfile="polygon-parcel", empty=empty)
+
+    layer = gfo.get_only_layer(input_path)
+    layer_info = gfo.get_layerinfo(input_path, layer)
+
+    total_bounds = sqlite_util.get_total_bounds(input_path, layer)
+    if empty:
+        assert total_bounds is None
+    else:
+        for idx, value in enumerate(total_bounds):
+            assert round(value) == round(layer_info.total_bounds[idx])

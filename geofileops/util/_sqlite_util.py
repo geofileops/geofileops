@@ -12,8 +12,10 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Union
 
+import shapely
 from pygeoops import GeometryType
 from pyproj import CRS, Transformer
+from shapely.geometry import box
 
 import geofileops as gfo
 from geofileops.helpers._configoptions_helper import ConfigOptions
@@ -198,6 +200,44 @@ def add_gpkg_ogr_contents(
         if not isinstance(database, sqlite3.Connection):
             conn.close()
             conn = None  # type: ignore[assignment]
+
+
+def connect(
+    path: Union[Path, "os.PathLike[Any]"], use_spatialite: bool = True
+) -> sqlite3.Connection:
+    """Connect to an existing spatialite database file.
+
+    Args:
+        path (PathLike): the path to the database file.
+        use_spatialite (bool, optional): True to load spatialite extension.
+            Defaults to True.
+
+    Raises:
+        FileNotFoundError: if the database file doesn't exist.
+        RuntimeError: an error occured while connecting to the database.
+
+    Returns:
+        sqlite3.Connection: the connection to the database.
+    """
+    if not Path(path).exists():
+        raise FileNotFoundError(f"Database file not found: {path}")
+
+    conn = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
+    sql = None
+    try:
+        if use_spatialite:
+            load_spatialite(conn)
+
+        if Path(path).suffix.lower() == ".gpkg":
+            sql = "SELECT EnableGpkgMode();"
+            conn.execute(sql)
+
+    except Exception:  # pragma: no cover
+        conn.close()
+        conn = None  # type: ignore[assignment]
+        raise
+
+    return conn
 
 
 def create_new_spatialdb(
@@ -554,11 +594,12 @@ def copy_table(
     conn = sqlite3.connect(str(output_path), uri=True)
 
     # Execute the insert statement
+    is_gpkg = Path(output_path).suffix.lower() == ".gpkg"
     sql = None
     try:
         load_spatialite(conn)
 
-        if Path(output_path).suffix.lower() == ".gpkg":
+        if is_gpkg:
             sql = "SELECT EnableGpkgMode();"
             conn.execute(sql)
 
@@ -570,6 +611,29 @@ def copy_table(
         # Set some default performance options
         database_names = ["main", "input_db"]
         set_performance_options(conn, profile, database_names)
+
+        # First determine the total_bounds of the result based on the total_bounds of
+        # the input and output tables.
+        if is_gpkg:
+            # Determine total bounds of input and output tables
+            input_info = get_gpkg_content(conn, input_table, db_name="input_db")
+            input_bounds = input_info["total_bounds"]
+            if input_bounds is None:
+                input_bounds = get_total_bounds(conn, input_table, db_name="input_db")
+            output_info = get_gpkg_content(conn, output_table, db_name="main")
+            output_bounds = output_info["total_bounds"]
+            if output_bounds is None:
+                output_bounds = get_total_bounds(conn, output_table, db_name="main")
+
+            # Determine the resulting bounds
+            bounds_list = [
+                box(*b) for b in [input_bounds, output_bounds] if b is not None
+            ]
+            result_bounds = (
+                shapely.MultiPolygon(bounds_list).bounds
+                if len(bounds_list) > 0
+                else None
+            )
 
         # Start transaction manually needed for performance
         sql = "BEGIN TRANSACTION;"
@@ -583,8 +647,8 @@ def copy_table(
             column_filter = "" if preserve_fid else "WHERE lower(name) <> 'fid'"
             sql = f"""
                 SELECT name
-                FROM pragma_table_info('{input_table}', 'input_db')
-                {column_filter};
+                  FROM pragma_table_info('{input_table}', 'input_db')
+                 {column_filter};
             """
             columns = [value[0] for value in conn.execute(sql).fetchall()]
 
@@ -603,6 +667,20 @@ def copy_table(
              {where_clause};
         """
         conn.execute(sql)
+
+        # Make sure the bounds in gpkg_contents are up to date for a ".gpkg" file
+        if is_gpkg:
+            # Update the gpkg_contents table if the bounds have changed
+            if result_bounds and result_bounds != input_info["total_bounds"]:
+                sql = f"""
+                    UPDATE gpkg_contents
+                       SET min_x = {result_bounds[0]}
+                          ,min_y = {result_bounds[1]}
+                          ,max_x = {result_bounds[2]}
+                          ,max_y = {result_bounds[3]}
+                     WHERE lower(table_name) = '{output_table.lower()}';
+                """
+                conn.execute(sql)
 
         conn.commit()
     except Exception as ex:  # pragma: no cover
@@ -938,29 +1016,170 @@ def execute_sql(
         conn.close()
 
 
-def get_gpkg_contents(path: Path) -> dict[str, dict]:
+def get_gpkg_content(
+    database: Union[Path, "os.PathLike[Any]", sqlite3.Connection],
+    table_name: str,
+    db_name: str = "main",
+) -> dict[str, Any]:
+    """Get the content info of a specific table of a geopackage.
+
+    This function retrieves the following metadata from the `gpkg_contents` table for
+    the specified table:
+
+        - table_name: Name of the table/layer.
+        - data_type: Type of data (e.g., features, tiles, etc.).
+        - identifier: Unique identifier for the layer.
+        - description: Description of the layer.
+        - last_change: Timestamp of the last change to the layer.
+        - min_x: Minimum X coordinate of the layer's total bounding box.
+        - min_y: Minimum Y coordinate of the layer's total bounding box.
+        - max_x: Maximum X coordinate of the layer's total bounding box.
+        - max_y: Maximum Y coordinate of the layer's total bounding box.
+        - total_bounds: The total bounds of the layer. If the layer does not contain any
+          non-empty geometries, the value is None. Otherwise, this is a list [min_x,
+          min_y, max_x, max_y].
+        - srs_id: Spatial Reference System Identifier.
+
+    Args:
+        database (PathLike or Connection): file path or connection to the geopackage.
+        table_name (str): name of the table to get the contents for.
+        db_name (str, optional): name of the database to use in case of
+            an attached database. Defaults to "main".
+
+    Returns:
+        dict[str, Any]: the information for the specified table.
+
+    """
+    if isinstance(database, sqlite3.Connection):
+        # If a connection is passed, use it
+        conn = database
+    else:
+        conn = sqlite3.connect(database)
+
+    sql = None
+    try:
+        sql = f"""
+            SELECT table_name, data_type, identifier, description, last_change,
+                   min_x, min_y, max_x, max_y, srs_id
+              FROM {db_name}.gpkg_contents
+             WHERE lower(table_name) = '{table_name.lower()}';
+        """
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute(sql)
+        contents = cursor.fetchall()[0]
+        info: dict[str, object | None] = dict(contents)
+        bounds = [info["min_x"], info["min_y"], info["max_x"], info["max_y"]]
+        info["total_bounds"] = bounds if all(b is not None for b in bounds) else None
+
+    except Exception as ex:  # pragma: no cover
+        raise RuntimeError(f"Error executing {sql}") from ex
+
+    finally:
+        # If no existing connection was passed, close the connection
+        if not isinstance(database, sqlite3.Connection):
+            conn.close()
+            conn = None  # type: ignore[assignment]
+
+    return info
+
+
+def get_gpkg_contents(
+    database: Union[Path, "os.PathLike[Any]", sqlite3.Connection],
+    database_name: str = "main",
+) -> dict[str, dict]:
     """Get the contents of the gpkg_contents table of a geopackage.
 
     Args:
-        path (Path): file path to the geopackage.
+        database (PathLike or Connection): file path or connection to the geopackage.
+        database_name (str, optional): name of the database to use in case of
+            an attached database. Defaults to "main".
 
     Returns:
         dict[str, Any]: the contents of the geopackage.
+
     """
-    conn = sqlite3.connect(path)
+    if isinstance(database, sqlite3.Connection):
+        # If a connection is passed, use it
+        conn = database
+    else:
+        conn = sqlite3.connect(database)
+
     sql = None
     try:
-        sql = "SELECT * FROM gpkg_contents;"
+        sql = f"""
+            SELECT table_name, data_type, identifier, description, last_change,
+                   min_x, min_y, max_x, max_y, srs_id
+              FROM {database_name}.gpkg_contents;
+        """
         conn.row_factory = sqlite3.Row
         cursor = conn.execute(sql)
         contents = cursor.fetchall()
         contents_dict = {row["table_name"]: dict(row) for row in contents}
+
     except Exception as ex:  # pragma: no cover
         raise RuntimeError(f"Error executing {sql}") from ex
+
     finally:
-        conn.close()
+        # If no existing connection was passed, close the connection
+        if not isinstance(database, sqlite3.Connection):
+            conn.close()
+            conn = None  # type: ignore[assignment]
 
     return contents_dict
+
+
+def get_gpkg_geometry_column(
+    database: Union[Path, "os.PathLike[Any]", sqlite3.Connection],
+    table_name: str,
+    db_name: str = "main",
+) -> dict[str, Any]:
+    """Get information about the geometry column of a specific table in a geopackage.
+
+    This function retrieves the following metadata from the `gpkg_geometry_columns` table for
+    the specified table:
+        - column_name: Name of the geometry column.
+        - geometry_type_name: Type of geometry (e.g., POINT, LINESTRING, POLYGON).
+        - srs_id: Spatial Reference System Identifier.
+        - z: Whether the geometry has Z (elevation) values.
+        - m: Whether the geometry has M (measure) values.
+
+    Args:
+        database (PathLike or Connection): file path or connection to the geopackage.
+        table_name (str): name of the table to get the geometry columns for.
+        db_name (str, optional): name of the database to use in case of
+            an attached database. Defaults to "main".
+
+    Returns:
+        dict[str, Any]: the geometry columns for the specified table.
+
+    """
+    if isinstance(database, sqlite3.Connection):
+        # If a connection is passed, use it
+        conn = database
+    else:
+        conn = sqlite3.connect(database)
+
+    sql = None
+    try:
+        sql = f"""
+            SELECT column_name, geometry_type_name, srs_id, z, m
+              FROM {db_name}.gpkg_geometry_columns
+             WHERE lower(table_name) = '{table_name.lower()}';
+        """
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute(sql)
+        column_info = dict(cursor.fetchone())
+
+    except Exception as ex:  # pragma: no cover
+        raise RuntimeError(f"Error executing {sql}") from ex
+
+    finally:
+        # If no existing connection was passed, close the connection
+        if not isinstance(database, sqlite3.Connection):
+            conn.close()
+            conn = None  # type: ignore[assignment]
+
+    return column_info
 
 
 def get_gpkg_ogr_contents(path: Path) -> dict[str, dict]:
@@ -1011,6 +1230,68 @@ def get_tables(path: Path) -> list[str]:
         conn = None  # type: ignore[assignment]
 
     return tables
+
+
+def get_total_bounds(
+    database: Union[Path, "os.PathLike[Any]", sqlite3.Connection],
+    table_name: str,
+    geometry_column: str | None = None,
+    db_name: str = "main",
+) -> tuple[float, float, float, float] | None:
+    """Get the total bounds of all layers in the geopackage.
+
+    Args:
+        database (PathLike): file path to the geopackage.
+        table_name (str | None, optional): the table to get the total bounds of.
+        geometry_column (str, optional): name of the geometry column.
+            Defaults to "geom".
+        db_name (str, optional): name of the database to use in case of
+            an attached database. Defaults to "main".
+
+    Returns:
+        tuple[float, float, float, float]: the total bounds as (minx, miny, maxx, maxy)
+            or None if the table does not contain any non-empty geometries.
+    """
+    sql = None
+    try:
+        if isinstance(database, sqlite3.Connection):
+            # If a connection is passed, use it
+            conn = database
+        else:
+            conn = sqlite3.connect(database)
+            load_spatialite(conn)
+
+            if Path(database).suffix.lower() == ".gpkg":
+                sql = "SELECT EnableGpkgMode();"
+                conn.execute(sql)
+
+        if geometry_column is None:
+            # If geometry column is not specified, get it from gpkg_geometry_columns
+            geometry_column_info = get_gpkg_geometry_column(conn, table_name, db_name)
+            geometry_column = geometry_column_info["column_name"]
+
+        sql = f"""
+            SELECT ST_AsBinary(Extent({geometry_column})) AS bounds
+              FROM "{db_name}"."{table_name}";
+        """
+        cursor = conn.execute(sql)
+        bounds_wkb = cursor.fetchone()[0]
+        bounds = shapely.from_wkb(bounds_wkb)
+        if bounds is not None and not bounds.is_empty:
+            total_bounds = bounds.bounds
+        else:
+            total_bounds = None
+
+    except Exception as ex:  # pragma: no cover
+        raise RuntimeError(f"Error executing {sql}") from ex
+
+    finally:
+        # If no existing connection was passed, close the connection
+        if not isinstance(database, sqlite3.Connection):
+            conn.close()
+            conn = None  # type: ignore[assignment]
+
+    return total_bounds
 
 
 def test_data_integrity(path: Path, use_spatialite: bool = True) -> None:
