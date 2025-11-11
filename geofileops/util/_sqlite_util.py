@@ -500,7 +500,8 @@ def get_columns(
                     sql = f'SELECT ST_GeometryType("{columnname}") FROM tmp;'
                     result = conn.execute(sql).fetchall()
                     if len(result) > 0 and result[0][0] is not None:
-                        output_geometrytype = GeometryType[result[0][0]].to_multitype
+                        geometrytype = result[0][0].replace(" ", "")
+                        output_geometrytype = GeometryType[geometrytype].to_multitype
                     else:
                         output_geometrytype = GeometryType["GEOMETRY"]
                 columns[columnname] = output_geometrytype.name
