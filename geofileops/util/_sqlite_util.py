@@ -421,25 +421,15 @@ def get_columns(
         # If an input database is main, use it as the main database
         main_db_path = input_databases["main"]
         filetype = get_filetype(main_db_path)
-        conn = sqlite3.connect(main_db_path, detect_types=sqlite3.PARSE_DECLTYPES)
-        new_db = False
+        conn = connect(main_db_path, use_spatialite=use_spatialite)
     else:
         # Create temp output db to be sure the output DB is writable, even though we
         # only create a temporary table.
         filetype = get_filetype(next(iter(input_databases.values())))
         conn = create_new_spatialdb(":memory:", filetype=filetype)
-        new_db = True
 
     sql = None
     try:
-        # If an existing database is opened, we still need to load spatialite
-        if not new_db and use_spatialite:
-            load_spatialite(conn)
-
-        if filetype == "gpkg":
-            sql = "SELECT EnableGpkgMode();"
-            conn.execute(sql)
-
         # Attach to all input databases
         for dbname, path in input_databases.items():
             # main is already opened, so skip it
@@ -465,8 +455,8 @@ def get_columns(
         if logger.isEnabledFor(logging.DEBUG):
             sql = f"""
                 EXPLAIN QUERY PLAN
-                SELECT * FROM (
-                  {sql_stmt_prepared}
+                 SELECT * FROM (
+                   {sql_stmt_prepared}
                 );
             """
             cur = conn.execute(sql)
