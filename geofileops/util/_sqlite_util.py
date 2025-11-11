@@ -1367,7 +1367,6 @@ def set_performance_options(
         raise RuntimeError(f"Error executing {sql}: {ex}") from ex
 
 
-def load_spatialite(conn: sqlite3.Connection, is_gpkg: bool) -> None:
 def load_spatialite(conn: sqlite3.Connection, enable_gpkg_mode: bool) -> None:
     """Load mod_spatialite for an existing sqlite connection.
 
@@ -1384,15 +1383,17 @@ def load_spatialite(conn: sqlite3.Connection, enable_gpkg_mode: bool) -> None:
             "Error trying to load mod_spatialite."
         ) from ex
 
-    if is_gpkg:
     if enable_gpkg_mode:
         gpkg_mode_failed = False
         try:
             sql = "SELECT EnableGpkgMode();"
             conn.execute(sql)
+
             # Verify if GeoPackage mode was enabled successfully
+            sql = "SELECT GetGpkgMode();"
             result = conn.execute(sql).fetchone()
             gpkg_mode_failed = result is None or result[0] != 1
+            if gpkg_mode_failed:
                 raise RuntimeError("Failed to enable GPKG mode in mod_spatialite.")
 
         except Exception as ex:  # pragma: no cover

@@ -578,6 +578,6 @@ def test_load_spatialite_gpkgmode_failed():
     conn = sqlite3.connect(test_path)
 
     with pytest.raises(
-        RuntimeError, match="Failed to enable GPKG mode in mod_spatialite."
+        RuntimeError, match="Failed to enable GPKG mode in mod_spatialite"
     ):
         sqlite_util.load_spatialite(conn, enable_gpkg_mode=True)
