@@ -500,6 +500,7 @@ def get_columns(
                     sql = f'SELECT ST_GeometryType("{columnname}") FROM tmp;'
                     result = conn.execute(sql).fetchall()
                     if len(result) > 0 and result[0][0] is not None:
+                        # Some geometry types returned contain spaces, e.g. "POLYGON Z".
                         geometrytype = result[0][0].replace(" ", "")
                         output_geometrytype = GeometryType[geometrytype].to_multitype
                     else:
