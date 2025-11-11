@@ -2929,6 +2929,7 @@ def copy_layer(
 
             .. version-deprecated:: 0.10.0
                Please use `write_mode="append"` instead.
+
         force (bool, optional): True to overwrite the output file/layer (depending on
             `write_mode`) if it already exists. False to just return if the output
             file/layer exists. Defaults to False.

@@ -125,7 +125,7 @@
 - Add some pre-flight checks when geofileops is imported (#573, #627)
 - For `select_two_layers`, add the `gpkg_ogr_contents` table + fill out extents in the
   `gpkg_contents` table in the output file (#647)
-- When using join_nearest with spatialite version >= 5.1,
+- When using `join_nearest` with spatialite version >= 5.1,
   show ST_distance between the two geometries instead of 
   the distance between the centroid of the two geometries (#634)
 
