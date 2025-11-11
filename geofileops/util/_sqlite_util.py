@@ -21,7 +21,6 @@ import geofileops as gfo
 from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import _sqlite_userdefined
 from geofileops.util._general_util import MissingRuntimeDependencyError
-from geofileops.util._geopath_util import GeoPath
 
 if TYPE_CHECKING:  # pragma: no cover
     import os
