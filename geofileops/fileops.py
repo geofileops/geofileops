@@ -2931,7 +2931,7 @@ def copy_layer(
         append (bool, optional): True to append to the destination layer if it already
             exists. Defaults to False.
 
-            .. version-deprecated:: 0.10.0
+            .. deprecated:: 0.10.0
                Please use `write_mode="append"` instead.
 
         force (bool, optional): True to overwrite the output file/layer (depending on
