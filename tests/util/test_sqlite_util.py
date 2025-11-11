@@ -505,24 +505,20 @@ def test_get_columns(db1_name, db2_name):
 def test_get_column_types():
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel")
-
     input_info = gfo.get_layerinfo(input_path)
-    sql_stmt = f"""
-        SELECT layer.OIDN, layer.UIDN, layer.datum
-          FROM input_db."{input_info.name}" layer
-         WHERE 1=1
-    """
 
     # Run test
     column_types = sqlite_util.get_column_types(
-        sql_stmt=sql_stmt, input_databases={"input_db": input_path}
+        database=input_path, table=input_info.name
     )
 
-    assert column_types == {
-        "OIDN": "INTEGER",
-        "UIDN": "INTEGER",
-        "datum": "TEXT",
-    }
+    # Check results
+    assert len(column_types) == len(input_info.columns) + 2
+    assert column_types["fid"] == "INTEGER"
+    assert column_types["geom"] == "MULTIPOLYGON"
+    assert column_types["OIDN"] == "INTEGER"
+    assert column_types["HFDTLT"] == "TEXT(20)"
+    assert column_types["DATUM"] == "DATETIME"
 
 
 def test_create_table_as_sql_single_input(tmp_path):
