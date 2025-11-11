@@ -17,13 +17,13 @@
 - Add support for ".gpkg.zip" and ".shp.zip" input and output files for geo operations
   (#754)
 - Add support to use `add_column` on e.g. shapefiles (#767)
-- Improve performance of clip with a complex clip layer (#740)
+- Improve performance of `clip` with a complex clip layer (#740)
 - Improve performance of most operations by using a direct gpkg to gpkg append via
   sqlite where possible (#728, #772)
 - Improve performance of the subdividividing used in many operations (#730)
 - Improve performance of `dissolve` (#748)
 - Improve performance of two-layer operations using `nb_parallel=1` (#692)
-- Alternative query for clip + default subdivide_coords to 15000 (#450)
+- Alternative query for `clip` + default `subdivide_coords` to 15000 (#450)
 - Improve and speed up attribute column type detection in two-layer operations (#758)
 - Ensure that the featurecount is properly cached in GPKG files, also for older GDAL
   versions + small refactor (#693)
