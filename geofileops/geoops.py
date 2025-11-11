@@ -533,7 +533,7 @@ def apply_vectorized(
     If ``explodecollections`` is False and the input and output file type is GeoPackage,
     the fid will be preserved. In other cases this will typically not be the case.
 
-    .. version-added:: 0.10.0
+    .. versionadded:: 0.10.0
 
     Args:
         input_path (PathLike): the input file
@@ -1976,7 +1976,7 @@ def concat(
     rows. If you want to retain only a subset of the columns, specify these in the
     ``columns`` parameter.
 
-    .. version-added:: 0.11.0
+    .. versionadded:: 0.11.0
 
     Args:
         input_paths (list[PathLike]): the paths to the files to concatenate.
@@ -2516,7 +2516,7 @@ def identity(
             being duplicated with the attribute column values "switched".
             Defaults to True.
 
-            .. version-added:: 0.11.0
+            .. versionadded:: 0.11.0
         explodecollections (bool, optional): True to convert all multi-geometries to
             singular ones after the dissolve. Defaults to False.
         gridsize (float, optional): the size of the grid the coordinates of the ouput
@@ -2762,7 +2762,7 @@ def intersection(
             to keep only one of the resulting geometries in the output with the column
             values only available "in one direction". Defaults to True.
 
-            .. version-added:: 0.11.0
+            .. versionadded:: 0.11.0
         explodecollections (bool, optional): True to convert all multi-geometries to
             singular ones after the dissolve. Defaults to False.
         gridsize (float, optional): the size of the grid the coordinates of the ouput
@@ -2861,7 +2861,7 @@ def join(
     Alternative names:
         - Pandas: merge, join
 
-    .. version-added:: 0.11.0
+    .. versionadded:: 0.11.0
 
     Args:
         input1_path (PathLike): the 1st input file
@@ -3650,7 +3650,7 @@ def union(
             one of the resulting geometries in the output with the column values only
             available "in one direction". Defaults to True.
 
-            .. version-added:: 0.11.0
+            .. versionadded:: 0.11.0
         explodecollections (bool, optional): True to convert all multi-geometries to
             singular ones after the dissolve. Defaults to False.
         gridsize (float, optional): the size of the grid the coordinates of the ouput
