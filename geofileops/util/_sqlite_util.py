@@ -55,11 +55,11 @@ def spatialite_version_info() -> dict[str, str]:
     test_path = Path(__file__).resolve().parent / "test.gpkg"
     conn = sqlite3.connect(test_path)
     try:
-        load_spatialite(conn, is_gpkg=True)
+        load_spatialite(conn, enable_gpkg_mode=False)
+
         sql = "SELECT spatialite_version(), geos_version()"
-        result = conn.execute(sql).fetchall()
-        spatialite_version = result[0][0]
-        geos_version = result[0][1]
+        spatialite_version, geos_version = conn.execute(sql).fetchone()
+
     except MissingRuntimeDependencyError:  # pragma: no cover
         conn.rollback()
         raise
@@ -226,10 +226,10 @@ def connect(
         raise FileNotFoundError(f"Database file not found: {path}")
 
     conn = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES, uri=True)
-    sql = None
+
     try:
         if use_spatialite:
-            load_spatialite(conn, is_gpkg=Path(path).suffix.lower() == ".gpkg")
+            load_spatialite(conn, enable_gpkg_mode=Path(path).suffix.lower() == ".gpkg")
 
     except Exception:  # pragma: no cover
         conn.close()
@@ -286,7 +286,9 @@ def create_new_spatialdb(
     conn = sqlite3.connect(path)
     sql = None
     try:
-        load_spatialite(conn, is_gpkg=(filetype == "gpkg"))
+        # Load spatialite extension. Enabling geopackage mode is only possible after the
+        # typical GPKG metadata tables are created.
+        load_spatialite(conn, enable_gpkg_mode=False)
 
         # Starting transaction manually for good performance, mainly needed on Windows.
         sql = "BEGIN TRANSACTION;"
@@ -330,6 +332,10 @@ def create_new_spatialdb(
             sql = "PRAGMA application_id=1196444487;"
             conn.execute(sql)
             sql = "PRAGMA user_version=10400;"
+            conn.execute(sql)
+
+            # Now we can enable geopackage mode
+            sql = "SELECT EnableGpkgMode();"
             conn.execute(sql)
 
         elif filetype == "sqlite":
@@ -1362,12 +1368,13 @@ def set_performance_options(
 
 
 def load_spatialite(conn: sqlite3.Connection, is_gpkg: bool) -> None:
+def load_spatialite(conn: sqlite3.Connection, enable_gpkg_mode: bool) -> None:
     """Load mod_spatialite for an existing sqlite connection.
 
     Args:
         conn (sqlite3.Connection): Sqlite connection
-        is_gpkg (bool): True if the database is a geopackage and GeoPackage should be
-            activated.
+        enable_gpkg_mode (bool): True if the database is a GeoPackage and GeoPackage
+            mode should be activated.
     """
     conn.enable_load_extension(True)
     try:
@@ -1378,12 +1385,21 @@ def load_spatialite(conn: sqlite3.Connection, is_gpkg: bool) -> None:
         ) from ex
 
     if is_gpkg:
+    if enable_gpkg_mode:
+        gpkg_mode_failed = False
         try:
             sql = "SELECT EnableGpkgMode();"
             conn.execute(sql)
+            # Verify if GeoPackage mode was enabled successfully
+            result = conn.execute(sql).fetchone()
+            gpkg_mode_failed = result is None or result[0] != 1
+                raise RuntimeError("Failed to enable GPKG mode in mod_spatialite.")
+
         except Exception as ex:  # pragma: no cover
+            if gpkg_mode_failed:
+                raise
             raise RuntimeError(
-                "Error trying to enable GeoPackage mode in mod_spatialite."
+                "Error trying to enable GPKG mode in mod_spatialite."
             ) from ex
 
     # Register custom functions

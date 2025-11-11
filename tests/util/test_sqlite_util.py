@@ -3,6 +3,7 @@ Tests for functionalities in ogr_util.
 """
 
 import logging
+import sqlite3
 import warnings
 from pathlib import Path
 
@@ -546,3 +547,37 @@ def test_get_total_bounds(empty):
     else:
         for idx, value in enumerate(total_bounds):
             assert round(value) == round(layer_info.total_bounds[idx])
+
+
+def test_load_spatialite():
+    test_path = test_helper.get_testfile("polygon-parcel")
+    conn = sqlite3.connect(test_path)
+
+    sqlite_util.load_spatialite(conn, enable_gpkg_mode=True)
+
+    # Verify if spatialite extension is loaded by checking versions
+    sql = "SELECT spatialite_version(), geos_version()"
+    spatialite_version, geos_version = conn.execute(sql).fetchone()
+
+    assert spatialite_version is not None
+    assert geos_version is not None
+
+    # Verify if GPKG mode is enabled
+    sql = "SELECT GetGpkgMode();"
+    gpkg_mode = conn.execute(sql).fetchone()[0]
+
+    assert gpkg_mode == 1
+
+
+def test_load_spatialite_gpkgmode_failed():
+    """Test error if enabling GPKG mode fails.
+
+    Enabling GPKG mode will fail here because the test file is not a valid GPKG file.
+    """
+    test_path = test_helper.get_testfile("polygon-parcel", suffix=".sqlite")
+    conn = sqlite3.connect(test_path)
+
+    with pytest.raises(
+        RuntimeError, match="Failed to enable GPKG mode in mod_spatialite."
+    ):
+        sqlite_util.load_spatialite(conn, enable_gpkg_mode=True)
