@@ -1133,6 +1133,8 @@ def add_columns(
          on `output_path` will be used to determine `output_layer`.
        - otherwise, the input layername is used/retained.
 
+    .. versionadded:: 0.11.0
+
     Args:
         path (PathLike): Path to the geofile.
         new_columns (list of tuples): list of new columns to add. Each tuple should
@@ -2870,6 +2872,7 @@ def copy_layer(
                 If the file already contains layers named differently than the default
                 layer name for the file, `dst_layer` becomes mandatory.
 
+            .. versionadded:: 0.10.0
         src_crs (Union[str, int], optional): an epsg int or anything supported
             by the OGRSpatialReference.SetFromUserInput() call, which includes
             an EPSG string (eg. "EPSG:4326"), a well known text (WKT) CRS
@@ -3109,6 +3112,8 @@ def zip_geofile(
     For geofile types that consist of multiple files (eg. shapefiles), all relevant
     (existing) files are included in the zip.
 
+    .. versionadded:: 0.11.0
+
     Args:
         input_path (PathLike): the geofile to zip.
         output_path (PathLike): the output zip file.
@@ -3168,6 +3173,8 @@ def unzip_geofile(
     The zip file should contain a single geofile. If the file contains a single file,
     that file is returned. If it contains multiple files, the geofile is determined
     based on the file extension. If multiple geofiles are found, an error is raised.
+
+    .. versionadded:: 0.11.0
 
     Args:
         input_path (PathLike): the zip file to unzip.

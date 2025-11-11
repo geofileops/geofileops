@@ -29,7 +29,7 @@
   versions + small refactor (#693)
 - Improve support for custom fid columns in gpkg (#771)
 - Add checks on invalid values in `ConfigOptions` (#711)
-- Add worker_type used to progress logging (#715)
+- Add `worker_type` used to progress logging (#715)
 - Write gdal log files to `GFO_TMPDIR` if specified (#727)
 - Reduce memory being committed on hardware with many cores (#739, #717)
 
