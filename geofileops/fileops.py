@@ -2875,6 +2875,10 @@ def copy_layer(
                 layer name for the file, `dst_layer` becomes mandatory.
 
             .. version-added:: 0.10.0
+
+            .. version-added:: 0.11.0
+               Added "append_add_fields" write mode.
+
         src_crs (Union[str, int], optional): an epsg int or anything supported
             by the OGRSpatialReference.SetFromUserInput() call, which includes
             an EPSG string (eg. "EPSG:4326"), a well known text (WKT) CRS
