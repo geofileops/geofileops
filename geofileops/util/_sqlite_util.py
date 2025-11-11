@@ -225,7 +225,7 @@ def connect(
     if not Path(path).exists():
         raise FileNotFoundError(f"Database file not found: {path}")
 
-    conn = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES)
+    conn = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES, uri=True)
     sql = None
     try:
         if use_spatialite:
