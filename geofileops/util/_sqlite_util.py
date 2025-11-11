@@ -771,13 +771,9 @@ def create_table_as_sql(
     if not output_path.exists():
         # Output file doesn't exist yet: create and init it
         conn = create_new_spatialdb(path=output_path, crs_epsg=output_crs)
-        new_db = True
     else:
-        # Output file exists: open it
-        conn = sqlite3.connect(
-            output_path, detect_types=sqlite3.PARSE_DECLTYPES, uri=True
-        )
-        new_db = False
+        # Output file exists: open it with spatialite loaded
+        conn = connect(output_path, use_spatialite=True)
 
     sql = None
     try:
@@ -793,13 +789,6 @@ def create_table_as_sql(
         # Remark: sql statements using knn only work if they are main, so they
         # are executed with ogr, as the output needs to be main as well :-(.
         output_databasename = "main"
-        if not new_db:
-            # If an existing database is opened, we still need to load spatialite
-            load_spatialite(conn)
-
-        if output_suffix_lower == ".gpkg":
-            sql = "SELECT EnableGpkgMode();"
-            conn.execute(sql)
 
         # Attach to all input databases
         for dbname, path in input_databases.items():
