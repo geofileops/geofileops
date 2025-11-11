@@ -2787,7 +2787,9 @@ def copy_layer(
     dst: Union[str, "os.PathLike[Any]"],
     src_layer: str | LayerInfo | None = None,
     dst_layer: str | None = None,
-    write_mode: str = "create",
+    write_mode: Literal[
+        "create", "add_layer", "append", "append_add_fields"
+    ] = "create",
     src_crs: str | int | None = None,
     dst_crs: str | int | None = None,
     columns: Iterable[str] | None = None,
@@ -3216,7 +3218,7 @@ def unzip_geofile(
 def _determine_access_mode(
     dst: Union[str, "os.PathLike[Any]"],
     dst_layer: str | None,
-    write_mode: str,
+    write_mode: Literal["create", "add_layer", "append", "append_add_fields"],
     force: bool,
 ) -> str | None:
     """Determines an access mode based on the write mode,...

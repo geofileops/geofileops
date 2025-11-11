@@ -2022,6 +2022,7 @@ def concat(
         is_first = True
         for src_path, src_layer in zip(input_paths, input_layers, strict=True):
             # This first file will be created, the others appended
+            write_mode: Literal["create", "append_add_fields"]
             if is_first:
                 force_local = force
                 write_mode = "create"
