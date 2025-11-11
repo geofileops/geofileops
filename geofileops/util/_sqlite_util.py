@@ -269,8 +269,8 @@ def create_new_spatialdb(
     if filetype is not None:
         filetype = filetype.lower()
     else:
-        suffix = GeoPath(path).suffix_full.lower()
-        if suffix in [".gpkg", ".gpkg.zip"]:
+        suffix = Path(path).suffix.lower()
+        if suffix == ".gpkg":
             filetype = "gpkg"
         elif suffix == ".sqlite":
             filetype = "sqlite"
@@ -410,7 +410,7 @@ def get_columns(
     tmp_dir = None
 
     def get_filetype(path: Path) -> str:
-        if GeoPath(path).suffix_full.lower() in (".gpkg", ".gpkg.zip"):
+        if path.suffix.lower() == ".gpkg":
             return "gpkg"
         return path.suffix.lstrip(".")
 
@@ -622,11 +622,15 @@ def copy_table(
             input_info = get_gpkg_content(conn, input_table, db_name="input_db")
             input_bounds = input_info["total_bounds"]
             if input_bounds is None:
-                input_bounds = get_total_bounds(conn, input_table, db_name="input_db")
+                input_bounds = get_gpkg_total_bounds(
+                    conn, input_table, db_name="input_db"
+                )
             output_info = get_gpkg_content(conn, output_table, db_name="main")
             output_bounds = output_info["total_bounds"]
             if output_bounds is None:
-                output_bounds = get_total_bounds(conn, output_table, db_name="main")
+                output_bounds = get_gpkg_total_bounds(
+                    conn, output_table, db_name="main"
+                )
 
             # Determine the resulting bounds
             bounds_list = [
@@ -1117,7 +1121,7 @@ def get_gpkg_contents(
     return contents_dict
 
 
-def get_gpkg_geometry_column(
+def get_gpkg_geometry_column_info(
     database: Union[Path, "os.PathLike[Any]", sqlite3.Connection],
     table_name: str,
     db_name: str = "main",
@@ -1226,7 +1230,7 @@ def get_tables(path: Path) -> list[str]:
     return tables
 
 
-def get_total_bounds(
+def get_gpkg_total_bounds(
     database: Union[Path, "os.PathLike[Any]", sqlite3.Connection],
     table_name: str,
     geometry_column: str | None = None,
@@ -1257,7 +1261,9 @@ def get_total_bounds(
 
         if geometry_column is None:
             # If geometry column is not specified, get it from gpkg_geometry_columns
-            geometry_column_info = get_gpkg_geometry_column(conn, table_name, db_name)
+            geometry_column_info = get_gpkg_geometry_column_info(
+                conn, table_name, db_name
+            )
             geometry_column = geometry_column_info["column_name"]
 
         sql = f"""
