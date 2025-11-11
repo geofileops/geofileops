@@ -269,8 +269,8 @@ def create_new_spatialdb(
     if filetype is not None:
         filetype = filetype.lower()
     else:
-        suffix = Path(path).suffix.lower()
-        if suffix == ".gpkg":
+        suffix = GeoPath(path).suffix_full.lower()
+        if suffix in [".gpkg", ".gpkg.zip"]:
             filetype = "gpkg"
         elif suffix == ".sqlite":
             filetype = "sqlite"
