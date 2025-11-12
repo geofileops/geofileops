@@ -27,7 +27,7 @@ from geofileops.util._geofileinfo import get_driver  # noqa: F401
 from geofileops.util._polygonize import polygonize  # noqa: F401
 
 
-def _get_version():
+def _get_version() -> str:
     version_path = Path(__file__).resolve().parent / "version.txt"
     with version_path.open() as file:
         return file.readline()

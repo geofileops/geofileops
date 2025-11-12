@@ -150,7 +150,7 @@ def test_isvalid(tmp_path, suffix, epsg):
     )
 
     # For Geopackage, also test if fid is properly preserved
-    preserve_fid = True if suffix == ".gpkg" else False
+    preserve_fid = suffix == ".gpkg"
     # Delete 2nd row, so we can check properly if fid is retained for Geopackage
     # WHERE rowid = 2, because fid is not known for .shp file with sql_dialect="SQLITE"
     input_layer = gfo.get_only_layer(input_tmp_path)
@@ -158,7 +158,7 @@ def test_isvalid(tmp_path, suffix, epsg):
     gfo.execute_sql(input_tmp_path, sql_stmt=sql_stmt, sql_dialect="SQLITE")
     if suffix.endswith(".zip"):
         input_path = input_tmp_path.with_suffix(suffix)
-        gfo.geo_sozip(input_tmp_path, input_path)
+        gfo.zip_geofile(input_tmp_path, input_path)
     else:
         input_path = input_tmp_path
 

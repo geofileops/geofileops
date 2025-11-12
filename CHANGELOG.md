@@ -9,21 +9,27 @@
 ### Improvements
 
 - Add `concat` function (#746, #747)
+- Add `join` function (#751)
+- Add `add_columns` function (#768)
+- Add `zip_geofile` and `unzip_geofile` functions (#754, #743)
 - Add `write_mode="append_add_fields"` option to `copy_layer` (#750)
-- Add `geo_sozip` and `geo_unzip` functions (#754)
+- Add an `include_duplicates` parameter to `union`, `intersection` and `identity` (#757)
 - Add support for ".gpkg.zip" and ".shp.zip" input and output files for geo operations
   (#754)
-- Improve performance of clip with a complex clip layer (#740)
+- Add support to use `add_column` on e.g. shapefiles (#767)
+- Improve performance of `clip` with a complex clip layer (#740)
 - Improve performance of most operations by using a direct gpkg to gpkg append via
-  sqlite where possible (#728)
+  sqlite where possible (#728, #772)
 - Improve performance of the subdividividing used in many operations (#730)
 - Improve performance of `dissolve` (#748)
 - Improve performance of two-layer operations using `nb_parallel=1` (#692)
-- Alternative query for clip + default subdivide_coords to 15000 (#450)
+- Alternative query for `clip` + default `subdivide_coords` to 15000 (#450)
+- Improve and speed up attribute column type detection in two-layer operations (#758)
 - Ensure that the featurecount is properly cached in GPKG files, also for older GDAL
   versions + small refactor (#693)
+- Improve support for custom fid columns in gpkg (#771)
 - Add checks on invalid values in `ConfigOptions` (#711)
-- Add worker_type used to progress logging (#715)
+- Add `worker_type` used to progress logging (#715)
 - Write gdal log files to `GFO_TMPDIR` if specified (#727)
 - Reduce memory being committed on hardware with many cores (#739, #717)
 
@@ -31,6 +37,8 @@
 
 - `copy_layer` should give an error if `src_layer` is not specified for multi-layer src
   files (#745)
+- Fix error when custom `output_layer` is specified in single layer operations (#760)
+- Fix error in `copy_file` if `dst` has a suffix with multiple available drivers (#765)
 
 ## 0.10.2 (2025-08-20)
 
@@ -118,7 +126,7 @@
 - Add some pre-flight checks when geofileops is imported (#573, #627)
 - For `select_two_layers`, add the `gpkg_ogr_contents` table + fill out extents in the
   `gpkg_contents` table in the output file (#647)
-- When using join_nearest with spatialite version >= 5.1,
+- When using `join_nearest` with spatialite version >= 5.1,
   show ST_distance between the two geometries instead of 
   the distance between the centroid of the two geometries (#634)
 

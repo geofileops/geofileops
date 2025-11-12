@@ -33,7 +33,7 @@ from tests import test_helper
     ],
 )
 def test_determine_nb_batches(
-    descr: str,
+    descr: str,  # noqa: ARG001
     nb_rows_input_layer: int,
     nb_parallel: int,
     batchsize: int,
@@ -86,7 +86,7 @@ def test_convert_to_spatialite_based(
         _geoops_sql._convert_to_spatialite_based(  # type: ignore[assignment]
             input1_path=input1_path,
             input1_layer=input1_layer,
-            tempdir=tmp_path,
+            tmp_dir=tmp_path,
             unzip_gpkg=unzip_gpkg,
             input2_path=input2_path,
             input2_layer=input2_layer,
@@ -117,25 +117,31 @@ def test_convert_to_spatialite_based(
 
 
 @pytest.mark.parametrize(
-    "desc, testfile, subdivide_coords, expected_subdivided",
+    "descr, testfile, subdivide_coords, expected_subdivided",
     [
         ("input poly not complex", "polygon-zone", 1000, False),
         ("input poly complex", "polygon-zone", 1, True),
         ("input line not complex", "linestring-watercourse", 10_000, False),
-        ("input line complex", "linestring-watercourse", 1, True),
+        ("input line complex", "linestring-watercourse", 2, True),
         ("input point complex", "point", 1, False),
     ],
 )
 def test_subdivide_layer(
-    desc, tmp_path, testfile, subdivide_coords, expected_subdivided: bool
+    tmp_path,
+    descr,  # noqa: ARG001
+    testfile,
+    subdivide_coords,
+    expected_subdivided: bool,
 ):
     path = test_helper.get_testfile(testfile)
+    output_path = tmp_path / "output.gpkg"
     result = _geoops_sql._subdivide_layer(
         path=path,
         layer=None,
-        output_path=tmp_path,
+        output_path=output_path,
         subdivide_coords=subdivide_coords,
         keep_fid=False,
+        tmp_basedir=tmp_path,
     )
 
     if expected_subdivided:
@@ -155,12 +161,14 @@ def test_subdivide_layer_check_parallel(tmp_path, nb_rows, fraction):
         "GFO_SUBDIVIDE_CHECK_PARALLEL_FRACTION": fraction,
         "GFO_SUBDIVIDE_CHECK_PARALLEL_ROWS": nb_rows,
     }
+    output_path = tmp_path / "output.gpkg"
     with gfo.TempEnv(envs):
         result = _geoops_sql._subdivide_layer(
             path=path,
             layer=layer,
-            output_path=tmp_path,
+            output_path=output_path,
             subdivide_coords=1,
+            tmp_basedir=None,
             keep_fid=False,
         )
 
@@ -332,7 +340,6 @@ def test_subdivide_layer_check_parallel(tmp_path, nb_rows, fraction):
     ],
 )
 def test_prepare_filter_by_location_fields(
-    tmp_path,
     query,
     geom1,
     geom2,
