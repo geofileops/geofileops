@@ -15,6 +15,7 @@ import shapely.geometry as sh_geom
 
 import geofileops as gfo
 from geofileops._compat import GDAL_GTE_311, PYTHON_313
+from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import (
     _geofileinfo,
     _geoseries_util,
@@ -115,9 +116,32 @@ def get_testfile(
     empty: bool = False,
     dimensions: str | None = None,
     explodecollections: bool = False,
-    read_only: bool | None = None,
+    read_only: bool = False,
+    fid_column: str | None = None,
+    geom_name: str | None = None,
     force_utf8: bool = False,
 ) -> Path:
+    """Get a testfile, possibly converting it to another CRS, filetype, etc.
+
+    Args:
+        testfile: Name of the testfile (without extension)
+        dst_dir: Destination directory where the prepared testfile should be stored.
+            If None, the path to the readonly cached version of the file is returned.
+        suffix: Suffix of the prepared testfile (e.g. .gpkg, .shp, .csv, etc)
+        epsg: EPSG code of the prepared testfile
+        empty: If True, prepare an empty testfile (no features)
+        dimensions: If not None, prepare the testfile with the given dimensions
+            (e.g. 'XYZ')
+        explodecollections: If True, explode geometry collections in the prepared
+            testfile.
+        read_only: If True, set the prepared testfile to read-only. If False,
+            set it to read-write. If `dst_dir` is None, this parameter is ignored
+            and the file is always set to read-only.
+        fid_column: If not None, set the FID column to the given name. If None, the
+            default FID column is used. Defaults to None.
+        geom_name: If not None, set the geometry column name to the given name. If None,
+            the default geometry column name is used. Defaults to None.
+    """
     if dst_dir is None:
         read_only = True
 
@@ -129,6 +153,8 @@ def get_testfile(
         empty=empty,
         dimensions=dimensions,
         explodecollections=explodecollections,
+        fid_column=fid_column,
+        geom_name=geom_name,
         force_utf8=force_utf8,
     )
 
@@ -147,6 +173,8 @@ def _get_testfile(
     empty: bool = False,
     dimensions: str | None = None,
     explodecollections: bool = False,
+    fid_column: str | None = None,
+    geom_name: str | None = None,
     force_utf8: bool = False,
 ) -> Path:
     if suffix.lower() in (".gpkg.zip", ".shp.zip") and not GDAL_GTE_311:
@@ -159,16 +187,18 @@ def _get_testfile(
 
     # Prepare destination location
     if dst_dir is None:
-        dst_dir = _io_util.get_tempdir() / "geofileops_test_data"
+        dst_dir = ConfigOptions.tmp_dir / "_test_data"
     assert isinstance(dst_dir, Path)
     dst_dir.mkdir(parents=True, exist_ok=True)
 
     # Prepare file + return
     empty_str = "_empty" if empty else ""
+    fid_column_str = f"_{fid_column}" if fid_column is not None else ""
+    geom_name_str = f"_{geom_name}" if geom_name is not None else ""
     utf8_str = "_utf8" if force_utf8 else ""
     prepared_path = (
-        dst_dir
-        / f"{testfile_path.stem}_{epsg}_{dimensions}{empty_str}{utf8_str}{suffix}"
+        dst_dir / f"{testfile_path.stem}_{epsg}_{dimensions}"
+        f"{empty_str}{fid_column_str}{geom_name_str}{utf8_str}{suffix}"
     )
     if prepared_path.exists():
         return prepared_path
@@ -208,34 +238,36 @@ def _get_testfile(
                 dst_layer = src_layer
                 preserve_fid = not explodecollections
 
+            # Create empty file by adding a where clause that filters out all features
+            where = None
+            if empty:
+                where = "1=0"
+
             options = {}
+            if fid_column is not None:
+                options["LAYER_CREATION.FID"] = fid_column
+            if geom_name is not None:
+                options["LAYER_CREATION.GEOMETRY_NAME"] = geom_name
             if force_utf8 and suffix in (".shp", ".shp.zip"):
                 options["LAYER_CREATION.ENCODING"] = "UTF-8"
             if suffix == ".csv":
                 options["LAYER_CREATION.WRITE_BOM"] = "YES"
-
             gfo.copy_layer(
                 testfile_path,
                 tmp_path,
                 src_layer=src_layer,
                 dst_layer=dst_layer,
                 write_mode="add_layer",
+                where=where,
                 dst_crs=epsg,
                 reproject=True,
                 preserve_fid=preserve_fid,
                 dst_dimensions=dimensions,
                 explodecollections=explodecollections,
+                options=options,
             )
 
-            if empty:
-                # Remove all rows from destination layer.
-                # GDAL only supports DELETE using SQLITE dialect, not with OGRSQL.
-                gfo.execute_sql(
-                    tmp_path,
-                    sql_stmt=f'DELETE FROM "{dst_layer}"',
-                    sql_dialect="SQLITE",
-                )
-            elif dimensions is not None:
+            if dimensions is not None:
                 if dimensions != "XYZ":
                     raise ValueError(f"unimplemented dimensions: {dimensions}")
 

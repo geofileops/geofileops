@@ -44,13 +44,13 @@ GEOOPS_MODULES = [
 
 
 def set_geoops_module(geoops_module: str):
-    global current_geoops_module
+    global current_geoops_module  # noqa: PLW0603
     if current_geoops_module == geoops_module:
         # The right module is already loaded, so don't do anything
         return
     else:
         # Load the desired module as fileops
-        global geoops
+        global geoops  # noqa: PLW0603
         geoops = import_module(geoops_module, __package__)
         current_geoops_module = geoops_module
         print(f"gfo module switched to: {current_geoops_module}")
@@ -72,6 +72,7 @@ def basic_combinations_to_test(
     #   - all combinations of geoops_modules, testfiles and epsgs
     #   - fixed empty_input, suffix
     #   - dimensions="XYZ" for polygon input
+    #   - custom fid_column for point input
     for epsg in epsgs:
         for geoops_module in geoops_modules:
             for testfile in testfiles:
@@ -79,6 +80,7 @@ def basic_combinations_to_test(
                 keep_empty_geoms: bool | None = False
                 dimensions = None
                 gridsize = 0.01 if epsg == 31370 else GRIDSIZE_DEFAULT
+                fid_column = None
                 if testfile == "polygon-parcel":
                     dimensions = "XYZ"
                     keep_empty_geoms = None
@@ -86,6 +88,7 @@ def basic_combinations_to_test(
                         where_post = WHERE_AREA_GT_400
                 elif testfile == "point":
                     keep_empty_geoms = True
+                    fid_column = "fid_custom"
                 result.append(
                     (
                         ".gpkg",
@@ -97,6 +100,7 @@ def basic_combinations_to_test(
                         keep_empty_geoms,
                         where_post,
                         dimensions,
+                        fid_column,
                     )
                 )
 
@@ -116,6 +120,7 @@ def basic_combinations_to_test(
                 else:
                     keep_empty_geoms = True
                 dimensions = None
+                fid_column = None
                 result.append(
                     (
                         suffix,
@@ -127,6 +132,7 @@ def basic_combinations_to_test(
                         keep_empty_geoms,
                         where_post,
                         dimensions,
+                        fid_column,
                     )
                 )
 
@@ -139,6 +145,7 @@ def basic_combinations_to_test(
             keep_empty_geoms = False
             where_post = None
             dimensions = None
+            fid_column = None
             result.append(
                 (
                     suffix,
@@ -150,6 +157,7 @@ def basic_combinations_to_test(
                     keep_empty_geoms,
                     where_post,
                     dimensions,
+                    fid_column,
                 )
             )
 
@@ -192,7 +200,7 @@ def test_buffer(tmp_path, suffix, worker_type, geoops_module):
 
 @pytest.mark.parametrize(
     "suffix, epsg, geoops_module, testfile, empty_input, gridsize, keep_empty_geoms, "
-    "where_post, dimensions",
+    "where_post, dimensions, fid_column",
     basic_combinations_to_test(),
 )
 def test_buffer_basic(
@@ -206,6 +214,7 @@ def test_buffer_basic(
     keep_empty_geoms,
     where_post,
     dimensions,
+    fid_column,
 ):
     """Buffer basics are available both in the gpd and sql implementations."""
     if (
@@ -220,7 +229,12 @@ def test_buffer_basic(
         )
     # Prepare test data
     input_path = test_helper.get_testfile(
-        testfile, suffix=suffix, epsg=epsg, empty=empty_input, dimensions=dimensions
+        testfile,
+        suffix=suffix,
+        epsg=epsg,
+        empty=empty_input,
+        dimensions=dimensions,
+        fid_column=fid_column,
     )
 
     # Now run test
@@ -274,7 +288,8 @@ def test_buffer_basic(
     # More detailed check
     output_gdf = fileops.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
-    check_less_precise = True if input_layerinfo.crs.is_projected is False else False
+    # Check less precise for geographic CRS (WGS84)
+    check_less_precise = not input_layerinfo.crs.is_projected
     assert_geodataframe_equal(
         output_gdf,
         expected_gdf,
@@ -427,25 +442,68 @@ def test_buffer_invalid_params(
         geoops.buffer(input_path=input_path, output_path=output_path, distance=1)
 
 
+@pytest.mark.parametrize("suffix", [".gpkg", ".gpkg.zip"])
+@pytest.mark.parametrize("geoops_module", GEOOPS_MODULES)
+def test_buffer_layer_special_cases(tmp_path, suffix, geoops_module):
+    """Test buffer on input file with multiple layers + a custom output layer.
+
+    Only tested on .gpkg and .gpkg.zip as these support multiple layers/custom layer
+    names.
+    """
+    if not GDAL_GTE_311 and suffix in {".gpkg.zip"}:
+        # Skip test for unsupported GDAL versions
+        pytest.skip(".zip support requires gdal>=3.11")
+
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-twolayers", suffix=suffix)
+    input_layerinfo = fileops.get_layerinfo(input_path, layer="parcels")
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+    output_layer = "buffered_parcels"
+
+    # Now run test
+    output_path = tmp_path / f"output{suffix}"
+    set_geoops_module(geoops_module)
+    geoops.buffer(
+        input_path=input_path,
+        output_path=output_path,
+        input_layer="parcels",
+        output_layer=output_layer,
+        distance=1,
+        nb_parallel=2,
+        keep_empty_geoms=True,
+        batchsize=batchsize,
+    )
+
+    # Now check if the output file is correctly created
+    assert output_path.exists()
+    output_layerinfo = fileops.get_layerinfo(output_path)
+    assert output_layerinfo.name == output_layer
+    assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
+    assert output_layerinfo.featurecount == input_layerinfo.featurecount
+
+
 @pytest.mark.parametrize(
     "suffix, epsg, geoops_module, testfile, empty_input, gridsize, keep_empty_geoms, "
-    "where_post, dimensions",
+    "where_post, dimensions, fid_column",
     basic_combinations_to_test(epsgs=[31370]),
 )
 def test_buffer_negative(
     tmp_path,
     suffix,
-    epsg,
+    epsg,  # noqa: ARG001
     geoops_module,
     testfile,
-    empty_input,
+    empty_input,  # noqa: ARG001
     gridsize,
     keep_empty_geoms,
     where_post,
-    dimensions,
+    dimensions,  # noqa: ARG001
+    fid_column,
 ):
     """Buffer basics are available both in the gpd and sql implementations."""
-    input_path = test_helper.get_testfile(testfile, suffix=suffix)
+    input_path = test_helper.get_testfile(
+        testfile, suffix=suffix, fid_column=fid_column
+    )
 
     # Now run test
     output_path = tmp_path / f"{GeoPath(input_path).stem}-{geoops_module}{suffix}"
@@ -1106,7 +1164,7 @@ def test_makevalid_invalidparams():
 
 @pytest.mark.parametrize(
     "suffix, epsg, geoops_module, testfile, empty_input, gridsize, keep_empty_geoms, "
-    "where_post, dimensions",
+    "where_post, dimensions, fid_column",
     basic_combinations_to_test(testfiles=["polygon-parcel", "linestring-row-trees"]),
 )
 def test_simplify(
@@ -1119,24 +1177,27 @@ def test_simplify(
     gridsize,
     keep_empty_geoms,
     where_post,
-    dimensions,
+    dimensions,  # noqa: ARG001
+    fid_column,
 ):
     # Prepare test data
     tmp_dir = tmp_path / f"{geoops_module}_{epsg}"
     tmp_dir.mkdir(parents=True, exist_ok=True)
     input_path = test_helper.get_testfile(
-        testfile, dst_dir=tmp_dir, suffix=suffix, epsg=epsg, empty=empty_input
+        testfile,
+        dst_dir=tmp_dir,
+        suffix=suffix,
+        epsg=epsg,
+        empty=empty_input,
+        fid_column=fid_column,
     )
     output_path = tmp_dir / f"{input_path.stem}-output{suffix}"
     set_geoops_module(geoops_module)
     input_layerinfo = fileops.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
     assert input_layerinfo.crs is not None
-    if input_layerinfo.crs.is_projected:
-        tolerance = 5
-    else:
-        # 1 degree = 111 km or 111000 m
-        tolerance = 5 / 111000
+    # 1 degree = 111 km or 111000 m
+    tolerance = 5 if input_layerinfo.crs.is_projected else 5 / 111000
     keep_empty_geoms_prepped = False if keep_empty_geoms is None else keep_empty_geoms
 
     # Prepare expected result
