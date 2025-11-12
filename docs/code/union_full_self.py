@@ -1,4 +1,4 @@
-"""Example of applying the pygeoops remove_inner_rings function to a polygon."""
+"""Example for union_full_self."""
 
 import tempfile
 from pathlib import Path
@@ -31,13 +31,13 @@ gfo.union_full_self(
 )
 union_full_gdf = gpd.read_file(union_full_path)
 
-ax1.set_title("a) input: 4 overlapping boxes")
-poly_gdf.plot(ax=ax1, color=GRAY, alpha=0.5, linewidth=3, edgecolor=GRAY)
+ax1.set_title("a) input: 4 intersecting boxes")
+poly_gdf.plot(ax=ax1, color=GRAY, alpha=0.3, linewidth=3, edgecolor=GRAY)
 poly_gdf["geometry"].apply(lambda x: MultiPoint(shapely.get_coordinates(x))).plot(
     ax=ax1, color=GRAY, alpha=0.7
 )
 
-ax2.set_title("b) output: union_full of boxes")
+ax2.set_title("b) output: cut at intersection borders")
 union_full_gdf.plot(ax=ax2, color=BLUE, alpha=0.5, linewidth=3, edgecolor=BLUE)
 union_full_gdf["geometry"].apply(lambda x: MultiPoint(shapely.get_coordinates(x))).plot(
     ax=ax2, color=BLUE, alpha=0.7

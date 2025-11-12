@@ -3743,7 +3743,9 @@ def union_full_self(
 ) -> None:
     """Calculates the "full" union of the features in a layer.
 
-    This function is experimental and may change in future releases.
+    .. warning::
+       This function is experimental and may be changed and/or renamed in a future
+       release without backwards compatibility!
 
     All geometries in the input layer are cut up till the smallest possible parts based
     on the intersections between them.
