@@ -12,7 +12,6 @@ from pygeoops import GeometryType
 
 from geofileops import fileops
 from geofileops.geoops_sql import _union_full
-from geofileops.geoops_sql._union_full import UnionFullSelfTypes
 from geofileops.helpers import _general_helper
 from geofileops.util import (
     _geofileinfo,
