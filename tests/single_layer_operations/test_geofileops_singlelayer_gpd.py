@@ -53,20 +53,24 @@ def test_apply(
 
     # Run test
     if only_geom_input:
-        func = lambda geom: pygeoops.remove_inner_rings(
-            geometry=geom, min_area_to_keep=2, crs=input_layerinfo.crs
-        )
+
+        def remove_inner_rings(geom):
+            return pygeoops.remove_inner_rings(
+                geometry=geom, min_area_to_keep=2, crs=input_layerinfo.crs
+            )
     else:
-        func = lambda row: pygeoops.remove_inner_rings(
-            row.geometry,
-            min_area_to_keep=row.min_area,
-            crs=input_layerinfo.crs,
-        )
+
+        def remove_inner_rings(row):
+            return pygeoops.remove_inner_rings(
+                row.geometry,
+                min_area_to_keep=row.min_area,
+                crs=input_layerinfo.crs,
+            )
 
     gfo.apply(
         input_path=str(input_path),
         output_path=str(output_path),
-        func=func,
+        func=remove_inner_rings,
         only_geom_input=only_geom_input,
         gridsize=gridsize,
         keep_empty_geoms=keep_empty_geoms,
@@ -145,18 +149,22 @@ def test_apply_None(tmp_path, suffix, only_geom_input, force_output_geometrytype
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
     if only_geom_input:
-        func = lambda geom: pygeoops.remove_inner_rings(
-            geometry=geom, min_area_to_keep=2, crs=input_layerinfo.crs
-        )
+
+        def remove_inner_rings(geom):
+            return pygeoops.remove_inner_rings(
+                geometry=geom, min_area_to_keep=2, crs=input_layerinfo.crs
+            )
     else:
-        func = lambda row: pygeoops.remove_inner_rings(
-            row.geometry, min_area_to_keep=row.min_area, crs=input_layerinfo.crs
-        )
+
+        def remove_inner_rings(row):
+            return pygeoops.remove_inner_rings(
+                row.geometry, min_area_to_keep=row.min_area, crs=input_layerinfo.crs
+            )
 
     gfo.apply(
         input_path=input_path,
         output_path=output_path,
-        func=func,
+        func=remove_inner_rings,
         only_geom_input=only_geom_input,
         force_output_geometrytype=force_output_geometrytype,
         batchsize=batchsize,
@@ -176,7 +184,7 @@ def test_apply_None(tmp_path, suffix, only_geom_input, force_output_geometrytype
         # The first partial file during calculation to be completed has None geometry,
         # so file is created with GEOMETRY type.
         pass
-    elif force_output_geometrytype is None or suffix == ".shp":
+    elif force_output_geometrytype is None or suffix in (".shp", ".shp.zip"):
         assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
     else:
         assert output_layerinfo.geometrytype == GeometryType.POLYGON
@@ -202,13 +210,84 @@ def test_apply_None(tmp_path, suffix, only_geom_input, force_output_geometrytype
 
 
 def test_apply_geooperation_invalid_operation(tmp_path):
+    input_path = test_helper.get_testfile("polygon-parcel")
+    layerinfo = gfo.get_layerinfo(input_path)
+
     with pytest.raises(ValueError, match="operation not supported: INVALID"):
         geoops_gpd._apply_geooperation(
-            input_path=test_helper.get_testfile("polygon-parcel"),
+            input_path=input_path,
             output_path=tmp_path / "output.gpkg",
             operation="INVALID",
             operation_params={},
+            input_layer=layerinfo,
         )
+
+
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
+def test_apply_vectorized(tmp_path, suffix):
+    # Prepare test data
+    test_gdf = gpd.GeoDataFrame(
+        data=[
+            {"id": 1, "geometry": test_helper.TestData.polygon_small_island},
+            {"id": 2, "geometry": test_helper.TestData.polygon_with_island},
+            {"id": 3, "geometry": None},
+        ],
+        crs=31370,
+    )
+    input_path = tmp_path / f"polygons_small_holes_{suffix}"
+    gfo.to_file(test_gdf, input_path)
+    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
+    input_layerinfo = gfo.get_layerinfo(input_path)
+    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+    min_area = 2
+
+    def remove_inner_rings_vectorized(geometry, min_area_to_keep, crs=None):
+        return [
+            pygeoops.remove_inner_rings(
+                geom, min_area_to_keep=min_area_to_keep, crs=crs
+            )
+            for geom in geometry
+        ]
+
+    # Run test
+    output_gdf = gfo.apply_vectorized(
+        input_path=input_path,
+        output_path=output_path,
+        func=lambda geom: remove_inner_rings_vectorized(
+            geom, min_area_to_keep=min_area
+        ),
+        batchsize=batchsize,
+    )
+
+    # Now check if the output file is correctly created
+    assert output_path.exists()
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
+
+    # Read result for some more detailed checks
+    output_gdf = gfo.read_file(output_path).sort_values("id").reset_index(drop=True)
+    output_layerinfo = gfo.get_layerinfo(output_path)
+
+    assert len(output_layerinfo.columns) == len(input_layerinfo.columns)
+
+    for index in range(2):
+        output_geometry = output_gdf["geometry"][index]
+        if index == 2:
+            assert output_geometry is None
+            continue
+        else:
+            assert output_geometry is not None
+        if isinstance(output_geometry, sh_geom.MultiPolygon):
+            assert len(output_geometry.geoms) == 1
+            output_geometry = output_geometry.geoms[0]
+        assert isinstance(output_geometry, sh_geom.Polygon)
+
+        if index == 0:
+            # In the 1st polygon the island must be removed
+            assert len(output_geometry.interiors) == 0
+        elif index == 1:
+            # In the 2nd polygon the island is larger, so should be there
+            assert len(output_geometry.interiors) == 1
 
 
 @pytest.mark.parametrize(
@@ -281,11 +360,9 @@ def test_simplify_lang(tmp_path, suffix, epsg, testfile, gridsize):
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
     assert input_layerinfo.crs is not None
-    if input_layerinfo.crs.is_projected:
-        tolerance = 5
-    else:
-        # 1 degree = 111 km or 111000 m
-        tolerance = 5 / 111000
+    # 1 degree = 111 km or 111000 m
+    tolerance = 5 if input_layerinfo.crs.is_projected else 5 / 111000
+
     # Test lang algorithm
     output_path = tmp_path / f"{input_path.stem}-output_lang{suffix}"
     gfo.simplify(
@@ -342,11 +419,8 @@ def test_simplify_vw(tmp_path, suffix, epsg, testfile, gridsize):
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
     assert input_layerinfo.crs is not None
-    if input_layerinfo.crs.is_projected:
-        tolerance = 5
-    else:
-        # 1 degree = 111 km or 111000 m
-        tolerance = 5 / 111000
+    # 1 degree = 111 km or 111000 m
+    tolerance = 5 if input_layerinfo.crs.is_projected else 5 / 111000
 
     # Test vw (visvalingam-whyatt) algorithm
     output_path = tmp_path / f"{input_path.stem}-output_vw{suffix}"

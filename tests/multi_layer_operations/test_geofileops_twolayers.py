@@ -3,10 +3,10 @@ Tests for operations that are executed using a sql statement on two layers.
 """
 
 import math
+import os
 import sys
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Optional
 
 import geopandas as gpd
 import numpy as np
@@ -17,19 +17,25 @@ import shapely.geometry as sh_geom
 
 import geofileops as gfo
 from geofileops import GeometryType
-from geofileops._compat import SPATIALITE_GTE_51
-from geofileops.util import _geofileinfo
+from geofileops._compat import GDAL_GTE_311, GEOPANDAS_110, GEOPANDAS_GTE_10
+from geofileops.util import _general_util, _geofileinfo, _sqlite_util
 from geofileops.util import _geoops_sql as geoops_sql
 from geofileops.util._geofileinfo import GeofileInfo
+from geofileops.util._geopath_util import GeoPath
 from tests import test_helper
 from tests.test_helper import SUFFIXES_GEOOPS, TESTFILES, assert_geodataframe_equal
 
 
 @pytest.mark.parametrize("testfile", TESTFILES)
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
-def test_clip(tmp_path, testfile, suffix):
-    input_path = test_helper.get_testfile(testfile, suffix=suffix)
-    clip_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
+@pytest.mark.parametrize("subdivide_coords, fid_column", [(0, None), (5, "fid_custom")])
+def test_clip(tmp_path, testfile, suffix, subdivide_coords, fid_column):
+    input_path = test_helper.get_testfile(
+        testfile, suffix=suffix, fid_column=fid_column
+    )
+    clip_path = test_helper.get_testfile(
+        "polygon-zone", suffix=suffix, fid_column=fid_column
+    )
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
@@ -39,6 +45,7 @@ def test_clip(tmp_path, testfile, suffix):
         output_path=str(output_path),
         where_post=None,
         batchsize=batchsize,
+        subdivide_coords=subdivide_coords,
     )
 
     # Compare result with geopandas
@@ -49,8 +56,16 @@ def test_clip(tmp_path, testfile, suffix):
     input_gdf = gfo.read_file(input_path)
     clip_gdf = gfo.read_file(clip_path)
     output_gpd_gdf = gpd.clip(input_gdf, clip_gdf, keep_geom_type=True)
+
+    # If input was subdivided, the output geometries will have some extra points
+    check_geom_tolerance = 0.0 if subdivide_coords == 0 else 1e-9
     assert_geodataframe_equal(
-        output_gdf, output_gpd_gdf, promote_to_multi=True, sort_values=True
+        output_gdf,
+        output_gpd_gdf,
+        normalize=True,
+        promote_to_multi=True,
+        sort_values=True,
+        check_geom_tolerance=check_geom_tolerance,
     )
 
 
@@ -100,37 +115,59 @@ def test_clip_resultempty(tmp_path, suffix, clip_empty):
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize(
-    "testfile, gridsize, where_post, subdivide_coords",
+    "testfile, gridsize, where_post, subdivide_coords, fid_column, "
+    "check_geom_tolerance",
     [
-        ("linestring-row-trees", 0.0, "ST_Length(geom) > 100", None),
-        ("linestring-row-trees", 0.01, None, 0),
-        ("point", 0.0, None, None),
-        ("point", 0.01, None, 0),
-        ("polygon-parcel", 0.0, None, None),
-        ("polygon-parcel", 0.0, "ST_Area(geom) > 2000", 0),
-        ("polygon-parcel", 0.01, None, 0),
+        ("linestring-row-trees", 0.0, "ST_Length(geom) > 100", None, None, 0.0),
+        ("linestring-row-trees", 0.01, None, 0, None, 0.0),
+        ("point", 0.0, None, None, None, 0.0),
+        ("point", 0.01, None, 0, None, 0.0),
+        ("polygon-parcel", 0.0, None, None, "fid_custom", 0.0),
+        ("polygon-parcel", 0.0, None, 5, None, 1e-9),
+        ("polygon-parcel", 0.0, "ST_Area(geom) > 2000", 0, "fid_custom", 0.0),
+        ("polygon-parcel", 0.01, None, 0, None, 0.0),
     ],
 )
-def test_erase(tmp_path, suffix, testfile, gridsize, where_post, subdivide_coords):
-    input_path = test_helper.get_testfile(testfile, suffix=suffix)
-    if suffix == ".shp":
-        erase_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
-        erase_layer = None
+@pytest.mark.skipif(
+    not GEOPANDAS_GTE_10,
+    reason="assert_geodataframe_equal with check_geom_gridsize requires gpd >= 1.0",
+)
+# @pytest.mark.skipif(os.name == "nt", reason="crashes on windows")
+def test_difference(
+    tmp_path,
+    suffix,
+    testfile,
+    gridsize,
+    where_post,
+    subdivide_coords,
+    fid_column,
+    check_geom_tolerance,
+):
+    input1_path = test_helper.get_testfile(
+        testfile, suffix=suffix, fid_column=fid_column
+    )
+    if suffix in (".shp", ".shp.zip"):
+        input2_path = test_helper.get_testfile(
+            "polygon-zone", suffix=suffix, fid_column=fid_column
+        )
+        input2_layer = None
     else:
-        erase_path = test_helper.get_testfile("polygon-twolayers", suffix=suffix)
-        erase_layer = "zones"
-    input_layerinfo = gfo.get_layerinfo(input_path)
+        input2_path = test_helper.get_testfile(
+            "polygon-twolayers", suffix=suffix, fid_column=fid_column
+        )
+        input2_layer = "zones"
+    input_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
-    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
+    output_path = tmp_path / f"{GeoPath(input1_path).stem}-output{suffix}"
 
     kwargs = {}
     if subdivide_coords is not None:
         kwargs["subdivide_coords"] = subdivide_coords
 
-    gfo.erase(
-        input_path=str(input_path),
-        erase_path=str(erase_path),
-        erase_layer=erase_layer,
+    gfo.difference(
+        input1_path=str(input1_path),
+        input2_path=str(input2_path),
+        input2_layer=input2_layer,
         output_path=str(output_path),
         gridsize=gridsize,
         where_post=where_post,
@@ -143,11 +180,11 @@ def test_erase(tmp_path, suffix, testfile, gridsize, where_post, subdivide_coord
     exp_spatial_index = GeofileInfo(output_path).default_spatial_index
     assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_gdf = gfo.read_file(output_path)
-    input_gdf = gfo.read_file(input_path)
-    erase_gdf = gfo.read_file(erase_path, layer=erase_layer)
+    input1_gdf = gfo.read_file(input1_path)
+    input2_gdf = gfo.read_file(input2_path, layer=input2_layer)
 
     # Prepare expected gdf
-    exp_gdf = gpd.overlay(input_gdf, erase_gdf, how="difference", keep_geom_type=True)
+    exp_gdf = gpd.overlay(input1_gdf, input2_gdf, how="difference", keep_geom_type=True)
     if gridsize != 0.0:
         exp_gdf.geometry = shapely.set_precision(exp_gdf.geometry, grid_size=gridsize)
     if where_post is not None:
@@ -162,7 +199,7 @@ def test_erase(tmp_path, suffix, testfile, gridsize, where_post, subdivide_coord
     exp_gdf = exp_gdf[~exp_gdf.geometry.is_empty]
 
     if test_helper.RUNS_LOCAL:
-        output_exp_path = tmp_path / f"{input_path.stem}-expected{suffix}"
+        output_exp_path = tmp_path / f"{GeoPath(input1_path).stem}-expected{suffix}"
         gfo.to_file(exp_gdf, output_exp_path)
 
     assert_geodataframe_equal(
@@ -172,22 +209,23 @@ def test_erase(tmp_path, suffix, testfile, gridsize, where_post, subdivide_coord
         sort_values=True,
         check_less_precise=True,
         normalize=True,
+        check_geom_tolerance=check_geom_tolerance,
     )
 
     # Make sure the output still has rows, otherwise the test isn't super useful
     assert len(output_gdf) > 0
 
 
-def test_erase_explodecollections(tmp_path):
-    input_path = test_helper.get_testfile("polygon-parcel")
-    erase_path = test_helper.get_testfile("polygon-zone")
-    input_layerinfo = gfo.get_layerinfo(input_path)
+def test_difference_explodecollections(tmp_path):
+    input1_path = test_helper.get_testfile("polygon-parcel")
+    input2_path = test_helper.get_testfile("polygon-zone")
+    input_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
-    output_path = tmp_path / f"{input_path.stem}-output_exploded{input_path.suffix}"
-    gfo.erase(
-        input_path=input_path,
-        erase_path=erase_path,
+    output_path = tmp_path / f"{input1_path.stem}-output_exploded{input1_path.suffix}"
+    gfo.difference(
+        input1_path=input1_path,
+        input2_path=input2_path,
         output_path=output_path,
         explodecollections=True,
         batchsize=batchsize,
@@ -198,10 +236,10 @@ def test_erase_explodecollections(tmp_path):
     exp_spatial_index = GeofileInfo(output_path).default_spatial_index
     assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_gdf = gfo.read_file(output_path)
-    input_gdf = gfo.read_file(input_path)
-    erase_gdf = gfo.read_file(erase_path)
+    input1_gdf = gfo.read_file(input1_path)
+    input2_gdf = gfo.read_file(input2_path)
     output_gpd_gdf = gpd.overlay(
-        input_gdf, erase_gdf, how="difference", keep_geom_type=True
+        input1_gdf, input2_gdf, how="difference", keep_geom_type=True
     )
     output_gpd_gdf = output_gpd_gdf.explode(ignore_index=True)
     assert_geodataframe_equal(
@@ -214,26 +252,26 @@ def test_erase_explodecollections(tmp_path):
     )
 
 
-def test_erase_force(tmp_path):
+def test_difference_force(tmp_path):
     # Prepare test data
-    input_path = test_helper.get_testfile("polygon-parcel")
-    erase_path = test_helper.get_testfile("polygon-zone")
-    output_path = tmp_path / f"output{input_path.suffix}"
+    input1_path = test_helper.get_testfile("polygon-parcel")
+    input2_path = test_helper.get_testfile("polygon-zone")
+    output_path = tmp_path / f"output{input1_path.suffix}"
     output_path.touch()
 
     # Test with force False (the default): existing output file should stay the same
     mtime_orig = output_path.stat().st_mtime
-    gfo.erase(
-        input_path=input_path,
-        erase_path=erase_path,
+    gfo.difference(
+        input1_path=input1_path,
+        input2_path=input2_path,
         output_path=output_path,
     )
     assert output_path.stat().st_mtime == mtime_orig
 
     # With force=True
-    gfo.erase(
-        input_path=input_path,
-        erase_path=erase_path,
+    gfo.difference(
+        input1_path=input1_path,
+        input2_path=input2_path,
         output_path=output_path,
         force=True,
     )
@@ -243,33 +281,33 @@ def test_erase_force(tmp_path):
 @pytest.mark.parametrize(
     "kwargs, expected_error",
     [
-        ({"erase_path": None}, "erase_layer must be None if erase_path is None"),
+        ({"input2_path": None}, "input2_layer must be None if input2_path is None"),
         ({"subdivide_coords": -1}, "subdivide_coords < 0 is not allowed"),
     ],
 )
-def test_erase_invalid_params(kwargs, expected_error):
-    if "erase_path" not in kwargs:
-        kwargs["erase_path"] = "erase.gpkg"
+def test_difference_invalid_params(kwargs, expected_error):
+    if "input2_path" not in kwargs:
+        kwargs["input2_path"] = "input2.gpkg"
     with pytest.raises(ValueError, match=expected_error):
-        gfo.erase(
-            input_path="input.gpkg",
+        gfo.difference(
+            input1_path="input.gpkg",
             output_path="output.gpkg",
-            erase_layer="invalid",
+            input2_layer="invalid",
             **kwargs,
         )
 
 
 @pytest.mark.parametrize("subdivide_coords", [2000, 5])
-def test_erase_self(tmp_path, subdivide_coords):
-    input_path = test_helper.get_testfile("polygon-overlappingcircles-all")
-    input_layerinfo = gfo.get_layerinfo(input_path)
+def test_difference_self(tmp_path, subdivide_coords):
+    input1_path = test_helper.get_testfile("polygon-overlappingcircles-all")
+    input_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
 
     # Now run test
-    output_path = tmp_path / f"{input_path.stem}_erase_self.gpkg"
-    gfo.erase(
-        input_path=input_path,
-        erase_path=None,
+    output_path = tmp_path / f"{input1_path.stem}_diff_self.gpkg"
+    gfo.difference(
+        input1_path=input1_path,
+        input2_path=None,
         output_path=output_path,
         subdivide_coords=subdivide_coords,
         nb_parallel=2,
@@ -286,27 +324,28 @@ def test_erase_self(tmp_path, subdivide_coords):
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
-def test_erase_subdivide_multipolygons(tmp_path, suffix):
+def test_difference_subdivide_multipolygons(tmp_path, suffix):
     """
-    Test if erase with subdivide also works if the erase layer contains multipolygons.
+    Test if difference with subdivide also works if the input2 layer contains
+    multipolygons.
 
     It seems spatialite function ST_AsBinary, ST_GeomFromWKB and/or ST_Collect have
     issues processing nested multi-types (e.g. a GeometryCollection containing e.g.
     MultiPolygons).
     """
     # Prepare test data
-    input_path = test_helper.get_testfile("point", suffix=suffix)
-    input_layerinfo = gfo.get_layerinfo(input_path)
-    batchsize = math.ceil(input_layerinfo.featurecount / 2)
+    input1_path = test_helper.get_testfile("point", suffix=suffix)
+    input1_layerinfo = gfo.get_layerinfo(input1_path)
+    batchsize = math.ceil(input1_layerinfo.featurecount / 2)
 
-    # Prepare erase test data: should be multipolygons for good test coverage
+    # Prepare test data: should be multipolygons for good test coverage
     zone_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
     zones_gdf = gfo.read_file(zone_path).explode(ignore_index=True)
 
-    erase_geometries = [
-        {"desc": "erase1", "geometry": zones_gdf.geometry[4]},
+    input2_geometries = [
+        {"desc": "input2_1", "geometry": zones_gdf.geometry[4]},
         {
-            "desc": "erase2",
+            "desc": "input2_2",
             "geometry": sh_geom.MultiPolygon(
                 [
                     zones_gdf.geometry[0],
@@ -317,14 +356,14 @@ def test_erase_subdivide_multipolygons(tmp_path, suffix):
             ),
         },
     ]
-    erase_gdf = gpd.GeoDataFrame(erase_geometries, crs=31370)
-    erase_path = tmp_path / f"{zone_path.stem}_multi{suffix}"
-    gfo.to_file(erase_gdf, erase_path)
+    input2_gdf = gpd.GeoDataFrame(input2_geometries, crs=31370)
+    input2_path = tmp_path / f"{zone_path.stem}_multi{suffix}"
+    gfo.to_file(input2_gdf, input2_path)
 
-    output_path = tmp_path / f"{input_path.stem}-output_exploded{suffix}"
-    gfo.erase(
-        input_path=input_path,
-        erase_path=erase_path,
+    output_path = tmp_path / f"{input1_path.stem}-output_exploded{suffix}"
+    gfo.difference(
+        input1_path=input1_path,
+        input2_path=input2_path,
         output_path=output_path,
         batchsize=batchsize,
         subdivide_coords=10,
@@ -335,9 +374,9 @@ def test_erase_subdivide_multipolygons(tmp_path, suffix):
     exp_spatial_index = GeofileInfo(output_path).default_spatial_index
     assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_gdf = gfo.read_file(output_path)
-    input_gdf = gfo.read_file(input_path)
+    input1_gdf = gfo.read_file(input1_path)
     output_gpd_gdf = gpd.overlay(
-        input_gdf, erase_gdf, how="difference", keep_geom_type=True
+        input1_gdf, input2_gdf, how="difference", keep_geom_type=True
     )
     output_gpd_gdf = output_gpd_gdf.explode(ignore_index=True)
     assert_geodataframe_equal(
@@ -350,209 +389,28 @@ def test_erase_subdivide_multipolygons(tmp_path, suffix):
     )
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
-@pytest.mark.parametrize(
-    "columns, gridsize, where_post, subdivide_coords, exp_featurecount",
-    [
-        (["OIDN", "UIDN"], 0.0, "ST_Area(geom) > 2000", 0, 25),
-        (None, 0.01, None, 10, 27),
-    ],
-)
-def test_export_by_location(
-    tmp_path,
-    suffix,
-    columns,
-    gridsize,
-    where_post,
-    subdivide_coords,
-    exp_featurecount,
-):
-    input_to_select_from_path = test_helper.get_testfile(
-        "polygon-parcel", suffix=suffix
-    )
-    input_to_compare_with_path = test_helper.get_testfile("polygon-zone", suffix=suffix)
-    output_path = tmp_path / f"{input_to_select_from_path.stem}-output{suffix}"
-    input_layerinfo = gfo.get_layerinfo(input_to_select_from_path)
-    batchsize = math.ceil(input_layerinfo.featurecount / 2)
-
-    # Test
-    gfo.export_by_location(
-        input_to_select_from_path=str(input_to_select_from_path),
-        input_to_compare_with_path=str(input_to_compare_with_path),
-        output_path=str(output_path),
-        input1_columns=columns,
-        gridsize=gridsize,
-        where_post=where_post,
-        subdivide_coords=subdivide_coords,
-        batchsize=batchsize,
-    )
-
-    # Check if the output file is correctly created
-    assert output_path.exists()
-    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
-    assert gfo.has_spatial_index(output_path) is exp_spatial_index
-    output_layerinfo = gfo.get_layerinfo(output_path)
-    exp_columns = len(input_layerinfo.columns) if columns is None else len(columns)
-    assert len(output_layerinfo.columns) == exp_columns
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
-    assert output_layerinfo.featurecount == exp_featurecount
-
-    # Check the contents of the result file
-    output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
-
-
-@pytest.mark.parametrize(
-    "query, area_inters_column_name, min_area_intersect, subdivide_coords, "
-    "exp_featurecount",
-    [
-        (None, None, None, 10, 27),
-        (None, "area_custom", None, 0, 27),
-        ("within is False", "area_custom", None, 0, 39),
-        (None, None, 1000, 10, 24),
-        ("within is False", None, 1000, 0, 15),
-    ],
-)
-@pytest.mark.filterwarnings("ignore:.*Field format '' not supported.*")
-def test_export_by_location_area(
-    tmp_path,
-    query,
-    area_inters_column_name,
-    min_area_intersect,
-    subdivide_coords,
-    exp_featurecount,
-):
-    input_to_select_from_path = test_helper.get_testfile("polygon-parcel")
-    input_to_compare_with_path = test_helper.get_testfile("polygon-zone")
-    output_path = tmp_path / f"{input_to_select_from_path.stem}-output.gpkg"
-    input_layerinfo = gfo.get_layerinfo(input_to_select_from_path)
-    batchsize = math.ceil(input_layerinfo.featurecount / 2)
-
-    # Test
-    kwargs = {}
-    if query is not None:
-        kwargs["spatial_relations_query"] = query
-    gfo.export_by_location(
-        input_to_select_from_path=str(input_to_select_from_path),
-        input_to_compare_with_path=str(input_to_compare_with_path),
-        output_path=str(output_path),
-        area_inters_column_name=area_inters_column_name,
-        min_area_intersect=min_area_intersect,
-        batchsize=batchsize,
-        subdivide_coords=subdivide_coords,
-        **kwargs,
-    )
-
-    # Check if the output file is correctly created
-    assert output_path.exists()
-    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
-    assert gfo.has_spatial_index(output_path) is exp_spatial_index
-    output_layerinfo = gfo.get_layerinfo(output_path)
-    exp_columns = len(input_layerinfo.columns)
-    exp_area_inters_column_name = area_inters_column_name
-    if exp_area_inters_column_name is None and min_area_intersect is not None:
-        exp_area_inters_column_name = "area_inters"
-    if exp_area_inters_column_name is not None:
-        exp_columns += 1
-        assert exp_area_inters_column_name in output_layerinfo.columns
-    assert len(output_layerinfo.columns) == exp_columns
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
-    assert output_layerinfo.featurecount == exp_featurecount
-
-    # Check the contents of the result file
-    output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
-
-    # If an area column name is specified, check the number of None values
-    # (= number features without intersection)
-    if area_inters_column_name is not None:
-        exp_nb_None = 21 if query == "within is False" else 0
-        assert len(output_gdf[output_gdf.area_custom.isna()]) == exp_nb_None
-
-
-def test_export_by_location_force(tmp_path):
-    # Prepare test data
+def test_erase_deprecated(tmp_path):
+    """Minimal test of the deprecated erase function."""
     input1_path = test_helper.get_testfile("polygon-parcel")
-    input2_path = test_helper.get_testfile("polygon-zone")
-    output_path = tmp_path / f"output{input1_path.suffix}"
-    output_path.touch()
+    input2_path = test_helper.get_testfile("polygon-twolayers")
+    input2_layer = "zones"
+    output_path = tmp_path / f"{input1_path.stem}-output.gpkg"
 
-    # Test with force False (the default): existing output file should stay the same
-    mtime_orig = output_path.stat().st_mtime
-    gfo.export_by_location(
-        input_to_select_from_path=input1_path,
-        input_to_compare_with_path=input2_path,
-        output_path=output_path,
-    )
-    assert output_path.stat().st_mtime == mtime_orig
-
-    # With force=True
-    gfo.export_by_location(
-        input_to_select_from_path=input1_path,
-        input_to_compare_with_path=input2_path,
-        output_path=output_path,
-        force=True,
-    )
-    assert output_path.stat().st_mtime != mtime_orig
-
-
-@pytest.mark.parametrize(
-    "kwargs, expected_error",
-    [
-        ({"subdivide_coords": -1}, "subdivide_coords < 0 is not allowed"),
-    ],
-)
-def test_export_by_location_invalid_params(kwargs, expected_error):
-    with pytest.raises(ValueError, match=expected_error):
-        gfo.export_by_location(
-            input_to_select_from_path="input.gpkg",
-            input_to_compare_with_path="input2.gpkg",
-            output_path="output.gpkg",
-            **kwargs,
+    with pytest.warns(FutureWarning, match="erase is deprecated"):
+        gfo.erase(
+            input_path=str(input1_path),
+            erase_path=str(input2_path),
+            input_layer="parcels",
+            input_columns=[],
+            erase_layer=input2_layer,
+            output_path=str(output_path),
+            gridsize=0.0,
+            where_post=None,
+            batchsize=-1,
         )
 
-
-@pytest.mark.parametrize(
-    "query, subdivide_coords, exp_featurecount",
-    [
-        ("intersects is True or intersects is False", 0, 48),
-        ("intersects is True", 10, 27),
-        ("within is True", 0, 8),
-        ("intersects is False", 10, 21),
-        ("within is False", 10, 39),
-        ("disjoint is True", 0, 21),
-    ],
-)
-def test_export_by_location_query(tmp_path, query, subdivide_coords, exp_featurecount):
-    input_to_select_from_path = test_helper.get_testfile("polygon-parcel")
-    input_to_compare_with_path = test_helper.get_testfile("polygon-zone")
-    output_path = tmp_path / f"{input_to_select_from_path.stem}-output.gpkg"
-    input_layerinfo = gfo.get_layerinfo(input_to_select_from_path)
-    batchsize = math.ceil(input_layerinfo.featurecount / 2)
-
-    # Test
-    gfo.export_by_location(
-        input_to_select_from_path=str(input_to_select_from_path),
-        input_to_compare_with_path=str(input_to_compare_with_path),
-        output_path=str(output_path),
-        spatial_relations_query=query,
-        batchsize=batchsize,
-        subdivide_coords=subdivide_coords,
-    )
-
-    # Check if the output file is correctly created
+    # Compare result with geopandas
     assert output_path.exists()
-    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
-    assert gfo.has_spatial_index(output_path) is exp_spatial_index
-    output_layerinfo = gfo.get_layerinfo(output_path)
-    exp_columns = len(input_layerinfo.columns)
-    assert len(output_layerinfo.columns) == exp_columns
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
-    assert output_layerinfo.featurecount == exp_featurecount
-
-    # Check the contents of the result file
-    output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
 
 
 @pytest.mark.parametrize("testfile", ["polygon-parcel"])
@@ -563,12 +421,12 @@ def test_export_by_distance(tmp_path, testfile, suffix):
     input_layerinfo = gfo.get_layerinfo(input_to_select_from_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
     output_path = tmp_path / f"{input_to_select_from_path.stem}-output{suffix}"
-
+    max_distance = 10
     # Test
     gfo.export_by_distance(
         input_to_select_from_path=str(input_to_select_from_path),
         input_to_compare_with_path=str(input_to_compare_with_path),
-        max_distance=10,
+        max_distance=max_distance,
         output_path=str(output_path),
         batchsize=batchsize,
     )
@@ -579,35 +437,71 @@ def test_export_by_distance(tmp_path, testfile, suffix):
     assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(input_to_select_from_path)
     assert input_layerinfo.featurecount == output_layerinfo.featurecount
-    assert len(input_layerinfo.columns) == len(output_layerinfo.columns)
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
 
     # Check the contents of the result file
-    # TODO: this test should be more elaborate...
     output_gdf = gfo.read_file(output_path)
     assert output_gdf["geometry"][0] is not None
 
+    input_gdf = gfo.read_file(input_to_compare_with_path)
+    # Check CRS consistency
+    assert input_gdf.crs == output_gdf.crs
+
+    # Check if the exported geometries are within the specified distance using shapely
+    input_geometries = input_gdf["geometry"]
+    for output_geom in output_gdf["geometry"]:
+        min_distance = min(
+            output_geom.distance(input_geom) for input_geom in input_geometries
+        )
+        assert min_distance <= max_distance
+
+    # Check if columns exist and have the same data type
+    for col_name, col_infos in input_layerinfo.columns.items():
+        assert col_name in output_layerinfo.columns
+        assert col_infos.gdal_type == output_layerinfo.columns.get(col_name).gdal_type
+
+    # Compare attribute values of a selected column
+    CHECK_COL = "OIDN"
+    input_ids = gfo.read_file(input_to_select_from_path)[CHECK_COL].tolist()
+    output_ids = output_gdf[CHECK_COL].tolist()
+    assert set(output_ids).issubset(input_ids)
+
 
 @pytest.mark.parametrize(
-    "suffix, epsg, gridsize",
-    [(".gpkg", 31370, 0.01), (".gpkg", 4326, 0.0), (".shp", 31370, 0.01)],
+    "suffix, epsg, gridsize, subdivide_coords, fid_column",
+    [
+        (".gpkg", 31370, 0.0, 2000, "fid_custom"),
+        (".gpkg", 31370, 0.0, 10, "fid_custom"),
+        (".gpkg", 31370, 0.01, 10, "fid_custom"),
+        (".gpkg", 4326, 0.0, 10, None),
+        (".shp", 31370, 0.0, 10, None),
+    ],
 )
-def test_identity(tmp_path, suffix, epsg, gridsize):
+@pytest.mark.skipif(
+    GEOPANDAS_110, reason="a bug in geopandas 1.1.0 causes this test to fail"
+)
+def test_identity(tmp_path, suffix, epsg, gridsize, subdivide_coords, fid_column):
     # Prepare test data
-    input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
-    input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
+    input1_path = test_helper.get_testfile(
+        "polygon-parcel", suffix=suffix, epsg=epsg, fid_column=fid_column
+    )
+    input2_path = test_helper.get_testfile(
+        "polygon-zone", suffix=suffix, epsg=epsg, fid_column=fid_column
+    )
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input1_layerinfo.featurecount / 2)
     output_path = tmp_path / f"{input1_path.stem}-output{suffix}"
 
     # Test
-    gfo.identity(
-        input1_path=str(input1_path),
-        input2_path=str(input2_path),
-        output_path=str(output_path),
-        gridsize=gridsize,
-        batchsize=batchsize,
-    )
+    with _general_util.TempEnv({"GFO_REMOVE_TEMP_FILES": False}):
+        gfo.identity(
+            input1_path=str(input1_path),
+            input2_path=str(input2_path),
+            output_path=str(output_path),
+            gridsize=gridsize,
+            batchsize=batchsize,
+            subdivide_coords=subdivide_coords,
+        )
 
     # Check if the output file is correctly created
     assert output_path.exists()
@@ -628,7 +522,7 @@ def test_identity(tmp_path, suffix, epsg, gridsize):
     input1_gdf = gfo.read_file(input1_path)
     input2_gdf = gfo.read_file(input2_path)
     exp_gdf = input1_gdf.overlay(input2_gdf, how="identity", keep_geom_type=True)
-    renames = dict(zip(exp_gdf.columns, output_gdf.columns))
+    renames = dict(zip(exp_gdf.columns, output_gdf.columns, strict=True))
     exp_gdf = exp_gdf.rename(columns=renames)
     # For text columns, gfo gives None rather than np.nan for missing values.
     for column in exp_gdf.select_dtypes(include="O").columns:
@@ -639,6 +533,19 @@ def test_identity(tmp_path, suffix, epsg, gridsize):
     exp_gdf = exp_gdf[~exp_gdf.geometry.isna()]
     exp_gdf = exp_gdf[~exp_gdf.geometry.is_empty]
 
+    # If running locally, save the expected output for comparison
+    if "GITHUB_ACTIONS" not in os.environ:
+        exp_path = tmp_path / "expected.gpkg"
+        exp_gdf.to_file(exp_path)
+
+    # If input was subdivided, the output geometries will have some extra points
+    check_geom_tolerance = 0.0
+    if subdivide_coords < 2000:
+        if gridsize == 0.0:
+            check_geom_tolerance = 1e-9
+        else:
+            check_geom_tolerance = gridsize
+
     # OIDN is float vs int? -> check_column_type=False
     assert_geodataframe_equal(
         output_gdf,
@@ -648,6 +555,7 @@ def test_identity(tmp_path, suffix, epsg, gridsize):
         check_less_precise=True,
         normalize=True,
         check_dtype=False,
+        check_geom_tolerance=check_geom_tolerance,
     )
 
 
@@ -698,19 +606,25 @@ def test_identity_invalid_params(kwargs, expected_error):
         )
 
 
-def test_identity_self(tmp_path):
+@pytest.mark.parametrize("subdivide_coords", [2000, 10])
+@pytest.mark.parametrize("include_duplicates", [False, True])
+def test_identity_self(tmp_path, subdivide_coords, include_duplicates):
     input1_path = test_helper.get_testfile("polygon-overlappingcircles-all")
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input1_layerinfo.featurecount / 2)
 
     # Now run test
-    output_path = tmp_path / f"{input1_path.stem}_identity_self.gpkg"
+    output_path = (
+        tmp_path / f"{input1_path.stem}_identity_self_dupl-{include_duplicates}.gpkg"
+    )
     gfo.identity(
         input1_path=input1_path,
         input2_path=None,
         output_path=output_path,
+        include_duplicates=include_duplicates,
         nb_parallel=2,
         batchsize=batchsize,
+        subdivide_coords=subdivide_coords,
     )
 
     # Check if the tmp file is correctly created
@@ -719,44 +633,88 @@ def test_identity_self(tmp_path):
     assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert len(output_layerinfo.columns) == 2 * len(input1_layerinfo.columns)
-    assert output_layerinfo.featurecount == 9
+    if include_duplicates:
+        assert output_layerinfo.featurecount == 9
+    else:
+        assert output_layerinfo.featurecount == 6
 
 
-@pytest.mark.parametrize("testfile", ["polygon-parcel"])
+def test_intersect_deprecated(tmp_path):
+    """Minimal test of the deprecated intersect function."""
+    input1_path = test_helper.get_testfile("polygon-parcel")
+    input2_path = test_helper.get_testfile("polygon-zone")
+
+    # Now run test
+    output_path = tmp_path / f"{input1_path.stem}_intersection_{input2_path.stem}.gpkg"
+
+    with pytest.warns(FutureWarning, match="intersect is deprecated"):
+        gfo.intersect(
+            input1_path=str(input1_path),
+            input2_path=str(input2_path),
+            output_path=str(output_path),
+            gridsize=0.01,
+            explodecollections=True,
+            nb_parallel=2,
+            batchsize=-1,
+        )
+
+    # Check if the tmp file is correctly created
+    assert output_path.exists()
+
+
 @pytest.mark.parametrize(
-    "suffix, epsg, gridsize, explodecollections, nb_parallel",
+    "suffix_in, suffix_out, epsg, gridsize, explodecollections, worker_type, "
+    "nb_parallel",
     [
-        (".gpkg", 31370, 0.0, True, 1),
-        (".gpkg", 31370, 0.01, True, 1),
-        (".gpkg", 31370, 0.0, False, 2),
-        (".gpkg", 4326, 0.0, True, 2),
-        (".shp", 31370, 0.0, True, 1),
-        (".shp", 31370, 0.0, False, 2),
+        (".gpkg.zip", ".gpkg.zip", 31370, 0.0, True, "threads", 1),
+        (".gpkg", ".gpkg", 31370, 0.01, True, "threads", 1),
+        (".gpkg.zip", ".gpkg.zip", 31370, 0.0, False, "processes", 2),
+        (".gpkg", ".gpkg", 4326, 0.0, True, "threads", 2),
+        (".shp", ".shp", 31370, 0.0, True, "threads", 1),
+        (".shp.zip", ".shp.zip", 31370, 0.0, True, "threads", 1),
+        (".shp", ".shp", 31370, 0.0, False, "processes", 2),
+        (".shp.zip", ".shp.zip", 31370, 0.0, False, "processes", 2),
     ],
 )
 def test_intersection(
-    tmp_path, testfile, suffix, epsg, explodecollections, gridsize, nb_parallel
+    tmp_path,
+    suffix_in,
+    suffix_out,
+    epsg,
+    explodecollections,
+    gridsize,
+    worker_type,
+    nb_parallel,
 ):
-    input1_path = test_helper.get_testfile(testfile, suffix=suffix, epsg=epsg)
-    input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
+    if not GDAL_GTE_311 and suffix_in in [".gpkg.zip", ".shp.zip"]:
+        pytest.skip("zip files require gdal >= 3.1.1")
 
-    # Now run test
+    # Prepare test data/parameters
+    input1_path = test_helper.get_testfile(
+        "polygon-parcel", suffix=suffix_in, epsg=epsg
+    )
+    input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix_in, epsg=epsg)
+
     output_path = (
-        tmp_path / f"{input1_path.stem}_intersection_{input2_path.stem}{suffix}"
+        tmp_path
+        / f"{GeoPath(input1_path).stem}_inters_{GeoPath(input2_path).stem}{suffix_out}"
     )
     batchsize = -1
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     if nb_parallel > 1:
         batchsize = math.ceil(input1_layerinfo.featurecount / 2)
-    gfo.intersection(
-        input1_path=str(input1_path),
-        input2_path=str(input2_path),
-        output_path=str(output_path),
-        gridsize=gridsize,
-        explodecollections=explodecollections,
-        nb_parallel=nb_parallel,
-        batchsize=batchsize,
-    )
+
+    # Now run test
+    with _general_util.TempEnv({"GFO_WORKER_TYPE": worker_type}):
+        gfo.intersection(
+            input1_path=str(input1_path),
+            input2_path=str(input2_path),
+            output_path=str(output_path),
+            gridsize=gridsize,
+            explodecollections=explodecollections,
+            nb_parallel=nb_parallel,
+            batchsize=batchsize,
+        )
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
@@ -768,7 +726,7 @@ def test_intersection(
         len(input1_layerinfo.columns) + len(input2_layerinfo.columns)
     )
 
-    if explodecollections and suffix != ".shp":
+    if explodecollections and suffix_out not in (".shp", ".shp.zip"):
         assert output_layerinfo.geometrytype == GeometryType.POLYGON
     else:
         assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
@@ -777,6 +735,13 @@ def test_intersection(
         assert output_layerinfo.featurecount == 31
     else:
         assert output_layerinfo.featurecount == 30
+
+    # Check if the columns read from the input files have the same detailed types as in
+    # the input files
+    assert output_layerinfo.columns["l1_HFDTLT"].gdal_type == "String"
+    assert output_layerinfo.columns["l1_HFDTLT"].width == 20
+    assert output_layerinfo.columns["l2_naam"].gdal_type == "String"
+    assert output_layerinfo.columns["l2_naam"].width == 30
 
     # Check the contents of the result file by comparing with geopandas
     output_gdf = gfo.read_file(output_path)
@@ -788,7 +753,7 @@ def test_intersection(
     expected_gdf = input1_gdf.overlay(
         input2_gdf, how=overlay_operation, keep_geom_type=True
     )
-    renames = dict(zip(expected_gdf.columns, output_gdf.columns))
+    renames = dict(zip(expected_gdf.columns, output_gdf.columns, strict=True))
     expected_gdf = expected_gdf.rename(columns=renames)
     if gridsize != 0.0:
         expected_gdf.geometry = shapely.set_precision(
@@ -812,43 +777,44 @@ def test_intersection_input_no_index(tmp_path):
 
     # Now run test
     output_path = tmp_path / f"{input1_path.stem}_intersection_{input2_path.stem}.gpkg"
-    gfo.intersection(
-        input1_path=input1_path,
-        input2_path=input2_path,
-        output_path=output_path,
-    )
+
+    # Use "processes" worker type to test this as well
+    with gfo.TempEnv({"GFO_WORKER_TYPE": "processes"}):
+        gfo.intersection(
+            input1_path=input1_path, input2_path=input2_path, output_path=output_path
+        )
 
     # Check if the tmp file is correctly created
     assert output_path.exists()
 
 
 @pytest.mark.parametrize(
-    "expected_error, expected_exception, input1_path, input2_path, output_path",
+    "exp_error, exp_ex, input1_path, input2_path, output_path",
     [
         (
             "intersection: output_path must not equal one of input paths",
             ValueError,
-            test_helper.get_testfile("polygon-parcel"),
+            "not_existing_path",
             test_helper.get_testfile("polygon-zone"),
-            test_helper.get_testfile("polygon-parcel"),
+            Path("not_existing_path"),
         ),
         (
             "intersection: output_path must not equal one of input paths",
             ValueError,
             test_helper.get_testfile("polygon-parcel"),
-            test_helper.get_testfile("polygon-zone"),
-            test_helper.get_testfile("polygon-zone"),
+            Path("not_existing_path"),
+            Path("not_existing_path"),
         ),
         (
-            "not_existing_path: No such file or directory",
-            RuntimeError,
+            "intersection: input1_path not found",
+            FileNotFoundError,
             "not_existing_path",
             test_helper.get_testfile("polygon-zone"),
             "output.gpkg",
         ),
         (
-            "not_existing_path: No such file or directory",
-            RuntimeError,
+            "intersection: input2_path not found",
+            FileNotFoundError,
             test_helper.get_testfile("polygon-zone"),
             "not_existing_path",
             "output.gpkg",
@@ -863,15 +829,13 @@ def test_intersection_input_no_index(tmp_path):
     ],
 )
 def test_intersection_invalid_params(
-    tmp_path, input1_path, input2_path, output_path, expected_exception, expected_error
+    tmp_path, input1_path, input2_path, output_path, exp_ex, exp_error
 ):
     if isinstance(output_path, str):
         output_path = tmp_path / output_path
-    with pytest.raises(expected_exception, match=expected_error):
+    with pytest.raises(exp_ex, match=exp_error):
         gfo.intersection(
-            input1_path=input1_path,
-            input2_path=input2_path,
-            output_path=output_path,
+            input1_path=input1_path, input2_path=input2_path, output_path=output_path
         )
 
 
@@ -888,14 +852,10 @@ def test_intersection_invalid_params2(kwargs, expected_error):
     if "input2_path" not in kwargs:
         kwargs["input2_path"] = "input2.gpkg"
     with pytest.raises(ValueError, match=expected_error):
-        gfo.intersection(
-            input1_path="input1.gpkg",
-            output_path="output.gpkg",
-            **kwargs,
-        )
+        gfo.intersection(input1_path="input1.gpkg", output_path="output.gpkg", **kwargs)
 
 
-def test_intersection_output_path_exists(tmp_path):
+def test_intersection_output_path_exists():
     # Prepare test data
     input1_path = test_helper.get_testfile("polygon-parcel")
     input2_path = test_helper.get_testfile("polygon-parcel")
@@ -963,19 +923,35 @@ def test_intersection_resultempty(tmp_path, suffix, input2_empty):
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
 
 
-def test_intersection_self(tmp_path):
-    input1_path = test_helper.get_testfile("polygon-overlappingcircles-all")
+@pytest.mark.parametrize("subdivide", [False, True])
+@pytest.mark.parametrize("include_duplicates", [False, True])
+@pytest.mark.parametrize("fid_column", [None, "fid_custom"])
+def test_intersection_self(tmp_path, subdivide, include_duplicates, fid_column):
+    input1_path = test_helper.get_testfile(
+        "polygon-overlappingcircles-all", fid_column=fid_column
+    )
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input1_layerinfo.featurecount / 2)
 
+    if subdivide:
+        input1_gdf = gfo.read_file(input1_path)
+        max_coords = shapely.get_num_coordinates(input1_gdf.geometry).max().item()
+        subdivide_coords = max_coords / 3
+    else:
+        subdivide_coords = 7500
+
     # Now run test
-    output_path = tmp_path / f"{input1_path.stem}_inters_self.gpkg"
+    output_path = (
+        tmp_path / f"{input1_path.stem}_inters_self_dupl-{include_duplicates}.gpkg"
+    )
     gfo.intersection(
         input1_path=input1_path,
         input2_path=None,
         output_path=output_path,
+        include_duplicates=include_duplicates,
         nb_parallel=2,
         batchsize=batchsize,
+        subdivide_coords=subdivide_coords,
     )
 
     # Check if the tmp file is correctly created
@@ -984,7 +960,10 @@ def test_intersection_self(tmp_path):
     assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert len(output_layerinfo.columns) == 2 * len(input1_layerinfo.columns)
-    assert output_layerinfo.featurecount == 6
+    if include_duplicates:
+        assert output_layerinfo.featurecount == 6
+    else:
+        assert output_layerinfo.featurecount == 3
 
 
 @pytest.mark.parametrize("testfile", ["polygon-parcel"])
@@ -1040,6 +1019,130 @@ def test_intersection_columns_fid(
             assert sorted(output_gdf.l2_FiD.unique().tolist()) == [0, 1, 2, 3, 4]
         else:
             assert sorted(output_gdf.l2_FiD.unique().tolist()) == [1, 2, 3, 4, 5]
+
+
+def test_intersection_different_crs(tmp_path):
+    # Prepare test data
+    input1_path = test_helper.get_testfile("polygon-parcel", suffix=".gpkg")
+    input2_path = test_helper.get_testfile("polygon-parcel", suffix=".gpkg", epsg=4326)
+    output_path = tmp_path / "output.gpkg"
+
+    with pytest.warns(match="input1 layer doesn't have the same crs as input2 layer"):
+        gfo.intersection(
+            input1_path=input1_path, input2_path=input2_path, output_path=output_path
+        )
+
+
+@pytest.mark.parametrize(
+    "testfile1, testfile2, subdivide1, subdivide2, suffix, epsg, gridsize, fid_column",
+    [
+        ("polygon-parcel", "polygon-zone", True, True, ".gpkg", 31370, 0.0, "fid_cust"),
+        ("polygon-parcel", "polygon-zone", True, True, ".gpkg", 31370, 0.01, None),
+        ("polygon-zone", "polygon-parcel", False, True, ".gpkg", 31370, 0.0, "fid_cus"),
+        ("polygon-parcel", "polygon-zone", True, False, ".gpkg", 31370, 0.01, "fid_cu"),
+        ("polygon-parcel", "polygon-zone", True, True, ".gpkg", 4326, 0.0, None),
+        ("polygon-parcel", "polygon-zone", True, True, ".shp", 31370, 0.0, None),
+        ("polygon-parcel", "polygon-zone", True, False, ".shp", 31370, 0.0, "fid_cust"),
+        ("polygon-zone", "polygon-parcel", False, True, ".shp", 31370, 0.0, "fid_cust"),
+    ],
+)
+def test_intersection_subdivide(
+    tmp_path,
+    testfile1,
+    testfile2,
+    subdivide1,
+    subdivide2,
+    suffix,
+    epsg,
+    gridsize,
+    fid_column,
+):
+    # Prepare test data/parameters
+    input1_path = test_helper.get_testfile(
+        testfile1, suffix=suffix, epsg=epsg, fid_column=fid_column
+    )
+    input2_path = test_helper.get_testfile(
+        testfile2, suffix=suffix, epsg=epsg, fid_column=fid_column
+    )
+
+    # Determine subdivide_coords to use
+    input1_gdf = gfo.read_file(input1_path)
+    input1_max_coords = shapely.get_num_coordinates(input1_gdf.geometry).max().item()
+    input2_gdf = gfo.read_file(input2_path)
+    input2_max_coords = shapely.get_num_coordinates(input2_gdf.geometry).max().item()
+
+    if subdivide1 and subdivide2:
+        subdivide_coords = min(input1_max_coords, input2_max_coords) / 3
+    elif subdivide1:
+        subdivide_coords = input1_max_coords / 3
+        # Make sure subdivide_coords won't trigger subdividing input2 as well
+        assert subdivide_coords > input2_max_coords
+    elif subdivide2:
+        subdivide_coords = input2_max_coords / 3
+        # Make sure subdivide_coords won't trigger subdividing input1 as well
+        assert subdivide_coords > input1_max_coords
+
+    output_path = tmp_path / f"{input1_path.stem}_inters_{input2_path.stem}{suffix}"
+    batchsize = -1
+    input1_layerinfo = gfo.get_layerinfo(input1_path)
+    batchsize = math.ceil(input1_layerinfo.featurecount / 2)
+
+    # Now run test
+    gfo.intersection(
+        input1_path=str(input1_path),
+        input2_path=str(input2_path),
+        output_path=str(output_path),
+        gridsize=gridsize,
+        batchsize=batchsize,
+        subdivide_coords=subdivide_coords,
+    )
+
+    # Check if the tmp file is correctly created
+    assert output_path.exists()
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
+    input2_layerinfo = gfo.get_layerinfo(input2_path)
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert len(output_layerinfo.columns) == (
+        len(input1_layerinfo.columns) + len(input2_layerinfo.columns)
+    )
+    assert output_layerinfo.featurecount == 30
+
+    # Check the contents of the result file by comparing with geopandas
+    output_gdf = gfo.read_file(output_path)
+    assert output_gdf["geometry"][0] is not None
+
+    input1_gdf = gfo.read_file(input1_path)
+    input2_gdf = gfo.read_file(input2_path)
+    overlay_operation = "intersection"
+    expected_gdf = input1_gdf.overlay(
+        input2_gdf, how=overlay_operation, keep_geom_type=True
+    )
+    renames = dict(zip(expected_gdf.columns, output_gdf.columns, strict=True))
+    expected_gdf = expected_gdf.rename(columns=renames)
+    if gridsize != 0.0:
+        expected_gdf.geometry = shapely.set_precision(
+            expected_gdf.geometry, grid_size=gridsize
+        )
+        check_geom_tolerance = gridsize
+    else:
+        check_geom_tolerance = 1e-9
+
+    output_dir = None
+    if test_helper.RUNS_LOCAL:
+        # When running locally, write so extra files to disk for debugging
+        output_dir = tmp_path
+        expected_path = tmp_path / output_path.with_stem(f"{output_path.stem}_expected")
+        gfo.to_file(expected_gdf, expected_path)
+
+    assert_geodataframe_equal(
+        output_gdf,
+        expected_gdf,
+        check_dtype=False,
+        sort_values=True,
+        check_geom_tolerance=check_geom_tolerance,
+        output_dir=output_dir,
+    )
 
 
 @pytest.mark.parametrize(
@@ -1115,8 +1218,8 @@ def test_prepare_spatial_relations_filter():
     ]
     for relation in named_relations:
         query = f"{relation} is True"
-        filter = geoops_sql._prepare_spatial_relations_filter(query)
-        assert filter is not None and filter != ""
+        relation_filter = geoops_sql._prepare_spatial_relation_filter(query)
+        assert relation_filter is not None and relation_filter != ""
 
     # Test extra queries that should work
     ok_queries = [
@@ -1125,8 +1228,8 @@ def test_prepare_spatial_relations_filter():
         "(((T******** is False)))",
     ]
     for query in ok_queries:
-        filter = geoops_sql._prepare_spatial_relations_filter(query)
-        assert filter is not None and filter != ""
+        relation_filter = geoops_sql._prepare_spatial_relation_filter(query)
+        assert relation_filter is not None and relation_filter != ""
 
     # Test queries that should fail
     error_queries = [
@@ -1144,7 +1247,7 @@ def test_prepare_spatial_relations_filter():
     ]
     for query, error_reason in error_queries:
         try:
-            _ = geoops_sql._prepare_spatial_relations_filter(query)
+            _ = geoops_sql._prepare_spatial_relation_filter(query)
             error = False
         except Exception:
             error = True
@@ -1153,14 +1256,24 @@ def test_prepare_spatial_relations_filter():
 
 @pytest.mark.parametrize(
     "suffix, epsg, spatial_relations_query, discard_nonmatching, min_area_intersect, "
-    "area_inters_column_name, exp_disjoint_warning, exp_featurecount",
+    "area_inters_column_name, fid_column, exp_disjoint_warning, exp_featurecount",
     [
-        (".gpkg", 31370, "intersects is False", False, None, None, True, 48),
-        (".gpkg", 31370, "intersects is False", True, None, None, True, 0),
-        (".gpkg", 31370, "intersects is True", False, 1000, "area_test", False, 50),
-        (".gpkg", 31370, "intersects is True", False, None, None, False, 51),
-        (".gpkg", 31370, "intersects is True", True, 1000, None, False, 26),
-        (".gpkg", 31370, "intersects is True", True, None, None, False, 30),
+        (".gpkg", 31370, "intersects is False", False, None, None, "fid_cus", True, 48),
+        (".gpkg", 31370, "intersects is False", True, None, None, None, True, 0),
+        (
+            ".gpkg",
+            31370,
+            "intersects is True",
+            False,
+            1000,
+            "area_test",
+            None,
+            False,
+            50,
+        ),
+        (".gpkg", 31370, "intersects is True", False, None, None, "fid_cus", False, 51),
+        (".gpkg", 31370, "intersects is True", True, 1000, None, "fid_cus", False, 26),
+        (".gpkg", 31370, "intersects is True", True, None, None, None, False, 30),
         (
             ".gpkg",
             4326,
@@ -1168,27 +1281,32 @@ def test_prepare_spatial_relations_filter():
             True,
             None,
             None,
+            None,
             False,
             30,
         ),
-        (".gpkg", 4326, "intersects is True", False, None, None, False, 51),
-        (".shp", 31370, "intersects is True", False, None, None, False, 51),
+        (".gpkg", 4326, "intersects is True", False, None, None, None, False, 51),
+        (".shp", 31370, "intersects is True", False, None, None, None, False, 51),
     ],
 )
 def test_join_by_location(
     tmp_path,
-    recwarn,
     suffix: str,
     spatial_relations_query: str,
     epsg: int,
     discard_nonmatching: bool,
     min_area_intersect: float,
     area_inters_column_name: str,
+    fid_column: str,
     exp_disjoint_warning: bool,
     exp_featurecount: int,
 ):
-    input1_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
-    input2_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
+    input1_path = test_helper.get_testfile(
+        "polygon-parcel", suffix=suffix, epsg=epsg, fid_column=fid_column
+    )
+    input2_path = test_helper.get_testfile(
+        "polygon-zone", suffix=suffix, epsg=epsg, fid_column=fid_column
+    )
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input1_layerinfo.featurecount / 2)
     name = f"{input1_path.stem}_{discard_nonmatching}_{min_area_intersect}{suffix}"
@@ -1252,17 +1370,20 @@ def test_join_nearest(tmp_path, suffix, epsg):
     output_path = tmp_path / f"{input1_path.stem}-output{suffix}"
     nb_nearest = 2
     input1_columns = ["OIDN", "UIDN", "HFDTLT", "fid"]
-    gfo.join_nearest(
-        input1_path=str(input1_path),
-        input1_columns=input1_columns,
-        input2_path=str(input2_path),
-        output_path=str(output_path),
-        nb_nearest=nb_nearest,
-        distance=1000,
-        expand=True,
-        batchsize=batchsize,
-        force=True,
-    )
+
+    # Use "processes" worker type to test this as well
+    with gfo.TempEnv({"GFO_WORKER_TYPE": "processes"}):
+        gfo.join_nearest(
+            input1_path=str(input1_path),
+            input1_columns=input1_columns,
+            input2_path=str(input2_path),
+            output_path=str(output_path),
+            nb_nearest=nb_nearest,
+            distance=1000,
+            expand=True,
+            batchsize=batchsize,
+            force=True,
+        )
 
     # Check if the output file is correctly created
     assert output_path.exists()
@@ -1272,11 +1393,13 @@ def test_join_nearest(tmp_path, suffix, epsg):
     output_layerinfo = gfo.get_layerinfo(output_path)
     expected_featurecount = nb_nearest * (input1_layerinfo.featurecount - 1)
     assert output_layerinfo.featurecount == expected_featurecount
-    exp_columns = len(input1_columns) + len(input2_layerinfo.columns) + 2
-    if SPATIALITE_GTE_51:
-        exp_columns += 1
+    exp_columns = len(input1_columns) + len(input2_layerinfo.columns) + 2 + 1
     assert len(output_layerinfo.columns) == exp_columns
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+    if suffix == ".gpkg":
+        assert output_layerinfo.geometrycolumn == "geom"
+    else:
+        assert output_layerinfo.geometrycolumn == "geometry"
 
     # Check the contents of the result file
     # TODO: this test should be more elaborate...
@@ -1289,24 +1412,15 @@ def test_join_nearest(tmp_path, suffix, epsg):
 
 
 @pytest.mark.parametrize(
-    "kwargs, error_spatialite51, error_spatialite50",
+    "kwargs, error",
     [
-        ({"expand": True}, "distance is mandatory", None),
-        (
-            {"expand": False},
-            "distance is mandatory with spatialite >= 5.1",
-            "expand=False is not supported with spatialite < 5.1",
-        ),
-        ({"distance": 1000}, "expand is mandatory with spatialite >= 5.1", None),
-        ({"distance": 1000, "expand": True}, None, None),
+        ({"expand": True}, "distance is mandatory"),
+        ({"expand": False}, "distance is mandatory with spatialite >= 5.1"),
+        ({"distance": 1000}, "expand is mandatory with spatialite >= 5.1"),
+        ({"distance": 1000, "expand": True}, None),
     ],
 )
-def test_join_nearest_invalid_params(
-    tmp_path, kwargs, error_spatialite51, error_spatialite50
-):
-    # Check what version of spatialite we are dealing with
-    error = error_spatialite51 if SPATIALITE_GTE_51 else error_spatialite50
-
+def test_join_nearest_invalid_params(tmp_path, kwargs, error):
     # Prepare test data
     input1_path = test_helper.get_testfile("polygon-parcel")
     input2_path = test_helper.get_testfile("polygon-zone")
@@ -1332,6 +1446,40 @@ def test_join_nearest_invalid_params(
         )
 
 
+def test_join_nearest_distance(tmp_path):
+    geoms = [
+        "POLYGON ((0 0, 3 0, 3 3, 0 3, 0 0))",
+        "POLYGON ((10 1, 13 1, 13 4, 10 4, 10 1))",
+    ]
+    for index, geom in enumerate(geoms):
+        box_geom = shapely.from_wkt(geom)
+        box_geom = shapely.segmentize(box_geom, 1)
+        gdf_geom = gpd.GeoDataFrame(geometry=[box_geom], crs="EPSG:31370")
+        geom_path = tmp_path / f"geom{index + 1}.gpkg"
+        gfo.to_file(gdf=gdf_geom, path=geom_path)
+
+    # Test
+    output_path = tmp_path / "geom_join_nearest.gpkg"
+    gfo.join_nearest(
+        input1_path=tmp_path / "geom1.gpkg",
+        input2_path=tmp_path / "geom2.gpkg",
+        output_path=output_path,
+        nb_nearest=1,
+        distance=50,
+        expand=True,
+        force=True,
+    )
+
+    # Check if the output file is correctly created
+    assert output_path.exists()
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.featurecount == 1
+    assert output_layerinfo.geometrycolumn == "geom"
+    # Check the contents of the result file
+    output_gdf = gfo.read_file(output_path)
+    assert output_gdf["distance"][0] == 7
+
+
 @pytest.mark.parametrize(
     "suffix, epsg, gridsize",
     [(".gpkg", 31370, 0.01), (".gpkg", 4326, 0.0), (".shp", 31370, 0.01)],
@@ -1349,6 +1497,9 @@ def test_select_two_layers(tmp_path, suffix, epsg, gridsize):
         SELECT layer1."{{input1_geometrycolumn}}" AS geom
               {{layer1_columns_prefix_alias_str}}
               {{layer2_columns_prefix_alias_str}}
+              ,1.0 AS test_constant_float
+              ,100 AS test_constant_int
+              ,'constant_string' AS test_constant_string
           FROM {{input1_databasename}}."{{input1_layer}}" layer1
           JOIN {{input1_databasename}}."{rtree_layer1}" layer1tree
             ON layer1.fid = layer1tree.id
@@ -1385,9 +1536,20 @@ def test_select_two_layers(tmp_path, suffix, epsg, gridsize):
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.featurecount == 30
     assert len(output_layerinfo.columns) == (
-        len(input1_layerinfo.columns) + len(input2_layerinfo.columns)
+        len(input1_layerinfo.columns) + len(input2_layerinfo.columns) + 3
     )
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
+    # Check if the columns read from the input files have the same detailed types as in
+    # the input files
+    assert output_layerinfo.columns["l1_HFDTLT"].gdal_type == "String"
+    assert output_layerinfo.columns["l1_HFDTLT"].width == 20
+    assert output_layerinfo.columns["l2_naam"].gdal_type == "String"
+    assert output_layerinfo.columns["l2_naam"].width == 30
+
+    # Check if the "gpkg_ogr_contents" table is present in the output gpkg
+    if suffix == ".gpkg":
+        tables = _sqlite_util.get_tables(output_path)
+        assert "gpkg_ogr_contents" in tables
 
     # Check the contents of the result file
     output_gdf = gfo.read_file(output_path)
@@ -1421,7 +1583,7 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
         input2_path = input_geom_path
         geom_column = '"{input2_geometrycolumn}" AS geom'
         order_by_geom = "ORDER BY geom IS NULL"
-        layer1 = "input_nogeom layer1"
+        layer1 = '"{input1_layer}" layer1'
         layer2 = '"{input2_layer}" layer2'
         exp_output_geom = True
         exp_featurecount = 37
@@ -1431,7 +1593,7 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
         geom_column = '"{input1_geometrycolumn}" AS geom'
         order_by_geom = "ORDER BY geom IS NULL"
         layer1 = '"{input1_layer}" layer1'
-        layer2 = "input_nogeom layer2"
+        layer2 = '"{input2_layer}" layer2'
         exp_output_geom = True
         exp_featurecount = 37
     elif input_nogeom == "both":
@@ -1439,16 +1601,16 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
         input2_path = input_nogeom_path
         geom_column = "NULL AS TEST"
         order_by_geom = ""
-        layer1 = "input_nogeom layer1"
-        layer2 = "input_nogeom layer2"
+        layer1 = '"{input1_layer}" layer1'
+        layer2 = '"{input2_layer}" layer2'
         exp_output_geom = False
         exp_featurecount = 2
 
     if suffix == ".shp" and not exp_output_geom:
         # For shapefiles, if there is no geometry only the .dbf file is written
-        output_path = tmp_path / f"{input1_path.stem}-output.dbf"
+        output_path = tmp_path / f"{GeoPath(input1_path).stem}-output.dbf"
     else:
-        output_path = tmp_path / f"{input1_path.stem}-output{suffix}"
+        output_path = tmp_path / f"{GeoPath(input1_path).stem}-output{suffix}"
 
     # Prepare query to execute.
     # order_by_geom is needed to avoid creating GEOMETRY type output, as a NULL geometry
@@ -1502,28 +1664,32 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
 
 
 @pytest.mark.parametrize(
-    "expected_error, input1_path, input2_path, output_path",
+    "exp_error, exp_ex, input1_path, input2_path, output_path",
     [
         (
             "select_two_layers: output_path must not equal one of input paths",
-            test_helper.get_testfile("polygon-parcel"),
+            ValueError,
+            Path("non_existing_input.gpkg"),
             test_helper.get_testfile("polygon-zone"),
-            test_helper.get_testfile("polygon-parcel"),
+            Path("non_existing_input.gpkg"),
         ),
         (
             "select_two_layers: output_path must not equal one of input paths",
+            ValueError,
             test_helper.get_testfile("polygon-parcel"),
-            test_helper.get_testfile("polygon-zone"),
-            test_helper.get_testfile("polygon-zone"),
+            Path("non_existing_input.gpkg"),
+            Path("non_existing_input.gpkg"),
         ),
         (
-            "select_two_layers: input1_path doesn't exist: not_existing_path",
+            "select_two_layers: input1_path not found: not_existing_path",
+            FileNotFoundError,
             "not_existing_path",
             test_helper.get_testfile("polygon-zone"),
             "output.gpkg",
         ),
         (
-            "select_two_layers: input2_path doesn't exist: not_existing_path",
+            "select_two_layers: input2_path not found: not_existing_path",
+            FileNotFoundError,
             test_helper.get_testfile("polygon-zone"),
             "not_existing_path",
             "output.gpkg",
@@ -1531,7 +1697,7 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
     ],
 )
 def test_select_two_layers_invalid_paths(
-    tmp_path, input1_path, input2_path, output_path, expected_error
+    input1_path, input2_path, output_path, exp_ex, exp_error
 ):
     """
     select_two_layers doesn't get info on input layers up-front, so this is the best
@@ -1549,7 +1715,7 @@ def test_select_two_layers_invalid_paths(
          WHERE 1=1
            AND ST_Area(layer1.{input1_geometrycolumn}) > 5
     """
-    with pytest.raises(ValueError, match=expected_error):
+    with pytest.raises(exp_ex, match=exp_error):
         gfo.select_two_layers(
             input1_path=input1_path,
             input2_path=input2_path,
@@ -1783,76 +1949,45 @@ def test_select_two_layers_select_star_fids_unique(tmp_path, suffix):
     assert len(output_layerinfo.columns) == 1
 
 
-@pytest.mark.filterwarnings(
-    "ignore: split is deprecated because it was renamed to identity"
-)
-def test_split(tmp_path):
-    """Is deprecated, but keep minimal test."""
+def test_split_deprecated(tmp_path):
+    """Minimal tests for the deprecated split function."""
     # Prepare test data
     input1_path = test_helper.get_testfile("polygon-parcel")
     input2_path = test_helper.get_testfile("polygon-zone")
-    input1_layerinfo = gfo.get_layerinfo(input1_path)
-    batchsize = math.ceil(input1_layerinfo.featurecount / 2)
     output_path = tmp_path / f"{input1_path.stem}-output.gpkg"
 
     # Test
-    gfo.split(
-        input1_path=str(input1_path),
-        input2_path=str(input2_path),
-        output_path=str(output_path),
-        batchsize=batchsize,
-    )
+    with pytest.warns(FutureWarning, match="split is deprecated"):
+        gfo.split(
+            input1_path=str(input1_path),
+            input2_path=str(input2_path),
+            output_path=str(output_path),
+            batchsize=-1,
+        )
 
-    # Check if the tmp file is correctly created
+    # Check if the output file is correctly created
     assert output_path.exists()
-    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
-    assert gfo.has_spatial_index(output_path) is exp_spatial_index
-    input2_layerinfo = gfo.get_layerinfo(input2_path)
-    output_layerinfo = gfo.get_layerinfo(output_path)
-    assert output_layerinfo.featurecount == 68
-    assert (len(input1_layerinfo.columns) + len(input2_layerinfo.columns)) == len(
-        output_layerinfo.columns
-    )
-    assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
-
-    # Check the contents of the result file
-    output_gdf = gfo.read_file(output_path)
-    assert output_gdf["geometry"][0] is not None
-    input1_gdf = gfo.read_file(input1_path)
-    input2_gdf = gfo.read_file(input2_path)
-    exp_gdf = input1_gdf.overlay(input2_gdf, how="identity", keep_geom_type=True)
-    renames = dict(zip(exp_gdf.columns, output_gdf.columns))
-    exp_gdf = exp_gdf.rename(columns=renames)
-    # For text columns, gfo gives None rather than np.nan for missing values.
-    for column in exp_gdf.select_dtypes(include="O").columns:
-        exp_gdf[column] = exp_gdf[column].replace({np.nan: None})
-    # OIDN is float vs int? -> check_column_type=False
-    assert_geodataframe_equal(
-        output_gdf,
-        exp_gdf,
-        promote_to_multi=True,
-        sort_values=True,
-        check_less_precise=True,
-        normalize=True,
-        check_dtype=False,
-    )
 
 
 @pytest.mark.parametrize(
-    "suffix, epsg, gridsize",
-    [(".gpkg", 31370, 0.01), (".gpkg", 4326, 0.0), (".shp", 31370, 0.0)],
+    "suffix, epsg, gridsize, subdivide_coords, fid_column",
+    [
+        (".gpkg", 31370, 0.01, 2000, None),
+        (".gpkg", 4326, 0.0, 2000, "fid_custom"),
+        (".gpkg", 4326, 0.0, 10, "fid_custom"),
+        (".shp", 31370, 0.0, 10, None),
+    ],
 )
-def test_symmetric_difference(tmp_path, request, suffix, epsg, gridsize):
-    if epsg == 4326 and sys.platform in ("darwin", "linux"):
-        request.node.add_marker(
-            pytest.mark.xfail(
-                reason="epsg 4326 gives precision issues on MacOS14 on arm64 and linux"
-            )
-        )
-
+def test_symmetric_difference(
+    tmp_path, suffix, epsg, gridsize, subdivide_coords, fid_column
+):
     # Prepare test data
-    input1_path = test_helper.get_testfile("polygon-zone", suffix=suffix, epsg=epsg)
-    input2_path = test_helper.get_testfile("polygon-parcel", suffix=suffix, epsg=epsg)
+    input1_path = test_helper.get_testfile(
+        "polygon-zone", suffix=suffix, epsg=epsg, fid_column=fid_column
+    )
+    input2_path = test_helper.get_testfile(
+        "polygon-parcel", suffix=suffix, epsg=epsg, fid_column=fid_column
+    )
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input1_layerinfo.featurecount / 2)
 
@@ -1864,6 +1999,7 @@ def test_symmetric_difference(tmp_path, request, suffix, epsg, gridsize):
         output_path=str(output_path),
         gridsize=gridsize,
         batchsize=batchsize,
+        subdivide_coords=subdivide_coords,
     )
 
     # Check if the tmp file is correctly created
@@ -1879,7 +2015,7 @@ def test_symmetric_difference(tmp_path, request, suffix, epsg, gridsize):
     exp_gdf = input1_gdf.overlay(
         input2_gdf, how="symmetric_difference", keep_geom_type=True
     )
-    renames = dict(zip(exp_gdf.columns, output_gdf.columns))
+    renames = dict(zip(exp_gdf.columns, output_gdf.columns, strict=True))
     exp_gdf = exp_gdf.rename(columns=renames)
     # For text columns, gfo gives None rather than np.nan for missing values.
     for column in exp_gdf.select_dtypes(include="O").columns:
@@ -1890,6 +2026,12 @@ def test_symmetric_difference(tmp_path, request, suffix, epsg, gridsize):
     exp_gdf = exp_gdf[~exp_gdf.geometry.isna()]
     exp_gdf = exp_gdf[~exp_gdf.geometry.is_empty]
 
+    check_geom_tolerance = 0.0
+    if subdivide_coords < 2000 or (
+        epsg == 4326 and sys.platform in ("darwin", "linux")
+    ):
+        check_geom_tolerance = 1e-9
+
     assert_geodataframe_equal(
         output_gdf,
         exp_gdf,
@@ -1899,6 +2041,7 @@ def test_symmetric_difference(tmp_path, request, suffix, epsg, gridsize):
         check_dtype=False,
         check_less_precise=True,
         normalize=True,
+        check_geom_tolerance=check_geom_tolerance,
     )
 
 
@@ -1923,8 +2066,12 @@ def test_symmetric_difference_invalid_params(kwargs, expected_error):
         )
 
 
-def test_symmetric_difference_self(tmp_path):
-    input1_path = test_helper.get_testfile("polygon-overlappingcircles-all")
+@pytest.mark.parametrize("subdivide_coords", [2000, 10])
+@pytest.mark.parametrize("fid_column", [None, "fid_custom"])
+def test_symmetric_difference_self(tmp_path, subdivide_coords, fid_column):
+    input1_path = test_helper.get_testfile(
+        "polygon-overlappingcircles-all", fid_column=fid_column
+    )
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input1_layerinfo.featurecount / 2)
 
@@ -1936,6 +2083,7 @@ def test_symmetric_difference_self(tmp_path):
         output_path=output_path,
         nb_parallel=2,
         batchsize=batchsize,
+        subdivide_coords=subdivide_coords,
     )
 
     # Check if the tmp file is correctly created
@@ -1949,11 +2097,14 @@ def test_symmetric_difference_self(tmp_path):
 
 @pytest.mark.parametrize(
     "suffix, epsg, gridsize, where_post, explodecollections, keep_fid, "
-    "exp_featurecount",
+    "subdivide_coords, fid_column, exp_featurecount",
     [
-        (".gpkg", 31370, 0.01, "ST_Area(geom) > 1000", True, True, 62),
-        (".shp", 31370, 0.0, "ST_Area(geom) > 1000", False, True, 59),
-        (".gpkg", 4326, 0.0, None, False, False, 73),
+        (".gpkg", 31370, 0.01, "ST_Area(geom) > 1000", True, True, 2000, None, 62),
+        (".shp", 31370, 0.0, "ST_Area(geom) > 1000", False, True, 2000, None, 59),
+        (".gpkg", 4326, 0.0, None, False, False, 2000, "fid_custom", 73),
+        (".gpkg", 31370, 0.0, None, False, False, 10, "fid_custom", 73),
+        (".gpkg", 4326, 0.0, None, False, True, 2000, "fid_custom", 73),
+        (".gpkg", 31370, 0.0, None, False, True, 10, "fid_custom", 73),
     ],
 )
 def test_union(
@@ -1962,9 +2113,11 @@ def test_union(
     suffix: str,
     epsg: int,
     gridsize: float,
-    where_post: Optional[str],
+    where_post: str | None,
     explodecollections: bool,
     keep_fid: bool,
+    subdivide_coords: int,
+    fid_column: str | None,
     exp_featurecount: int,
 ):
     if epsg == 4326 and sys.platform in ("darwin", "linux"):
@@ -1976,10 +2129,18 @@ def test_union(
 
     # Prepare test files
     input1_path = test_helper.get_testfile(
-        "polygon-parcel", dst_dir=tmp_path, suffix=suffix, epsg=epsg
+        "polygon-parcel",
+        dst_dir=tmp_path,
+        suffix=suffix,
+        epsg=epsg,
+        fid_column=fid_column,
     )
     input2_path = test_helper.get_testfile(
-        "polygon-zone", dst_dir=tmp_path, suffix=suffix, epsg=epsg
+        "polygon-zone",
+        dst_dir=tmp_path,
+        suffix=suffix,
+        epsg=epsg,
+        fid_column=fid_column,
     )
     # Add null TEXT column to each file to make sure it stays TEXT type after union
     gfo.add_column(input1_path, name="test1_null", type=gfo.DataType.TEXT)
@@ -1993,8 +2154,8 @@ def test_union(
     input2_columns = None
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     if keep_fid:
-        input1_columns = list(input1_layerinfo.columns) + ["fid"]
-        input2_columns = list(input2_layerinfo.columns) + ["fid"]
+        input1_columns = [*list(input1_layerinfo.columns), "fid"]
+        input2_columns = [*list(input2_layerinfo.columns), "fid"]
 
     # Test
     gfo.union(
@@ -2007,6 +2168,7 @@ def test_union(
         explodecollections=explodecollections,
         where_post=where_post,
         batchsize=batchsize,
+        subdivide_coords=subdivide_coords,
     )
 
     # Check if the output file is correctly created
@@ -2037,18 +2199,22 @@ def test_union(
         input1_gdf["l1_fid"] = input1_gdf.index
         input2_gdf["l2_fid"] = input2_gdf.index
     exp_gdf = input1_gdf.overlay(input2_gdf, how="union", keep_geom_type=True)
-    renames = dict(zip(exp_gdf.columns, output_gdf.columns))
+    renames = dict(zip(exp_gdf.columns, output_gdf.columns, strict=True))
     exp_gdf = exp_gdf.rename(columns=renames)
     # For text columns, gfo gives None rather than np.nan for missing values.
     for column in exp_gdf.select_dtypes(include="O").columns:
         exp_gdf[column] = exp_gdf[column].replace({np.nan: None})
-    exp_gdf["l1_DATUM"] = pd.to_datetime(exp_gdf["l1_DATUM"])
     if gridsize != 0.0:
         exp_gdf.geometry = shapely.set_precision(exp_gdf.geometry, grid_size=gridsize)
     if explodecollections:
         exp_gdf = exp_gdf.explode(ignore_index=True)
     if where_post is not None:
         exp_gdf = exp_gdf[exp_gdf.geometry.area > 1000]
+
+    # If input was subdivided, the output geometries will have some extra points
+    check_geom_tolerance = 0.0
+    if subdivide_coords < 2000:
+        check_geom_tolerance = 1e-9
 
     # Compare result with expected result
     assert_geodataframe_equal(
@@ -2058,6 +2224,7 @@ def test_union(
         sort_values=True,
         check_less_precise=True,
         normalize=True,
+        check_geom_tolerance=check_geom_tolerance,
     )
 
 
@@ -2105,7 +2272,7 @@ def test_union_circles(tmp_path, suffix, epsg):
     input1_gdf = gfo.read_file(input1_path)
     input2_gdf = gfo.read_file(input2_path)
     exp_gdf = input1_gdf.overlay(input2_gdf, how="union", keep_geom_type=True)
-    renames = dict(zip(exp_gdf.columns, output_gdf.columns))
+    renames = dict(zip(exp_gdf.columns, output_gdf.columns, strict=True))
     exp_gdf = exp_gdf.rename(columns=renames)
     # For text columns, gfo gives None rather than np.nan for missing values.
     for column in exp_gdf.select_dtypes(include="O").columns:
@@ -2163,7 +2330,7 @@ def test_union_circles(tmp_path, suffix, epsg):
     input1_gdf = gfo.read_file(input1_path)
     input2_gdf = gfo.read_file(input2_path)
     exp_gdf = input1_gdf.overlay(input2_gdf, how="union", keep_geom_type=True)
-    renames = dict(zip(exp_gdf.columns, output_gdf.columns))
+    renames = dict(zip(exp_gdf.columns, output_gdf.columns, strict=True))
     exp_gdf = exp_gdf.rename(columns=renames)
     # For text columns, gfo gives None rather than np.nan for missing values.
     for column in exp_gdf.select_dtypes(include="O").columns:
@@ -2226,19 +2393,75 @@ def test_union_invalid_params(kwargs, expected_error):
         )
 
 
-def test_union_self(tmp_path):
-    input1_path = test_helper.get_testfile("polygon-overlappingcircles-all")
+@pytest.mark.parametrize("remove_temp_files", [True, False, None])
+def test_union_remove_temp_files(tmp_path, remove_temp_files):
+    """Test if temporary files created during union are correctly removed afterwards."""
+    input1_path = test_helper.get_testfile("polygon-parcel")
+    input2_path = test_helper.get_testfile("polygon-zone")
+    output_path = tmp_path / f"output{input1_path.suffix}"
+
+    # Now run test
+    tmp_dir = tmp_path / "gfo_tmpdir"
+    with gfo.TempEnv(
+        {"GFO_REMOVE_TEMP_FILES": remove_temp_files, "GFO_TMPDIR": tmp_dir}
+    ):
+        gfo.union(
+            input1_path=input1_path,
+            input2_path=input2_path,
+            output_path=output_path,
+            nb_parallel=2,
+            batchsize=10,
+            subdivide_coords=10,
+        )
+
+    # Check if the tmp file is correctly created
+    assert output_path.exists()
+
+    # Check if the temp files were created in the right location or were removed.
+    assert tmp_dir.exists()
+    tmp_dir = list(tmp_dir.iterdir())
+
+    if remove_temp_files is None or remove_temp_files:
+        # Temporary files/directories should be removed
+        assert len(tmp_dir) == 0
+    else:
+        # Temporary files/directories should be kept
+        assert len(tmp_dir) == 1
+        assert tmp_dir[0].name == "union_000001"
+        tmp_dirs = list(tmp_dir[0].iterdir())
+        tmp_dirnames = {d.name for d in tmp_dirs if d.is_dir()}
+        assert tmp_dirnames == {
+            "apply_vectorized_000001",
+            "apply_vectorized_000002",
+            "subdivided",
+            "union_difference_000001",
+            "union_difference_000002",
+            "union_intersection_000001",
+        }
+
+
+@pytest.mark.parametrize("subdivide_coords", [2000, 10])
+@pytest.mark.parametrize("include_duplicates", [False, True])
+@pytest.mark.parametrize("fid_column", [None, "fid_custom"])
+def test_union_self(tmp_path, subdivide_coords, include_duplicates, fid_column):
+    input1_path = test_helper.get_testfile(
+        "polygon-overlappingcircles-all", fid_column=fid_column
+    )
     input1_layerinfo = gfo.get_layerinfo(input1_path)
     batchsize = math.ceil(input1_layerinfo.featurecount / 2)
 
     # Now run test
-    output_path = tmp_path / f"{input1_path.stem}_union_self.gpkg"
+    output_path = (
+        tmp_path / f"{input1_path.stem}_union_self_dupl-{include_duplicates}.gpkg"
+    )
     gfo.union(
         input1_path=input1_path,
         input2_path=None,
         output_path=output_path,
+        include_duplicates=include_duplicates,
         nb_parallel=2,
         batchsize=batchsize,
+        subdivide_coords=subdivide_coords,
     )
 
     # Check if the tmp file is correctly created
@@ -2247,4 +2470,18 @@ def test_union_self(tmp_path):
     assert gfo.has_spatial_index(output_path) is exp_spatial_index
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert len(output_layerinfo.columns) == 2 * len(input1_layerinfo.columns)
-    assert output_layerinfo.featurecount == 12
+    if include_duplicates:
+        assert output_layerinfo.featurecount == 12
+    else:
+        assert output_layerinfo.featurecount == 6
+
+    # Check the contents of the result file
+    output_gdf = gfo.read_file(output_path)
+    if not include_duplicates:
+        # For the non-intersecting polygons, the l2_... columns should be NULL.
+        null_counts = (output_gdf.filter(like="l2_").isnull()).sum().item()
+        assert null_counts == 3
+
+        # The l1_... columns should NOT be NULL.
+        null_counts = (output_gdf.filter(like="l1_").isnull()).sum().item()
+        assert null_counts == 0

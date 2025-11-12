@@ -16,6 +16,7 @@ Geometry tools
    :toctree: api/
 
    apply
+   apply_vectorized
    buffer
    clip_by_geometry
    convexhull
@@ -38,10 +39,11 @@ Spatial overlays and joins
    :toctree: api/
 
    clip
-   erase
+   difference
    export_by_distance
    export_by_location
    intersection
+   join
    join_by_location
    join_nearest
    select_two_layers
@@ -59,7 +61,9 @@ General layer operations
 
    append_to
    add_column
+   add_columns
    add_layerstyle
+   concat
    copy_layer
    create_spatial_index
    drop_column
@@ -92,7 +96,9 @@ General file operations
    get_driver
    listlayers
    move
+   unzip_geofile
    remove
+   zip_geofile
 
 Classes
 -------

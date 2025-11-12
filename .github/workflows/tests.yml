@@ -8,26 +8,24 @@ on:
     branches: [ main, v0.** ]
   pull_request:
     branches: [ main, v0.** ]
+    paths-ignore:
+      - "benchmark/**"
+      - "docs/**"
+      - "perftests/**"
+      - ".github/workflows/tests_installed.yml"
+      - ".github/workflows/perftests.yml"
+      - "*.md"
+      - "*.yml"
   schedule:
-    - cron: "0 0 * * *"
+    # every Wednesday at 3:40 AM
+    - cron: "40 3 * * 3"
 
 concurrency: 
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  Linting:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - uses: pre-commit/action@v3.0.1
-
   Test:
-    needs: Linting
     name: ${{ matrix.env }}, python ${{ matrix.python }}, ${{ matrix.os }}
     timeout-minutes: 30
     runs-on: ${{ matrix.os }}
@@ -39,27 +37,34 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         dev: [false]
-        python: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         env: ["latest"]
         # Use openblas instead of mkl saves 600 MB. Linux OK, 50% slower on Windows and OSX!
         extra: ["nomkl"]
         include:
+          - env: nightly-deps
+            os: ubuntu-latest
+            dev: false
+            python: "3.12"
           - env: minimal
             os: ubuntu-latest
             dev: false
-            python: "3.9"
+            python: "3.10"
           - env: latest-fiona
             os: windows-latest
             dev: false
-            python: "3.11"
+            python: "3.12"
           - env: latest
             os: macos-latest
             dev: false
-            python: "3.11"
+            python: "3.12"
             
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
+      # - name: Set environment variables
+      #   run: echo "PYTHONTRACEMALLOC=1" >> $GITHUB_ENV
+        
       - name: Install Conda environment with Micromamba
         uses: mamba-org/setup-micromamba@v2
         with:
@@ -70,8 +75,11 @@ jobs:
             ${{ matrix.extra }}
         
       - name: Test
-        run: |
-          pytest --color=yes --cov=geofileops --cov-append --cov-report term-missing --cov-report xml tests/
+        run: >-
+          pytest
+          --numprocesses 4 --color=yes 
+          --cov=geofileops --cov-append --cov-report term-missing --cov-report 
+          xml tests/
 
       - uses: codecov/codecov-action@v5
       

@@ -6,18 +6,30 @@ import math
 
 import geopandas as gpd
 import pytest
+from shapely.geometry import Polygon
 
 import geofileops as gfo
 from geofileops import GeometryType
+from geofileops._compat import GDAL_GTE_311
 from geofileops.util import _geoops_sql as geoops_sql
+from geofileops.util._geopath_util import GeoPath
 from tests import test_helper
-from tests.test_helper import EPSGS, SUFFIXES_GEOOPS, assert_geodataframe_equal
+from tests.test_helper import (
+    EPSGS,
+    SUFFIXES_GEOOPS,
+    SUFFIXES_GEOOPS_EXT,
+    assert_geodataframe_equal,
+)
 
 
-def test_delete_duplicate_geometries(tmp_path):
+@pytest.mark.parametrize(
+    "priority_column, priority_ascending",
+    [(None, True), (None, False), ("priority", True), ("priority", False)],
+)
+def test_delete_duplicate_geoms(tmp_path, priority_column, priority_ascending):
     # Prepare test data
     test_gdf = gpd.GeoDataFrame(
-        {"fid": [1, 2, 3, 4, 5]},
+        {"fid": [1, 2, 3, 4, 5], "priority": [5, 3, 3, 4, 5]},
         geometry=[
             test_helper.TestData.polygon_with_island,
             test_helper.TestData.polygon_with_island,
@@ -27,21 +39,69 @@ def test_delete_duplicate_geometries(tmp_path):
         ],
         crs=test_helper.TestData.crs_epsg,
     )
-    expected_gdf = test_gdf.iloc[[0, 2, 4]].set_index(keys="fid")
+    if priority_column is None:
+        if priority_ascending:
+            expected_gdf = test_gdf.iloc[[0, 2, 4]].set_index(keys="fid")
+        else:
+            expected_gdf = test_gdf.iloc[[1, 3, 4]].set_index(keys="fid")
+    else:  # noqa: PLR5501
+        if priority_ascending:
+            expected_gdf = test_gdf.iloc[[1, 2, 4]].set_index(keys="fid")
+        else:
+            expected_gdf = test_gdf.iloc[[0, 3, 4]].set_index(keys="fid")
+
     suffix = ".gpkg"
     input_path = tmp_path / f"input_test_data{suffix}"
     gfo.to_file(test_gdf, input_path)
-    input_info = gfo.get_layerinfo(input_path)
+    batchsize = math.ceil(gfo.get_layerinfo(input_path).featurecount / 2)
 
     # Run test
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
-    print(f"Run test for suffix {suffix}")
-    # delete_duplicate_geometries isn't multiprocess, so no batchsize needed
+    gfo.delete_duplicate_geometries(
+        input_path=input_path,
+        output_path=output_path,
+        priority_column=priority_column,
+        priority_ascending=priority_ascending,
+        batchsize=batchsize,
+    )
+
+    # Check result
+    result_gdf = gfo.read_file(output_path, fid_as_index=True)
+    assert_geodataframe_equal(result_gdf, expected_gdf)
+
+
+def test_delete_duplicate_geoms_notexact(tmp_path):
+    """Test if the test of being duplicates is tolerant enough for small differences.
+
+    Technically this should be the case because the comparison is done using ST_Equals.
+
+    E.g.:
+      - The order of points in a polygon can be different
+      - The starting point of rings in polygons can be different
+      - A polygon can countain extra points if they don't add any surfact
+    """
+    # Prepare test data
+    test_gdf = gpd.GeoDataFrame(
+        {"fid": [1, 2, 3, 4, 5]},
+        geometry=[
+            Polygon([(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)]),
+            Polygon([(1, 0), (1, 1), (0, 1), (0, 0), (1, 0)]),
+            Polygon([(1, 0), (0, 0), (0, 1), (1, 1), (1, 0)]),
+            Polygon([(0, 0), (1, 0), (1, 1), (0, 1), (0, 0.5), (0, 0)]),
+            Polygon([(3, 0), (3, 1), (2, 1), (2, 0), (3, 0)]),
+        ],
+        crs=test_helper.TestData.crs_epsg,
+    )
+    expected_gdf = test_gdf.iloc[[0, 4]].set_index(keys="fid")
+    suffix = ".gpkg"
+    input_path = tmp_path / f"input_test_data{suffix}"
+    gfo.to_file(test_gdf, input_path)
+
+    # Run test
+    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
     gfo.delete_duplicate_geometries(input_path=input_path, output_path=output_path)
 
-    # Check result, 2 duplicates should be removed
-    result_info = gfo.get_layerinfo(output_path)
-    assert result_info.featurecount == input_info.featurecount - 2
+    # Check result
     result_gdf = gfo.read_file(output_path, fid_as_index=True)
     assert_geodataframe_equal(result_gdf, expected_gdf)
 
@@ -70,27 +130,40 @@ def test_dissolve_singlethread_output_exists(tmp_path):
     assert output_path.stat().st_size != 0
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS_EXT)
 @pytest.mark.parametrize("epsg", EPSGS)
 @pytest.mark.filterwarnings(
     "ignore: The default date converter is deprecated as of Python 3.12"
 )
 def test_isvalid(tmp_path, suffix, epsg):
+    """Test isvalid operation."""
+    if not GDAL_GTE_311 and suffix in {".gpkg.zip", ".shp.zip"}:
+        # Skip test for unsupported GDAL versions
+        pytest.skip(".zip support requires gdal>=3.11")
+
     # Prepare test data
-    input_path = test_helper.get_testfile(
-        "polygon-invalid", dst_dir=tmp_path, suffix=suffix, epsg=epsg
+    input_tmp_path = test_helper.get_testfile(
+        "polygon-invalid",
+        dst_dir=tmp_path,
+        suffix=suffix.replace(".zip", ""),
+        epsg=epsg,
     )
 
     # For Geopackage, also test if fid is properly preserved
-    preserve_fid = True if suffix == ".gpkg" else False
+    preserve_fid = suffix == ".gpkg"
     # Delete 2nd row, so we can check properly if fid is retained for Geopackage
     # WHERE rowid = 2, because fid is not known for .shp file with sql_dialect="SQLITE"
-    input_layer = gfo.get_only_layer(input_path)
+    input_layer = gfo.get_only_layer(input_tmp_path)
     sql_stmt = f'DELETE FROM "{input_layer}" WHERE rowid = 2'
-    gfo.execute_sql(input_path, sql_stmt=sql_stmt, sql_dialect="SQLITE")
+    gfo.execute_sql(input_tmp_path, sql_stmt=sql_stmt, sql_dialect="SQLITE")
+    if suffix.endswith(".zip"):
+        input_path = input_tmp_path.with_suffix(suffix)
+        gfo.zip_geofile(input_tmp_path, input_path)
+    else:
+        input_path = input_tmp_path
 
     # Now run test
-    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
+    output_path = tmp_path / f"output{suffix}"
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
     gfo.isvalid(input_path=input_path, output_path=output_path, batchsize=batchsize)
@@ -113,9 +186,7 @@ def test_isvalid(tmp_path, suffix, epsg):
     )
 
     # Now check if the tmp file is correctly created
-    output_auto_path = (
-        output_path.parent / f"{input_path.stem}_isvalid{output_path.suffix}"
-    )
+    output_auto_path = tmp_path / f"{GeoPath(input_path).stem}_isvalid{suffix}"
     assert output_auto_path.exists()
     result_auto_layerinfo = gfo.get_layerinfo(output_auto_path)
     assert input_layerinfo.featurecount == result_auto_layerinfo.featurecount
@@ -281,7 +352,7 @@ def test_select_equal_columns(tmp_path, suffix):
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
     # Now run test
-    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
+    output_path = tmp_path / f"{GeoPath(input_path).stem}-output{suffix}"
     sql_stmt = 'SELECT {geometrycolumn}, oidn, uidn AS oidn FROM "{input_layer}"'
 
     gfo.select(input_path=input_path, output_path=output_path, sql_stmt=sql_stmt)
@@ -295,9 +366,9 @@ def test_select_equal_columns(tmp_path, suffix):
     assert len(layerinfo_output.columns) == 2
     columns_output_upper = [col.upper() for col in layerinfo_output.columns]
     assert "OIDN" in columns_output_upper
-    if suffix == ".gpkg":
+    if suffix in (".gpkg", ".gpkg.zip"):
         assert "OIDN:1" in columns_output_upper
-    elif suffix == ".shp":
+    elif suffix in (".shp", ".shp.zip"):
         assert "OIDN_1" in columns_output_upper
     else:
         raise ValueError(f"Test doesn't support {suffix=}")
@@ -352,11 +423,13 @@ def test_select_invalid_sql(tmp_path, suffix):
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
     # Now run test
-    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
+    output_path = tmp_path / f"{GeoPath(input_path).stem}-output{suffix}"
     sql_stmt = 'SELECT {geometrycolumn}, not_existing_column FROM "{input_layer}"'
 
     with pytest.raises(Exception, match="Error no such column"):
         gfo.select(input_path=input_path, output_path=output_path, sql_stmt=sql_stmt)
+
+    assert not output_path.exists()
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
@@ -365,11 +438,11 @@ def test_select_nogeom_in_input(tmp_path, suffix, gridsize):
     # Prepare test data
     input_geom_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     data_df = gfo.read_file(input_geom_path, ignore_geometry=True)
-    input_path = tmp_path / f"{input_geom_path.stem}_nogeom{suffix}"
+    input_path = tmp_path / f"{GeoPath(input_geom_path).stem}_nogeom{suffix}"
     gfo.to_file(data_df, input_path)
 
     # Now run test
-    output_path = tmp_path / f"{input_path.stem}-output{suffix}"
+    output_path = tmp_path / f"{GeoPath(input_path).stem}-output{suffix}"
     sql_stmt = 'SELECT * FROM "{input_layer}"'
 
     # Column casing seems to behave odd: without gridsize (=subselect) results in upper
@@ -487,7 +560,7 @@ def test_select_star(tmp_path, suffix, explodecollections):
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
     # Now run test
-    name = f"{input_path.stem}-output{suffix}"
+    name = f"{GeoPath(input_path).stem}-output{suffix}"
     output_path = tmp_path / name
     input_layerinfo = gfo.get_layerinfo(input_path)
     sql_stmt = 'SELECT * FROM "{input_layer}"'

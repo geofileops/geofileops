@@ -2,19 +2,35 @@
 Tests for functionalities in _io_util.
 """
 
+import tempfile
+
 from geofileops.util import _io_util
 
 
 def test_create_tempdir():
+    """Test the creation of a temporary directory in the default python temp dir."""
     # Test
     tempdir1 = _io_util.create_tempdir("testje")
-    assert tempdir1.exists()
     tempdir2 = _io_util.create_tempdir("testje")
+
+    # Checks
+    tmp_dir = tempfile.gettempdir()
+    assert tempdir1.exists()
+    assert str(tempdir1).startswith(tmp_dir)
     assert tempdir2.exists()
+    assert str(tempdir2).startswith(tmp_dir)
 
     # Cleanup
     tempdir1.rmdir()
     tempdir2.rmdir()
+
+
+def test_create_tempdir_custom_dir(tmp_path):
+    """Test the creation of a temporary directory in a dir specified via GFO_TMPDIR."""
+    # Test
+    tempdir = _io_util.create_tempdir("testje", parent_dir=tmp_path)
+    assert tempdir.exists()
+    assert str(tempdir).startswith(str(tmp_path))
 
 
 def test_create_file_atomic(tmp_path):

@@ -25,9 +25,9 @@ def test_add_get_remove_layer_styles(tmp_path):
     assert layerstyles._has_layerstyles_table(test_path)
 
     # Add layer style to "parcel" layer
-    with open(test_helper._data_dir / "polygonstyle.sld") as file:
+    with (test_helper.data_dir / "polygonstyle.sld").open() as file:
         sld = file.read()
-    with open(test_helper._data_dir / "polygonstyle.qml") as file:
+    with (test_helper.data_dir / "polygonstyle.qml").open() as file:
         qml = file.read()
     gfo.add_layerstyle(
         path=test_path,
@@ -41,7 +41,7 @@ def test_add_get_remove_layer_styles(tmp_path):
     assert len(layerstyles_df) == 1
 
     # Adding the same style again should give an error
-    with pytest.raises(ValueError, match="layer style exists already: "):
+    with pytest.raises(ValueError, match="layer style already exists: "):
         gfo.add_layerstyle(
             path=test_path, layer="parcels", name="test_style", qml="test_qml"
         )

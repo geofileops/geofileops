@@ -8,9 +8,9 @@ import tempfile
 import urllib.request
 import zipfile
 from pathlib import Path
-from typing import Optional
 
 import geopandas as gpd
+import pyproj
 import shapely
 import shapely.affinity
 
@@ -45,93 +45,187 @@ class TestFile(enum.Enum):
         0,
         "https://www.landbouwvlaanderen.be/bestanden/gis/Landbouwgebruikspercelen_2018_-_Definitief_(extractie_23-03-2022)_GPKG.zip",
         "agriprc_2018.gpkg",
+        "agri parcels (~500k poly)",
     )
     AGRIPRC_2019 = (
         1,
         "https://www.landbouwvlaanderen.be/bestanden/gis/Landbouwgebruikspercelen_2019_-_Definitief_(extractie_20-03-2020)_GPKG.zip",
         "agriprc_2019.gpkg",
+        "agri parcels (~500k poly)",
     )
-    COMPLEX_POLYS = (2, None, "complexpolys.gpkg")
 
-    def __init__(self, value, url, filename):
+    def __init__(
+        self,
+        value: tuple[int, str, str, str],
+        url: str,
+        filename: str,
+        descr: str | None,
+    ) -> None:
         """Create a test file.
 
         Args:
             value (_type_): _description_
             url (_type_): _description_
             filename (_type_): _description_
+            descr (_type_): _description_
         """
         self._value_ = value
         self.url = url
         self.filename = filename
+        self.descr = descr
 
-    def get_file(self, output_dir: Path, nb_points: int = 20_000) -> tuple[Path, str]:
+    def get_file(self, output_dir: Path) -> tuple[Path, str]:
         """Creates the test file.
 
         Args:
             output_dir (Path): the directory to write the file to.
-            nb_points (int): indication of the number of points the complex polygons
-                should consist of. Defaults to 20.000.
 
         Returns:
-            _type_: The path to the file + a description of the test file.
+            tuple[Path, str]: The path to the file + a description of the test file.
         """
-        if self.name != "COMPLEX_POLYS" and nb_points != 20_000:
-            raise ValueError("specifying nb_points is only supported for COMPLEX_POLYS")
-
-        if self.url is not None:
-            testfile_path = _download_samplefile(
-                url=self.url, dst_name=self.filename, dst_dir=output_dir
-            )
-            testfile_info = gfo.get_layerinfo(testfile_path)
-            logger.debug(
-                f"TestFile {self.name} contains {testfile_info.featurecount} rows."
-            )
-            description = f"agri parcels, {testfile_info.featurecount} rows"
-
-        elif self.name == "COMPLEX_POLYS":
-            name = Path(self.filename)
-            testfile_path = output_dir / f"{name.stem}_{nb_points}{name.suffix}"
-
-            if testfile_path.exists():
-                polys_complex_gdf = gpd.read_file(testfile_path, engine="pyogrio")
-                nb_coords = shapely.get_num_coordinates(polys_complex_gdf.iloc[0])
-                nb_polys = len(polys_complex_gdf)
-            else:
-                # Prepare some complex polygons to test with
-                xmin_start = 30_000
-                step = 20_000
-                nb_polys = 10
-                logger.info(
-                    f"create file with {nb_polys} complex polys of ~{nb_points} points"
-                )
-                poly_complex = _create_complex_poly_points(
-                    xmin=xmin_start,
-                    ymin=170000.123,
-                    width=15000,
-                    height=15000,
-                    nb_points=nb_points,
-                )
-
-                polys_complex = [
-                    shapely.affinity.translate(poly_complex, xoff=xoff)
-                    for xoff in range(0, (nb_polys * step), step)
-                ]
-                logger.debug(
-                    f"polys_complex: {len(polys_complex)} polys with num_coordinates: "
-                    f"{shapely.get_num_coordinates(polys_complex[0])}"
-                )
-                complex_gdf = gpd.GeoDataFrame(geometry=polys_complex, crs="epsg:31370")
-                complex_gdf.to_file(testfile_path, engine="pyogrio")
-                nb_coords = shapely.get_num_coordinates(polys_complex[0])
-                nb_polys = len(polys_complex)
-
-            description = f"complex polys ({nb_polys} * {nb_coords} coords)"
-
-        else:
-            raise RuntimeError(f"get_file not implemented for {self.name}")
+        testfile_path = _download_samplefile(
+            url=self.url, dst_name=self.filename, dst_dir=output_dir
+        )
+        testfile_info = gfo.get_layerinfo(testfile_path)
+        logger.debug(
+            f"TestFile {self.name} contains {testfile_info.featurecount} rows."
+        )
+        count_kilo = f"{int(testfile_info.featurecount / 1000)}k"
+        description = f"agri parcels ({count_kilo} polys)"
 
         return (testfile_path, description)
+
+
+def create_testfile(
+    bbox: tuple[float, float, float, float],
+    geoms: int,
+    polys_per_geom: int,
+    points_per_poly: int,
+    poly_width: int = 15_000,
+    poly_height: int = 15_000,
+    crs: int | str | pyproj.CRS | None = None,
+    dst_dir: Path | None = None,
+) -> tuple[Path, str]:
+    """Creates a test file.
+
+    Args:
+        bbox (tuple[float, float, float, float]): the bounding box of the test file.
+        geoms (int): the number of geometries to generate.
+        polys_per_geom (int): the number of polygons to use per geometry. If > 1,
+            MultiPolygons will be created.
+        points_per_poly (int): indication of the number of points each polygon should
+            consist of.
+        poly_width (float): the width of the polygons. Defaults to 30000.
+        poly_height (float): the height of the polygons. Defaults to 30000.
+        crs (str): the crs of the test file. Defaults to None.
+        dst_dir (Path): the directory to write the file to.
+
+    Returns:
+        tuple[Path, str]: The path to the file + a description of the test file.
+    """
+    # Format file name
+    if polys_per_geom == 1:
+        poly_str = f"{geoms}polys({points_per_poly}pnts)"
+    else:
+        poly_str = f"{geoms}multis({polys_per_geom}polys({points_per_poly}pnts))"
+    basename = f"testfile_{poly_str}_{bbox[0]}-{bbox[1]}-{bbox[2]}-{bbox[3]}.gpkg"
+    testfile_path = _prepare_dst_path(basename, dst_dir=dst_dir)
+
+    # Format file description
+    if points_per_poly > 1000:
+        nb_points_str = f"{int(points_per_poly / 1000)}k"
+    else:
+        nb_points_str = f"{points_per_poly}"
+
+    if polys_per_geom == 1:
+        descr = f"{geoms} polys of {nb_points_str} coords"
+    else:
+        descr = f"{geoms} multipolys of {polys_per_geom} * {nb_points_str} coords"
+
+    # If the files exists already, return
+    if testfile_path.exists():
+        return (testfile_path, descr)
+
+    # Determine the number of polygons we can generate per row and column
+    poly_width_step = poly_width + poly_width * 0.1
+    poly_height_step = poly_height + poly_height * 0.1
+
+    bbox_width = bbox[2] - bbox[0]
+    if poly_width > bbox_width:
+        raise ValueError(f"{bbox_width=} is too small for {poly_width=}")
+    max_poly_x = int(bbox_width / poly_width_step)
+
+    bbox_height = bbox[3] - bbox[1]
+    if poly_height > bbox_height:
+        raise ValueError(f"{bbox_height=} is too small for {poly_height=}")
+    max_poly_y = int(bbox_height / poly_height_step)
+
+    if polys_per_geom > max_poly_x * max_poly_y:
+        raise ValueError(
+            f"{polys_per_geom=} is too large for {max_poly_x=} * {max_poly_y=} as "
+            "parts of a multipolygon cannot intersect"
+        )
+
+    # Create the polygons asked for
+    logger.info(
+        f"create file with {geoms} (multi)polys of "
+        f"{polys_per_geom} * ~{nb_points_str} points"
+    )
+
+    # Create a single complex polygon that we can reuse to create all others...
+    poly = _create_complex_poly_points(
+        xmin=bbox[0],
+        ymin=bbox[1],
+        width=poly_width,
+        height=poly_height,
+        nb_points=points_per_poly,
+    )
+
+    # Create the polygons. If many are asked, they can overlap, but for performance
+    # testing that should not matter.
+    result = []
+    x = 0
+    y = 0
+    for _ in range(geoms):
+        if polys_per_geom == 1:
+            xoff = x * poly_width_step
+            yoff = y * poly_height_step
+            result.append(shapely.affinity.translate(poly, xoff=xoff, yoff=yoff))
+
+            x, y = _move_xy(x, y, max_poly_x, max_poly_y)
+            continue
+
+        # Multipolygons asked, so create them
+        polys = []
+        for _ in range(polys_per_geom):
+            xoff = x * poly_width_step
+            yoff = y * poly_height_step
+            polys.append(shapely.affinity.translate(poly, xoff=xoff, yoff=yoff))
+
+            # Move to next polygon
+            x, y = _move_xy(x, y, max_poly_x, max_poly_y)
+
+        result.append(shapely.MultiPolygon(polys))
+
+    # Write all geometries to a file
+    complex_gdf = gpd.GeoDataFrame(geometry=result, crs=crs)
+    complex_gdf.to_file(testfile_path, engine="pyogrio")
+
+    return (testfile_path, descr)
+
+
+def _move_xy(x: int, y: int, max_x: int, max_y: int) -> tuple[int, int]:
+    # Move to next location in the grid
+    if x >= max_x:
+        x = 0
+        y += 1
+    elif y >= max_y:
+        y = 0
+        x = 0
+    else:
+        x += 1
+
+    return x, y
 
 
 def _create_complex_poly_points(
@@ -146,8 +240,8 @@ def _create_complex_poly_points(
         raise ValueError("only width 15000 and height 15000 supported.")
     nb_points_estimate: float = nb_points
     line_distance_estimate = _estimate_line_distance(nb_points)
-    nb_points_min = nb_points * (1 - nb_points_tol)
-    nb_points_max = nb_points * (1 + nb_points_tol)
+    nb_points_min = int(nb_points * (1 - nb_points_tol))
+    nb_points_max = int(nb_points * (1 + nb_points_tol))
 
     while True:
         poly_complex = _create_complex_poly(
@@ -159,29 +253,29 @@ def _create_complex_poly_points(
             max_segment_length=100,
         )
 
-        nb_points_created = shapely.get_num_coordinates(poly_complex)
+        nb_points_created = shapely.get_num_coordinates(poly_complex).item()
         if nb_points_created < nb_points_min:
             # Not enough points... increase nb_points_estimate
-            logger.info(
-                f"{nb_points_created=} for {line_distance_estimate=} and "
-                f"{nb_points_estimate=} not between {nb_points_min=} and "
+            logger.debug(
+                f"retry: {nb_points_created=} for {line_distance_estimate=} "
+                f"and {nb_points_estimate=} not between {nb_points_min=} and "
                 f"{nb_points_max=}"
             )
-            nb_points_extra = (nb_points - nb_points_created) / 2
+            nb_points_extra = int((nb_points - nb_points_created) / 2)
             nb_points_estimate += nb_points_extra
             line_distance_estimate = _estimate_line_distance(nb_points_estimate)
         elif nb_points_created > nb_points_max:
             # Too many points... decrease nb_points_estimate
-            logger.info(
-                f"{nb_points_created=} for {line_distance_estimate=} and "
-                f"{nb_points_estimate=} not between {nb_points_min=} and "
+            logger.debug(
+                f"retry: {nb_points_created=} for {line_distance_estimate=} "
+                f"and {nb_points_estimate=} not between {nb_points_min=} and "
                 f"{nb_points_max=}"
             )
             nb_points_less = (nb_points_created - nb_points) / 2
             nb_points_estimate += nb_points_less
             line_distance_estimate = _estimate_line_distance(nb_points_estimate)
         else:
-            logger.info(
+            logger.debug(
                 f"poly_complex ready with {nb_points_created=} for {nb_points=} "
                 f"and {line_distance_estimate=}"
             )
@@ -271,9 +365,7 @@ def _create_complex_poly(
     return poly_complex
 
 
-def _download_samplefile(
-    url: str, dst_name: str, dst_dir: Optional[Path] = None
-) -> Path:
+def _download_samplefile(url: str, dst_name: str, dst_dir: Path | None = None) -> Path:
     """Download a sample file to dest_path.
 
     If it is zipped, it will be unzipped. If needed, it will be converted to
@@ -301,23 +393,29 @@ def _download_samplefile(
     # just download
     url_path = Path(url)
     if url_path.suffix.lower() == dst_path.suffix.lower():
-        logger.info(f"Download to {dst_path}")
-        urllib.request.urlretrieve(url, dst_path)
+        logger.info(f"Download/copy to {dst_path}")
+        if url.startswith("http"):
+            urllib.request.urlretrieve(url, dst_path)
+        else:
+            shutil.copy(url, dst_path)
     else:
         # The file downloaded is different that the destination wanted, so some
         # converting will need to be done
         tmp_dir = dst_path.parent / "tmp"
 
         try:
-            # Remove tmp dir if it exists already
+            # Remove tmp dir if it already exists
             if tmp_dir.exists():
                 shutil.rmtree(tmp_dir)
             tmp_dir.mkdir(parents=True, exist_ok=True)
 
             # Download file
             tmp_path = tmp_dir / f"{dst_path.stem}{url_path.suffix.lower()}"
-            logger.info(f"Download tmp data to {tmp_path}")
-            urllib.request.urlretrieve(url, tmp_path)
+            logger.info(f"Download/copy tmp data to {tmp_path}")
+            if url.startswith("http"):
+                urllib.request.urlretrieve(url, tmp_path)
+            else:
+                shutil.copy(url, tmp_path)
 
             # If the temp file is a .zip file, unzip to dir
             if tmp_path.suffix == ".zip":
@@ -350,7 +448,7 @@ def _download_samplefile(
     return dst_path
 
 
-def _prepare_dst_path(dst_name: str, dst_dir: Optional[Path] = None):
+def _prepare_dst_path(dst_name: str, dst_dir: Path | None = None) -> Path:
     if dst_dir is None:
         return Path(tempfile.gettempdir()) / "geofileops_sampledata" / dst_name
     else:
