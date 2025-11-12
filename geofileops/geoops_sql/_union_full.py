@@ -19,17 +19,13 @@ from geofileops.util._geoops_sql import (
     select,
 )
 
-UnionFullSelfTypes: TypeAlias = Literal[
-    "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS",
-    "NO_INTERSECTIONS_ATTRIBUTE_LISTS",
-    "REPEATED_INTERSECTIONS",
-]
+UnionFullSelfTypes: TypeAlias = Literal["COLUMNS", "LISTS", "ROWS"]
 
 
 def union_full_self(
     input_path: Path,
     output_path: Path,
-    union_type: str,
+    intersections_as: UnionFullSelfTypes,
     input_layer: str | LayerInfo | None = None,
     output_layer: str | None = None,
     columns: list[str] | None = None,
@@ -46,8 +42,10 @@ def union_full_self(
     # we need to do some additional init + checks here...
     if subdivide_coords < 0:
         raise ValueError("subdivide_coords < 0 is not allowed")
-    if union_type not in get_args(UnionFullSelfTypes):
-        raise ValueError(f"union_type should be one of {get_args(UnionFullSelfTypes)}")
+    if intersections_as not in get_args(UnionFullSelfTypes):
+        raise ValueError(
+            f"intersections_as should be one of {get_args(UnionFullSelfTypes)}"
+        )
 
     operation_name = "union_full_self"
     logger = logging.getLogger(f"geofileops.{operation_name}")
@@ -92,59 +90,59 @@ def union_full_self(
             input_subdivided_path = Path("/")
 
         # Loop until all intersections are gone...
-        logger.info("Step 2 of 4: create a 'flat union' layer (=no intersections)")
+        logger.info("Step 2 of 4: create a 'flat union' layer without intersections")
         non_intersecting_path = tmp_dir / "union_self_non_intersecting.gpkg"
-        if union_type == "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS":
-            columns_loop = list(input_layer.columns) if columns is None else columns
+        if intersections_as == "COLUMNS":
+            columns_pass = list(input_layer.columns) if columns is None else columns
         else:
-            columns_loop = []
+            columns_pass = []
 
-        loop_id = 0
-        input_loop_path = input_path
-        input_loop_layer: str | LayerInfo = input_layer
+        pass_id = 1
+        input_path_pass = input_path
+        input_layer_pass: str | LayerInfo = input_layer
         input_subdivided_cur_path: Path | None = input_subdivided_path
         while True:
-            logger.info(f"  -> create 'flat union' layer, pass {loop_id}")
-            if loop_id == 0:
-                # In the first loop, include the original fid column
-                input1_columns = columns_loop
+            logger.info(f"  -> create 'flat union' layer, pass {pass_id}")
+            if pass_id == 1:
+                # In the first pass, include the original fid column
+                input1_columns = columns_pass
                 input2_columns = input1_columns
-                input1_columns_prefix = f"is{loop_id}_"
-                input2_columns_prefix = f"is{loop_id + 1}_"
+                input1_columns_prefix = f"i{pass_id}_"
+                input2_columns_prefix = f"i{pass_id + 1}_"
 
-            elif loop_id == 1:
-                # In the second loop, we need to include the original fid column
+            elif pass_id == 2:
+                # In the 2nd pass, we need to include the original fid column
                 input1_columns = None  # all columns
                 input2_columns = [
-                    f"is{loop_id}_{col}" for col in columns_loop
+                    f"i{pass_id}_{col}" for col in columns_pass
                 ]  # only the "right" columns
                 input1_columns_prefix = ""
-                input2_columns_prefix = f"is{loop_id + 1}_"
+                input2_columns_prefix = f"i{pass_id + 1}_"
 
-                # After the 0th loop, we cannot use the subdivided input anymore
+                # From the 2nd pass on, we cannot use the subdivided input anymore
                 input_subdivided_cur_path = None
 
-                # The input_loop layer becomes the output layer after 1st loop
-                input_loop_layer = output_layer
+                # From the 2nd pass on, input_pass_layer becomes the output layer
+                input_layer_pass = output_layer
 
             else:
-                # In the next loops, no use to keep columns anymore
+                # In the next passes, no use to keep columns anymore
                 input1_columns = []
                 input2_columns = []
 
             # Parts of geometries that don't intersect in the input layer are ready for
             # the output.
             # Remark: subdivide_coords=0, because the input is already subdivided.
-            diff_output_path = tmp_dir / f"diff_output_{loop_id}.gpkg"
+            diff_output_path = tmp_dir / f"diff_output_{pass_id}.gpkg"
             difference(
-                input1_path=input_loop_path,
-                input2_path=input_loop_path,
+                input1_path=input_path_pass,
+                input2_path=input_path_pass,
                 output_path=diff_output_path,
                 overlay_self=True,
-                input1_layer=input_loop_layer,
+                input1_layer=input_layer_pass,
                 input1_columns=input1_columns,
                 input_columns_prefix=input1_columns_prefix,
-                input2_layer=input_loop_layer,
+                input2_layer=input_layer_pass,
                 output_layer=output_layer,
                 explodecollections=explodecollections,
                 gridsize=gridsize,
@@ -160,8 +158,8 @@ def union_full_self(
                 input2_subdivided_path=input_subdivided_cur_path,
             )
 
-            if loop_id == 0:
-                # First loop, so we can just rename
+            if pass_id == 1:
+                # First pass, so we can just rename
                 gfo.move(diff_output_path, non_intersecting_path)
             else:
                 # Append
@@ -176,17 +174,17 @@ def union_full_self(
 
             # Determine the parts of geometries in the input layer that intersect.
             # Remark: subdivide_coords=0, because the input is already subdivided.
-            intersection_output_path = tmp_dir / f"intersection_output_{loop_id}.gpkg"
+            intersection_output_path = tmp_dir / f"intersection_output_{pass_id}.gpkg"
             intersection(
-                input1_path=input_loop_path,
-                input2_path=input_loop_path,
+                input1_path=input_path_pass,
+                input2_path=input_path_pass,
                 output_path=intersection_output_path,
                 overlay_self=True,
                 include_duplicates=False,
-                input1_layer=input_loop_layer,
+                input1_layer=input_layer_pass,
                 input1_columns=input1_columns,
                 input1_columns_prefix=input1_columns_prefix,
-                input2_layer=input_loop_layer,
+                input2_layer=input_layer_pass,
                 input2_columns=input2_columns,
                 input2_columns_prefix=input2_columns_prefix,
                 output_layer=output_layer,
@@ -207,10 +205,10 @@ def union_full_self(
             # If the intersection output is empty, we are ready...
             inters_info = gfo.get_layerinfo(path=intersection_output_path)
             if inters_info.featurecount == 0:
-                attributes_in_flat_union = True if loop_id <= 1 else False
+                attributes_in_flat_union = True if pass_id <= 2 else False
                 break
 
-            # Delete duplicates from the intersections before starting next loop.
+            # Delete duplicates from the intersections before starting next pass.
             deldups_path = tmp_dir / f"{intersection_output_path.stem}_no-dups.gpkg"
             delete_duplicate_geometries(
                 input_path=intersection_output_path,
@@ -231,21 +229,18 @@ def union_full_self(
             )
             intersection_output_path = deldups_path
 
-            # Init for the next loop
+            # Init for the next pass
             # if intersection_output_prev_path is not None:
             #    gfo.remove(intersection_output_prev_path)
-            input_loop_path = intersection_output_path
-            loop_id += 1
+            input_path_pass = intersection_output_path
+            pass_id += 1
 
         logger.info("Step 3 of 4: combine the attributes with the 'flat union' layer")
-        if union_type == "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS" and columns == []:
+        if intersections_as == "COLUMNS" and columns == []:
             # No output attribute columns needed -> ready
             output_tmp_path = non_intersecting_path
 
-        elif (
-            union_type == "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS"
-            and attributes_in_flat_union
-        ):
+        elif intersections_as == "COLUMNS" and attributes_in_flat_union:
             # If the attributes are already in the result of the "flat union", not
             # needed to join them.
             output_tmp_path = non_intersecting_path
@@ -280,16 +275,13 @@ def union_full_self(
             )
             output_tmp_path = union_multirow_path
 
-            if union_type in (
-                "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS",
-                "NO_INTERSECTIONS_ATTRIBUTE_LISTS",
-            ):
+            if intersections_as in ("COLUMNS", "LISTS"):
                 columns_local = (
                     list(input_layer.columns) if columns is None else columns
                 )
                 sql_stmt = _get_union_full_attr_sql_stmt(
                     union_multirow_path=output_tmp_path,
-                    union_type=union_type,
+                    intersections_as=intersections_as,
                     columns=columns_local,
                 )
                 select_output_path = tmp_dir / "union_with_attributes.gpkg"
@@ -323,7 +315,9 @@ def union_full_self(
 
 
 def _get_union_full_attr_sql_stmt(
-    union_multirow_path: Path, union_type: UnionFullSelfTypes | str, columns: list[str]
+    union_multirow_path: Path,
+    intersections_as: UnionFullSelfTypes | str,
+    columns: list[str],
 ) -> str:
     """Create a sql statement to aggregate attributes based on a multi-row-union file.
 
@@ -332,13 +326,13 @@ def _get_union_full_attr_sql_stmt(
     Args:
         union_multirow_path (Path): path to the union file with multiple rows per
             intersection
-        union_type (str): type of union_full_self
+        intersections_as (str): type of union_full_self
         columns (List[str]): list of columns to aggregate
 
     Returns:
         str: sql statement
     """
-    if union_type == "NO_INTERSECTIONS_ATTRIBUTE_LISTS":
+    if intersections_as == "LISTS":
         if len(columns) > 0:
             columns_list = []
             for col in columns:
@@ -358,7 +352,7 @@ def _get_union_full_attr_sql_stmt(
         # An index on union_fid does not speed this up/decrease memory usage
         sql_stmt = f"""
             SELECT layer.{{geometrycolumn}}
-                  ,COUNT(*) - 1 AS nb_intersections
+                  ,COUNT(*) AS nb_intersecting
                   {columns_str}
               FROM "{{input_layer}}" layer
              WHERE 1=1
@@ -366,7 +360,7 @@ def _get_union_full_attr_sql_stmt(
              GROUP BY union_fid
         """
 
-    elif union_type == "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS":
+    elif intersections_as == "COLUMNS":
         # An index on union_fid does not speed up/decrease memory usage for
         # following queries
         if len(columns) > 0:
@@ -383,15 +377,15 @@ def _get_union_full_attr_sql_stmt(
 
             # Now create the columns for in the select
             columns_list = []
-            for is_id in range(max_intersections):
+            for i_id in range(1, max_intersections + 1):
                 for input_col in columns:
                     if input_col.lower() == "fid":
                         input_col = "fid_1"
-                        col_alias = f"is{is_id}_fid"
+                        col_alias = f"i{i_id}_fid"
                     else:
-                        col_alias = f"is{is_id}_{input_col}"
+                        col_alias = f"i{i_id}_{input_col}"
                     columns_list.append(
-                        f'MIN(CASE WHEN rn = {is_id + 1} THEN "{input_col}" END'
+                        f'MIN(CASE WHEN rn = {i_id + 1} THEN "{input_col}" END'
                         f') AS "{col_alias}"'
                     )
 
@@ -417,6 +411,6 @@ def _get_union_full_attr_sql_stmt(
         """
 
     else:
-        raise ValueError(f"Unsupported union_type: {union_type}")
+        raise ValueError(f"Unsupported union_type: {intersections_as}")
 
     return sql_stmt

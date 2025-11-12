@@ -697,7 +697,7 @@ def union_full_self_attr_cols(tmp_dir: Path) -> RunResult:
     gfo.union_full_self(
         input_path=input_path,
         output_path=output_path,
-        union_type="NO_INTERSECTIONS_ATTRIBUTE_COLUMNS",
+        intersections_as="COLUMNS",
         nb_parallel=nb_parallel,
         force=True,
     )

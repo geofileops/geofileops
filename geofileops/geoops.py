@@ -3677,6 +3677,7 @@ def union(
             Defaults to False.
 
     See Also:
+        * :func:`union_full_self`: calculate the "Full" union of a layer
         * :func:`difference`: calculate the difference between two layers
         * :func:`identity`: calculate the identity of two layers
         * :func:`intersection`: calculate the intersection of two layers
@@ -3728,7 +3729,8 @@ def union(
 def union_full_self(
     input_path: Path,
     output_path: Path,
-    union_type: UnionFullSelfTypes = "REPEATED_INTERSECTIONS",  # type: ignore[assignment]
+    *,
+    intersections_as: Literal["COLUMNS", "LISTS", "ROWS"],
     input_layer: str | None = None,
     output_layer: str | None = None,
     columns: list[str] | None = None,
@@ -3740,33 +3742,54 @@ def union_full_self(
     subdivide_coords: int = 2000,
     force: bool = False,
 ) -> None:
-    """Calculates the union of all features in a single layer.
+    """Calculates the "full" union of the features in a layer.
 
-    This function calculates the union of all features in a single layer by iteratively
-    applying pairwise union operations in a loopy way till all features have been
-    merged.
+    This function is experimental and may change in future releases.
+
+    All geometries in the input layer are cut up till the smallest possible parts based
+    on the intersections between them.
+
+    The way intersecting (parts of) features are treated in the output depends on the
+    ``intersections_as`` parameter.
+
+    The following plot shows the result of a full union on a layer with intersecting
+    features. The labels on b) indicate the number of features that intersect in the
+    input layer on that location:
+
+    .. plot:: code/union_full_self.py
+
+    .. versionadded:: 0.11.0
 
     Args:
         input_path (PathLike): the input file.
         output_path (PathLike): the file to write the result to
-        union_type (UnionFullSelfTypes): the type of union to perform. Defaults to
-            "REPEATED_INTERSECTIONS". Possible values are:
+        intersections_as (Literal["COLUMNS", "LISTS", "ROWS"]): determines the way
+            intersecting features in the input layer are treated in the output. Possible
+            options are:
 
-            - "NO_INTERSECTIONS_ATTRIBUTE_COLUMNS": the output won't contain any
-              intersections between features. Attribute columns are preserved as columns
-              prefixed with "isXX_", where for each extra intersection a new set of
-              prefixed columns is created.
-            - "NO_INTERSECTIONS_ATTRIBUTE_LISTS": the output won't contain any
-              intersections between features. Attribute columns are retained and values
-              will be stored in a list the length of the number of intersections.
-              A column "nb_intersections" is added to indicate the number of
-              intersections per feature.
-            - "REPEATED_INTERSECTIONS": each location where the input features intersect
-              is duplicated the number of time that area is covered by an input feature.
-              Hence, the output may contain repeated intersections between features.
-              Attribute columns are retained, which each intersection having the
-              attribute values of one of the intersecting input features on that
-              location.
+            - "COLUMNS": the output won't contain any intersections between geometries.
+              The `columns` in the output are prefixed with "i1_", "i2_", etc., where
+              for each extra intersection on a location a new set of prefixed columns is
+              created. E.g. for an input layer with 1 column "test" where a location is
+              covered by 3 input features, the output will contain 3 columns: "i1_test",
+              "i2_test", and "i3_test" with each column having the attribute value of
+              one of the intersecting features on that location. For features with less
+              than the maximum number of intersections, the extra columns are NULL.
+            - "LISTS": the output won't contain any intersections between geometries.
+              The `columns` to retain will be available in the output as well, but
+              their values are stored in a list the length of the number of
+              intersections. A column "nb_intersecting" is added to indicate the number
+              of intersections per feature. Hence, if a location of an input layer with
+              1 column "test" is covered by 3 input features, the output will contain 2
+              columns: "test" and "nb_intersecting". For a location with 3 intersecting
+              features in the input layer, "nb_intersecting" will be 3 and the value in
+              the "test" column will be a json list with 3 values, each being the
+              attribute value of one of the intersecting features on that location.
+            - "ROWS": each location where the input features intersect is repeated the
+              number of times that area is covered by an input feature.
+              Hence, the output may contain intersections between features. Attribute
+              columns are retained, whith each intersection having the attribute values
+              of one of the intersecting input features on that location.
 
         input_layer (str, optional): input layer name. If None, ``input_path``
             should contain only one layer. Defaults to None.
@@ -3798,6 +3821,9 @@ def union_full_self(
             subdividing is applied. Defaults to 2000.
         force (bool, optional): overwrite existing output file(s).
             Defaults to False.
+
+    See Also:
+        * :func:`union`: calculate the pairwise union of two layers
     """
     logger = logging.getLogger("geofileops.union_full_self")
     logger.info(f"Start, with input: {input_path}, output: {output_path}")
@@ -3805,7 +3831,7 @@ def union_full_self(
     _union_full.union_full_self(
         input_path=Path(input_path),
         output_path=Path(output_path),
-        union_type=union_type,
+        intersections_as=intersections_as,
         input_layer=input_layer,
         output_layer=output_layer,
         columns=columns,
