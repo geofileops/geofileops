@@ -4,6 +4,7 @@ Tests for functionalities in geofileops.general.
 
 import os
 import shutil
+from contextlib import nullcontext
 from itertools import product
 from pathlib import Path
 
@@ -14,15 +15,21 @@ import shapely.geometry as sh_geom
 from osgeo import gdal
 from pandas.testing import assert_frame_equal
 from pygeoops import GeometryType
+from shapely import box
 
 import geofileops as gfo
 from geofileops import _compat as compat
 from geofileops import fileops
-from geofileops.util import _geofileinfo, _geopath_util, _geoseries_util
+from geofileops._compat import GDAL_GTE_311
+from geofileops.helpers._configoptions_helper import ConfigOptions
+from geofileops.util import _geofileinfo, _geoseries_util
+from geofileops.util._geopath_util import GeoPath
 from tests import test_helper
 from tests.test_helper import (
     SUFFIXES_FILEOPS,
     SUFFIXES_FILEOPS_EXT,
+    SUFFIXES_GEOOPS,
+    SUFFIXES_GEOOPS_EXT,
     assert_geodataframe_equal,
 )
 
@@ -45,16 +52,12 @@ if compat.GDAL_GTE_38 and not compat.GDAL_GTE_39:
 @pytest.fixture(scope="module", params=ENGINES)
 def engine_setter(request):
     engine = request.param
-    engine_backup = os.environ.get("GFO_IO_ENGINE", None)
-    if engine is None:
-        del os.environ["GFO_IO_ENGINE"]
-    else:
+    if engine is not None:
         os.environ["GFO_IO_ENGINE"] = engine
-    yield engine
-    if engine_backup is None:
+    elif "GFO_IO_ENGINE" in os.environ:
         del os.environ["GFO_IO_ENGINE"]
-    else:
-        os.environ["GFO_IO_ENGINE"] = engine_backup
+    yield engine
+    del os.environ["GFO_IO_ENGINE"]
 
 
 @pytest.fixture
@@ -63,26 +66,32 @@ def points_gdf():
     gdf = gpd.GeoDataFrame(
         [
             {"geometry": sh_geom.Point(x, y), "value1": x + y, "value2": x * y}
-            for x, y in zip(range(nb_points), range(nb_points))
+            for x, y in zip(range(nb_points), range(nb_points), strict=True)
         ],
         crs="epsg:4326",
     )
     return gdf
 
 
-def test_add_column_gpkg(tmp_path):
-    test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+@pytest.mark.parametrize("suffix", [".gpkg", ".shp"])
+def test_add_column(tmp_path, suffix):
+    test_path = test_helper.get_testfile(
+        "polygon-parcel", dst_dir=tmp_path, suffix=suffix
+    )
+    layer = "parcels" if suffix == ".gpkg" else None
+    geom_column = "geom" if suffix == ".gpkg" else "geometry"
 
     # The area column shouldn't be in the test file yet
-    layerinfo = gfo.get_layerinfo(path=test_path, layer="parcels")
+    layerinfo = gfo.get_layerinfo(path=test_path, layer=layer)
     assert "AREA" not in layerinfo.columns
 
     # Add area column
+    expression = f"ST_area({geom_column})"
     gfo.add_column(
-        test_path, layer="parcels", name="AREA", type="real", expression="ST_area(geom)"
+        test_path, layer=layer, name="AREA", type="real", expression=expression
     )
 
-    layerinfo = gfo.get_layerinfo(path=test_path, layer="parcels")
+    layerinfo = gfo.get_layerinfo(path=test_path, layer=layer)
     assert "AREA" in layerinfo.columns
 
     gdf = gfo.read_file(test_path)
@@ -91,14 +100,12 @@ def test_add_column_gpkg(tmp_path):
     )
 
     # Add perimeter column
+    expression = f"ST_perimeter({geom_column})"
     gfo.add_column(
-        test_path,
-        name="PERIMETER",
-        type=gfo.DataType.REAL,
-        expression="ST_perimeter(geom)",
+        test_path, name="PERIMETER", type=gfo.DataType.REAL, expression=expression
     )
 
-    layerinfo = gfo.get_layerinfo(path=test_path, layer="parcels")
+    layerinfo = gfo.get_layerinfo(path=test_path, layer=layer)
     assert "AREA" in layerinfo.columns
 
     gdf = gfo.read_file(test_path)
@@ -106,22 +113,7 @@ def test_add_column_gpkg(tmp_path):
         gdf["OPPERVL"].astype("float")[0], 1
     )
 
-    # Add a column of different gdal types
-    gdal_types = [
-        "Binary",
-        "Date",
-        "DateTime",
-        "Integer",
-        "Integer64",
-        "String",
-        "Time",
-        "Real",
-    ]
-    for type in gdal_types:
-        gfo.add_column(test_path, name=f"column_{type}", type=type)
     info = gfo.get_layerinfo(test_path)
-    for type in gdal_types:
-        assert f"column_{type}" in info.columns
 
     # Adding an already existing column doesn't give an error
     existing_column = next(iter(info.columns))
@@ -135,6 +127,65 @@ def test_add_column_gpkg(tmp_path):
     )
     gdf = gfo.read_file(test_path)
     assert gdf["HFDTLT"][0] == "5"
+
+
+@pytest.mark.parametrize(
+    "suffix, col_type, col_type_supported, exp_gdal_type",
+    [
+        (".gpkg", "Binary", True, "Binary"),
+        (".gpkg", "Blob", True, "Binary"),
+        (".gpkg", "Date", True, "Date"),
+        (".gpkg", "DateTime", True, "DateTime"),
+        (".gpkg", "Integer", True, "Integer64"),
+        (".gpkg", "Text", True, "String"),
+        (".gpkg", "Time", True, "DateTime"),
+        (".gpkg", "Real", True, "Real"),
+        (".gpkg", "Invalid", False, "Invalid"),
+        (".shp", "Binary", True, "String"),
+        (".shp", "Blob", True, "String"),
+        (".shp", "Date", True, "Date"),
+        (".shp", "DateTime", True, "String"),
+        (".shp", "Integer", True, "Integer"),
+        (".shp", "String", True, "String"),
+        (".shp", "Text", True, "String"),
+        (".shp", "Time", True, "String"),
+        (".shp", "Real", True, "Real"),
+        (".shp", "Invalid", True, "String"),
+    ],
+)
+def test_add_column_types(
+    tmp_path, suffix, col_type, col_type_supported, exp_gdal_type
+):
+    """Test adding columns of different types."""
+    # Before GDAL 3.11, Datetimes were saved in a Date column instead of a String column
+    # for shapefiles
+    if not GDAL_GTE_311 and suffix == ".shp" and col_type in ("DateTime", "Time"):
+        exp_gdal_type = "Date"
+
+    test_path = test_helper.get_testfile(
+        "polygon-parcel", suffix=suffix, dst_dir=tmp_path
+    )
+
+    column_name_add_column = f"tst_{col_type}"
+    column_name_add_columns = f"tst2_{col_type}"
+    if suffix == ".shp":
+        # Shapefile column name length limit = 10
+        column_name_add_column = column_name_add_column[:10]
+        column_name_add_columns = column_name_add_columns[:10]
+
+    handler = nullcontext() if col_type_supported else pytest.raises(RuntimeError)
+    with handler:
+        gfo.add_column(test_path, name=column_name_add_column, type=col_type)
+
+        info = gfo.get_layerinfo(test_path)
+        assert column_name_add_column in info.columns
+        assert info.columns[column_name_add_column].gdal_type == exp_gdal_type
+
+        gfo.add_columns(test_path, [(column_name_add_columns, col_type)])
+
+        info = gfo.get_layerinfo(test_path)
+        assert column_name_add_columns in info.columns
+        assert info.columns[column_name_add_columns].gdal_type == exp_gdal_type
 
 
 @pytest.mark.parametrize(
@@ -163,6 +214,222 @@ def test_add_column_update_error(tmp_path, suffix, transaction_supported):
         assert "ERROR_COL" in list(info.columns)
 
 
+@pytest.mark.parametrize("output_stem", [None, "new_parcels"])
+@pytest.mark.parametrize("do_updates", [True, False])
+@pytest.mark.parametrize("suffix", [".gpkg", ".shp"])
+def test_add_columns(tmp_path, output_stem, do_updates, suffix):
+    """Test the add_columns function."""
+    test_path = test_helper.get_testfile(
+        "polygon-parcel", dst_dir=tmp_path, suffix=suffix
+    )
+    test_input_gdf = gfo.read_file(test_path)
+
+    # Columns to add. Column lengths max 10 characters for shapefiles
+    test_info = gfo.get_layerinfo(path=test_path)
+    new_columns = [
+        ("GEWASGROEP", "string", "'testdata'"),
+        ("TST_AREA", "real", f"ST_area({test_info.geometrycolumn})"),
+        ("TST_PERIM", gfo.DataType.REAL, f"ST_perimeter({test_info.geometrycolumn})"),
+        ("TST_INT", "integer", "1"),
+        ("TST_STR", "string", "'test'"),
+        ("TST_STR_N", "string", None),
+        ("TST_REAL_N", "real", None),
+        ("TST_INT_N", "integer", None),
+    ]
+
+    # If no updates to be done, set expressions to None
+    if not do_updates:
+        new_columns = [(name, col_type, None) for name, col_type, _ in new_columns]
+
+    # Make sure the columns are not in the test file yet, except for GEWASGROEP
+    layerinfo = gfo.get_layerinfo(path=test_path)
+    for col_name, _, _ in new_columns:
+        if col_name == "GEWASGROEP":
+            assert col_name in layerinfo.columns
+        else:
+            assert col_name not in layerinfo.columns
+
+    # This is the test dir that most likely will be created during the operation. Make
+    # sure it doesn't exist yet.
+    tmp_dir = ConfigOptions.tmp_dir / "add_columns_000001"
+    shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    output_path = None if output_stem is None else tmp_path / f"{output_stem}{suffix}"
+    with gfo.TempEnv({"GFO_REMOVE_TEMP_FILES": False}):
+        gfo.add_columns(test_path, new_columns=new_columns, output_path=output_path)
+
+    # Check result
+    output_path = test_path if output_path is None else output_path
+    output_layerinfo = gfo.get_layerinfo(path=output_path)
+
+    # Check if columns were added
+    for col_name, col_type, _ in new_columns:
+        assert col_name in output_layerinfo.columns
+        exp_type = (col_type if isinstance(col_type, str) else col_type.value).lower()
+        output_type = output_layerinfo.columns[col_name].gdal_type.lower()
+        assert output_type.startswith(exp_type), (
+            f"Column {col_name}: expected {exp_type}, got {output_type}"
+        )
+
+    # Check content
+    gdf = gfo.read_file(output_path)
+
+    # The area and perimeter columns added should have similar values as the original
+    if do_updates:
+        assert round(gdf["TST_AREA"].astype("float")[0], 1) == round(
+            gdf["OPPERVL"].astype("float")[0], 1
+        )
+        assert round(gdf["TST_PERIM"].astype("float")[0], 1) == round(
+            gdf["LENGTE"].astype("float")[0], 1
+        )
+
+        # do_updates: the columns added with constant values should have those values
+        assert all(gdf["TST_INT"] == 1)
+        assert all(gdf["TST_STR"] == "test")
+
+        # do_updates: GEWASGROEP column should be overwritten to 'testdata'
+        assert all(gdf["GEWASGROEP"] == "testdata")
+    else:
+        # No updates, so new columns should have NaN values
+        assert all(pd.isna(gdf["TST_INT"]))
+        assert all(pd.isna(gdf["TST_STR"]))
+
+        # No updates, so GEWASGROEP column should NOT be overwritten to 'testdata'
+        assert all(gdf["GEWASGROEP"] == test_input_gdf["GEWASGROEP"])
+
+    # The NULL columns should have NaN values
+    assert all(pd.isna(gdf["TST_STR_N"]))
+    assert all(pd.isna(gdf["TST_REAL_N"]))
+    assert all(pd.isna(gdf["TST_INT_N"]))
+
+    # Check the tmp_dir
+    if output_stem is not None or do_updates:
+        # If an output_path is given or if updates are done, the tmp dir should exist
+        assert tmp_dir.exists()
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+    else:
+        assert not tmp_dir.exists()
+
+
+@pytest.mark.parametrize(
+    "kwargs, exp_exception, exp_error",
+    [
+        (
+            {"new_columns": ("AREA", "real", "ST_area(geom)")},
+            TypeError,
+            "new_columns should be a non-empty list of tuples",
+        ),
+        (
+            {"new_columns": [("AREA", "real", "ST_area(geom)", "extra")]},
+            TypeError,
+            "each element in new_columns should be a tuple with 2 or 3 elements",
+        ),
+        (
+            {"new_columns": [("AREA")]},
+            TypeError,
+            "each element in new_columns should be a tuple with 2 or 3 elements",
+        ),
+        (
+            {"new_columns": ["AREA"]},
+            TypeError,
+            "each element in new_columns should be a tuple with 2 or 3 elements",
+        ),
+        (
+            {
+                "new_columns": [("AREA", "real", "ST_area(geom)")],
+                "output_layer": "new_parcels",
+            },
+            ValueError,
+            "output_layer can only be used together with output_path",
+        ),
+        (
+            {"new_columns": [("AREA", "INVALID", "ST_area(geometry)")]},
+            RuntimeError,
+            "add_columns of name='AREA', type_str='INVALID' failed",
+        ),
+    ],
+)
+@pytest.mark.filterwarnings("ignore:Field format 'INVALID' not supported")
+@pytest.mark.filterwarnings("ignore:geometry column 'AREA' of type 'INVALID' ignored")
+def test_add_columns_errors(tmp_path, kwargs, exp_exception, exp_error):
+    test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+
+    # new_columns not a list
+    with pytest.raises(exp_exception, match=exp_error):
+        gfo.add_columns(test_path, **kwargs)
+
+
+def test_add_columns_errors_different_output_suffix(tmp_path):
+    """Test error when output_path has a different suffix than input file."""
+    test_path = test_helper.get_testfile("polygon-parcel", suffix=".gpkg")
+
+    # Create an output path with different suffix
+    output_path = tmp_path / "output.shp"
+    with pytest.raises(
+        ValueError, match="output_path should have the same suffix as the input path"
+    ):
+        gfo.add_columns(
+            test_path, new_columns=[("AREA", "real")], output_path=output_path
+        )
+
+
+@pytest.mark.parametrize(
+    "testfile, suffix, input_layer, output_layer, exp_output_layer",
+    [
+        ("polygon-parcel", ".shp", "DEFAULT", None, "output_file"),
+        ("polygon-parcel", ".shp", "DEFAULT", "output_layer", "output_file"),
+        ("polygon-parcel", ".gpkg", "parcels", "output_layer", "output_layer"),
+        ("polygon-parcel", ".gpkg", "parcels", None, "output_file"),
+        ("polygon-parcel", ".gpkg", "DEFAULT", "output_layer", "output_layer"),
+        ("polygon-parcel", ".gpkg", "DEFAULT", None, "output_file"),
+        ("polygon-twolayers", ".gpkg", "parcels", None, "parcels"),
+        ("polygon-twolayers", ".gpkg", "DEFAULT", None, "INPUT_LAYER"),
+        ("polygon-twolayers", ".gpkg", "parcels", "output_layer", "output_layer"),
+    ],
+)
+def test_add_columns_output_layer(
+    tmp_path, testfile, suffix, input_layer, output_layer, exp_output_layer
+):
+    """Test the add_columns function with output_layer parameter.
+
+    Remark: output_layer is ignored for single-layer file formats such as shapefiles.
+    """
+    test_path = test_helper.get_testfile(testfile, dst_dir=tmp_path, suffix=suffix)
+    if input_layer == "DEFAULT":
+        input_layer = gfo.get_default_layer(test_path)
+    if suffix == ".gpkg":
+        gfo.rename_layer(test_path, new_layer=input_layer, layer="parcels")
+
+    # Columns to add
+    new_columns = [("new_column", "string")]
+
+    output_path = tmp_path / f"output_file{suffix}"
+    gfo.add_columns(
+        test_path,
+        layer=input_layer,
+        new_columns=new_columns,
+        output_path=output_path,
+        output_layer=output_layer,
+    )
+
+    # Check result
+    if exp_output_layer == "DEFAULT":
+        exp_output_layer = gfo.get_default_layer(output_path)
+    elif exp_output_layer == "INPUT_LAYER":
+        exp_output_layer = input_layer
+    output_layerinfo = gfo.get_layerinfo(path=output_path, layer=exp_output_layer)
+    assert output_layerinfo.name == exp_output_layer
+
+    # Check if columns were added
+    for col_name, col_type in new_columns:
+        assert col_name in output_layerinfo.columns
+        exp_type = (col_type if isinstance(col_type, str) else col_type.value).lower()
+        output_type = output_layerinfo.columns[col_name].gdal_type.lower()
+        assert output_type.startswith(exp_type), (
+            f"Column {col_name}: expected {exp_type}, got {output_type}"
+        )
+
+
 def test_append_to(tmp_path):
     """Test the append_to function.
 
@@ -183,6 +450,54 @@ def test_append_to(tmp_path):
     assert info.featurecount == 96
 
 
+@pytest.mark.parametrize("force_update", [True, False])
+def test_add_columns_existing(tmp_path, force_update):
+    """Test adding columns that already exist."""
+    test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+
+    # Columns to add
+    new_columns = [
+        ("GEWASGROEP", "string", "'testdata'"),
+        ("UIDN", "integer64", "9999"),
+    ]
+
+    # Make sure the columns are in the test file already
+    layerinfo = gfo.get_layerinfo(path=test_path, layer="parcels")
+    for col_name, _, _ in new_columns:
+        assert col_name in layerinfo.columns
+
+    gfo.add_columns(
+        test_path,
+        layer="parcels",
+        new_columns=new_columns,
+        force_update=force_update,
+    )
+
+    # Check result
+    output_layerinfo = gfo.get_layerinfo(path=test_path, layer="parcels")
+
+    # Check if columns are still there
+    for col_name, col_type, _ in new_columns:
+        assert col_name in output_layerinfo.columns
+        exp_type = (col_type if isinstance(col_type, str) else col_type.value).lower()
+        output_type = output_layerinfo.columns[col_name].gdal_type.lower()
+        assert output_type == exp_type, (
+            f"Column {col_name}: expected {exp_type}, got {output_type}"
+        )
+
+    # Check content
+    gdf = gfo.read_file(test_path)
+
+    if force_update:
+        # If force_update, the new values should be there
+        assert all(gdf["GEWASGROEP"] == "testdata")
+        assert all(gdf["UIDN"] == 9999)
+    else:
+        # If not force_update, the original values should be kept
+        assert all(gdf["GEWASGROEP"] != "testdata")
+        assert all(gdf["UIDN"] != 9999)
+
+
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS_EXT)
 @pytest.mark.parametrize("keep_permissions", [True, False])
 def test_cmp(tmp_path, suffix, keep_permissions):
@@ -196,97 +511,6 @@ def test_cmp(tmp_path, suffix, keep_permissions):
     # Now compare source and dst files
     assert gfo.cmp(src, dst) is True
     assert gfo.cmp(src2, dst) is False
-
-
-@pytest.mark.parametrize(
-    "columns, spatial_index, output_layer, output_suffix",
-    [
-        (None, None, None, ".gpkg"),
-        (None, None, None, ".shp"),
-        (["OIDN", "UIDN"], False, "custom", ".gpkg"),
-        (["OIDN"], True, None, ".shp"),
-    ],
-)
-def test_concat(tmp_path, columns, spatial_index, output_layer, output_suffix):
-    """Test the concat function."""
-    # Prepare test data
-    input1 = test_helper.get_testfile("polygon-parcel")
-    input2 = test_helper.get_testfile("polygon-twolayers")
-    output = tmp_path / f"output{output_suffix}"
-
-    # Test
-    gfo.concat(
-        [input1, input1, input2],
-        output,
-        input_layers=[None, "parcels", "parcels"],
-        output_layer=output_layer,
-        columns=columns,
-        spatial_index=spatial_index,
-    )
-
-    # Now check dst file
-    input1_layerinfo = gfo.get_layerinfo(input1)
-    input2_layerinfo = gfo.get_layerinfo(input2, layer="parcels")
-    output_layerinfo = gfo.get_layerinfo(output)
-
-    exp_featurecount = input1_layerinfo.featurecount * 2 + input2_layerinfo.featurecount
-    assert output_layerinfo.featurecount == exp_featurecount
-    exp_nb_columns = len(input1_layerinfo.columns) if columns is None else len(columns)
-    assert len(output_layerinfo.columns) == exp_nb_columns
-    assert output_layerinfo.geometrytypename == input1_layerinfo.geometrytypename
-
-    exp_layer = (
-        output_layer if output_layer is not None else fileops.get_default_layer(output)
-    )
-    assert output_layerinfo.name == exp_layer
-
-    exp_spatial_index = (
-        spatial_index
-        if spatial_index is not None
-        else _geofileinfo.get_geofileinfo(output).default_spatial_index
-    )
-    assert gfo.has_spatial_index(output) is exp_spatial_index
-
-
-def test_concat_existing_output(tmp_path):
-    """Test the concat function with an existing output file."""
-    # Prepare test data
-    input = test_helper.get_testfile("polygon-parcel")
-    output = tmp_path / "output.gpkg"
-    output.touch()
-
-    # Test
-    gfo.concat([input, input], output)
-
-    # The test file should not be overwritten/changed.
-    assert output.stat().st_size == 0
-
-
-def test_concat_explodecollections(tmp_path):
-    """Test the concat function with explodecollections."""
-    # Prepare test data
-    input = test_helper.get_testfile("polygon-parcel")
-    input_expl = tmp_path / "input_exploded.gpkg"
-    gfo.copy_layer(input, input_expl, explodecollections=True)
-
-    # Test
-    output = tmp_path / "output.gpkg"
-    gfo.concat([input_expl, input_expl], output, explodecollections=True)
-
-    # Now check the result file
-    input_info = gfo.get_layerinfo(input)
-    input_expl_info = gfo.get_layerinfo(input_expl)
-    output_info = gfo.get_layerinfo(output)
-
-    # Make sure the input file contains multipolygons
-    assert input_info.geometrytypename == "MULTIPOLYGON"
-    assert input_info.featurecount < input_expl_info.featurecount
-
-    exp_featurecount = input_expl_info.featurecount * 2
-    assert output_info.featurecount == exp_featurecount
-    exp_nb_column = len(input_expl_info.columns)
-    assert len(output_info.columns) == exp_nb_column
-    assert output_info.geometrytypename == "POLYGON"
 
 
 def test_convert(tmp_path):
@@ -434,14 +658,71 @@ def test_copy_layer_add_layer_shp(tmp_path):
     assert layer1_info.featurecount == 48
 
 
-def test_copy_layer_append_different_layer(tmp_path):
+@pytest.mark.parametrize(
+    "suffix, copy_layer_sqlite_direct",
+    [(".gpkg", True), (".gpkg", False), (".shp", False)],
+)
+def test_copy_layer_append_bounds(tmp_path, suffix, copy_layer_sqlite_direct):
+    """Test appending rows and checking the total bounds of the result file."""
+    if copy_layer_sqlite_direct and suffix != ".gpkg":
+        raise ValueError("copy_layer_sqlite_direct can only be True for .gpkg files.")
+
+    # Prepare test data: use two files with different total_bounds.
+    layer1_path = test_helper.get_testfile(
+        "polygon-parcel", dst_dir=tmp_path, suffix=suffix
+    )
+    layer1 = "parcels" if suffix == ".gpkg" else None
+
+    # For copy_layer_sqlite_direct to be applied, one of (many) prerequisites is that
+    # all columns must have the same column name. To achieve this, set name to "geom".
+    geom_name = "geom" if copy_layer_sqlite_direct else None
+    layer2_path = test_helper.get_testfile(
+        "polygon-zone", suffix=suffix, geom_name=geom_name, dst_dir=tmp_path
+    )
+    # Remove "naam" column as it is not in polygon-parcel
+    gfo.drop_column(layer2_path, column_name="naam")
+    layer2 = "zones" if suffix == ".gpkg" else None
+
+    layer1_info = gfo.get_layerinfo(layer1_path, layer=layer1)
+    layer2_info = gfo.get_layerinfo(layer2_path, layer=layer2)
+
+    # Append layer2 to layer1 file
+    gfo.copy_layer(
+        src=str(layer2_path),
+        dst=str(layer1_path),
+        src_layer=layer2,
+        dst_layer=layer1,
+        write_mode="append",
+    )
+
+    # Check result
+    result_layers = gfo.listlayers(layer1_path)
+    assert len(result_layers) == 1
+    if layer1 is not None:
+        assert result_layers == [layer1]
+    result_info = gfo.get_layerinfo(layer1_path)
+    assert (
+        result_info.featurecount == layer1_info.featurecount + layer2_info.featurecount
+    )
+
+    # Check total bounds
+    exp_total_bounds = sh_geom.MultiPolygon(
+        [box(*layer1_info.total_bounds), box(*layer2_info.total_bounds)]
+    ).bounds
+    exp_total_bounds_rounded = [round(coord) for coord in exp_total_bounds]
+    result_total_bounds_rounded = [round(coord) for coord in result_info.total_bounds]
+    assert result_total_bounds_rounded == exp_total_bounds_rounded
+
+
+@pytest.mark.parametrize("write_mode", ["append", "append_add_fields"])
+def test_copy_layer_append_different_layer(tmp_path, write_mode):
     # Prepare test data
     src_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
     dst_path = tmp_path / "dst.gpkg"
 
     # Copy src file to dst file to "layer1"
     gfo.copy_layer(
-        str(src_path), str(dst_path), dst_layer="layer1", write_mode="append"
+        str(src_path), str(dst_path), dst_layer="layer1", write_mode=write_mode
     )
     src_info = gfo.get_layerinfo(src_path)
     dst_layer1_info = gfo.get_layerinfo(dst_path, "layer1")
@@ -453,40 +734,52 @@ def test_copy_layer_append_different_layer(tmp_path):
     assert dst_layer1_info.featurecount == dst_layer2_info.featurecount
 
 
+@pytest.mark.parametrize("write_mode", ["append", "append_add_fields"])
+@pytest.mark.parametrize("limit_dst_columns", [True, False])
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
-def test_copy_layer_append_columns(tmp_path, suffix):
+def test_copy_layer_append_columns(tmp_path, write_mode, limit_dst_columns, suffix):
     """Test appending rows specifying some columns.
 
-    This does not seem to be supported by GDAL.
+    Both the situation where the dst file has the same columns as the columns being
+    appended, and where the dst file has more columns than the columns being appended
+    tested.
+
+    This doesn't seem to be supported by GDAL .csv.
     """
     # Prepare test data
-    src_path = test_helper.get_testfile(
-        "polygon-parcel", dst_dir=tmp_path, suffix=suffix
-    )
+    src_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     dst_path = tmp_path / f"dst{suffix}"
-    gfo.copy(src_path, dst_path)
-
-    src_info = gfo.get_layerinfo(src_path, raise_on_nogeom=False)
-    src_columns = list(src_info.columns)
+    gfo.copy(src_path, dst_path, keep_permissions=False)
     dst_columns = ["OIDN", "UIDN", "GEWASGROEP"]
-    for column in src_columns:
-        if column not in dst_columns:
-            gfo.drop_column(dst_path, column_name=column)
 
-    # For GPKG and CSV files, the append fails
-    if suffix in (".gpkg", ".csv"):
-        pytest.xfail(
-            "Appending only certain columns is not supported for GPKG and CSV files"
-        )
+    # Remove columns we are not going to copy from the dst file.
+    dst_info_orig = gfo.get_layerinfo(dst_path, raise_on_nogeom=False)
+    columns_orig = list(dst_info_orig.columns)
+    if limit_dst_columns:
+        for column in columns_orig:
+            if column not in dst_columns:
+                gfo.drop_column(dst_path, column_name=column)
+        exp_columns = len(dst_columns)
+    else:
+        exp_columns = len(columns_orig)
 
-    # For other file types, all rows are appended tot the dst layer, but the extra
-    # column is not!
-    gfo.copy_layer(src_path, dst_path, columns=dst_columns, write_mode="append")
+    if suffix == ".csv":
+        pytest.xfail("Appending only certain columns is not supported for .csv.")
+
+    dst_layer = "parcels" if suffix == ".gpkg" else None
+    gfo.copy_layer(
+        src_path,
+        dst_path,
+        columns=dst_columns,
+        dst_layer=dst_layer,
+        write_mode=write_mode,
+    )
 
     # Check results
+    src_info = gfo.get_layerinfo(src_path, raise_on_nogeom=False)
     dst_info = gfo.get_layerinfo(dst_path, raise_on_nogeom=False)
     assert (src_info.featurecount * 2) == dst_info.featurecount
-    assert len(dst_info.columns) == len(dst_columns)
+    assert len(dst_info.columns) == exp_columns
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
@@ -509,7 +802,8 @@ def test_copy_layer_append_default_layer(tmp_path, suffix):
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
-def test_copy_layer_append_different_columns(tmp_path, suffix):
+@pytest.mark.parametrize("write_mode", ["append", "append_add_fields"])
+def test_copy_layer_append_different_columns(tmp_path, write_mode, suffix):
     """Test appending rows to a file with a column less than in source file."""
     # Prepare test data
     src_path = test_helper.get_testfile(
@@ -518,36 +812,43 @@ def test_copy_layer_append_different_columns(tmp_path, suffix):
     dst_path = tmp_path / f"dst{suffix}"
     gfo.copy_layer(src_path, dst_path)
     gfo.add_column(src_path, name="extra_col", type=gfo.DataType.INTEGER)
+    raise_on_nogeom = suffix != ".csv"
+    dst_orig_info = gfo.get_layerinfo(dst_path, raise_on_nogeom=raise_on_nogeom)
 
     # All rows are appended tot the dst layer, but the extra column is not!
-    gfo.copy_layer(src_path, dst_path, write_mode="append")
+    gfo.copy_layer(src_path, dst_path, write_mode=write_mode)
 
     # Check results
-    raise_on_nogeom = False if suffix == ".csv" else True
-
     src_info = gfo.get_layerinfo(src_path, raise_on_nogeom=raise_on_nogeom)
     res_info = gfo.get_layerinfo(dst_path, raise_on_nogeom=raise_on_nogeom)
+    exp_columns = len(dst_orig_info.columns)
+    if write_mode == "append_add_fields":
+        # With add_fields, the extra column should is added to the dst layer
+        exp_columns += 1
+
     assert (src_info.featurecount * 2) == res_info.featurecount
-    assert len(src_info.columns) == len(res_info.columns) + 1
+    assert len(res_info.columns) == exp_columns
 
 
-def test_copy_layer_append_error_non_default_layer(tmp_path):
+@pytest.mark.parametrize("write_mode", ["append", "append_add_fields"])
+def test_copy_layer_append_error_non_default_layer(tmp_path, write_mode):
     # Prepare test data
-    src = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    src = test_helper.get_testfile("polygon-parcel")
     dst = tmp_path / "output.gpkg"
-    gfo.copy(src, dst)
+    gfo.copy(src, dst, keep_permissions=False)
 
     # Append fails if no layer is specified and a layer that does not have the default
     # layer name exists already
     with pytest.raises(ValueError, match="dst_layer is required when write_mode is"):
-        gfo.copy_layer(src, dst, write_mode="append")
+        gfo.copy_layer(src, dst, write_mode=write_mode)
 
 
-def test_copy_layer_append_error_other_layers(tmp_path):
+@pytest.mark.parametrize("write_mode", ["append", "append_add_fields"])
+def test_copy_layer_append_error_other_layers(tmp_path, write_mode):
     # Prepare test data
-    src = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
+    src = test_helper.get_testfile("polygon-parcel")
     dst = tmp_path / "output.gpkg"
-    gfo.copy(src, dst)
+    gfo.copy(src, dst, keep_permissions=False)
     gfo.copy_layer(
         src, dst, write_mode="add_layer", dst_layer=gfo.get_default_layer(dst)
     )
@@ -555,7 +856,7 @@ def test_copy_layer_append_error_other_layers(tmp_path):
     # Append fails if no layer is specified and multiple layers exist already, even if
     # one of them has the default layer name
     with pytest.raises(ValueError, match="dst_layer is required when write_mode is"):
-        gfo.copy_layer(src, dst, write_mode="append")
+        gfo.copy_layer(src, dst, write_mode=write_mode)
 
 
 @pytest.mark.parametrize("testfile", ["polygon-parcel", "curvepolygon"])
@@ -667,7 +968,7 @@ def test_copy_layer_emptyfile(tmp_path, dimensions, suffix):
         empty=True,
         dimensions=dimensions,
     )
-    raise_on_nogeom = False if suffix == ".csv" else True
+    raise_on_nogeom = suffix != ".csv"
     dst = tmp_path / f"{src.stem}-output{suffix}"
 
     # Convert
@@ -697,6 +998,21 @@ def test_copy_layer_explodecollections(tmp_path, testfile, expected_count):
 
     result_gdf = gfo.read_file(dst)
     assert len(result_gdf) == expected_count
+
+
+@pytest.mark.parametrize("suffix_input, suffix_output", [(".shp", ".kml")])
+@pytest.mark.filterwarnings("ignore: Multiple drivers found, using first one of")
+def test_copy_layer_extra_formats(tmp_path, suffix_input, suffix_output):
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel", suffix=suffix_input)
+
+    # Run test
+    dst = tmp_path / f"output{suffix_output}"
+    gfo.copy_layer(src=src, dst=dst)
+
+    # Check result
+    result_gdf = gfo.read_file(dst)
+    assert len(result_gdf) == 48
 
 
 @pytest.mark.parametrize(
@@ -886,7 +1202,7 @@ def test_copy_layer_sql(tmp_path, suffix):
     gfo.copy_layer(src, dst, src_layer=src_layer, sql_stmt=sql_stmt)
     read_gdf = gfo.read_file(src, sql_stmt=sql_stmt)
     assert isinstance(read_gdf, pd.DataFrame)
-    if not suffix == ".csv":
+    if suffix != ".csv":
         assert isinstance(read_gdf, gpd.GeoDataFrame)
     assert len(read_gdf) == 48
 
@@ -1087,7 +1403,7 @@ def test_drop_column(tmp_path, suffix):
     test_path = test_helper.get_testfile(
         "polygon-parcel", dst_dir=tmp_path, suffix=suffix
     )
-    raise_on_nogeom = False if suffix == ".csv" else True
+    raise_on_nogeom = suffix != ".csv"
     original_info = gfo.get_layerinfo(test_path, raise_on_nogeom=raise_on_nogeom)
     assert "GEWASGROEP" in original_info.columns
 
@@ -1201,7 +1517,7 @@ def test_get_layer_geometrytypes_geometry(tmp_path):
     assert geometrytypes == ["POLYGON", "MULTIPOLYGON"]
 
 
-def test_get_layer_geometrytypes_vsi(tmp_path):
+def test_get_layer_geometrytypes_vsi():
     """Test get_layer_geometrytypes on an online zipped shapefile via vsi."""
     src = f"/vsizip//vsicurl/{test_helper.data_url}/poly_shp.zip/poly.shp"
 
@@ -1433,7 +1749,7 @@ def test_listlayers_one_layer(suffix, only_spatial_layers, expected):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     layers = gfo.listlayers(src, only_spatial_layers=only_spatial_layers)
 
-    expected = [exp.format(src_stem=_geopath_util.stem(src)) for exp in expected]
+    expected = [exp.format(src_stem=GeoPath(src).stem) for exp in expected]
     assert layers == expected
 
 
@@ -1518,7 +1834,7 @@ def test_update_column_error(tmp_path):
 
     # Trying to update column that doesn't exist should raise ValueError
     assert "not_existing column" not in layerinfo.columns
-    with pytest.raises(ValueError, match="Column .* doesn't exist in"):
+    with pytest.raises(ValueError, match=r"Column .* doesn't exist in"):
         gfo.update_column(
             test_path, name="not_existing column", expression="ST_area(geom)"
         )
@@ -1531,7 +1847,7 @@ def test_update_column_error(tmp_path):
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS_EXT)
 @pytest.mark.parametrize("dimensions", [None, "XYZ"])
-def test_read_file(suffix, dimensions, engine_setter):
+def test_read_file(suffix, dimensions, engine_setter):  # noqa: ARG001
     # Remark: it seems like Z dimensions aren't read in geopandas.
     # Prepare and validate test data
     if dimensions == "XYZ" and suffix == ".gpkg.zip":
@@ -1573,7 +1889,7 @@ def test_read_file(suffix, dimensions, engine_setter):
         (["OIDN", "GEWASGROEP", "lengte"], "IGNORE"),
     ],
 )
-def test_read_file_columns_geometry(tmp_path, suffix, columns, geometry, engine_setter):
+def test_read_file_columns_geometry(tmp_path, suffix, columns, geometry, engine_setter):  # noqa: ARG001
     # Prepare test data
     # For multi-layer filetype, use 2-layer file for better test coverage
     src_info = _geofileinfo.get_geofileinfo(suffix)
@@ -1613,19 +1929,13 @@ def test_read_file_columns_geometry(tmp_path, suffix, columns, geometry, engine_
     else:
         raise ValueError(f"Invalid value for geometry: {geometry}")
 
-    if ignore_geometry or src_info.driver == "CSV":
-        expect_geometry = False
-    else:
-        expect_geometry = True
+    expect_geometry = not (ignore_geometry or src_info.driver == "CSV")
 
     exp_columns = list(columns) if isinstance(columns, list) else [columns]
     if expect_geometry:
         exp_columns += ["geometry"]
 
-    if columns == [] and not expect_geometry:
-        exp_featurecount = 0
-    else:
-        exp_featurecount = 48
+    exp_featurecount = 0 if columns == [] and not expect_geometry else 48
 
     # Test
     read_gdf = gfo.read_file(
@@ -1652,7 +1962,7 @@ def test_read_file_curve():
     assert isinstance(read_gdf.geometry[0], sh_geom.Polygon)
 
 
-def test_read_file_invalid_params(tmp_path, engine_setter):
+def test_read_file_invalid_params(tmp_path, engine_setter):  # noqa: ARG001
     src = tmp_path / "nonexisting_file.gpkg"
 
     with pytest.raises(FileNotFoundError, match="File not found:"):
@@ -1660,14 +1970,11 @@ def test_read_file_invalid_params(tmp_path, engine_setter):
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
-def test_read_file_fid_as_index(suffix, engine_setter):
+def test_read_file_fid_as_index(suffix, engine_setter):  # noqa: ARG001
     # Prepare test data
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
-    if suffix == ".csv":
-        # if no geometry column available in file, a pd.DataFrame is returned
-        exp_columns = 11
-    else:
-        exp_columns = 12
+    # if no geometry column available in file, a pd.DataFrame is returned
+    exp_columns = 11 if suffix == ".csv" else 12
 
     # First read without fid_as_index=True
     read_gdf = gfo.read_file(src, rows=slice(5, 10))
@@ -1720,7 +2027,7 @@ def test_read_file_sql(suffix, engine_setter):
 def test_read_file_sql_deprecated(suffix, engine_setter):
     if engine_setter == "fiona":
         pytest.skip("sql_stmt param not supported for fiona engine")
-    raise_on_nogeom = False if suffix == ".csv" else True
+    raise_on_nogeom = suffix != ".csv"
 
     # Prepare test data
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
@@ -1737,7 +2044,7 @@ def test_read_file_sql_deprecated(suffix, engine_setter):
 def test_read_file_sql_no_geom(suffix, engine_setter):
     if engine_setter == "fiona":
         pytest.skip("sql_stmt param not supported for fiona engine")
-    raise_on_nogeom = False if suffix == ".csv" else True
+    raise_on_nogeom = suffix != ".csv"
 
     # Prepare test data
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
@@ -1760,11 +2067,14 @@ def test_read_file_sql_no_geom(suffix, engine_setter):
         (".gpkg", "polygon-twolayers", "parcels"),
     ],
 )
-def test_read_file_sql_placeholders(suffix, testfile, layer, columns):
+def test_read_file_sql_placeholders(suffix, testfile, layer, columns, engine_setter):
+    """Test if placeholders are properly filled out.
+
+    Also verify if casing used in columns parameter is retained when using placeholders.
     """
-    Test if placeholders are properly filled out + if casing used in columns parameter
-    is retained when using placeholders.
-    """
+    if engine_setter == "fiona":
+        pytest.skip("sql_stmt param not supported for fiona engine")
+
     # Prepare test data
     src = test_helper.get_testfile(testfile, suffix=suffix)
 
@@ -1781,7 +2091,7 @@ def test_read_file_sql_placeholders(suffix, testfile, layer, columns):
     assert_geodataframe_equal(read_gdf, read_sql_gdf)
 
 
-def test_read_file_two_layers(engine_setter):
+def test_read_file_two_layers(engine_setter):  # noqa: ARG001
     src = test_helper.get_testfile("polygon-twolayers")
     layers = gfo.listlayers(src)
     assert "parcels" in layers
@@ -1809,7 +2119,7 @@ def test_rename_column(tmp_path, suffix):
     test_path = test_helper.get_testfile(
         "polygon-parcel", dst_dir=tmp_path, suffix=suffix
     )
-    raise_on_nogeom = False if suffix == ".csv" else True
+    raise_on_nogeom = suffix != ".csv"
 
     # Check if input file is ok
     orig_layerinfo = gfo.get_layerinfo(test_path, raise_on_nogeom=raise_on_nogeom)
@@ -1859,10 +2169,19 @@ def test_rename_layer(tmp_path):
     assert len(gfo.get_layerstyles(test_path, layer="PARCELS_RENAMED")) == 1
 
 
-def test_rename_layer_unsupported(tmp_path):
-    path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=".shp")
-    with pytest.raises(ValueError, match="rename_layer not possible for"):
-        _ = gfo.rename_layer(path, layer="layer", new_layer="new_layer")
+@pytest.mark.parametrize(
+    "suffix, layer, expected_error",
+    [
+        (".shp", None, "rename_layer not supported for"),
+        (".shp.zip", None, "rename_layer not supported for"),
+        (".shp", "layer", "rename_layer not supported for"),
+        (".shp.zip", "layer", "rename_layer not supported for"),
+    ],
+)
+def test_rename_layer_unsupported(tmp_path, suffix, layer, expected_error):
+    path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=suffix)
+    with pytest.raises(ValueError, match=expected_error):
+        _ = gfo.rename_layer(path, layer=layer, new_layer="new_layer")
 
 
 def test_execute_sql(tmp_path):
@@ -1945,7 +2264,7 @@ def test_to_file(tmp_path, suffix, dimensions, engine_setter):
     src = test_helper.get_testfile(
         "polygon-parcel", suffix=suffix, dimensions=dimensions
     )
-    output_path = tmp_path / f"{_geopath_util.stem(src)}-output{suffix}"
+    output_path = tmp_path / f"{GeoPath(src).stem}-output{suffix}"
     uidn = str(2318781) if suffix == ".csv" else 2318781
     encoding = "utf-8" if suffix == ".csv" else None
 
@@ -1983,11 +2302,11 @@ def test_to_file(tmp_path, suffix, dimensions, engine_setter):
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
-def test_to_file_append(tmp_path, suffix, engine_setter):
+def test_to_file_append(tmp_path, suffix, engine_setter):  # noqa: ARG001
     test_path = test_helper.get_testfile(
         "polygon-parcel", dst_dir=tmp_path, suffix=suffix
     )
-    raise_on_nogeom = False if suffix == ".csv" else True
+    raise_on_nogeom = suffix != ".csv"
 
     test_gdf = gfo.read_file(test_path)
     gfo.to_file(test_gdf, path=test_path, append=True)
@@ -1999,11 +2318,11 @@ def test_to_file_append(tmp_path, suffix, engine_setter):
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
-def test_to_file_append_to_unexisting_file(tmp_path, suffix, engine_setter):
+def test_to_file_append_to_unexisting_file(tmp_path, suffix, engine_setter):  # noqa: ARG001
     test_path = test_helper.get_testfile(
         "polygon-parcel", dst_dir=tmp_path, suffix=suffix
     )
-    raise_on_nogeom = False if suffix == ".csv" else True
+    raise_on_nogeom = suffix != ".csv"
 
     test_gdf = gfo.read_file(test_path)
     dst_path = tmp_path / f"dst{suffix}"
@@ -2028,7 +2347,8 @@ def test_to_file_append_different_columns(tmp_path, engine_setter):
         gfo.to_file(test_gdf, path=test_path, append=True)
 
 
-def test_to_file_attribute_table_gpkg(tmp_path, engine_setter):
+def test_to_file_attribute_table_gpkg(tmp_path, engine_setter):  # noqa: ARG001
+    """Test writing a DataFrame without geometry to a geopackage."""
     # Prepare test data
     test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
 
@@ -2060,7 +2380,7 @@ def test_to_file_create_spatial_index(
     suffix: str,
     create_spatial_index: bool,
     expected_spatial_index: bool,
-    engine_setter,
+    engine_setter,  # noqa: ARG001
 ):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     output_path = tmp_path / f"{src.stem}-output{suffix}"
@@ -2075,7 +2395,7 @@ def test_to_file_create_spatial_index(
 def test_to_file_emptyfile(tmp_path, suffix):
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
-    raise_on_nogeom = False if suffix == ".csv" else True
+    raise_on_nogeom = suffix != ".csv"
     input_layerinfo = gfo.get_layerinfo(input_path, raise_on_nogeom=raise_on_nogeom)
     read_gdf = gfo.read_file(input_path)
     empty_gdf = read_gdf.drop(read_gdf.index)
@@ -2100,7 +2420,7 @@ def test_to_file_emptyfile(tmp_path, suffix):
     assert input_layerinfo.geometrytype == output_layerinfo.geometrytype
 
 
-def test_to_file_fid_append_to(tmp_path, engine_setter):
+def test_to_file_fid_append_to(tmp_path, engine_setter):  # noqa: ARG001
     """Write 2 gpkg files with fid, then use append_to to merge them."""
     # Prepare test data
     suffix = ".gpkg"
@@ -2150,7 +2470,7 @@ def test_to_file_fid_append_to(tmp_path, engine_setter):
     assert_geodataframe_equal(written_gdf, expected_gdf)
 
 
-def test_to_file_force_geometrytype_multitype(tmp_path, engine_setter):
+def test_to_file_force_geometrytype_multitype(tmp_path, engine_setter):  # noqa: ARG001
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel")
     read_gdf = gfo.read_file(input_path)
@@ -2185,7 +2505,7 @@ def test_to_file_force_geometrytype_multitype(tmp_path, engine_setter):
 
 
 @pytest.mark.parametrize("suffix", [s for s in SUFFIXES_FILEOPS if s != ".csv"])
-def test_to_file_geomempty(tmp_path, suffix, engine_setter):
+def test_to_file_geomempty(tmp_path, suffix, engine_setter):  # noqa: ARG001
     # Test for gdf with an empty polygon + a polygon
     test_gdf = gpd.GeoDataFrame(
         geometry=[
@@ -2225,7 +2545,7 @@ def test_to_file_geomempty(tmp_path, suffix, engine_setter):
 
 
 @pytest.mark.parametrize("suffix", [s for s in SUFFIXES_FILEOPS if s != ".csv"])
-def test_to_file_geomnone(tmp_path, suffix, engine_setter):
+def test_to_file_geomnone(tmp_path, suffix, engine_setter):  # noqa: ARG001
     # Test for gdf with a None geometry + a polygon
     test_gdf = gpd.GeoDataFrame(
         geometry=[None, test_helper.TestData.polygon_with_island], crs=31370
@@ -2253,7 +2573,7 @@ def test_to_file_geomnone(tmp_path, suffix, engine_setter):
 
 
 @pytest.mark.parametrize("suffix", [s for s in SUFFIXES_FILEOPS if s != ".csv"])
-def test_to_file_index(tmp_path, points_gdf, suffix, engine_setter):
+def test_to_file_index(tmp_path, points_gdf, suffix, engine_setter):  # noqa: ARG001
     """Strongly based on similar test in geopandas."""
 
     class FileNumber:
@@ -2281,11 +2601,8 @@ def test_to_file_index(tmp_path, points_gdf, suffix, engine_setter):
         other_cols = list(df.columns)
         other_cols.remove("geometry")
 
-        if suffix == ".shp":
-            # ESRI Shapefile will add FID if no other columns exist
-            driver_col = ["FID"]
-        else:
-            driver_col = []
+        # ESRI Shapefile will add FID if no other columns exist
+        driver_col = ["FID"] if suffix == ".shp" else []
 
         if index_is_used:
             index_cols = list(df.index.names)
@@ -2304,13 +2621,11 @@ def test_to_file_index(tmp_path, points_gdf, suffix, engine_setter):
         tempfilename = next(fngen)
         gfo.to_file(df, tempfilename, index=None)
         df_check = gfo.read_file(tempfilename)
-        if len(other_cols) == 0:
-            expected_cols = driver_col[:]
-        else:
-            expected_cols = []
+        expected_cols = driver_col[:] if len(other_cols) == 0 else []
+
         if index_is_used:
             expected_cols += index_cols
-        expected_cols += other_cols + ["geometry"]
+        expected_cols += [*other_cols, "geometry"]
         assert list(df_check.columns) == expected_cols
 
         # check GeoDataFrame with index=True
@@ -2324,9 +2639,9 @@ def test_to_file_index(tmp_path, points_gdf, suffix, engine_setter):
         gfo.to_file(df, tempfilename, index=False)
         df_check = gfo.read_file(tempfilename)
         if len(other_cols) == 0:
-            expected_cols = driver_col + ["geometry"]
+            expected_cols = [*driver_col, "geometry"]
         else:
-            expected_cols = other_cols + ["geometry"]
+            expected_cols = [*other_cols, "geometry"]
         assert list(df_check.columns) == expected_cols
 
     # Checks where index is not used/saved
@@ -2458,7 +2773,7 @@ def test_to_file_nogeom(tmp_path, suffix):
         raise ValueError(f"test not implemented for suffix {suffix}")
 
 
-def test_to_file_vsi(tmp_path):
+def test_to_file_vsi():
     """Test writing to a file in vsimem."""
     # Prepare test data
     src = test_helper.get_testfile("polygon-parcel")
@@ -2484,6 +2799,24 @@ def test_remove(tmp_path, suffix):
     # Remove and check result
     gfo.remove(str(src))
     assert not src.exists()
+
+
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
+@pytest.mark.skipif(not GDAL_GTE_311, reason="sozip requires gdal>=3.11")
+def test_zip_geofile(tmp_path, suffix):
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+
+    sozip_path = tmp_path / "zipped.zip"
+    fileops.zip_geofile(input_path, sozip_path)
+
+    # Check result
+    assert sozip_path.exists()
+    assert sozip_path.stat().st_size > 0
+
+    unzipped_dir = tmp_path / "unzipped"
+    fileops.unzip_geofile(sozip_path, unzipped_dir)
+    for path in input_path if isinstance(input_path, list) else [input_path]:
+        assert (unzipped_dir / path.name).exists()
 
 
 def test_launder_columns():
@@ -2513,35 +2846,70 @@ def test_launder_columns():
         laundered = fileops._launder_column_names(columns)
 
 
-def test_zip_unzip(tmp_path):
+@pytest.mark.parametrize("suffix, exp_nb_files", [(".gpkg", 1), (".shp", 4)])
+def test_unzip_geofile(tmp_path, suffix, exp_nb_files):
     # Prepare test data
-    src = test_helper.get_testfile("polygon-parcel")
-    zip_path = tmp_path / "zipped.zip"
-    fileops._zip(src, zip_path)
-
-    # Unzip and check result
-    dst_dir = tmp_path / "unzipped"
-    fileops._unzip(zip_path, dst_dir)
-    assert len(list(dst_dir.iterdir())) == 1
-    assert (dst_dir / src.name).exists()
-
-
-def test_zip_unzip_dir(tmp_path):
-    # Prepare test data
-    src = test_helper.get_testfile("polygon-parcel")
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     zip_dir = tmp_path / "dir_to_zip"
     zip_dir.mkdir()
-    file1 = zip_dir / f"{src.stem}_1{src.suffix}"
-    file2 = zip_dir / f"{src.stem}_2{src.suffix}"
-    gfo.copy(src, file1)
-    gfo.copy(src, file2)
+    gfo.copy(input_path, zip_dir)
     zip_path = tmp_path / "zipped.zip"
     fileops._zip(zip_dir, zip_path)
 
     # Unzip and check result
-    dst_dir = tmp_path / "unzipped"
-    fileops._unzip(zip_path, dst_dir)
-    assert dst_dir.exists()
-    assert len(list(dst_dir.iterdir())) == 2
-    assert (dst_dir / file1.name).exists()
-    assert (dst_dir / file2.name).exists()
+    output_dir = tmp_path / "unzipped"
+    output_geofile_path = fileops.unzip_geofile(zip_path, output_dir)
+    assert output_dir.exists()
+    assert output_geofile_path.exists()
+    assert output_geofile_path == output_dir / input_path.name
+    assert len(list(output_dir.iterdir())) == exp_nb_files
+    assert (output_dir / input_path.name).exists()
+
+
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS_EXT)
+def test_unzip_geofile_error_multi_files(tmp_path, suffix):
+    # Prepare test data
+    input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
+    zip_dir = tmp_path / "dir_to_zip"
+    zip_dir.mkdir()
+    file = zip_dir / GeoPath(input_path).with_stem_suffix("_1").name
+    gfo.copy(input_path, file)
+    file = zip_dir / GeoPath(input_path).with_stem_suffix("_2").name
+    gfo.copy(input_path, file)
+    zip_path = tmp_path / "zipped.zip"
+    fileops._zip(zip_dir, zip_path)
+
+    # Unzip and check result
+    output_dir = tmp_path / "unzipped"
+    with pytest.raises(ValueError, match="Multiple geofiles found in zip"):
+        _ = fileops.unzip_geofile(zip_path, output_dir)
+
+
+def test_unzip_geofile_error_no_files(tmp_path):
+    # Prepare test data
+    zip_dir = tmp_path / "dir_to_zip"
+    zip_dir.mkdir()
+    zip_path = tmp_path / "zipped.zip"
+    fileops._zip(zip_dir, zip_path)
+
+    # Unzip and check result
+    output_dir = tmp_path / "unzipped"
+    with pytest.raises(ValueError, match="No files found in zip"):
+        _ = fileops.unzip_geofile(zip_path, output_dir)
+
+
+def test_unzip_geofile_error_no_geofiles(tmp_path):
+    # Prepare test data
+    zip_dir = tmp_path / "dir_to_zip"
+    zip_dir.mkdir()
+    file1 = zip_dir / "no_geo_file1.txt"
+    file1.touch()
+    file2 = zip_dir / "no_geo_file2.txt"
+    file2.touch()
+    zip_path = tmp_path / "zipped.zip"
+    fileops._zip(zip_dir, zip_path)
+
+    # Unzip and check result
+    output_dir = tmp_path / "unzipped"
+    with pytest.raises(ValueError, match="No geofile found in zip"):
+        _ = fileops.unzip_geofile(zip_path, output_dir)

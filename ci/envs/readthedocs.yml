@@ -7,7 +7,8 @@ dependencies:
   - cloudpickle
   - gdal >=3.6.3
   - geopandas-base >=0.12
-  - libspatialite >=5.0
+  - libspatialite
+  - matplotlib
   - nomkl  # Use openblas instead of mkl saves 600 MB. Linux OK, 50% slower on Windows and OSX!
   - numpy
   - packaging
@@ -23,3 +24,4 @@ dependencies:
   - pydata-sphinx-theme
   - sphinx
   - sphinx-automodapi
+  - sphinx-copybutton
