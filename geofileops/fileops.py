@@ -1143,7 +1143,9 @@ def add_columns(
             contain 2 or 3 elements: (name, type, optional expression). The `type` can
             be a string or a DataType enum value. The optional `expression` is a SQL
             expression to use to fill out the column value. It should be in SQLite
-            syntax and |spatialite_reference_link| functions can be used.
+            syntax and |spatialite_reference_link| functions can be used. If no
+            expression is provided or if it is None, the column will be created with
+            NULL values.
         layer (str, optional): The layer name. If None and the geofile
             has only one layer, that layer is used. Defaults to None.
         output_path (PathLike, optional): If specified, the modified file is written
@@ -1177,10 +1179,17 @@ def add_columns(
                         ELSE 3
                     END
                     '''),
-                ("new_text", "TEXT", None),
+                ("new_text", "TEXT", "'text_to_fill_out'"),
+                ("new_real_null", "REAL"),
             ]
             gfo.add_columns("file.gpkg", new_columns, layer="my_layer")
-    """
+
+
+    .. |spatialite_reference_link| raw:: html
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     # Validate input parameters
     if output_layer is not None and output_path is None:
         raise ValueError("output_layer can only be used together with output_path")
