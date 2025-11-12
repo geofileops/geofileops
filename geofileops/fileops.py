@@ -578,6 +578,8 @@ def execute_sql(
         * :func:`update_column`: update the values of a column in the layer
         * :func:`add_column`: add a column to the layer, optionally using a SQL
           expression to fill out the values
+        * :func:`add_columns`: add columns to the layer, optionally using a SQL
+          expression to fill out the values
 
     """
     datasource = None
@@ -1155,6 +1157,29 @@ def add_columns(
         force_update (bool, optional): If a column already exists, execute
             the update expression even if it means overwriting existing data.
             Defaults to False.
+
+    See Also:
+        * :func:`add_column`: add a single column to the layer
+        * :func:`update_column`: update a column of the layer
+
+    Examples:
+        To add multiple columns at once, some with an expression to fill out the values:
+
+        .. code-block:: python
+
+            new_columns = [
+                ("area", "REAL", "ST_Area(geom)"),
+                ("type_id", "INTEGER",
+                    '''
+                    CASE
+                        WHEN "type" = 'A' THEN 1
+                        WHEN "type" = 'B' THEN 2
+                        ELSE 3
+                    END
+                    '''),
+                ("new_text", "TEXT", None),
+            ]
+            gfo.add_columns("file.gpkg", new_columns, layer="my_layer")
     """
     # Validate input parameters
     if output_layer is not None and output_path is None:
