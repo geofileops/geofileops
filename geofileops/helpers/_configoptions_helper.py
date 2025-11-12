@@ -1,8 +1,10 @@
 import os
+import tempfile
+from pathlib import Path
 
 
 class classproperty(property):
-    def __get__(self, owner_self, owner_cls):
+    def __get__(self, owner_self, owner_cls):  # noqa: ANN001, ANN204
         return self.fget(owner_cls)
 
 
@@ -25,7 +27,7 @@ class ConfigOptions:
         return get_bool("GFO_COPY_LAYER_SQLITE_DIRECT", default=True)
 
     @classproperty
-    def io_engine(cls):
+    def io_engine(cls) -> str:
         """The IO engine to use."""
         io_engine = os.environ.get("GFO_IO_ENGINE", default="pyogrio").strip().lower()
         supported_values = ["pyogrio", "fiona"]
@@ -74,6 +76,49 @@ class ConfigOptions:
             bool: True to remove temp files. Defaults to True.
         """
         return get_bool("GFO_REMOVE_TEMP_FILES", default=True)
+
+    @classproperty
+    def subdivide_check_parallel_fraction(cls) -> int:
+        """For a file being checked in parallel, the fraction of features to check.
+
+        Returns:
+            int: The fraction of features to check for subdivision. Defaults to 5.
+        """
+        fraction = os.environ.get("GFO_SUBDIVIDE_CHECK_PARALLEL_FRACTION", default="5")
+
+        return int(fraction)
+
+    @classproperty
+    def subdivide_check_parallel_rows(cls) -> int:
+        """If a file has more rows, check if subdivide is needed in parallel.
+
+        Returns:
+            int: The minimum number of rows a file must have to check for subdivision in
+                parallel. Defaults to 500000.
+        """
+        rows = os.environ.get("GFO_SUBDIVIDE_CHECK_PARALLEL_ROWS", default="500000")
+
+        return int(rows)
+
+    @classproperty
+    def tmp_dir(cls) -> Path:
+        """The temporary directory to use for processing.
+
+        Returns:
+            Path: The temporary directory path. Defaults to a system temp directory.
+        """
+        tmp_dir_str = os.environ.get("GFO_TMPDIR")
+        if tmp_dir_str is None:
+            tmpdir = Path(tempfile.gettempdir()) / "geofileops"
+        elif tmp_dir_str.strip() == "":
+            raise ValueError(
+                "GFO_TMPDIR='' environment variable found which is not supported."
+            )
+        else:
+            tmpdir = Path(tmp_dir_str.strip())
+
+        tmpdir.mkdir(parents=True, exist_ok=True)
+        return tmpdir
 
     @classproperty
     def worker_type(cls) -> str:

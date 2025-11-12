@@ -1,5 +1,6 @@
 """Module with helper functions for geo files."""
 
+import contextlib
 import enum
 import filecmp
 import logging
@@ -26,16 +27,18 @@ from osgeo import gdal, ogr
 from pandas.api.types import is_integer_dtype
 from pygeoops import GeometryType, PrimitiveType  # noqa: F401
 
+from geofileops._compat import GDAL_GTE_311
+from geofileops.helpers import _general_helper
 from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import (
     _geofileinfo,
-    _geopath_util,
     _geoseries_util,
     _io_util,
     _ogr_sql_util,
     _ogr_util,
     _sqlite_util,
 )
+from geofileops.util._geopath_util import GeoPath
 
 try:
     import fiona
@@ -115,7 +118,7 @@ def listlayers(
     if str(path).lower().endswith((".shp", ".shp.zip")):
         if not _vsi_exists(path):
             raise FileNotFoundError(f"File not found: {path}")
-        return [_geopath_util.stem(path)]
+        return [GeoPath(path).stem]
 
     datasource = None
     try:
@@ -172,7 +175,7 @@ class ColumnInfo:
         gdal_type: str,
         width: int | None,
         precision: int | None,
-    ):
+    ) -> None:
         """Constructor of ColumnInfo.
 
         Args:
@@ -186,7 +189,7 @@ class ColumnInfo:
         self.width = width
         self.precision = precision
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Overrides the representation property of ColumnInfo."""
         return f"{self.__class__}({self.__dict__})"
 
@@ -225,7 +228,7 @@ class LayerInfo:
         fid_column: str,
         crs: pyproj.CRS | None,
         errors: list[str],
-    ):
+    ) -> None:
         """Constructor of Layerinfo.
 
         Args:
@@ -250,14 +253,14 @@ class LayerInfo:
         self.errors = errors
 
     @property
-    def geometrytype(self):
+    def geometrytype(self):  # noqa: ANN201
         """The geometry type of the geometrycolumn."""
         if self.geometrytypename == "NONE":
             return None
 
         return GeometryType(self.geometrytypename)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Overrides the representation property of LayerInfo."""
         return f"{self.__class__}({self.__dict__})"
 
@@ -293,7 +296,7 @@ def get_layer_geometrytypes(
                END AS geom_type
           FROM "{input_layer}" layer
     """
-    result_df = read_file(path, sql_stmt=sql_stmt, sql_dialect="SQLITE")
+    result_df = read_file(path, layer=layer, sql_stmt=sql_stmt, sql_dialect="SQLITE")
     return result_df["geom_type"].to_list()
 
 
@@ -360,20 +363,22 @@ def get_layerinfo(
                 name=name, gdal_type=gdal_type, width=width, precision=precision
             )
             columns[name] = column_info
-            if driver == "ESRI Shapefile":
-                if name.casefold() == "geometry":
-                    errors.append(
-                        "An attribute column 'geometry' is not supported in a shapefile"
-                    )
+            if driver == "ESRI Shapefile" and name.casefold() == "geometry":
+                errors.append(
+                    "An attribute column 'geometry' is not supported in a shapefile"
+                )
 
         # Get geometry column name.
         geometrytypename = _ogr_util.ogrtype_to_name(datasource_layer.GetGeomType())
 
         # For shape files, the difference between the 'MULTI' variant and the
         # single one doesn't exists... so always report MULTI variant by convention.
-        if geometrytypename != "NONE" and driver == "ESRI Shapefile":
-            if not geometrytypename.startswith("MULTI"):
-                geometrytypename = f"MULTI{geometrytypename}"
+        if (
+            geometrytypename != "NONE"
+            and driver == "ESRI Shapefile"
+            and not geometrytypename.startswith("MULTI")
+        ):
+            geometrytypename = f"MULTI{geometrytypename}"
 
         # If the geometry type is not None, fill out the extra properties
         geometrycolumn = None
@@ -401,6 +406,9 @@ def get_layerinfo(
             errors.append("Layer doesn't have a geometry column!")
 
         # If there were no errors, everything was OK so we can return.
+        # Remark: for e.g. for a ".shp.zip" file the layer name will include .shp at the
+        # end, but this is not an error! If it isn't there, using the layer name in SQL
+        # statements on the ".shp.zip" file will lead to "table not found" errors.
         if len(errors) == 0:
             return LayerInfo(
                 name=datasource_layer.GetName(),
@@ -527,7 +535,9 @@ def _get_only_layer(datasource: gdal.Dataset) -> ogr.Layer:
         if len(layers) == 1:
             return datasource.GetLayer(layers[0])
         else:
-            raise ValueError(f"input has > 1 layer, but no layer specified: {layers}")
+            raise ValueError(
+                f"input has > 1 layers: a layer must be specified: {layers}"
+            )
 
 
 def get_default_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
@@ -541,14 +551,14 @@ def get_default_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
     Returns:
         str: The default layer name.
     """
-    return _geopath_util.stem(path)
+    return GeoPath(path).stem
 
 
 def execute_sql(
     path: Union[str, "os.PathLike[Any]"],
     sql_stmt: str,
     sql_dialect: str | None = None,
-):
+) -> None:
     """Execute a SQL statement (DML or DDL) on the file.
 
     To run SELECT SQL statements on a file, use :meth:`~read_file`.
@@ -567,6 +577,8 @@ def execute_sql(
           statement
         * :func:`update_column`: update the values of a column in the layer
         * :func:`add_column`: add a column to the layer, optionally using a SQL
+          expression to fill out the values
+        * :func:`add_columns`: add columns to the layer, optionally using a SQL
           expression to fill out the values
 
     """
@@ -590,7 +602,7 @@ def create_spatial_index(
     exist_ok: bool = False,
     force_rebuild: bool = False,
     no_geom_ok: bool = False,
-):
+) -> None:
     """Create a spatial index on the layer specified.
 
     Args:
@@ -746,7 +758,7 @@ def remove_spatial_index(
     path: Union[str, "os.PathLike[Any]"],
     layer: str | LayerInfo | None = None,
     datasource: gdal.Dataset | None = None,
-):
+) -> None:
     """Remove the spatial index from the layer specified.
 
     Args:
@@ -805,8 +817,11 @@ def remove_spatial_index(
 
 def rename_layer(
     path: Union[str, "os.PathLike[Any]"], new_layer: str, layer: str | None = None
-):
+) -> None:
     """Rename the layer specified.
+
+    `rename_layer` can only be used on file types that support multiple layers, so
+    for drivers that have the `GDAL_DCAP_MULTIPLE_VECTOR_LAYERS` capability.
 
     Args:
         path (PathLike): The file path.
@@ -815,19 +830,24 @@ def rename_layer(
         new_layer (str): The new layer name. If not specified, and there is only
             one layer in the file, this layer is used. Otherwise exception.
     """
-    # Renaming the layer name is not possible for single layer file formats.
-    path_info = _geofileinfo.get_geofileinfo(path)
-    if path_info.is_singlelayer:
-        raise ValueError(f"rename_layer not possible for {path_info.driver} file")
-
-    # Now really rename
+    # Rename
     try:
         datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
+        driver = datasource.GetDriver()
+        is_multi_layer = (
+            driver.GetMetadataItem(gdal.DCAP_MULTIPLE_VECTOR_LAYERS) == "YES"
+        )
+        if not is_multi_layer:
+            raise ValueError(
+                "rename_layer not supported for single layer file types. You can use "
+                f"move to rename the file: {path}"
+            )
+
         datasource_layer = _get_layer(datasource, layer)
         layername = datasource_layer.GetName()
 
         if not datasource_layer.TestCapability(gdal.ogr.OLCRename):
-            raise ValueError(f"rename_layer not supported for {path}")
+            raise ValueError(f"rename_layer not supported for {path}#{layer}")
 
         # If the layer name only differs in case, we need to rename it first to a
         # temporary layer name to avoid an error.
@@ -836,7 +856,9 @@ def rename_layer(
 
         # Rename layer
         datasource_layer.Rename(new_layer)
-    except Exception as ex:
+    except ValueError:
+        raise
+    except Exception as ex:  # pragma: no cover
         ex.args = (f"rename_layer error: {ex}, for {path}#{layer}",)
         raise
     finally:
@@ -848,7 +870,7 @@ def rename_column(
     column_name: str,
     new_column_name: str,
     layer: str | None = None,
-):
+) -> None:
     """Rename the column specified.
 
     Args:
@@ -948,13 +970,13 @@ class DataType(enum.Enum):
 def add_column(
     path: Union[str, "os.PathLike[Any]"],
     name: str,
-    type: DataType | str,
+    type: DataType | str,  # noqa: A002
     expression: str | float | None = None,
     expression_dialect: str | None = None,
     layer: str | None = None,
     force_update: bool = False,
     width: int | None = None,
-):
+) -> None:
     """Add a column to a layer of the geofile.
 
     You can specify an `expression` to use to fill out the value of the column. For file
@@ -970,6 +992,7 @@ def add_column(
             column value. It should be in SQLite syntax and |spatialite_reference_link|
             functions can be used. Defaults to None.
         expression_dialect (str, optional): SQL dialect used for the expression.
+            Deprecated: is ignored. Defaults to None.
         layer (str, optional): The layer name. If None and the geofile
             has only one layer, that layer is used. Defaults to None.
         force_update (bool, optional): If the column already exists, execute
@@ -1028,21 +1051,12 @@ def add_column(
 
     """  # noqa: E501
     # Init
-    if isinstance(type, DataType):
-        type_str = type.value
-    else:
-        type_lower = type.lower()
-        if type_lower == "string":
-            # TODO: think whether being flexible here is a good idea...
-            type_str = "TEXT"
-        elif type_lower == "binary":
-            type_str = "BLOB"
-        elif type_lower == "time":
-            type_str = "DATETIME"
-        elif type_lower == "integer64":
-            type_str = "INTEGER"
-        else:
-            type_str = type
+    if expression_dialect is not None:  # pragma: no cover
+        warnings.warn(
+            "expression_dialect is deprecated and will be ignored", stacklevel=2
+        )
+
+    type_str = _validate_datatype(type)
 
     start = time.perf_counter()
     layerinfo = get_layerinfo(path, layer, raise_on_nogeom=False)
@@ -1062,6 +1076,15 @@ def add_column(
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             _ogr_util.StartTransaction(datasource)
             datasource.ExecuteSQL(sql_stmt)
+
+            # check if column was really added
+            datasource_layer = datasource.GetLayer(layer)
+            layer_defn = datasource_layer.GetLayerDefn()
+            field_index = layer_defn.GetFieldIndex(name)
+            if field_index == -1:
+                raise RuntimeError(
+                    f"add_column of {name=}, {type=} failed for {path}#{layer}"
+                )
         else:
             logger.warning(f"Column {name} existed already in {path}#{layer}")
 
@@ -1073,7 +1096,7 @@ def add_column(
                 datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
                 _ogr_util.StartTransaction(datasource)
             sql_stmt = f'UPDATE "{layer}" SET "{name}" = {expression}'
-            datasource.ExecuteSQL(sql_stmt, dialect=expression_dialect)
+            datasource.ExecuteSQL(sql_stmt, dialect="SQLITE")
 
         _ogr_util.CommitTransaction(datasource)
 
@@ -1090,9 +1113,279 @@ def add_column(
             logger.info(f"Ready, add_column of {name} took {took:.2f}")
 
 
+def add_columns(
+    path: Union[str, "os.PathLike[Any]"],
+    new_columns: list[tuple[str, str | DataType, str | None, str | None]],
+    *,
+    layer: str | None = None,
+    output_path: Union[str, "os.PathLike[Any]"] | None = None,
+    output_layer: str | None = None,
+    force_update: bool = False,
+) -> None:
+    """Add columns to a layer of a geofile and optionally fill them out.
+
+    If columns are being filled out or updated, the file is copied to a temporary
+    location, the columns are added there, and then the file is moved back to the
+    original location (or to `output_path` if specified). If just adding columns without
+    filling them out, the columns are added in place.
+
+    If `output_path` is specified, but `output_layer` is None, the output layer name is
+    determined like this for file types that support multiple layers:
+       - if the input layer contains a single spatial layer, :func:`get_default_layer`
+         on `output_path` will be used to determine `output_layer`.
+       - otherwise, the input layername is used/retained.
+
+    .. versionadded:: 0.11.0
+
+    Args:
+        path (PathLike): Path to the geofile.
+        new_columns (list of tuples): list of new columns to add. Each tuple should
+            contain 2 or 3 elements: (name, type, optional expression). The `type` can
+            be a string or a DataType enum value. The optional `expression` is a SQL
+            expression to use to fill out the column value. It should be in SQLite
+            syntax and |spatialite_reference_link| functions can be used. If no
+            expression is provided or if it is None, the column will be created with
+            NULL values.
+        layer (str, optional): The layer name. If None and the geofile
+            has only one layer, that layer is used. Defaults to None.
+        output_path (PathLike, optional): If specified, the modified file is written
+            to this location. If not specified, the original file is overwritten or the
+            columns are added in place.
+        output_layer (str, optional): the layer name to use if `output_path` is
+            specified. For single-layer file types `output_layer` is ignored. If None,
+            :func:`get_default_layer` of `output_path` is used if the input contains a
+            single spatial layer. If the input contains multiple spatial layers, the
+            input layer name is used/retained. Defaults to None.
+        force_update (bool, optional): If a column already exists, execute
+            the update expression even if it means overwriting existing data.
+            Defaults to False.
+
+    See Also:
+        * :func:`add_column`: add a single column to the layer
+        * :func:`update_column`: update a column of the layer
+
+    Examples:
+        To add multiple columns at once, some with an expression to fill out the values:
+
+        .. code-block:: python
+
+            new_columns = [
+                ("area", "REAL", "ST_Area(geom)"),
+                ("type_id", "INTEGER",
+                    '''
+                    CASE
+                        WHEN "type" = 'A' THEN 1
+                        WHEN "type" = 'B' THEN 2
+                        ELSE 3
+                    END
+                    '''),
+                ("new_text", "TEXT", "'text_to_fill_out'"),
+                ("new_real_null", "REAL"),
+            ]
+            gfo.add_columns("file.gpkg", new_columns, layer="my_layer")
+
+
+    .. |spatialite_reference_link| raw:: html
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
+    # Validate input parameters
+    if output_layer is not None and output_path is None:
+        raise ValueError("output_layer can only be used together with output_path")
+    if output_path is not None and (
+        GeoPath(path).suffix_full.lower() != GeoPath(output_path).suffix_full.lower()
+    ):
+        raise ValueError("output_path should have the same suffix as the input path")
+
+    # Validate new_columns
+    if not isinstance(new_columns, list) or len(new_columns) == 0:
+        raise TypeError(
+            "new_columns should be a non-empty list of tuples, each with 2 or 3 "
+            "elements: [(name, type, optional expression),...]"
+        )
+    updates_needed = False
+    for new_column in new_columns:
+        if not isinstance(new_column, tuple) or len(new_column) not in (2, 3):
+            raise TypeError(
+                "each element in new_columns should be a tuple with 2 or 3 elements:"
+                f" (name, type, optional expression), not: {new_column}"
+            )
+        if len(new_column) >= 3 and new_column[2] is not None:
+            updates_needed = True
+
+    # Set some config options to improve performance for GPKG if updates are done
+    if updates_needed and Path(path).suffix.lower() == ".gpkg":
+        gdal_handler = _ogr_util.set_config_options(
+            {"OGR_SQLITE_SYNCHRONOUS": "OFF", "OGR_SQLITE_JOURNAL": "OFF"}
+        )
+    else:
+        gdal_handler = contextlib.nullcontext()  # type: ignore[assignment]
+
+    # If columns are being updated or if there is an output_path, create a tmp_dir to
+    # first make a local copy. If just adding columns, do it in place.
+    if updates_needed or output_path is not None:
+        tmp_dir_handler = _general_helper.create_gfo_tmp_dir("add_columns")
+    else:
+        tmp_dir_handler = contextlib.nullcontext()  # type: ignore[assignment]
+
+    # Add all columns one by one + update them all together in a transaction
+    with tmp_dir_handler as tmp_dir, gdal_handler:
+        if tmp_dir is not None:
+            # Add columns to tmp copy
+            output_tmp_path = tmp_dir / Path(path).name
+            copy(path, output_tmp_path)
+        else:
+            # Add columns in place
+            output_tmp_path = path  # type: ignore[assignment]
+
+        start = time.perf_counter()
+
+        # Get layerinfo and determine `layer` and `output_layer` if not specified
+        # Remark: don't reuse the opened datasource here, because then the layer info
+        # is cached and the check if the columns are added correctly later on does not
+        # work correctly anymore.
+        layerinfo = get_layerinfo(output_tmp_path, layer, raise_on_nogeom=False)
+        if layer is None:
+            layer = layerinfo.name
+
+        # Go!
+        datasource = None
+        try:
+            datasource = gdal.OpenEx(str(output_tmp_path), nOpenFlags=gdal.OF_UPDATE)
+
+            # If column doesn't exist yet, create it
+            _ogr_util.StartTransaction(datasource)
+            update_set_expressions = []
+            columns_upper = [column.upper() for column in layerinfo.columns]
+            column_added = False
+            for new_column in new_columns:
+                name = new_column[0]
+                type_str = _validate_datatype(new_column[1])
+                expression = new_column[2] if len(new_column) >= 3 else None
+
+                if expression is not None:
+                    update_set_expressions.append(f'"{name}" = {expression}')
+
+                if name.upper() in columns_upper:
+                    logger.warning(f"Column {name} existed already in {path}#{layer}")
+                    continue
+
+                column_added = True
+
+                # Open datasource if not opened yet
+                sql_stmt = f'ALTER TABLE "{layer}" ADD COLUMN "{name}" {type_str}'
+                datasource.ExecuteSQL(sql_stmt)
+
+            # check if the columns were really added
+            if column_added:
+                datasource_layer = datasource.GetLayer(layer)
+                layer_defn = datasource_layer.GetLayerDefn()
+                for new_column in new_columns:
+                    name = new_column[0]
+                    field_index = layer_defn.GetFieldIndex(name)
+                    if field_index == -1:
+                        raise RuntimeError(
+                            f"add_columns of {name=}, {type_str=} failed for "
+                            f"{path}#{layer}"
+                        )
+
+            # If an expression was provided and update can be done, go for it...
+            if len(update_set_expressions) > 0 and (column_added or force_update):
+                set_expr = "\n,".join(update_set_expressions)
+                sql_stmt = f"""
+                    UPDATE "{layer}"
+                       SET {set_expr}
+                """
+                datasource.ExecuteSQL(sql_stmt, dialect="SQLITE")
+
+            _ogr_util.CommitTransaction(datasource)
+            driver = datasource.GetDriver()
+            is_multi_layer = (
+                driver.GetMetadataItem(gdal.DCAP_MULTIPLE_VECTOR_LAYERS) == "YES"
+            )
+            datasource = None
+
+            # For multilayer file types, if an output_path is specified, but no
+            # output_layer, determine if the output output layer needs to be changed
+            # and change output_layer accordingly.
+            if is_multi_layer and output_path is not None and output_layer is None:
+                # If the input file contains a single spatial layer, the default
+                # layername should be used for output_layer.
+                if len(listlayers(path, only_spatial_layers=True)) == 1:
+                    # Rename output_tmp_path to the output_path name so get_only_layer
+                    # returns the correct layer name for e.g. shapefiles.
+                    output_tmp2_path = tmp_dir / Path(output_path).name
+                    move(output_tmp_path, output_tmp2_path)
+                    output_tmp_path = output_tmp2_path
+
+                    # Now check the layer names
+                    current_output_layer = get_only_layer(output_tmp_path)
+                    default_output_layer = get_default_layer(output_path)
+                    if current_output_layer != default_output_layer:
+                        # The output layer needs to be changed
+                        output_layer = default_output_layer
+
+            # Rename layer if needed
+            if is_multi_layer and output_layer is not None:
+                rename_layer(output_tmp_path, new_layer=output_layer, layer=layer)
+
+            # Move file to final location if we were working on a temp copy
+            if tmp_dir is not None:
+                if output_path is None:
+                    move(output_tmp_path, path)
+                else:
+                    move(output_tmp_path, output_path)
+
+        except Exception as ex:
+            _ogr_util.RollbackTransaction(datasource)
+
+            if str(ex).startswith("add_columns"):
+                raise
+
+            ex.args = (f"add_columns error for {path}#{layer}:\n  {ex}",)
+            raise
+
+        finally:
+            datasource = None
+
+            # Log time taken if it was slow.
+            took = time.perf_counter() - start
+            if took > 2:  # pragma: no cover
+                logger.info(f"Ready, add_columns of {name} took {took:.2f}")
+
+
+def _validate_datatype(datatype: str | DataType) -> str:
+    """Validate the datatype specified for a column.
+
+    Args:
+        datatype (str or DataType): the datatype.
+
+    Returns:
+        str: the validated datatype.
+    """
+    if isinstance(datatype, DataType):
+        type_str = datatype.value
+    else:
+        type_upper = datatype.upper()
+        if type_upper == "STRING":
+            # TODO: think whether being flexible here is a good idea...
+            type_str = "TEXT"
+        elif type_upper == "BINARY":
+            type_str = "BLOB"
+        elif type_upper == "TIME":
+            type_str = "DATETIME"
+        elif type_upper == "INTEGER64":
+            type_str = "INTEGER"
+        else:
+            type_str = type_upper
+
+    return type_str
+
+
 def drop_column(
     path: Union[str, "os.PathLike[Any]"], column_name: str, layer: str | None = None
-):
+) -> None:
     """Drop the column specified.
 
     Args:
@@ -1136,7 +1429,7 @@ def update_column(
     expression: str,
     layer: str | None = None,
     where: str | None = None,
-):
+) -> None:
     """Update a column from a layer of the geofile.
 
     Args:
@@ -1230,14 +1523,14 @@ def read_file(
     path: Union[str, "os.PathLike[Any]"],
     layer: str | None = None,
     columns: Iterable[str] | None = None,
-    bbox=None,
-    rows=None,
+    bbox: tuple[float, float, float, float] | None = None,
+    rows: slice | None = None,
     where: str | None = None,
     sql_stmt: str | None = None,
     sql_dialect: Literal["SQLITE", "OGRSQL"] | None = None,
     ignore_geometry: bool = False,
     fid_as_index: bool = False,
-    **kwargs,
+    **kwargs: object,
 ) -> gpd.GeoDataFrame:
     """Reads a file to a geopandas GeoDataframe.
 
@@ -1345,8 +1638,8 @@ def read_file_nogeom(
     path: Union[str, "os.PathLike[Any]"],
     layer: str | None = None,
     columns: Iterable[str] | None = None,
-    bbox=None,
-    rows=None,
+    bbox: tuple[float, float, float, float] | None = None,
+    rows: slice | None = None,
     sql_stmt: str | None = None,
     sql_dialect: Literal["SQLITE", "OGRSQL"] | None = None,
     fid_as_index: bool = False,
@@ -1376,14 +1669,14 @@ def _read_file_base(
     path: Union[str, "os.PathLike[Any]"],
     layer: str | None = None,
     columns: Iterable[str] | None = None,
-    bbox=None,
-    rows=None,
+    bbox: tuple[float, float, float, float] | None = None,
+    rows: slice | None = None,
     where: str | None = None,
     sql_stmt: str | None = None,
     sql_dialect: Literal["SQLITE", "OGRSQL"] | None = None,
     ignore_geometry: bool = False,
     fid_as_index: bool = False,
-    **kwargs,
+    **kwargs: object,
 ) -> pd.DataFrame | gpd.GeoDataFrame:
     """Reads a file to a pandas Dataframe."""
     # Check if the fid column needs to be read as column via the columns parameter
@@ -1391,9 +1684,8 @@ def _read_file_base(
     if isinstance(columns, str):
         # If a string is passed, convert to list
         columns = [columns]
-    if columns is not None:
-        if "fid" in [column.lower() for column in columns]:
-            fid_as_column = True
+    if columns is not None and "fid" in [column.lower() for column in columns]:
+        fid_as_column = True
 
     # Read with the engine specified
     engine = ConfigOptions.io_engine
@@ -1441,14 +1733,14 @@ def _read_file_base_fiona(
     path: Union[str, "os.PathLike[Any]"],
     layer: str | None = None,
     columns: Iterable[str] | None = None,
-    bbox=None,
-    rows=None,
+    bbox: tuple[float, float, float, float] | None = None,
+    rows: slice | None = None,
     where: str | None = None,
     sql_stmt: str | None = None,
     sql_dialect: Literal["SQLITE", "OGRSQL"] | None = None,
     ignore_geometry: bool = False,
     fid_as_index: bool = False,
-    **kwargs,
+    **kwargs: object,
 ) -> pd.DataFrame | gpd.GeoDataFrame:
     """Reads a file to a pandas Dataframe using fiona.
 
@@ -1580,14 +1872,14 @@ def _read_file_base_pyogrio(
     path: Union[str, "os.PathLike[Any]"],
     layer: str | LayerInfo | None = None,
     columns: Iterable[str] | None = None,
-    bbox=None,
-    rows=None,
+    bbox: tuple[float, float, float, float] | None = None,
+    rows: slice | None = None,
     where: str | None = None,
     sql_stmt: str | None = None,
     sql_dialect: Literal["SQLITE", "OGRSQL"] | None = None,
     ignore_geometry: bool = False,
     fid_as_index: bool = False,
-    **kwargs,
+    **kwargs: object,
 ) -> pd.DataFrame | gpd.GeoDataFrame:
     """Reads a file to a pandas Dataframe using pyogrio."""
     # Convert rows slice object to pyogrio parameters
@@ -1752,8 +2044,8 @@ def to_file(
     append_timeout_s: int = 600,
     index: bool | None = None,
     create_spatial_index: bool | None = None,
-    **kwargs,
-):
+    **kwargs: object,
+) -> None:
     """Writes a pandas dataframe to file.
 
     The fileformat is detected based on the filepath extension.
@@ -1782,9 +2074,7 @@ def to_file(
             Defaults to False.
         append (bool, optional): True to append to the file/layer if it already exists.
             If it doesn't exist yet, it is created. Defaults to False.
-        append_timeout_s (int, optional): The maximum timeout to wait when the
-            output file is already being written to by another process.
-            Defaults to 600.
+        append_timeout_s (int, optional): This parameter is deprecated and is ignored.
         index (bool, optional): If True, write index into one or more columns (for
             MultiIndex). None writes the index into one or more columns only if the
             index is named, is a MultiIndex, or has a non-integer data type.
@@ -1839,7 +2129,6 @@ def to_file(
             force_output_geometrytype=force_output_geometrytype,
             force_multitype=force_multitype,
             append=append,
-            append_timeout_s=append_timeout_s,
             index=index,
             create_spatial_index=create_spatial_index,
             **kwargs,
@@ -1871,8 +2160,8 @@ def _to_file_fiona(
     append_timeout_s: int = 600,
     index: bool | None = None,
     create_spatial_index: bool | None = None,
-    **kwargs,
-):
+    **kwargs: object,
+) -> None:
     """Writes a pandas dataframe to file using fiona.
 
     The "fiona" IO engine is deprecated and will be removed in the future.
@@ -1944,13 +2233,10 @@ def _to_file_fiona(
         append: bool = False,
         schema: dict | None = None,
         create_spatial_index: bool | None = None,
-        **kwargs,
-    ):
+        **kwargs: object,
+    ) -> None:
         # Prepare args for to_file
-        if append:
-            mode = "a"
-        else:
-            mode = "w"
+        mode = "a" if append else "w"
 
         kwargs["engine"] = "fiona"
         kwargs["mode"] = mode
@@ -2043,11 +2329,10 @@ def _to_file_pyogrio(
     force_output_geometrytype: GeometryType | str | None = None,
     force_multitype: bool = False,
     append: bool = False,
-    append_timeout_s: int = 600,
     index: bool | None = None,
     create_spatial_index: bool | None = None,
-    **kwargs,
-):
+    **kwargs: object,
+) -> None:
     """Writes a pandas dataframe to file using pyogrio."""
     # Check upfront if append is going to work to give nice error
     if append and _vsi_exists(path):
@@ -2280,7 +2565,7 @@ def copy(
     src: Union[str, "os.PathLike[Any]"],
     dst: Union[str, "os.PathLike[Any]"],
     keep_permissions: bool = True,
-):
+) -> None:
     """Copies the geofile from src to dst.
 
     If the source file is a geofile containing of multiple files (eg. .shp) all files
@@ -2329,7 +2614,9 @@ def copy(
                 shutil.copyfile(srcfile, dstfile)
 
 
-def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]):
+def move(
+    src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]
+) -> None:
     """Moves the geofile from src to dst.
 
     If the source file is a geofile containing of multiple files (eg. .shp) all files
@@ -2367,7 +2654,7 @@ def move(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
     shutil.move(str(src), dst)
 
 
-def remove(path: Union[str, "os.PathLike[Any]"], missing_ok: bool = False):
+def remove(path: Union[str, "os.PathLike[Any]"], missing_ok: bool = False) -> None:
     """Removes the geofile.
 
     Is it is a geofile composed of multiple files (eg. .shp) all files are removed.
@@ -2414,14 +2701,15 @@ def append_to(
     transaction_size: int = 50000,
     preserve_fid: bool | None = None,
     dst_dimensions: str | None = None,
-    options: dict = {},
-):
+    options: dict | None = None,
+) -> None:
     """DEPRECATED: use copy_layer with write_mode='add_layer' or write_mode='append'.
 
     If you explicitly would like to keep the option to use the current undocumented file
     locking mechanism present in append_to, please open an issue asking for this in
     https://github.com/geofileops/geofileops/issues
     """
+    options = options or {}
     warnings.warn(
         "append_to is deprecated: use copy_layer with write_mode='append' or "
         "write_mode='add_layer'. It will be removed in a future version.",
@@ -2497,11 +2785,12 @@ def convert(
     force_output_geometrytype: GeometryType | str | None = None,
     create_spatial_index: bool | None = None,
     preserve_fid: bool | None = None,
-    options: dict = {},
+    options: dict | None = None,
     append: bool = False,
     force: bool = False,
-):
+) -> None:
     """DEPRECATED: please use copy_layer."""
+    options = options or {}
     warnings.warn(
         "convert is deprecated: use copy_layer. It will be removed in a future "
         "version.",
@@ -2532,7 +2821,9 @@ def copy_layer(
     dst: Union[str, "os.PathLike[Any]"],
     src_layer: str | LayerInfo | None = None,
     dst_layer: str | None = None,
-    write_mode: str = "create",
+    write_mode: Literal[
+        "create", "add_layer", "append", "append_add_fields"
+    ] = "create",
     src_crs: str | int | None = None,
     dst_crs: str | int | None = None,
     columns: Iterable[str] | None = None,
@@ -2546,10 +2837,10 @@ def copy_layer(
     transaction_size: int = 50000,
     preserve_fid: bool | None = None,
     dst_dimensions: str | None = None,
-    options: dict = {},
+    options: dict | None = None,
     append: bool = False,
     force: bool = False,
-):
+) -> None:
     """Copy a layer from a source to a destination dataset.
 
     Typical use cases:
@@ -2592,24 +2883,34 @@ def copy_layer(
         src (PathLike): The source path. |GDAL_vsi| paths are also supported.
         dst (PathLike): The destination path. |GDAL_vsi| paths can be used for handlers
             with write support.
-        src_layer (str, optional): The source layer. If None and there is only
-            one layer in the src file, that layer is taken. Defaults to None.
+        src_layer (str, optional): The source layer. If the source contains a single
+            layer, that layer will be taken if `src_layer` is None. If it contains
+            multiple layers, `src_layer` is mandatory unless `sql_stmt` is specified.
+            Defaults to None.
         dst_layer (str, optional): The destination layer. If None, the destination file
             stem is taken as layer name. Defaults to None.
         write_mode (str, optional): The write mode. Defaults to "create". Valid values:
 
-            - "create": create a new destination file. If the file already exists and
-                `force=True` the function just returns, if `force=False` the file is
+            - **"create"**: create a new destination file. If the file already exists
+                and `force=True` the function just returns, if `force=False` the file is
                 overwritten.
-            - "add_layer": add the source layer to the destination file as a new layer.
-                When using "add_layer", `dst_layer` should be specified. If the layer
-                already exists and `force=True` the function just returns, if
+            - **"add_layer"**: add the source layer to the destination file as a new
+                layer. When using "add_layer", `dst_layer` should be specified. If the
+                layer already exists and `force=True` the function just returns, if
                 `force=False` the layer is overwritten.
-            - "append": append the source layer to the destination layer, if the
+            - **"append"**: append the source layer to the destination layer, if the
                 layer already exists. If not, the file and/or layer will be created.
                 If the file already contains layers named differently than the default
                 layer name for the file, `dst_layer` becomes mandatory.
+            - **"append_add_fields"**: append the source layer to the destination layer,
+                adding fields from the source layer that are not present in the
+                destination layer. If the layer doesn't exist, it will be created.
+                If the file already contains layers named differently than the default
+                layer name for the file, `dst_layer` becomes mandatory.
 
+            .. versionadded:: 0.10.0
+            .. versionchanged:: 0.11.0
+               Added "append_add_fields" write mode.
         src_crs (Union[str, int], optional): an epsg int or anything supported
             by the OGRSpatialReference.SetFromUserInput() call, which includes
             an EPSG string (eg. "EPSG:4326"), a well known text (WKT) CRS
@@ -2658,9 +2959,12 @@ def copy_layer(
         dst_dimensions (str, optional): Force the dimensions of the destination layer to
             the value specified. Valid values: "XY", "XYZ", "XYM" or "XYZM".
             Defaults to None.
-        options (dict, optional): options to pass to gdal.
+        options (dict, optional): options to pass to gdal. Defaults to None.
         append (bool, optional): True to append to the destination layer if it already
-            exists. Deprecated: use write_mode='append'. Defaults to False.
+            exists. Defaults to False.
+
+            .. deprecated:: 0.10.0
+               Please use `write_mode="append"` instead.
         force (bool, optional): True to overwrite the output file/layer (depending on
             `write_mode`) if it already exists. False to just return if the output
             file/layer exists. Defaults to False.
@@ -2679,6 +2983,7 @@ def copy_layer(
 
     """  # noqa: E501
     # The append parameter is deprecated, but keep backwards compatibility
+    options = options or {}
     if append:
         if write_mode != "create":
             raise ValueError("append parameter is deprecated, use write_mode='append'")
@@ -2689,7 +2994,8 @@ def copy_layer(
         )
         write_mode = "append"
 
-    # Determine the access mode
+    # Determine the access mode and whether to add missing fields when appending
+    add_fields = False
     access_mode = _determine_access_mode(dst, dst_layer, write_mode, force)
     if access_mode is None:
         # The file/layer exists already and force is false, so we can return
@@ -2701,6 +3007,8 @@ def copy_layer(
         # As we will actually be appending to an existing layer, the layer
         # creation option regarding spatial index creation should not be passed.
         create_spatial_index = None
+        if write_mode == "append_add_fields":
+            add_fields = True
 
     # Check/clean input params
     if isinstance(columns, str):
@@ -2726,6 +3034,7 @@ def copy_layer(
     # copy, it is faster to copy the data directly in sqlite instead of via GDAL.
     if (
         access_mode == "append"
+        and not add_fields
         and Path(src).suffix.lower() == ".gpkg"
         and Path(dst).suffix.lower() == ".gpkg"
         and not sql_stmt
@@ -2742,7 +3051,6 @@ def copy_layer(
         and ConfigOptions.copy_layer_sqlite_direct
     ):
         # TODO: sql_stmt?, access_mode="create", create_spatial_index, dst_crs?
-        # TODO: create gfo config option to disable?
         try:
             name = src_layername if src_layername is not None else get_only_layer(src)
             preserve_fid_local = preserve_fid if preserve_fid is not None else False
@@ -2831,11 +3139,52 @@ def copy_layer(
         options=options,
         preserve_fid=preserve_fid,
         dst_dimensions=dst_dimensions,
+        add_fields=add_fields,
     )
     _ogr_util.vector_translate_by_info(info=translate_info)
 
 
-def _zip(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]):
+def zip_geofile(
+    input_path: Union[str, "os.PathLike[Any]"],
+    output_path: Union[str, "os.PathLike[Any]"],
+) -> None:
+    """Zip a geofile to a seek-optimized zip file.
+
+    For geofile types that consist of multiple files (eg. shapefiles), all relevant
+    (existing) files are included in the zip.
+
+    .. versionadded:: 0.11.0
+
+    Args:
+        input_path (PathLike): the geofile to zip.
+        output_path (PathLike): the output zip file.
+    """
+    if not GDAL_GTE_311:
+        raise RuntimeError("sozip requires gdal>=3.11")
+
+    # For some file types, extra files need to be included
+    input_info = _geofileinfo.get_geofileinfo(input_path)
+    input_path_suffix = Path(input_path).suffix
+    input_path_no_suffix = Path(input_path).with_suffix("").as_posix()
+
+    input_paths = []
+    if _vsi_exists(input_path):
+        input_paths.append(input_path)
+    for suffix in input_info.suffixes_extrafiles:
+        if suffix == input_path_suffix:
+            continue
+        extra_path = f"{input_path_no_suffix}{suffix}"
+        if _vsi_exists(extra_path):
+            input_paths.append(extra_path)
+
+    gdal.Run(
+        "vsi", "sozip", "create", input=input_paths, output=output_path, no_paths=True
+    )
+
+
+def _zip(
+    src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]
+) -> None:
     """Zip a file or directory.
 
     Args:
@@ -2856,22 +3205,56 @@ def _zip(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"
                     zipf.write(file_path, file_path.relative_to(src))
 
 
-def _unzip(src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]):
-    """Unzip a zip file.
+def unzip_geofile(
+    input_path: Union[str, "os.PathLike[Any]"],
+    output_path: Union[str, "os.PathLike[Any]"],
+) -> Path:
+    """Unzip a zipped geofile and return the path to the unzipped geofile.
+
+    The zip file should contain a single geofile. If the file contains a single file,
+    that file is returned. If it contains multiple files, the geofile is determined
+    based on the file extension. If multiple geofiles are found, an error is raised.
+
+    .. versionadded:: 0.11.0
 
     Args:
-        src (PathLike): the zip file to unzip.
-        dst (PathLike): the destination directory.
+        input_path (PathLike): the zip file to unzip.
+        output_path (PathLike): the output directory.
+
+    Returns:
+        Path: The path to the unzipped geofile in the destination directory.
     """
-    # Unzip the file
-    with zipfile.ZipFile(src, "r") as zipf:
-        zipf.extractall(dst)
+    geo_suffixes = (".gpkg", ".shp", ".geojson", ".json", ".gpkg.zip", ".shp.zip")
+    with zipfile.ZipFile(input_path, "r") as zipf:
+        # Determine the geofile in the zip to be able to return it
+        files = zipf.filelist
+        geofilename = None
+        if len(files) == 0:
+            raise ValueError(f"No files found in zip: {input_path}")
+        elif len(files) == 1:
+            geofilename = files[0].filename
+        else:
+            for file in files:
+                if file.filename.endswith(geo_suffixes):
+                    if geofilename is not None:
+                        raise ValueError(
+                            f"Multiple geofiles found in zip: {input_path}, so cannot "
+                            "determine which one to return."
+                        )
+                    geofilename = file.filename
+
+        if geofilename is None:
+            raise ValueError(f"No geofile found in zip: {input_path}")
+
+        zipf.extractall(output_path)
+
+    return Path(output_path) / geofilename
 
 
 def _determine_access_mode(
     dst: Union[str, "os.PathLike[Any]"],
     dst_layer: str | None,
-    write_mode: str,
+    write_mode: Literal["create", "add_layer", "append", "append_add_fields"],
     force: bool,
 ) -> str | None:
     """Determines an access mode based on the write mode,...
@@ -2895,7 +3278,9 @@ def _determine_access_mode(
               - "append": the destination layer exists, append to it.
     """
 
-    def try_listlayers(dst, only_spatial_layers: bool) -> list[str] | None:
+    def try_listlayers(
+        dst: Union[str, "os.PathLike[Any]"], only_spatial_layers: bool
+    ) -> list[str] | None:
         try:
             return listlayers(dst, only_spatial_layers)
         except FileNotFoundError:
@@ -2925,7 +3310,7 @@ def _determine_access_mode(
         else:
             return "update"
 
-    elif write_mode == "append":
+    elif write_mode in ("append", "append_add_fields"):
         layers = try_listlayers(dst, only_spatial_layers=False)
         if layers is None:
             # The file doesn't seem to exist yet... just continue, the file and layer
@@ -2939,16 +3324,17 @@ def _determine_access_mode(
             dst_layer = get_default_layer(dst)
             if dst_layer not in layers:
                 raise ValueError(
-                    "dst_layer is required when write_mode is 'append' and "
-                    "there are already other layers than the default layername."
+                    "dst_layer is required when write_mode is 'append' or "
+                    "'append_add_fields' and there are already other layers than the "
+                    "default layername."
                 )
             return "append"
 
         elif dst_layer is None:
             # No dst_layer specified and multiple layers: raise error
             raise ValueError(
-                "dst_layer is required when write_mode is 'append' and "
-                "there are multiple other layers."
+                "dst_layer is required when write_mode is 'append' or "
+                "'append_add_fields' and there are multiple other layers."
             )
         elif dst_layer in layers:
             return "append"
@@ -3026,11 +3412,10 @@ def _launder_column_names(columns: Iterable) -> list[tuple[str, str]]:
     laundered_upper = []
     for column in columns:
         # Doubles in casing aree not allowed either
-        if len(column) <= 10:
-            if column.upper() not in laundered_upper:
-                laundered_upper.append(column.upper())
-                laundered.append((column, column))
-                continue
+        if len(column) <= 10 and column.upper() not in laundered_upper:
+            laundered_upper.append(column.upper())
+            laundered.append((column, column))
+            continue
 
         # Laundering is needed
         column_laundered = column[:10]

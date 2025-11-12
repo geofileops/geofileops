@@ -37,7 +37,7 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         dev: [false]
-        python: ["3.10", "3.11", "3.12", "3.13"]
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         env: ["latest"]
         # Use openblas instead of mkl saves 600 MB. Linux OK, 50% slower on Windows and OSX!
         extra: ["nomkl"]
@@ -62,6 +62,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # - name: Set environment variables
+      #   run: echo "PYTHONTRACEMALLOC=1" >> $GITHUB_ENV
+        
       - name: Install Conda environment with Micromamba
         uses: mamba-org/setup-micromamba@v2
         with:

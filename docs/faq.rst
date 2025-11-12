@@ -30,9 +30,13 @@ You can find more details on why this is needed in the
 Supported file formats
 ----------------------
 
-The spatial functionalities of geofileops are supported on standard geopackage and
-shapefile input/output files. However, geopackage is highly recommended because it will
-offer better performance in geofileops as well as for the reasons listed here: 
+The spatial tools of geofileops (buffer, overlays,...) are only supported on geopackage
+(".gpkg", ".gpkg.zip") and shapefile (".shp", ".shp.zip") input/output files.
+However, uncompressed geopackages (".gpkg") will offer the best performance because
+most spatial operations (overlays,...) in geofileops need the data to be in geopackage.
+Hence, if the input and/or output is not ".gpkg", often extra conversions will be
+happening under the hood.
+Some other reasons to consider using Geopackage are listed here: 
 `www.switchfromshapefile.org <http://www.switchfromshapefile.org>`_.
 
 Most general file/layer operations can be used on all vector formats supported by
@@ -54,6 +58,13 @@ variables:
   to the data OF THE ENTIRE TILE being "dropped", so use with care! Defaults to "raise".
 - `GFO_REMOVE_TEMP_FILES`: whether to remove temp files being created after use, e.g.
   for debugging purposes. Valid values are e.g. "TRUE" or "FALSE". Defaults to "TRUE".
+- `GFO_SUBDIVIDE_CHECK_PARALLEL_FRACTION`: if the input file is being checked for
+  complex geometries during a subdivide operation in parallel, this value indicates the
+  fraction of rows to be checked. E.g. if set to 5, 1 out of 5 rows will be checked.
+  Defaults to 5.
+- `GFO_SUBDIVIDE_CHECK_PARALLEL_ROWS`: if the input file to be checked for complex
+  geometries during a subdivide operation has more rows than this value, the check will
+  be done in parallel. Defaults to 500000.
 - `GFO_TMPDIR`: directory to be used by geofileops to put temporary files. If not
   specified, defaults to the default python temp directory as returned by
   `tempfile.gettempdir <https://docs.python.org/3/library/tempfile.html#tempfile.gettempdir>`_.
