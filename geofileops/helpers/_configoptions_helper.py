@@ -1,8 +1,10 @@
 import os
+import tempfile
+from pathlib import Path
 
 
 class classproperty(property):
-    def __get__(self, owner_self, owner_cls):
+    def __get__(self, owner_self, owner_cls):  # noqa: ANN001, ANN204
         return self.fget(owner_cls)
 
 
@@ -25,7 +27,7 @@ class ConfigOptions:
         return get_bool("GFO_COPY_LAYER_SQLITE_DIRECT", default=True)
 
     @classproperty
-    def io_engine(cls):
+    def io_engine(cls) -> str:
         """The IO engine to use."""
         io_engine = os.environ.get("GFO_IO_ENGINE", default="pyogrio").strip().lower()
         supported_values = ["pyogrio", "fiona"]
@@ -97,6 +99,26 @@ class ConfigOptions:
         rows = os.environ.get("GFO_SUBDIVIDE_CHECK_PARALLEL_ROWS", default="500000")
 
         return int(rows)
+
+    @classproperty
+    def tmp_dir(cls) -> Path:
+        """The temporary directory to use for processing.
+
+        Returns:
+            Path: The temporary directory path. Defaults to a system temp directory.
+        """
+        tmp_dir_str = os.environ.get("GFO_TMPDIR")
+        if tmp_dir_str is None:
+            tmpdir = Path(tempfile.gettempdir()) / "geofileops"
+        elif tmp_dir_str.strip() == "":
+            raise ValueError(
+                "GFO_TMPDIR='' environment variable found which is not supported."
+            )
+        else:
+            tmpdir = Path(tmp_dir_str.strip())
+
+        tmpdir.mkdir(parents=True, exist_ok=True)
+        return tmpdir
 
     @classproperty
     def worker_type(cls) -> str:

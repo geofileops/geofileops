@@ -240,7 +240,7 @@ def test_vector_translate_input_nolayer(tmp_path):
     gfo.execute_sql(input_path, sql_stmt=f'DROP TABLE "{layer}"')
 
     with pytest.raises(
-        Exception, match="Error .* not recognized as .*a supported file format"
+        Exception, match=r"Error .* not recognized as .*a supported file format"
     ):
         _ogr_util.vector_translate(str(input_path), output_path)
 
@@ -414,7 +414,7 @@ def test_vector_translate_sql_invalid_existing_output(
         "polygon-parcel", suffix=input_suffix, empty=True
     )
     output_path = test_helper.get_testfile(
-        "polygon-parcel", suffix=input_suffix, dst_dir=tmp_path
+        "polygon-parcel", suffix=output_suffix, dst_dir=tmp_path
     )
     layer = gfo.get_only_layer(input_path)
     sql_stmt = f'SELECT * FROM "{layer}" WHERE not_existing_column = 1'

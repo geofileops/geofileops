@@ -10,10 +10,10 @@ import geofileops as gfo
 from geofileops import GeometryType
 from geofileops.util._geofileinfo import GeofileInfo
 from tests import test_helper
-from tests.test_helper import SUFFIXES_GEOOPS
+from tests.test_helper import SUFFIXES_GEOOPS, SUFFIXES_GEOOPS_EXT
 
 
-@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
+@pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS_EXT)
 @pytest.mark.parametrize(
     "clip_geometry, exp_featurecount",
     [
@@ -30,7 +30,7 @@ def test_clip_by_geometry(tmp_path, suffix, clip_geometry, exp_featurecount):
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
     # For Geopackage, also test if fid is properly preserved
-    preserve_fid = True if suffix == ".gpkg" else False
+    preserve_fid = suffix == ".gpkg"
 
     # Do operation
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
@@ -46,7 +46,7 @@ def test_clip_by_geometry(tmp_path, suffix, clip_geometry, exp_featurecount):
     layerinfo_output = gfo.get_layerinfo(output_path)
     assert len(layerinfo_orig.columns) == len(layerinfo_output.columns)
     assert layerinfo_output.geometrytype == GeometryType.MULTIPOLYGON
-    if suffix == ".shp" and not isinstance(clip_geometry, str):
+    if suffix in {".shp", ".shp.zip"} and not isinstance(clip_geometry, str):
         # Shapefile includes an null geometry feature with GDAL <= 3.11.4
         pytest.xfail(reason="Shapefile output includes an extra null geometry feature")
     assert layerinfo_output.featurecount == exp_featurecount
@@ -69,13 +69,13 @@ def test_export_by_bounds(tmp_path, suffix):
     input_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
     # For Geopackage, also test if fid is properly preserved
-    preserve_fid = True if suffix == ".gpkg" else False
+    preserve_fid = suffix == ".gpkg"
 
     # Do operation
     output_path = tmp_path / f"{input_path.stem}-output{suffix}"
-    filter = (156036, 196691, 156368, 196927)
+    bounds_filter = (156036, 196691, 156368, 196927)
     gfo.export_by_bounds(
-        input_path=str(input_path), output_path=str(output_path), bounds=filter
+        input_path=str(input_path), output_path=str(output_path), bounds=bounds_filter
     )
 
     # Now check if the output file is correctly created
