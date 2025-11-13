@@ -503,6 +503,7 @@ def vector_translate(
         #   - for gdal < 3.11 datetime columns can be interpreted wrong with arrow.
         #   - for gdal < 3.11.4 using arrow leads to (rare) random crashes.
         #   - if columns=[], this is ignored by gdal when using arrow.
+        #       -> reference: https://github.com/OSGeo/gdal/issues/13401
         if not GDAL_GTE_3114 or (columns is not None and len(list(columns)) == 0):
             use_arrow_key = "OGR2OGR_USE_ARROW_API"
             if use_arrow_key not in config_options and use_arrow_key not in os.environ:
