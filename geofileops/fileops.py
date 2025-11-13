@@ -1697,7 +1697,7 @@ def _read_file_base(
     engine = ConfigOptions.io_engine
     if engine.startswith("pyogrio"):
         if "use_arrow" in kwargs:
-            use_arrow = kwargs["use_arrow"] if pyarrow else False
+            use_arrow = bool(kwargs["use_arrow"]) if pyarrow else False
             del kwargs["use_arrow"]
         else:
             use_arrow = True if pyarrow and engine.endswith("-arrow") else False
@@ -2199,7 +2199,7 @@ def to_file(
     # Write file with the correct engine
     if engine.startswith("pyogrio"):
         if "use_arrow" in kwargs:
-            use_arrow = kwargs["use_arrow"] if pyarrow else False
+            use_arrow = bool(kwargs["use_arrow"]) if pyarrow else False
             del kwargs["use_arrow"]
         else:
             use_arrow = True if pyarrow and engine.endswith("-arrow") else False

@@ -19,8 +19,13 @@ from pygeoops import GeometryType
 from shapely import box
 
 import geofileops as gfo
-from geofileops import _compat, fileops
-from geofileops._compat import GDAL_GTE_311
+from geofileops import fileops
+from geofileops._compat import (
+    GDAL_GTE_311,
+    PANDAS_GTE_20,
+    PANDAS_GTE_22,
+    PYOGRIO_GTE_010,
+)
 from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import _geofileinfo, _geoseries_util
 from geofileops.util._geopath_util import GeoPath
@@ -2286,7 +2291,7 @@ def test_to_file(tmp_path, suffix, dimensions, engine_setter):
     if (
         engine_setter == "pyogrio-arrow"
         and suffix in (".shp", ".csv")
-        and not _compat.PANDAS_GTE_22
+        and not PANDAS_GTE_22
     ):
         pytest.xfail(
             "pyogrio-arrow with an older version of pandas doesn't roundtrip datetimes "
@@ -2340,7 +2345,7 @@ def test_to_file(tmp_path, suffix, dimensions, engine_setter):
         expected_gdf.loc[47, "PM"] = None
 
         # Shapefile doesn't support DateTime, so another data type needs to be used.
-        if engine_setter in ("pyogrio", "pyogrio-arrow") and _compat.GDAL_ST_311:
+        if engine_setter in ("pyogrio", "pyogrio-arrow") and not GDAL_GTE_311:
             # "pyogrio" with GDAL < 3.11 writes to Date (which looses data)
             expected_gdf["DATUM"] = pd.to_datetime(
                 expected_gdf["DATUM"].dt.strftime("%Y-%m-%d"), yearfirst=True
@@ -2407,10 +2412,10 @@ def test_to_file_2_roundtrip(tmp_path, suffix, dimensions, engine_setter):
         ) and not pd.api.types.is_string_dtype(expected_gdf["DATUM"]):
             expected_gdf["DATUM"] = expected_gdf["DATUM"].apply(lambda x: x.isoformat())
 
-        if engine_setter == "pyogrio-arrow" and _compat.GDAL_ST_311:
+        if engine_setter == "pyogrio-arrow" and not GDAL_GTE_311:
             # For minimal tests, the datum is a datetime
             expected_gdf["DATUM"] = pd.to_datetime(expected_gdf["DATUM"])
-            if _compat.PANDAS_GTE_20:
+            if PANDAS_GTE_20:
                 expected_gdf["DATUM"] = expected_gdf["DATUM"].dt.as_unit("ms")
 
     assert_geodataframe_equal(written_gdf, expected_gdf)
@@ -2438,14 +2443,14 @@ def test_to_file_append(tmp_path, suffix, engine_setter):  # noqa: ARG001
 
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
-def test_to_file_copy_append(tmp_path, suffix, engine_setter):
+def test_to_file_copy_append(suffix, engine_setter):
     """Test appending to a file after copying the file first using gdal.VectorTranslate.
 
     First, a file is created by using `copy_file` to a new file, then the same file is
     appended to by using `to_file` with the `append=True` parameter.
     """
     if suffix == ".shp":
-        if engine_setter == "pyogrio-arrow" and _compat.GDAL_ST_311:
+        if engine_setter == "pyogrio-arrow" and not GDAL_GTE_311:
             # Only starting from GDAL 3.11, it writes DateTime to String.
             pytest.xfail("GDAL <= 3.11 writes DateTime to Date in shapefile")
 
@@ -2906,7 +2911,7 @@ def test_to_file_nogeom(tmp_path, suffix):
         raise ValueError(f"test not implemented for suffix {suffix}")
 
 
-@pytest.mark.skipif(not _compat.PYOGRIO_GTE_010, reason="Requires pyogrio>=0.10")
+@pytest.mark.skipif(not PYOGRIO_GTE_010, reason="Requires pyogrio>=0.10")
 def test_to_file_vsi():
     """Test writing to a file in vsimem."""
     # Prepare test data
