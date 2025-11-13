@@ -119,6 +119,7 @@ def get_testfile(
     read_only: bool = False,
     fid_column: str | None = None,
     geom_name: str | None = None,
+    force_utf8: bool = False,
 ) -> Path:
     """Get a testfile, possibly converting it to another CRS, filetype, etc.
 
@@ -154,6 +155,7 @@ def get_testfile(
         explodecollections=explodecollections,
         fid_column=fid_column,
         geom_name=geom_name,
+        force_utf8=force_utf8,
     )
 
     # Make input read-only
@@ -173,6 +175,7 @@ def _get_testfile(
     explodecollections: bool = False,
     fid_column: str | None = None,
     geom_name: str | None = None,
+    force_utf8: bool = False,
 ) -> Path:
     if suffix.lower() in (".gpkg.zip", ".shp.zip") and not GDAL_GTE_311:
         pytest.skip("geo_sozip support requires gdal>=3.11")
@@ -192,9 +195,10 @@ def _get_testfile(
     empty_str = "_empty" if empty else ""
     fid_column_str = f"_{fid_column}" if fid_column is not None else ""
     geom_name_str = f"_{geom_name}" if geom_name is not None else ""
+    utf8_str = "_utf8" if force_utf8 else ""
     prepared_path = (
         dst_dir / f"{testfile_path.stem}_{epsg}_{dimensions}"
-        f"{empty_str}{fid_column_str}{geom_name_str}{suffix}"
+        f"{empty_str}{fid_column_str}{geom_name_str}{utf8_str}{suffix}"
     )
     if prepared_path.exists():
         return prepared_path
@@ -244,6 +248,10 @@ def _get_testfile(
                 options["LAYER_CREATION.FID"] = fid_column
             if geom_name is not None:
                 options["LAYER_CREATION.GEOMETRY_NAME"] = geom_name
+            if force_utf8 and suffix in (".shp", ".shp.zip"):
+                options["LAYER_CREATION.ENCODING"] = "UTF-8"
+            if suffix == ".csv":
+                options["LAYER_CREATION.WRITE_BOM"] = "YES"
             gfo.copy_layer(
                 testfile_path,
                 tmp_path,
