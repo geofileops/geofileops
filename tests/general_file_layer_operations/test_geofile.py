@@ -18,6 +18,7 @@ from pygeoops import GeometryType
 from shapely import box
 
 import geofileops as gfo
+from geofileops import _compat as compat
 from geofileops import fileops
 from geofileops._compat import GDAL_GTE_311
 from geofileops.helpers._configoptions_helper import ConfigOptions
@@ -40,6 +41,12 @@ except ImportError:
     ENGINES = ["pyogrio"]
 
 gdal.UseExceptions()
+
+if compat.GDAL_GTE_38 and not compat.GDAL_GTE_39:
+    pytest.skip(
+        "These tests crash with GDAL>=3.8 and GDAL<3.9", allow_module_level=True
+    )
+    assert False
 
 
 @pytest.fixture(scope="module", params=ENGINES)
