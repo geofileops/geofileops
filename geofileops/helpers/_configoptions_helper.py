@@ -78,6 +78,62 @@ class ConfigOptions:
         return get_bool("GFO_REMOVE_TEMP_FILES", default=True)
 
     @classproperty
+    def sliver_tolerance(cls) -> float:
+        """Tolerance to use to filter out slivers from overlay operations.
+
+        If 0.0, no sliver filtering is done. If negative, only slivers with tolerance
+        abs(value) are retained in the output instead of filtering them out.
+        If not set, defaults to 1e-8.
+
+        The slivers meant here are very small, often very narrow geometries that are
+        created as a side-effect of overlay operations. Due to the limitations of
+        finite-precision floating point arithmetic used in such operations, a point
+        that is "snapped" on a line segment, is sometimes not exactly located on the
+        line. When calculating e.g. an intersection, this can lead to very small sliver
+        polygons being created.
+
+        Most of the time, such slivers are not desired in the output. Hence, they are
+        filtered out based on certain criteria by default.
+
+        The basic algorythm used to determine if a geometry is a sliver is to use the
+        GEOS `set_precision` algorythm with a small tolerance. If the polygon becomes
+        NULL, because it is smaller/narrower than the tolerance, it is considered a
+        sliver.
+
+        Because the `set_precision` algorythm is relatively costly to apply, geometries
+        are first pre-filtered with a less expensive filter: the average width:
+
+        .. code_block::
+
+            average_width(geom) = 2 * area(geom) / length(geom)
+
+        This formula is an approximation that works well for long, narrow polygons, but
+        it underestimates the width for square or round polygons. Some examples:
+
+           - **a 10 x 10 meter square**: `2 * (10 * 10)  / (4 * 10) = 400 / 40 = 5`,
+             which is an underestimation, as the real average width is 10.
+           - **a 1 x 100 meter rectangle**:
+             `2 * (1 * 100) / (2 * (1 + 100)) = 200 / 202 = ~0.99`, which is almost
+             correct as the real average width is 1.
+
+        The average width being underestimated for some shapes means that some
+        geometries are marked as slivers even if they are not. Because the
+        `average_width` check is only a pre-filter, this is not a problem: such
+        geometries will still be retained if they pass the more precise `set_precision`
+        check.
+
+        Returns:
+            float: the sliver tolerance to be uses.
+        """
+        try:
+            return float(os.environ.get("GFO_SLIVER_TOLERANCE", default="1e-8"))
+        except Exception as ex:
+            raise ValueError(
+                "invalid value for configoption <GFO_SLIVER_TOLERANCE>: "
+                "should be a number"
+            ) from ex
+
+    @classproperty
     def subdivide_check_parallel_fraction(cls) -> int:
         """For a file being checked in parallel, the fraction of features to check.
 

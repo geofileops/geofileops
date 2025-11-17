@@ -3523,37 +3523,45 @@ def _two_layer_vector_operation(
 
         # Apply gridsize if it is specified
         if gridsize != 0.0:
-            # Try ST_ReducePrecision first, which should be faster.
-            # ST_ReducePrecision seems to crash on EMPTY geometry, so check
-            # ST_IsEmpty not being 0 (result can be -1, 0 or 1).
-            gridsize_op = f"""
-                IIF(sub_gridsize.geom IS NULL OR ST_IsEmpty(sub_gridsize.geom) <> 0,
-                    NULL,
-                    IFNULL(
-                        ST_ReducePrecision(sub_gridsize.geom, {gridsize}),
-                        ST_GeomFromWKB(GFO_ReducePrecision(
-                            ST_AsBinary(sub_gridsize.geom), {gridsize}
-                        ))
-                    )
-                )
-            """
-
             # All columns need to be specified
             # Remark:
             # - use "LIMIT -1 OFFSET 0" to avoid the subquery flattening. Flattening
             #   "geom IS NOT NULL" leads to GFO_Difference_Collection calculated double!
             cols = [col for col in column_types if col.lower() != "geom"]
             columns_to_select = _ogr_sql_util.columns_quoted(cols)
+            reduceprecision_ext = _get_reduceprecision_ext(
+                table_alias="sub_gridsize", gridsize=gridsize, geometry_column="geom"
+            )
             sql_template = f"""
                 SELECT * FROM
-                  ( SELECT {gridsize_op} AS geom
+                  ( SELECT {reduceprecision_ext} AS geom
                           {columns_to_select}
                       FROM ( {sql_template}
                               LIMIT -1 OFFSET 0
-                      ) sub_gridsize
+                           ) sub_gridsize
                      LIMIT -1 OFFSET 0
                   ) sub_gridsize2
                  WHERE sub_gridsize2.geom IS NOT NULL
+            """
+
+        # Apply sliver_filter if applicable
+        sliver_tolerance = _general_helper.ConfigOptions.sliver_tolerance
+        if sliver_tolerance != 0.0 and "geom" in [col.lower() for col in column_types]:
+            sliver_where = _get_sliver_where(
+                table_alias="sub_sliver_filter",
+                sliver_tolerance=sliver_tolerance,
+                geometry_column="geom",
+            )
+
+            # Remark:
+            # - use "LIMIT -1 OFFSET 0" to avoid subquery flattening. Flattening might
+            #   lead to filtering criteria being calculated double!
+            sql_template = f"""
+                SELECT * FROM
+                    ( {sql_template}
+                      LIMIT -1 OFFSET 0
+                    ) sub_sliver_filter
+                 WHERE {sliver_where}
             """
 
         # Prepare/apply where_post parameter
@@ -3934,6 +3942,121 @@ def _check_crs(input1_layer: LayerInfo, input2_layer: LayerInfo | None) -> int:
             crs_epsg = crs_epsg2
 
     return crs_epsg
+
+
+def _get_reduceprecision_ext(
+    table_alias: str | None, gridsize: float, geometry_column: str
+) -> str:
+    """Get the sql snippet to reduce the precision of a geometry column.
+
+    The standard ST_ReducePrecision function has some shortcommings which are fixed by
+    this snippet.
+
+    Args:
+        table_alias (str): the table alias to use in the sql snippet
+        gridsize (float): the gridsize to use
+        geometry_column (str, optional): the geometry column to use.
+
+    Returns:
+        str: the sql snippet to reduce the precision of a geometry column
+    """
+    # Prepare `table_alias` for use in sql snippet
+    if table_alias is None:
+        table_alias = ""
+    elif table_alias != "":
+        table_alias = f"{table_alias}."
+
+    # Try ST_ReducePrecision first, which should be faster.
+    # ST_ReducePrecision seems to crash on EMPTY geometry, so check
+    # ST_IsEmpty not being 0 (result can be -1, 0 or 1).
+    reduceprecision_ext = f"""
+        IIF({table_alias}{geometry_column} IS NULL
+                OR ST_IsEmpty({table_alias}{geometry_column}) <> 0,
+            NULL,
+            IFNULL(
+                ST_ReducePrecision({table_alias}{geometry_column}, {gridsize}),
+                ST_GeomFromWKB(GFO_ReducePrecision(
+                    ST_AsBinary({table_alias}{geometry_column}), {gridsize}
+                ))
+            )
+        )
+    """
+
+    return reduceprecision_ext
+
+
+def _get_sliver_where(
+    table_alias: str | None,
+    geometry_column: str,
+    sliver_tolerance: float,
+    use_avg_width_prefilter: bool = True,
+) -> str:
+    """Get the sql snippet to filter sliver geometries.
+
+    If `sliver_tolerance` is positive, the filter will remove slivers from the output.
+    If `sliver_tolerance` is negative, the filter will retain only slivers in the
+    output.
+
+    Args:
+        table_alias (str): the table alias to use in the sql snippet
+        geometry_column (str, optional): the geometry column to use.
+        sliver_tolerance (float): the sliver tolerance to use. If the tolerance is
+            negative, abs(tolerance) is actually used but the where clause is inverted
+            so only slivers are retained in the output. A value of 0.0 is not allowed.
+        use_avg_width_prefilter (bool, optional): if True, use the average width
+            prefilter to speed up the sliver detection. Defaults to True.
+
+    Raises:
+        ValueError: if sliver_tolerance is 0.0
+
+    Returns:
+        str: the sql where clause to be used to filter away sliver geometries.
+    """
+    # If sliver_tolerance is negative, keep the slivers instead of removing them.
+    if sliver_tolerance == 0.0:
+        raise ValueError("sliver_tolerance cannot be 0.0")
+    elif sliver_tolerance > 0.0:
+        remove_slivers = True
+    else:
+        sliver_tolerance = abs(sliver_tolerance)
+        remove_slivers = False
+
+    # We need the reduceprecision_ext snippet
+    reduceprecision_ext_snippet = _get_reduceprecision_ext(
+        table_alias=table_alias,
+        gridsize=sliver_tolerance,
+        geometry_column=geometry_column,
+    )
+
+    # Prepare `table_alias` for use in sql snippet
+    if table_alias is None:
+        table_alias = ""
+    elif table_alias != "":
+        table_alias = f"{table_alias}."
+
+    # A geom is a sliver if:
+    #   - the average area < sliver_tolerance
+    #   - AND the result of ST_ReducePrecision(geom, sliver_tolerance) is NULL
+    not_str = "NOT" if remove_slivers else ""
+    if use_avg_width_prefilter:
+        avg_area_filter = f"""
+            2 * ST_Area({table_alias}{geometry_column})
+                    / ST_Perimeter({table_alias}{geometry_column})
+                    < {sliver_tolerance}
+            AND
+        """
+    else:
+        avg_area_filter = ""
+
+    # Combine to final where clause
+    sliver_where = f"""
+        {not_str} (
+            {avg_area_filter}
+            {reduceprecision_ext_snippet} IS NULL
+        )
+    """
+
+    return sliver_where
 
 
 def _calculate_two_layers(
