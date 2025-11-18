@@ -1391,8 +1391,8 @@ def test_join_nearest(tmp_path, suffix, epsg):
     assert gfo.has_spatial_index(output_path) is exp_spatial_index
     input2_layerinfo = gfo.get_layerinfo(input2_path)
     output_layerinfo = gfo.get_layerinfo(output_path)
-    expected_featurecount = nb_nearest * (input1_layerinfo.featurecount - 1)
-    assert output_layerinfo.featurecount == expected_featurecount
+    exp_featurecount = nb_nearest * (input1_layerinfo.featurecount - 1)
+    assert output_layerinfo.featurecount == exp_featurecount
     exp_columns = len(input1_columns) + len(input2_layerinfo.columns) + 2 + 1
     assert len(output_layerinfo.columns) == exp_columns
     assert output_layerinfo.geometrytype == GeometryType.MULTIPOLYGON
@@ -1558,8 +1558,11 @@ def test_select_two_layers(tmp_path, suffix, epsg, gridsize):
 
 @pytest.mark.parametrize("suffix", SUFFIXES_GEOOPS)
 @pytest.mark.parametrize("input_nogeom", ["input1", "input2", "both"])
+@pytest.mark.parametrize("remove_slivers", [False, True])
 @pytest.mark.filterwarnings("ignore:.*Field format '' not supported.*")
-def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
+def test_select_two_layers_input_without_geom(
+    tmp_path, suffix, input_nogeom, remove_slivers
+):
     # Prepare test file with geom
     input_geom_path = test_helper.get_testfile("polygon-parcel", suffix=suffix)
 
@@ -1587,6 +1590,9 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
         layer2 = '"{input2_layer}" layer2'
         exp_output_geom = True
         exp_featurecount = 37
+        if remove_slivers:
+            # The empty geometry is filtered out if remove_slivers is True
+            exp_featurecount -= 1
     elif input_nogeom == "input2":
         input1_path = input_geom_path
         input2_path = input_nogeom_path
@@ -1596,6 +1602,9 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
         layer2 = '"{input2_layer}" layer2'
         exp_output_geom = True
         exp_featurecount = 37
+        if remove_slivers:
+            # The empty geometry is filtered out if remove_slivers is True
+            exp_featurecount -= 1
     elif input_nogeom == "both":
         input1_path = input_nogeom_path
         input2_path = input_nogeom_path
@@ -1631,6 +1640,7 @@ def test_select_two_layers_input_without_geom(tmp_path, suffix, input_nogeom):
         input2_path=input2_path,
         output_path=output_path,
         sql_stmt=sql_stmt,
+        remove_slivers=remove_slivers,
         batchsize=exp_featurecount / 2,
     )
 

@@ -1031,6 +1031,7 @@ def clip(
             output_layer=output_layer,
             explodecollections=explodecollections,
             gridsize=gridsize,
+            remove_slivers=True,
             where_post=where_post,
             force_output_geometrytype=force_output_geometrytype,
             output_with_spatial_index=output_with_spatial_index,
@@ -1326,6 +1327,7 @@ def difference(  # noqa: D417
             explodecollections=explodecollections,
             force_output_geometrytype=force_output_geometrytype,
             gridsize=gridsize,
+            remove_slivers=True,
             where_post=where_post,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
@@ -1704,6 +1706,7 @@ def export_by_location(
             explodecollections=False,
             force_output_geometrytype="KEEP_INPUT",
             gridsize=gridsize,
+            remove_slivers=False,
             where_post=where_post,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
@@ -1772,6 +1775,7 @@ def export_by_distance(
         explodecollections=False,
         force_output_geometrytype="KEEP_INPUT",
         gridsize=gridsize,
+        remove_slivers=False,
         where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -2065,6 +2069,7 @@ def intersection(  # noqa: D417
             explodecollections=explodecollections,
             force_output_geometrytype=force_output_geometrytype,
             gridsize=gridsize,
+            remove_slivers=True,
             where_post=where_post,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
@@ -2150,6 +2155,7 @@ def join(
         explodecollections=explodecollections,
         force_output_geometrytype="KEEP_INPUT",
         gridsize=gridsize,
+        remove_slivers=False,
         where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -2308,6 +2314,7 @@ def join_by_location(
         explodecollections=explodecollections,
         force_output_geometrytype="KEEP_INPUT",
         gridsize=gridsize,
+        remove_slivers=False,
         where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -2662,6 +2669,7 @@ def join_nearest(
             force_output_geometrytype="KEEP_INPUT",
             explodecollections=explodecollections,
             gridsize=0.0,
+            remove_slivers=False,
             where_post=None,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
@@ -2687,6 +2695,7 @@ def select_two_layers(
     force_output_geometrytype: GeometryType | None = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
+    remove_slivers: bool = False,
     where_post: str | None = None,
     nb_parallel: int = 1,
     batchsize: int = -1,
@@ -2712,6 +2721,7 @@ def select_two_layers(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
+        remove_slivers=remove_slivers,
         where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -3282,6 +3292,7 @@ def _two_layer_vector_operation(
     explodecollections: bool,
     force_output_geometrytype: GeometryType | str | None,
     gridsize: float,
+    remove_slivers: bool,
     where_post: str | None,
     nb_parallel: int,
     batchsize: int,
@@ -3323,6 +3334,9 @@ def _two_layer_vector_operation(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
+        remove_slivers (bool, optional): True to remove sliver geometries from the
+            output using the tolerance configured via GFO_SLIVER_TOLERANCE. Meant to be
+            activated for overlay operations only.
         where_post (str, optional): sql filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
@@ -3612,8 +3626,20 @@ def _two_layer_vector_operation(
             """
 
         # Apply sliver_filter if applicable
-        sliver_tolerance = _general_helper.ConfigOptions.sliver_tolerance
-        if sliver_tolerance != 0.0 and "geom" in [col.lower() for col in column_types]:
+        # Remark:
+        #   - No use to apply sliver filter if gridsize is already more strict, so only
+        #     apply if sliver_tolerance is greater than gridsize.
+        #   - No use to apply sliver filter if use_ogr is True, as GFO_ReducePrecision
+        #     is not loaded/available with use_ogr.
+        sliver_tolerance = (
+            _general_helper.ConfigOptions.sliver_tolerance if remove_slivers else 0.0
+        )
+        if (
+            sliver_tolerance != 0.0
+            and abs(sliver_tolerance) > gridsize
+            and "geom" in [col.lower() for col in column_types]
+            and not use_ogr
+        ):
             sliver_where = _get_sliver_where(
                 table_alias="sub_sliver_filter",
                 sliver_tolerance=sliver_tolerance,
