@@ -101,6 +101,11 @@ def test_configoptions(key, value, expected):
             "invalid value for bool configoption <GFO_REMOVE_TEMP_FILES>",
         ),
         (
+            "GFO_SLIVER_TOLERANCE",
+            "not_a_number",
+            "invalid value for configoption <GFO_SLIVER_TOLERANCE>",
+        ),
+        (
             "GFO_TMPDIR",
             "   ",
             "GFO_TMPDIR='' environment variable found which is not supported",
@@ -123,6 +128,8 @@ def test_configoptions_invalid(key, invalid_value, expected_error):
             _ = ConfigOptions.on_data_error
         elif key == "GFO_REMOVE_TEMP_FILES":
             _ = ConfigOptions.remove_temp_files
+        elif key == "GFO_SLIVER_TOLERANCE":
+            _ = ConfigOptions.sliver_tolerance
         elif key == "GFO_TMPDIR":
             _ = ConfigOptions.tmp_dir
         elif key == "GFO_WORKER_TYPE":
