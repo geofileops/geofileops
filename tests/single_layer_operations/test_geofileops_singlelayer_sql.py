@@ -665,7 +665,7 @@ def test_sliver_filtering(tmp_path, descr, geometry, sliver_tol, is_sliver):
 
 def test_sliver_filtering_invalid_tol():
     """Test if invalid sliver tolerance raises error."""
-    with pytest.raises(ValueError, match="sliver_tolerance cannot be 0.0"):
+    with pytest.raises(ValueError, match="sliver_tolerance cannot be 0"):
         geoops_sql._get_sliver_where(
             table_alias=None, sliver_tolerance=0.0, geometry_column="geom"
         )
