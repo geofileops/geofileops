@@ -348,6 +348,7 @@ def dissolve_within_distance(
             input2_layer=input_layer,
             explodecollections=True,
             gridsize=0.0,
+            remove_slivers=True,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             operation_prefix=f"{operation_name}-",
@@ -3203,6 +3204,7 @@ def select_two_layers(
     explodecollections: bool = False,
     force_output_geometrytype: GeometryType | None = None,
     gridsize: float = 0.0,
+    remove_slivers: bool = False,
     where_post: str | None = None,
     nb_parallel: int = 1,
     batchsize: int = -1,
@@ -3249,6 +3251,9 @@ def select_two_layers(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
+        remove_slivers (bool, optional): True to remove sliver geometries from the
+            output. The sliver tolerance can be configured via de GFO_SLIVER_TOLERANCE
+            environment variable. Defaults to False.
         where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
@@ -3411,6 +3416,7 @@ def select_two_layers(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
+        remove_slivers=remove_slivers,
         where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
