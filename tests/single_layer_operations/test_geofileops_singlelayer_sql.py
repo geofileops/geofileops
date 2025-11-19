@@ -628,8 +628,13 @@ def test_sliver_filtering(tmp_path, descr, geometry, sliver_tol, is_sliver):
     test_info = gfo.get_layerinfo(test_path)
 
     # Prepare sql statement
+    # use_avg_width_prefilter=False just to test both code paths, should give the same
+    # result.
     sliver_where = geoops_sql._get_sliver_where(
-        table_alias=None, sliver_tolerance=sliver_tol, geometry_column="geom"
+        table_alias=None,
+        sliver_tolerance=sliver_tol,
+        geometry_column="geom",
+        use_avg_width_prefilter=False,
     )
     sql_stmt = f"""
         SELECT * FROM "{test_info.name}"
@@ -656,3 +661,11 @@ def test_sliver_filtering(tmp_path, descr, geometry, sliver_tol, is_sliver):
         # When the sliver tolerance is negative, only slivers are retained
         exp_featurecount = 1 if is_sliver else 0
     assert result_layerinfo.featurecount == exp_featurecount, f"{descr} failed"
+
+
+def test_sliver_filtering_invalid_tol():
+    """Test if invalid sliver tolerance raises error."""
+    with pytest.raises(ValueError, match="sliver_tolerance cannot be 0.0"):
+        geoops_sql._get_sliver_where(
+            table_alias=None, sliver_tolerance=0.0, geometry_column="geom"
+        )
