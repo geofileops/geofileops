@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   TestsOnInstalled:    
-    name: ${{ matrix.checkout_ref }} - python ${{ matrix.python }} - ${{ matrix.os }}
+    name: ${{ matrix.gfo_version }}, python ${{ matrix.python }}, ${{ matrix.os }}
     timeout-minutes: 30
     runs-on: "ubuntu-latest"
     defaults:
@@ -36,6 +36,7 @@ jobs:
         env: ["installed"]
         include:
           - checkout_ref: "v0.10.x"
+            gfo_version: "0.10"
             # nomkl: openblas instead of mkl saves 600 MB. Linux OK, but 50% slower on Windows and OSX!
             install_extra_args: >-
               nomkl
