@@ -235,61 +235,62 @@ def _get_testfile(
                 f"geofiletype: {dst_info.driver}"
             )
 
-        # Convert all layers found
-        for src_layer in layers:
-            # Single layer files don't need a layer name
-            assert isinstance(tmp_path, Path)
-            if dst_info.is_singlelayer:
-                dst_layer = None
-                preserve_fid = False
-            else:
-                dst_layer = src_layer
-                preserve_fid = not explodecollections
+        if not tmp_path.exists():
+            # Convert all layers found
+            for src_layer in layers:
+                # Single layer files don't need a layer name
+                assert isinstance(tmp_path, Path)
+                if dst_info.is_singlelayer:
+                    dst_layer = None
+                    preserve_fid = False
+                else:
+                    dst_layer = src_layer
+                    preserve_fid = not explodecollections
 
-            # Create empty file by adding a where clause that filters out all features
-            where = None
-            if empty:
-                where = "1=0"
+                # empty file -> add a where clause that filters out all features
+                where = None
+                if empty:
+                    where = "1=0"
 
-            options = {}
-            if fid_column is not None:
-                options["LAYER_CREATION.FID"] = fid_column
-            if geom_name is not None:
-                options["LAYER_CREATION.GEOMETRY_NAME"] = geom_name
-            if force_utf8 and suffix in (".shp", ".shp.zip"):
-                options["LAYER_CREATION.ENCODING"] = "UTF-8"
-            if suffix == ".csv":
-                options["LAYER_CREATION.WRITE_BOM"] = "YES"
-            write_mode = "create" if not tmp_path.exists() else "add_layer"
-            gfo.copy_layer(
-                testfile_path,
-                tmp_path,
-                src_layer=src_layer,
-                dst_layer=dst_layer,
-                write_mode=write_mode,  # type: ignore[arg-type]
-                where=where,
-                dst_crs=epsg,
-                reproject=True,
-                preserve_fid=preserve_fid,
-                dst_dimensions=dimensions,
-                explodecollections=explodecollections,
-                options=options,
-            )
-
-            if dimensions is not None:
-                if dimensions != "XYZ":
-                    raise ValueError(f"unimplemented dimensions: {dimensions}")
-
-                prepared_info = gfo.get_layerinfo(
-                    tmp_path, layer=dst_layer, raise_on_nogeom=False
+                options = {}
+                if fid_column is not None:
+                    options["LAYER_CREATION.FID"] = fid_column
+                if geom_name is not None:
+                    options["LAYER_CREATION.GEOMETRY_NAME"] = geom_name
+                if force_utf8 and suffix in (".shp", ".shp.zip"):
+                    options["LAYER_CREATION.ENCODING"] = "UTF-8"
+                if suffix == ".csv":
+                    options["LAYER_CREATION.WRITE_BOM"] = "YES"
+                write_mode = "create" if not tmp_path.exists() else "add_layer"
+                gfo.copy_layer(
+                    testfile_path,
+                    tmp_path,
+                    src_layer=src_layer,
+                    dst_layer=dst_layer,
+                    write_mode=write_mode,  # type: ignore[arg-type]
+                    where=where,
+                    dst_crs=epsg,
+                    reproject=True,
+                    preserve_fid=preserve_fid,
+                    dst_dimensions=dimensions,
+                    explodecollections=explodecollections,
+                    options=options,
                 )
-                if prepared_info.geometrycolumn is not None:
-                    gfo.update_column(
-                        tmp_path,
-                        name=prepared_info.geometrycolumn,
-                        expression=f"CastToXYZ({prepared_info.geometrycolumn}, 5.0)",
-                        layer=dst_layer,
+
+                if dimensions is not None:
+                    if dimensions != "XYZ":
+                        raise ValueError(f"unimplemented dimensions: {dimensions}")
+
+                    prepared_info = gfo.get_layerinfo(
+                        tmp_path, layer=dst_layer, raise_on_nogeom=False
                     )
+                    if prepared_info.geometrycolumn is not None:
+                        gfo.update_column(
+                            tmp_path,
+                            name=prepared_info.geometrycolumn,
+                            expression=f"CastToXYZ({prepared_info.geometrycolumn},5.0)",
+                            layer=dst_layer,
+                        )
 
         # If the output should be zipped, zip it
         if prepared_path.suffix == ".zip":
