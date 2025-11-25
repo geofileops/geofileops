@@ -983,6 +983,10 @@ def add_column(
     formats that support transactions, the column won't be added if updating the value
     fails.
 
+    The column will be added and updated in-place to the geofile. When the
+    geofile is located on a network drive, this can be slow. If this is the case,
+    it is recommended to use :meth:`~add_columns` to add the column(s) instead.
+
     Args:
         path (PathLike): Path to the geofile.
         name (str): Name for the new column.
@@ -1000,6 +1004,7 @@ def add_column(
         width (int, optional): the width of the field.
 
     See Also:
+        * :func:`add_columns`: add one or more columns to the layer in one go
         * :func:`drop_column`: drop a column from the layer
         * :func:`get_layerinfo`: get information about the layer, including the list of
           columns
