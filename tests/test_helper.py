@@ -208,7 +208,7 @@ def _get_testfile(
     prepared_lock_path = Path(f"{prepared_path.as_posix()}.lock")
     try:
         _io_util.create_file_atomic_wait(
-            prepared_lock_path, time_between_attempts=0.1, timeout=60
+            prepared_lock_path, time_between_attempts=0.5, timeout=60
         )
 
         # Make sure it wasn't created by another process while waiting for the lock file
@@ -291,7 +291,10 @@ def _get_testfile(
             tmp_path = tmp_path_zipped_path
 
         # Rename tmp file to prepared file
-        gfo.move(tmp_path, prepared_path)
+        if prepared_path.exists():
+            gfo.remove(tmp_path, missing_ok=True)
+        else:
+            gfo.move(tmp_path, prepared_path)
 
         return prepared_path
 
