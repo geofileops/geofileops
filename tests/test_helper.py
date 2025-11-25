@@ -6,7 +6,6 @@ import os
 import re
 from pathlib import Path
 from stat import S_IRGRP, S_IROTH, S_IRUSR, S_IRWXG, S_IRWXO, S_IRWXU
-from threading import Lock
 
 import geopandas as gpd
 import geopandas.testing as gpd_testing
@@ -204,11 +203,9 @@ def _get_testfile(
     if prepared_path.exists():
         return prepared_path
 
-    lock = Lock()
     # Test file doesn't exist yet, so create it
     # To be safe for parallelized tests, lock the creation.
     prepared_lock_path = Path(f"{prepared_path.as_posix()}.lock")
-    lock.acquire()
     try:
         _io_util.create_file_atomic_wait(
             prepared_lock_path, time_between_attempts=0.1, timeout=60
@@ -255,12 +252,13 @@ def _get_testfile(
                 options["LAYER_CREATION.ENCODING"] = "UTF-8"
             if suffix == ".csv":
                 options["LAYER_CREATION.WRITE_BOM"] = "YES"
+            write_mode = "create" if not tmp_path.exists() else "add_layer"
             gfo.copy_layer(
                 testfile_path,
                 tmp_path,
                 src_layer=src_layer,
                 dst_layer=dst_layer,
-                write_mode="add_layer",
+                write_mode=write_mode,  # type: ignore[arg-type]
                 where=where,
                 dst_crs=epsg,
                 reproject=True,
@@ -302,7 +300,6 @@ def _get_testfile(
         raise
     finally:
         prepared_lock_path.unlink(missing_ok=True)
-        lock.release()
 
 
 def set_read_only(path: Path, read_only: bool) -> None:
