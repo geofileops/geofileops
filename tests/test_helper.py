@@ -229,10 +229,10 @@ def _get_testfile(
 
         # Convert all layers found
         for src_layer in layers:
-            # Single layer files have stem as layername
+            # Single layer files don't need a layer name
             assert isinstance(tmp_path, Path)
             if dst_info.is_singlelayer:
-                dst_layer = tmp_stem
+                dst_layer = None
                 preserve_fid = False
             else:
                 dst_layer = src_layer
