@@ -2261,7 +2261,7 @@ def test_fill_out_sql_placeholders_errors(layer, sql_stmt, error):
 
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS_EXT)
 @pytest.mark.parametrize("dimensions", [None])
-def test_to_file(tmp_path, suffix, dimensions, engine_setter):
+def test_to_file(request, tmp_path, suffix, dimensions, engine_setter):
     """Test reading a GPKG, write it to another file, check result.
 
     Note: the mainly documents the differences between the different engines and formats
@@ -2270,10 +2270,8 @@ def test_to_file(tmp_path, suffix, dimensions, engine_setter):
     # Remark: geopandas doesn't seem seem to read the Z dimension, so writing can't be
     # tested?
     # Prepare test file
-    src = test_helper.get_testfile(
-        "polygon-parcel", suffix=suffix, dimensions=dimensions
-    )
-    uidn = str(2318781) if suffix == ".csv" else 2318781
+    src = test_helper.get_testfile("polygon-parcel", dimensions=dimensions)
+    uidn = 2318781
     encoding = "utf-8" if suffix == ".csv" else None
 
     # Read test file and write to tmppath
@@ -2283,7 +2281,11 @@ def test_to_file(tmp_path, suffix, dimensions, engine_setter):
     assert read_gdf.loc[read_gdf["UIDN"] == uidn]["LBLHFDTLT"].item() == "Silomaïs"
 
     if suffix in (".gpkg.zip", ".shp.zip"):
-        pytest.xfail("writing a dataframe to gpkg.zip or .shp.zip has issue")
+        request.node.add_marker(
+            pytest.mark.xfail(
+                reason="writing a dataframe to gpkg.zip or .shp.zip has issue"
+            )
+        )
     if suffix == ".csv":
         read_gdf = read_gdf.drop(columns="geometry")
     if suffix == ".shp" and engine_setter == "fiona":
@@ -2293,9 +2295,13 @@ def test_to_file(tmp_path, suffix, dimensions, engine_setter):
         and suffix in (".shp", ".csv")
         and not PANDAS_GTE_22
     ):
-        pytest.xfail(
-            "pyogrio-arrow with an older version of pandas doesn't roundtrip datetimes "
-            "well"
+        request.node.add_marker(
+            pytest.mark.xfail(
+                reason=(
+                    "pyogrio-arrow with an older version of pandas doesn't roundtrip "
+                    "datetimes well"
+                )
+            )
         )
 
     output_path = tmp_path / f"{GeoPath(src).stem}-output{suffix}"
@@ -2427,6 +2433,7 @@ def test_to_file_2_roundtrip(tmp_path, suffix, dimensions, engine_setter):
     )
 
 
+@pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS)
 def test_to_file_append(tmp_path, suffix, engine_setter):  # noqa: ARG001
     test_path = test_helper.get_testfile(
         "polygon-parcel", dst_dir=tmp_path, suffix=suffix
