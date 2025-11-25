@@ -1131,6 +1131,12 @@ def add_columns(
     original location (or to `output_path` if specified). If just adding columns without
     filling them out, the columns are added in place.
 
+    Note that you cannot reference columns being added in the expressions of other
+    columns as they are being update at the same time. Most of the time the most
+    efficient way to solve this is to integrate the expression of the first column
+    in the expression of the second rather than call `add_columns` multiple times. An
+    example of this is shown in the Examples section below.
+
     If `output_path` is specified, but `output_layer` is None, the output layer name is
     determined like this for file types that support multiple layers:
        - if the input layer contains a single spatial layer, :func:`get_default_layer`
@@ -1167,7 +1173,7 @@ def add_columns(
         * :func:`update_column`: update a column of the layer
 
     Examples:
-        To add multiple columns at once, some with an expression to fill out the values:
+        Add multiple columns at once, some with an expression to fill out the values:
 
         .. code-block:: python
 
@@ -1186,6 +1192,18 @@ def add_columns(
             ]
             gfo.add_columns("file.gpkg", new_columns, layer="my_layer")
 
+
+        Add multiple columns at once, and reuse the expression of one of them in another
+        column expression:
+
+        .. code-block:: python
+
+            area_expression = "ST_Area(geom)"
+            new_columns = [
+                ("area", "REAL", area_expression),
+                ("area_times_two", "REAL", f"{area_expression} * 2"),
+            ]
+            gfo.add_columns("file.gpkg", new_columns, layer="my_layer")
 
     .. |spatialite_reference_link| raw:: html
 
