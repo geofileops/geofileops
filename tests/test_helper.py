@@ -6,6 +6,7 @@ import os
 import re
 from pathlib import Path
 from stat import S_IRGRP, S_IROTH, S_IRUSR, S_IRWXG, S_IRWXO, S_IRWXU
+from threading import Lock
 
 import geopandas as gpd
 import geopandas.testing as gpd_testing
@@ -203,6 +204,7 @@ def _get_testfile(
     if prepared_path.exists():
         return prepared_path
 
+    lock = Lock()
     # Test file doesn't exist yet, so create it
     # To be safe for parallelized tests, lock the creation.
     prepared_lock_path = Path(f"{prepared_path.as_posix()}.lock")
