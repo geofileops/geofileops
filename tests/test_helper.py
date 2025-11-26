@@ -217,7 +217,8 @@ def _get_testfile(
 
         # Prepare the file in a tmp file so the file is not visible to other
         # processes until it is completely ready.
-        tmp_stem = f"{GeoPath(prepared_path).stem}_tmp"
+        is_zipped = prepared_path.suffix == ".zip"
+        tmp_stem = f"{GeoPath(prepared_path).stem}_tmp_zip-{is_zipped}"
         tmp_path = dst_dir / f"{tmp_stem}{GeoPath(prepared_path).suffix_nozip}"
         layers = gfo.listlayers(testfile_path)
         dst_info = _geofileinfo.get_geofileinfo(tmp_path)
