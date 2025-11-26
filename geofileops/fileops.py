@@ -28,7 +28,7 @@ from osgeo import gdal, ogr
 from pandas.api.types import is_integer_dtype
 from pygeoops import GeometryType, PrimitiveType  # noqa: F401
 
-from geofileops._compat import GDAL_GTE_311
+from geofileops._compat import GDAL_GTE_311, PYOGRIO_GTE_012
 from geofileops.helpers import _general_helper
 from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import (
@@ -1939,9 +1939,14 @@ def _read_file_base_pyogrio(
         if layer is None:
             layer = get_only_layer(path)
 
-        # When reading datetime columns, don't use arrow as this can give issues.
+        # When reading datetime columns and an older pyogrio or GDAL version, don't use
+        # arrow as this can give issues.
         # See https://github.com/geopandas/pyogrio/issues/487
-        if use_arrow and (columns is None or len(columns) > 0):
+        if (
+            use_arrow
+            and (not PYOGRIO_GTE_012 or not GDAL_GTE_311)
+            and (columns is None or len(columns) > 0)
+        ):
             if _has_datetime_column(path, layer, columns):
                 use_arrow = False
                 logger.info(
@@ -1962,7 +1967,11 @@ def _read_file_base_pyogrio(
         # None, because otherwise the layer name needs to become mandatory without
         # column names being specified, which would be a breaking and really unwanted
         # change.
-        if use_arrow and (columns is not None and len(columns) > 0):
+        if (
+            use_arrow
+            and (not PYOGRIO_GTE_012 or not GDAL_GTE_311)
+            and (columns is not None and len(columns) > 0)
+        ):
             if _has_datetime_column(path, layer, columns):
                 use_arrow = False
                 logger.info(
@@ -2004,8 +2013,8 @@ def _read_file_base_pyogrio(
         result_gdf = result_gdf.rename(columns=columns_prepared)
 
     # Cast columns that are of object type, but contain datetime.date or datetime.date
-    # to proper datetime64 columns.
-    if len(result_gdf) > 0:
+    # to proper datetime64 columns for older versions of pyogrio or GDAL.
+    if (not PYOGRIO_GTE_012 or not GDAL_GTE_311) and len(result_gdf) > 0:
         for column in result_gdf.select_dtypes(include=["object"]):
             if isinstance(result_gdf[column].iloc[0], date | datetime):
                 result_gdf[column] = pd.to_datetime(result_gdf[column])
