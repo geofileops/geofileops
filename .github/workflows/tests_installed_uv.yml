@@ -58,10 +58,10 @@ jobs:
           echo "System GDAL version: $(gdal-config --version)"
           echo "✅ GDAL $(gdal-config --version) installed"
         
-      - name: Install geofileops via uv (--no-binary pyogrio)
+      - name: Install geofileops via uv
         run: |
           uv venv --python ${{ matrix.python }}
-          uv pip install gdal==${{ matrix.gdal_version }} geofileops~=${{ matrix.gfo_version }} pytest --no-binary pyogrio
+          uv pip install gdal==${{ matrix.gdal_version }} geofileops~=${{ matrix.gfo_version }} pytest
 
       - name: Print installed versions
         run: |
