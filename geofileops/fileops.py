@@ -2445,16 +2445,18 @@ def _to_file_pyogrio(
                 f"{file_cols} vs {gdf_cols}"
             )
 
-    # When writing datetime columns, don't use arrow as this can give issues.
+    # When writing datetime columns with pyogrio < 0.12, don't use arrow as
+    # this can give issues.
     # See https://github.com/geopandas/pyogrio/issues/487
-    # Remark: is only checked if columns is not None, because otherwise the layer
-    # name needs to become mandatory without column names being specified, which
-    # would be a breaking and really wanted change.
-    if use_arrow and len(gdf.select_dtypes(include=["datetime64"])) > 0:
+    if (
+        use_arrow
+        and not PYOGRIO_GTE_012
+        and len(gdf.select_dtypes(include=["datetime64"])) > 0
+    ):
         use_arrow = False
         logger.info(
             "arrow disabled to write layer: a datetime column is written, "
-            f"which has known issues with arrow: {path}#{layer}"
+            f"which has known issues with arrow + pyogrio<0.12: {path}#{layer}"
         )
 
     # Prepare kwargs to use in geopandas.to_file
