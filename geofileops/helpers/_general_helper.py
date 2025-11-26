@@ -1,6 +1,5 @@
 """General helper functions, specific for geofileops."""
 
-import os
 import shutil
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -48,7 +47,7 @@ def worker_type_to_use(input_layer_featurecount: int) -> str:
         return worker_type
 
     # Processing in threads is 2x faster for small datasets
-    if input_layer_featurecount <= 100 and os.name == "nt":
+    if input_layer_featurecount <= 100:
         return "threads"
 
     return "processes"
