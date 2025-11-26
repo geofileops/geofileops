@@ -55,7 +55,7 @@ jobs:
           # uv pip install cloudpickle "geopandas<1.1" numpy packaging pandas psutil pyarrow "pygeoops<0.5" pyogrio pyproj "shapely<2.1" pytest pytest-cov --no-binary pyogrio
           # python -m pip install --upgrade pip
           # pip install cloudpickle "geopandas<1.1" numpy packaging pandas psutil pyarrow "pygeoops<0.5" pyogrio pyproj "shapely<2.1" pytest pytest-cov --no-binary pyogrio
-          pip install geofileops
+          pip install geofileops pytest pytest-cov
 
       - name: Test with pytest
         # run: |  
