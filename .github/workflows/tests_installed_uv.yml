@@ -50,7 +50,7 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Install GDAL and spatialite (Ubuntu default)
+      - name: Install GDAL and spatialite (ubuntu-latest default)
         run: |
           # Install system packages
           sudo apt-get update -qq
