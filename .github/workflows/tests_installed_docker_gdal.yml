@@ -31,11 +31,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install pip
+      - name: Install pip, spatialite
       #   run: |
       #     apt-get update && apt-get install -y build-essential git python3-dev
         run: |
-          apt-get update && apt-get -y install python3-pip --fix-missing
+          apt-get update && apt-get -y install python3-pip libsqlite3-mod-spatialite --fix-missing
 
       #- name: Create virtual environment
         # install uv and use it to create a virtual environment, then add it to
