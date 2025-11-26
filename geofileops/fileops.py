@@ -1568,6 +1568,16 @@ def read_file(
     When a file with CURVE geometries is read, they are transformed on the fly to LINEAR
     geometries, as shapely/geopandas doesn't support CURVE geometries.
 
+    `geofileops.read_file` is very similar to
+    `geopandas.read_file`/`pyogrio.read_dataframe`, but has some additional or changed
+    behaviour. Notable differences in addition to the ones mentioned above are:
+
+        - The default value of `mixed_offsets_as_utc` is False instead of True, to avoid
+          losing time zone information when reading datetime columns with mixed offsets.
+        - The `columns` parameter is case-insensitive, and columns are returned in the
+          order and casing used in the `columns` parameter.
+
+
     Args:
         path (file path): path to the file to read from. |GDAL_vsi|_ paths are also
             supported.
@@ -1981,6 +1991,11 @@ def _read_file_base_pyogrio(
 
         # Specifying a layer as well as an SQL statement in pyogrio is not supported.
         layer = None
+
+    # For pyogrio >= 0.1.2, set mixed_offsets_as_utc to False by default to
+    # avoid time zone offsets getting lost.
+    if PYOGRIO_GTE_012 and "mixed_offsets_as_utc" not in kwargs:
+        kwargs["mixed_offsets_as_utc"] = False
 
     # Read!
     columns_list = None if columns_prepared is None else list(columns_prepared)
