@@ -21,6 +21,7 @@ import geofileops as gfo
 from geofileops import fileops
 
 # from geofileops._compat import GDAL_GTE_38, GDAL_GTE_39, GDAL_GTE_311
+from geofileops._compat import GDAL_GTE_311
 from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import _geofileinfo, _geoseries_util
 from geofileops.util._geopath_util import GeoPath
