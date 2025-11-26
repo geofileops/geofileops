@@ -7,16 +7,16 @@ import shapely
 
 import geofileops as gfo
 from geofileops import GeometryType
-from geofileops import _compat as compat
+
+# from geofileops._compat import GDAL_GTE_38, GDAL_GTE_39
 from geofileops.util._geofileinfo import GeofileInfo
 from tests import test_helper
 from tests.test_helper import SUFFIXES_GEOOPS
 
-if compat.GDAL_GTE_38 and not compat.GDAL_GTE_39:
-    pytest.skip(
-        "These tests crash with GDAL>=3.8 and GDAL<3.9", allow_module_level=True
-    )
-    assert False
+# if GDAL_GTE_38 and not GDAL_GTE_39:
+#     pytest.skip(
+#         "These tests crash with GDAL>=3.8 and GDAL<3.9", allow_module_level=True
+#     )
 
 input_wkts_1 = [
     "POLYGON ((0 0, 3 0, 3 3, 0 3, 0 0))",
@@ -222,10 +222,6 @@ def test_export_by_location_invalid_params(kwargs, expected_error):
         ("touches is False", 48),
         ("", 48),
     ],
-)
-@pytest.mark.skipif(
-    compat.GDAL_GTE_38 and not compat.GDAL_GTE_39,
-    reason="These tests crash with GDAL>=3.8 and GDAL<3.9",
 )
 def test_export_by_location_query(
     tmp_path, query, subdivide_coords, area_inters_column_name, exp_featurecount
