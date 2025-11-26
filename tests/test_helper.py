@@ -159,7 +159,8 @@ def get_testfile(
     )
 
     # Make input read-only
-    set_read_only(prepared_path, read_only=read_only)
+    if read_only:
+        set_read_only(prepared_path, read_only=True)
 
     return prepared_path
 
@@ -185,9 +186,8 @@ def _get_testfile(
         raise ValueError(f"Invalid testfile type: {testfile}")
 
     # Prepare destination location
-    testdata_dir = ConfigOptions.tmp_dir / "_test_data"
     if dst_dir is None:
-        dst_dir = testdata_dir
+        dst_dir = ConfigOptions.tmp_dir / "_test_data"
     assert isinstance(dst_dir, Path)
     dst_dir.mkdir(parents=True, exist_ok=True)
 
@@ -203,30 +203,22 @@ def _get_testfile(
     if prepared_path.exists():
         return prepared_path
 
-    # If the file already exists in the testdata dir, copy it to dst_dir and return
-    testdata_path = testdata_dir / prepared_path.name
-    if testdata_path.exists():
-        gfo.copy(testdata_path, prepared_path)
-        return prepared_path
-
-    # Test file doesn't exist yet, so create it in testdata dir
+    # Test file doesn't exist yet, so create it
     # To be safe for parallelized tests, lock the creation.
-    prepared_lock_path = Path(f"{testdata_path.as_posix()}.lock")
+    prepared_lock_path = Path(f"{prepared_path.as_posix()}.lock")
     try:
         _io_util.create_file_atomic_wait(
             prepared_lock_path, time_between_attempts=0.5, timeout=60
         )
 
         # Make sure it wasn't created by another process while waiting for the lock file
-        if testdata_path.exists():
-            if not prepared_path.exists():
-                gfo.copy(testdata_path, prepared_path)
+        if prepared_path.exists():
             return prepared_path
 
         # Prepare the file in a tmp file so the file is not visible to other
         # processes until it is completely ready.
-        tmp_stem = f"{GeoPath(testdata_path).stem}_tmp"
-        tmp_path = dst_dir / f"{tmp_stem}{GeoPath(testdata_path).suffix_nozip}"
+        tmp_stem = f"{GeoPath(prepared_path).stem}_tmp"
+        tmp_path = dst_dir / f"{tmp_stem}{GeoPath(prepared_path).suffix_nozip}"
         layers = gfo.listlayers(testfile_path)
         dst_info = _geofileinfo.get_geofileinfo(tmp_path)
         if len(layers) > 1 and dst_info.is_singlelayer:
@@ -298,18 +290,16 @@ def _get_testfile(
             gfo.remove(tmp_path, missing_ok=True)
             tmp_path = tmp_path_zipped_path
 
-        # Rename tmp file to testdata file
-        if testdata_path.exists():
+        # Rename tmp file to prepared file
+        if prepared_path.exists():
             gfo.remove(tmp_path, missing_ok=True)
         else:
-            gfo.move(tmp_path, testdata_path)
-        if not prepared_path.exists():
-            gfo.copy(testdata_path, prepared_path)
+            gfo.move(tmp_path, prepared_path)
+
         return prepared_path
 
     except Exception:
-        gfo.remove(tmp_path, missing_ok=True)
-        gfo.remove(testdata_path, missing_ok=True)
+        gfo.remove(prepared_path, missing_ok=True)
         raise
     finally:
         prepared_lock_path.unlink(missing_ok=True)
