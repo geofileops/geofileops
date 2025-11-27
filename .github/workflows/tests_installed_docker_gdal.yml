@@ -43,7 +43,7 @@ jobs:
       #  run: |
       #    apt-get update && apt-get -y install python3-pip libsqlite3-mod-spatialite --fix-missing
         run: |
-          apt-get update && apt-get -y install libsqlite3-mod-spatialite
+          apt-get update && apt-get -y install python3-dev libsqlite3-mod-spatialite
 
 
       - name: Create virtual environment
