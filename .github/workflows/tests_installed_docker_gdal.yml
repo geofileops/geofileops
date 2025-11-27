@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        checkout_ref: "v0.10.x"
+        checkout_ref: ["v0.10.x"]
         container:
           - "ghcr.io/osgeo/gdal:ubuntu-small-3.12.0" # >= python 3.12.3
           # - "ghcr.io/osgeo/gdal:ubuntu-small-3.9.3" # python 3.12.3
