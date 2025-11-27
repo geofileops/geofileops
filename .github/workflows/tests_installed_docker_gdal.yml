@@ -47,7 +47,7 @@ jobs:
         # install uv and use it to create a virtual environment, then add it to
         # environment variables so that it is automatically activated and can be
         # used for tests below
-         run: |
+        run: |
            curl -LsSf https://astral.sh/uv/install.sh | sh
            . $HOME/.local/bin/env
            uv venv .venv
