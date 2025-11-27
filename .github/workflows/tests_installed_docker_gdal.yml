@@ -19,8 +19,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        checkout_ref: "v0.10.x"
         container:
-          - "ghcr.io/osgeo/gdal:ubuntu-small-latest" # >= python 3.12.3
+          - "ghcr.io/osgeo/gdal:ubuntu-small-3.12.0" # >= python 3.12.3
           # - "ghcr.io/osgeo/gdal:ubuntu-small-3.9.3" # python 3.12.3
           # - "ghcr.io/osgeo/gdal:ubuntu-small-3.8.5" # python 3.10.12
           - "ghcr.io/osgeo/gdal:ubuntu-small-3.7.3" # python 3.10.12
@@ -29,7 +30,12 @@ jobs:
       image: ${{ matrix.container }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ matrix.checkout_ref }}
+          sparse-checkout: |
+            ci
+            tests
       
       - name: Install pip, spatialite
       #   run: |
@@ -37,25 +43,26 @@ jobs:
         run: |
           apt-get update && apt-get -y install python3-pip libsqlite3-mod-spatialite --fix-missing
 
-      #- name: Create virtual environment
+      - name: Create virtual environment
         # install uv and use it to create a virtual environment, then add it to
         # environment variables so that it is automatically activated and can be
         # used for tests below
-        # run: |
-        #   curl -LsSf https://astral.sh/uv/install.sh | sh
-        #   . $HOME/.local/bin/env
-        #   uv venv .venv
-        #   echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
-        #   echo "$PWD/.venv/bin" >> $GITHUB_PATH
+         run: |
+           curl -LsSf https://astral.sh/uv/install.sh | sh
+           . $HOME/.local/bin/env
+           uv venv .venv
+           echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
+           echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
       - name: Install Python Dependencies
         run: |
           # Install dependencies, excluding gdal and pyogrio binaries
           # uv pip install -e .[test,full]
           # uv pip install cloudpickle "geopandas<1.1" numpy packaging pandas psutil pyarrow "pygeoops<0.5" pyogrio pyproj "shapely<2.1" pytest pytest-cov --no-binary pyogrio
+          uv pip install geofileops pytest pytest-cov
           # python -m pip install --upgrade pip
           # pip install cloudpickle "geopandas<1.1" numpy packaging pandas psutil pyarrow "pygeoops<0.5" pyogrio pyproj "shapely<2.1" pytest pytest-cov --no-binary pyogrio
-          pip install geofileops pytest pytest-cov
+          # pip install geofileops pytest pytest-cov
 
       - name: Test with pytest
         # run: |  
