@@ -59,7 +59,7 @@ jobs:
           # Install dependencies, excluding gdal and pyogrio binaries
           # uv pip install -e .[test,full]
           # uv pip install cloudpickle "geopandas<1.1" numpy packaging pandas psutil pyarrow "pygeoops<0.5" pyogrio pyproj "shapely<2.1" pytest pytest-cov --no-binary pyogrio
-          uv pip install geofileops pytest pytest-cov
+          uv pip install geofileops pytest pytest-cov --no-binary pyogrio
           # python -m pip install --upgrade pip
           # pip install cloudpickle "geopandas<1.1" numpy packaging pandas psutil pyarrow "pygeoops<0.5" pyogrio pyproj "shapely<2.1" pytest pytest-cov --no-binary pyogrio
           # pip install geofileops pytest pytest-cov
