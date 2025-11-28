@@ -17,13 +17,24 @@ import shapely.geometry as sh_geom
 
 import geofileops as gfo
 from geofileops import GeometryType
-from geofileops._compat import GDAL_GTE_311, GEOPANDAS_110, GEOPANDAS_GTE_10
+from geofileops._compat import (
+    # GDAL_GTE_38,
+    # GDAL_GTE_39,
+    GDAL_GTE_311,
+    GEOPANDAS_110,
+    GEOPANDAS_GTE_10,
+)
 from geofileops.util import _general_util, _geofileinfo, _sqlite_util
 from geofileops.util import _geoops_sql as geoops_sql
 from geofileops.util._geofileinfo import GeofileInfo
 from geofileops.util._geopath_util import GeoPath
 from tests import test_helper
 from tests.test_helper import SUFFIXES_GEOOPS, TESTFILES, assert_geodataframe_equal
+
+# if GDAL_GTE_38 and not GDAL_GTE_39:
+#     pytest.skip(
+#         "These tests crash with GDAL>=3.8 and GDAL<3.9", allow_module_level=True
+#     )
 
 
 @pytest.mark.parametrize("testfile", TESTFILES)
