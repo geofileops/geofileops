@@ -9,6 +9,7 @@ from pathlib import Path
 # USE_PYGEOS to avoid further warnings
 import geopandas._compat as gpd_compat
 import pyogrio
+from osgeo import gdal  # noqa: F401
 
 from geofileops import _compat
 from geofileops.util import _ogr_util
