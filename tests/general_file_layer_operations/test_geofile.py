@@ -2294,7 +2294,7 @@ def test_to_file(request, tmp_path, suffix, dimensions, engine_setter):
         )
     if suffix == ".csv":
         read_gdf = read_gdf.drop(columns="geometry")
-    if suffix == ".shp" and engine_setter == "fiona":
+    if suffix in (".shp", ".shp.zip") and engine_setter == "fiona":
         pytest.xfail("fiona does not support writing datetimes to shapefile")
     if (
         engine_setter == "pyogrio-arrow"
@@ -2358,7 +2358,7 @@ def test_to_file(request, tmp_path, suffix, dimensions, engine_setter):
         assert_frame_equal(written_gdf, expected_gdf)
         return
 
-    if suffix == ".gpkg":
+    if suffix in (".gpkg", ".gpkg.zip"):
         if engine_setter == "fiona":
             # Fiona doesn't seem to write EMPTY geom to gpkg, but writes None.
             expected_gdf.loc[46, "geometry"] = None
