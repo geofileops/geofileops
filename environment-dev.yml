@@ -15,7 +15,6 @@ dependencies:
   - packaging
   - pandas
   - psutil
-  - pyarrow-core
   - pygeoops >=0.4
   - pyogrio >=0.8
   - pyproj
@@ -23,15 +22,16 @@ dependencies:
   # optional
   # - fiona  # Not needed anymore
   - matplotlib-base
+  - pyarrow-core
   - simplification
   # testing
   - pytest
   - pytest-cov
   # linting
-  - mypy ==1.16.1
+  - mypy ==1.18.2
   - pandas-stubs
   - pre-commit
-  - ruff ==0.12.2
+  - ruff ==0.13.3
   - types-pillow
   # docs
   - pydata-sphinx-theme
