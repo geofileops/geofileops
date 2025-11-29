@@ -25,6 +25,7 @@ from geofileops._compat import (
     PANDAS_GTE_20,
     PANDAS_GTE_22,
     PYOGRIO_GTE_010,
+    PYOGRIO_GTE_012,
 )
 from geofileops.helpers._configoptions_helper import ConfigOptions
 from geofileops.util import _geofileinfo, _geoseries_util
@@ -2262,7 +2263,7 @@ def test_fill_out_sql_placeholders_errors(layer, sql_stmt, error):
 @pytest.mark.parametrize("suffix", SUFFIXES_FILEOPS_EXT)
 @pytest.mark.parametrize("dimensions", [None])
 def test_to_file(request, tmp_path, suffix, dimensions, engine_setter):
-    """Test reading a GPKG, write it to another file, check result.
+    """Test reading a GPKG, write it to another file (type), read again, check result.
 
     Note: the mainly documents the differences between the different engines and formats
     as there are many differences in the way the data is written/read.
@@ -2280,12 +2281,14 @@ def test_to_file(request, tmp_path, suffix, dimensions, engine_setter):
     # Validate if string (encoding) is correct for data read.
     assert read_gdf.loc[read_gdf["UIDN"] == uidn]["LBLHFDTLT"].item() == "Silomaïs"
 
+    """
     if suffix in (".gpkg.zip", ".shp.zip"):
         request.node.add_marker(
             pytest.mark.xfail(
                 reason="writing a dataframe to gpkg.zip or .shp.zip has issue"
             )
         )
+    """
     if suffix == ".csv":
         read_gdf = read_gdf.drop(columns="geometry")
     if suffix == ".shp" and engine_setter == "fiona":
@@ -2315,6 +2318,7 @@ def test_to_file(request, tmp_path, suffix, dimensions, engine_setter):
     # Validate if data is as expected after writing.
     expected_gdf = read_gdf.copy()
     assert len(expected_gdf) == len(written_gdf)
+
     if suffix == ".csv":
         # The int columns are read as int32 instead of int64.
         expected_gdf["OIDN"] = expected_gdf["OIDN"].astype("int32")
@@ -2325,27 +2329,37 @@ def test_to_file(request, tmp_path, suffix, dimensions, engine_setter):
         # None values are read as "".
         expected_gdf[["PM", "LBLPM"]] = expected_gdf[["PM", "LBLPM"]].fillna("")
 
-        """
         if (
             engine_setter == "pyogrio-arrow"
+            and not PYOGRIO_GTE_012
             and locale.getpreferredencoding() == "UTF-8"
         ):
             # If the locale is not UTF-8, arrow won't be used
-            expected_gdf["DATUM"] = expected_gdf["DATUM"].dt.tz_localize(None)
-        """
-        if engine_setter == "fiona":
+            exp_local_gdf = expected_gdf.copy()
+            exp_local_gdf["DATUM"] = exp_local_gdf["DATUM"].dt.tz_localize(None)
+            assert_frame_equal(written_gdf, exp_local_gdf)
+            request.node.add_marker(
+                pytest.mark.xfail(
+                    reason="reading csv with pyogrio < 0.12 + arrow drops timezone info"
+                )
+            )
+
+        elif engine_setter == "fiona":
             # Fiona writes/reads LENGTE as string, but seems difficult to get the same
             # result so just skip as fiona support is not that important.
-            pytest.xfail("fiona writes/reads LENGTE as string, so xfail test")
+            request.node.add_marker(
+                pytest.mark.xfail(reason="fiona writes/reads LENGTE as string")
+            )
 
         # As there is no geometry column, a pd.Dataframe is returned
         assert_frame_equal(written_gdf, expected_gdf)
         return
-    elif suffix == ".gpkg":
+
+    if suffix == ".gpkg":
         if engine_setter == "fiona":
             # Fiona doesn't seem to write EMPTY geom to gpkg, but writes None.
             expected_gdf.loc[46, "geometry"] = None
-    elif suffix == ".shp":
+    elif suffix in (".shp", ".shp.zip"):
         # Shapefile doesn't support EMPTY geometries, so it is written as None.
         expected_gdf.loc[46, "geometry"] = None
         # Shapefile doesn't support '' string: it is written as None.

@@ -24,11 +24,15 @@ GDAL_GTE_3114 = version.parse(GDAL_BASE_VERSION) >= version.parse("3.11.4")
 
 GEOPANDAS_GTE_10 = version.parse(gpd.__version__) >= version.parse("1.0")
 GEOPANDAS_110 = version.parse(gpd.__version__) == version.parse("1.1.0")
+
 GEOS_GTE_313 = version.parse(shapely.geos_version_string) >= version.parse("3.13")
+
 PANDAS_GTE_20 = version.parse(pd.__version__) >= version.parse("2.0")
 PANDAS_GTE_22 = version.parse(pd.__version__) >= version.parse("2.2")
+
 PYOGRIO_GTE_010 = version.parse(pyogrio.__version__) >= version.parse("0.10")
 PYOGRIO_GTE_012 = version.parse(pyogrio.__version__) >= version.parse("0.12")
+
 PYTHON_313 = sys.version_info >= (3, 13) and sys.version_info < (3, 14)
 SHAPELY_GTE_20 = version.parse(shapely.__version__) >= version.parse("2")
 
