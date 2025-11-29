@@ -14,12 +14,12 @@ dependencies:
   - packaging
   - pandas
   - psutil
-  - pyarrow
   - pygeoops
   - pyogrio
   - pyproj
   - shapely
   # optional
+  - pyarrow-core
   - simplification
   # docs
   - pydata-sphinx-theme

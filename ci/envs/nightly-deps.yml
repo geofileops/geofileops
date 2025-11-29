@@ -15,12 +15,12 @@ dependencies:
   - packaging
   - pandas
   - psutil
-  - pyarrow
   - pygeoops
   - pyogrio
   - pyproj
   - shapely >=2
   # optional
+  - pyarrow-core
   - simplification
   # testing
   - pytest
