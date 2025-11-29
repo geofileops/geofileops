@@ -16,7 +16,6 @@ from geofileops import GeometryType, fileops, geoops
 from geofileops._compat import GDAL_GTE_39, GDAL_GTE_311
 from geofileops.util import _general_util, _geofileinfo, _geoops_sql
 from geofileops.util._geofileinfo import GeofileInfo
-from geofileops.util._geometry_util import SimplifyAlgorithm
 from geofileops.util._geopath_util import GeoPath
 from tests import test_helper
 from tests.test_helper import (

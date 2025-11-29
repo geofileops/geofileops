@@ -2325,14 +2325,15 @@ def test_to_file(request, tmp_path, suffix, dimensions, engine_setter):
         # None values are read as "".
         expected_gdf[["PM", "LBLPM"]] = expected_gdf[["PM", "LBLPM"]].fillna("")
 
+        """
         if (
             engine_setter == "pyogrio-arrow"
             and locale.getpreferredencoding() == "UTF-8"
         ):
             # If the locale is not UTF-8, arrow won't be used
             expected_gdf["DATUM"] = expected_gdf["DATUM"].dt.tz_localize(None)
-
-        elif engine_setter == "fiona":
+        """
+        if engine_setter == "fiona":
             # Fiona writes/reads LENGTE as string, but seems difficult to get the same
             # result so just skip as fiona support is not that important.
             pytest.xfail("fiona writes/reads LENGTE as string, so xfail test")
