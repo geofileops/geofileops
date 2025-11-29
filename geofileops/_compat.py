@@ -31,6 +31,7 @@ PANDAS_GTE_20 = version.parse(pd.__version__) >= version.parse("2.0")
 PANDAS_GTE_22 = version.parse(pd.__version__) >= version.parse("2.2")
 
 PYOGRIO_GTE_010 = version.parse(pyogrio.__version__) >= version.parse("0.10")
+PYOGRIO_GTE_011 = version.parse(pyogrio.__version__) >= version.parse("0.11")
 PYOGRIO_GTE_012 = version.parse(pyogrio.__version__) >= version.parse("0.12")
 
 PYTHON_313 = sys.version_info >= (3, 13) and sys.version_info < (3, 14)

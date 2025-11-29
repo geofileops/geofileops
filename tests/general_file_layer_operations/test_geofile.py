@@ -25,6 +25,7 @@ from geofileops._compat import (
     PANDAS_GTE_20,
     PANDAS_GTE_22,
     PYOGRIO_GTE_010,
+    PYOGRIO_GTE_011,
     PYOGRIO_GTE_012,
 )
 from geofileops.helpers._configoptions_helper import ConfigOptions
@@ -2281,14 +2282,16 @@ def test_to_file(request, tmp_path, suffix, dimensions, engine_setter):
     # Validate if string (encoding) is correct for data read.
     assert read_gdf.loc[read_gdf["UIDN"] == uidn]["LBLHFDTLT"].item() == "Silomaïs"
 
-    """
-    if suffix in (".gpkg.zip", ".shp.zip"):
+    if (
+        suffix in (".gpkg.zip", ".shp.zip")
+        and engine_setter.startswith("pyogrio")
+        and not PYOGRIO_GTE_011
+    ):
         request.node.add_marker(
             pytest.mark.xfail(
                 reason="writing a dataframe to gpkg.zip or .shp.zip has issue"
             )
         )
-    """
     if suffix == ".csv":
         read_gdf = read_gdf.drop(columns="geometry")
     if suffix == ".shp" and engine_setter == "fiona":
