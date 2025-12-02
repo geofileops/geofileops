@@ -30,7 +30,7 @@ from pygeoops import GeometryType, PrimitiveType  # noqa: F401
 
 from geofileops._compat import GDAL_GTE_311, PYOGRIO_GTE_012
 from geofileops.helpers import _general_helper
-from geofileops.helpers._configoptions_helper import ConfigOptions
+from geofileops.helpers._options import Options
 from geofileops.util import (
     _geofileinfo,
     _geoseries_util,
@@ -1706,7 +1706,7 @@ def _read_file_base(
         fid_as_column = True
 
     # Read with the engine specified
-    engine = ConfigOptions.io_engine
+    engine = Options.get_io_engine
     if engine.startswith("pyogrio"):
         if "use_arrow" in kwargs:
             use_arrow = bool(kwargs["use_arrow"]) if pyarrow else False
@@ -1884,7 +1884,7 @@ def _read_file_base_fiona(
     finally:
         if (
             tmp_fid_path is not None
-            and ConfigOptions.remove_temp_files
+            and Options.get_remove_temp_files
             and tmp_fid_path.parent.exists()
         ):
             shutil.rmtree(tmp_fid_path.parent, ignore_errors=True)
@@ -2220,7 +2220,7 @@ def to_file(
     if force_output_geometrytype is not None and force_output_geometrytype.is_multitype:  # type: ignore[union-attr]
         force_multitype = True
 
-    engine = ConfigOptions.io_engine
+    engine = Options.get_io_engine
 
     # Write file with the correct engine
     if engine.startswith("pyogrio"):
@@ -3173,7 +3173,7 @@ def copy_layer(
         and dst_crs is None
         and Path(src).exists()
         and Path(dst).exists()
-        and ConfigOptions.copy_layer_sqlite_direct
+        and Options.get_copy_layer_sqlite_direct
     ):
         # TODO: sql_stmt?, access_mode="create", create_spatial_index, dst_crs?
         try:

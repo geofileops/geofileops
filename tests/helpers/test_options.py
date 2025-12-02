@@ -7,8 +7,8 @@ import pytest
 from pyproj import CRS
 
 import geofileops as gfo
-from geofileops.helpers import _configoptions_helper
-from geofileops.helpers._configoptions_helper import ConfigOptions
+from geofileops.helpers import _options
+from geofileops.helpers._options import Options
 
 
 @pytest.mark.parametrize(
@@ -34,7 +34,7 @@ def test_get_bool(value, default, expected):
     else:
         os.environ[test_key] = value
 
-    result = _configoptions_helper.get_bool(test_key, default=default)
+    result = _options._get_bool(test_key, default=default)
     if test_key in os.environ:
         del os.environ[test_key]
 
@@ -47,7 +47,7 @@ def test_get_bool_invalidvalue():
         gfo.TempEnv({test_key: "INVALID"}),
         pytest.raises(ValueError, match="invalid value for bool configoption"),
     ):
-        _ = _configoptions_helper.get_bool(test_key, default="")
+        _ = _options._get_bool(test_key, default="")
 
 
 @pytest.mark.parametrize(
@@ -72,13 +72,13 @@ def test_configoptions(key, value, expected):
     """Test all ConfigOptions class properties."""
     with gfo.TempEnv({key: value}):
         if key == "GFO_IO_ENGINE":
-            result = ConfigOptions.io_engine
+            result = Options.get_io_engine
         elif key == "GFO_ON_DATA_ERROR":
-            result = ConfigOptions.on_data_error
+            result = Options.get_on_data_error
         elif key == "GFO_REMOVE_TEMP_FILES":
-            result = ConfigOptions.remove_temp_files
+            result = Options.get_remove_temp_files
         elif key == "GFO_WORKER_TYPE":
-            result = ConfigOptions.worker_type
+            result = Options.get_worker_type
         else:
             raise ValueError(f"Unexpected key: {key}")
 
@@ -122,17 +122,17 @@ def test_configoptions_invalid(key, invalid_value, expected_error):
         pytest.raises(ValueError, match=expected_error),
     ):
         if key == "GFO_IO_ENGINE":
-            _ = ConfigOptions.io_engine
+            _ = Options.get_io_engine
         elif key == "GFO_ON_DATA_ERROR":
-            _ = ConfigOptions.on_data_error
+            _ = Options.get_on_data_error
         elif key == "GFO_REMOVE_TEMP_FILES":
-            _ = ConfigOptions.remove_temp_files
+            _ = Options.get_remove_temp_files
         elif key == "GFO_SLIVER_TOLERANCE":
-            _ = ConfigOptions.sliver_tolerance
+            _ = Options.sliver_tolerance
         elif key == "GFO_TMPDIR":
-            _ = ConfigOptions.tmp_dir
+            _ = Options.get_tmp_dir
         elif key == "GFO_WORKER_TYPE":
-            _ = ConfigOptions.worker_type
+            _ = Options.get_worker_type
         else:
             raise ValueError(f"Unexpected key: {key}")
 
@@ -161,12 +161,12 @@ def test_configoptions_sliver_tolerance(tolerance, crs, expected):
 def test_configoptions_tmpdir(tmp_path):
     """Test ConfigOptions.tmp_dir property."""
     with gfo.TempEnv({"GFO_TMPDIR": str(tmp_path)}):
-        assert ConfigOptions.tmp_dir == tmp_path
+        assert Options.get_tmp_dir == tmp_path
 
     # If GFO_TMPDIR is not set, a "geofileops" subdirectory in the system temp dir is
     # used.
     with gfo.TempEnv({"GFO_TMPDIR": None}):
-        tmp_dir = ConfigOptions.tmp_dir
+        tmp_dir = Options.get_tmp_dir
         assert tmp_dir.exists()
         assert tmp_dir.name == "geofileops"
         tempdir = tempfile.gettempdir()
