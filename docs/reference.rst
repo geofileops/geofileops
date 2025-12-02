@@ -115,6 +115,8 @@ Classes
    SimplifyAlgorithm
    TempEnv
 
+.. _reference-runtime-options:
+
 Runtime Options
 ---------------
 

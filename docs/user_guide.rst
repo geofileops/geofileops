@@ -251,9 +251,5 @@ All helper functions in the :mod:`geofileops.options` module can be used in two 
    1. Permanently set the option by calling the function directly.
    2. Temporarily set the option by using the function as a context manager.
 
-More info:
-
-.. toctree::
-   :maxdepth: 1
-
-   reference.rst#runtime-options
+Information about all runtime options can be found here:
+:ref:`Runtime Options<reference-runtime-options>`.
