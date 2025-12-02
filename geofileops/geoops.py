@@ -3840,7 +3840,7 @@ def union_full_self(
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
 
-    """
+    """  # noqa: E501
     logger = logging.getLogger("geofileops.union_full_self")
     logger.info(f"Start, with input: {input_path}, output: {output_path}")
 

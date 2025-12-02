@@ -183,8 +183,8 @@ class ConfigOptions:
         an exception will still be raised.
 
         Remarks:
-            - You can also set the option temporarily by using this function as a context
-              manager.
+            - You can also set the option temporarily by using this function as a
+              context manager.
             - You can also set the option by directly setting the environment variable
               `GFO_ON_DATA_ERROR` to one of "RAISE" or "WARN".
 
