@@ -154,7 +154,7 @@ def test_configoptions_invalid(key, invalid_value, expected_error):
 def test_configoptions_sliver_tolerance(tolerance, crs, expected):
     """Test ConfigOptions.sliver_tolerance method."""
     with gfo.TempEnv({"GFO_SLIVER_TOLERANCE": tolerance}):
-        result = _configoptions_helper.ConfigOptions.sliver_tolerance(crs)
+        result = Options.sliver_tolerance(crs)
         assert result == expected
 
 
