@@ -118,16 +118,7 @@ Classes
 Runtime Options
 ---------------
 
-.. currentmodule:: geofileops.options
-
 .. autosummary::
    :toctree: api/
 
-   copy_layer_sqlite_direct
-   io_engine
-   on_data_error
-   remove_temp_files
-   subdivide_check_parallel_rows
-   subdivide_check_parallel_fraction
-   tmp_dir
-   worker_type
+   options
