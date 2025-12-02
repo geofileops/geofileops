@@ -66,6 +66,24 @@ class ConfigOptions:
 
         Args:
             enable (bool): If True, this option is enabled.
+
+        Examples:
+            If you want to change the default value of the option in general, you can
+            just call it as a function:
+
+            .. code-block:: python
+
+                gfo.options.copy_layer_sqlite_direct(False)
+
+
+            If you want to temporarily change the option, you can use it as a context
+            manager:
+
+            .. code-block:: python
+
+                with gfo.options.copy_layer_sqlite_direct(False):
+                    gfo.copy_layer(...)
+
         """
         key = "GFO_COPY_LAYER_SQLITE_DIRECT"
         original_value = os.environ.get(key)
@@ -104,6 +122,25 @@ class ConfigOptions:
 
         Args:
             engine (Literal["pyogrio-arrow", "pyogrio", "fiona"]): The IO engine to use.
+
+        Examples:
+            If you want to change the default value of the option in general, you can
+            just call it as a function:
+
+            .. code-block:: python
+
+                gfo.options.io_engine("pyogrio")
+
+
+            If you want to temporarily change the option, you can use it as a context
+            manager:
+
+            .. code-block:: python
+
+                with gfo.options.io_engine("pyogrio"):
+                    gfo.read_file(...)
+
+
         """
         key = "GFO_IO_ENGINE"
         original_value = os.environ.get(key)
@@ -153,6 +190,23 @@ class ConfigOptions:
 
         Args:
             action (Literal["raise", "warn"]): The action to take on data error.
+        
+        Examples:
+            If you want to change the default value of the option in general, you can
+            just call it as a function:
+
+            .. code-block:: python
+
+                gfo.options.on_data_error("warn")
+
+
+            If you want to temporarily change the option, you can use it as a context
+            manager:
+
+            .. code-block:: python
+
+                with gfo.options.set_io_engine("pyogrio"):
+                    gfo.read_file(...)
         """
         key = "GFO_ON_DATA_ERROR"
         original_value = os.environ.get(key)
