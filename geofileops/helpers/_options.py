@@ -1,0 +1,458 @@
+"""Helper class to access the geofileops runtime options."""
+
+import os
+import tempfile
+from contextlib import AbstractContextManager
+from pathlib import Path
+from typing import Literal
+
+
+class classproperty(property):
+    """Decorator to create class-level properties."""
+
+    def __get__(self, owner_self, owner_cls):  # noqa: ANN001, ANN204
+        return self.fget(owner_cls)
+
+
+class _RestoreOriginalHandler(AbstractContextManager):
+    """Context manager to restore the original value of an environment variable."""
+
+    def __init__(self, key: str, original_value: str | None) -> None:
+        self.key = key
+        self.original_value = original_value
+
+    def __enter__(self) -> None:
+        pass
+
+    def __exit__(self, *args: object) -> None:
+        if self.original_value is None:
+            if self.key in os.environ:
+                del os.environ[self.key]
+        else:
+            os.environ[self.key] = self.original_value
+
+
+class Options:
+    """Class to get and set the geofileops runtime options.
+
+    The runtime options are saved to and read from environment variables.
+
+    The setter methods can be used in two ways:
+        1. Permanently set the option by calling the setter method directly.
+        2. Temporarily set the option by using the setter method as a context manager.
+    """
+
+    @staticmethod
+    def set_copy_layer_sqlite_direct(enable: bool) -> _RestoreOriginalHandler:
+        """Enable option to copy data directly in SQLite in `copy_layer` when possible.
+
+        If not set, this option is enabled by default.
+
+        This can be significantly faster than having the data pass through GDAL for large
+        datasets.
+
+        It is only applied if several conditions are met:
+        - only used for Geopackage files
+        - only `write_mode="append"`
+        - only if `explodecollections=False`
+        - only if `reprojection=False`
+        - ...
+
+        Notes:
+        - You can also set the option temporarily by using this function as a context
+            manager.
+        - You can also set the option by directly setting the environment variable
+            `GFO_COPY_LAYER_SQLITE_DIRECT` to "TRUE" or "FALSE".
+
+        Args:
+            enable (bool): If True, this option is enabled.
+        """
+        key = "GFO_COPY_LAYER_SQLITE_DIRECT"
+        original_value = os.environ.get(key)
+        os.environ[key] = "TRUE" if enable else "FALSE"
+
+        return _RestoreOriginalHandler(key, original_value)
+
+    @classproperty
+    def get_copy_layer_sqlite_direct(cls) -> bool:
+        """Should copy_layer use sqlite directly when possible.
+
+        This is significantly faster than using GDAL for large datasets. It is only
+        supported for .gpkg files and for specific scenarios like a straightforward
+        "append".
+
+        Returns:
+            bool: True to use sqlite directly to copy layers. Defaults to True.
+        """
+        return _get_bool("GFO_COPY_LAYER_SQLITE_DIRECT", default=True)
+
+    @staticmethod
+    def set_io_engine(
+        engine: Literal["pyogrio-arrow", "pyogrio", "fiona"],
+    ) -> _RestoreOriginalHandler:
+        """Set the IO engine to use for reading and writing files.
+
+        Possible options are:
+            - **"pyogrio-arrow"** (default if not set): use the pyogrio library via the
+            arrow batch interface. The arrow batch interface will only be used if
+            `pyarrow` is installed.
+            - **"pyogrio"**: use the pyogrio library via the traditional interface.
+            - **"fiona"**: use the fiona library. This is deprecated and support will be
+            removed in a future release.
+
+        Notes:
+        - You can also set the option temporarily by using this function as a context
+            manager.
+        - You can also set the option by directly setting the environment variable
+            `GFO_IO_ENGINE` to one of "PYOGRIO-ARROW", "PYOGRIO", or "FIONA".
+
+        Args:
+            engine (Literal["pyogrio-arrow", "pyogrio", "fiona"]): The IO engine to use.
+        """
+        key = "GFO_IO_ENGINE"
+        original_value = os.environ.get(key)
+        os.environ[key] = engine.upper()
+
+        return _RestoreOriginalHandler(key, original_value)
+
+    @classproperty
+    def get_io_engine(cls) -> str:
+        """The IO engine to use."""
+        io_engine = os.environ.get("GFO_IO_ENGINE", default="pyogrio").strip().lower()
+        supported_values = ["pyogrio", "fiona"]
+        if io_engine not in supported_values:
+            raise ValueError(
+                f"invalid value for configoption <GFO_IO_ENGINE>: '{io_engine}', "
+                f"should be one of {supported_values}"
+            )
+
+        return io_engine
+
+    @staticmethod
+    def set_on_data_error(action: Literal["raise", "warn"]) -> _RestoreOriginalHandler:
+        """Set the preferred action to take when a data error occurs.
+
+        Possible options are:
+            - **"raise"** (default if not set): raise an exception.
+            - **"warn"**: issue a warning and continue.
+
+        Notes:
+        - You can also set the option temporarily by using this function as a context
+            manager.
+        - You can also set the option by directly setting the environment variable
+            `GFO_ON_DATA_ERROR` to one of "RAISE" or "WARN".
+
+        Args:
+            action (Literal["raise", "warn"]): The action to take on data error.
+        """
+        key = "GFO_ON_DATA_ERROR"
+        original_value = os.environ.get(key)
+        os.environ[key] = action.upper()
+
+        return _RestoreOriginalHandler(key, original_value)
+
+    @classproperty
+    def get_on_data_error(cls) -> str:
+        """The preferred action when a data error occurs.
+
+        Supported values (case insensitive):
+            - "raise": raise an exception.
+            - "warn": log a warning and continue.
+
+        Note that the "warn" option is only very selectively supported: in many cases,
+        an exception will still be raised.
+
+        Returns:
+            str: the preferred action when a data error occurs. Defaults to "raise".
+        """
+        value = os.environ.get("GFO_ON_DATA_ERROR")
+
+        if value is None:
+            return "raise"
+
+        value_cleaned = value.strip().lower()
+        supported_values = ["raise", "warn"]
+        if value_cleaned not in supported_values:
+            raise ValueError(
+                f"invalid value for configoption <GFO_ON_DATA_ERROR>: '{value}', "
+                f"should be one of {supported_values}"
+            )
+
+        return value_cleaned
+
+    @staticmethod
+    def set_remove_temp_files(enable: bool) -> _RestoreOriginalHandler:
+        """Enable or disable removal of temporary files created during operations.
+
+        If not set, the option is enabled by default, so temporary files are removed after
+        the operation is complete.
+
+        Notes:
+        - You can also set the option temporarily by using this function as a context
+            manager.
+        - You can also set the option by directly setting the environment variable
+            `GFO_REMOVE_TEMP_FILES` to "TRUE" or "FALSE".
+
+        Args:
+            enable (bool): If True, temporary files will be removed after operations.
+        """
+        key = "GFO_REMOVE_TEMP_FILES"
+        original_value = os.environ.get(key)
+        os.environ[key] = "TRUE" if enable else "FALSE"
+
+        return _RestoreOriginalHandler(key, original_value)
+
+    @classproperty
+    def get_remove_temp_files(cls) -> bool:
+        """Should temporary files be removed or not.
+
+        Returns:
+            bool: True to remove temp files. Defaults to True.
+        """
+        return _get_bool("GFO_REMOVE_TEMP_FILES", default=True)
+
+    @staticmethod
+    def sliver_tolerance(tolerance: float) -> _RestoreOriginalHandler:
+        """Tolerance to use to filter out slivers from overlay operations.
+
+        The value set should be a float representing the tolerance to use in the units of
+        the spatial reference system (SRS) used. If the tolerance set is 0.0, no sliver
+        filtering is done.
+        If not set, the tolerance defaults to 0.001 if the layers being
+        processed are in a projected coordinate system, or 1e-7, if the data is in a
+        geographic coordinate system.
+
+        Slivers are typically very small, often very narrow geometries that are created
+        as a side-effect of overlay operations. The cause of this are the limitations of
+        finite-precision floating point arithmetic used typically in such operations. A
+        point that is "snapped" on a line segment, is often not exactly on the line but e.g.
+        a nanometer next to it. When calculating e.g. an intersection for this situation,
+        this can lead to very narrow (~nanometer wide) sliver polygons being created.
+
+        Most of the time, such slivers are not desired in the output. Hence, geofileops
+        filters them out by default, based on certain criteria.
+
+        The filter for the results to be retained in the output, so the geometries that
+        are not slivers, is defined like this:
+            WHERE average_width(geom) > {tolerance}
+                OR set_precision(geom, {tolerance}) IS NOT NULL
+
+        The average_width is calculated as:
+            average_width(geom) = 2 * area(geom) / length(geom)
+
+        This formula is an approximation that works well for square polygons (e.g. ).
+        narrow slivers. However, for square or round geometries, this formula TODO.
+
+        Notes:
+        - You can also set the option temporarily by using this function as a context
+            manager.
+        - You can also set the option by directly setting the environment variable
+            `GFO_SLIVER_TOLERANCE` to a string representing the tolerance value.
+
+        Args:
+            tolerance (float): The sliver tolerance value.
+        """
+        key = "GFO_SLIVER_TOLERANCE"
+        original_value = os.environ.get(key)
+        os.environ[key] = str(tolerance)
+
+        return _RestoreOriginalHandler(key, original_value)
+
+    @staticmethod
+    def set_subdivide_check_parallel_fraction(
+        fraction: int,
+    ) -> _RestoreOriginalHandler:
+        """For a file being checked in parallel, the fraction of features to check.
+
+        The value set should be an integer representing the fraction of features to check.
+        If not set, defaults to 5, resulting in 20% of the features being checked.
+
+        Notes:
+        - You can also set the option temporarily by using this function as a context
+            manager.
+        - You can also set the option by directly setting the environment variable
+            `GFO_SUBDIVIDE_CHECK_PARALLEL_FRACTION` to a string representing the fraction.
+
+        Args:
+            fraction (int): The fraction of features to check for subdivision.
+        """
+        key = "GFO_SUBDIVIDE_CHECK_PARALLEL_FRACTION"
+        original_value = os.environ.get(key)
+        os.environ[key] = str(fraction)
+
+        return _RestoreOriginalHandler(key, original_value)
+
+    @classproperty
+    def get_subdivide_check_parallel_fraction(cls) -> int:
+        """For a file being checked in parallel, the fraction of features to check.
+
+        Returns:
+            int: The fraction of features to check for subdivision. Defaults to 5.
+        """
+        fraction = os.environ.get("GFO_SUBDIVIDE_CHECK_PARALLEL_FRACTION", default="5")
+
+        return int(fraction)
+
+    @staticmethod
+    def set_subdivide_check_parallel_rows(rows: int) -> _RestoreOriginalHandler:
+        """For a file being checked in parallel, the number of rows to check.
+
+        The value set should be an integer representing the minimum number of rows a file
+        must have to check for subdivision in parallel. If not set, defaults to 500000.
+
+        Notes:
+        - You can also set the option temporarily by using this function as a context
+            manager.
+        - You can also set the option by directly setting the environment variable
+            `GFO_SUBDIVIDE_CHECK_PARALLEL_ROWS` to a string representing the number of rows.
+
+        Args:
+            rows (int): The minimum number of rows a file must have to check for
+                subdivision in parallel.
+        """
+        key = "GFO_SUBDIVIDE_CHECK_PARALLEL_ROWS"
+        original_value = os.environ.get(key)
+        os.environ[key] = str(rows)
+
+        return _RestoreOriginalHandler(key, original_value)
+
+    @classproperty
+    def get_subdivide_check_parallel_rows(cls) -> int:
+        """If a file has more rows, check if subdivide is needed in parallel.
+
+        Returns:
+            int: The minimum number of rows a file must have to check for subdivision in
+                parallel. Defaults to 500000.
+        """
+        rows = os.environ.get("GFO_SUBDIVIDE_CHECK_PARALLEL_ROWS", default="500000")
+
+        return int(rows)
+
+    @staticmethod
+    def set_tmp_dir(path: str) -> _RestoreOriginalHandler:
+        """Set the directory to use for temporary files created during processing.
+
+        The value set should be a valid directory path. If not set, a subdirectory
+        "geofileops" created in the system temp directory is used.
+
+        Notes:
+        - You can also set the option temporarily by using this function as a context
+            manager.
+        - You can also set the option by directly setting the environment variable
+            `GFO_TMPDIR` to the desired temporary directory path.
+
+        Args:
+            path (str): The temporary directory path.
+        """
+        key = "GFO_TMPDIR"
+        original_value = os.environ.get(key)
+        os.environ[key] = path
+
+        return _RestoreOriginalHandler(key, original_value)
+
+    @classproperty
+    def get_tmp_dir(cls) -> Path:
+        """The temporary directory to use for processing.
+
+        Returns:
+            Path: The temporary directory path. Defaults to a system temp directory.
+        """
+        tmp_dir_str = os.environ.get("GFO_TMPDIR")
+        if tmp_dir_str is None:
+            tmpdir = Path(tempfile.gettempdir()) / "geofileops"
+        elif tmp_dir_str.strip() == "":
+            raise ValueError(
+                "GFO_TMPDIR='' environment variable found which is not supported."
+            )
+        else:
+            tmpdir = Path(tmp_dir_str.strip())
+
+        tmpdir.mkdir(parents=True, exist_ok=True)
+        return tmpdir
+
+    @staticmethod
+    def set_worker_type(
+        worker: Literal["process", "thread", "auto"],
+    ) -> _RestoreOriginalHandler:
+        """Set the type of worker to use for parallel processing.
+
+        Possible options are:
+            - **"processes"** (default if not set): use multiprocessing with separate
+            processes.
+            - **"threads"**: use multithreading within the same process.
+            - **"auto"**: automatically choose the best worker type based on the operation
+            being performed.
+
+        Notes:
+        - You can also set the option temporarily by using this function as a context
+            manager.
+        - You can also set the option by directly setting the environment variable
+            `GFO_WORKER_TYPE` to one of "processes", "threads", or "auto".
+
+        Args:
+            worker (Literal["processes", "threads", "auto"]): The type of worker to use.
+        """
+        key = "GFO_WORKER_TYPE"
+        original_value = os.environ.get(key)
+        os.environ[key] = worker.upper()
+
+        return _RestoreOriginalHandler(key, original_value)
+
+    @classproperty
+    def get_worker_type(cls) -> str:
+        """The type of workers to use for parallel processing.
+
+        Supported values (case insensitive):
+            - "threads": use threads when processing in parallel.
+            - "processes": use processes when processing in parallel.
+            - "auto": determine the type automatically.
+
+        Returns:
+            str: the type of workers to use. Defaults to "auto".
+        """
+        worker_type = os.environ.get("GFO_WORKER_TYPE", default="auto").strip().lower()
+        supported_values = ["threads", "processes", "auto"]
+        if worker_type not in supported_values:
+            raise ValueError(
+                f"invalid value for configoption <GFO_WORKER_TYPE>: '{worker_type}', "
+                f"should be one of {supported_values}"
+            )
+
+        return worker_type
+
+
+def _get_bool(key: str, default: bool) -> bool:
+    """Get the value for the environment variable ``key`` as a bool.
+
+    Supported values (case insensitive):
+       - True: "1", "YES", "TRUE"
+       - False: "0", "NO", "FALSE"
+
+    Args:
+        key (str): the environement variable to read.
+        default (bool): the value to return if the environement variable does not exist
+            or if it is "".
+
+    Raises:
+        ValueError: if an invalid value is present in the environment variable.
+
+    Returns:
+        bool: True or False.
+    """
+    value = os.environ.get(key, default="")
+    value_cleaned = value.strip().lower()
+
+    # If the key is not defined, return default
+    if value_cleaned == "":
+        return default
+
+    # Check the value
+    if value_cleaned in ("1", "yes", "true"):
+        return True
+    elif value_cleaned in ("0", "no", "false"):
+        return False
+    else:
+        raise ValueError(
+            f"invalid value for bool configoption <{key}>: {value}, should be one of "
+            "1, 0, YES, NO, TRUE, FALSE"
+        )
