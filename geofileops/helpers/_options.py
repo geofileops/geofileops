@@ -471,7 +471,7 @@ class ConfigOptions:
 
     @staticmethod
     def set_worker_type(
-        worker: Literal["processes", "threads", "auto"],
+        worker_type: Literal["processes", "threads", "auto"],
     ) -> _RestoreOriginalHandler:
         """Set the type of worker to use for parallel processing.
 
@@ -491,7 +491,8 @@ class ConfigOptions:
               `GFO_WORKER_TYPE` to one of "processes", "threads", or "auto".
 
         Args:
-            worker (Literal["processes", "threads", "auto"]): The type of worker to use.
+            worker_type (Literal["processes", "threads", "auto"]): The type of worker to
+                use.
 
         Examples:
             If you want to change the default value of the option in general, you can
@@ -513,7 +514,7 @@ class ConfigOptions:
         """
         key = "GFO_WORKER_TYPE"
         original_value = os.environ.get(key)
-        os.environ[key] = worker.upper()
+        os.environ[key] = worker_type.upper()
 
         return _RestoreOriginalHandler(key, original_value)
 
