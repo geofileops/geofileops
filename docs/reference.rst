@@ -131,11 +131,11 @@ All helper functions below can be used in two ways:
 .. autosummary::
    :toctree: api/
 
-   options.copy_layer_sqlite_direct
-   options.io_engine
-   options.on_data_error
-   options.remove_temp_files
-   options.subdivide_check_parallel_rows
-   options.subdivide_check_parallel_fraction
-   options.tmp_dir
-   options.worker_type
+   options.set_copy_layer_sqlite_direct
+   options.set_io_engine
+   options.set_on_data_error
+   options.set_remove_temp_files
+   options.set_subdivide_check_parallel_rows
+   options.set_subdivide_check_parallel_fraction
+   options.set_tmp_dir
+   options.set_worker_type

@@ -16,14 +16,14 @@ class options:
         2. Temporarily set the option by using the function as a context manager.
     """
 
-    copy_layer_sqlite_direct = ConfigOptions.set_copy_layer_sqlite_direct
+    set_copy_layer_sqlite_direct = ConfigOptions.set_copy_layer_sqlite_direct
 
-    io_engine = ConfigOptions.set_io_engine
-    on_data_error = ConfigOptions.set_on_data_error
-    remove_temp_files = ConfigOptions.set_remove_temp_files
-    subdivide_check_parallel_rows = ConfigOptions.set_subdivide_check_parallel_rows
-    subdivide_check_parallel_fraction = (
+    set_io_engine = ConfigOptions.set_io_engine
+    set_on_data_error = ConfigOptions.set_on_data_error
+    set_remove_temp_files = ConfigOptions.set_remove_temp_files
+    set_subdivide_check_parallel_rows = ConfigOptions.set_subdivide_check_parallel_rows
+    set_subdivide_check_parallel_fraction = (
         ConfigOptions.set_subdivide_check_parallel_fraction
     )
-    tmp_dir = ConfigOptions.set_tmp_dir
-    worker_type = ConfigOptions.set_worker_type
+    set_tmp_dir = ConfigOptions.set_tmp_dir
+    set_worker_type = ConfigOptions.set_worker_type
