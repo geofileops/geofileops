@@ -7,6 +7,15 @@ from geofileops.helpers._options import Options
 
 
 class options:
+    """Helper function to make it easy to set geofileops runtime options.
+
+    The runtime options are saved to and read from environment variables.
+
+    All functions can be used in two ways:
+        1. Permanently set the option by calling the function directly.
+        2. Temporarily set the option by using the function as a context manager.
+    """
+
     copy_layer_sqlite_direct = Options.set_copy_layer_sqlite_direct
     io_engine = Options.set_io_engine
     on_data_error = Options.set_on_data_error

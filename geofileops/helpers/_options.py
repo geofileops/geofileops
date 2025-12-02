@@ -52,17 +52,17 @@ class Options:
         large datasets.
 
         It is only applied if several conditions are met:
-        - only used for Geopackage files
-        - only `write_mode="append"`
-        - only if `explodecollections=False`
-        - only if `reprojection=False`
-        - ...
+            - only used for Geopackage files
+            - only `write_mode="append"`
+            - only if `explodecollections=False`
+            - only if `reprojection=False`
+            - ...
 
-        Notes:
-        - You can also set the option temporarily by using this function as a context
-          manager.
-        - You can also set the option by directly setting the environment variable
-          `GFO_COPY_LAYER_SQLITE_DIRECT` to "TRUE" or "FALSE".
+        Remarks:
+            - You can also set the option temporarily by using this function as a
+              context manager.
+            - You can also set the option by directly setting the environment variable
+              `GFO_COPY_LAYER_SQLITE_DIRECT` to "TRUE" or "FALSE".
 
         Args:
             enable (bool): If True, this option is enabled.
@@ -76,10 +76,6 @@ class Options:
     @classproperty
     def get_copy_layer_sqlite_direct(cls) -> bool:
         """Should copy_layer use sqlite directly when possible.
-
-        This is significantly faster than using GDAL for large datasets. It is only
-        supported for .gpkg files and for specific scenarios like a straightforward
-        "append".
 
         Returns:
             bool: True to use sqlite directly to copy layers. Defaults to True.
@@ -100,11 +96,11 @@ class Options:
             - **"fiona"**: use the fiona library. This is deprecated and support will be
               removed in a future release.
 
-        Notes:
-        - You can also set the option temporarily by using this function as a context
-          manager.
-        - You can also set the option by directly setting the environment variable
-          `GFO_IO_ENGINE` to one of "PYOGRIO-ARROW", "PYOGRIO", or "FIONA".
+        Remarks:
+            - You can also set the option temporarily by using this function as a
+              context manager.
+            - You can also set the option by directly setting the environment variable
+              `GFO_IO_ENGINE` to one of "PYOGRIO-ARROW", "PYOGRIO", or "FIONA".
 
         Args:
             engine (Literal["pyogrio-arrow", "pyogrio", "fiona"]): The IO engine to use.
@@ -117,7 +113,15 @@ class Options:
 
     @classproperty
     def get_io_engine(cls) -> str:
-        """The IO engine to use."""
+        """The IO engine to use.
+
+        Returns:
+            str: the IO engine to use. Possible values (lowercase):
+                - "pyogrio-arrow" (default if not set): use the pyogrio library via the
+                  arrow batch interface.
+                - "pyogrio": use the pyogrio library via the traditional interface.
+                - "fiona": use the fiona library.
+        """
         io_engine = (
             os.environ.get("GFO_IO_ENGINE", default="pyogrio-arrow").strip().lower()
         )
@@ -138,11 +142,14 @@ class Options:
             - **"raise"** (default if not set): raise an exception.
             - **"warn"**: issue a warning and continue.
 
-        Notes:
-        - You can also set the option temporarily by using this function as a context
-          manager.
-        - You can also set the option by directly setting the environment variable
-          `GFO_ON_DATA_ERROR` to one of "RAISE" or "WARN".
+        Note that the "warn" option is only very selectively supported: in many cases,
+        an exception will still be raised.
+
+        Remarks:
+            - You can also set the option temporarily by using this function as a context
+              manager.
+            - You can also set the option by directly setting the environment variable
+              `GFO_ON_DATA_ERROR` to one of "RAISE" or "WARN".
 
         Args:
             action (Literal["raise", "warn"]): The action to take on data error.
@@ -157,15 +164,11 @@ class Options:
     def get_on_data_error(cls) -> str:
         """The preferred action when a data error occurs.
 
-        Supported values (case insensitive):
-            - "raise": raise an exception.
-            - "warn": log a warning and continue.
-
-        Note that the "warn" option is only very selectively supported: in many cases,
-        an exception will still be raised.
-
         Returns:
-            str: the preferred action when a data error occurs. Defaults to "raise".
+            str: the preferred action when a data error occurs. Possible values
+                (lowercase):
+                - "raise" (default if not set): raise an exception.
+                - "warn": log a warning and continue.
         """
         value = os.environ.get("GFO_ON_DATA_ERROR")
 
@@ -189,11 +192,11 @@ class Options:
         If not set, the option is enabled by default, so temporary files are removed
         after the operation is complete.
 
-        Notes:
-        - You can also set the option temporarily by using this function as a context
-            manager.
-        - You can also set the option by directly setting the environment variable
-            `GFO_REMOVE_TEMP_FILES` to "TRUE" or "FALSE".
+        Remarks:
+            - You can also set the option temporarily by using this function as a
+              context manager.
+            - You can also set the option by directly setting the environment variable
+              `GFO_REMOVE_TEMP_FILES` to "TRUE" or "FALSE".
 
         Args:
             enable (bool): If True, temporary files will be removed after operations.
@@ -214,7 +217,7 @@ class Options:
         return _get_bool("GFO_REMOVE_TEMP_FILES", default=True)
 
     @staticmethod
-    def sliver_tolerance(tolerance: float) -> _RestoreOriginalHandler:
+    def set_sliver_tolerance(tolerance: float) -> _RestoreOriginalHandler:
         """Tolerance to use to filter out slivers from overlay operations.
 
         The value set should be a float representing the tolerance to use in the units
@@ -246,11 +249,11 @@ class Options:
         This formula is an approximation that works well for square polygons (e.g. ).
         narrow slivers. However, for square or round geometries, this formula TODO.
 
-        Notes:
-        - You can also set the option temporarily by using this function as a context
-          manager.
-        - You can also set the option by directly setting the environment variable
-          `GFO_SLIVER_TOLERANCE` to a string representing the tolerance value.
+        Remarks:
+            - You can also set the option temporarily by using this function as a context
+              manager.
+            - You can also set the option by directly setting the environment variable
+              `GFO_SLIVER_TOLERANCE` to a string representing the tolerance value.
 
         Args:
             tolerance (float): The sliver tolerance value.
@@ -271,11 +274,12 @@ class Options:
         check.
         If not set, defaults to 5, resulting in 20% of the features being checked.
 
-        Notes:
-        - You can also set the option temporarily by using this function as a context
-          manager.
-        - You can also set the option by directly setting the environment variable
-          `GFO_SUBDIVIDE_CHECK_PARALLEL_FRACTION` to a string representing the fraction.
+        Remarks:
+            - You can also set the option temporarily by using this function as a
+              context manager.
+            - You can also set the option by directly setting the environment variable
+              `GFO_SUBDIVIDE_CHECK_PARALLEL_FRACTION` to a string representing the
+              fraction.
 
         Args:
             fraction (int): The fraction of features to check for subdivision.
@@ -305,12 +309,12 @@ class Options:
         file must have to check for subdivision in parallel.
         If not set, defaults to 500000.
 
-        Notes:
-        - You can also set the option temporarily by using this function as a context
-          manager.
-        - You can also set the option by directly setting the environment variable
-          `GFO_SUBDIVIDE_CHECK_PARALLEL_ROWS` to a string representing the number of
-          rows.
+        Remarks:
+            - You can also set the option temporarily by using this function as a
+              context manager.
+            - You can also set the option by directly setting the environment variable
+              `GFO_SUBDIVIDE_CHECK_PARALLEL_ROWS` to a string representing the number of
+              rows.
 
         Args:
             rows (int): The minimum number of rows a file must have to check for
@@ -341,11 +345,11 @@ class Options:
         The value set should be a valid directory path. If not set, a subdirectory
         "geofileops" created in the system temp directory is used.
 
-        Notes:
-        - You can also set the option temporarily by using this function as a context
-          manager.
-        - You can also set the option by directly setting the environment variable
-          `GFO_TMPDIR` to the desired temporary directory path.
+        Remarks:
+            - You can also set the option temporarily by using this function as a
+              context manager.
+            - You can also set the option by directly setting the environment variable
+              `GFO_TMPDIR` to the desired temporary directory path.
 
         Args:
             path (str): The temporary directory path.
@@ -358,10 +362,11 @@ class Options:
 
     @classproperty
     def get_tmp_dir(cls) -> Path:
-        """The temporary directory to use for processing.
+        """The directory to use for temporary files created during processing.
 
         Returns:
-            Path: The temporary directory path. Defaults to a system temp directory.
+            Path: The directory to use for temporary files. Defaults to a "geofileops"
+                subdirectory in the system temp directory.
         """
         tmp_dir_str = os.environ.get("GFO_TMPDIR")
         if tmp_dir_str is None:
@@ -389,11 +394,11 @@ class Options:
             - **"auto"**: automatically choose the best worker type based on the
               operation being performed.
 
-        Notes:
-        - You can also set the option temporarily by using this function as a context
-          manager.
-        - You can also set the option by directly setting the environment variable
-          `GFO_WORKER_TYPE` to one of "processes", "threads", or "auto".
+        Remarks:
+            - You can also set the option temporarily by using this function as a
+              context manager.
+            - You can also set the option by directly setting the environment variable
+              `GFO_WORKER_TYPE` to one of "processes", "threads", or "auto".
 
         Args:
             worker (Literal["processes", "threads", "auto"]): The type of worker to use.
@@ -408,13 +413,11 @@ class Options:
     def get_worker_type(cls) -> str:
         """The type of workers to use for parallel processing.
 
-        Supported values (case insensitive):
-            - "threads": use threads when processing in parallel.
-            - "processes": use processes when processing in parallel.
-            - "auto": determine the type automatically.
-
         Returns:
-            str: the type of workers to use. Defaults to "auto".
+            str: the type of workers to use. Possible values (lowercase):
+                - "threads": use threads when processing in parallel.
+                - "processes": use processes when processing in parallel.
+                - "auto" (default if not specified): determine the type automatically.
         """
         worker_type = os.environ.get("GFO_WORKER_TYPE", default="auto").strip().lower()
         supported_values = ["threads", "processes", "auto"]
