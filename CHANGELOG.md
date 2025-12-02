@@ -4,10 +4,12 @@
 
 ### Deprecations and compatibility notes
 
-- Minimum version of dependencies updated to spatialite 5.1.
+- Minimum version of dependencies updated to GDAL 3.8, pyogrio 0.8, geopandas 0.13 and
+  spatialite 5.1.
 
 ### Improvements
 
+- Add `union_full_self` operation (#764)
 - Add `concat` function (#746, #747)
 - Add `join` function (#751)
 - Add `add_columns` function (#768)
@@ -23,6 +25,9 @@
 - Improve performance of the subdividividing used in many operations (#730)
 - Improve performance of `dissolve` (#748)
 - Improve performance of two-layer operations using `nb_parallel=1` (#692)
+- Add support for the `"pyogrio-arrow"` gfo io-engine, and use it by default. This
+  increases performance for reading and writing dataframes as well as for geopandas
+  based operations like `dissolve`,... (#392)
 - Alternative query for `clip` + default `subdivide_coords` to 15000 (#450)
 - Improve and speed up attribute column type detection in two-layer operations (#758)
 - Ensure that the featurecount is properly cached in GPKG files, also for older GDAL
