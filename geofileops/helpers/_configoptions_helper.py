@@ -1,6 +1,10 @@
+"""Helper class to access geofileops configuration options."""
+
 import os
 import tempfile
 from pathlib import Path
+
+from pyproj import CRS
 
 
 class classproperty(property):
@@ -79,13 +83,17 @@ class ConfigOptions:
         """
         return get_bool("GFO_REMOVE_TEMP_FILES", default=True)
 
-    @classproperty
-    def sliver_tolerance(cls) -> float:
+    @staticmethod
+    def sliver_tolerance(crs: CRS | None) -> float:
         """Tolerance to use to filter out slivers from overlay operations.
 
         If 0.0, no sliver filtering is done. If negative, only slivers with tolerance
         abs(value) are retained in the output instead of filtering them out.
-        If not set, defaults to 1e-8.
+
+        If not set, the default depends on the ``crs``. If ``crs`` is a projected CRS,
+        the default tolerance is 0.001 meters. If it is a geographic CRS, the default
+        tolerance 1e-7 degrees. If ``crs`` is None or invalid, the default tolerance is
+        0.0, so no sliver filtering is done.
 
         The slivers meant here are very small, often very narrow geometries that are
         created as a side-effect of overlay operations. Due to the limitations of
@@ -124,11 +132,30 @@ class ConfigOptions:
         geometries will still be retained if they pass the more precise `set_precision`
         check.
 
+        Args:
+            crs (CRS): The CRS of the geometries being processed. Used to determine
+                the sliver tolerance. For projected CRSes, the tolerance is in the units
+                of the CRS (e.g. meters). For geographic CRSes, the tolerance is in
+                degrees.
+
         Returns:
-            float: the sliver tolerance to be uses.
+            float: the sliver tolerance to be used. If 0.0, no sliver filtering is done.
         """
         try:
-            return float(os.environ.get("GFO_SLIVER_TOLERANCE", default="1e-8"))
+            tol_str = os.environ.get("GFO_SLIVER_TOLERANCE", None)
+            if tol_str is not None:
+                return float(tol_str)
+            elif crs is None:
+                return 0.0
+            elif crs.is_projected:
+                # Only found projected CRSs so far that use meters or feet, and for both
+                # of those this tolerance is fine.
+                return 0.001
+            elif crs.is_geographic:
+                return 1e-7
+            else:
+                return 0.0
+
         except Exception as ex:
             raise ValueError(
                 "invalid value for configoption <GFO_SLIVER_TOLERANCE>: "

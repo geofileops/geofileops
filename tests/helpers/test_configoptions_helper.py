@@ -1,11 +1,10 @@
-"""
-Tests for functionalities in _configoptions_helper.
-"""
+"""Tests for functionalities in _configoptions_helper."""
 
 import os
 import tempfile
 
 import pytest
+from pyproj import CRS
 
 import geofileops as gfo
 from geofileops.helpers import _configoptions_helper
@@ -136,6 +135,27 @@ def test_configoptions_invalid(key, invalid_value, expected_error):
             _ = ConfigOptions.worker_type
         else:
             raise ValueError(f"Unexpected key: {key}")
+
+
+@pytest.mark.parametrize(
+    "tolerance, crs, expected",
+    [
+        ("0.1", None, 0.1),
+        ("0.2", None, 0.2),
+        (None, None, 0.0),
+        (None, CRS.from_epsg(31370), 0.001),
+        (None, CRS.from_epsg(3857), 0.001),
+        (None, CRS.from_epsg(2277), 0.001),  # CRS in feet -> same tolerance
+        (None, CRS.from_epsg(4326), 1e-7),
+        ("0.5", CRS.from_epsg(31370), 0.5),
+        ("-0.5", CRS.from_epsg(4326), -0.5),
+    ],
+)
+def test_configoptions_sliver_tolerance(tolerance, crs, expected):
+    """Test ConfigOptions.sliver_tolerance method."""
+    with gfo.TempEnv({"GFO_SLIVER_TOLERANCE": tolerance}):
+        result = _configoptions_helper.ConfigOptions.sliver_tolerance(crs)
+        assert result == expected
 
 
 def test_configoptions_tmpdir(tmp_path):

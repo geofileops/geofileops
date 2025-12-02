@@ -3631,7 +3631,9 @@ def _two_layer_vector_operation(
         #   - No use to apply sliver filter if use_ogr is True, as GFO_ReducePrecision
         #     is not loaded/available with use_ogr.
         sliver_tolerance = (
-            _general_helper.ConfigOptions.sliver_tolerance if remove_slivers else 0.0
+            _general_helper.ConfigOptions.sliver_tolerance(input1_layer.crs)
+            if remove_slivers
+            else 0.0
         )
         if (
             sliver_tolerance != 0.0
