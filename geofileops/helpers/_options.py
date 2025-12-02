@@ -32,7 +32,7 @@ class _RestoreOriginalHandler(AbstractContextManager):
             os.environ[self.key] = self.original_value
 
 
-class Options:
+class ConfigOptions:
     """Class to get and set the geofileops runtime options.
 
     The runtime options are saved to and read from environment variables.

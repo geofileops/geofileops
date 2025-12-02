@@ -243,7 +243,13 @@ dataset like this:
 Runtime Options
 ---------------
 Geofileops has several runtime options that can be used to tune its behavior. These can
-be set using the :mod:`geofileops.options` module. 
+be set using the :mod:`geofileops.options` module.  The runtime options are saved to and
+read from environment variables, so setting the environment variables directly is also
+possible.
+
+All helper functions in the :mod:`geofileops.options` module can be used in two ways:
+   1. Permanently set the option by calling the function directly.
+   2. Temporarily set the option by using the function as a context manager.
 
 More info:
 

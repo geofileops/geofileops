@@ -9,7 +9,7 @@ import pytest
 
 import geofileops as gfo
 from geofileops.helpers import _options
-from geofileops.helpers._options import Options
+from geofileops.helpers._options import ConfigOptions
 
 
 @pytest.mark.parametrize(
@@ -73,13 +73,13 @@ def test_configoptions(key, value, expected):
     """Test all ConfigOptions class properties."""
     with gfo.TempEnv({key: value}):
         if key == "GFO_IO_ENGINE":
-            result = Options.get_io_engine
+            result = ConfigOptions.get_io_engine
         elif key == "GFO_ON_DATA_ERROR":
-            result = Options.get_on_data_error
+            result = ConfigOptions.get_on_data_error
         elif key == "GFO_REMOVE_TEMP_FILES":
-            result = Options.get_remove_temp_files
+            result = ConfigOptions.get_remove_temp_files
         elif key == "GFO_WORKER_TYPE":
-            result = Options.get_worker_type
+            result = ConfigOptions.get_worker_type
         else:
             raise ValueError(f"Unexpected key: {key}")
 
@@ -118,15 +118,15 @@ def test_configoptions_invalid(key, invalid_value, expected_error):
         pytest.raises(ValueError, match=expected_error),
     ):
         if key == "GFO_IO_ENGINE":
-            _ = Options.get_io_engine
+            _ = ConfigOptions.get_io_engine
         elif key == "GFO_ON_DATA_ERROR":
-            _ = Options.get_on_data_error
+            _ = ConfigOptions.get_on_data_error
         elif key == "GFO_REMOVE_TEMP_FILES":
-            _ = Options.get_remove_temp_files
+            _ = ConfigOptions.get_remove_temp_files
         elif key == "GFO_TMPDIR":
-            _ = Options.get_tmp_dir
+            _ = ConfigOptions.get_tmp_dir
         elif key == "GFO_WORKER_TYPE":
-            _ = Options.get_worker_type
+            _ = ConfigOptions.get_worker_type
         else:
             raise ValueError(f"Unexpected key: {key}")
 
@@ -134,12 +134,12 @@ def test_configoptions_invalid(key, invalid_value, expected_error):
 def test_configoptions_tmpdir(tmp_path):
     """Test ConfigOptions.tmp_dir property."""
     with gfo.TempEnv({"GFO_TMPDIR": str(tmp_path)}):
-        assert Options.get_tmp_dir == tmp_path
+        assert ConfigOptions.get_tmp_dir == tmp_path
 
     # If GFO_TMPDIR is not set, a "geofileops" subdirectory in the system temp dir is
     # used.
     with gfo.TempEnv({"GFO_TMPDIR": None}):
-        tmp_dir = Options.get_tmp_dir
+        tmp_dir = ConfigOptions.get_tmp_dir
         assert tmp_dir.exists()
         assert tmp_dir.name == "geofileops"
         tempdir = tempfile.gettempdir()
