@@ -190,7 +190,7 @@ class ConfigOptions:
 
         Args:
             action (Literal["raise", "warn"]): The action to take on data error.
-        
+
         Examples:
             If you want to change the default value of the option in general, you can
             just call it as a function:
@@ -269,54 +269,6 @@ class ConfigOptions:
             bool: True to remove temp files. Defaults to True.
         """
         return _get_bool("GFO_REMOVE_TEMP_FILES", default=True)
-
-    @staticmethod
-    def set_sliver_tolerance(tolerance: float) -> _RestoreOriginalHandler:
-        """Tolerance to use to filter out slivers from overlay operations.
-
-        The value set should be a float representing the tolerance to use in the units
-        of the spatial reference system (SRS) used. If the tolerance set is 0.0, no
-        sliver filtering is done.
-        If not set, the tolerance defaults to 0.001 if the layers being
-        processed are in a projected coordinate system, or 1e-7, if the data is in a
-        geographic coordinate system.
-
-        Slivers are typically very small, often very narrow geometries that are created
-        as a side-effect of overlay operations. The cause of this are the limitations of
-        finite-precision floating point arithmetic used typically in such operations. A
-        point that is "snapped" on a line segment, is often not exactly on the line but
-        e.g. a nanometer next to it. When calculating e.g. an intersection for this
-        situation, this can lead to very narrow (~nanometer wide) sliver polygons being
-        created.
-
-        Most of the time, such slivers are not desired in the output. Hence, geofileops
-        filters them out by default, based on certain criteria.
-
-        The filter for the results to be retained in the output, so the geometries that
-        are not slivers, is defined like this:
-            WHERE average_width(geom) > {tolerance}
-                OR set_precision(geom, {tolerance}) IS NOT NULL
-
-        The average_width is calculated as:
-            average_width(geom) = 2 * area(geom) / length(geom)
-
-        This formula is an approximation that works well for square polygons (e.g. ).
-        narrow slivers. However, for square or round geometries, this formula TODO.
-
-        Remarks:
-            - You can also set the option temporarily by using this function as a context
-              manager.
-            - You can also set the option by directly setting the environment variable
-              `GFO_SLIVER_TOLERANCE` to a string representing the tolerance value.
-
-        Args:
-            tolerance (float): The sliver tolerance value.
-        """
-        key = "GFO_SLIVER_TOLERANCE"
-        original_value = os.environ.get(key)
-        os.environ[key] = str(tolerance)
-
-        return _RestoreOriginalHandler(key, original_value)
 
     @staticmethod
     def set_subdivide_check_parallel_fraction(fraction: int) -> _RestoreOriginalHandler:
