@@ -48,8 +48,8 @@ class Options:
 
         If not set, this option is enabled by default.
 
-        This can be significantly faster than having the data pass through GDAL for large
-        datasets.
+        This can be significantly faster than having the data pass through GDAL for
+        large datasets.
 
         It is only applied if several conditions are met:
         - only used for Geopackage files
@@ -60,9 +60,9 @@ class Options:
 
         Notes:
         - You can also set the option temporarily by using this function as a context
-            manager.
+          manager.
         - You can also set the option by directly setting the environment variable
-            `GFO_COPY_LAYER_SQLITE_DIRECT` to "TRUE" or "FALSE".
+          `GFO_COPY_LAYER_SQLITE_DIRECT` to "TRUE" or "FALSE".
 
         Args:
             enable (bool): If True, this option is enabled.
@@ -94,17 +94,17 @@ class Options:
 
         Possible options are:
             - **"pyogrio-arrow"** (default if not set): use the pyogrio library via the
-            arrow batch interface. The arrow batch interface will only be used if
-            `pyarrow` is installed.
+              arrow batch interface. The arrow batch interface will only be used if
+              `pyarrow` is installed.
             - **"pyogrio"**: use the pyogrio library via the traditional interface.
             - **"fiona"**: use the fiona library. This is deprecated and support will be
-            removed in a future release.
+              removed in a future release.
 
         Notes:
         - You can also set the option temporarily by using this function as a context
-            manager.
+          manager.
         - You can also set the option by directly setting the environment variable
-            `GFO_IO_ENGINE` to one of "PYOGRIO-ARROW", "PYOGRIO", or "FIONA".
+          `GFO_IO_ENGINE` to one of "PYOGRIO-ARROW", "PYOGRIO", or "FIONA".
 
         Args:
             engine (Literal["pyogrio-arrow", "pyogrio", "fiona"]): The IO engine to use.
@@ -140,9 +140,9 @@ class Options:
 
         Notes:
         - You can also set the option temporarily by using this function as a context
-            manager.
+          manager.
         - You can also set the option by directly setting the environment variable
-            `GFO_ON_DATA_ERROR` to one of "RAISE" or "WARN".
+          `GFO_ON_DATA_ERROR` to one of "RAISE" or "WARN".
 
         Args:
             action (Literal["raise", "warn"]): The action to take on data error.
@@ -186,8 +186,8 @@ class Options:
     def set_remove_temp_files(enable: bool) -> _RestoreOriginalHandler:
         """Enable or disable removal of temporary files created during operations.
 
-        If not set, the option is enabled by default, so temporary files are removed after
-        the operation is complete.
+        If not set, the option is enabled by default, so temporary files are removed
+        after the operation is complete.
 
         Notes:
         - You can also set the option temporarily by using this function as a context
@@ -217,9 +217,9 @@ class Options:
     def sliver_tolerance(tolerance: float) -> _RestoreOriginalHandler:
         """Tolerance to use to filter out slivers from overlay operations.
 
-        The value set should be a float representing the tolerance to use in the units of
-        the spatial reference system (SRS) used. If the tolerance set is 0.0, no sliver
-        filtering is done.
+        The value set should be a float representing the tolerance to use in the units
+        of the spatial reference system (SRS) used. If the tolerance set is 0.0, no
+        sliver filtering is done.
         If not set, the tolerance defaults to 0.001 if the layers being
         processed are in a projected coordinate system, or 1e-7, if the data is in a
         geographic coordinate system.
@@ -227,9 +227,10 @@ class Options:
         Slivers are typically very small, often very narrow geometries that are created
         as a side-effect of overlay operations. The cause of this are the limitations of
         finite-precision floating point arithmetic used typically in such operations. A
-        point that is "snapped" on a line segment, is often not exactly on the line but e.g.
-        a nanometer next to it. When calculating e.g. an intersection for this situation,
-        this can lead to very narrow (~nanometer wide) sliver polygons being created.
+        point that is "snapped" on a line segment, is often not exactly on the line but
+        e.g. a nanometer next to it. When calculating e.g. an intersection for this
+        situation, this can lead to very narrow (~nanometer wide) sliver polygons being
+        created.
 
         Most of the time, such slivers are not desired in the output. Hence, geofileops
         filters them out by default, based on certain criteria.
@@ -247,9 +248,9 @@ class Options:
 
         Notes:
         - You can also set the option temporarily by using this function as a context
-            manager.
+          manager.
         - You can also set the option by directly setting the environment variable
-            `GFO_SLIVER_TOLERANCE` to a string representing the tolerance value.
+          `GFO_SLIVER_TOLERANCE` to a string representing the tolerance value.
 
         Args:
             tolerance (float): The sliver tolerance value.
@@ -266,14 +267,15 @@ class Options:
     ) -> _RestoreOriginalHandler:
         """For a file being checked in parallel, the fraction of features to check.
 
-        The value set should be an integer representing the fraction of features to check.
+        The value set should be an integer representing the fraction of features to
+        check.
         If not set, defaults to 5, resulting in 20% of the features being checked.
 
         Notes:
         - You can also set the option temporarily by using this function as a context
-            manager.
+          manager.
         - You can also set the option by directly setting the environment variable
-            `GFO_SUBDIVIDE_CHECK_PARALLEL_FRACTION` to a string representing the fraction.
+          `GFO_SUBDIVIDE_CHECK_PARALLEL_FRACTION` to a string representing the fraction.
 
         Args:
             fraction (int): The fraction of features to check for subdivision.
@@ -299,14 +301,16 @@ class Options:
     def set_subdivide_check_parallel_rows(rows: int) -> _RestoreOriginalHandler:
         """For a file being checked in parallel, the number of rows to check.
 
-        The value set should be an integer representing the minimum number of rows a file
-        must have to check for subdivision in parallel. If not set, defaults to 500000.
+        The value set should be an integer representing the minimum number of rows a
+        file must have to check for subdivision in parallel.
+        If not set, defaults to 500000.
 
         Notes:
         - You can also set the option temporarily by using this function as a context
-            manager.
+          manager.
         - You can also set the option by directly setting the environment variable
-            `GFO_SUBDIVIDE_CHECK_PARALLEL_ROWS` to a string representing the number of rows.
+          `GFO_SUBDIVIDE_CHECK_PARALLEL_ROWS` to a string representing the number of
+          rows.
 
         Args:
             rows (int): The minimum number of rows a file must have to check for
@@ -339,9 +343,9 @@ class Options:
 
         Notes:
         - You can also set the option temporarily by using this function as a context
-            manager.
+          manager.
         - You can also set the option by directly setting the environment variable
-            `GFO_TMPDIR` to the desired temporary directory path.
+          `GFO_TMPDIR` to the desired temporary directory path.
 
         Args:
             path (str): The temporary directory path.
@@ -380,16 +384,16 @@ class Options:
 
         Possible options are:
             - **"processes"** (default if not set): use multiprocessing with separate
-            processes.
+              processes.
             - **"threads"**: use multithreading within the same process.
-            - **"auto"**: automatically choose the best worker type based on the operation
-            being performed.
+            - **"auto"**: automatically choose the best worker type based on the
+              operation being performed.
 
         Notes:
         - You can also set the option temporarily by using this function as a context
-            manager.
+          manager.
         - You can also set the option by directly setting the environment variable
-            `GFO_WORKER_TYPE` to one of "processes", "threads", or "auto".
+          `GFO_WORKER_TYPE` to one of "processes", "threads", or "auto".
 
         Args:
             worker (Literal["processes", "threads", "auto"]): The type of worker to use.
