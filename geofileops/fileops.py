@@ -1139,6 +1139,7 @@ def add_columns(
 
     If `output_path` is specified, but `output_layer` is None, the output layer name is
     determined like this for file types that support multiple layers:
+
        - if the input layer contains a single spatial layer, :func:`get_default_layer`
          on `output_path` will be used to determine `output_layer`.
        - otherwise, the input layername is used/retained.
@@ -2969,11 +2970,12 @@ def copy_layer(
     """Copy a layer from a source to a destination dataset.
 
     Typical use cases:
-      - convert a file from one fileformat to another
-      - reproject a layer to another spatial reference
-      - export a subset of a layer using the `where` or `sql_stmt` parameter
-      - add a layer to an existing file as a new layer (`write_mode="add_layer"`)
-      - append a layer to an existing layer (`write_mode="append"`)
+
+        - convert a file from one fileformat to another
+        - reproject a layer to another spatial reference
+        - export a subset of a layer using the `where` or `sql_stmt` parameter
+        - add a layer to an existing file as a new layer (`write_mode="add_layer"`)
+        - append a layer to an existing layer (`write_mode="append"`)
 
     If an `sql_stmt` is specified, the sqlite query can contain following placeholders
     that will be automatically replaced for you:
