@@ -1494,6 +1494,7 @@ def update_column(
     .. |spatialite_reference_link| raw:: html
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
     """  # noqa: E501
     # Init
     logger.info(f"Update column {name} in {path}#{layer}")
@@ -1580,7 +1581,7 @@ def read_file(
 
 
     Args:
-        path (file path): path to the file to read from. |GDAL_vsi|_ paths are also
+        path (file path): path to the file to read from. `GDAL_vsi`_ paths are also
             supported.
         layer (str, optional): The layer to read. If None and there is only one layer in
             the file it is read, otherwise an error is thrown. Defaults to None.
@@ -1596,7 +1597,7 @@ def read_file(
             recommended. Defaults to None, then all rows are returned.
         where (str, optional): where clause to filter features in layer by attribute
             values. If the datasource natively supports sql, its specific SQL dialect
-            should be used (eg. SQLite and GeoPackage: `SQLITE`_, PostgreSQL). If it
+            should be used (eg. SQLite and GeoPackage: "SQLITE", PostgreSQL). If it
             doesn't, the `OGRSQL WHERE`_ syntax should be used. Note that it is not
             possible to overrule the SQL dialect, this is only possible when you use the
             SQL parameter. Examples: ``"ISO_A3 = 'CAN'"``,
@@ -2998,6 +2999,7 @@ def copy_layer(
         { "<option_type>.<option_name>": <option_value> }
 
     The option types can be any of the following:
+
         - LAYER_CREATION: layer creation option (lco)
         - DATASET_CREATION: dataset creation option (dsco)
         - INPUT_OPEN: input dataset open option (oo)
