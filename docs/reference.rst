@@ -121,11 +121,11 @@ Runtime Options
 .. autosummary::
    :toctree: api/
 
-   options.copy_layer_sqlite_direct
-   options.io_engine
-   options.on_data_error
-   options.remove_temp_files
-   options.subdivide_check_parallel_rows
-   options.subdivide_check_parallel_fraction
-   options.tmp_dir
-   options.worker_type
+   geofileops.options.copy_layer_sqlite_direct
+   geofileops.options.io_engine
+   geofileops.options.on_data_error
+   geofileops.options.remove_temp_files
+   geofileops.options.subdivide_check_parallel_rows
+   geofileops.options.subdivide_check_parallel_fraction
+   geofileops.options.tmp_dir
+   geofileops.options.worker_type
