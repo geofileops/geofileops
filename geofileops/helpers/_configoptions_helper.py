@@ -1,6 +1,5 @@
 """Helper class to access the geofileops configuration options."""
 
-import json
 import os
 import tempfile
 from pathlib import Path
@@ -213,7 +212,7 @@ class ConfigOptions:
         Returns:
             Path: The temporary directory path. Defaults to a system temp directory.
         """
-        tmp_dir_str = os.environ.get(Options.TMPDIR)
+        tmp_dir_str = os.environ.get("GFO_TMPDIR")
         if tmp_dir_str is None:
             tmpdir = Path(tempfile.gettempdir()) / "geofileops"
         elif tmp_dir_str.strip() == "":
