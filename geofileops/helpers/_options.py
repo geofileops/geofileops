@@ -265,9 +265,7 @@ class Options:
         return _RestoreOriginalHandler(key, original_value)
 
     @staticmethod
-    def set_subdivide_check_parallel_fraction(
-        fraction: int,
-    ) -> _RestoreOriginalHandler:
+    def set_subdivide_check_parallel_fraction(fraction: int) -> _RestoreOriginalHandler:
         """For a file being checked in parallel, the fraction of features to check.
 
         The value set should be an integer representing the fraction of features to
@@ -383,7 +381,7 @@ class Options:
 
     @staticmethod
     def set_worker_type(
-        worker: Literal["process", "thread", "auto"],
+        worker: Literal["processes", "threads", "auto"],
     ) -> _RestoreOriginalHandler:
         """Set the type of worker to use for parallel processing.
 
