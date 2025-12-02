@@ -123,11 +123,11 @@ Runtime Options
 .. autosummary::
    :toctree: api/
 
-   options.copy_layer_sqlite_direct
-   options.io_engine
-   options.on_data_error
-   options.remove_temp_files
-   options.subdivide_check_parallel_rows
-   options.subdivide_check_parallel_fraction
-   options.tmp_dir
-   options.worker_type
+   copy_layer_sqlite_direct
+   io_engine
+   on_data_error
+   remove_temp_files
+   subdivide_check_parallel_rows
+   subdivide_check_parallel_fraction
+   tmp_dir
+   worker_type
