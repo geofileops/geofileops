@@ -185,6 +185,36 @@ def test_worker_type() -> None:
     assert key not in os.environ
 
 
+def test_sliver_tolerance() -> None:
+    """Test the sliver_tolerance option setter."""
+    # Make sure the environment variable is not set at the start of the test
+    key = "GFO_SLIVER_TOLERANCE"
+    if key in os.environ:
+        del os.environ[key]
+
+    # Test setting the option permanently
+    gfo.options.sliver_tolerance(0.001)
+    assert os.environ[key] == "0.001"
+
+    # Test setting the option temporarily using context manager
+    with gfo.options.sliver_tolerance(0.0001):
+        assert os.environ[key] == "0.0001"
+
+    # After exiting the context manager, the value should be restored to the last
+    # permanent setting (which was 0.001)
+    assert os.environ[key] == "0.001"
+
+    # Clean up by removing the environment variable
+    del os.environ[key]
+
+    # Test setting the option temporarily using context manager
+    with gfo.options.sliver_tolerance(-0.0005):
+        assert os.environ[key] == "-0.0005"
+
+    # After exiting the context manager, the environment variable should be removed
+    assert key not in os.environ
+
+
 def test_subdivide_check_parallel_fraction() -> None:
     """Test the subdivide_check_parallel_fraction option setter."""
     # Make sure the environment variable is not set at the start of the test

@@ -6,6 +6,8 @@ from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Literal
 
+from pyproj import CRS
+
 
 class classproperty(property):
     """Decorator to create class-level properties."""
@@ -220,38 +222,54 @@ class Options:
     def set_sliver_tolerance(tolerance: float) -> _RestoreOriginalHandler:
         """Tolerance to use to filter out slivers from overlay operations.
 
-        The value set should be a float representing the tolerance to use in the units
-        of the spatial reference system (SRS) used. If the tolerance set is 0.0, no
-        sliver filtering is done.
-        If not set, the tolerance defaults to 0.001 if the layers being
-        processed are in a projected coordinate system, or 1e-7, if the data is in a
-        geographic coordinate system.
+        If 0.0, no sliver filtering is done. If negative, only slivers with tolerance
+        abs(value) are retained in the output instead of filtering them out.
 
-        Slivers are typically very small, often very narrow geometries that are created
-        as a side-effect of overlay operations. The cause of this are the limitations of
-        finite-precision floating point arithmetic used typically in such operations. A
-        point that is "snapped" on a line segment, is often not exactly on the line but
-        e.g. a nanometer next to it. When calculating e.g. an intersection for this
-        situation, this can lead to very narrow (~nanometer wide) sliver polygons being
-        created.
+        If not set, the default depends on the ``crs``. If ``crs`` is a projected CRS,
+        the default tolerance is 0.001 meters. If it is a geographic CRS, the default
+        tolerance 1e-7 degrees. If ``crs`` is None or invalid, the default tolerance is
+        0.0, so no sliver filtering is done.
 
-        Most of the time, such slivers are not desired in the output. Hence, geofileops
-        filters them out by default, based on certain criteria.
+        The slivers meant here are very small, often very narrow geometries that are
+        created as a side-effect of overlay operations. Due to the limitations of
+        finite-precision floating point arithmetic used in such operations, a point
+        that is "snapped" on a line segment, is sometimes not exactly located on the
+        line. When calculating e.g. an intersection, this can lead to very small sliver
+        polygons being created.
 
-        The filter for the results to be retained in the output, so the geometries that
-        are not slivers, is defined like this:
-            WHERE average_width(geom) > {tolerance}
-                OR set_precision(geom, {tolerance}) IS NOT NULL
+        Most of the time, such slivers are not desired in the output. Hence, they are
+        filtered out based on certain criteria by default.
 
-        The average_width is calculated as:
+        The basic algorythm used to determine if a geometry is a sliver is to use the
+        GEOS `set_precision` algorythm with a small tolerance. If the polygon becomes
+        NULL, because it is smaller/narrower than the tolerance, it is considered a
+        sliver.
+
+        Because the `set_precision` algorythm is relatively costly to apply, geometries
+        are first pre-filtered with a less expensive filter: the average width:
+
+        .. code_block::
+
             average_width(geom) = 2 * area(geom) / length(geom)
 
-        This formula is an approximation that works well for square polygons (e.g. ).
-        narrow slivers. However, for square or round geometries, this formula TODO.
+        This formula is an approximation that works well for long, narrow polygons, but
+        it underestimates the width for square or round polygons. Some examples:
+
+           - **a 10 x 10 meter square**: `2 * (10 * 10)  / (4 * 10) = 400 / 40 = 5`,
+             which is an underestimation, as the real average width is 10.
+           - **a 1 x 100 meter rectangle**:
+             `2 * (1 * 100) / (2 * (1 + 100)) = 200 / 202 = ~0.99`, which is almost
+             correct as the real average width is 1.
+
+        The average width being underestimated for some shapes means that some
+        geometries are marked as slivers even if they are not. Because the
+        `average_width` check is only a pre-filter, this is not a problem: such
+        geometries will still be retained if they pass the more precise `set_precision`
+        check.
 
         Remarks:
-            - You can also set the option temporarily by using this function as a context
-              manager.
+            - You can also set the option temporarily by using this function as a
+              context manager.
             - You can also set the option by directly setting the environment variable
               `GFO_SLIVER_TOLERANCE` to a string representing the tolerance value.
 
@@ -263,6 +281,47 @@ class Options:
         os.environ[key] = str(tolerance)
 
         return _RestoreOriginalHandler(key, original_value)
+
+    @staticmethod
+    def get_sliver_tolerance(crs: CRS | None) -> float:
+        """Tolerance to use to filter out slivers from overlay operations.
+
+        Args:
+            crs (CRS): The CRS of the geometries being processed. Used to determine
+                the sliver tolerance. For projected CRSes, the tolerance is in the units
+                of the CRS (e.g. meters). For geographic CRSes, the tolerance is in
+                degrees.
+
+        Returns:
+            float: the sliver tolerance to be used. If 0.0, no sliver filtering should
+                be done. If negative, only slivers with tolerance abs(value) should be
+                retained in the output instead of filtering them out.
+                If not set, the default depends on the ``crs``. If ``crs`` is a
+                projected CRS, the default tolerance is 0.001 meters. If it is a
+                geographic CRS, the default tolerance is 1etolerance 1e-7 degrees.
+                If ``crs`` is None or invalid, the default tolerance is 0.0, so no
+                sliver filtering is done.
+        """
+        try:
+            tol_str = os.environ.get("GFO_SLIVER_TOLERANCE", None)
+            if tol_str is not None:
+                return float(tol_str)
+            elif crs is None:
+                return 0.0
+            elif crs.is_projected:
+                # Only found projected CRSs so far that use meters or feet, and for both
+                # of those this tolerance is fine.
+                return 0.001
+            elif crs.is_geographic:
+                return 1e-7
+            else:
+                return 0.0
+
+        except Exception as ex:
+            raise ValueError(
+                "invalid value for configoption <GFO_SLIVER_TOLERANCE>: "
+                "should be a number"
+            ) from ex
 
     @staticmethod
     def set_subdivide_check_parallel_fraction(fraction: int) -> _RestoreOriginalHandler:

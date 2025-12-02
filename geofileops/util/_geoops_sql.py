@@ -3363,7 +3363,7 @@ def _two_layer_vector_operation(
             geofileops temporary directory. Useful to keep all temporary files for an
             operation that uses multiple steps in one temporary directory.
             The temporary directory created and its contents will be removed after the
-            operation if ConfigOptions.remove_temp_files is not False!
+            operation if Options.remove_temp_files is not False!
 
     Raises:
         ValueError: [description]
@@ -3631,7 +3631,7 @@ def _two_layer_vector_operation(
         #   - No use to apply sliver filter if use_ogr is True, as GFO_ReducePrecision
         #     is not loaded/available with use_ogr.
         sliver_tolerance = (
-            _general_helper.ConfigOptions.sliver_tolerance(input1_layer.crs)
+            Options.get_sliver_tolerance(input1_layer.crs)
             if remove_slivers
             else 0.0
         )
