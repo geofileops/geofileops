@@ -51,17 +51,25 @@ def dissolve_within_distance(
     The output layer will contain the dissolved geometries where all gaps between the
     input geometries up to ``distance`` are closed.
 
-    Notes:
-      - Only tested on polygon input.
-      - Gaps between the individual polygons of multipolygon input features will also
-        be closed.
-      - The polygons in the output file are exploded to simple geometries.
-      - No attributes from the input layer are retained.
-      - If ``close_internal_gaps`` is False, the default, a ``gridsize`` > 0
-        (E.g. 0.000001) should be specified, otherwise some input boundary gaps could
-        still be closed due to rounding side effects.
+    Remarks:
+
+        - Only tested on polygon input.
+        - Gaps between the individual polygons of multipolygon input features will also
+          be closed.
+        - The polygons in the output file are exploded to simple geometries.
+        - No attributes from the input layer are retained.
+        - If ``close_internal_gaps`` is False, the default, a ``gridsize`` > 0
+          (E.g. 0.000001) should be specified, otherwise some input boundary gaps could
+          still be closed due to rounding side effects.
+        - Starting from geofileops 0.11.0, sliver polygons are removed from the output
+          by default. Polygons are considered slivers if they are narrower than a
+          certain tolerance. By default this tolerance is 0.001 CRS units if the CRS of
+          the input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+          information + information how to change this default tolerance can be found
+          here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
 
     Alternative names:
+
       - ArcMap: aggregate_polygons (similar functionality)
       - Keywords: merge, dissolve, aggregate, snap, close gaps, union
 
@@ -348,6 +356,7 @@ def dissolve_within_distance(
             input2_layer=input_layer,
             explodecollections=True,
             gridsize=0.0,
+            remove_slivers=True,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             operation_prefix=f"{operation_name}-",
@@ -1391,6 +1400,7 @@ def makevalid(
     Writes the result to the output path.
 
     Alternative names:
+
         - QGIS: fix geometries
         - shapely, geopandas: make_valid
 
@@ -1520,6 +1530,7 @@ def warp(
     """Warp all input features to the output file according to the gcps specified.
 
     Alternative names:
+
         - rubbersheet, rubbersheeting
 
     Args:
@@ -1749,7 +1760,7 @@ def simplify(
 
     The result is written to the output file specified.
 
-    Several `algorithm`s are available.
+    Several ``algorithm``s are available.
 
     If ``explodecollections`` is False and the input and output file type is GeoPackage,
     the fid will be preserved. In other cases this will typically not be the case.
@@ -1868,7 +1879,8 @@ def clip(
     The resulting layer will contain the parts of the geometries in the
     input layer that overlap with the dissolved geometries in the clip layer.
 
-    Notes:
+    Remarks:
+
         - every row in the input layer will result in maximum one row in the
           output layer.
         - geometries in the input layer that overlap with multiple adjacent
@@ -1878,6 +1890,12 @@ def clip(
           In this case, the output geometries can contain extra collinear points where
           the subdividing occured. This behaviour can be controlled via the
           ``subdivide_coords`` parameter.
+        - Starting from geofileops 0.11.0, sliver polygons are removed from the output
+          by default. Polygons are considered slivers if they are narrower than a
+          certain tolerance. By default this tolerance is 0.001 CRS units if the CRS of
+          the input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+          information + information how to change this default tolerance can be found
+          here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
 
     This is the result you can expect when clipping a polygon layer (yellow)
     with another polygon layer (purple):
@@ -1937,6 +1955,7 @@ def clip(
         :alt: Clip input
     .. |clip_result| image:: ../_static/images/clip_result.png
         :alt: Clip result
+
     """  # noqa: E501
     logger = logging.getLogger("geofileops.clip")
     logger.info(f"Start on {input_path} with {clip_path} to {output_path}")
@@ -2090,7 +2109,8 @@ def difference(
     the (pieces of) features in this layer that don't have any intersections with other
     features in this layer.
 
-    Notes:
+    Remarks:
+
         - Every row in the input layer will result in maximum one row in the
           output layer.
         - The output will contain the columns from the 1st no columns from the 2nd
@@ -2100,8 +2120,15 @@ def difference(
           For these geometries, the output geometries will contain extra collinear
           points where the subdividing occured. This behaviour can be controlled via the
           ``subdivide_coords`` parameter.
+        - Starting from geofileops 0.11.0, sliver polygons are removed from the output
+          by default. Polygons are considered slivers if they are narrower than a
+          certain tolerance. By default this tolerance is 0.001 CRS units if the CRS of
+          the input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+          information + information how to change this default tolerance can be found
+          here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
 
     Alternative names:
+
         - ArcMap: erase
 
     Args:
@@ -2265,6 +2292,7 @@ def export_by_location(
 
 
     Alternative names:
+
         - QGIS: extract by location
 
     Args:
@@ -2467,6 +2495,7 @@ def identity(
     If ``input2_path`` is None, a self-identity is performed. This means the 1st input
     layer is used for both inputs but interactions between the same rows in this layer
     are ignored. The output can be influenced via the ``include_duplicates`` parameter:
+
         - If True (the default), the logic explained above is applied as-such. The
           result is that each (part of a) geometry that has an intersection is
           duplicated in the output with the attribute column values "switched". Hence,
@@ -2479,7 +2508,8 @@ def identity(
         - If False, only one of the duplicates is kept in the
           output with the column values only available "in one direction".
 
-    Notes:
+    Remarks:
+
         - The result will contain the attribute columns from both input layers. The
           attribute values wont't be changed, so columns like area,... will have to be
           recalculated manually if this is wanted.
@@ -2487,6 +2517,12 @@ def identity(
           For these geometries, the output geometries will contain extra collinear
           points where the subdividing occured. This behaviour can be controlled via the
           ``subdivide_coords`` parameter.
+        - Starting from geofileops 0.11.0, sliver polygons are removed from the output
+          by default. Polygons are considered slivers if they are narrower than a
+          certain tolerance. By default this tolerance is 0.001 CRS units if the CRS of
+          the input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+          information + information how to change this default tolerance can be found
+          here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
 
     Args:
         input1_path (PathLike): the 1st input file.
@@ -2711,6 +2747,7 @@ def intersection(
     input layer is used for both inputs but interactions between the same rows in this
     layer are ignored. The output can be influenced with the ``include_duplicates``
     parameter:
+
         - If True (the default), the logic described above is applied as-such. The
           result is that each geometry is duplicated in the output with the attribute
           column values "switched". Hence, each intersecting pair of geometries A and B
@@ -2721,7 +2758,8 @@ def intersection(
         - If ``include_duplicates`` is False, only one of the duplicates is kept in the
           output with the column values only saved "in one direction".
 
-    Notes:
+    Remarks:
+
         - The result will contain the attribute columns from both input layers. The
           attribute values wont't be changed, so columns like area,... will have to be
           recalculated manually if this is wanted.
@@ -2729,8 +2767,15 @@ def intersection(
           For these geometries, the output geometries will contain extra collinear
           points where the subdividing occured. This behaviour can be controlled via the
           ``subdivide_coords`` parameter.
+        - Starting from geofileops 0.11.0, sliver polygons are removed from the output
+          by default. Polygons are considered slivers if they are narrower than a
+          certain tolerance. By default this tolerance is 0.001 CRS units if the CRS of
+          the input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+          information + information how to change this default tolerance can be found
+          here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
 
     Alternative names:
+
         - GeoPandas: overlay(how="intersection")
 
     Args:
@@ -3101,6 +3146,7 @@ def join_nearest(
 
     In addition to the columns requested via the ``input*_columns`` parameters, the
     following columns will be in the output file as well:
+
         - pos (int): relative rank (sorted by distance): the closest item will be #1,
           the second closest item will be #2 and so on.
         - distance (float): if the dataset is in a planar (= projected) crs,
@@ -3203,6 +3249,7 @@ def select_two_layers(
     explodecollections: bool = False,
     force_output_geometrytype: GeometryType | None = None,
     gridsize: float = 0.0,
+    remove_slivers: bool = False,
     where_post: str | None = None,
     nb_parallel: int = 1,
     batchsize: int = -1,
@@ -3249,6 +3296,13 @@ def select_two_layers(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
+        remove_slivers (bool, optional): True to remove sliver geometries from the
+            output. Polygons are considered slivers if they are narrower than a certain
+            tolerance. By default this tolerance is 0.001 CRS units if the CRS of the
+            input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+            information + information how to change this default tolerance can be found
+            here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
+            Defaults to False.
         where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
@@ -3411,6 +3465,7 @@ def select_two_layers(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
+        remove_slivers=remove_slivers,
         where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -3452,7 +3507,8 @@ def symmetric_difference(
     other way around. If you don't want this duplication, use the :func:`difference`
     function instead.
 
-    Notes:
+    Remarks:
+
         - The result will contain the attribute columns from both input layers. The
           attribute values wont't be changed, so columns like area,... will have to be
           recalculated manually if this is wanted.
@@ -3460,9 +3516,15 @@ def symmetric_difference(
           For these geometries, the output geometries will contain extra collinear
           points where the subdividing occured. This behaviour can be controlled via the
           ``subdivide_coords`` parameter.
-
+        - Starting from geofileops 0.11.0, sliver polygons are removed from the output
+          by default. Polygons are considered slivers if they are narrower than a
+          certain tolerance. By default this tolerance is 0.001 CRS units if the CRS of
+          the input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+          information + information how to change this default tolerance can be found
+          here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
 
     Alternative names:
+
         - GeoPandas: overlay(how="symmetric_difference")
         - QGIS, ArcMap: symmetrical difference
 
@@ -3584,6 +3646,7 @@ def union(
 
     Union needs to be interpreted here as such: the output layer will contain the
     combination of all of the following operations:
+
         - The pairwise intersection between the two layers.
         - The (parts of) features of layer 1 that don't have any intersection with layer
           2.
@@ -3594,6 +3657,7 @@ def union(
     layer is used for both inputs but interactions between the same rows in this layer
     are ignored. The output can be influenced with the ``include_duplicates``
     parameter:
+
         - If True (the default), the logic explained above is applied as-such. The
           result is that each geometry is duplicated in the output with the attribute
           column values "switched". Hence, each intersecting pair of geometries A and B
@@ -3608,7 +3672,8 @@ def union(
         - If False, only one of the duplicates is kept in the output with the column
           values only available "in one direction".
 
-    Notes:
+    Remarks:
+
         - The result will contain the attribute columns from both input layers. The
           attribute values wont't be changed, so columns like area,... will have to be
           recalculated manually if this is wanted.
@@ -3616,9 +3681,15 @@ def union(
           For these geometries, the output geometries will contain extra collinear
           points where the subdividing occured. This behaviour can be controlled via the
           ``subdivide_coords`` parameter.
-
+        - Starting from geofileops 0.11.0, sliver polygons are removed from the output
+          by default. Polygons are considered slivers if they are narrower than a
+          certain tolerance. By default this tolerance is 0.001 CRS units if the CRS of
+          the input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+          information + information how to change this default tolerance can be found
+          here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
 
     Alternative names:
+
         - GeoPandas: overlay(how="union")
 
     Args:
@@ -3759,6 +3830,22 @@ def union_full_self(
 
     .. plot:: code/union_full_self.py
 
+    Remarks:
+
+        - The result can contain attribute columns from the input layer. The
+          attribute values wont't be changed, so columns like area,... will have to be
+          recalculated manually if this is wanted.
+        - To speed up processing, complex input geometries are subdivided by default.
+          For these geometries, the output geometries will contain extra collinear
+          points where the subdividing occured. This behaviour can be controlled via the
+          ``subdivide_coords`` parameter.
+        - Sliver polygons are removed from the output by default. Polygons are
+          considered slivers if they are narrower than a certain tolerance. By default
+          this tolerance is 0.001 CRS units if the CRS of the input layers is a
+          projected CRS, 1e-7 if it is a geographic CRS. More information + information
+          how to change this default tolerance can be found here:
+          :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
+
     .. versionadded:: 0.11.0
 
     Args:
@@ -3825,7 +3912,12 @@ def union_full_self(
 
     See Also:
         * :func:`union`: calculate the pairwise union of two layers
-    """
+
+    .. |spatialite_reference_link| raw:: html
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     logger = logging.getLogger("geofileops.union_full_self")
     logger.info(f"Start, with input: {input_path}, output: {output_path}")
 
