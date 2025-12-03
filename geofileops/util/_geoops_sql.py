@@ -3363,7 +3363,7 @@ def _two_layer_vector_operation(
             geofileops temporary directory. Useful to keep all temporary files for an
             operation that uses multiple steps in one temporary directory.
             The temporary directory created and its contents will be removed after the
-            operation if Options.remove_temp_files is not False!
+            operation if ConfigOptions.remove_temp_files is not False!
 
     Raises:
         ValueError: [description]

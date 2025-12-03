@@ -56,6 +56,7 @@ class ConfigOptions:
         large datasets.
 
         It is only applied if several conditions are met:
+
             - only used for Geopackage files
             - only `write_mode="append"`
             - only if `explodecollections=False`
@@ -63,6 +64,7 @@ class ConfigOptions:
             - ...
 
         Remarks:
+
             - You can also set the option temporarily by using this function as a
               context manager.
             - You can also set the option by directly setting the environment variable
@@ -111,6 +113,7 @@ class ConfigOptions:
         """Set the IO engine to use for reading and writing files.
 
         Possible options are:
+
             - **"pyogrio-arrow"** (default if not set): use the pyogrio library via the
               arrow batch interface. The arrow batch interface will only be used if
               `pyarrow` is installed.
@@ -119,6 +122,7 @@ class ConfigOptions:
               removed in a future release.
 
         Remarks:
+
             - You can also set the option temporarily by using this function as a
               context manager.
             - You can also set the option by directly setting the environment variable
@@ -158,6 +162,7 @@ class ConfigOptions:
 
         Returns:
             str: the IO engine to use. Possible values (lowercase):
+
                 - "pyogrio-arrow" (default if not set): use the pyogrio library via the
                   arrow batch interface.
                 - "pyogrio": use the pyogrio library via the traditional interface.
@@ -180,6 +185,7 @@ class ConfigOptions:
         """Set the preferred action to take when a data error occurs.
 
         Possible options are:
+
             - **"raise"** (default if not set): raise an exception.
             - **"warn"**: issue a warning and continue.
 
@@ -227,6 +233,7 @@ class ConfigOptions:
         Returns:
             str: the preferred action when a data error occurs. Possible values
                 (lowercase):
+
                 - "raise" (default if not set): raise an exception.
                 - "warn": log a warning and continue.
         """
@@ -253,6 +260,7 @@ class ConfigOptions:
         after the operation is complete.
 
         Remarks:
+
             - You can also set the option temporarily by using this function as a
               context manager.
             - You can also set the option by directly setting the environment variable
@@ -408,6 +416,7 @@ class ConfigOptions:
         If not set, defaults to 5, resulting in 20% of the features being checked.
 
         Remarks:
+
             - You can also set the option temporarily by using this function as a
               context manager.
             - You can also set the option by directly setting the environment variable
@@ -461,6 +470,7 @@ class ConfigOptions:
         If not set, defaults to 500000.
 
         Remarks:
+
             - You can also set the option temporarily by using this function as a
               context manager.
             - You can also set the option by directly setting the environment variable
@@ -515,6 +525,7 @@ class ConfigOptions:
         "geofileops" created in the system temp directory is used.
 
         Remarks:
+
             - You can also set the option temporarily by using this function as a
               context manager.
             - You can also set the option by directly setting the environment variable
@@ -575,6 +586,7 @@ class ConfigOptions:
         """Set the type of worker to use for parallel processing.
 
         Possible options are:
+
             - **"processes"** (default if not set): use multiprocessing with separate
               processes.
             - **"threads"**: use multithreading within the same process.
@@ -582,6 +594,7 @@ class ConfigOptions:
               operation being performed.
 
         Remarks:
+
             - You can also set the option temporarily by using this function as a
               context manager.
             - You can also set the option by directly setting the environment variable
