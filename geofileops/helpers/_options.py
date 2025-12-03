@@ -192,6 +192,63 @@ class ConfigOptions:
         return io_engine
 
     @staticmethod
+    def set_nb_parallel(nb_parallel: int | None) -> _RestoreOriginalHandler:
+        """Set the number of cores to use while processing.
+
+        If not set, defaults to all available cores being used.
+
+        Remarks:
+
+            - You can also set the option temporarily by using this function as a
+              context manager.
+            - You can also set the option by directly setting the environment variable
+              `GFO_NB_PARALLEL` to a string representing the number of cores to use.
+
+        .. versionadded:: 0.11.0
+
+        Args:
+            nb_parallel (int | None): The number of cores to use while processing.
+                If None, the option is unset (so the default behavior is used).
+
+        Examples:
+            If you want to change the default value of the option in general, you can
+            just call it as a function:
+
+            .. code-block:: python
+
+                gfo.options.set_nb_parallel(10)
+
+
+            If you want to temporarily change the option, you can use it as a context
+            manager:
+
+            .. code-block:: python
+
+                with gfo.options.set_nb_parallel(10):
+                    gfo.intersection(...)
+
+        """
+        key = "GFO_NB_PARALLEL"
+        original_value = os.environ.get(key)
+        if nb_parallel is not None:
+            os.environ[key] = str(nb_parallel)
+        elif key in os.environ:
+            del os.environ[key]
+
+        return _RestoreOriginalHandler(key, original_value)
+
+    @classproperty
+    def get_nb_parallel(cls) -> int:
+        """Get the number of cores to use while processing.
+
+        Returns:
+            int: The number of cores to use while processing.
+        """
+        nb_parallel = os.environ.get("GFO_NB_PARALLEL", default="-1")
+
+        return int(nb_parallel)
+
+    @staticmethod
     def set_on_data_error(
         action: Literal["raise", "warn"] | None,
     ) -> _RestoreOriginalHandler:
