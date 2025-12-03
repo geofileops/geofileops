@@ -8,7 +8,7 @@ from pyproj import CRS
 
 import geofileops as gfo
 from geofileops.helpers import _options
-from geofileops.helpers._options import Options
+from geofileops.helpers._options import ConfigOptions
 
 
 @pytest.mark.parametrize(
@@ -68,17 +68,17 @@ def test_get_bool_invalidvalue():
         ("GFO_WORKER_TYPE", None, "auto"),
     ],
 )
-def test_configoptions(key, value, expected):
+def test_get_option(key, value, expected):
     """Test all ConfigOptions class properties."""
     with gfo.TempEnv({key: value}):
         if key == "GFO_IO_ENGINE":
-            result = Options.get_io_engine
+            result = ConfigOptions.get_io_engine
         elif key == "GFO_ON_DATA_ERROR":
-            result = Options.get_on_data_error
+            result = ConfigOptions.get_on_data_error
         elif key == "GFO_REMOVE_TEMP_FILES":
-            result = Options.get_remove_temp_files
+            result = ConfigOptions.get_remove_temp_files
         elif key == "GFO_WORKER_TYPE":
-            result = Options.get_worker_type
+            result = ConfigOptions.get_worker_type
         else:
             raise ValueError(f"Unexpected key: {key}")
 
@@ -116,23 +116,23 @@ def test_configoptions(key, value, expected):
         ),
     ],
 )
-def test_configoptions_invalid(key, invalid_value, expected_error):
+def test_get_option_invalid(key, invalid_value, expected_error):
     with (
         gfo.TempEnv({key: invalid_value}),
         pytest.raises(ValueError, match=expected_error),
     ):
         if key == "GFO_IO_ENGINE":
-            _ = Options.get_io_engine
+            _ = ConfigOptions.get_io_engine
         elif key == "GFO_ON_DATA_ERROR":
-            _ = Options.get_on_data_error
+            _ = ConfigOptions.get_on_data_error
         elif key == "GFO_REMOVE_TEMP_FILES":
-            _ = Options.get_remove_temp_files
+            _ = ConfigOptions.get_remove_temp_files
         elif key == "GFO_SLIVER_TOLERANCE":
-            _ = Options.sliver_tolerance
+            _ = ConfigOptions.get_sliver_tolerance
         elif key == "GFO_TMPDIR":
-            _ = Options.get_tmp_dir
+            _ = ConfigOptions.get_tmp_dir
         elif key == "GFO_WORKER_TYPE":
-            _ = Options.get_worker_type
+            _ = ConfigOptions.get_worker_type
         else:
             raise ValueError(f"Unexpected key: {key}")
 
@@ -151,23 +151,293 @@ def test_configoptions_invalid(key, invalid_value, expected_error):
         ("-0.5", CRS.from_epsg(4326), -0.5),
     ],
 )
-def test_configoptions_sliver_tolerance(tolerance, crs, expected):
+def test_get_sliver_tolerance(tolerance, crs, expected):
     """Test ConfigOptions.sliver_tolerance method."""
     with gfo.TempEnv({"GFO_SLIVER_TOLERANCE": tolerance}):
-        result = Options.sliver_tolerance(crs)
+        result = ConfigOptions.get_sliver_tolerance(crs)
         assert result == expected
 
 
-def test_configoptions_tmpdir(tmp_path):
+def test_get_tmp_dir(tmp_path):
     """Test ConfigOptions.tmp_dir property."""
     with gfo.TempEnv({"GFO_TMPDIR": str(tmp_path)}):
-        assert Options.get_tmp_dir == tmp_path
+        assert ConfigOptions.get_tmp_dir == tmp_path
 
     # If GFO_TMPDIR is not set, a "geofileops" subdirectory in the system temp dir is
     # used.
     with gfo.TempEnv({"GFO_TMPDIR": None}):
-        tmp_dir = Options.get_tmp_dir
+        tmp_dir = ConfigOptions.get_tmp_dir
         assert tmp_dir.exists()
         assert tmp_dir.name == "geofileops"
         tempdir = tempfile.gettempdir()
         assert str(tmp_dir).startswith(tempdir)
+
+
+def test_set_copy_layer_sqlite_direct() -> None:
+    """Test the copy_layer_sqlite_direct option setter."""
+    # Make sure the environment variable is not set at the start of the test
+    key = "GFO_COPY_LAYER_SQLITE_DIRECT"
+    if key in os.environ:
+        del os.environ[key]
+
+    # Test setting the option permanently
+    gfo.options.set_copy_layer_sqlite_direct(False)
+    assert os.environ[key] == "FALSE"
+
+    # Test setting the option temporarily using context manager
+    with gfo.options.set_copy_layer_sqlite_direct(True):
+        assert os.environ[key] == "TRUE"
+
+    # After exiting the context manager, the value should be restored to the last
+    # permanent setting (which was False)
+    assert os.environ[key] == "FALSE"
+
+    # Clean up by removing the environment variable
+    del os.environ[key]
+
+    # Test setting the option temporarily using context manager
+    with gfo.options.set_copy_layer_sqlite_direct(True):
+        assert os.environ[key] == "TRUE"
+
+    # After exiting the context manager, the environment variable should be removed
+    assert key not in os.environ
+
+
+def test_set_io_engine() -> None:
+    """Test the io_engine option setter."""
+    # Make sure the environment variable is not set at the start of the test
+    key = "GFO_IO_ENGINE"
+    if key in os.environ:
+        del os.environ[key]
+
+    # Test setting the option permanently
+    gfo.options.set_io_engine("fiona")
+    assert os.environ[key] == "FIONA"
+
+    # Test setting the option temporarily using context manager
+    with gfo.options.set_io_engine("pyogrio"):
+        assert os.environ[key] == "PYOGRIO"
+
+    # After exiting the context manager, the value should be restored to the last
+    # permanent setting (which was "fiona")
+    assert os.environ[key] == "FIONA"
+
+    # Clean up by removing the environment variable
+    del os.environ[key]
+
+    # Test setting the option temporarily using context manager
+    with gfo.options.set_io_engine("pyogrio-arrow"):
+        assert os.environ[key] == "PYOGRIO-ARROW"
+
+    # After exiting the context manager, the environment variable should be removed
+    assert key not in os.environ
+
+
+def test_set_on_data_error() -> None:
+    """Test the on_data_error option setter."""
+    # Make sure the environment variable is not set at the start of the test
+    key = "GFO_ON_DATA_ERROR"
+    if key in os.environ:
+        del os.environ[key]
+
+    # Test setting the option permanently
+    gfo.options.set_on_data_error("warn")
+    assert os.environ[key] == "WARN"
+
+    # Test setting the option temporarily using context manager
+    with gfo.options.set_on_data_error("raise"):
+        assert os.environ[key] == "RAISE"
+
+    # After exiting the context manager, the value should be restored to the last
+    # permanent setting (which was "warn")
+    assert os.environ[key] == "WARN"
+
+    # Clean up by removing the environment variable
+    del os.environ[key]
+
+    # Test setting the option temporarily using context manager
+    with gfo.options.set_on_data_error("raise"):
+        assert os.environ[key] == "RAISE"
+
+    # After exiting the context manager, the environment variable should be removed
+    assert key not in os.environ
+
+
+def test_set_remove_temp_files() -> None:
+    """Test the remove_temp_files option setter."""
+    # Make sure the environment variable is not set at the start of the test
+    key = "GFO_REMOVE_TEMP_FILES"
+    if key in os.environ:
+        del os.environ[key]
+
+    # Test setting the option permanently
+    gfo.options.set_remove_temp_files(False)
+    assert os.environ[key] == "FALSE"
+
+    # Test setting the option temporarily using context manager
+    with gfo.options.set_remove_temp_files(True):
+        assert os.environ[key] == "TRUE"
+
+    # After exiting the context manager, the value should be restored to the last
+    # permanent setting (which was False)
+    assert os.environ[key] == "FALSE"
+
+    # Clean up by removing the environment variable
+    del os.environ[key]
+
+    # Test setting the option temporarily using context manager
+    with gfo.options.set_remove_temp_files(True):
+        assert os.environ[key] == "TRUE"
+
+    # After exiting the context manager, the environment variable should be removed
+    assert key not in os.environ
+
+
+def test_set_sliver_tolerance() -> None:
+    """Test the sliver_tolerance option setter."""
+    # Make sure the environment variable is not set at the start of the test
+    key = "GFO_SLIVER_TOLERANCE"
+    if key in os.environ:
+        del os.environ[key]
+
+    # Test setting the option permanently
+    gfo.options.set_sliver_tolerance(0.001)
+    assert os.environ[key] == "0.001"
+
+    # Test setting the option temporarily using context manager
+    with gfo.options.set_sliver_tolerance(0.0001):
+        assert os.environ[key] == "0.0001"
+
+    # After exiting the context manager, the value should be restored to the last
+    # permanent setting (which was 0.001)
+    assert os.environ[key] == "0.001"
+
+    # Clean up by removing the environment variable
+    del os.environ[key]
+
+    # Test setting the option temporarily using context manager
+    with gfo.options.set_sliver_tolerance(-0.0005):
+        assert os.environ[key] == "-0.0005"
+
+    # After exiting the context manager, the environment variable should be removed
+    assert key not in os.environ
+
+
+def test_set_subdivide_check_parallel_fraction() -> None:
+    """Test the subdivide_check_parallel_fraction option setter."""
+    # Make sure the environment variable is not set at the start of the test
+    key = "GFO_SUBDIVIDE_CHECK_PARALLEL_FRACTION"
+    if key in os.environ:
+        del os.environ[key]
+
+    # Test setting the option permanently
+    gfo.options.set_subdivide_check_parallel_fraction(10)
+    assert os.environ[key] == "10"
+
+    # Test setting the option temporarily using context manager
+    with gfo.options.set_subdivide_check_parallel_fraction(5):
+        assert os.environ[key] == "5"
+
+    # After exiting the context manager, the value should be restored to the last
+    # permanent setting (which was 10)
+    assert os.environ[key] == "10"
+
+    # Clean up by removing the environment variable
+    del os.environ[key]
+
+    # Test setting the option temporarily using context manager
+    with gfo.options.set_subdivide_check_parallel_fraction(20):
+        assert os.environ[key] == "20"
+
+    # After exiting the context manager, the environment variable should be removed
+    assert key not in os.environ
+
+
+def test_set_subdivide_check_parallel_rows() -> None:
+    """Test the subdivide_check_parallel_rows option setter."""
+    # Make sure the environment variable is not set at the start of the test
+    key = "GFO_SUBDIVIDE_CHECK_PARALLEL_ROWS"
+    if key in os.environ:
+        del os.environ[key]
+
+    # Test setting the option permanently
+    gfo.options.set_subdivide_check_parallel_rows(100000)
+    assert os.environ[key] == "100000"
+
+    # Test setting the option temporarily using context manager
+    with gfo.options.set_subdivide_check_parallel_rows(50000):
+        assert os.environ[key] == "50000"
+
+    # After exiting the context manager, the value should be restored to the last
+    # permanent setting (which was 100000)
+    assert os.environ[key] == "100000"
+
+    # Clean up by removing the environment variable
+    del os.environ[key]
+
+    # Test setting the option temporarily using context manager
+    with gfo.options.set_subdivide_check_parallel_rows(200000):
+        assert os.environ[key] == "200000"
+
+    # After exiting the context manager, the environment variable should be removed
+    assert key not in os.environ
+
+
+def test_set_tmp_dir() -> None:
+    """Test the tmp_dir option setter."""
+    # Make sure the environment variable is not set at the start of the test
+    key = "GFO_TMPDIR"
+    if key in os.environ:
+        del os.environ[key]
+
+    # Test setting the option permanently
+    gfo.options.set_tmp_dir("/tmp/geofileops_test")
+    assert os.environ[key] == "/tmp/geofileops_test"
+
+    # Test setting the option temporarily using context manager
+    with gfo.options.set_tmp_dir("/tmp/geofileops_temp"):
+        assert os.environ[key] == "/tmp/geofileops_temp"
+
+    # After exiting the context manager, the value should be restored to the last
+    # permanent setting (which was "/tmp/geofileops_test")
+    assert os.environ[key] == "/tmp/geofileops_test"
+
+    # Clean up by removing the environment variable
+    del os.environ[key]
+
+    # Test setting the option temporarily using context manager
+    with gfo.options.set_tmp_dir("/tmp/geofileops_temp2"):
+        assert os.environ[key] == "/tmp/geofileops_temp2"
+
+    # After exiting the context manager, the environment variable should be removed
+    assert key not in os.environ
+
+
+def test_set_worker_type() -> None:
+    """Test the worker_type option setter."""
+    # Make sure the environment variable is not set at the start of the test
+    key = "GFO_WORKER_TYPE"
+    if key in os.environ:
+        del os.environ[key]
+
+    # Test setting the option permanently
+    gfo.options.set_worker_type("threads")
+    assert os.environ[key] == "THREADS"
+
+    # Test setting the option temporarily using context manager
+    with gfo.options.set_worker_type("processes"):
+        assert os.environ[key] == "PROCESSES"
+
+    # After exiting the context manager, the value should be restored to the last
+    # permanent setting (which was "threads")
+    assert os.environ[key] == "THREADS"
+
+    # Clean up by removing the environment variable
+    del os.environ[key]
+
+    # Test setting the option temporarily using context manager
+    with gfo.options.set_worker_type("auto"):
+        assert os.environ[key] == "AUTO"
+
+    # After exiting the context manager, the environment variable should be removed
+    assert key not in os.environ

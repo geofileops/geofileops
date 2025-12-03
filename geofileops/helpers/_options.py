@@ -34,14 +34,16 @@ class _RestoreOriginalHandler(AbstractContextManager):
             os.environ[self.key] = self.original_value
 
 
-class Options:
+class ConfigOptions:
     """Class to get and set the geofileops runtime options.
 
     The runtime options are saved to and read from environment variables.
 
     The setter methods can be used in two ways:
+
         1. Permanently set the option by calling the setter method directly.
         2. Temporarily set the option by using the setter method as a context manager.
+
     """
 
     @staticmethod
@@ -68,6 +70,24 @@ class Options:
 
         Args:
             enable (bool): If True, this option is enabled.
+
+        Examples:
+            If you want to change the default value of the option in general, you can
+            just call it as a function:
+
+            .. code-block:: python
+
+                gfo.options.set_copy_layer_sqlite_direct(False)
+
+
+            If you want to temporarily change the option, you can use it as a context
+            manager:
+
+            .. code-block:: python
+
+                with gfo.options.set_copy_layer_sqlite_direct(False):
+                    gfo.copy_layer(...)
+
         """
         key = "GFO_COPY_LAYER_SQLITE_DIRECT"
         original_value = os.environ.get(key)
@@ -106,6 +126,25 @@ class Options:
 
         Args:
             engine (Literal["pyogrio-arrow", "pyogrio", "fiona"]): The IO engine to use.
+
+        Examples:
+            If you want to change the default value of the option in general, you can
+            just call it as a function:
+
+            .. code-block:: python
+
+                gfo.options.set_io_engine("pyogrio")
+
+
+            If you want to temporarily change the option, you can use it as a context
+            manager:
+
+            .. code-block:: python
+
+                with gfo.options.set_io_engine("pyogrio"):
+                    gfo.read_file(...)
+
+
         """
         key = "GFO_IO_ENGINE"
         original_value = os.environ.get(key)
@@ -148,13 +187,32 @@ class Options:
         an exception will still be raised.
 
         Remarks:
-            - You can also set the option temporarily by using this function as a context
-              manager.
+
+            - You can also set the option temporarily by using this function as a
+              context manager.
             - You can also set the option by directly setting the environment variable
               `GFO_ON_DATA_ERROR` to one of "RAISE" or "WARN".
 
         Args:
             action (Literal["raise", "warn"]): The action to take on data error.
+
+        Examples:
+            If you want to change the default value of the option in general, you can
+            just call it as a function:
+
+            .. code-block:: python
+
+                gfo.options.set_on_data_error("warn")
+
+
+            If you want to temporarily change the option, you can use it as a context
+            manager:
+
+            .. code-block:: python
+
+                with gfo.options.set_on_data_error("warn"):
+                    gfo.read_file(...)
+
         """
         key = "GFO_ON_DATA_ERROR"
         original_value = os.environ.get(key)
@@ -202,6 +260,24 @@ class Options:
 
         Args:
             enable (bool): If True, temporary files will be removed after operations.
+
+        Examples:
+            If you want to change the default value of the option in general, you can
+            just call it as a function:
+
+            .. code-block:: python
+
+                gfo.options.set_remove_temp_files(False)
+
+
+            If you want to temporarily change the option, you can use it as a context
+            manager:
+
+            .. code-block:: python
+
+                with gfo.options.set_remove_temp_files(False):
+                    gfo.buffer(...)
+
         """
         key = "GFO_REMOVE_TEMP_FILES"
         original_value = os.environ.get(key)
@@ -340,6 +416,24 @@ class Options:
 
         Args:
             fraction (int): The fraction of features to check for subdivision.
+
+        Examples:
+            If you want to change the default value of the option in general, you can
+            just call it as a function:
+
+            .. code-block:: python
+
+                gfo.options.set_subdivide_check_parallel_fraction(10)
+
+
+            If you want to temporarily change the option, you can use it as a context
+            manager:
+
+            .. code-block:: python
+
+                with gfo.options.set_subdivide_check_parallel_fraction(10):
+                    gfo.intersection(...)
+
         """
         key = "GFO_SUBDIVIDE_CHECK_PARALLEL_FRACTION"
         original_value = os.environ.get(key)
@@ -376,6 +470,24 @@ class Options:
         Args:
             rows (int): The minimum number of rows a file must have to check for
                 subdivision in parallel.
+
+        Examples:
+            If you want to change the default value of the option in general, you can
+            just call it as a function:
+
+            .. code-block:: python
+
+                gfo.options.set_subdivide_check_parallel_rows(1000000)
+
+
+            If you want to temporarily change the option, you can use it as a context
+            manager:
+
+            .. code-block:: python
+
+                with gfo.options.set_subdivide_check_parallel_rows(1000000):
+                    gfo.intersection(...)
+
         """
         key = "GFO_SUBDIVIDE_CHECK_PARALLEL_ROWS"
         original_value = os.environ.get(key)
@@ -410,6 +522,24 @@ class Options:
 
         Args:
             path (str): The temporary directory path.
+
+        Examples:
+            If you want to change the default value of the option in general, you can
+            just call it as a function:
+
+            .. code-block:: python
+
+                gfo.options.set_tmp_dir("/path/to/tmpdir")
+
+
+            If you want to temporarily change the option, you can use it as a context
+            manager:
+
+            .. code-block:: python
+
+                with gfo.options.set_tmp_dir("/path/to/tmpdir"):
+                    gfo.buffer(...)
+
         """
         key = "GFO_TMPDIR"
         original_value = os.environ.get(key)
@@ -440,7 +570,7 @@ class Options:
 
     @staticmethod
     def set_worker_type(
-        worker: Literal["processes", "threads", "auto"],
+        worker_type: Literal["processes", "threads", "auto"],
     ) -> _RestoreOriginalHandler:
         """Set the type of worker to use for parallel processing.
 
@@ -458,11 +588,30 @@ class Options:
               `GFO_WORKER_TYPE` to one of "processes", "threads", or "auto".
 
         Args:
-            worker (Literal["processes", "threads", "auto"]): The type of worker to use.
+            worker_type (Literal["processes", "threads", "auto"]): The type of worker to
+                use.
+
+        Examples:
+            If you want to change the default value of the option in general, you can
+            just call it as a function:
+
+            .. code-block:: python
+
+                gfo.options.set_worker_type("threads")
+
+
+            If you want to temporarily change the option, you can use it as a context
+            manager:
+
+            .. code-block:: python
+
+                with gfo.options.set_worker_type("threads"):
+                    gfo.buffer(...)
+
         """
         key = "GFO_WORKER_TYPE"
         original_value = os.environ.get(key)
-        os.environ[key] = worker.upper()
+        os.environ[key] = worker_type.upper()
 
         return _RestoreOriginalHandler(key, original_value)
 
@@ -491,6 +640,7 @@ def _get_bool(key: str, default: bool) -> bool:
     """Get the value for the environment variable ``key`` as a bool.
 
     Supported values (case insensitive):
+
        - True: "1", "YES", "TRUE"
        - False: "0", "NO", "FALSE"
 

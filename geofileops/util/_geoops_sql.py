@@ -22,7 +22,7 @@ import pandas as pd
 import geofileops as gfo
 from geofileops import GeometryType, LayerInfo, PrimitiveType, fileops
 from geofileops.helpers import _general_helper
-from geofileops.helpers._options import Options
+from geofileops.helpers._options import ConfigOptions
 from geofileops.helpers._parameter_helper import (
     validate_agg_columns,
     validate_params_two_layers,
@@ -1450,7 +1450,7 @@ def _has_complex_geoms(path: Path, layer: LayerInfo, max_coords: int) -> bool:
          LIMIT 1
     """
     complex_found = False
-    if layer.featurecount < Options.get_subdivide_check_parallel_rows:
+    if layer.featurecount < ConfigOptions.get_subdivide_check_parallel_rows:
         # For small files, simple check
         logger.info(
             f"Check for complex geometries in {path.name}/{layer.name} "
@@ -1465,7 +1465,7 @@ def _has_complex_geoms(path: Path, layer: LayerInfo, max_coords: int) -> bool:
         # For large files, check for complex geometries in parallel + check a fraction
         # of all rows.
         nb_parallel = 4
-        fraction_to_check = Options.get_subdivide_check_parallel_fraction
+        fraction_to_check = ConfigOptions.get_subdivide_check_parallel_fraction
         logger.info(
             f"Check for complex geometries in 1/{fraction_to_check} rows in "
             f"{path.name}/{layer.name} (> {max_coords} coords)"
@@ -3631,7 +3631,7 @@ def _two_layer_vector_operation(
         #   - No use to apply sliver filter if use_ogr is True, as GFO_ReducePrecision
         #     is not loaded/available with use_ogr.
         sliver_tolerance = (
-            Options.get_sliver_tolerance(input1_layer.crs)
+            ConfigOptions.get_sliver_tolerance(input1_layer.crs)
             if remove_slivers
             else 0.0
         )
