@@ -194,24 +194,23 @@ class ConfigOptions:
 
     @staticmethod
     def set_nb_parallel(nb_parallel: int | None) -> _RestoreOriginalHandler:
-        """Set the number of parallel workers to use for processing.
+        """Set the preferred number of parallel workers to be used.
 
-        If not set or set to <= 0, the number of workers is the number of available
-        cores. If set to a positive value, this is the number of workers used.
+        If not set or set to <= 0, the number of available CPU cores will be used.
+        If set to a positive value, that value is the preferred number of workers.
 
         Remarks:
 
             - You can also set the option temporarily by using this function as a
               context manager.
             - You can also set the option by directly setting the environment variable
-              `GFO_NB_PARALLEL` to a string representing the number of cores to use.
+              `GFO_NB_PARALLEL` to a string representing the number of CPU cores to use.
 
         .. versionadded:: 0.11.0
 
         Args:
-            nb_parallel (int | None): The number of workers to use while
-                processing.
-                If None, the option is unset (so the default behavior is used).
+            nb_parallel (int | None): The preferred number of workers. If None, the
+                option is unset (so the default behavior will be used).
 
         Examples:
             If you want to change the default value of the option in general, you can
@@ -242,29 +241,30 @@ class ConfigOptions:
 
     @staticmethod
     def get_nb_parallel(
-        nb_parallel_overrule: int | None, cpu_count: int | None = None
+        nb_parallel_overrule: int | None, nb_cpu_cores: int | None = None
     ) -> int:
-        """Get the number of cores to be used while processing.
+        """Get the preferred number of workers to use for processing.
 
         Args:
             nb_parallel_overrule (int | None): If not None, the value specified
                 overrules the configuration option.
-            cpu_count (int | None): The number of CPUs available. If None, this is
-                determined automatically if needed.
+            nb_cpu_cores (int | None): The number of CPU cores available. If None, this
+                is determined automatically.
 
         Returns:
-            int: The number of cores to use while processing.
+            int: The preferred number of workers to use for processing.
         """
         if nb_parallel_overrule is not None:
             nb_parallel = nb_parallel_overrule
         else:
             nb_parallel = int(os.environ.get("GFO_NB_PARALLEL", default="0"))
 
-        # If nb_parallel <= 0, use all available cores minus abs(nb_parallel)
+        # If nb_parallel <= 0, use the number of available CPU cores
         if nb_parallel <= 0:
-            nb_parallel = (
-                cpu_count if cpu_count is not None else multiprocessing.cpu_count()
-            )
+            if nb_cpu_cores is not None:
+                nb_parallel = nb_cpu_cores
+            else:
+                nb_parallel = multiprocessing.cpu_count()
 
         return nb_parallel
 

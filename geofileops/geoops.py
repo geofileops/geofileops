@@ -92,8 +92,8 @@ def dissolve_within_distance(
             stem is used. Defaults to None.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -453,8 +453,8 @@ def apply(
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -579,8 +579,8 @@ def apply_vectorized(
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -710,8 +710,8 @@ def buffer(
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -949,8 +949,8 @@ def convexhull(
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -1036,8 +1036,8 @@ def delete_duplicate_geometries(
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -1216,8 +1216,8 @@ def dissolve(
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -1353,8 +1353,8 @@ def isvalid(
             can be read. Defaults to False.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -1453,8 +1453,8 @@ def makevalid(
             cannot be fixed using makevalid. Defaults to False.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -1641,8 +1641,8 @@ def select(
             in the output. Defaults to True.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to 1.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to 1.
             If ``nb_parallel`` != 1, make sure your query still returns correct results
             if it is executed per batch of rows instead of in one go on the entire
             layer.
@@ -1820,8 +1820,8 @@ def simplify(
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -1954,8 +1954,8 @@ def clip(
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -2183,8 +2183,8 @@ def difference(
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -2352,8 +2352,8 @@ def export_by_location(
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -2454,8 +2454,8 @@ def export_by_distance(
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -2595,8 +2595,8 @@ def identity(
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -2852,8 +2852,8 @@ def intersection(
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -2979,8 +2979,8 @@ def join(
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to 1.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to 1.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -3112,8 +3112,8 @@ def join_by_location(
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -3235,8 +3235,8 @@ def join_nearest(
             stem is used. Defaults to None.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -3348,8 +3348,8 @@ def select_two_layers(
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to 1.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to 1.
             If ``nb_parallel`` != 1, make sure your query still returns correct results
             if it is executed per batch of rows instead of in one go on the entire
             layer.
@@ -3605,8 +3605,8 @@ def symmetric_difference(
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -3779,8 +3779,8 @@ def union(
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -3945,8 +3945,8 @@ def union_full_self(
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per batch.
             A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.

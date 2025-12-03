@@ -567,8 +567,8 @@ def _single_layer_vector_operation(
         gpkg_needed (bool): True if the input needs to be converted to a GeoPackage.
         nb_parallel (int | None): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`.
         batchsize (int): _description_
         force (bool): _description_
         tmp_basedir (Optional[Path]): The directory to create the temporary
@@ -1369,8 +1369,8 @@ def _subdivide_layer(
         keep_fid (bool): True to retain the fid column in the output file.
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): _description_. Defaults to -1.
         operation_prefix (str, optional): Prefix to use in logging,... Defaults to "".
         tmp_basedir (Optional[Path], optional): The directory to create the temporary
@@ -3346,8 +3346,8 @@ def _two_layer_vector_operation(
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int | None): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
@@ -4507,8 +4507,8 @@ def _determine_nb_batches(
         nb_rows_input_layer (int): number of input rows
         nb_parallel (int | None): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`.
         batchsize (int): recommended number of rows per batch
         is_twolayer_operation (bool): True if optimization for a two layer operation,
             False if it involves a single layer operation.

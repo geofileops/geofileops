@@ -135,8 +135,8 @@ def _determine_nb_batches(
         nb_rows_total (int): The total number of rows that will be processed
         nb_parallel (int | None, optional): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`. Defaults to None.
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per batch.
             If -1: (try to) determine optimal size automatically using the heuristics in
             'parallelization_config'. Defaults to -1.
@@ -166,7 +166,7 @@ def _determine_nb_batches(
         return (1, 1)
 
     nb_parallel = ConfigOptions.get_nb_parallel(
-        nb_parallel_overrule=nb_parallel, cpu_count=config_local.cpu_count
+        nb_parallel_overrule=nb_parallel, nb_cpu_cores=config_local.cpu_count
     )
 
     if logger.isEnabledFor(logging.DEBUG):
@@ -755,8 +755,8 @@ def _apply_geooperation_to_layer(
             |spatialite_reference_link| functions can be used. Defaults to None.
         nb_parallel (int | None): the number of parallel workers to use.
             If None, the preference set in the nb_parallel configuration option is used,
-            which defaults to the number of CPUs available. For more information, see
-            :func:`options.set_nb_parallel`
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
@@ -1301,7 +1301,7 @@ def dissolve(  # noqa: D417
             if nb_parallel == -1:
                 nb_cpu = multiprocessing.cpu_count()
                 nb_parallel = nb_cpu  # int(1.25 * nb_cpu)
-                logger.debug(f"Nb cpus found: {nb_cpu}, nb_parallel: {nb_parallel}")
+                logger.debug(f"{nb_cpu=}, {nb_parallel=}")
         else:
             # Else, create a grid based on the number of tiles wanted as result
             # Use a margin of 1 meter around the bounds
