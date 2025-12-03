@@ -322,22 +322,23 @@ class ConfigOptions:
 
     @staticmethod
     def set_sliver_tolerance(tolerance: float | None) -> _RestoreOriginalHandler:
-        """Tolerance to use to filter out slivers from overlay operations.
+        """Tolerance to filter out slivers from overlay operations between polygons.
 
         If 0.0, no sliver filtering is done. If negative, only slivers with tolerance
         abs(value) are retained in the output instead of filtering them out.
 
-        If not set, the default depends on the ``crs``. If ``crs`` is a projected CRS,
-        the default tolerance is 0.001 meters. If it is a geographic CRS, the default
-        tolerance 1e-7 degrees. If ``crs`` is None or invalid, the default tolerance is
+        If the tolerance is not set, the default depends on the ``crs``. If ``crs`` is a
+        projected CRS, the default tolerance is 0.001 CRS units (typically meters or
+        feet). If it is a geographic CRS, the default tolerance 1e-7 CRS units
+        (typically degrees). If ``crs`` is None or invalid, the default tolerance is
         0.0, so no sliver filtering is done.
 
-        The slivers meant here are very small, often very narrow geometries that are
-        created as a side-effect of overlay operations. Due to the limitations of
-        finite-precision floating point arithmetic used in such operations, a point
-        that is "snapped" on a line segment, is sometimes not exactly located on the
-        line. When calculating e.g. an intersection, this can lead to very small sliver
-        polygons being created.
+        The slivers meant here are very small, often very narrow polygons that are
+        created as a side-effect of overlay operations between polygons. Due to the
+        limitations of finite-precision floating point arithmetic used in such
+        operations, a point that is "snapped" on a line segment, is sometimes not
+        exactly located on the line. When calculating e.g. an intersection, this can
+        lead to very small "sliver" polygons being created.
 
         Most of the time, such slivers are not desired in the output. Hence, they are
         filtered out based on certain criteria by default.
@@ -345,7 +346,9 @@ class ConfigOptions:
         The basic algorythm used to determine if a geometry is a sliver is to use the
         GEOS `set_precision` algorythm with a small tolerance. If the polygon becomes
         NULL, because it is smaller/narrower than the tolerance, it is considered a
-        sliver.
+        sliver. Note that this means the tolerance should not be interpreted as an
+        absolute minimum width of polygons to retain, as the way the `set_precision`
+        algorythm works is more complex than that.
 
         Because the `set_precision` algorythm is relatively costly to apply, geometries
         are first pre-filtered with a less expensive filter: the average width:
@@ -377,7 +380,8 @@ class ConfigOptions:
               `GFO_SLIVER_TOLERANCE` to a string representing the tolerance value.
 
         Args:
-            tolerance (float | None): The sliver tolerance value.
+            tolerance (float | None): The sliver tolerance value. If None, the option is
+                unset (so the default behavior is used).
         """
         key = "GFO_SLIVER_TOLERANCE"
         original_value = os.environ.get(key)
