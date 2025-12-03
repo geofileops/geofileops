@@ -116,7 +116,7 @@ class ConfigOptions:
     def set_io_engine(
         engine: Literal["pyogrio-arrow", "pyogrio", "fiona"] | None,
     ) -> _RestoreOriginalHandler:
-        """Set the IO engine to use for reading and writing files.
+        """Set the IO engine to use for reading and writing files to/from GeoDataFrames.
 
         Possible options are:
 
