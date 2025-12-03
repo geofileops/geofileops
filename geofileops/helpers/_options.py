@@ -352,6 +352,7 @@ class ConfigOptions:
         check.
 
         Remarks:
+
             - You can also set the option temporarily by using this function as a
               context manager.
             - You can also set the option by directly setting the environment variable
@@ -634,6 +635,7 @@ class ConfigOptions:
 
         Returns:
             str: the type of workers to use. Possible values (lowercase):
+
                 - "threads": use threads when processing in parallel.
                 - "processes": use processes when processing in parallel.
                 - "auto" (default if not specified): determine the type automatically.
