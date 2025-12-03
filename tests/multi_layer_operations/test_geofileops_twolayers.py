@@ -2155,9 +2155,9 @@ def test_symmetric_difference_self(tmp_path, subdivide_coords, fid_column):
     [
         (".gpkg", 31370, 0.01, "ST_Area(geom) > 1000", True, True, 2000, None, 62),
         (".shp", 31370, 0.0, "ST_Area(geom) > 1000", False, True, 2000, None, 59),
-        (".gpkg", 4326, 0.0, None, False, False, 2000, "fid_custom", 73),
+        (".gpkg", 4326, 0.0, None, False, False, 2000, "fid_custom", 72),
         (".gpkg", 31370, 0.0, None, False, False, 10, "fid_custom", 73),
-        (".gpkg", 4326, 0.0, None, False, True, 2000, "fid_custom", 73),
+        (".gpkg", 4326, 0.0, None, False, True, 2000, "fid_custom", 72),
         (".gpkg", 31370, 0.0, None, False, True, 10, "fid_custom", 73),
     ],
 )
@@ -2249,6 +2249,10 @@ def test_union(
     # Prepare expected result
     input1_gdf = gfo.read_file(input1_path, fid_as_index=keep_fid)
     input2_gdf = gfo.read_file(input2_path, fid_as_index=keep_fid)
+    # If epsg is 4326, the almost-sliver geometry in input1 will be removed because
+    # another sliver removal tolerance is applied, so remove it here as well
+    if epsg == 4326:
+        input1_gdf = input1_gdf[input1_gdf.geometry.area > 1e-10]
     if keep_fid:
         input1_gdf["l1_fid"] = input1_gdf.index
         input2_gdf["l2_fid"] = input2_gdf.index
