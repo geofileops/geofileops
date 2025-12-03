@@ -136,6 +136,12 @@ the 1st input layer. E.g. for ``intersection`` this will result in an output wit
 pairwise intersections between the features in this layer. The intersection of features
 with itself is omitted.
 
+For all spatial overlays, sliver polygons are removed from the output by default.
+Polygons are considered slivers if they are narrower than a certain tolerance. By
+default this tolerance is 0.001 (CRS units) if the CRS of the input layers is a
+projected CRS, 1e-7 if it is a geographic CRS. You can change this default tolerance
+using the :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>` runtime
+option.
 
 Spatial joins
 -------------
