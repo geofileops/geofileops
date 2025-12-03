@@ -1,5 +1,6 @@
 """Helper class to access the geofileops runtime options."""
 
+import multiprocessing
 import os
 import tempfile
 from contextlib import AbstractContextManager
@@ -193,9 +194,10 @@ class ConfigOptions:
 
     @staticmethod
     def set_nb_parallel(nb_parallel: int | None) -> _RestoreOriginalHandler:
-        """Set the number of cores to use while processing.
+        """Set the number of parallel workers to use for processing.
 
-        If not set, defaults to all available cores being used.
+        If not set or set to <= 0, the number of workers is the number of available
+        cores. If set to a positive value, this is the number of workers used.
 
         Remarks:
 
@@ -207,7 +209,8 @@ class ConfigOptions:
         .. versionadded:: 0.11.0
 
         Args:
-            nb_parallel (int | None): The number of cores to use while processing.
+            nb_parallel (int | None): The number of workers to use while
+                processing.
                 If None, the option is unset (so the default behavior is used).
 
         Examples:
@@ -237,16 +240,33 @@ class ConfigOptions:
 
         return _RestoreOriginalHandler(key, original_value)
 
-    @classproperty
-    def get_nb_parallel(cls) -> int:
-        """Get the number of cores to use while processing.
+    @staticmethod
+    def get_nb_parallel(
+        nb_parallel_overrule: int | None, cpu_count: int | None = None
+    ) -> int:
+        """Get the number of cores to be used while processing.
+
+        Args:
+            nb_parallel_overrule (int | None): If not None, the value specified
+                overrules the configuration option.
+            cpu_count (int | None): The number of CPUs available. If None, this is
+                determined automatically if needed.
 
         Returns:
             int: The number of cores to use while processing.
         """
-        nb_parallel = os.environ.get("GFO_NB_PARALLEL", default="-1")
+        if nb_parallel_overrule is not None:
+            nb_parallel = nb_parallel_overrule
+        else:
+            nb_parallel = int(os.environ.get("GFO_NB_PARALLEL", default="0"))
 
-        return int(nb_parallel)
+        # If nb_parallel <= 0, use all available cores minus abs(nb_parallel)
+        if nb_parallel <= 0:
+            nb_parallel = (
+                cpu_count if cpu_count is not None else multiprocessing.cpu_count()
+            )
+
+        return nb_parallel
 
     @staticmethod
     def set_on_data_error(
