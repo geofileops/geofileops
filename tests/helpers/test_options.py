@@ -128,7 +128,7 @@ def test_get_option_invalid(key, invalid_value, expected_error):
         elif key == "GFO_REMOVE_TEMP_FILES":
             _ = ConfigOptions.get_remove_temp_files
         elif key == "GFO_SLIVER_TOLERANCE":
-            _ = ConfigOptions.get_sliver_tolerance
+            _ = ConfigOptions.get_sliver_tolerance(None)
         elif key == "GFO_TMPDIR":
             _ = ConfigOptions.get_tmp_dir
         elif key == "GFO_WORKER_TYPE":
