@@ -3630,6 +3630,7 @@ def _two_layer_vector_operation(
         #     apply if sliver_tolerance is greater than gridsize.
         #   - No use to apply sliver filter if use_ogr is True, as GFO_ReducePrecision
         #     is not loaded/available with use_ogr.
+        #   - No use to apply sliver filter if output geometrytype is not polygon.
         crs = input1_layer.crs if input1_layer.crs is not None else input2_layer.crs
         sliver_tolerance = (
             ConfigOptions.get_sliver_tolerance(crs) if remove_slivers else 0.0
@@ -3639,6 +3640,11 @@ def _two_layer_vector_operation(
             and abs(sliver_tolerance) > gridsize
             and "geom" in [col.lower() for col in column_types]
             and not use_ogr
+            and (
+                force_output_geometrytype is None
+                or force_output_geometrytype
+                in (GeometryType.POLYGON, GeometryType.MULTIPOLYGON)
+            )
         ):
             sliver_where = _get_sliver_where(
                 table_alias="sub_sliver_filter",

@@ -859,6 +859,42 @@ def test_intersection_invalid_params2(kwargs, expected_error):
         gfo.intersection(input1_path="input1.gpkg", output_path="output.gpkg", **kwargs)
 
 
+@pytest.mark.parametrize(
+    "input1_testfile, input2_testfile, exp_featurecount",
+    [
+        ("point", "polygon-zone", 3),
+        ("polygon-zone", "point", 3),
+        ("linestring-row-trees", "polygon-zone", 17),
+        ("polygon-zone", "linestring-row-trees", 17),
+    ],
+)
+def test_intersection_other_geom_types(
+    tmp_path, input1_testfile, input2_testfile, exp_featurecount
+):
+    # Prepare test data
+    input1_path = test_helper.get_testfile(input1_testfile)
+    input2_path = test_helper.get_testfile(input2_testfile)
+
+    # Now run test
+    output_path = tmp_path / f"{input1_path.stem}_intersection_{input2_path.stem}.gpkg"
+    gfo.intersection(
+        input1_path=input1_path,
+        input2_path=input2_path,
+        output_path=output_path,
+    )
+
+    # Check if the tmp file is correctly created
+    assert output_path.exists()
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
+    output_layerinfo = gfo.get_layerinfo(output_path)
+    assert output_layerinfo.featurecount == exp_featurecount
+    if input1_testfile.startswith("point") or input2_testfile.startswith("point"):
+        assert output_layerinfo.geometrytype == GeometryType.MULTIPOINT
+    else:
+        assert output_layerinfo.geometrytype == GeometryType.MULTILINESTRING
+
+
 def test_intersection_output_path_exists():
     # Prepare test data
     input1_path = test_helper.get_testfile("polygon-parcel")
