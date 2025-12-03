@@ -257,7 +257,13 @@ class ConfigOptions:
         if nb_parallel_overrule is not None:
             nb_parallel = nb_parallel_overrule
         else:
-            nb_parallel = int(os.environ.get("GFO_NB_PARALLEL", default="0"))
+            try:
+                nb_parallel = int(os.environ.get("GFO_NB_PARALLEL", default="0"))
+            except ValueError as ex:
+                raise ValueError(
+                    "invalid value for configoption <GFO_NB_PARALLEL>: "
+                    f"'{os.environ.get('GFO_NB_PARALLEL')}'"
+                ) from ex
 
         # If nb_parallel <= 0, use the number of available CPU cores
         if nb_parallel <= 0:
