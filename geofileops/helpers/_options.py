@@ -70,6 +70,8 @@ class ConfigOptions:
             - You can also set the option by directly setting the environment variable
               `GFO_COPY_LAYER_SQLITE_DIRECT` to "TRUE" or "FALSE".
 
+        .. versionadded:: 0.11.0
+
         Args:
             enable (bool | None): If True, this option is enabled. If None, the option
                 is unset (so the default behavior is used).
@@ -131,6 +133,8 @@ class ConfigOptions:
               context manager.
             - You can also set the option by directly setting the environment variable
               `GFO_IO_ENGINE` to one of "PYOGRIO-ARROW", "PYOGRIO", or "FIONA".
+
+        .. versionadded:: 0.11.0
 
         Args:
             engine (Literal["pyogrio-arrow", "pyogrio", "fiona"] | None): The IO engine
@@ -208,6 +212,8 @@ class ConfigOptions:
             - You can also set the option by directly setting the environment variable
               `GFO_ON_DATA_ERROR` to one of "RAISE" or "WARN".
 
+        .. versionadded:: 0.11.0
+
         Args:
             action (Literal["raise", "warn"] | None): The action to take on data error.
                 If None, the option is unset (so the default behavior is used).
@@ -278,6 +284,8 @@ class ConfigOptions:
               context manager.
             - You can also set the option by directly setting the environment variable
               `GFO_REMOVE_TEMP_FILES` to "TRUE" or "FALSE".
+
+        .. versionadded:: 0.11.0
 
         Args:
             enable (bool | None): If True, temporary files will be removed after
@@ -379,6 +387,8 @@ class ConfigOptions:
             - You can also set the option by directly setting the environment variable
               `GFO_SLIVER_TOLERANCE` to a string representing the tolerance value.
 
+        .. versionadded:: 0.11.0
+
         Args:
             tolerance (float | None): The sliver tolerance value. If None, the option is
                 unset (so the default behavior is used).
@@ -451,6 +461,8 @@ class ConfigOptions:
               `GFO_SUBDIVIDE_CHECK_PARALLEL_FRACTION` to a string representing the
               fraction.
 
+        .. versionadded:: 0.11.0
+
         Args:
             fraction (int | None): The fraction of features to check for subdivision.
                 If None, the option is unset (so the default behavior is used).
@@ -509,6 +521,8 @@ class ConfigOptions:
               `GFO_SUBDIVIDE_CHECK_PARALLEL_ROWS` to a string representing the number of
               rows.
 
+        .. versionadded:: 0.11.0
+
         Args:
             rows (int | None): The minimum number of rows a file must have to check for
                 subdivision in parallel. If None, the option is unset (so the default
@@ -566,6 +580,8 @@ class ConfigOptions:
               context manager.
             - You can also set the option by directly setting the environment variable
               `GFO_TMPDIR` to the desired temporary directory path.
+
+        .. versionadded:: 0.11.0
 
         Args:
             path (str | None): The temporary directory path. If None, the option is
@@ -639,6 +655,8 @@ class ConfigOptions:
               context manager.
             - You can also set the option by directly setting the environment variable
               `GFO_WORKER_TYPE` to one of "processes", "threads", or "auto".
+
+        .. versionadded:: 0.11.0
 
         Args:
             worker_type (Literal["processes", "threads", "auto"] | None): The type of

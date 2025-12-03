@@ -61,12 +61,12 @@ def dissolve_within_distance(
         - If ``close_internal_gaps`` is False, the default, a ``gridsize`` > 0
           (E.g. 0.000001) should be specified, otherwise some input boundary gaps could
           still be closed due to rounding side effects.
-        - Sliver polygons are removed from the output by default. Polygons are
-          considered slivers if they are narrower than a certain tolerance. By default
-          this tolerance is 0.001 CRS units if the CRS of the input layers is a
-          projected CRS, 1e-7 if it is a geographic CRS. More information + information
-          how to change this default tolerance can be found here:
-          :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
+        - Starting from geofileops 0.11.0, sliver polygons are removed from the output
+          by default. Polygons are considered slivers if they are narrower than a
+          certain tolerance. By default this tolerance is 0.001 CRS units if the CRS of
+          the input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+          information + information how to change this default tolerance can be found
+          here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
 
     Alternative names:
 
@@ -1890,12 +1890,12 @@ def clip(
           In this case, the output geometries can contain extra collinear points where
           the subdividing occured. This behaviour can be controlled via the
           ``subdivide_coords`` parameter.
-        - Sliver polygons are removed from the output by default. Polygons are
-          considered slivers if they are narrower than a certain tolerance. By default
-          this tolerance is 0.001 CRS units if the CRS of the input layers is a
-          projected CRS, 1e-7 if it is a geographic CRS. More information + information
-          how to change this default tolerance can be found here:
-          :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
+        - Starting from geofileops 0.11.0, sliver polygons are removed from the output
+          by default. Polygons are considered slivers if they are narrower than a
+          certain tolerance. By default this tolerance is 0.001 CRS units if the CRS of
+          the input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+          information + information how to change this default tolerance can be found
+          here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
 
     This is the result you can expect when clipping a polygon layer (yellow)
     with another polygon layer (purple):
@@ -2120,12 +2120,12 @@ def difference(
           For these geometries, the output geometries will contain extra collinear
           points where the subdividing occured. This behaviour can be controlled via the
           ``subdivide_coords`` parameter.
-        - Sliver polygons are removed from the output by default. Polygons are
-          considered slivers if they are narrower than a certain tolerance. By default
-          this tolerance is 0.001 CRS units if the CRS of the input layers is a
-          projected CRS, 1e-7 if it is a geographic CRS. More information + information
-          how to change this default tolerance can be found here:
-          :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
+        - Starting from geofileops 0.11.0, sliver polygons are removed from the output
+          by default. Polygons are considered slivers if they are narrower than a
+          certain tolerance. By default this tolerance is 0.001 CRS units if the CRS of
+          the input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+          information + information how to change this default tolerance can be found
+          here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
 
     Alternative names:
 
@@ -2517,12 +2517,12 @@ def identity(
           For these geometries, the output geometries will contain extra collinear
           points where the subdividing occured. This behaviour can be controlled via the
           ``subdivide_coords`` parameter.
-        - Sliver polygons are removed from the output by default. Polygons are
-          considered slivers if they are narrower than a certain tolerance. By default
-          this tolerance is 0.001 CRS units if the CRS of the input layers is a
-          projected CRS, 1e-7 if it is a geographic CRS. More information + information
-          how to change this default tolerance can be found here:
-          :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
+        - Starting from geofileops 0.11.0, sliver polygons are removed from the output
+          by default. Polygons are considered slivers if they are narrower than a
+          certain tolerance. By default this tolerance is 0.001 CRS units if the CRS of
+          the input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+          information + information how to change this default tolerance can be found
+          here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
 
     Args:
         input1_path (PathLike): the 1st input file.
@@ -2767,12 +2767,12 @@ def intersection(
           For these geometries, the output geometries will contain extra collinear
           points where the subdividing occured. This behaviour can be controlled via the
           ``subdivide_coords`` parameter.
-        - Sliver polygons are removed from the output by default. Polygons are
-          considered slivers if they are narrower than a certain tolerance. By default
-          this tolerance is 0.001 CRS units if the CRS of the input layers is a
-          projected CRS, 1e-7 if it is a geographic CRS. More information + information
-          how to change this default tolerance can be found here:
-          :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
+        - Starting from geofileops 0.11.0, sliver polygons are removed from the output
+          by default. Polygons are considered slivers if they are narrower than a
+          certain tolerance. By default this tolerance is 0.001 CRS units if the CRS of
+          the input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+          information + information how to change this default tolerance can be found
+          here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
 
     Alternative names:
 
@@ -3516,12 +3516,12 @@ def symmetric_difference(
           For these geometries, the output geometries will contain extra collinear
           points where the subdividing occured. This behaviour can be controlled via the
           ``subdivide_coords`` parameter.
-        - Sliver polygons are removed from the output by default. Polygons are
-          considered slivers if they are narrower than a certain tolerance. By default
-          this tolerance is 0.001 CRS units if the CRS of the input layers is a
-          projected CRS, 1e-7 if it is a geographic CRS. More information + information
-          how to change this default tolerance can be found here:
-          :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
+        - Starting from geofileops 0.11.0, sliver polygons are removed from the output
+          by default. Polygons are considered slivers if they are narrower than a
+          certain tolerance. By default this tolerance is 0.001 CRS units if the CRS of
+          the input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+          information + information how to change this default tolerance can be found
+          here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
 
     Alternative names:
 
@@ -3681,12 +3681,12 @@ def union(
           For these geometries, the output geometries will contain extra collinear
           points where the subdividing occured. This behaviour can be controlled via the
           ``subdivide_coords`` parameter.
-        - Sliver polygons are removed from the output by default. Polygons are
-          considered slivers if they are narrower than a certain tolerance. By default
-          this tolerance is 0.001 CRS units if the CRS of the input layers is a
-          projected CRS, 1e-7 if it is a geographic CRS. More information + information
-          how to change this default tolerance can be found here:
-          :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
+        - Starting from geofileops 0.11.0, sliver polygons are removed from the output
+          by default. Polygons are considered slivers if they are narrower than a
+          certain tolerance. By default this tolerance is 0.001 CRS units if the CRS of
+          the input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+          information + information how to change this default tolerance can be found
+          here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
 
     Alternative names:
 
