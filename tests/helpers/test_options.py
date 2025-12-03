@@ -192,8 +192,8 @@ def test_set_copy_layer_sqlite_direct() -> None:
     # permanent setting (which was False)
     assert os.environ[key] == "FALSE"
 
-    # Clean up by removing the environment variable
-    del os.environ[key]
+    # Clean up by setting with None
+    gfo.options.set_copy_layer_sqlite_direct(None)
 
     # Test setting the option temporarily using context manager
     with gfo.options.set_copy_layer_sqlite_direct(True):
@@ -222,8 +222,8 @@ def test_set_io_engine() -> None:
     # permanent setting (which was "fiona")
     assert os.environ[key] == "FIONA"
 
-    # Clean up by removing the environment variable
-    del os.environ[key]
+    # Clean up by setting with None
+    gfo.options.set_io_engine(None)
 
     # Test setting the option temporarily using context manager
     with gfo.options.set_io_engine("pyogrio-arrow"):
@@ -252,8 +252,8 @@ def test_set_on_data_error() -> None:
     # permanent setting (which was "warn")
     assert os.environ[key] == "WARN"
 
-    # Clean up by removing the environment variable
-    del os.environ[key]
+    # Clean up by setting with None
+    gfo.options.set_on_data_error(None)
 
     # Test setting the option temporarily using context manager
     with gfo.options.set_on_data_error("raise"):
@@ -282,8 +282,8 @@ def test_set_remove_temp_files() -> None:
     # permanent setting (which was False)
     assert os.environ[key] == "FALSE"
 
-    # Clean up by removing the environment variable
-    del os.environ[key]
+    # Clean up by setting with None
+    gfo.options.set_remove_temp_files(None)
 
     # Test setting the option temporarily using context manager
     with gfo.options.set_remove_temp_files(True):
@@ -312,8 +312,8 @@ def test_set_sliver_tolerance() -> None:
     # permanent setting (which was 0.001)
     assert os.environ[key] == "0.001"
 
-    # Clean up by removing the environment variable
-    del os.environ[key]
+    # Clean up by setting with None
+    gfo.options.set_sliver_tolerance(None)
 
     # Test setting the option temporarily using context manager
     with gfo.options.set_sliver_tolerance(-0.0005):
@@ -342,8 +342,8 @@ def test_set_subdivide_check_parallel_fraction() -> None:
     # permanent setting (which was 10)
     assert os.environ[key] == "10"
 
-    # Clean up by removing the environment variable
-    del os.environ[key]
+    # Clean up by setting with None
+    gfo.options.set_subdivide_check_parallel_fraction(None)
 
     # Test setting the option temporarily using context manager
     with gfo.options.set_subdivide_check_parallel_fraction(20):
@@ -372,8 +372,8 @@ def test_set_subdivide_check_parallel_rows() -> None:
     # permanent setting (which was 100000)
     assert os.environ[key] == "100000"
 
-    # Clean up by removing the environment variable
-    del os.environ[key]
+    # Clean up by setting with None
+    gfo.options.set_subdivide_check_parallel_rows(None)
 
     # Test setting the option temporarily using context manager
     with gfo.options.set_subdivide_check_parallel_rows(200000):
@@ -402,8 +402,8 @@ def test_set_tmp_dir() -> None:
     # permanent setting (which was "/tmp/geofileops_test")
     assert os.environ[key] == "/tmp/geofileops_test"
 
-    # Clean up by removing the environment variable
-    del os.environ[key]
+    # Clean up by setting with None
+    gfo.options.set_tmp_dir(None)
 
     # Test setting the option temporarily using context manager
     with gfo.options.set_tmp_dir("/tmp/geofileops_temp2"):
@@ -432,8 +432,8 @@ def test_set_worker_type() -> None:
     # permanent setting (which was "threads")
     assert os.environ[key] == "THREADS"
 
-    # Clean up by removing the environment variable
-    del os.environ[key]
+    # Clean up by setting with None
+    gfo.options.set_worker_type(None)
 
     # Test setting the option temporarily using context manager
     with gfo.options.set_worker_type("auto"):

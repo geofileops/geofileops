@@ -47,7 +47,7 @@ class ConfigOptions:
     """
 
     @staticmethod
-    def set_copy_layer_sqlite_direct(enable: bool) -> _RestoreOriginalHandler:
+    def set_copy_layer_sqlite_direct(enable: bool | None) -> _RestoreOriginalHandler:
         """Enable option to copy data directly in SQLite in `copy_layer` when possible.
 
         If not set, this option is enabled by default.
@@ -71,7 +71,8 @@ class ConfigOptions:
               `GFO_COPY_LAYER_SQLITE_DIRECT` to "TRUE" or "FALSE".
 
         Args:
-            enable (bool): If True, this option is enabled.
+            enable (bool | None): If True, this option is enabled. If None, the option
+                is unset (so the default behavior is used).
 
         Examples:
             If you want to change the default value of the option in general, you can
@@ -93,7 +94,10 @@ class ConfigOptions:
         """
         key = "GFO_COPY_LAYER_SQLITE_DIRECT"
         original_value = os.environ.get(key)
-        os.environ[key] = "TRUE" if enable else "FALSE"
+        if enable is not None:
+            os.environ[key] = "TRUE" if enable else "FALSE"
+        elif key in os.environ:
+            del os.environ[key]
 
         return _RestoreOriginalHandler(key, original_value)
 
@@ -108,7 +112,7 @@ class ConfigOptions:
 
     @staticmethod
     def set_io_engine(
-        engine: Literal["pyogrio-arrow", "pyogrio", "fiona"],
+        engine: Literal["pyogrio-arrow", "pyogrio", "fiona"] | None,
     ) -> _RestoreOriginalHandler:
         """Set the IO engine to use for reading and writing files.
 
@@ -129,7 +133,8 @@ class ConfigOptions:
               `GFO_IO_ENGINE` to one of "PYOGRIO-ARROW", "PYOGRIO", or "FIONA".
 
         Args:
-            engine (Literal["pyogrio-arrow", "pyogrio", "fiona"]): The IO engine to use.
+            engine (Literal["pyogrio-arrow", "pyogrio", "fiona"] | None): The IO engine
+                to use. If None, the option is unset (so the default behavior is used).
 
         Examples:
             If you want to change the default value of the option in general, you can
@@ -148,11 +153,13 @@ class ConfigOptions:
                 with gfo.options.set_io_engine("pyogrio"):
                     gfo.read_file(...)
 
-
         """
         key = "GFO_IO_ENGINE"
         original_value = os.environ.get(key)
-        os.environ[key] = engine.upper()
+        if engine is not None:
+            os.environ[key] = engine.upper()
+        elif key in os.environ:
+            del os.environ[key]
 
         return _RestoreOriginalHandler(key, original_value)
 
@@ -181,7 +188,9 @@ class ConfigOptions:
         return io_engine
 
     @staticmethod
-    def set_on_data_error(action: Literal["raise", "warn"]) -> _RestoreOriginalHandler:
+    def set_on_data_error(
+        action: Literal["raise", "warn"] | None,
+    ) -> _RestoreOriginalHandler:
         """Set the preferred action to take when a data error occurs.
 
         Possible options are:
@@ -200,7 +209,8 @@ class ConfigOptions:
               `GFO_ON_DATA_ERROR` to one of "RAISE" or "WARN".
 
         Args:
-            action (Literal["raise", "warn"]): The action to take on data error.
+            action (Literal["raise", "warn"] | None): The action to take on data error.
+                If None, the option is unset (so the default behavior is used).
 
         Examples:
             If you want to change the default value of the option in general, you can
@@ -222,7 +232,10 @@ class ConfigOptions:
         """
         key = "GFO_ON_DATA_ERROR"
         original_value = os.environ.get(key)
-        os.environ[key] = action.upper()
+        if action is not None:
+            os.environ[key] = action.upper()
+        elif key in os.environ:
+            del os.environ[key]
 
         return _RestoreOriginalHandler(key, original_value)
 
@@ -253,7 +266,7 @@ class ConfigOptions:
         return value_cleaned
 
     @staticmethod
-    def set_remove_temp_files(enable: bool) -> _RestoreOriginalHandler:
+    def set_remove_temp_files(enable: bool | None) -> _RestoreOriginalHandler:
         """Enable or disable removal of temporary files created during operations.
 
         If not set, the option is enabled by default, so temporary files are removed
@@ -267,7 +280,9 @@ class ConfigOptions:
               `GFO_REMOVE_TEMP_FILES` to "TRUE" or "FALSE".
 
         Args:
-            enable (bool): If True, temporary files will be removed after operations.
+            enable (bool | None): If True, temporary files will be removed after
+                operations. If False, temporary files will be kept. If None, the option
+                is unset (so the default behavior is used).
 
         Examples:
             If you want to change the default value of the option in general, you can
@@ -289,7 +304,10 @@ class ConfigOptions:
         """
         key = "GFO_REMOVE_TEMP_FILES"
         original_value = os.environ.get(key)
-        os.environ[key] = "TRUE" if enable else "FALSE"
+        if enable is not None:
+            os.environ[key] = "TRUE" if enable else "FALSE"
+        elif key in os.environ:
+            del os.environ[key]
 
         return _RestoreOriginalHandler(key, original_value)
 
@@ -402,7 +420,7 @@ class ConfigOptions:
                 return 0.001
             elif crs.is_geographic:
                 return 1e-7
-            else:
+            else:  # pragma: no cover
                 return 0.0
 
         except Exception as ex:
@@ -412,7 +430,9 @@ class ConfigOptions:
             ) from ex
 
     @staticmethod
-    def set_subdivide_check_parallel_fraction(fraction: int) -> _RestoreOriginalHandler:
+    def set_subdivide_check_parallel_fraction(
+        fraction: int | None,
+    ) -> _RestoreOriginalHandler:
         """For a file being checked in parallel, the fraction of features to check.
 
         The value set should be an integer representing the fraction of features to
@@ -428,7 +448,8 @@ class ConfigOptions:
               fraction.
 
         Args:
-            fraction (int): The fraction of features to check for subdivision.
+            fraction (int | None): The fraction of features to check for subdivision.
+                If None, the option is unset (so the default behavior is used).
 
         Examples:
             If you want to change the default value of the option in general, you can
@@ -450,7 +471,10 @@ class ConfigOptions:
         """
         key = "GFO_SUBDIVIDE_CHECK_PARALLEL_FRACTION"
         original_value = os.environ.get(key)
-        os.environ[key] = str(fraction)
+        if fraction is not None:
+            os.environ[key] = str(fraction)
+        elif key in os.environ:
+            del os.environ[key]
 
         return _RestoreOriginalHandler(key, original_value)
 
@@ -466,7 +490,7 @@ class ConfigOptions:
         return int(fraction)
 
     @staticmethod
-    def set_subdivide_check_parallel_rows(rows: int) -> _RestoreOriginalHandler:
+    def set_subdivide_check_parallel_rows(rows: int | None) -> _RestoreOriginalHandler:
         """For a file being checked in parallel, the number of rows to check.
 
         The value set should be an integer representing the minimum number of rows a
@@ -482,8 +506,9 @@ class ConfigOptions:
               rows.
 
         Args:
-            rows (int): The minimum number of rows a file must have to check for
-                subdivision in parallel.
+            rows (int | None): The minimum number of rows a file must have to check for
+                subdivision in parallel. If None, the option is unset (so the default
+                behavior is used).
 
         Examples:
             If you want to change the default value of the option in general, you can
@@ -505,7 +530,10 @@ class ConfigOptions:
         """
         key = "GFO_SUBDIVIDE_CHECK_PARALLEL_ROWS"
         original_value = os.environ.get(key)
-        os.environ[key] = str(rows)
+        if rows is not None:
+            os.environ[key] = str(rows)
+        elif key in os.environ:
+            del os.environ[key]
 
         return _RestoreOriginalHandler(key, original_value)
 
@@ -522,7 +550,7 @@ class ConfigOptions:
         return int(rows)
 
     @staticmethod
-    def set_tmp_dir(path: str) -> _RestoreOriginalHandler:
+    def set_tmp_dir(path: str | None) -> _RestoreOriginalHandler:
         """Set the directory to use for temporary files created during processing.
 
         The value set should be a valid directory path. If not set, a subdirectory
@@ -536,7 +564,8 @@ class ConfigOptions:
               `GFO_TMPDIR` to the desired temporary directory path.
 
         Args:
-            path (str): The temporary directory path.
+            path (str | None): The temporary directory path. If None, the option is
+                unset (so the default behavior is used).
 
         Examples:
             If you want to change the default value of the option in general, you can
@@ -558,7 +587,10 @@ class ConfigOptions:
         """
         key = "GFO_TMPDIR"
         original_value = os.environ.get(key)
-        os.environ[key] = path
+        if path is not None:
+            os.environ[key] = path
+        elif key in os.environ:
+            del os.environ[key]
 
         return _RestoreOriginalHandler(key, original_value)
 
@@ -585,7 +617,7 @@ class ConfigOptions:
 
     @staticmethod
     def set_worker_type(
-        worker_type: Literal["processes", "threads", "auto"],
+        worker_type: Literal["processes", "threads", "auto"] | None,
     ) -> _RestoreOriginalHandler:
         """Set the type of worker to use for parallel processing.
 
@@ -605,8 +637,9 @@ class ConfigOptions:
               `GFO_WORKER_TYPE` to one of "processes", "threads", or "auto".
 
         Args:
-            worker_type (Literal["processes", "threads", "auto"]): The type of worker to
-                use.
+            worker_type (Literal["processes", "threads", "auto"] | None): The type of
+                worker to use. If None, the option is unset (so the default behavior is
+                used).
 
         Examples:
             If you want to change the default value of the option in general, you can
@@ -628,7 +661,10 @@ class ConfigOptions:
         """
         key = "GFO_WORKER_TYPE"
         original_value = os.environ.get(key)
-        os.environ[key] = worker_type.upper()
+        if worker_type is not None:
+            os.environ[key] = worker_type.upper()
+        elif key in os.environ:
+            del os.environ[key]
 
         return _RestoreOriginalHandler(key, original_value)
 
