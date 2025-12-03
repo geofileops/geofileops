@@ -392,6 +392,23 @@ class ConfigOptions:
         Args:
             tolerance (float | None): The sliver tolerance value. If None, the option is
                 unset (so the default behavior is used).
+
+        Examples:
+            If you want to change the default value of the option in general, you can
+            just call the function:
+
+            .. code-block:: python
+
+                gfo.options.set_sliver_tolerance(0.01)
+
+            If you want to temporarily change the option, you can use the function as a
+            context manager:
+
+            .. code-block:: python
+
+                with gfo.options.set_sliver_tolerance(0.01):
+                    gfo.intersection(...)
+
         """
         key = "GFO_SLIVER_TOLERANCE"
         original_value = os.environ.get(key)
