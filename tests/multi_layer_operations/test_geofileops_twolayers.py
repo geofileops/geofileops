@@ -474,6 +474,7 @@ def test_export_by_distance(tmp_path, testfile, suffix):
         (".gpkg", 31370, 0.0, 10, "fid_custom"),
         (".gpkg", 31370, 0.01, 10, "fid_custom"),
         (".gpkg", 4326, 0.0, 10, None),
+        (".gpkg", 31370, 0.0, 10, None),
         (".shp", 31370, 0.0, 10, None),
     ],
 )
@@ -493,15 +494,14 @@ def test_identity(tmp_path, suffix, epsg, gridsize, subdivide_coords, fid_column
     output_path = tmp_path / f"{input1_path.stem}-output{suffix}"
 
     # Test
-    with _general_util.TempEnv({"GFO_REMOVE_TEMP_FILES": False}):
-        gfo.identity(
-            input1_path=str(input1_path),
-            input2_path=str(input2_path),
-            output_path=str(output_path),
-            gridsize=gridsize,
-            batchsize=batchsize,
-            subdivide_coords=subdivide_coords,
-        )
+    gfo.identity(
+        input1_path=str(input1_path),
+        input2_path=str(input2_path),
+        output_path=str(output_path),
+        gridsize=gridsize,
+        batchsize=batchsize,
+        subdivide_coords=subdivide_coords,
+    )
 
     # Check if the output file is correctly created
     assert output_path.exists()
@@ -521,6 +521,10 @@ def test_identity(tmp_path, suffix, epsg, gridsize, subdivide_coords, fid_column
     # Prepare expected gdf
     input1_gdf = gfo.read_file(input1_path)
     input2_gdf = gfo.read_file(input2_path)
+    # If epsg is 4326, the almost-sliver geometry in input1 will be removed because
+    # another sliver removal tolerance is applied, so remove it here as well
+    if epsg == 4326:
+        input1_gdf = input1_gdf[input1_gdf.geometry.area > 1e-10]
     exp_gdf = input1_gdf.overlay(input2_gdf, how="identity", keep_geom_type=True)
     renames = dict(zip(exp_gdf.columns, output_gdf.columns, strict=True))
     exp_gdf = exp_gdf.rename(columns=renames)
@@ -2022,6 +2026,10 @@ def test_symmetric_difference(
     # Prepare expected gdf
     input1_gdf = gfo.read_file(input1_path)
     input2_gdf = gfo.read_file(input2_path)
+    # If epsg is 4326, the almost-sliver geometry in input2 will be removed because
+    # another sliver removal tolerance is applied, so remove it here as well
+    if epsg == 4326:
+        input2_gdf = input2_gdf[input2_gdf.geometry.area > 1e-10]
     exp_gdf = input1_gdf.overlay(
         input2_gdf, how="symmetric_difference", keep_geom_type=True
     )

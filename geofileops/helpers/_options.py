@@ -303,7 +303,7 @@ class ConfigOptions:
         return _get_bool("GFO_REMOVE_TEMP_FILES", default=True)
 
     @staticmethod
-    def set_sliver_tolerance(tolerance: float) -> _RestoreOriginalHandler:
+    def set_sliver_tolerance(tolerance: float | None) -> _RestoreOriginalHandler:
         """Tolerance to use to filter out slivers from overlay operations.
 
         If 0.0, no sliver filtering is done. If negative, only slivers with tolerance
@@ -359,11 +359,14 @@ class ConfigOptions:
               `GFO_SLIVER_TOLERANCE` to a string representing the tolerance value.
 
         Args:
-            tolerance (float): The sliver tolerance value.
+            tolerance (float | None): The sliver tolerance value.
         """
         key = "GFO_SLIVER_TOLERANCE"
         original_value = os.environ.get(key)
-        os.environ[key] = str(tolerance)
+        if tolerance is not None:
+            os.environ[key] = str(tolerance)
+        elif key in os.environ:
+            del os.environ[key]
 
         return _RestoreOriginalHandler(key, original_value)
 
