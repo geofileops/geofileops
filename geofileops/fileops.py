@@ -573,6 +573,7 @@ def get_default_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
     return GeoPath(path).stem
 
 
+@retry(**RETRY_LOCKED_FILE_KWARGS)  # type: ignore[arg-type]
 def execute_sql(
     path: Union[str, "os.PathLike[Any]"],
     sql_stmt: str,
@@ -581,6 +582,8 @@ def execute_sql(
     """Execute a SQL statement (DML or DDL) on the file.
 
     To run SELECT SQL statements on a file, use :meth:`~read_file`.
+
+    If the function fails due to the file being locked, it will retry a number of times.
 
     Args:
         path (PathLike): The path to the file.
@@ -614,6 +617,7 @@ def execute_sql(
         datasource = None
 
 
+@retry(**RETRY_LOCKED_FILE_KWARGS)  # type: ignore[arg-type]
 def create_spatial_index(
     path: Union[str, "os.PathLike[Any]"],
     layer: str | LayerInfo | None = None,
@@ -623,6 +627,8 @@ def create_spatial_index(
     no_geom_ok: bool = False,
 ) -> None:
     """Create a spatial index on the layer specified.
+
+    If the function fails due to the file being locked, it will retry a number of times.
 
     Args:
         path (PathLike): The file path.
@@ -773,12 +779,15 @@ def has_spatial_index(
             datasource = None
 
 
+@retry(**RETRY_LOCKED_FILE_KWARGS)  # type: ignore[arg-type]
 def remove_spatial_index(
     path: Union[str, "os.PathLike[Any]"],
     layer: str | LayerInfo | None = None,
     datasource: gdal.Dataset | None = None,
 ) -> None:
     """Remove the spatial index from the layer specified.
+
+    If the function fails due to the file being locked, it will retry a number of times.
 
     Args:
         path (PathLike): The file path.
@@ -843,8 +852,7 @@ def rename_layer(
     `rename_layer` can only be used on file types that support multiple layers, so
     for drivers that have the `GDAL_DCAP_MULTIPLE_VECTOR_LAYERS` capability.
 
-    If the rename fails due to the file being locked, the function will retry a number
-    of times with incremental delays.
+    If the rename fails due to the file being locked, it will retry a number of times.
 
     Args:
         path (PathLike): The file path.
@@ -897,8 +905,7 @@ def rename_column(
 ) -> None:
     """Rename the column specified.
 
-    If the rename fails due to the file being locked, the function will retry a number
-    of times with incremental delays.
+    If the rename fails due to the file being locked, it will retry a number of times.
 
     Args:
         path (PathLike): the file path.
@@ -1010,8 +1017,7 @@ def add_column(
     geofile is located on a network drive, this can be slow. If this is the case,
     it is recommended to use :meth:`~add_columns` to add the column(s) instead.
 
-    If the function fails due to the file being locked, the function will retry a number
-    of times with incremental delays.
+    If the function fails due to the file being locked, it will retry a number of times.
 
     Args:
         path (PathLike): Path to the geofile.
@@ -1176,8 +1182,7 @@ def add_columns(
          on `output_path` will be used to determine `output_layer`.
        - otherwise, the input layername is used/retained.
 
-    If the function fails due to the file being locked, the function will retry a number
-    of times with incremental delays.
+    If the function fails due to the file being locked, it will retry a number of times.
 
     .. versionadded:: 0.11.0
 
@@ -1445,8 +1450,7 @@ def drop_column(
 ) -> None:
     """Drop the column specified.
 
-    If the function fails due to the file being locked, the function will retry a number
-    of times with incremental delays.
+    If the function fails due to the file being locked, it will retry a number of times.
 
     Args:
         path (PathLike): The file path.
@@ -1493,8 +1497,7 @@ def update_column(
 ) -> None:
     """Update a column from a layer of the geofile.
 
-    If the function fails due to the file being locked, the function will retry a number
-    of times with incremental delays.
+    If the function fails due to the file being locked, it will retry a number of times.
 
     Args:
         path (PathLike): Path to the geofile.
