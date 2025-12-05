@@ -822,6 +822,12 @@ def remove_spatial_index(
             datasource = None
 
 
+@retry(
+    max_tries=5,
+    delay_incremental=0.5,
+    exceptions=(RuntimeError,),
+    match=["attempt to write a readonly database", "file used by other process"],
+)
 def rename_layer(
     path: Union[str, "os.PathLike[Any]"], new_layer: str, layer: str | None = None
 ) -> None:
@@ -829,6 +835,9 @@ def rename_layer(
 
     `rename_layer` can only be used on file types that support multiple layers, so
     for drivers that have the `GDAL_DCAP_MULTIPLE_VECTOR_LAYERS` capability.
+
+    If the rename fails due to the file being locked, the function will retry a number
+    of times with incremental delays.
 
     Args:
         path (PathLike): The file path.
@@ -978,6 +987,12 @@ class DataType(enum.Enum):
     """Column with numeric data: exact decimal data."""
 
 
+@retry(
+    max_tries=5,
+    delay_incremental=0.5,
+    exceptions=(RuntimeError,),
+    match=["attempt to write a readonly database", "file used by other process"],
+)
 def add_column(
     path: Union[str, "os.PathLike[Any]"],
     name: str,
@@ -997,6 +1012,9 @@ def add_column(
     The column will be added and updated in-place to the geofile. When the
     geofile is located on a network drive, this can be slow. If this is the case,
     it is recommended to use :meth:`~add_columns` to add the column(s) instead.
+
+    If the function fails due to the file being locked, the function will retry a number
+    of times with incremental delays.
 
     Args:
         path (PathLike): Path to the geofile.
@@ -1129,6 +1147,12 @@ def add_column(
             logger.info(f"Ready, add_column of {name} took {took:.2f}")
 
 
+@retry(
+    max_tries=5,
+    delay_incremental=0.5,
+    exceptions=(RuntimeError,),
+    match=["attempt to write a readonly database", "file used by other process"],
+)
 def add_columns(
     path: Union[str, "os.PathLike[Any]"],
     new_columns: list[
@@ -1159,6 +1183,9 @@ def add_columns(
        - if the input layer contains a single spatial layer, :func:`get_default_layer`
          on `output_path` will be used to determine `output_layer`.
        - otherwise, the input layername is used/retained.
+
+    If the function fails due to the file being locked, the function will retry a number
+    of times with incremental delays.
 
     .. versionadded:: 0.11.0
 
@@ -1420,10 +1447,19 @@ def _validate_datatype(datatype: str | DataType) -> str:
     return type_str
 
 
+@retry(
+    max_tries=5,
+    delay_incremental=0.5,
+    exceptions=(RuntimeError,),
+    match=["attempt to write a readonly database", "file used by other process"],
+)
 def drop_column(
     path: Union[str, "os.PathLike[Any]"], column_name: str, layer: str | None = None
 ) -> None:
     """Drop the column specified.
+
+    If the function fails due to the file being locked, the function will retry a number
+    of times with incremental delays.
 
     Args:
         path (PathLike): The file path.
@@ -1460,6 +1496,12 @@ def drop_column(
         datasource = None
 
 
+@retry(
+    max_tries=5,
+    delay_incremental=0.5,
+    exceptions=(RuntimeError,),
+    match=["attempt to write a readonly database", "file used by other process"],
+)
 def update_column(
     path: Union[str, "os.PathLike[Any]"],
     name: str,
@@ -1468,6 +1510,9 @@ def update_column(
     where: str | None = None,
 ) -> None:
     """Update a column from a layer of the geofile.
+
+    If the function fails due to the file being locked, the function will retry a number
+    of times with incremental delays.
 
     Args:
         path (PathLike): Path to the geofile.
