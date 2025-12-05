@@ -225,7 +225,7 @@ def retry(
                         # No more retries... raise
                         raise ex
 
-                    logger.debug(
+                    logger.info(
                         f"Retrying function {func.__name__} due to exception: {ex}. "
                         f"Try {try_count + 1} of {max_tries}."
                     )
