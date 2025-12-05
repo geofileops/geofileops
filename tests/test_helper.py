@@ -15,7 +15,7 @@ import shapely.geometry as sh_geom
 
 import geofileops as gfo
 from geofileops._compat import GDAL_GTE_311, PYTHON_313
-from geofileops.helpers._configoptions_helper import ConfigOptions
+from geofileops.helpers._options import ConfigOptions
 from geofileops.util import (
     _geofileinfo,
     _geoseries_util,
@@ -187,7 +187,7 @@ def _get_testfile(
 
     # Prepare destination location
     if dst_dir is None:
-        dst_dir = ConfigOptions.tmp_dir / "_test_data"
+        dst_dir = ConfigOptions.get_tmp_dir / "_test_data"
     assert isinstance(dst_dir, Path)
     dst_dir.mkdir(parents=True, exist_ok=True)
 
@@ -473,6 +473,10 @@ def assert_geodataframe_equal(
         # The symmetric difference should result in all empty geometries if the
         # geometries are equal. Apply a negative buffer to the geometries with half the
         # tolerance.
+        if len(left) != len(right):
+            raise AssertionError(
+                f"left and right have different lengths: {len(left)} != {len(right)}"
+            )
         symdiff = shapely.symmetric_difference(left.geometry, right.geometry)
         symdiff_tol = symdiff.buffer(-check_geom_tolerance / 2, join_style="mitre")
         symdiff_tol_diff = symdiff_tol[~symdiff_tol.is_empty]

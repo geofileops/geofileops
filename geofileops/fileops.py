@@ -30,7 +30,7 @@ from pygeoops import GeometryType, PrimitiveType  # noqa: F401
 
 from geofileops._compat import GDAL_GTE_311, PYOGRIO_GTE_012
 from geofileops.helpers import _general_helper
-from geofileops.helpers._configoptions_helper import ConfigOptions
+from geofileops.helpers._options import ConfigOptions
 from geofileops.util import (
     _geofileinfo,
     _geoseries_util,
@@ -39,6 +39,7 @@ from geofileops.util import (
     _ogr_util,
     _sqlite_util,
 )
+from geofileops.util._general_util import retry
 from geofileops.util._geopath_util import GeoPath
 
 try:
@@ -96,6 +97,18 @@ PRJ_EPSG_31370 = (
     'AUTHORITY["EPSG",31370]'
     "]"
 )
+
+FILE_LOCKED_ERRORS = [
+    "attempt to write a readonly database",
+    "file used by other process",
+]
+
+RETRY_LOCKED_FILE_KWARGS = {
+    "max_tries": 5,
+    "delay_incremental": 0.5,
+    "exceptions": (RuntimeError,),
+    "match": FILE_LOCKED_ERRORS,
+}
 
 
 def listlayers(
@@ -560,6 +573,7 @@ def get_default_layer(path: Union[str, "os.PathLike[Any]"]) -> str:
     return GeoPath(path).stem
 
 
+@retry(**RETRY_LOCKED_FILE_KWARGS)  # type: ignore[arg-type]
 def execute_sql(
     path: Union[str, "os.PathLike[Any]"],
     sql_stmt: str,
@@ -568,6 +582,8 @@ def execute_sql(
     """Execute a SQL statement (DML or DDL) on the file.
 
     To run SELECT SQL statements on a file, use :meth:`~read_file`.
+
+    If the function fails due to the file being locked, it will retry a number of times.
 
     Args:
         path (PathLike): The path to the file.
@@ -601,6 +617,7 @@ def execute_sql(
         datasource = None
 
 
+@retry(**RETRY_LOCKED_FILE_KWARGS)  # type: ignore[arg-type]
 def create_spatial_index(
     path: Union[str, "os.PathLike[Any]"],
     layer: str | LayerInfo | None = None,
@@ -610,6 +627,8 @@ def create_spatial_index(
     no_geom_ok: bool = False,
 ) -> None:
     """Create a spatial index on the layer specified.
+
+    If the function fails due to the file being locked, it will retry a number of times.
 
     Args:
         path (PathLike): The file path.
@@ -760,12 +779,15 @@ def has_spatial_index(
             datasource = None
 
 
+@retry(**RETRY_LOCKED_FILE_KWARGS)  # type: ignore[arg-type]
 def remove_spatial_index(
     path: Union[str, "os.PathLike[Any]"],
     layer: str | LayerInfo | None = None,
     datasource: gdal.Dataset | None = None,
 ) -> None:
     """Remove the spatial index from the layer specified.
+
+    If the function fails due to the file being locked, it will retry a number of times.
 
     Args:
         path (PathLike): The file path.
@@ -821,6 +843,7 @@ def remove_spatial_index(
             datasource = None
 
 
+@retry(**RETRY_LOCKED_FILE_KWARGS)  # type: ignore[arg-type]
 def rename_layer(
     path: Union[str, "os.PathLike[Any]"], new_layer: str, layer: str | None = None
 ) -> None:
@@ -828,6 +851,8 @@ def rename_layer(
 
     `rename_layer` can only be used on file types that support multiple layers, so
     for drivers that have the `GDAL_DCAP_MULTIPLE_VECTOR_LAYERS` capability.
+
+    If the rename fails due to the file being locked, it will retry a number of times.
 
     Args:
         path (PathLike): The file path.
@@ -852,7 +877,7 @@ def rename_layer(
         datasource_layer = _get_layer(datasource, layer)
         layername = datasource_layer.GetName()
 
-        if not datasource_layer.TestCapability(gdal.ogr.OLCRename):
+        if not datasource_layer.TestCapability(ogr.OLCRename):
             raise ValueError(f"rename_layer not supported for {path}#{layer}")
 
         # If the layer name only differs in case, we need to rename it first to a
@@ -871,6 +896,7 @@ def rename_layer(
         datasource = None
 
 
+@retry(**RETRY_LOCKED_FILE_KWARGS)  # type: ignore[arg-type]
 def rename_column(
     path: Union[str, "os.PathLike[Any]"],
     column_name: str,
@@ -878,6 +904,8 @@ def rename_column(
     layer: str | None = None,
 ) -> None:
     """Rename the column specified.
+
+    If the rename fails due to the file being locked, it will retry a number of times.
 
     Args:
         path (PathLike): the file path.
@@ -906,7 +934,7 @@ def rename_column(
     try:
         datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
         datasource_layer = datasource.GetLayer(layerinfo.name)
-        if not datasource_layer.TestCapability(gdal.ogr.OLCAlterFieldDefn):
+        if not datasource_layer.TestCapability(ogr.OLCAlterFieldDefn):
             raise ValueError(f"rename_column not supported for {path}")
         layer_defn = datasource_layer.GetLayerDefn()
 
@@ -922,9 +950,7 @@ def rename_column(
             field_defn = layer_defn.GetFieldDefn(field_index)
             renamed_field = gdal.ogr.FieldDefn(temp_column_name, field_defn.GetType())
             datasource_layer.AlterFieldDefn(
-                field_index,
-                renamed_field,
-                gdal.ogr.ALTER_NAME_FLAG,
+                field_index, renamed_field, ogr.ALTER_NAME_FLAG
             )
             column_name = f"{temp_column_name}"
 
@@ -932,11 +958,7 @@ def rename_column(
         field_index = layer_defn.GetFieldIndex(column_name)
         field_defn = layer_defn.GetFieldDefn(field_index)
         renamed_field = gdal.ogr.FieldDefn(new_column_name, field_defn.GetType())
-        datasource_layer.AlterFieldDefn(
-            field_index,
-            renamed_field,
-            gdal.ogr.ALTER_NAME_FLAG,
-        )
+        datasource_layer.AlterFieldDefn(field_index, renamed_field, ogr.ALTER_NAME_FLAG)
 
     except Exception as ex:
         # If it is the ValueError thrown above, just raise
@@ -948,6 +970,7 @@ def rename_column(
         # It is another error... add some more context
         ex.args = (f"rename_column error: {ex} for {path}#{layerinfo.name}",)
         raise
+
     finally:
         datasource = None
 
@@ -973,6 +996,7 @@ class DataType(enum.Enum):
     """Column with numeric data: exact decimal data."""
 
 
+@retry(**RETRY_LOCKED_FILE_KWARGS)  # type: ignore[arg-type]
 def add_column(
     path: Union[str, "os.PathLike[Any]"],
     name: str,
@@ -988,6 +1012,12 @@ def add_column(
     You can specify an `expression` to use to fill out the value of the column. For file
     formats that support transactions, the column won't be added if updating the value
     fails.
+
+    The column will be added and updated in-place to the geofile. When the
+    geofile is located on a network drive, this can be slow. If this is the case,
+    it is recommended to use :meth:`~add_columns` to add the column(s) instead.
+
+    If the function fails due to the file being locked, it will retry a number of times.
 
     Args:
         path (PathLike): Path to the geofile.
@@ -1006,6 +1036,7 @@ def add_column(
         width (int, optional): the width of the field.
 
     See Also:
+        * :func:`add_columns`: add one or more columns to the layer in one go
         * :func:`drop_column`: drop a column from the layer
         * :func:`get_layerinfo`: get information about the layer, including the list of
           columns
@@ -1119,6 +1150,7 @@ def add_column(
             logger.info(f"Ready, add_column of {name} took {took:.2f}")
 
 
+@retry(**RETRY_LOCKED_FILE_KWARGS)  # type: ignore[arg-type]
 def add_columns(
     path: Union[str, "os.PathLike[Any]"],
     new_columns: list[
@@ -1137,11 +1169,20 @@ def add_columns(
     original location (or to `output_path` if specified). If just adding columns without
     filling them out, the columns are added in place.
 
+    Note that you cannot reference columns being added in the expressions of other
+    columns as they are being update at the same time. Most of the time the most
+    efficient way to solve this is to integrate the expression of the first column
+    in the expression of the second rather than call `add_columns` multiple times. An
+    example of this is shown in the Examples section below.
+
     If `output_path` is specified, but `output_layer` is None, the output layer name is
     determined like this for file types that support multiple layers:
+
        - if the input layer contains a single spatial layer, :func:`get_default_layer`
          on `output_path` will be used to determine `output_layer`.
        - otherwise, the input layername is used/retained.
+
+    If the function fails due to the file being locked, it will retry a number of times.
 
     .. versionadded:: 0.11.0
 
@@ -1173,7 +1214,7 @@ def add_columns(
         * :func:`update_column`: update a column of the layer
 
     Examples:
-        To add multiple columns at once, some with an expression to fill out the values:
+        Add multiple columns at once, some with an expression to fill out the values:
 
         .. code-block:: python
 
@@ -1192,6 +1233,18 @@ def add_columns(
             ]
             gfo.add_columns("file.gpkg", new_columns, layer="my_layer")
 
+
+        Add multiple columns at once, and reuse the expression of one of them in another
+        column expression:
+
+        .. code-block:: python
+
+            area_expression = "ST_Area(geom)"
+            new_columns = [
+                ("area", "REAL", area_expression),
+                ("area_times_two", "REAL", f"{area_expression} * 2"),
+            ]
+            gfo.add_columns("file.gpkg", new_columns, layer="my_layer")
 
     .. |spatialite_reference_link| raw:: html
 
@@ -1391,10 +1444,13 @@ def _validate_datatype(datatype: str | DataType) -> str:
     return type_str
 
 
+@retry(**RETRY_LOCKED_FILE_KWARGS)  # type: ignore[arg-type]
 def drop_column(
     path: Union[str, "os.PathLike[Any]"], column_name: str, layer: str | None = None
 ) -> None:
     """Drop the column specified.
+
+    If the function fails due to the file being locked, it will retry a number of times.
 
     Args:
         path (PathLike): The file path.
@@ -1431,6 +1487,7 @@ def drop_column(
         datasource = None
 
 
+@retry(**RETRY_LOCKED_FILE_KWARGS)  # type: ignore[arg-type]
 def update_column(
     path: Union[str, "os.PathLike[Any]"],
     name: str,
@@ -1439,6 +1496,8 @@ def update_column(
     where: str | None = None,
 ) -> None:
     """Update a column from a layer of the geofile.
+
+    If the function fails due to the file being locked, it will retry a number of times.
 
     Args:
         path (PathLike): Path to the geofile.
@@ -1493,6 +1552,7 @@ def update_column(
     .. |spatialite_reference_link| raw:: html
 
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
     """  # noqa: E501
     # Init
     logger.info(f"Update column {name} in {path}#{layer}")
@@ -1579,7 +1639,7 @@ def read_file(
 
 
     Args:
-        path (file path): path to the file to read from. |GDAL_vsi|_ paths are also
+        path (file path): path to the file to read from. `GDAL_vsi`_ paths are also
             supported.
         layer (str, optional): The layer to read. If None and there is only one layer in
             the file it is read, otherwise an error is thrown. Defaults to None.
@@ -1595,7 +1655,7 @@ def read_file(
             recommended. Defaults to None, then all rows are returned.
         where (str, optional): where clause to filter features in layer by attribute
             values. If the datasource natively supports sql, its specific SQL dialect
-            should be used (eg. SQLite and GeoPackage: `SQLITE`_, PostgreSQL). If it
+            should be used (eg. SQLite and GeoPackage: "SQLITE", PostgreSQL). If it
             doesn't, the `OGRSQL WHERE`_ syntax should be used. Note that it is not
             possible to overrule the SQL dialect, this is only possible when you use the
             SQL parameter. Examples: ``"ISO_A3 = 'CAN'"``,
@@ -1706,7 +1766,7 @@ def _read_file_base(
         fid_as_column = True
 
     # Read with the engine specified
-    engine = ConfigOptions.io_engine
+    engine = ConfigOptions.get_io_engine
     if engine.startswith("pyogrio"):
         if "use_arrow" in kwargs:
             use_arrow = bool(kwargs["use_arrow"]) if pyarrow else False
@@ -1884,7 +1944,7 @@ def _read_file_base_fiona(
     finally:
         if (
             tmp_fid_path is not None
-            and ConfigOptions.remove_temp_files
+            and ConfigOptions.get_remove_temp_files
             and tmp_fid_path.parent.exists()
         ):
             shutil.rmtree(tmp_fid_path.parent, ignore_errors=True)
@@ -2220,7 +2280,7 @@ def to_file(
     if force_output_geometrytype is not None and force_output_geometrytype.is_multitype:  # type: ignore[union-attr]
         force_multitype = True
 
-    engine = ConfigOptions.io_engine
+    engine = ConfigOptions.get_io_engine
 
     # Write file with the correct engine
     if engine.startswith("pyogrio"):
@@ -2969,11 +3029,12 @@ def copy_layer(
     """Copy a layer from a source to a destination dataset.
 
     Typical use cases:
-      - convert a file from one fileformat to another
-      - reproject a layer to another spatial reference
-      - export a subset of a layer using the `where` or `sql_stmt` parameter
-      - add a layer to an existing file as a new layer (`write_mode="add_layer"`)
-      - append a layer to an existing layer (`write_mode="append"`)
+
+        - convert a file from one fileformat to another
+        - reproject a layer to another spatial reference
+        - export a subset of a layer using the `where` or `sql_stmt` parameter
+        - add a layer to an existing file as a new layer (`write_mode="add_layer"`)
+        - append a layer to an existing layer (`write_mode="append"`)
 
     If an `sql_stmt` is specified, the sqlite query can contain following placeholders
     that will be automatically replaced for you:
@@ -2996,6 +3057,7 @@ def copy_layer(
         { "<option_type>.<option_name>": <option_value> }
 
     The option types can be any of the following:
+
         - LAYER_CREATION: layer creation option (lco)
         - DATASET_CREATION: dataset creation option (dsco)
         - INPUT_OPEN: input dataset open option (oo)
@@ -3173,7 +3235,7 @@ def copy_layer(
         and dst_crs is None
         and Path(src).exists()
         and Path(dst).exists()
-        and ConfigOptions.copy_layer_sqlite_direct
+        and ConfigOptions.get_copy_layer_sqlite_direct
     ):
         # TODO: sql_stmt?, access_mode="create", create_spatial_index, dst_crs?
         try:
