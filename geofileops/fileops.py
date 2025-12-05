@@ -98,6 +98,18 @@ PRJ_EPSG_31370 = (
     "]"
 )
 
+FILE_LOCKED_ERRORS = [
+    "attempt to write a readonly database",
+    "file used by other process",
+]
+
+RETRY_LOCKED_FILE_KWARGS = {
+    "max_tries": 5,
+    "delay_incremental": 0.5,
+    "exceptions": (RuntimeError,),
+    "match": FILE_LOCKED_ERRORS,
+}
+
 
 def listlayers(
     path: Union[str, "os.PathLike[Any]"], only_spatial_layers: bool = True
@@ -822,12 +834,7 @@ def remove_spatial_index(
             datasource = None
 
 
-@retry(
-    max_tries=5,
-    delay_incremental=0.5,
-    exceptions=(RuntimeError,),
-    match=["attempt to write a readonly database", "file used by other process"],
-)
+@retry(**RETRY_LOCKED_FILE_KWARGS)  # type: ignore[arg-type]
 def rename_layer(
     path: Union[str, "os.PathLike[Any]"], new_layer: str, layer: str | None = None
 ) -> None:
@@ -881,12 +888,7 @@ def rename_layer(
         datasource = None
 
 
-@retry(
-    max_tries=5,
-    delay_incremental=0.5,
-    exceptions=(RuntimeError,),
-    match=["attempt to write a readonly database", "file used by other process"],
-)
+@retry(**RETRY_LOCKED_FILE_KWARGS)  # type: ignore[arg-type]
 def rename_column(
     path: Union[str, "os.PathLike[Any]"],
     column_name: str,
@@ -987,12 +989,7 @@ class DataType(enum.Enum):
     """Column with numeric data: exact decimal data."""
 
 
-@retry(
-    max_tries=5,
-    delay_incremental=0.5,
-    exceptions=(RuntimeError,),
-    match=["attempt to write a readonly database", "file used by other process"],
-)
+@retry(**RETRY_LOCKED_FILE_KWARGS)  # type: ignore[arg-type]
 def add_column(
     path: Union[str, "os.PathLike[Any]"],
     name: str,
@@ -1147,12 +1144,7 @@ def add_column(
             logger.info(f"Ready, add_column of {name} took {took:.2f}")
 
 
-@retry(
-    max_tries=5,
-    delay_incremental=0.5,
-    exceptions=(RuntimeError,),
-    match=["attempt to write a readonly database", "file used by other process"],
-)
+@retry(**RETRY_LOCKED_FILE_KWARGS)  # type: ignore[arg-type]
 def add_columns(
     path: Union[str, "os.PathLike[Any]"],
     new_columns: list[
@@ -1447,12 +1439,7 @@ def _validate_datatype(datatype: str | DataType) -> str:
     return type_str
 
 
-@retry(
-    max_tries=5,
-    delay_incremental=0.5,
-    exceptions=(RuntimeError,),
-    match=["attempt to write a readonly database", "file used by other process"],
-)
+@retry(**RETRY_LOCKED_FILE_KWARGS)  # type: ignore[arg-type]
 def drop_column(
     path: Union[str, "os.PathLike[Any]"], column_name: str, layer: str | None = None
 ) -> None:
@@ -1496,12 +1483,7 @@ def drop_column(
         datasource = None
 
 
-@retry(
-    max_tries=5,
-    delay_incremental=0.5,
-    exceptions=(RuntimeError,),
-    match=["attempt to write a readonly database", "file used by other process"],
-)
+@retry(**RETRY_LOCKED_FILE_KWARGS)  # type: ignore[arg-type]
 def update_column(
     path: Union[str, "os.PathLike[Any]"],
     name: str,
