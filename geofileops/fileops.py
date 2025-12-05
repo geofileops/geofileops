@@ -39,6 +39,7 @@ from geofileops.util import (
     _ogr_util,
     _sqlite_util,
 )
+from geofileops.util._general_util import retry
 from geofileops.util._geopath_util import GeoPath
 
 try:
@@ -871,6 +872,12 @@ def rename_layer(
         datasource = None
 
 
+@retry(
+    max_tries=5,
+    delay_incremental=0.5,
+    exceptions=(RuntimeError,),
+    match=["attempt to write a readonly database", "file used by other process"],
+)
 def rename_column(
     path: Union[str, "os.PathLike[Any]"],
     column_name: str,
@@ -878,6 +885,9 @@ def rename_column(
     layer: str | None = None,
 ) -> None:
     """Rename the column specified.
+
+    If the rename fails due to the file being locked, the function will retry a number
+    of times with incremental delays.
 
     Args:
         path (PathLike): the file path.
@@ -921,14 +931,16 @@ def rename_column(
             field_index = layer_defn.GetFieldIndex(column_name)
             field_defn = layer_defn.GetFieldDefn(field_index)
             renamed_field = gdal.ogr.FieldDefn(temp_column_name, field_defn.GetType())
-            _ogr_rename_column_with_retry(datasource_layer, field_index, renamed_field)
+            datasource_layer.AlterFieldDefn(
+                field_index, renamed_field, ogr.ALTER_NAME_FLAG
+            )
             column_name = f"{temp_column_name}"
 
         # Rename column
         field_index = layer_defn.GetFieldIndex(column_name)
         field_defn = layer_defn.GetFieldDefn(field_index)
         renamed_field = gdal.ogr.FieldDefn(new_column_name, field_defn.GetType())
-        _ogr_rename_column_with_retry(datasource_layer, field_index, renamed_field)
+        datasource_layer.AlterFieldDefn(field_index, renamed_field, ogr.ALTER_NAME_FLAG)
 
     except Exception as ex:
         # If it is the ValueError thrown above, just raise
@@ -940,38 +952,9 @@ def rename_column(
         # It is another error... add some more context
         ex.args = (f"rename_column error: {ex} for {path}#{layerinfo.name}",)
         raise
+
     finally:
         datasource = None
-
-
-def _ogr_rename_column_with_retry(
-    ogr_layer: ogr.Layer,
-    field_index: int,
-    renamed_field: ogr.FieldDefn,
-    max_retries: int = 3,
-) -> None:
-    """Rename a column of an OGR Layer with retries in case of some errors.
-
-    Args:
-        ogr_layer (ogr.Layer): the OGR layer.
-        field_index (int): the index of the field to rename.
-        renamed_field (ogr.FieldDefn): the new field definition.
-        max_retries (int, optional): maximum number of retries. Defaults to 3.
-    """
-    for retry_count in range(max_retries):
-        try:
-            ogr_layer.AlterFieldDefn(field_index, renamed_field, ogr.ALTER_NAME_FLAG)
-            break
-        except RuntimeError as ex:
-            if (
-                retry_count == max_retries - 1
-                or "attempt to write a readonly database" not in str(ex)
-            ):
-                # No more retries or other error... raise
-                raise ex
-
-            # Sleep before retrying
-            time.sleep(0.5 * (retry_count + 1))
 
 
 class DataType(enum.Enum):
