@@ -136,6 +136,13 @@ the 1st input layer. E.g. for ``intersection`` this will result in an output wit
 pairwise intersections between the features in this layer. The intersection of features
 with itself is omitted.
 
+For all spatial overlays, **sliver polygons** are removed from the output by default
+starting from geofileops 0.11.0.
+Polygons are considered slivers if they are narrower than a certain tolerance. By
+default tolerance is 0.001 CRS units if the CRS of the input layers is a projected CRS,
+1e-7 if it is a geographic CRS. More information + information how to change this
+default tolerance can be found here:
+:func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
 
 Spatial joins
 -------------
@@ -238,3 +245,16 @@ dataset like this:
     """
     stats_df = gfo.read_file(path="file.gpkg", sql_stmt=sql_stmt)
     stats_df.to_excel("stats.xlsx", index=False)
+
+
+Runtime Options
+---------------
+Geofileops has several runtime options that can be used to tune its behavior. These can
+be set using the :mod:`geofileops.options` module.
+
+Some options can help with debugging, like disabling the removal of temporary files,
+others can help improve performance depending on the use case, like setting the
+type of workers to use.
+
+Information about all runtime options and how to use them can be found here:
+:ref:`Runtime Options<reference-runtime-options>`.
