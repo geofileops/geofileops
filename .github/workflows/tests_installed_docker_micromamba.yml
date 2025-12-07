@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        checkout_ref: ["v0.10.x"]
+        checkout_ref: ["main"] # ["v0.10.x"]
         container:
           - "mambaorg/micromamba:latest"
 
