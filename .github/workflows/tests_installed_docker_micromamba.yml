@@ -42,7 +42,7 @@ jobs:
       run: |
         micromamba info
         which micromamba
-        micromamba install -y -n base geofileops simplify pytest pytest-cov
+        micromamba install -y -n base geofileops simplification pytest pytest-cov
         micromamba clean --all --yes
         export MICROMAMBA_DOCKER=1
 
