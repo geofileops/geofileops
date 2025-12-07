@@ -91,6 +91,12 @@ def test_create_spatial_index_force_rebuild(request, tmp_path, suffix, read_only
         has_spatial_index = gfo.has_spatial_index(path=test_path)
         assert has_spatial_index is True
         if read_only:
+            if os.environ.get("MICROMAMBA_DOCKER") == "1":
+                reason = (
+                    "On Micromamba Docker create index on read-only file doesn't raise"
+                )
+                request.node.add_marker(pytest.mark.xfail(reason=reason))
+            # Create spatial index on read-only file should give error
             with pytest.raises(RuntimeError, match="create_spatial_index error"):
                 gfo.create_spatial_index(path=test_path, force_rebuild=True)
         else:
