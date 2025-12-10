@@ -5,7 +5,7 @@ import os
 import tempfile
 from contextlib import AbstractContextManager
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal, Union
 
 from pyproj import CRS
 
@@ -765,7 +765,9 @@ class ConfigOptions:
         return rows
 
     @staticmethod
-    def set_tmp_dir(path: Path | str | None) -> _RestoreOriginalHandler:
+    def set_tmp_dir(
+        path: Union[str, "os.PathLike[Any]"] | None,
+    ) -> _RestoreOriginalHandler:
         """Set the directory to use for temporary files created during processing.
 
         The value set should be a valid directory path. If not set, a subdirectory
@@ -781,8 +783,8 @@ class ConfigOptions:
         .. versionadded:: 0.11.0
 
         Args:
-            path (Path | str | None): The temporary directory path. If None, the option is
-                unset (so the default behavior is used).
+            path (PathLike | str | None): The temporary directory path. If None, the
+                option is unset (so the default behavior is used).
 
         Examples:
             If you want to change the default value of the option in general, you can
@@ -805,7 +807,7 @@ class ConfigOptions:
         key = "GFO_TMPDIR"
         original_value = os.environ.get(key)
         if path is not None:
-            if isinstance(path, Path):
+            if not isinstance(path, str):
                 path = str(path)
             os.environ[key] = path
         elif key in os.environ:
