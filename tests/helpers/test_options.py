@@ -3,6 +3,8 @@
 import multiprocessing
 import os
 import tempfile
+from pathlib import Path
+from typing import Any, Union
 
 import pytest
 from pyproj import CRS
@@ -508,6 +510,31 @@ def test_set_tmp_dir() -> None:
         assert os.environ[key] == "/tmp/geofileops_temp2"
 
     # After exiting the context manager, the environment variable should be removed
+    assert key not in os.environ
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/tmp/geofileops_test_str",
+        r"C:\geofileops_test_path",
+        Path("/tmp/geofileops_test_path"),
+        Path(r"C:\geofileops_test_path"),
+    ],
+)
+def test_set_tmp_dir_pathlike(path: Union[str, "os.PathLike[Any]"]) -> None:
+    """Test the tmp_dir option setter with Path input."""
+    # Make sure the environment variable is not set at the start of the test
+    key = "GFO_TMPDIR"
+    if key in os.environ:
+        del os.environ[key]
+
+    # Test setting the option permanently
+    gfo.options.set_tmp_dir(path)
+    assert os.environ[key] == str(path)
+
+    # Clean up by setting with None
+    gfo.options.set_tmp_dir(None)
     assert key not in os.environ
 
 
