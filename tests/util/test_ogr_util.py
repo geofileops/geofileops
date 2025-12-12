@@ -299,9 +299,9 @@ def test_vector_translate_sql_st_minx(tmp_path):
     output_gdf = gfo.read_file(output_path)
     assert "minx" in output_gdf.columns
     nans = np.isnan(output_gdf["minx"])
-    assert len(output_gdf.loc[nans]) == 1
     output_non_nan_gdf = output_gdf.loc[~nans]
     assert all(output_non_nan_gdf["minx"] > 1)
+    assert len(output_gdf.loc[nans]) == 1
 
 
 @pytest.mark.parametrize(
