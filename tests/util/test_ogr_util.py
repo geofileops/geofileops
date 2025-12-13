@@ -8,7 +8,6 @@ from osgeo import gdal
 from pygeoops import GeometryType
 
 import geofileops as gfo
-from geofileops._compat import GDAL_GTE_313
 from geofileops.util import _ogr_util
 from tests import test_helper
 
@@ -281,10 +280,6 @@ def test_vector_translate_sql(tmp_path, input_suffix, output_suffix):
     assert input_layerinfo.featurecount == input_layerinfo.featurecount
 
 
-@pytest.mark.xfail(
-    GDAL_GTE_313,
-    reason="GDAL 3.13 triggers a bug in spatialite with ST_MinX and CastToXYZ",
-)
 def test_vector_translate_sql_st_minx(tmp_path):
     input_path = test_helper.get_testfile("polygon-parcel")
     layer = gfo.get_only_layer(input_path)
