@@ -8,6 +8,7 @@ from osgeo import gdal
 from pygeoops import GeometryType
 
 import geofileops as gfo
+from geofileops._compat import GDAL_GTE_313
 from geofileops.util import _ogr_util
 from tests import test_helper
 
@@ -280,6 +281,10 @@ def test_vector_translate_sql(tmp_path, input_suffix, output_suffix):
     assert input_layerinfo.featurecount == input_layerinfo.featurecount
 
 
+@pytest.mark.xfail(
+    GDAL_GTE_313,
+    reason="GDAL 3.13 triggers a bug in spatialite with ST_MinX and CastToXYZ",
+)
 def test_vector_translate_sql_st_minx(tmp_path):
     input_path = test_helper.get_testfile("polygon-parcel")
     layer = gfo.get_only_layer(input_path)
@@ -299,11 +304,11 @@ def test_vector_translate_sql_st_minx(tmp_path):
     output_gdf = gfo.read_file(output_path)
     assert "minx" in output_gdf.columns
     nans = np.isnan(output_gdf["minx"])
-    if len(output_gdf.loc[nans]) == 1:
-        output_non_nan_gdf = output_gdf.loc[~nans]
-        assert all(output_non_nan_gdf["minx"] > 1)
-    else:
-        raise Exception(f"{output_gdf['minx']=}")
+    assert len(output_gdf.loc[nans]) == 1, (
+        f"There should be one NaN value in minx column: {output_gdf['minx']=}"
+    )
+    output_non_nan_gdf = output_gdf.loc[~nans]
+    assert all(output_non_nan_gdf["minx"] > 1)
 
 
 @pytest.mark.parametrize(
