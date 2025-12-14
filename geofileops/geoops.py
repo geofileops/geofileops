@@ -1780,7 +1780,7 @@ def simplify(
 
     The result is written to the output file specified.
 
-    Several `algorithm`s are available.
+    Check out the ``algorithm`` parameter for the different algorithms available.
 
     If ``explodecollections`` is False and the input and output file type is GeoPackage,
     the fid will be preserved. In other cases this will typically not be the case.
