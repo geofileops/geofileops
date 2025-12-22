@@ -4,7 +4,6 @@ import json
 import logging
 import logging.config
 import math
-import multiprocessing
 import os
 import re
 import string
@@ -22,7 +21,7 @@ import pandas as pd
 import geofileops as gfo
 from geofileops import GeometryType, LayerInfo, PrimitiveType, fileops
 from geofileops.helpers import _general_helper
-from geofileops.helpers._configoptions_helper import ConfigOptions
+from geofileops.helpers._options import ConfigOptions
 from geofileops.helpers._parameter_helper import (
     validate_agg_columns,
     validate_params_two_layers,
@@ -60,7 +59,7 @@ def buffer(
     gridsize: float = 0.0,
     keep_empty_geoms: bool = False,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -125,7 +124,7 @@ def convexhull(
     gridsize: float = 0.0,
     keep_empty_geoms: bool = False,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -174,7 +173,7 @@ def delete_duplicate_geometries(  # noqa: D417
     explodecollections: bool,
     keep_empty_geoms: bool,
     where_post: str | None,
-    nb_parallel: int,
+    nb_parallel: int | None,
     batchsize: int,
     force: bool,
     operation_prefix: str = "",
@@ -259,7 +258,7 @@ def isvalid(
     columns: list[str] | None = None,
     explodecollections: bool = False,
     validate_attribute_data: bool = False,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     force: bool = False,
 ) -> bool:
@@ -339,7 +338,7 @@ def makevalid(
     gridsize: float = 0.0,
     keep_empty_geoms: bool = False,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -418,7 +417,7 @@ def select(
     gridsize: float = 0.0,
     keep_empty_geoms: bool = False,
     preserve_fid: bool | None = None,
-    nb_parallel: int = 1,
+    nb_parallel: int | None = 1,
     batchsize: int = -1,
     force: bool = False,
     operation_prefix: str = "",
@@ -483,7 +482,7 @@ def simplify(
     gridsize: float = 0.0,
     keep_empty_geoms: bool = False,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -539,7 +538,7 @@ def _single_layer_vector_operation(
     sql_dialect: Literal["SQLITE", "OGRSQL"] | None,
     preserve_fid: bool | None,
     gpkg_needed: bool,
-    nb_parallel: int,
+    nb_parallel: int | None,
     batchsize: int,
     force: bool,
     tmp_basedir: Path | None,
@@ -566,7 +565,10 @@ def _single_layer_vector_operation(
         sql_dialect (Optional[Literal["SQLITE", "OGRSQL"]]): _description_
         preserve_fid (Optional[bool]): Whether to preserve the fid column if possible.
         gpkg_needed (bool): True if the input needs to be converted to a GeoPackage.
-        nb_parallel (int): _description_
+        nb_parallel (int | None): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`.
         batchsize (int): _description_
         force (bool): _description_
         tmp_basedir (Optional[Path]): The directory to create the temporary
@@ -698,7 +700,6 @@ def _single_layer_vector_operation(
 
         # Add application of gridsize around sql_template if specified
         if geom_selected and gridsize != 0.0:
-            assert force_output_geometrytype is not None
             assert isinstance(force_output_geometrytype, GeometryType)
             gridsize_op = _format_apply_gridsize_operation(
                 geometrycolumn=f"sub_gridsize.{input_layer.geometrycolumn}",
@@ -781,6 +782,10 @@ def _single_layer_vector_operation(
             f"Start processing ({processing_params.nb_parallel} "
             f"{worker_type}, batch size: {processing_params.batchsize})"
         )
+
+        # Warn about low memory availability if needed
+        _general_helper.warn_if_low_mem(called_from=operation_name)
+
         with _processing_util.PooledExecutorFactory(
             worker_type=worker_type,
             max_workers=processing_params.nb_parallel,
@@ -841,6 +846,10 @@ def _single_layer_vector_operation(
                 operation=operation_name,
                 nb_parallel=processing_params.nb_parallel,
             )
+
+            # Warn about low memory availability if needed
+            _general_helper.warn_if_low_mem(called_from=f"{operation_name}_loop")
+
             tmp_output_not_exists_or_empty = True
             for future in futures.as_completed(future_to_batch_id):
                 try:
@@ -938,7 +947,7 @@ def clip(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     subdivide_coords: int = 15000,
     force: bool = False,
@@ -1031,6 +1040,7 @@ def clip(
             output_layer=output_layer,
             explodecollections=explodecollections,
             gridsize=gridsize,
+            remove_slivers=True,
             where_post=where_post,
             force_output_geometrytype=force_output_geometrytype,
             output_with_spatial_index=output_with_spatial_index,
@@ -1054,7 +1064,7 @@ def difference(  # noqa: D417
     explodecollections: bool = False,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
@@ -1326,6 +1336,7 @@ def difference(  # noqa: D417
             explodecollections=explodecollections,
             force_output_geometrytype=force_output_geometrytype,
             gridsize=gridsize,
+            remove_slivers=True,
             where_post=where_post,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
@@ -1348,7 +1359,7 @@ def _subdivide_layer(
     operation_prefix: str = "",
     tmp_basedir: Path | None,
     keep_fid: bool = True,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
 ) -> Path | None:
     """Subdivide a layer if needed.
@@ -1364,7 +1375,10 @@ def _subdivide_layer(
         subdivide_coords (int): number of coordinates to aim for. A layer is subdivided
             if it has at least 1 geometry with > `subdivide_coords` * 2 coordinates.
         keep_fid (bool): True to retain the fid column in the output file.
-        nb_parallel (int, optional): _description_. Defaults to -1.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): _description_. Defaults to -1.
         operation_prefix (str, optional): Prefix to use in logging,... Defaults to "".
         tmp_basedir (Optional[Path], optional): The directory to create the temporary
@@ -1449,7 +1463,7 @@ def _has_complex_geoms(path: Path, layer: LayerInfo, max_coords: int) -> bool:
          LIMIT 1
     """
     complex_found = False
-    if layer.featurecount < ConfigOptions.subdivide_check_parallel_rows:
+    if layer.featurecount < ConfigOptions.get_subdivide_check_parallel_rows:
         # For small files, simple check
         logger.info(
             f"Check for complex geometries in {path.name}/{layer.name} "
@@ -1464,7 +1478,7 @@ def _has_complex_geoms(path: Path, layer: LayerInfo, max_coords: int) -> bool:
         # For large files, check for complex geometries in parallel + check a fraction
         # of all rows.
         nb_parallel = 4
-        fraction_to_check = ConfigOptions.subdivide_check_parallel_fraction
+        fraction_to_check = ConfigOptions.get_subdivide_check_parallel_fraction
         logger.info(
             f"Check for complex geometries in 1/{fraction_to_check} rows in "
             f"{path.name}/{layer.name} (> {max_coords} coords)"
@@ -1532,7 +1546,7 @@ def export_by_location(
     output_layer: str | None = None,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     subdivide_coords: int = 10000,
     force: bool = False,
@@ -1704,6 +1718,7 @@ def export_by_location(
             explodecollections=False,
             force_output_geometrytype="KEEP_INPUT",
             gridsize=gridsize,
+            remove_slivers=False,
             where_post=where_post,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
@@ -1727,7 +1742,7 @@ def export_by_distance(
     output_layer: str | None = None,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -1772,6 +1787,7 @@ def export_by_distance(
         explodecollections=False,
         force_output_geometrytype="KEEP_INPUT",
         gridsize=gridsize,
+        remove_slivers=False,
         where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -1797,7 +1813,7 @@ def intersection(  # noqa: D417
     explodecollections: bool = False,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     subdivide_coords: int = 15000,
     force: bool = False,
@@ -2065,6 +2081,7 @@ def intersection(  # noqa: D417
             explodecollections=explodecollections,
             force_output_geometrytype=force_output_geometrytype,
             gridsize=gridsize,
+            remove_slivers=True,
             where_post=where_post,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
@@ -2097,7 +2114,7 @@ def join(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = 1,
+    nb_parallel: int | None = 1,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -2150,6 +2167,7 @@ def join(
         explodecollections=explodecollections,
         force_output_geometrytype="KEEP_INPUT",
         gridsize=gridsize,
+        remove_slivers=False,
         where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -2177,7 +2195,7 @@ def join_by_location(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     force: bool = False,
     output_with_spatial_index: bool | None = None,
@@ -2308,6 +2326,7 @@ def join_by_location(
         explodecollections=explodecollections,
         force_output_geometrytype="KEEP_INPUT",
         gridsize=gridsize,
+        remove_slivers=False,
         where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -2569,7 +2588,7 @@ def join_nearest(
     input2_columns_prefix: str = "l2_",
     output_layer: str | None = None,
     explodecollections: bool = False,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -2662,6 +2681,7 @@ def join_nearest(
             force_output_geometrytype="KEEP_INPUT",
             explodecollections=explodecollections,
             gridsize=0.0,
+            remove_slivers=False,
             where_post=None,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
@@ -2687,8 +2707,9 @@ def select_two_layers(
     force_output_geometrytype: GeometryType | None = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
+    remove_slivers: bool = False,
     where_post: str | None = None,
-    nb_parallel: int = 1,
+    nb_parallel: int | None = 1,
     batchsize: int = -1,
     force: bool = False,
     operation_prefix: str = "",
@@ -2712,6 +2733,7 @@ def select_two_layers(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
+        remove_slivers=remove_slivers,
         where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -2738,7 +2760,7 @@ def identity(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = 1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
@@ -2899,7 +2921,7 @@ def symmetric_difference(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
@@ -3075,7 +3097,7 @@ def union(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
@@ -3282,8 +3304,9 @@ def _two_layer_vector_operation(
     explodecollections: bool,
     force_output_geometrytype: GeometryType | str | None,
     gridsize: float,
+    remove_slivers: bool,
     where_post: str | None,
-    nb_parallel: int,
+    nb_parallel: int | None,
     batchsize: int,
     force: bool,
     tmp_basedir: Path | None,
@@ -3323,10 +3346,16 @@ def _two_layer_vector_operation(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
+        remove_slivers (bool, optional): True to remove sliver geometries from the
+            output using the tolerance configured via GFO_SLIVER_TOLERANCE. Meant to be
+            activated for overlay operations only.
         where_post (str, optional): sql filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
-        nb_parallel (int, optional): [description]. Defaults to -1.
+        nb_parallel (int | None): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller nb_parallel, will reduce the memory usage.
@@ -3590,37 +3619,64 @@ def _two_layer_vector_operation(
 
         # Apply gridsize if it is specified
         if gridsize != 0.0:
-            # Try ST_ReducePrecision first, which should be faster.
-            # ST_ReducePrecision seems to crash on EMPTY geometry, so check
-            # ST_IsEmpty not being 0 (result can be -1, 0 or 1).
-            gridsize_op = f"""
-                IIF(sub_gridsize.geom IS NULL OR ST_IsEmpty(sub_gridsize.geom) <> 0,
-                    NULL,
-                    IFNULL(
-                        ST_ReducePrecision(sub_gridsize.geom, {gridsize}),
-                        ST_GeomFromWKB(GFO_ReducePrecision(
-                            ST_AsBinary(sub_gridsize.geom), {gridsize}
-                        ))
-                    )
-                )
-            """
-
             # All columns need to be specified
             # Remark:
             # - use "LIMIT -1 OFFSET 0" to avoid the subquery flattening. Flattening
             #   "geom IS NOT NULL" leads to GFO_Difference_Collection calculated double!
             cols = [col for col in column_types if col.lower() != "geom"]
             columns_to_select = _ogr_sql_util.columns_quoted(cols)
+            reduceprecision_ext = _get_reduceprecision_ext(
+                table_alias="sub_gridsize", gridsize=gridsize, geometry_column="geom"
+            )
             sql_template = f"""
                 SELECT * FROM
-                  ( SELECT {gridsize_op} AS geom
+                  ( SELECT {reduceprecision_ext} AS geom
                           {columns_to_select}
                       FROM ( {sql_template}
                               LIMIT -1 OFFSET 0
-                      ) sub_gridsize
+                           ) sub_gridsize
                      LIMIT -1 OFFSET 0
                   ) sub_gridsize2
                  WHERE sub_gridsize2.geom IS NOT NULL
+            """
+
+        # Apply sliver_filter if applicable
+        # Remark:
+        #   - No use to apply sliver filter if gridsize is already more strict, so only
+        #     apply if sliver_tolerance is greater than gridsize.
+        #   - No use to apply sliver filter if use_ogr is True, as GFO_ReducePrecision
+        #     is not loaded/available with use_ogr.
+        #   - No use to apply sliver filter if output geometrytype is not polygon.
+        crs = input1_layer.crs if input1_layer.crs is not None else input2_layer.crs
+        sliver_tolerance = (
+            ConfigOptions.get_sliver_tolerance(crs) if remove_slivers else 0.0
+        )
+        if (
+            sliver_tolerance != 0.0
+            and abs(sliver_tolerance) > gridsize
+            and "geom" in [col.lower() for col in column_types]
+            and not use_ogr
+            and (
+                force_output_geometrytype is None
+                or force_output_geometrytype
+                in (GeometryType.POLYGON, GeometryType.MULTIPOLYGON)
+            )
+        ):
+            sliver_where = _get_sliver_where(
+                table_alias="sub_sliver_filter",
+                sliver_tolerance=sliver_tolerance,
+                geometry_column="geom",
+            )
+
+            # Remark:
+            # - use "LIMIT -1 OFFSET 0" to avoid subquery flattening. Flattening might
+            #   lead to filtering criteria being calculated double!
+            sql_template = f"""
+                SELECT * FROM
+                    ( {sql_template}
+                      LIMIT -1 OFFSET 0
+                    ) sub_sliver_filter
+                 WHERE {sliver_where}
             """
 
         # Prepare/apply where_post parameter
@@ -3667,6 +3723,10 @@ def _two_layer_vector_operation(
             f"Start processing ({processing_params.nb_parallel} "
             f"{worker_type}, batch size: {processing_params.batchsize})"
         )
+
+        # Warn about low memory availability if needed
+        _general_helper.warn_if_low_mem(called_from=operation_name)
+
         with _processing_util.PooledExecutorFactory(
             worker_type=worker_type,
             max_workers=processing_params.nb_parallel,
@@ -3721,6 +3781,10 @@ def _two_layer_vector_operation(
                 operation_name,
                 processing_params.nb_parallel,
             )
+
+            # Warn about low memory availability if needed
+            _general_helper.warn_if_low_mem(called_from=operation_name)
+
             for future in futures.as_completed(future_to_batch_id):
                 try:
                     # Get the result
@@ -3944,6 +4008,121 @@ def _check_crs(input1_layer: LayerInfo, input2_layer: LayerInfo | None) -> int:
             crs_epsg = crs_epsg2
 
     return crs_epsg
+
+
+def _get_reduceprecision_ext(
+    table_alias: str | None, gridsize: float, geometry_column: str
+) -> str:
+    """Get the sql snippet to reduce the precision of a geometry column.
+
+    The standard ST_ReducePrecision function has some shortcommings which are fixed by
+    this snippet.
+
+    Args:
+        table_alias (str): the table alias to use in the sql snippet
+        gridsize (float): the gridsize to use
+        geometry_column (str, optional): the geometry column to use.
+
+    Returns:
+        str: the sql snippet to reduce the precision of a geometry column
+    """
+    # Prepare `table_alias` for use in sql snippet
+    if table_alias is None:
+        table_alias = ""
+    elif table_alias != "":
+        table_alias = f"{table_alias}."
+
+    # Try ST_ReducePrecision first, which should be faster.
+    # ST_ReducePrecision seems to crash on EMPTY geometry, so check
+    # ST_IsEmpty not being 0 (result can be -1, 0 or 1).
+    reduceprecision_ext = f"""
+        IIF({table_alias}{geometry_column} IS NULL
+                OR ST_IsEmpty({table_alias}{geometry_column}) <> 0,
+            NULL,
+            IFNULL(
+                ST_ReducePrecision({table_alias}{geometry_column}, {gridsize}),
+                ST_GeomFromWKB(GFO_ReducePrecision(
+                    ST_AsBinary({table_alias}{geometry_column}), {gridsize}
+                ))
+            )
+        )
+    """
+
+    return reduceprecision_ext
+
+
+def _get_sliver_where(
+    table_alias: str | None,
+    geometry_column: str,
+    sliver_tolerance: float,
+    use_avg_width_prefilter: bool = True,
+) -> str:
+    """Get the sql snippet to filter sliver geometries.
+
+    If `sliver_tolerance` is positive, the filter will remove slivers from the output.
+    If `sliver_tolerance` is negative, the filter will retain only slivers in the
+    output.
+
+    Args:
+        table_alias (str): the table alias to use in the sql snippet
+        geometry_column (str, optional): the geometry column to use.
+        sliver_tolerance (float): the sliver tolerance to use. If the tolerance is
+            negative, abs(tolerance) is actually used but the where clause is inverted
+            so only slivers are retained in the output. A value of 0.0 is not allowed.
+        use_avg_width_prefilter (bool, optional): if True, use the average width
+            prefilter to speed up the sliver detection. Defaults to True.
+
+    Raises:
+        ValueError: if sliver_tolerance is 0.0
+
+    Returns:
+        str: the sql where clause to be used to filter away sliver geometries.
+    """
+    # If sliver_tolerance is negative, keep the slivers instead of removing them.
+    if sliver_tolerance == 0.0:
+        raise ValueError("sliver_tolerance cannot be 0.0")
+    elif sliver_tolerance > 0.0:
+        remove_slivers = True
+    else:
+        sliver_tolerance = abs(sliver_tolerance)
+        remove_slivers = False
+
+    # We need the reduceprecision_ext snippet
+    reduceprecision_ext_snippet = _get_reduceprecision_ext(
+        table_alias=table_alias,
+        gridsize=sliver_tolerance,
+        geometry_column=geometry_column,
+    )
+
+    # Prepare `table_alias` for use in sql snippet
+    if table_alias is None:
+        table_alias = ""
+    elif table_alias != "":
+        table_alias = f"{table_alias}."
+
+    # A geom is a sliver if:
+    #   - the average area < sliver_tolerance
+    #   - AND the result of ST_ReducePrecision(geom, sliver_tolerance) is NULL
+    not_str = "NOT" if remove_slivers else ""
+    if use_avg_width_prefilter:
+        avg_area_filter = f"""
+            2 * ST_Area({table_alias}{geometry_column})
+                    / ST_Perimeter({table_alias}{geometry_column})
+                    < {sliver_tolerance}
+            AND
+        """
+    else:
+        avg_area_filter = ""
+
+    # Combine to final where clause
+    sliver_where = f"""
+        {not_str} (
+            {avg_area_filter}
+            {reduceprecision_ext_snippet} IS NULL
+        )
+    """
+
+    return sliver_where
 
 
 def _calculate_two_layers(
@@ -4193,7 +4372,7 @@ def _prepare_processing_params(
     input1_path: Path,
     input1_layer: LayerInfo,
     tmp_dir: Path | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     input1_layer_alias: str | None = None,
     input1_is_subdivided: bool = False,
@@ -4333,7 +4512,7 @@ def _prepare_processing_params(
 
 def _determine_nb_batches(
     nb_rows_input_layer: int,
-    nb_parallel: int,
+    nb_parallel: int | None,
     batchsize: int,
     is_twolayer_operation: bool,
     cpu_count: int | None = None,
@@ -4342,7 +4521,10 @@ def _determine_nb_batches(
 
     Args:
         nb_rows_input_layer (int): number of input rows
-        nb_parallel (int): recommended number of workers
+        nb_parallel (int | None): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`.
         batchsize (int): recommended number of rows per batch
         is_twolayer_operation (bool): True if optimization for a two layer operation,
             False if it involves a single layer operation.
@@ -4355,19 +4537,17 @@ def _determine_nb_batches(
     # If no or 1 input rows or if 1 parallel worker is asked
     # Remark: especially for 'select' operation, if nb_parallel is 1 nb_batches should
     # be 1 (select might give wrong results)
-    if nb_rows_input_layer <= 1 or nb_parallel == 1:
+    nb_parallel_config = ConfigOptions.get_nb_parallel(nb_parallel, cpu_count)
+    if nb_rows_input_layer <= 1 or nb_parallel_config == 1:
         return (1, 1)
 
-    if cpu_count is None:
-        cpu_count = multiprocessing.cpu_count()
-
-    # Determine the optimal number of parallel workers
-    if nb_parallel == -1:
+    # If no explicit number of parallel workers specified, determine the optimal number
+    if nb_parallel is None or nb_parallel != nb_parallel_config:
         # If no batch size specified, put at least 100 rows in a batch
         min_rows_per_batch = 100 if batchsize <= 0 else batchsize
 
         max_parallel = max(int(nb_rows_input_layer / min_rows_per_batch), 1)
-        nb_parallel = min(cpu_count, max_parallel)
+        nb_parallel = min(nb_parallel_config, max_parallel)
 
     # Determine optimal number of batches
     if nb_parallel > 1:

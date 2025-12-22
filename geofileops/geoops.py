@@ -42,7 +42,7 @@ def dissolve_within_distance(
     close_internal_gaps: bool = False,
     input_layer: str | None = None,
     output_layer: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -51,17 +51,25 @@ def dissolve_within_distance(
     The output layer will contain the dissolved geometries where all gaps between the
     input geometries up to ``distance`` are closed.
 
-    Notes:
-      - Only tested on polygon input.
-      - Gaps between the individual polygons of multipolygon input features will also
-        be closed.
-      - The polygons in the output file are exploded to simple geometries.
-      - No attributes from the input layer are retained.
-      - If ``close_internal_gaps`` is False, the default, a ``gridsize`` > 0
-        (E.g. 0.000001) should be specified, otherwise some input boundary gaps could
-        still be closed due to rounding side effects.
+    Remarks:
+
+        - Only tested on polygon input.
+        - Gaps between the individual polygons of multipolygon input features will also
+          be closed.
+        - The polygons in the output file are exploded to simple geometries.
+        - No attributes from the input layer are retained.
+        - If ``close_internal_gaps`` is False, the default, a ``gridsize`` > 0
+          (E.g. 0.000001) should be specified, otherwise some input boundary gaps could
+          still be closed due to rounding side effects.
+        - Starting from geofileops 0.11.0, sliver polygons are removed from the output
+          by default. Polygons are considered slivers if they are narrower than a
+          certain tolerance. By default this tolerance is 0.001 CRS units if the CRS of
+          the input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+          information + information how to change this default tolerance can be found
+          here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
 
     Alternative names:
+
       - ArcMap: aggregate_polygons (similar functionality)
       - Keywords: merge, dissolve, aggregate, snap, close gaps, union
 
@@ -82,8 +90,10 @@ def dissolve_within_distance(
             contain only one layer. Defaults to None.
         output_layer (str, optional): output layer name. If None, the ``output_path``
             stem is used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available CPUs.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -348,6 +358,7 @@ def dissolve_within_distance(
             input2_layer=input_layer,
             explodecollections=True,
             gridsize=0.0,
+            remove_slivers=True,
             nb_parallel=nb_parallel,
             batchsize=batchsize,
             operation_prefix=f"{operation_name}-",
@@ -398,7 +409,7 @@ def apply(
     gridsize: float = 0.0,
     keep_empty_geoms: bool = False,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -440,8 +451,10 @@ def apply(
         where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available CPUs.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -520,7 +533,7 @@ def apply_vectorized(
     gridsize: float = 0.0,
     keep_empty_geoms: bool = False,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -564,8 +577,10 @@ def apply_vectorized(
         where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available CPUs.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -635,7 +650,7 @@ def buffer(
     gridsize: float = 0.0,
     keep_empty_geoms: bool = False,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -693,8 +708,10 @@ def buffer(
         where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available CPUs.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -898,7 +915,7 @@ def convexhull(
     gridsize: float = 0.0,
     keep_empty_geoms: bool = False,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -930,8 +947,10 @@ def convexhull(
         where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available CPUs.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -974,7 +993,7 @@ def delete_duplicate_geometries(
     explodecollections: bool = False,
     keep_empty_geoms: bool = False,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -1015,8 +1034,10 @@ def delete_duplicate_geometries(
         where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available CPUs.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -1062,7 +1083,7 @@ def dissolve(
     output_layer: str | None = None,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -1193,8 +1214,10 @@ def dissolve(
         where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available CPUs.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -1298,7 +1321,7 @@ def isvalid(
     columns: list[str] | None = None,
     explodecollections: bool = False,
     validate_attribute_data: bool = False,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     force: bool = False,
 ) -> bool:
@@ -1328,8 +1351,10 @@ def isvalid(
             Defaults to False.
         validate_attribute_data (bool, optional): True to validate if all attribute data
             can be read. Defaults to False.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available CPUs.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -1382,7 +1407,7 @@ def makevalid(
     where_post: str | None = None,
     precision: float | None = None,
     validate_attribute_data: bool = False,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -1391,6 +1416,7 @@ def makevalid(
     Writes the result to the output path.
 
     Alternative names:
+
         - QGIS: fix geometries
         - shapely, geopandas: make_valid
 
@@ -1425,8 +1451,10 @@ def makevalid(
         validate_attribute_data (bool, optional): True to validate if all attribute data
             can be read. Raises an exception if an error is found, as this type of error
             cannot be fixed using makevalid. Defaults to False.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available CPUs.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -1520,6 +1548,7 @@ def warp(
     """Warp all input features to the output file according to the gcps specified.
 
     Alternative names:
+
         - rubbersheet, rubbersheeting
 
     Args:
@@ -1575,7 +1604,7 @@ def select(
     force_output_geometrytype: GeometryType | str | None = None,
     gridsize: float = 0.0,
     keep_empty_geoms: bool = True,
-    nb_parallel: int = 1,
+    nb_parallel: int | None = 1,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -1610,8 +1639,10 @@ def select(
             the precision. Defaults to 0.0.
         keep_empty_geoms (bool, optional): True to keep rows with empty/null geometries
             in the output. Defaults to True.
-        nb_parallel (int, optional): the number of parallel processes to use. If -1, all
-            available cores are used. Defaults to 1.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to 1.
             If ``nb_parallel`` != 1, make sure your query still returns correct results
             if it is executed per batch of rows instead of in one go on the entire
             layer.
@@ -1741,7 +1772,7 @@ def simplify(
     gridsize: float = 0.0,
     keep_empty_geoms: bool = False,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -1749,7 +1780,7 @@ def simplify(
 
     The result is written to the output file specified.
 
-    Several `algorithm`s are available.
+    Check out the ``algorithm`` parameter for the different algorithms available.
 
     If ``explodecollections`` is False and the input and output file type is GeoPackage,
     the fid will be preserved. In other cases this will typically not be the case.
@@ -1787,8 +1818,10 @@ def simplify(
         where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available CPUs.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -1858,7 +1891,7 @@ def clip(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     subdivide_coords: int = 15000,
     force: bool = False,
@@ -1868,7 +1901,8 @@ def clip(
     The resulting layer will contain the parts of the geometries in the
     input layer that overlap with the dissolved geometries in the clip layer.
 
-    Notes:
+    Remarks:
+
         - every row in the input layer will result in maximum one row in the
           output layer.
         - geometries in the input layer that overlap with multiple adjacent
@@ -1878,6 +1912,12 @@ def clip(
           In this case, the output geometries can contain extra collinear points where
           the subdividing occured. This behaviour can be controlled via the
           ``subdivide_coords`` parameter.
+        - Starting from geofileops 0.11.0, sliver polygons are removed from the output
+          by default. Polygons are considered slivers if they are narrower than a
+          certain tolerance. By default this tolerance is 0.001 CRS units if the CRS of
+          the input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+          information + information how to change this default tolerance can be found
+          here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
 
     This is the result you can expect when clipping a polygon layer (yellow)
     with another polygon layer (purple):
@@ -1912,8 +1952,10 @@ def clip(
         where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available CPUs.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -1937,6 +1979,7 @@ def clip(
         :alt: Clip input
     .. |clip_result| image:: ../_static/images/clip_result.png
         :alt: Clip result
+
     """  # noqa: E501
     logger = logging.getLogger("geofileops.clip")
     logger.info(f"Start on {input_path} with {clip_path} to {output_path}")
@@ -2078,7 +2121,7 @@ def difference(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
@@ -2090,7 +2133,8 @@ def difference(
     the (pieces of) features in this layer that don't have any intersections with other
     features in this layer.
 
-    Notes:
+    Remarks:
+
         - Every row in the input layer will result in maximum one row in the
           output layer.
         - The output will contain the columns from the 1st no columns from the 2nd
@@ -2100,8 +2144,15 @@ def difference(
           For these geometries, the output geometries will contain extra collinear
           points where the subdividing occured. This behaviour can be controlled via the
           ``subdivide_coords`` parameter.
+        - Starting from geofileops 0.11.0, sliver polygons are removed from the output
+          by default. Polygons are considered slivers if they are narrower than a
+          certain tolerance. By default this tolerance is 0.001 CRS units if the CRS of
+          the input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+          information + information how to change this default tolerance can be found
+          here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
 
     Alternative names:
+
         - ArcMap: erase
 
     Args:
@@ -2130,8 +2181,10 @@ def difference(
         where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available CPUs.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -2197,7 +2250,7 @@ def erase(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
@@ -2240,7 +2293,7 @@ def export_by_location(
     output_layer: str | None = None,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     subdivide_coords: int = 7500,
     force: bool = False,
@@ -2265,6 +2318,7 @@ def export_by_location(
 
 
     Alternative names:
+
         - QGIS: extract by location
 
     Args:
@@ -2296,8 +2350,10 @@ def export_by_location(
         where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available CPUs.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -2364,7 +2420,7 @@ def export_by_distance(
     output_layer: str | None = None,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -2396,8 +2452,10 @@ def export_by_distance(
         where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available CPUs.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -2454,7 +2512,7 @@ def identity(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
@@ -2467,6 +2525,7 @@ def identity(
     If ``input2_path`` is None, a self-identity is performed. This means the 1st input
     layer is used for both inputs but interactions between the same rows in this layer
     are ignored. The output can be influenced via the ``include_duplicates`` parameter:
+
         - If True (the default), the logic explained above is applied as-such. The
           result is that each (part of a) geometry that has an intersection is
           duplicated in the output with the attribute column values "switched". Hence,
@@ -2479,7 +2538,8 @@ def identity(
         - If False, only one of the duplicates is kept in the
           output with the column values only available "in one direction".
 
-    Notes:
+    Remarks:
+
         - The result will contain the attribute columns from both input layers. The
           attribute values wont't be changed, so columns like area,... will have to be
           recalculated manually if this is wanted.
@@ -2487,6 +2547,12 @@ def identity(
           For these geometries, the output geometries will contain extra collinear
           points where the subdividing occured. This behaviour can be controlled via the
           ``subdivide_coords`` parameter.
+        - Starting from geofileops 0.11.0, sliver polygons are removed from the output
+          by default. Polygons are considered slivers if they are narrower than a
+          certain tolerance. By default this tolerance is 0.001 CRS units if the CRS of
+          the input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+          information + information how to change this default tolerance can be found
+          here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
 
     Args:
         input1_path (PathLike): the 1st input file.
@@ -2527,8 +2593,10 @@ def identity(
         where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available CPUs.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -2601,7 +2669,7 @@ def split(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
@@ -2651,7 +2719,7 @@ def intersect(
     output_layer: str | None = None,
     explodecollections: bool = False,
     gridsize: float = 0.0,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -2696,7 +2764,7 @@ def intersection(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     subdivide_coords: int = 15000,
     force: bool = False,
@@ -2711,6 +2779,7 @@ def intersection(
     input layer is used for both inputs but interactions between the same rows in this
     layer are ignored. The output can be influenced with the ``include_duplicates``
     parameter:
+
         - If True (the default), the logic described above is applied as-such. The
           result is that each geometry is duplicated in the output with the attribute
           column values "switched". Hence, each intersecting pair of geometries A and B
@@ -2721,7 +2790,8 @@ def intersection(
         - If ``include_duplicates`` is False, only one of the duplicates is kept in the
           output with the column values only saved "in one direction".
 
-    Notes:
+    Remarks:
+
         - The result will contain the attribute columns from both input layers. The
           attribute values wont't be changed, so columns like area,... will have to be
           recalculated manually if this is wanted.
@@ -2729,8 +2799,15 @@ def intersection(
           For these geometries, the output geometries will contain extra collinear
           points where the subdividing occured. This behaviour can be controlled via the
           ``subdivide_coords`` parameter.
+        - Starting from geofileops 0.11.0, sliver polygons are removed from the output
+          by default. Polygons are considered slivers if they are narrower than a
+          certain tolerance. By default this tolerance is 0.001 CRS units if the CRS of
+          the input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+          information + information how to change this default tolerance can be found
+          here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
 
     Alternative names:
+
         - GeoPandas: overlay(how="intersection")
 
     Args:
@@ -2773,8 +2850,10 @@ def intersection(
         where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available CPUs.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -2850,7 +2929,7 @@ def join(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = 1,
+    nb_parallel: int | None = 1,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -2898,8 +2977,10 @@ def join(
         where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to 1.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to 1.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -2959,7 +3040,7 @@ def join_by_location(
     output_layer: str | None = None,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -3029,8 +3110,10 @@ def join_by_location(
         where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available CPUs.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -3093,7 +3176,7 @@ def join_nearest(
     input2_columns: list[str] | None = None,
     input2_columns_prefix: str = "l2_",
     output_layer: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -3101,6 +3184,7 @@ def join_nearest(
 
     In addition to the columns requested via the ``input*_columns`` parameters, the
     following columns will be in the output file as well:
+
         - pos (int): relative rank (sorted by distance): the closest item will be #1,
           the second closest item will be #2 and so on.
         - distance (float): if the dataset is in a planar (= projected) crs,
@@ -3149,8 +3233,10 @@ def join_nearest(
             Defaults to "l2\_".
         output_layer (str, optional): output layer name. If None, the ``output_path``
             stem is used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available CPUs.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -3203,8 +3289,9 @@ def select_two_layers(
     explodecollections: bool = False,
     force_output_geometrytype: GeometryType | None = None,
     gridsize: float = 0.0,
+    remove_slivers: bool = False,
     where_post: str | None = None,
-    nb_parallel: int = 1,
+    nb_parallel: int | None = 1,
     batchsize: int = -1,
     force: bool = False,
 ) -> None:
@@ -3249,13 +3336,23 @@ def select_two_layers(
         gridsize (float, optional): the size of the grid the coordinates of the ouput
             will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
             the precision. Defaults to 0.0.
+        remove_slivers (bool, optional): True to remove sliver geometries from the
+            output. Polygons are considered slivers if they are narrower than a certain
+            tolerance. By default this tolerance is 0.001 CRS units if the CRS of the
+            input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+            information + information how to change this default tolerance can be found
+            here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
+            Defaults to False.
         where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use. If -1, all
-            available cores are used. Defaults to 1. If ``nb_parallel`` != 1, make sure
-            your query still returns correct results if it is executed per batch of rows
-            instead of in one go on the entire layer.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to 1.
+            If ``nb_parallel`` != 1, make sure your query still returns correct results
+            if it is executed per batch of rows instead of in one go on the entire
+            layer.
         batchsize (int, optional): indicative number of rows to process per batch.
             A smaller batch size, possibly in combination with a smaller
             ``nb_parallel``, will reduce the memory usage.
@@ -3411,6 +3508,7 @@ def select_two_layers(
         explodecollections=explodecollections,
         force_output_geometrytype=force_output_geometrytype,
         gridsize=gridsize,
+        remove_slivers=remove_slivers,
         where_post=where_post,
         nb_parallel=nb_parallel,
         batchsize=batchsize,
@@ -3432,7 +3530,7 @@ def symmetric_difference(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
@@ -3452,7 +3550,8 @@ def symmetric_difference(
     other way around. If you don't want this duplication, use the :func:`difference`
     function instead.
 
-    Notes:
+    Remarks:
+
         - The result will contain the attribute columns from both input layers. The
           attribute values wont't be changed, so columns like area,... will have to be
           recalculated manually if this is wanted.
@@ -3460,9 +3559,15 @@ def symmetric_difference(
           For these geometries, the output geometries will contain extra collinear
           points where the subdividing occured. This behaviour can be controlled via the
           ``subdivide_coords`` parameter.
-
+        - Starting from geofileops 0.11.0, sliver polygons are removed from the output
+          by default. Polygons are considered slivers if they are narrower than a
+          certain tolerance. By default this tolerance is 0.001 CRS units if the CRS of
+          the input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+          information + information how to change this default tolerance can be found
+          here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
 
     Alternative names:
+
         - GeoPandas: overlay(how="symmetric_difference")
         - QGIS, ArcMap: symmetrical difference
 
@@ -3498,8 +3603,10 @@ def symmetric_difference(
         where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available CPUs.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -3575,7 +3682,7 @@ def union(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
@@ -3584,6 +3691,7 @@ def union(
 
     Union needs to be interpreted here as such: the output layer will contain the
     combination of all of the following operations:
+
         - The pairwise intersection between the two layers.
         - The (parts of) features of layer 1 that don't have any intersection with layer
           2.
@@ -3594,6 +3702,7 @@ def union(
     layer is used for both inputs but interactions between the same rows in this layer
     are ignored. The output can be influenced with the ``include_duplicates``
     parameter:
+
         - If True (the default), the logic explained above is applied as-such. The
           result is that each geometry is duplicated in the output with the attribute
           column values "switched". Hence, each intersecting pair of geometries A and B
@@ -3608,7 +3717,8 @@ def union(
         - If False, only one of the duplicates is kept in the output with the column
           values only available "in one direction".
 
-    Notes:
+    Remarks:
+
         - The result will contain the attribute columns from both input layers. The
           attribute values wont't be changed, so columns like area,... will have to be
           recalculated manually if this is wanted.
@@ -3616,9 +3726,15 @@ def union(
           For these geometries, the output geometries will contain extra collinear
           points where the subdividing occured. This behaviour can be controlled via the
           ``subdivide_coords`` parameter.
-
+        - Starting from geofileops 0.11.0, sliver polygons are removed from the output
+          by default. Polygons are considered slivers if they are narrower than a
+          certain tolerance. By default this tolerance is 0.001 CRS units if the CRS of
+          the input layers is a projected CRS, 1e-7 if it is a geographic CRS. More
+          information + information how to change this default tolerance can be found
+          here: :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
 
     Alternative names:
+
         - GeoPandas: overlay(how="union")
 
     Args:
@@ -3661,8 +3777,10 @@ def union(
         where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. ``explodecollections``. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available CPUs.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per
             batch. A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -3736,12 +3854,12 @@ def union_full_self(
     explodecollections: bool = False,
     gridsize: float = 0.0,
     where_post: str | None = None,
-    nb_parallel: int = -1,
+    nb_parallel: int | None = None,
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
 ) -> None:
-    """Calculates the "full" union of the features in a layer.
+    r"""Calculates the "full" union of the features in a layer.
 
     .. warning::
        This function is experimental and may be changed and/or renamed in a future
@@ -3759,6 +3877,22 @@ def union_full_self(
 
     .. plot:: code/union_full_self.py
 
+    Remarks:
+
+        - The result can contain attribute columns from the input layer. The
+          attribute values wont't be changed, so columns like area,... will have to be
+          recalculated manually if this is wanted.
+        - To speed up processing, complex input geometries are subdivided by default.
+          For these geometries, the output geometries will contain extra collinear
+          points where the subdividing occured. This behaviour can be controlled via the
+          ``subdivide_coords`` parameter.
+        - Sliver polygons are removed from the output by default. Polygons are
+          considered slivers if they are narrower than a certain tolerance. By default
+          this tolerance is 0.001 CRS units if the CRS of the input layers is a
+          projected CRS, 1e-7 if it is a geographic CRS. More information + information
+          how to change this default tolerance can be found here:
+          :func:`options.set_sliver_tolerance <options.set_sliver_tolerance>`.
+
     .. versionadded:: 0.11.0
 
     Args:
@@ -3769,7 +3903,7 @@ def union_full_self(
             options are:
 
             - "COLUMNS": the output won't contain any intersections between geometries.
-              The `columns` in the output are prefixed with "i1_", "i2_", etc., where
+              The `columns` in the output are prefixed with "i1\_", "i2\_", etc., where
               for each extra intersection on a location a new set of prefixed columns is
               created. E.g. for an input layer with 1 column "test" where a location is
               covered by 3 input features, the output will contain 3 columns: "i1_test",
@@ -3809,8 +3943,10 @@ def union_full_self(
         where_post (str, optional): SQL filter to apply after all other processing,
             including e.g. explodecollections. It should be in sqlite syntax and
             |spatialite_reference_link| functions can be used. Defaults to None.
-        nb_parallel (int, optional): the number of parallel processes to use.
-            Defaults to -1: use all available CPUs.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
         batchsize (int, optional): indicative number of rows to process per batch.
             A smaller batch size, possibly in combination with a
             smaller ``nb_parallel``, will reduce the memory usage.
@@ -3825,7 +3961,12 @@ def union_full_self(
 
     See Also:
         * :func:`union`: calculate the pairwise union of two layers
-    """
+
+    .. |spatialite_reference_link| raw:: html
+
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+
+    """  # noqa: E501
     logger = logging.getLogger("geofileops.union_full_self")
     logger.info(f"Start, with input: {input_path}, output: {output_path}")
 

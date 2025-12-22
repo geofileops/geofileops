@@ -1,12 +1,15 @@
 """General helper functions, specific for geofileops."""
 
 import shutil
+import warnings
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from geofileops.helpers._configoptions_helper import ConfigOptions
-from geofileops.util import _io_util
+import psutil
+
+from geofileops.helpers._options import ConfigOptions
+from geofileops.util import _general_util, _io_util
 
 
 @contextmanager
@@ -30,19 +33,19 @@ def create_gfo_tmp_dir(
         Path: The path to the created temporary directory.
     """
     if parent_dir is None:
-        parent_dir = ConfigOptions.tmp_dir
+        parent_dir = ConfigOptions.get_tmp_dir
     base_dirname = base_dirname.replace("/", "_").replace(" ", "_")
 
     tmp_dir = _io_util.create_tempdir(base_dirname, parent_dir)
     try:
         yield tmp_dir
     finally:
-        if ConfigOptions.remove_temp_files:
+        if ConfigOptions.get_remove_temp_files:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 def worker_type_to_use(input_layer_featurecount: int) -> str:
-    worker_type = ConfigOptions.worker_type
+    worker_type = ConfigOptions.get_worker_type
     if worker_type in ("threads", "processes"):
         return worker_type
 
@@ -51,3 +54,20 @@ def worker_type_to_use(input_layer_featurecount: int) -> str:
         return "threads"
 
     return "processes"
+
+
+def warn_if_low_mem(called_from: str | None = None) -> None:
+    """Warning if the low memory thresshold is reached.
+
+    Returns:
+        called_from (str | None): String added in the warning that gives an indication
+            where the low memory warning was triggered. Defaults to None.
+    """
+    min_memory_available = ConfigOptions.get_low_mem_available_warn_threshold
+    virtual_available = psutil.virtual_memory().available
+    if virtual_available < min_memory_available:
+        virtual_available_str = _general_util.formatbytes(virtual_available)
+        warning_msg = f"Low memory available: {virtual_available_str}"
+        if called_from:
+            warning_msg += f" ({called_from=})"
+        warnings.warn(warning_msg, stacklevel=2)
