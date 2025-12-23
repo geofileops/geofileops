@@ -20,7 +20,6 @@ from shapely import box
 
 import geofileops as gfo
 from geofileops import fileops
-
 from geofileops._compat import (
     GDAL_GTE_311,
     PANDAS_GTE_20,
