@@ -4,7 +4,7 @@
 
 ### Bugs fixed
 
-- Fix `dissolve` on an input file without crs (#)
+- Fix `dissolve` on an input file without crs (#794)
 
 ## 0.11.0 (2025-12-10)
 
