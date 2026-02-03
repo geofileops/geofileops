@@ -12,7 +12,6 @@ import pygeoops
 import pytest
 import shapely
 import shapely.geometry as sh_geom
-from osgeo import gdal
 
 import geofileops as gfo
 from geofileops import GeometryType
