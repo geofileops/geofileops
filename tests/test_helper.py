@@ -35,7 +35,7 @@ except ImportError:
 data_dir = Path(__file__).parent.resolve() / "data"
 data_url = "https://raw.githubusercontent.com/geofileops/geofileops/main/tests/data"
 
-EPSGS = [31370, 4326]
+EPSGS = [31370, 4326, None]
 GRIDSIZE_DEFAULT = 0.0
 SUFFIXES_FILEOPS = [".gpkg", ".shp", ".csv"]
 SUFFIXES_FILEOPS_EXT = [".gpkg", ".gpkg.zip", ".shp.zip", ".shp", ".csv"]
