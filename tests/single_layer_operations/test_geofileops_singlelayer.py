@@ -58,7 +58,7 @@ def set_geoops_module(geoops_module: str):
 def basic_combinations_to_test(
     geoops_modules: list[str] = GEOOPS_MODULES,
     testfiles: list[str] = TESTFILES,
-    epsgs: list[int] = EPSGS,
+    epsgs: list[int | None] = EPSGS,
     suffixes: list[str] = SUFFIXES_GEOOPS,
 ) -> list[Any]:
     """
