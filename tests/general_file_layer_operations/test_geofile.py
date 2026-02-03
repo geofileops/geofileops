@@ -10,6 +10,7 @@ from itertools import product
 from pathlib import Path
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 import pytest
 import shapely.geometry as sh_geom
@@ -24,6 +25,7 @@ from geofileops._compat import (
     GDAL_GTE_311,
     PANDAS_GTE_20,
     PANDAS_GTE_22,
+    PANDAS_GTE_30,
     PYOGRIO_GTE_010,
     PYOGRIO_GTE_011,
     PYOGRIO_GTE_012,
@@ -1493,7 +1495,10 @@ def test_get_layer_geometrytypes(suffix):
     src = test_helper.get_testfile("polygon-parcel", suffix=suffix)
     geometrytypes = gfo.get_layer_geometrytypes(str(src))
     if suffix == ".shp":
-        assert geometrytypes == ["POLYGON", "MULTIPOLYGON", None]
+        if PANDAS_GTE_30:
+            assert geometrytypes == ["POLYGON", "MULTIPOLYGON", np.nan]
+        else:
+            assert geometrytypes == ["POLYGON", "MULTIPOLYGON", None]
     else:
         assert geometrytypes == ["POLYGON", "MULTIPOLYGON"]
 
