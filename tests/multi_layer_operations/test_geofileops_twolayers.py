@@ -2264,8 +2264,9 @@ def test_union(
     renames = dict(zip(exp_gdf.columns, output_gdf.columns, strict=True))
     exp_gdf = exp_gdf.rename(columns=renames)
     # For text columns, gfo gives None rather than np.nan for missing values.
-    for column in exp_gdf.select_dtypes(include="O").columns:
-        exp_gdf[column] = exp_gdf[column].replace({np.nan: None})
+    if not PANDAS_GTE_30:
+        for column in exp_gdf.select_dtypes(include="O").columns:
+            exp_gdf[column] = exp_gdf[column].replace({np.nan: None})
     if gridsize != 0.0:
         exp_gdf.geometry = shapely.set_precision(exp_gdf.geometry, grid_size=gridsize)
     if explodecollections:
@@ -2337,8 +2338,9 @@ def test_union_circles(tmp_path, suffix, epsg):
     renames = dict(zip(exp_gdf.columns, output_gdf.columns, strict=True))
     exp_gdf = exp_gdf.rename(columns=renames)
     # For text columns, gfo gives None rather than np.nan for missing values.
-    for column in exp_gdf.select_dtypes(include="O").columns:
-        exp_gdf[column] = exp_gdf[column].replace({np.nan: None})
+    if not PANDAS_GTE_30:
+        for column in exp_gdf.select_dtypes(include="O").columns:
+            exp_gdf[column] = exp_gdf[column].replace({np.nan: None})
 
     assert_geodataframe_equal(
         output_gdf,
@@ -2395,8 +2397,9 @@ def test_union_circles(tmp_path, suffix, epsg):
     renames = dict(zip(exp_gdf.columns, output_gdf.columns, strict=True))
     exp_gdf = exp_gdf.rename(columns=renames)
     # For text columns, gfo gives None rather than np.nan for missing values.
-    for column in exp_gdf.select_dtypes(include="O").columns:
-        exp_gdf[column] = exp_gdf[column].replace({np.nan: None})
+    if not PANDAS_GTE_30:
+        for column in exp_gdf.select_dtypes(include="O").columns:
+            exp_gdf[column] = exp_gdf[column].replace({np.nan: None})
 
     assert_geodataframe_equal(
         output_gdf,
