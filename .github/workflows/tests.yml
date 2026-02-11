@@ -68,7 +68,7 @@ jobs:
       - name: Install Conda environment with Micromamba
         uses: mamba-org/setup-micromamba@v2
         with:
-          micromamba-version: '1.5.1-0'
+          micromamba-version: '2.5.0'
           environment-file: ci/envs/${{ matrix.env }}.yml
           create-args: >-
             python=${{ matrix.python }}
