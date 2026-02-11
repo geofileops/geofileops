@@ -1,0 +1,72 @@
+# This workflow will install the latest version of geofileops and run will run its tests
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: TestsOnInstalled - uv
+
+on:
+  workflow_dispatch:
+  schedule:
+    # every Monday at 5:40 AM
+    - cron: "40 5 * * 1"
+  push:
+    paths:
+      - ".github/workflows/tests_installed_uv.yml"
+  pull_request:
+    paths: 
+      - ".github/workflows/tests_installed_uv.yml"
+
+concurrency: 
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  TestsOnInstalled:    
+    name: gfo ${{ matrix.gfo_version }}, python ${{ matrix.python }}, gdal ${{ matrix.gdal_version }}, ${{ matrix.os }}
+    timeout-minutes: 30
+    runs-on: "ubuntu-latest"
+    defaults:
+      run:
+        shell: bash -l {0}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-latest"]
+        python: ["3.12"]
+        include:
+          - checkout_ref: "v0.11.0"
+            gfo_version: "0.11"
+            gdal_version: "3.8.4"
+
+    steps:
+      - name: Checkout tests for label ${{ matrix.checkout_ref }}
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ matrix.checkout_ref }}
+          sparse-checkout: |
+            tests
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install GDAL and spatialite (ubuntu-latest default)
+        run: |
+          # Install system packages
+          sudo apt-get update -qq
+          sudo apt-get install -y gdal-bin libgdal-dev libsqlite3-mod-spatialite
+          echo "System GDAL version: $(gdal-config --version)"
+          echo "✅ GDAL $(gdal-config --version) installed"
+        
+      - name: Install geofileops via uv
+        run: |
+          uv venv --python ${{ matrix.python }}
+          uv pip install gdal==${{ matrix.gdal_version }} geofileops~=${{ matrix.gfo_version }} pytest
+
+      - name: Print installed versions
+        run: |
+          uv run python -c "import sys; import geofileops as gfo; from osgeo import gdal; print(f'Python {sys.version}'); print(f'geofileops {gfo.__version__}'); print(f'GDAL {gdal.__version__}')"
+          uv pip list
+      - name: Run tests
+        run: |
+          uv run pytest --color=yes tests/
