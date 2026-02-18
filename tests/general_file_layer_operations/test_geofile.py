@@ -1895,7 +1895,18 @@ def test_read_file(suffix, dimensions, engine_setter):  # noqa: ARG001
         (["OIDN", "GEWASGROEP", "lengte"], "IGNORE"),
     ],
 )
-def test_read_file_columns_geometry(tmp_path, suffix, columns, geometry, engine_setter):  # noqa: ARG001
+def test_read_file_columns_geometry(tmp_path, suffix, columns, geometry, engine_setter):
+    if (
+        engine_setter == "pyogrio"
+        and geometry == "NO"
+        and suffix == ".gpkg"
+        and PANDAS_GTE_30
+    ):
+        pytest.xfail(
+            "pyogrio without arrow gives an issue writing GPKG without geometry with "
+            "pandas >= 3"
+        )
+
     # Prepare test data
     # For multi-layer filetype, use 2-layer file for better test coverage
     src_info = _geofileinfo.get_geofileinfo(suffix)
