@@ -250,6 +250,7 @@ class VectorTranslateInfo:
         transaction_size: int = 65536,
         explodecollections: bool = False,
         force_output_geometrytype: GeometryType | str | Iterable[str] | None = None,
+        gridsize: float = 0.0,
         options: dict | None = None,
         columns: Iterable[str] | None = None,
         warp: dict | None = None,
@@ -274,6 +275,7 @@ class VectorTranslateInfo:
         self.transaction_size = transaction_size
         self.explodecollections = explodecollections
         self.force_output_geometrytype = force_output_geometrytype
+        self.gridsize = gridsize
         self.options = options
         self.columns = columns
         self.warp = warp
@@ -300,6 +302,7 @@ def vector_translate_by_info(info: VectorTranslateInfo) -> bool:
         transaction_size=info.transaction_size,
         explodecollections=info.explodecollections,
         force_output_geometrytype=info.force_output_geometrytype,
+        gridsize=info.gridsize,
         options=info.options,
         columns=info.columns,
         warp=info.warp,
@@ -326,6 +329,7 @@ def vector_translate(
     transaction_size: int = 65536,
     explodecollections: bool = False,
     force_output_geometrytype: GeometryType | str | Iterable[str] | None = None,
+    gridsize: float = 0.0,
     options: dict | None = None,
     columns: Iterable[str] | None = None,
     warp: dict | None = None,
@@ -641,6 +645,8 @@ def vector_translate(
                 zField=None,
                 skipFailures=False,
                 limit=None,
+                xyRes=gridsize,
+                zRes=gridsize,
                 callback=None,
                 callback_data=None,
             )
