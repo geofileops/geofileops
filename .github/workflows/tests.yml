@@ -78,7 +78,6 @@ jobs:
       - name: Print versions
         run: >-
           python -c "import sys; print('Python version:', sys.version)"
-          && python -c "import gfo; print('geofileops version:', gfo.__version__)"
           && python -c "from osgeo import gdal; print('GDAL version:', gdal.__version__)"
 
       - name: Test
