@@ -8,7 +8,7 @@ from osgeo import gdal
 from pygeoops import GeometryType
 
 import geofileops as gfo
-from geofileops._compat import GDAL_GTE_3123
+from geofileops._compat import GDAL_GTE_313
 from geofileops.util import _ogr_util
 from tests import test_helper
 
@@ -325,13 +325,13 @@ def test_vector_translate_sql_geom_null(
       geometries became NULL. Was fixed in GDAL 3.8 for most cases.
          -> https://github.com/geofileops/geofileops/issues/308
     - A lot later, the remaining problem for .shp input and .gpkg output was reported.
-      It was fixed in GDAL 3.12.3.
+      It was fixed in GDAL 3.13.0.
          -> https://github.com/OSGeo/gdal/issues/14113
     """
-    if not GDAL_GTE_3123 and input_suffix == ".shp" and output_suffix == ".gpkg":
+    if not GDAL_GTE_313 and input_suffix == ".shp" and output_suffix == ".gpkg":
         reason = (
             "NULL geometries as first output rows gives issues for .shp input and "
-            ".gpkg output in GDAL versions < 3.12.3"
+            ".gpkg output in GDAL versions < 3.13.0"
         )
         request.node.add_marker(pytest.mark.xfail(reason=reason))
 
