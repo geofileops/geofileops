@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   TestsOnInstalled:    
-    name: gfo ${{ matrix.gfo_version }}, python ${{ matrix.python }}, gdal ${{ matrix.gdal_version }}, ${{ matrix.os }}
+    name: ${{ matrix.checkout_ref }}, python ${{ matrix.python }}, gdal ${{ matrix.gdal_version }}, ${{ matrix.os }}
     timeout-minutes: 30
     runs-on: "ubuntu-latest"
     defaults:
