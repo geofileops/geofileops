@@ -53,6 +53,7 @@ jobs:
         micromamba clean --all --yes
 
     - name: Print versions
+      shell: _entrypoint.sh /bin/bash --noprofile --norc -eo pipefail {0}
       run: >-
         python -c "import sys; print('Python version:', sys.version)"
         && python -c "from osgeo import gdal; print('GDAL version:', gdal.__version__)"
