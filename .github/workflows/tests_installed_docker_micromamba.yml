@@ -50,7 +50,7 @@ jobs:
       run: |
         micromamba info
         which micromamba
-        micromamba install -y -n base geofileops=${{ matrix.gfo_version }} nomkl simplification pytest pytest-cov
+        micromamba install -y -n base geofileops=${{ matrix.gfo_version }} nomkl pyarrow simplification pytest pytest-cov
         micromamba clean --all --yes
 
     - name: Print versions
