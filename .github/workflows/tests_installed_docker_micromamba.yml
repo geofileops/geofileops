@@ -39,7 +39,7 @@ jobs:
     - name: Checkout tests
       uses: actions/checkout@v6
       with:
-          # ref: ${{ matrix.checkout_ref }}
+          ref: ${{ matrix.checkout_ref }}
           sparse-checkout: |
             ci
             tests
