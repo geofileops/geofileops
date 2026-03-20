@@ -1,6 +1,18 @@
 # CHANGELOG
 
-## 0.11.0 (yyyy-mm-dd)
+## 0.11.1 (2026-02-22)
+
+### Improvements
+
+- Small fix to support pandas 3.0 (#798)
+
+### Bugs fixed
+
+- Fix `dissolve` on an input file without crs (#794)
+- Fix writing csv files on non-UTF8 systems (#797)
+- Fix incorrect result of difference in some rare cases (#799)
+
+## 0.11.0 (2025-12-10)
 
 ### Deprecations and compatibility notes
 
@@ -46,6 +58,7 @@
   locked, retry a few times (#785)
 - Ensure that the featurecount is properly cached in GPKG files, also for older GDAL
   versions + small refactor (#693)
+- Give warnings when memory avalability drops blow a threshold (#789)
 - Improve support for custom fid columns in gpkg (#771)
 - Add `worker_type` used to progress logging (#715)
 - Write gdal log files to `GFO_TMPDIR` if specified (#727)

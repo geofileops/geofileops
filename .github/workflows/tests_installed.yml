@@ -35,12 +35,11 @@ jobs:
         python: ["3.12"]
         env: ["installed"]
         include:
-          - checkout_ref: "v0.10.x"
+          - checkout_ref: "v0.11.x"
             # nomkl: openblas instead of mkl saves 600 MB. Linux OK, but 50% slower on Windows and OSX!
             install_extra_args: >-
               nomkl
-              geofileops=0.10
-
+              geofileops=0.11
     steps:
       - uses: actions/checkout@v6
         with:
@@ -51,11 +50,18 @@ jobs:
       - name: Install Conda environment with Micromamba
         uses: mamba-org/setup-micromamba@v2
         with:
-          micromamba-version: "1.5.1-0"
+          # Any version from https://github.com/mamba-org/micromamba-releases
+          micromamba-version: "2.5.0-1"
           environment-file: ci/envs/${{ matrix.env }}.yml
           create-args: >-
             python=${{ matrix.python }}
             ${{ matrix.install_extra_args }}
+
+      - name: Print versions
+        run: >-
+          python -c "import sys; print('Python version:', sys.version)"
+          && python -c "from osgeo import gdal; print('GDAL version:', gdal.__version__)"
+          && python -c "import geofileops as gfo; print('geofileops version:', gfo.__version__)"
 
       - name: Test
         run: |

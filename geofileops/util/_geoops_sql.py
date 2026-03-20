@@ -782,6 +782,10 @@ def _single_layer_vector_operation(
             f"Start processing ({processing_params.nb_parallel} "
             f"{worker_type}, batch size: {processing_params.batchsize})"
         )
+
+        # Warn about low memory availability if needed
+        _general_helper.warn_if_low_mem(called_from=operation_name)
+
         with _processing_util.PooledExecutorFactory(
             worker_type=worker_type,
             max_workers=processing_params.nb_parallel,
@@ -842,6 +846,10 @@ def _single_layer_vector_operation(
                 operation=operation_name,
                 nb_parallel=processing_params.nb_parallel,
             )
+
+            # Warn about low memory availability if needed
+            _general_helper.warn_if_low_mem(called_from=f"{operation_name}_loop")
+
             tmp_output_not_exists_or_empty = True
             for future in futures.as_completed(future_to_batch_id):
                 try:
@@ -1217,7 +1225,8 @@ def difference(  # noqa: D417
                 SELECT * FROM (
                 SELECT IFNULL(
                         ( SELECT IFNULL(
-                                    IIF(COUNT(layer2_sub.rowid) = 0,
+                                    IIF(COUNT(layer2_sub.rowid) = 0
+                                            OR ST_Union(layer2_sub.{{input2_geometrycolumn}}) IS NULL,
                                         layer1.{{input1_geometrycolumn}},
                                         ST_CollectionExtract(
                                             ST_difference(
@@ -1268,7 +1277,8 @@ def difference(  # noqa: D417
                         SELECT fid_1 AS layer1_rowid_orig
                                 ,IFNULL(
                                 ( SELECT IFNULL(
-                                            IIF(COUNT(layer2_sub.rowid) = 0,
+                                            IIF(COUNT(layer2_sub.rowid) = 0
+                                                    OR ST_Union(layer2_sub.{{input2_geometrycolumn}}) IS NULL,
                                                 layer1_subdiv.{{input1_subdiv_geometrycolumn}},
                                                 ST_CollectionExtract(
                                                     ST_difference(
@@ -3715,6 +3725,10 @@ def _two_layer_vector_operation(
             f"Start processing ({processing_params.nb_parallel} "
             f"{worker_type}, batch size: {processing_params.batchsize})"
         )
+
+        # Warn about low memory availability if needed
+        _general_helper.warn_if_low_mem(called_from=operation_name)
+
         with _processing_util.PooledExecutorFactory(
             worker_type=worker_type,
             max_workers=processing_params.nb_parallel,
@@ -3769,6 +3783,10 @@ def _two_layer_vector_operation(
                 operation_name,
                 processing_params.nb_parallel,
             )
+
+            # Warn about low memory availability if needed
+            _general_helper.warn_if_low_mem(called_from=operation_name)
+
             for future in futures.as_completed(future_to_batch_id):
                 try:
                     # Get the result
