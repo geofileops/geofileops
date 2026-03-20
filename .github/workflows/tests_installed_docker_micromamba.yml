@@ -17,13 +17,17 @@ concurrency:
 
 jobs:
   Tests_docker_micromamba:
-    name: micromamba Test
+    name: ${{ matrix.checkout_ref }}, python ${{ matrix.python }}, ${{ matrix.os }}
     runs-on: ubuntu-latest
 
     strategy:
       fail-fast: false
       matrix:
-        checkout_ref: ["v0.10.x"]
+        os: ["ubuntu-latest"]
+        python: ["3.12"]
+        include:
+          - checkout_ref: "v0.11.0"
+            gfo_version: "0.11"
         container:
           - "mambaorg/micromamba:latest"
 
@@ -45,7 +49,7 @@ jobs:
       run: |
         micromamba info
         which micromamba
-        micromamba install -y -n base geofileops simplification pytest pytest-cov
+        micromamba install -y -n base geofileops=${{ matrix.gfo_version }} simplification pytest pytest-cov
         micromamba clean --all --yes
 
     - name: Run Tests
