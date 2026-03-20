@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   Tests_docker_micromamba:
-    name: ${{ matrix.checkout_ref }}, python ${{ matrix.python }}, ${{ matrix.os }}
+    name: gfo ${{ matrix.checkout_ref }}, python ${{ matrix.python }}, ${{ matrix.os }}
     runs-on: ubuntu-latest
 
     strategy:
@@ -46,10 +46,11 @@ jobs:
 
     - name: Install geofileops and test dependencies
       shell: _entrypoint.sh /bin/bash --noprofile --norc -eo pipefail {0}
+      # nomkl: openblas instead of mkl saves 600 MB. Linux OK, but 50% slower on Windows and OSX!
       run: |
         micromamba info
         which micromamba
-        micromamba install -y -n base geofileops=${{ matrix.gfo_version }} simplification pytest pytest-cov
+        micromamba install -y -n base geofileops=${{ matrix.gfo_version }} nomkl simplification pytest pytest-cov
         micromamba clean --all --yes
 
     - name: Print versions
