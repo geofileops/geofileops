@@ -26,7 +26,7 @@ jobs:
         os: ["ubuntu-latest"]
         python: ["3.12"]
         include:
-          - checkout_ref: "v0.11.0"
+          - checkout_ref: "v0.11.x"
             gfo_version: "0.11"
         container:
           - "mambaorg/micromamba:latest"
