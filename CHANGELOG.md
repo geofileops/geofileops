@@ -125,6 +125,7 @@
 
 ### Improvements
 
+- Add scalable `polygonize` function (#576)
 - Add function `apply_vectorized` to apply a vectorized function on a geometry column
   and use it internally where possible (#588, #594)
 - Improve performance of `erase` and `intersection` for very complex input geometries.
