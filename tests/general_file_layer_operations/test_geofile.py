@@ -1079,6 +1079,41 @@ def test_copy_layer_errors(tmp_path, kwargs, exp_ex, exp_error):
         gfo.copy_layer(**kwargs)
 
 
+@pytest.mark.parametrize(
+    "where, exp_feature_count, exp_empty_geom_count",
+    [
+        (None, 48, 2),
+        ("geom IS NOT NULL", 48, 2),
+        ("geom IS NOT NULL AND NOT ST_IsEmpty(geom)", 47, 1),
+    ],
+)
+def test_copy_layer_gridsize_where(tmp_path, where, exp_feature_count):
+    """Test copy_layer with where clause and gridsize parameter.
+
+    The gridsize is applied after the where clause, so geometries that become empty
+    due to the gridsize will still be present in the output regardless of the where
+    clause.
+    """
+    # Prepare test data
+    src = test_helper.get_testfile("polygon-parcel")
+    dst = tmp_path / "output.gpkg"
+
+    # copy_layer with gridsize
+    gfo.copy_layer(src, dst, gridsize=1, where=where)
+
+    # Check result
+    assert dst.exists()
+    result_gdf = gfo.read_file(dst)
+    assert len(result_gdf) == exp_feature_count
+
+    # Check the number of null geometries
+    if exp_feature_count == 48:
+        input_gdf = gfo.read_file(src)
+        null_geoms_input = input_gdf.geometry.is_empty.sum()
+        null_geoms_result = result_gdf.geometry.is_empty.sum()
+        assert null_geoms_result > null_geoms_input
+
+
 def test_copy_layer_input_open_options(tmp_path):
     # Prepare test data
     src = tmp_path / "input.csv"
