@@ -433,6 +433,59 @@ def test_add_columns_output_layer(
         )
 
 
+@pytest.mark.parametrize(
+    "testfile, suffix, output_path, exp_permission_error",
+    [
+        ("polygon-parcel", ".shp", "output_file", False),
+        ("polygon-parcel", ".shp", None, True),
+        ("polygon-parcel", ".gpkg", "output_file", False),
+        ("polygon-parcel", ".gpkg", None, True),
+    ],
+)
+def test_add_columns_readonly_input(
+    tmp_path, testfile, suffix, output_path, exp_permission_error
+):
+    """Test that add_columns works when the input file is read-only."""
+    test_path = test_helper.get_testfile(testfile, dst_dir=tmp_path, suffix=suffix)
+
+    # Make the file read-only
+    Path(test_path).chmod(0o444)
+
+    # Columns to add
+    new_columns = [("new_column", "string")]
+
+    # Test
+    if exp_permission_error:
+        handler = pytest.raises(RuntimeError, match="Permission denied")
+    else:
+        handler = nullcontext()
+
+    with handler:
+        if output_path is not None:
+            output_path = tmp_path / f"output_file{suffix}"
+        gfo.add_columns(
+            test_path,
+            new_columns=new_columns,
+            output_path=output_path,
+        )
+
+        # Check if columns were added
+        if output_path is None:
+            output_path = test_path
+        output_layerinfo = gfo.get_layerinfo(
+            path=output_path, layer=gfo.get_default_layer(output_path)
+        )
+        for col_name, col_type in new_columns:
+            assert col_name in output_layerinfo.columns
+            exp_type = (
+                col_type if isinstance(col_type, str) else col_type.value
+            ).lower()
+            output_type = output_layerinfo.columns[col_name].gdal_type.lower()
+            assert output_type.startswith(exp_type), (
+                f"Column {col_name}: expected {exp_type}, got {output_type}"
+            )
+
+
 def test_append_to(tmp_path):
     """Test the append_to function.
 
