@@ -1295,7 +1295,7 @@ def add_columns(
         if tmp_dir is not None:
             # Add columns to tmp copy
             output_tmp_path = tmp_dir / Path(path).name
-            copy(path, output_tmp_path)
+            copy(path, output_tmp_path, keep_permissions=False)
         else:
             # Add columns in place
             output_tmp_path = path  # type: ignore[assignment]
