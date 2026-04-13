@@ -449,7 +449,7 @@ def test_add_columns_readonly_input(
     test_path = test_helper.get_testfile(testfile, dst_dir=tmp_path, suffix=suffix)
 
     # Make the file read-only
-    test_helper.set_readonly(test_path, True)
+    test_helper.set_read_only(test_path, True)
 
     # Columns to add
     new_columns = [("new_column", "string")]
