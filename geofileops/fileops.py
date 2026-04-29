@@ -1113,15 +1113,6 @@ def add_column(
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             _ogr_util.StartTransaction(datasource)
             datasource.ExecuteSQL(sql_stmt)
-
-            # check if column was really added
-            datasource_layer = datasource.GetLayer(layer)
-            layer_defn = datasource_layer.GetLayerDefn()
-            field_index = layer_defn.GetFieldIndex(name)
-            if field_index == -1:
-                raise RuntimeError(
-                    f"add_column of {name=}, {type=} failed for {path}#{layer}"
-                )
         else:
             logger.warning(f"Column {name} existed already in {path}#{layer}")
 
@@ -1136,6 +1127,16 @@ def add_column(
             datasource.ExecuteSQL(sql_stmt, dialect="SQLITE")
 
         _ogr_util.CommitTransaction(datasource)
+
+        # check if column was really added
+        datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
+        datasource_layer = datasource.GetLayer(layer)
+        layer_defn = datasource_layer.GetLayerDefn()
+        field_index = layer_defn.GetFieldIndex(name)
+        if field_index == -1:
+            raise RuntimeError(
+                f"add_column of {name=}, {type=} failed for {path}#{layer}"
+            )
 
     except Exception as ex:
         _ogr_util.RollbackTransaction(datasource)

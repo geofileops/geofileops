@@ -76,13 +76,13 @@ def points_gdf():
     return gdf
 
 
-@pytest.mark.parametrize("suffix", [".gpkg", ".shp"])
+@pytest.mark.parametrize("suffix", [".gpkg", ".shp", ".sqlite"])
 def test_add_column(tmp_path, suffix):
     test_path = test_helper.get_testfile(
         "polygon-parcel", dst_dir=tmp_path, suffix=suffix
     )
-    layer = "parcels" if suffix == ".gpkg" else None
-    geom_column = "geom" if suffix == ".gpkg" else "geometry"
+    layer = "parcels" if suffix in [".gpkg", ".sqlite"] else None
+    geom_column = "geom" if suffix in [".gpkg", ".sqlite"] else "geometry"
 
     # The area column shouldn't be in the test file yet
     layerinfo = gfo.get_layerinfo(path=test_path, layer=layer)
@@ -98,8 +98,10 @@ def test_add_column(tmp_path, suffix):
     assert "AREA" in layerinfo.columns
 
     gdf = gfo.read_file(test_path)
+    # area_col = "area" if suffix == ".sqlite" else "AREA"
+    oppervl_col = "oppervl" if suffix == ".sqlite" else "OPPERVL"
     assert round(gdf["AREA"].astype("float")[0], 1) == round(
-        gdf["OPPERVL"].astype("float")[0], 1
+        gdf[oppervl_col].astype("float")[0], 1
     )
 
     # Add perimeter column
@@ -113,7 +115,7 @@ def test_add_column(tmp_path, suffix):
 
     gdf = gfo.read_file(test_path)
     assert round(gdf["AREA"].astype("float")[0], 1) == round(
-        gdf["OPPERVL"].astype("float")[0], 1
+        gdf[oppervl_col].astype("float")[0], 1
     )
 
     info = gfo.get_layerinfo(test_path)
@@ -123,13 +125,18 @@ def test_add_column(tmp_path, suffix):
     gfo.add_column(test_path, name=existing_column, type="TEXT")
 
     # Force update on an existing column
-    assert gdf["HFDTLT"][0] == "1"
+    hfdtlt_col = "hfdtlt" if suffix == ".sqlite" else "HFDTLT"
+    assert gdf[hfdtlt_col][0] == "1"
     expression = "5"
     gfo.add_column(
-        test_path, name="HFDTLT", type="TEXT", expression=expression, force_update=True
+        test_path,
+        name=hfdtlt_col,
+        type="TEXT",
+        expression=expression,
+        force_update=True,
     )
     gdf = gfo.read_file(test_path)
-    assert gdf["HFDTLT"][0] == "5"
+    assert gdf[hfdtlt_col][0] == "5"
 
 
 @pytest.mark.parametrize(
