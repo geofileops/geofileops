@@ -1148,7 +1148,7 @@ def add_column(
         # Log time taken if it was slow.
         took = time.perf_counter() - start
         if took > 2:  # pragma: no cover
-            logger.info(f"Ready, add_column of {name} took {took:.2f}")
+            logger.info(f"Ready, add_column of {name} took {took}")
 
 
 @retry(**RETRY_LOCKED_FILE_KWARGS)  # type: ignore[arg-type]
@@ -1420,7 +1420,7 @@ def add_columns(
             # Log time taken if it was slow.
             took = time.perf_counter() - start
             if took > 2:  # pragma: no cover
-                logger.info(f"Ready, add_columns of {name} took {took:.2f}")
+                logger.info(f"Ready, add_columns of {name} took {took}")
 
 
 def _validate_datatype(datatype: str | DataType) -> str:
@@ -1591,7 +1591,7 @@ def update_column(
         # Log time taken if it was slow.
         took = time.perf_counter() - start
         if took > 2:  # pragma: no cover
-            logger.info(f"Ready, update_column of {name} took {took:.2f}")
+            logger.info(f"Ready, update_column of {name} took {took}")
 
 
 def read_file(
