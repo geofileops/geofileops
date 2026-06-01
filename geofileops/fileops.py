@@ -1129,7 +1129,7 @@ def add_column(
         _ogr_util.CommitTransaction(datasource)
 
         # check if column was really added
-        datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
+        assert datasource is not None
         datasource_layer = datasource.GetLayer(layer)
         layer_defn = datasource_layer.GetLayerDefn()
         field_index = layer_defn.GetFieldIndex(name)
