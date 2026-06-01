@@ -1267,13 +1267,19 @@ def add_columns(
             "elements: [(name, type, optional expression),...]"
         )
     updates_needed = False
+    layerinfo = get_layerinfo(path, layer, raise_on_nogeom=False)
+    columns_upper = [column.upper() for column in layerinfo.columns]
     for new_column in new_columns:
         if not isinstance(new_column, tuple) or len(new_column) not in (2, 3):
             raise TypeError(
                 "each element in new_columns should be a tuple with 2 or 3 elements:"
                 f" (name, type, optional expression), not: {new_column}"
             )
-        if len(new_column) >= 3 and new_column[2] is not None:
+        if (
+            new_column[0].upper() not in columns_upper
+            and len(new_column) >= 3
+            and new_column[2] is not None
+        ):
             updates_needed = True
 
     # Set some config options to improve performance for GPKG if updates are done
