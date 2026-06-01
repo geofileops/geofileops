@@ -1129,14 +1129,19 @@ def add_column(
         _ogr_util.CommitTransaction(datasource)
 
         # check if column was really added
-        assert datasource is not None
-        datasource_layer = datasource.GetLayer(layer)
-        layer_defn = datasource_layer.GetLayerDefn()
-        field_index = layer_defn.GetFieldIndex(name)
-        if field_index == -1:
-            raise RuntimeError(
-                f"add_column of {name=}, {type=} failed for {path}#{layer}"
-            )
+        if datasource is not None:
+            datasource_layer = datasource.GetLayer(layer)
+            layer_defn = datasource_layer.GetLayerDefn()
+            field_index = layer_defn.GetFieldIndex(name)
+            if field_index == -1:
+                datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_READONLY)
+                datasource_layer = datasource.GetLayer(layer)
+                layer_defn = datasource_layer.GetLayerDefn()
+                field_index = layer_defn.GetFieldIndex(name)
+                if field_index == -1:
+                    raise RuntimeError(
+                        f"add_column of {name=}, {type=} failed for {path}#{layer}"
+                    )
 
     except Exception as ex:
         _ogr_util.RollbackTransaction(datasource)
