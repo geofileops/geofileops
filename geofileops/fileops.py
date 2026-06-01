@@ -1252,6 +1252,7 @@ def add_columns(
         <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
 
     """  # noqa: E501
+    logger.info(f"Start, on {path}")
     # Validate input parameters
     if output_layer is not None and output_path is None:
         raise ValueError("output_layer can only be used together with output_path")
