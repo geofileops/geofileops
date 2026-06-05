@@ -1104,6 +1104,7 @@ def add_column(
     try:
         # If column doesn't exist yet, create it
         columns_upper = [column.upper() for column in layerinfo.columns]
+        column_added = False
         if name.upper() not in columns_upper:
             logger.info(f"Add column {name} to {path}#{layer}")
             width_str = f"({width})" if width is not None else ""
@@ -1113,6 +1114,7 @@ def add_column(
             datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
             _ogr_util.StartTransaction(datasource)
             datasource.ExecuteSQL(sql_stmt)
+            column_added = True
         else:
             logger.warning(f"Column {name} existed already in {path}#{layer}")
 
@@ -1128,23 +1130,24 @@ def add_column(
 
         _ogr_util.CommitTransaction(datasource)
 
-        # Check if column was really added
-        datasource_layer = datasource.GetLayer(layer)
-        layer_defn = datasource_layer.GetLayerDefn()
-        field_index = layer_defn.GetFieldIndex(name)
-        if field_index == -1:
-            # For some file formats, the column is only visible after reopening the
-            # file.
-            datasource_layer = None
-            datasource = None
-            datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_READONLY)
+        # Verify if column was really correctly added
+        if column_added:
             datasource_layer = datasource.GetLayer(layer)
             layer_defn = datasource_layer.GetLayerDefn()
             field_index = layer_defn.GetFieldIndex(name)
             if field_index == -1:
-                raise RuntimeError(
-                    f"add_column of {name=}, {type=} failed for {path}#{layer}"
-                )
+                # For some file formats, the column is only visible after reopening the
+                # file.
+                datasource_layer = None
+                datasource = None
+                datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_READONLY)
+                datasource_layer = datasource.GetLayer(layer)
+                layer_defn = datasource_layer.GetLayerDefn()
+                field_index = layer_defn.GetFieldIndex(name)
+                if field_index == -1:
+                    raise RuntimeError(
+                        f"add_column of {name=}, {type=} failed for {path}#{layer}"
+                    )
 
     except Exception as ex:
         _ogr_util.RollbackTransaction(datasource)
