@@ -1131,7 +1131,7 @@ def add_column(
         _ogr_util.CommitTransaction(datasource)
 
         # Verify if column was really correctly added
-        if column_added:
+        if column_added and datasource is not None:
             datasource_layer = datasource.GetLayer(layer)
             layer_defn = datasource_layer.GetLayerDefn()
             field_index = layer_defn.GetFieldIndex(name)
