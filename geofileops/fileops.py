@@ -1122,6 +1122,9 @@ def add_column(
         if expression is not None and (
             name not in layerinfo.columns or force_update is True
         ):
+            if not column_added:
+                logger.info(f"Update column {name} on {path}#{layer}")
+
             if datasource is None:
                 datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
                 _ogr_util.StartTransaction(datasource)
