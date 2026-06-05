@@ -33,7 +33,7 @@ jobs:
 
     container:
       image: ${{ matrix.container }}
-      options: --user=root
+      # options: --user=root
 
     steps:
     - name: Checkout tests
