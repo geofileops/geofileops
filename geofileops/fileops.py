@@ -1095,7 +1095,7 @@ def add_column(
 
     type_str = _validate_datatype(type)
 
-    start = time.perf_counter()
+    start = datetime.now()
     layerinfo = get_layerinfo(path, layer, raise_on_nogeom=False)
     layer = layerinfo.name
 
@@ -1128,15 +1128,23 @@ def add_column(
 
         _ogr_util.CommitTransaction(datasource)
 
-        # check if column was really added
-        datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_UPDATE)
+        # Check if column was really added
         datasource_layer = datasource.GetLayer(layer)
         layer_defn = datasource_layer.GetLayerDefn()
         field_index = layer_defn.GetFieldIndex(name)
         if field_index == -1:
-            raise RuntimeError(
-                f"add_column of {name=}, {type=} failed for {path}#{layer}"
-            )
+            # For some file formats, the column is only visible after reopening the
+            # file.
+            datasource_layer = None
+            datasource = None
+            datasource = gdal.OpenEx(str(path), nOpenFlags=gdal.OF_READONLY)
+            datasource_layer = datasource.GetLayer(layer)
+            layer_defn = datasource_layer.GetLayerDefn()
+            field_index = layer_defn.GetFieldIndex(name)
+            if field_index == -1:
+                raise RuntimeError(
+                    f"add_column of {name=}, {type=} failed for {path}#{layer}"
+                )
 
     except Exception as ex:
         _ogr_util.RollbackTransaction(datasource)
@@ -1146,9 +1154,9 @@ def add_column(
         datasource = None
 
         # Log time taken if it was slow.
-        took = time.perf_counter() - start
-        if took > 2:  # pragma: no cover
-            logger.info(f"Ready, add_column of {name} took {took:.2f}")
+        took = datetime.now() - start
+        if took.total_seconds() > 2:  # pragma: no cover
+            logger.info(f"Ready, add_column of {name} took {took}")
 
 
 @retry(**RETRY_LOCKED_FILE_KWARGS)  # type: ignore[arg-type]
@@ -1301,7 +1309,7 @@ def add_columns(
             # Add columns in place
             output_tmp_path = path  # type: ignore[assignment]
 
-        start = time.perf_counter()
+        start = datetime.now()
 
         # Get layerinfo and determine `layer` and `output_layer` if not specified
         # Remark: don't reuse the opened datasource here, because then the layer info
@@ -1412,9 +1420,9 @@ def add_columns(
             datasource = None
 
             # Log time taken if it was slow.
-            took = time.perf_counter() - start
-            if took > 2:  # pragma: no cover
-                logger.info(f"Ready, add_columns of {name} took {took:.2f}")
+            took = datetime.now() - start
+            if took.total_seconds() > 2:  # pragma: no cover
+                logger.info(f"Ready, add_columns of {name} took {took}")
 
 
 def _validate_datatype(datatype: str | DataType) -> str:
