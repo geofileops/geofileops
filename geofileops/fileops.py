@@ -1566,7 +1566,7 @@ def update_column(
     # Init
     logger.info(f"Update column {name} in {path}#{layer}")
 
-    start = time.perf_counter()
+    start = datetime.now()
     layerinfo = get_layerinfo(path, layer)
     columns_upper = [column.upper() for column in layerinfo.columns]
     if layerinfo.geometrycolumn is not None:
@@ -1591,9 +1591,9 @@ def update_column(
         datasource = None
 
         # Log time taken if it was slow.
-        took = time.perf_counter() - start
-        if took > 2:  # pragma: no cover
-            logger.info(f"Ready, update_column of {name} took {took:.2f}")
+        took = datetime.now() - start
+        if took.total_seconds() > 2:  # pragma: no cover
+            logger.info(f"Ready, update_column of {name} took {took}")
 
 
 def read_file(

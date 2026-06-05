@@ -6,7 +6,6 @@ import logging
 import pprint
 import shutil
 import sqlite3
-import time
 import warnings
 from collections.abc import Iterable
 from pathlib import Path
@@ -405,7 +404,7 @@ def get_columns(
     output_geometrytype: GeometryType | None = None,
 ) -> dict[str, str]:
     # Init
-    start = time.perf_counter()
+    start = datetime.now()
     tmp_dir = None
 
     def get_filetype(path: Path) -> str:
@@ -551,9 +550,9 @@ def get_columns(
         if ConfigOptions.get_remove_temp_files and tmp_dir is not None:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
-    time_taken = time.perf_counter() - start
-    if time_taken > 5:  # pragma: no cover
-        logger.info(f"get_columns ready, took {time_taken:.2f} seconds")
+    took = datetime.now() - start
+    if took.total_seconds() > 5:  # pragma: no cover
+        logger.info(f"get_columns ready, took {took}")
 
     return columns
 
