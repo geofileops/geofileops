@@ -1,6 +1,5 @@
 """Module containing utilities regarding sqlite/spatialite files."""
 
-import datetime
 import enum
 import logging
 import pprint
@@ -8,6 +7,7 @@ import shutil
 import sqlite3
 import warnings
 from collections.abc import Iterable
+from datetime import date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Union
 
@@ -525,9 +525,9 @@ def get_columns(
                 # cannot be used in "CREATE TABLE".
                 if tmpdata is None:
                     columns[columnname] = "NUMERIC"
-                elif isinstance(tmpdata[column_index], datetime.date):
+                elif isinstance(tmpdata[column_index], date):
                     columns[columnname] = "DATE"
-                elif isinstance(tmpdata[column_index], datetime.datetime):
+                elif isinstance(tmpdata[column_index], datetime):
                     columns[columnname] = "DATETIME"
                 elif isinstance(tmpdata[column_index], str):
                     sql = f'SELECT datetime("{columnname}") FROM tmp;'
