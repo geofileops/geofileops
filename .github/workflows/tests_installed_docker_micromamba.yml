@@ -63,8 +63,8 @@ jobs:
 
     - name: Run Tests
       shell: _entrypoint.sh /bin/bash --noprofile --norc -eo pipefail {0}
-      # Run the tests with a non-root user as there is a test that tests if permissions
-      # are correctly taken in account.
+      env:
+        RUNS_AS_ROOT: "true"
       run: |
-        su - mambauser -c "pytest --color=yes --cov=geofileops --cov-append --cov-report term-missing --cov-report xml tests/"
+        pytest --color=yes --cov=geofileops --cov-append --cov-report term-missing --cov-report xml tests/
     
