@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  MICROMAMBA_DOCKER: 1
+  RUNS_AS_ROOT: 1
 
 # cancel running jobs on new commit to PR
 concurrency:
@@ -63,8 +63,6 @@ jobs:
 
     - name: Run Tests
       shell: _entrypoint.sh /bin/bash --noprofile --norc -eo pipefail {0}
-      env:
-        RUNS_AS_ROOT: true
       run: |
         pytest --color=yes --cov=geofileops --cov-append --cov-report term-missing --cov-report xml tests/
     
