@@ -476,7 +476,11 @@ def test_add_columns_readonly_input(
 ):
     """Test that add_columns works when the input file is read-only."""
     if output_path is None and os.environ.get("RUNS_AS_ROOT") == "1":
-        request.node.xfail("Skipping test when running as root and output_path is None")
+        request.node.add_marker(
+            pytest.mark.xfail(
+                reason="Skipping test when running as root and output_path is None"
+            )
+        )
 
     test_path = test_helper.get_testfile(testfile, dst_dir=tmp_path, suffix=suffix)
 
