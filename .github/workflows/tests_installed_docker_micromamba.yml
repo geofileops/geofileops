@@ -63,8 +63,7 @@ jobs:
 
     - name: Run Tests
       shell: _entrypoint.sh /bin/bash --noprofile --norc -eo pipefail {0}
-      env:
-        RUNS_AS_ROOT: "true"
       run: |
+        echo "RUNS_AS_ROOT=true" >> $GITHUB_ENV
         pytest --color=yes --cov=geofileops --cov-append --cov-report term-missing --cov-report xml tests/
     
