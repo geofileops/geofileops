@@ -33,7 +33,8 @@ jobs:
 
     container:
       image: ${{ matrix.container }}
-      # options: --user=root
+      # Run the container with root user to avoid checkout giving errors.
+      options: --user=root
 
     steps:
     - name: Checkout tests
@@ -62,6 +63,8 @@ jobs:
 
     - name: Run Tests
       shell: _entrypoint.sh /bin/bash --noprofile --norc -eo pipefail {0}
+      # Run the tests with a non-root user as there is a test that tests if permissions
+      # are correctly taken in account.
       run: |
-        pytest --color=yes --cov=geofileops --cov-append --cov-report term-missing --cov-report xml tests/
+        sudo -u mambauser pytest --color=yes --cov=geofileops --cov-append --cov-report term-missing --cov-report xml tests/
     
