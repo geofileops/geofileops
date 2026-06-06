@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  RUNS_AS_ROOT: 1
+  MICROMAMBA_DOCKER: 1
 
 # cancel running jobs on new commit to PR
 concurrency:
