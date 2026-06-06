@@ -66,5 +66,5 @@ jobs:
       # Run the tests with a non-root user as there is a test that tests if permissions
       # are correctly taken in account.
       run: |
-        sudo -u mambauser pytest --color=yes --cov=geofileops --cov-append --cov-report term-missing --cov-report xml tests/
+        su - mambauser -c "pytest --color=yes --cov=geofileops --cov-append --cov-report term-missing --cov-report xml tests/"
     
