@@ -1,7 +1,5 @@
 """Tests regarding spatial indexes in/on data sources."""
 
-import os
-
 import pytest
 from osgeo import gdal
 
