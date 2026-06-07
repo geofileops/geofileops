@@ -475,7 +475,7 @@ def test_add_columns_readonly_input(
     request, tmp_path, testfile, suffix, output_path, exp_permission_error
 ):
     """Test that add_columns works when the input file is read-only."""
-    if output_path is None and os.environ.get("MICROMAMBA_DOCKER") == "1":
+    if output_path is None and os.environ.get("RUNS_AS_ROOT") == "1":
         """
         request.node.add_marker(
             pytest.mark.xfail(
@@ -484,7 +484,7 @@ def test_add_columns_readonly_input(
         )
         """
         pytest.skip(
-            "Skipping test when running in Micromamba Docker and output_path is None"
+            "Skipping test when running as root and output_path is None"
         )
 
     test_path = test_helper.get_testfile(testfile, dst_dir=tmp_path, suffix=suffix)

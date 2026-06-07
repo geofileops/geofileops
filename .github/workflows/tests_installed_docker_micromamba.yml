@@ -35,6 +35,9 @@ jobs:
       image: ${{ matrix.container }}
       # Run the container with root user to avoid checkout giving errors.
       options: --user=root
+    
+    env:
+      RUNS_AS_ROOT: 1
 
     steps:
     - name: Checkout tests
