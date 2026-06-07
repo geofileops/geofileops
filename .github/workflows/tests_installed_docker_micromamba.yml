@@ -7,9 +7,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-env:
-  MICROMAMBA_DOCKER: 1
-
 # cancel running jobs on new commit to PR
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -35,9 +32,6 @@ jobs:
       image: ${{ matrix.container }}
       # Run the container with root user to avoid checkout giving errors.
       options: --user=root
-
-    env:
-      RUNS_AS_ROOT: 1
 
     steps:
     - name: Checkout tests
@@ -66,8 +60,6 @@ jobs:
 
     - name: Run Tests
       shell: _entrypoint.sh /bin/bash --noprofile --norc -eo pipefail {0}
-      env:
-        RUNS_AS_ROOT: 1
       run: |
         pytest --color=yes --cov=geofileops --cov-append --cov-report term-missing --cov-report xml tests/
     

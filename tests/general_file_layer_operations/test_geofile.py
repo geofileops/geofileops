@@ -35,6 +35,7 @@ from geofileops.util import _geofileinfo, _geoseries_util
 from geofileops.util._geopath_util import GeoPath
 from tests import test_helper
 from tests.test_helper import (
+    RUNS_AS_ROOT,
     SUFFIXES_FILEOPS,
     SUFFIXES_FILEOPS_EXT,
     SUFFIXES_GEOOPS,
@@ -475,10 +476,6 @@ def test_add_columns_readonly_input(
     request, tmp_path, testfile, suffix, output_path, exp_permission_error
 ):
     """Test that add_columns works when the input file is read-only."""
-    runs_as_root = os.environ.get("RUNS_AS_ROOT") == "1"
-    if hasattr(os, "geteuid") and os.geteuid() == 0:
-        runs_as_root = True
-
     if output_path is None and runs_as_root:
         request.node.add_marker(
             pytest.mark.xfail(
