@@ -2784,7 +2784,7 @@ def test_to_file_force_geometrytype_multitype(tmp_path, engine_setter):  # noqa:
 def test_to_file_geomempty(tmp_path, suffix, engine_setter):  # noqa: ARG001
     # Test for gdf with an empty polygon + a polygon
     test_gdf = gpd.GeoDataFrame(
-        geometry=[GeometryCollection(), test_helper.TestData.polygon_with_islands],
+        geometry=[GeometryCollection(), test_helper.TestData.polygon_with_island],
         crs=31370,
     )
     # By default, get_geometrytypes ignores the type of empty geometries.
@@ -2830,19 +2830,31 @@ def test_to_file_geomnone(tmp_path, suffix, engine_setter):  # noqa: ARG001
 
     # Now check the result if the data is still the same after being read again
     test_read_gdf = gfo.read_file(output_none_path)
+
     # Result is the same as the original input
     assert test_read_gdf.geometry[0] is None
-    assert isinstance(test_read_gdf.geometry[1], (Polygon, MultiPolygon))
+    expected_type = Polygon if suffix == ".shp" else (Polygon, MultiPolygon)
+    assert isinstance(test_read_gdf.geometry[1], expected_type)
+
     # The geometrytype of the column in the file is also the same as originaly
     test_file_geometrytype = gfo.get_layerinfo(output_none_path).geometrytype
     if suffix == ".shp":
         assert test_file_geometrytype == GeometryType.MULTIPOLYGON
     else:
         assert test_file_geometrytype == test_geometrytypes[0]
+
     # The result type in the geodataframe is also the same as originaly
     test_read_geometrytypes = _geoseries_util.get_geometrytypes(test_read_gdf.geometry)
     assert len(test_gdf) == len(test_read_gdf)
-    assert test_read_geometrytypes == test_geometrytypes
+    if suffix == ".shp":
+        # For shapefile, it depends on the gdal and/or pyogrio version, so don't check
+        # the exact result.
+        assert test_read_geometrytypes in (
+            [GeometryType.MULTIPOLYGON],
+            [GeometryType.POLYGON],
+        )
+    else:
+        assert test_read_geometrytypes == test_geometrytypes
 
 
 @pytest.mark.parametrize("suffix", [s for s in SUFFIXES_FILEOPS if s != ".csv"])
