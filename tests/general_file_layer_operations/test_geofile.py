@@ -2833,7 +2833,7 @@ def test_to_file_geomnone(tmp_path, suffix, engine_setter):  # noqa: ARG001
 
     # Result is the same as the original input
     assert test_read_gdf.geometry[0] is None
-    expected_type = Polygon if suffix == ".shp" else (Polygon, MultiPolygon)
+    expected_type = Polygon if suffix != ".shp" else (Polygon, MultiPolygon)
     assert isinstance(test_read_gdf.geometry[1], expected_type)
 
     # The geometrytype of the column in the file is also the same as originaly
