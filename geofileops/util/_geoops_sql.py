@@ -1071,7 +1071,7 @@ def difference(  # noqa: D417
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
-    extra_difference_filter: str | None = None,
+    extra_self_difference_filter: str | None = None,
     input_columns_prefix: str = "",
     output_with_spatial_index: bool | None = None,
     operation_prefix: str = "",
@@ -1085,11 +1085,11 @@ def difference(  # noqa: D417
     For the other arguments, check out the corresponding function in geoops.py.
 
     Args:
-        extra_difference_filter (Optional[str], optional): Only applicable if
-            `overlay_self=True`. An additional filter to apply to "all other rows" in
-            the input layer that are being differenced from the current row/geometry
+        extra_self_difference_filter (Optional[str], optional): Only applicable if
+            `overlay_self=True`. An additional WHERE clause to apply to "all other rows"
+            in the input layer that are being differenced from the current row/geometry
             being processed.
-            The filter should be an SQL WHERE clause (spatialite functions can be
+            It should be an SQL WHERE clause (spatialite functions can be
             used) and the following placeholders can be used:
             - `{layer_alias}`: will be replaced by the alias used for the input layer
               for the rows that will be differenced.
@@ -1171,12 +1171,12 @@ def difference(  # noqa: D417
             # input1_subdivided_path is Path("/"): input1 doesn't contain complex geoms.
             input1_subdivided_path = None
 
-        where_clause_self = "1=1"
+        difference_filter = "1=1"
         if overlay_self:
             # If we are doing a self overlay
             #   - input1 = input2, so if needed, it has already been subdivided
             #   - we need to filter out rows with the same rowid
-            where_clause_self = "{layer_alias}.{fid} <> {layer_alias_others}.{fid}"
+            difference_filter = "{layer_alias}.{fid} <> {layer_alias_others}.{fid}"
             if input1_subdivided_path is None:
                 layer_alias = "layer1"
                 layer_alias_others = "layer2_sub"
@@ -1187,17 +1187,15 @@ def difference(  # noqa: D417
                 layer_alias_others = "layer2_sub"
                 fid = "fid_1"
 
-            # Add the extra_difference_filter if specified
-            if extra_difference_filter is not None:
-                where_clause_self = (
-                    f"({where_clause_self} AND {extra_difference_filter})"
+            # Add the extra_self_difference_filter if specified
+            if extra_self_difference_filter is not None:
+                difference_filter = (
+                    f"({difference_filter} AND {extra_self_difference_filter})"
                 )
 
-            # Fill out the parameters in the where_clause_self template
-            where_clause_self = where_clause_self.format(
-                layer_alias=layer_alias,
-                layer_alias_others=layer_alias_others,
-                fid=fid,
+            # Fill out the parameters in the self_difference_filter template
+            difference_filter = difference_filter.format(
+                layer_alias=layer_alias, layer_alias_others=layer_alias_others, fid=fid
             )
 
             # For overlay self, both subdivided layers are equal
@@ -1282,7 +1280,7 @@ def difference(  # noqa: D417
                             JOIN {{input2_databasename}}."{{input2_layer}}" layer2_sub
                             JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
                                 ON layer2_sub.rowid = layer2tree.id
-                            WHERE {where_clause_self}
+                            WHERE {difference_filter}
                                 AND layer1tree.id = layer1.rowid
                                 AND layer1tree.minx <= layer2tree.maxx
                                 AND layer1tree.maxx >= layer2tree.minx
@@ -1334,7 +1332,7 @@ def difference(  # noqa: D417
                                     JOIN {{input2_databasename}}."{{input2_layer}}" layer2_sub
                                     JOIN {{input2_databasename}}."{input2_layer_rtree}" layer2tree
                                         ON layer2_sub.rowid = layer2tree.id
-                                    WHERE {where_clause_self}
+                                    WHERE {difference_filter}
                                         AND layer1tree.id = layer1_subdiv.rowid
                                         AND layer1tree.minx <= layer2tree.maxx
                                         AND layer1tree.maxx >= layer2tree.minx

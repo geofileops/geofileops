@@ -3388,7 +3388,7 @@ def remove_overlaps(
         batchsize=batchsize,
         subdivide_coords=0,
         force=force,
-        extra_difference_filter=remove_filter,
+        extra_self_difference_filter=remove_filter,
     )
 
 
