@@ -3299,6 +3299,99 @@ def join_nearest(
     )
 
 
+def remove_overlaps(
+    input_path: Union[str, "os.PathLike[Any]"],
+    output_path: Union[str, "os.PathLike[Any]"],
+    input_layer: str | None = None,
+    output_layer: str | None = None,
+    columns: list[str] | None = None,
+    gridsize: float = 0.0,
+    remove_filter: str | None = "{layer_alias_others}.{fid} > {layer_alias}.{fid}",
+    nb_parallel: int | None = None,
+    batchsize: int = -1,
+    force: bool = False,
+) -> None:
+    """Remove overlaps from the geometries in this layer.
+
+    The overlaps are removed by calculating the difference of each geometry with all
+    other geometries in the same layer that comply with `remove_filter`.
+
+    Args:
+        input_path (PathLike): the input file.
+        output_path (PathLike): the file to write the result to.
+        input_layer (str, optional): input layer name. If None, ``input_path`` should
+            contain only one layer. Defaults to None.
+        output_layer (str, optional): output layer name. If None, the ``output_path``
+            stem is used. Defaults to None.
+        columns (List[str], optional): list of columns to retain. If None, all standard
+            columns are retained. In addition to standard columns, it is also possible
+            to specify "fid", a unique index available in all input files. Note that the
+            "fid" will be aliased eg. to "fid_1". Defaults to None.
+        remove_filter (str, optional): SQL filter to use to determine from which rows
+            the overlapping parts are removed versus where they will be retained.
+            It should be in sqlite syntax and |spatialite_reference_link| functions can
+            be used. In addition, you can use the following placeholders in the filter:
+
+            - `{layer_alias}`: will be replaced by the alias used for the input layer
+              for the rows that will be differenced.
+            - `{layer_alias_others}`: will be replaced by the alias used for the
+              subselect that selects rows that will be differentiated from the
+              geometries selected in `{layer_alias}`.
+            - `{fid}`: will be replaced by the relevant fid column or alias of the input
+              layer.
+
+            Defaults to "{layer_alias_others}.{fid} > {layer_alias}.{fid}",
+            which means that overlapping parts are retained in geometries with a smaller
+            fid and removed from geometries with a larger fid. If `remove_filter` is
+            None, the behaviour becomes equivalent to :func:`difference`, where
+            all overlaps are removed from all geometries.
+        gridsize (float, optional): the size of the grid the coordinates of the ouput
+            will be rounded to. Eg. 0.001 to keep 3 decimals. Value 0.0 doesn't change
+            the precision. Defaults to 0.0.
+        nb_parallel (int | None, optional): the number of parallel workers to use.
+            If None, the preference set in the nb_parallel configuration option is used,
+            which defaults to the number of CPU cores available. For more information,
+            see :func:`options.set_nb_parallel`. Defaults to None.
+        batchsize (int, optional): indicative number of rows to process per
+            batch. A smaller batch size, possibly in combination with a
+            smaller ``nb_parallel``, will reduce the memory usage.
+            Defaults to -1: (try to) determine optimal size automatically.
+        force (bool, optional): overwrite existing output file(s).
+            Defaults to False.
+
+    See Also:
+        * :func:`difference`: calculate the difference of two layers
+        * :func:`identity`: calculate the identity of two layers
+        * :func:`intersection`: calculate the intersection of two layers
+        * :func:`symmetric_difference`: calculate the symmetric difference of two layers
+        * :func:`union`: calculate the union of two layers
+
+    |spatialite_reference_link| raw:: html
+        <a href="https://www.gaia-gis.it/gaia-sins/spatialite-sql-latest.html" target="_blank">spatialite reference</a>
+    """  # noqa: E501
+    logger = logging.getLogger("geofileops.remove_overlaps")
+    logger.info(f"Start, on {input_path} to {output_path}")
+
+    return _geoops_sql.difference(
+        input1_path=Path(input_path),
+        input2_path=Path(input_path),
+        output_path=Path(output_path),
+        overlay_self=True,
+        input1_layer=input_layer,
+        input1_columns=columns,
+        input2_layer=input_layer,
+        output_layer=output_layer,
+        explodecollections=False,
+        gridsize=gridsize,
+        where_post=None,
+        nb_parallel=nb_parallel,
+        batchsize=batchsize,
+        subdivide_coords=0,
+        force=force,
+        extra_self_difference_filter=remove_filter,
+    )
+
+
 def select_two_layers(
     input1_path: Union[str, "os.PathLike[Any]"],
     input2_path: Union[str, "os.PathLike[Any]"],
