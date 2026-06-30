@@ -3374,12 +3374,12 @@ def remove_overlaps(
 
     return _geoops_sql.difference(
         input1_path=Path(input_path),
-        input2_path=None,
+        input2_path=Path(input_path),
         output_path=Path(output_path),
         overlay_self=True,
         input1_layer=input_layer,
         input1_columns=columns,
-        input2_layer=None,
+        input2_layer=input_layer,
         output_layer=output_layer,
         explodecollections=False,
         gridsize=gridsize,
