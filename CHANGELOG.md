@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 0.12.0 (????-??-??)
+
+# Improvements
+
+- Add function `remove_overlaps` (#829)
+
 ## 0.11.4 (????-??-??)
 
 # Improvements

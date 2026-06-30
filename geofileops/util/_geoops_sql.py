@@ -1071,6 +1071,7 @@ def difference(  # noqa: D417
     batchsize: int = -1,
     subdivide_coords: int = 2000,
     force: bool = False,
+    extra_difference_filter: str | None = None,
     input_columns_prefix: str = "",
     output_with_spatial_index: bool | None = None,
     operation_prefix: str = "",
@@ -1084,6 +1085,20 @@ def difference(  # noqa: D417
     For the other arguments, check out the corresponding function in geoops.py.
 
     Args:
+        extra_difference_filter (Optional[str], optional): Only applicable if
+            `overlay_self=True`. An additional filter to apply to "all other rows" in
+            the input layer that are being differenced from the current row/geometry
+            being processed.
+            The filter should be an SQL WHERE clause (spatialite functions can be
+            used) and the following placeholders can be used:
+            - `{layer_alias}`: will be replaced by the alias used for the input layer
+              for the rows that will be differenced.
+            - `{layer_alias_others}`: will be replaced by the alias used for the
+              subselect that selects rows that will be differentiated from the
+              geometries selected in `{layer_alias}`.
+            - `{fid}`: will be replaced by the relevant fid column or alias of the input
+              layer.
+            Defaults to None.
         input_columns_prefix (str): Prefix to add to the columns of the input1 layer.
         output_with_spatial_index (Optional[bool], optional): Controls whether the
             output file is created with a spatial index. True to create one, False not
@@ -1161,11 +1176,29 @@ def difference(  # noqa: D417
             # If we are doing a self overlay
             #   - input1 = input2, so if needed, it has already been subdivided
             #   - we need to filter out rows with the same rowid
+            where_clause_self = "{layer_alias}.{fid} <> {layer_alias_others}.{fid}"
             if input1_subdivided_path is None:
-                where_clause_self = "layer1.rowid <> layer2_sub.rowid"
+                layer_alias = "layer1"
+                layer_alias_others = "layer2_sub"
+                fid = "rowid"
             else:
                 # Filter out the same rowids using the original fids!
-                where_clause_self = "layer1_subdiv.fid_1 <> layer2_sub.fid_1"
+                layer_alias = "layer1_subdiv"
+                layer_alias_others = "layer2_sub"
+                fid = "fid_1"
+
+            # Add the extra_difference_filter if specified
+            if extra_difference_filter is not None:
+                where_clause_self = (
+                    f"({where_clause_self} AND {extra_difference_filter})"
+                )
+
+            # Fill out the parameters in the where_clause_self template
+            where_clause_self = where_clause_self.format(
+                layer_alias=layer_alias,
+                layer_alias_others=layer_alias_others,
+                fid=fid,
+            )
 
             # For overlay self, both subdivided layers are equal
             input2_subdivided_path = input1_subdivided_path
@@ -1191,6 +1224,10 @@ def difference(  # noqa: D417
         if input2_subdivided_path is not None:
             input2_path = input2_subdivided_path
             input2_layer = gfo.get_layerinfo(input2_path, input2_layer.name)
+        elif overlay_self and input2_path is None:
+            # For self-overlays without subdividing, the second input is the same layer.
+            input2_path = input1_path
+            input2_layer = input1_layer
 
         # Prepare sql template for this operation
         # - WHERE geom IS NOT NULL to avoid rows with a NULL geom, they give issues in
