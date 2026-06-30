@@ -4,7 +4,7 @@
 
 # Improvements
 
-- Add function `remove_overlaps` (#829)
+- Add function `remove_overlaps` (#831)
 
 ## 0.11.4 (????-??-??)
 
