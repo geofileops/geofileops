@@ -2,7 +2,9 @@
 
 ## 0.12.0 (????-??-??)
 
-- In get_layerstyles, return a list of dataclasses instead of as dataframe (#)
+### Deprecations and compatibility notes
+
+- In get_layerstyles, return a list of dataclasses instead of as dataframe (#833)
 
 ## 0.11.4 (????-??-??)
 
