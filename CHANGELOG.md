@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.12.0 (????-??-??)
+
+- In get_layerstyles, return a list of dataclasses instead of as dataframe (#)
+
 ## 0.11.4 (????-??-??)
 
 # Improvements
