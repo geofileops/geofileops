@@ -1583,6 +1583,83 @@ def test_join_nearest_distance(tmp_path):
     assert output_gdf["distance"][0] == 7
 
 
+@pytest.mark.parametrize("fid_column", [None, "fid_custom"])
+def test_remove_overlaps(tmp_path, fid_column):
+    input_path = test_helper.get_testfile(
+        "polygon-3overlappingcircles", fid_column=fid_column
+    )
+    output_path = tmp_path / f"{input_path.stem}_remove_overlaps.gpkg"
+
+    gfo.remove_overlaps(
+        input_path=input_path,
+        output_path=output_path,
+        nb_parallel=2,
+        batchsize=2,
+    )
+
+    assert output_path.exists()
+    exp_spatial_index = GeofileInfo(output_path).default_spatial_index
+    assert gfo.has_spatial_index(output_path) is exp_spatial_index
+
+    input_gdf = gfo.read_file(input_path)
+    output_gdf = gfo.read_file(output_path)
+    assert len(output_gdf) == len(input_gdf) == 3
+
+    # Overlaps should be removed between all output features.
+    output_geometries = output_gdf.geometry.reset_index(drop=True)
+    for idx_1 in range(len(output_geometries)):
+        for idx_2 in range(idx_1 + 1, len(output_geometries)):
+            inters = output_geometries[idx_1].intersection(output_geometries[idx_2])
+            assert inters.is_empty or inters.area == pytest.approx(0.0)
+
+    # With the default remove_filter, overlapping parts are retained once.
+    input_union = shapely.union_all(input_gdf.geometry)
+    output_union = shapely.union_all(output_gdf.geometry)
+    union_diff_area = shapely.symmetric_difference(input_union, output_union).area
+    assert union_diff_area == pytest.approx(0.0, abs=1e-8)
+
+
+@pytest.mark.parametrize(
+    "remove_filter, exp_areas",
+    [
+        (
+            "{layer_alias_others}.{fid} > {layer_alias}.{fid}",
+            [50.0, 100.0],
+        ),
+        (
+            "{layer_alias_others}.{fid} < {layer_alias}.{fid}",
+            [100.0, 50.0],
+        ),
+    ],
+)
+def test_remove_overlaps_remove_filter(tmp_path, remove_filter, exp_areas):
+    input_path = tmp_path / "remove_overlaps_input.gpkg"
+    output_path = tmp_path / "remove_overlaps_output.gpkg"
+
+    input_gdf = gpd.GeoDataFrame(
+        {
+            "name": ["a", "b"],
+            "geometry": [shapely.box(0, 0, 10, 10), shapely.box(5, 0, 15, 10)],
+        },
+        crs=31370,
+    )
+    gfo.to_file(input_gdf, input_path)
+
+    gfo.remove_overlaps(
+        input_path=input_path,
+        output_path=output_path,
+        remove_filter=remove_filter,
+    )
+
+    output_gdf = gfo.read_file(output_path).sort_values("name").reset_index(drop=True)
+
+    inters = output_gdf.geometry.iloc[0].intersection(output_gdf.geometry.iloc[1])
+    assert inters.is_empty or inters.area == pytest.approx(0.0)
+
+    areas = output_gdf.geometry.area.to_list()
+    assert areas == pytest.approx(exp_areas)
+
+
 @pytest.mark.parametrize(
     "suffix, epsg, gridsize",
     [(".gpkg", 31370, 0.01), (".gpkg", 4326, 0.0), (".shp", 31370, 0.01)],
