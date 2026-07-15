@@ -22,7 +22,7 @@ def test_add_get_remove_layer_styles(tmp_path):
     assert len(gfo.get_layerstyles(test_path)) == 0
     layerstyles._init_layerstyles(test_path)
     assert layerstyles._has_layerstyles_table(test_path)
-
+    assert len(gfo.get_layerstyles(test_path)) == 0
     # Add layer style to "parcel" layer
     with (test_helper.data_dir / "polygonstyle.sld").open() as file:
         sld = file.read()
