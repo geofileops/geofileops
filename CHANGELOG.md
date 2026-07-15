@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## 0.11.4 (????-??-??)
+## 0.11.4 (2026-07-15)
 
 ### Improvements
 
@@ -8,7 +8,7 @@
 
 ### Bugs fixed
 
-- Fix error in `get_layerstyles` if the layer_styles table does not exist (#)
+- Fix error in `get_layerstyles` if the layer_styles table does not exist (#834)
 
 ## 0.11.3 (2026-06-12)
 
