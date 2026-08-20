@@ -2910,8 +2910,8 @@ def move(
             raise ex
         elif on_keep_permissions_error == "warn":
             warnings.warn(
-                f"PermissionError while moving {src} to {dst}: {ex}, try to move without "
-                "retaining permissions and metadata.",
+                f"PermissionError while moving {src} to {dst}: {ex}, try to move "
+                "without retaining permissions and metadata.",
                 stacklevel=2,
             )
         shutil.move(str(src), dst, copy_function=shutil.copyfile)
