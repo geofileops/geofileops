@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 0.12.0 (????-??-??)
+
+### Deprecations and compatibility notes
+
+- For `copy`, the default value of `keep_permissions` is now `False` (#).
+- For `move`, if moving the file while keeping permissions and metadata fails, the
+  default behaviour is now that the file is moved without retaining them. This behaviour
+  can be chosen using the new `on_keep_permissions_error` parameter. (#)
+
 ## 0.11.4 (2026-07-15)
 
 ### Improvements
