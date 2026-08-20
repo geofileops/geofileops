@@ -1889,6 +1889,19 @@ def test_move(tmp_path, suffix):
         )
 
 
+@pytest.mark.parametrize("on_keep_permissions_error", ["invalid", "", None])
+def test_move_invalid_on_keep_permissions_error(on_keep_permissions_error):
+    with pytest.raises(
+        ValueError,
+        match="Invalid value for on_keep_permissions_error",
+    ):
+        gfo.move(
+            "non_existing_file.gpkg",
+            "output.gpkg",
+            on_keep_permissions_error=on_keep_permissions_error,
+        )
+
+
 def test_update_column(tmp_path):
     test_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
 
