@@ -1475,6 +1475,7 @@ def test_copy(tmp_path, suffix, keep_permissions):
         assert dst.with_suffix(".shx").exists()
 
 
+@pytest.mark.skipif(os.name == "nt", reason="os.chmod is a no-op on windows")
 def test_copy_keep_permissions_chmod_not_supported(tmp_path, monkeypatch):
     """gfo.copy(keep_permissions=True) fails on filesystems that don't support chmod.
 
@@ -1931,6 +1932,7 @@ def test_move_invalid_on_keep_permissions_error(on_keep_permissions_error):
         )
 
 
+@pytest.mark.skipif(os.name == "nt", reason="os.chmod is a no-op on windows")
 @pytest.mark.parametrize("on_keep_permissions_error", ["ignore", "warn", "raise"])
 def test_move_chmod_not_supported(tmp_path, monkeypatch, on_keep_permissions_error):
     """gfo.move fails to keep permissions on filesystems that don't support chmod.
