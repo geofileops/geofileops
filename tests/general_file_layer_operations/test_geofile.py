@@ -1933,8 +1933,11 @@ def test_move_invalid_on_keep_permissions_error(on_keep_permissions_error):
 
 
 @pytest.mark.skipif(os.name == "nt", reason="os.chmod is a no-op on windows")
+@pytest.mark.parametrize("suffix", [".gpkg", ".shp"])
 @pytest.mark.parametrize("on_keep_permissions_error", ["ignore", "warn", "raise"])
-def test_move_chmod_not_supported(tmp_path, monkeypatch, on_keep_permissions_error):
+def test_move_chmod_not_supported(
+    tmp_path, monkeypatch, on_keep_permissions_error, suffix
+):
     """gfo.move fails to keep permissions on filesystems that don't support chmod.
 
     E.g. on a cifs/smb mount, shutil.move tries to replicate the source permission
@@ -1942,8 +1945,11 @@ def test_move_chmod_not_supported(tmp_path, monkeypatch, on_keep_permissions_err
     though the file content was already fully written. This is simulated here via
     monkeypatching os.rename and os.chmod, so the test doesn't depend on an actual
     cifs mount being available.
+
+    suffix ".shp" is included to also cover moving the extra files (.shx, .dbf,...)
+    that a shapefile consists of, next to the main file.
     """
-    src = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=".gpkg")
+    src = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path, suffix=suffix)
 
     def rename_cross_device(*_args, **_kwargs):
         # Force shutil.move to use its copy+remove fallback, like it does when
@@ -1960,10 +1966,19 @@ def test_move_chmod_not_supported(tmp_path, monkeypatch, on_keep_permissions_err
     if on_keep_permissions_error == "raise":
         with pytest.raises(PermissionError):
             gfo.move(src, dst, on_keep_permissions_error=on_keep_permissions_error)
-        # The file content was copied despite the exception being raised, but src
-        # wasn't removed yet.
+        # src wasn't removed yet, as the exception stopped the move.
         assert src.exists()
-        assert dst.exists()
+        if suffix == ".shp":
+            # The extra files are moved before the main file, in the order defined
+            # in suffixes_extrafiles ([".dbf", ".shx",...]), so the error occurs on
+            # the first extra file (.dbf) and neither it nor the main .shp file are
+            # fully moved to dst.
+            assert dst.with_suffix(".dbf").exists()
+            assert not dst.with_suffix(".shx").exists()
+            assert not dst.exists()
+        else:
+            # The file content was copied despite the exception being raised.
+            assert dst.exists()
     else:
         if on_keep_permissions_error == "warn":
             with pytest.warns(UserWarning, match="PermissionError while moving"):
@@ -1974,6 +1989,8 @@ def test_move_chmod_not_supported(tmp_path, monkeypatch, on_keep_permissions_err
         # The move succeeded anyway, without keeping the file permissions.
         assert not src.exists()
         assert dst.exists()
+        if suffix == ".shp":
+            assert dst.with_suffix(".shx").exists()
 
 
 def test_update_column(tmp_path):
