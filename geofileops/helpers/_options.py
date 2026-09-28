@@ -773,6 +773,15 @@ class ConfigOptions:
         The value set should be a valid directory path. If not set, a subdirectory
         "geofileops" created in the system temp directory is used.
 
+        If a custom temporary directory has been set, SQLite will also use it for its
+        temporary files unless the SQLITE_TMPDIR environment variable exists.
+        On Windows, this behaviour is accomplished by temporarily setting the TMP
+        environment variable to the temporary directory (which can have side-effects).
+        If SQLITE_TMPDIR is set to a non-empty value on windows, TMP will be temporarily
+        overridden by this value instead.
+        On other operating systems, this behaviour is accomplished by temporarily
+        setting the SQLITE_TMPDIR environment variable.
+
         Remarks:
 
             - You can also set the option temporarily by using this function as a
