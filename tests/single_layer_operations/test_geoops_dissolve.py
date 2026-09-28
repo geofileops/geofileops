@@ -1,6 +1,4 @@
-"""
-Tests for dissolve operation.
-"""
+"""Tests for dissolve operation."""
 
 import json
 import math
@@ -577,18 +575,39 @@ def test_dissolve_invalid_params(
             )
 
 
-def test_dissolve_polygons_groupby_None(tmp_path):
-    """
-    Test dissolve polygons with a column with None values. There was once an issue
-    that the type of the column with None Values always ended up as a REAL column after
-    the dissolve/group by instead of the original type.
-    """
+@pytest.mark.parametrize(
+    "agg_columns",
+    [
+        None,
+        {"columns": [{"column": "GEWASGROEP", "agg": "count", "as": "parcel_count"}]},
+    ],
+)
+@pytest.mark.parametrize("mixed_none", [False, True])
+def test_dissolve_polygons_groupby_None(tmp_path, agg_columns, mixed_none):
+    """Test dissolve for polygons with a groupby column with None values.
 
+    Issues covered:
+      - once, the type of the column with None Values always ended up as a REAL column
+        after the dissolve/group by instead of the original type.
+      - once, using agg_columns with None values caused the rows with None values to
+        disappear from the result.
+    """
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
     gfo.add_column(input_path, name="none_values", type=gfo.DataType.TEXT)
     input_layerinfo = gfo.get_layerinfo(input_path)
     batchsize = math.ceil(input_layerinfo.featurecount / 2)
+    if mixed_none:
+        layer = input_layerinfo.name
+        gfo.execute_sql(
+            input_path,
+            sql_stmt=f"""
+                UPDATE "{layer}"
+                   SET none_values = GEWASGROEP
+                 WHERE GEWASGROEP = 'Grasland'
+            """,
+            sql_dialect="SQLITE",
+        )
 
     # Run test
     output_path = tmp_path / "output.gpkg"
@@ -596,6 +615,7 @@ def test_dissolve_polygons_groupby_None(tmp_path):
         input_path=input_path,
         output_path=output_path,
         groupby_columns="none_values",
+        agg_columns=agg_columns,
         explodecollections=True,
         nb_parallel=2,
         batchsize=batchsize,
@@ -609,13 +629,20 @@ def test_dissolve_polygons_groupby_None(tmp_path):
         output_layerinfo.columns["none_values"].gdal_type
         == input_layerinfo.columns["none_values"].gdal_type
     )
+    if agg_columns is not None:
+        assert "parcel_count" in output_layerinfo.columns
+    if mixed_none:
+        output_gdf = gfo.read_file(output_path)
+        assert output_gdf["none_values"].isna().any()
+        assert (output_gdf["none_values"] == "Grasland").any()
+        assert output_layerinfo.featurecount == 25
+    else:
+        assert output_layerinfo.featurecount == 24
 
 
 @pytest.mark.parametrize("worker_type", ["threads", "processes"])
 def test_dissolve_polygons_process_threads(tmp_path, worker_type):
-    """
-    Test dissolve polygons with different worker types.
-    """
+    """Test dissolve polygons with different worker types."""
     # Prepare test data
     input_path = test_helper.get_testfile("polygon-parcel", dst_dir=tmp_path)
     input_layerinfo = gfo.get_layerinfo(input_path)
