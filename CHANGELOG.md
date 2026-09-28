@@ -10,6 +10,12 @@
   default behaviour is now that the file is moved without retaining them. This behaviour
   can be chosen using the new `on_keep_permissions_error` parameter. (#838)
 
+### Improvements
+
+- Temporary files created by sqlite are now also placed in the temporary directories
+  as used by geofileops. More infromation can be found in the documentation of
+  `set_tmp_dir` (#)
+
 ### Bugs fixed
 
 - Fix dissolve if a groupby column contains None values and agg_columns is being used

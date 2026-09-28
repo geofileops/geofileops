@@ -3,10 +3,13 @@ Tests for functionalities in ogr_util.
 """
 
 import logging
+import os
 import sqlite3
+import sys
 import warnings
 from pathlib import Path
 
+import psutil
 import pytest
 import shapely
 from shapely import box
@@ -14,7 +17,9 @@ from shapely import box
 import geofileops as gfo
 from geofileops import fileops
 from geofileops._compat import GDAL_GTE_311
+from geofileops.helpers import _general_helper
 from geofileops.util import _sqlite_util as sqlite_util
+from geofileops.util._general_util import TempEnv
 from geofileops.util._geofileinfo import GeofileInfo
 from tests import test_helper
 from tests.test_helper import assert_geodataframe_equal
@@ -135,6 +140,120 @@ def test_connect(use_spatialite):
 
     finally:
         conn.close()
+
+
+@pytest.mark.parametrize(
+    "sqlite_tmpdir_mode, use_gfo_tmpdir",
+    [
+        ("unset", False),
+        ("empty", False),
+        ("unset", True),
+        ("empty", True),
+        ("set", False),
+        ("set", True),
+    ],
+)
+def test_sqlite_temp_file_location(tmp_path, sqlite_tmpdir_mode, use_gfo_tmpdir):
+    """Check where SQLite stores a disk-backed TEMP table."""
+    # Define a helper function to get the currently open file paths for the process.
+    if sys.platform == "win32":
+
+        def open_file_paths():
+            return {Path(file.path) for file in psutil.Process().open_files()}
+
+    elif sys.platform == "linux":
+        if not Path("/proc/self/fd").is_dir():
+            pytest.skip("Open file descriptors are not available via /proc/self/fd")
+
+        def open_file_paths():
+            paths = set()
+            for descriptor in Path("/proc/self/fd").iterdir():
+                try:
+                    target = str(descriptor.readlink())
+                except OSError:
+                    continue
+                if target.startswith("/"):
+                    paths.add(Path(target.removesuffix(" (deleted)")))
+            return paths
+
+    else:
+        pytest.skip("Open SQLite temp files are only inspected on Windows and Linux")
+
+    sqlite_tmpdir = tmp_path / "sqlite_temp"
+    if sqlite_tmpdir_mode == "set":
+        sqlite_tmpdir.mkdir()
+    gfo_tmpdir = str(tmp_path / "gfo_temp") if use_gfo_tmpdir else None
+    database_path = tmp_path / "test.sqlite"
+    sqlite3.connect(database_path).close()
+    tmp_orig = os.environ.get("TMP")
+    tmpdir_orig = os.environ.get("TMPDIR")
+
+    with (
+        TempEnv(
+            {
+                "SQLITE_TMPDIR": {
+                    "unset": None,
+                    "empty": "",
+                    "set": str(sqlite_tmpdir),
+                }[sqlite_tmpdir_mode],
+                "GFO_TMPDIR": gfo_tmpdir,
+            }
+        ),
+        _general_helper.create_gfo_tmp_dir("sqlite_tmpdir") as operation_tmp_dir,
+    ):
+        if sqlite_tmpdir_mode == "set" and (sys.platform == "linux" or use_gfo_tmpdir):
+            expected_dir = sqlite_tmpdir
+        elif sqlite_tmpdir_mode == "unset" and use_gfo_tmpdir:
+            expected_dir = operation_tmp_dir
+        else:
+            expected_dir = None
+        assert os.environ.get("TMPDIR") == tmpdir_orig
+        if sys.platform == "linux":
+            if sqlite_tmpdir_mode == "unset" and use_gfo_tmpdir:
+                expected_sqlite_tmpdir = str(operation_tmp_dir)
+            else:
+                expected_sqlite_tmpdir = {
+                    "unset": None,
+                    "empty": "",
+                    "set": str(sqlite_tmpdir),
+                }[sqlite_tmpdir_mode]
+            assert os.environ.get("SQLITE_TMPDIR") == expected_sqlite_tmpdir
+        elif sys.platform == "win32":
+            expected_tmp = tmp_orig
+            if use_gfo_tmpdir and sqlite_tmpdir_mode == "unset":
+                expected_tmp = str(operation_tmp_dir)
+            elif use_gfo_tmpdir and sqlite_tmpdir_mode == "set":
+                expected_tmp = str(sqlite_tmpdir)
+            assert os.environ.get("TMP") == expected_tmp
+
+        conn = sqlite_util.connect(database_path, use_spatialite=False)
+        try:
+            conn.execute("PRAGMA temp_store=FILE")
+            assert conn.execute("PRAGMA temp_store").fetchone()[0] == 1
+            open_files_before = open_file_paths()
+            conn.execute("CREATE TEMP TABLE temp_data (payload BLOB)")
+            conn.execute("INSERT INTO temp_data VALUES (randomblob(16 * 1024 * 1024))")
+            temp_files = {
+                path
+                for path in open_file_paths() - open_files_before
+                if path.name.startswith("etilqs_")
+            }
+            assert temp_files, "SQLite did not create an observable disk TEMP file"
+            actual_dirs = {
+                os.path.normcase(str(path.parent.resolve())) for path in temp_files
+            }
+            if expected_dir is None:
+                operation_tmp_dir_normalized = os.path.normcase(
+                    str(operation_tmp_dir.resolve())
+                )
+                assert operation_tmp_dir_normalized not in actual_dirs
+            else:
+                assert actual_dirs == {os.path.normcase(str(expected_dir.resolve()))}
+        finally:
+            conn.close()
+    if sys.platform == "win32":
+        assert os.environ.get("TMP") == tmp_orig
+    assert os.environ.get("TMPDIR") == tmpdir_orig
 
 
 def test_connect_invalid(tmp_path):

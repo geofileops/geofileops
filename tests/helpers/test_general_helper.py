@@ -1,5 +1,7 @@
 """Tests for the general_helper module."""
 
+import os
+import sys
 import tempfile
 
 import pytest
@@ -32,6 +34,22 @@ def test_create_gfo_tmp_dir_env(tmp_path):
         assert tmp_dir.name.startswith("testje")
 
 
+@pytest.mark.skipif(
+    sys.platform != "linux", reason="SQLite uses SQLITE_TMPDIR on Linux"
+)
+@pytest.mark.parametrize("sqlite_tmpdir_orig", [None, ""])
+def test_create_gfo_tmp_dir_sqlite_tmpdir_linux(tmp_path, sqlite_tmpdir_orig):
+    with _general_util.TempEnv(
+        {"SQLITE_TMPDIR": sqlite_tmpdir_orig, "GFO_TMPDIR": str(tmp_path)}
+    ):
+        tmpdir_orig = os.environ.get("TMPDIR")
+        with _general_helper.create_gfo_tmp_dir("sqlite_tmpdir", tmp_path) as tmp_dir:
+            expected_sqlite_tmpdir = str(tmp_dir) if sqlite_tmpdir_orig is None else ""
+            assert os.environ.get("SQLITE_TMPDIR") == expected_sqlite_tmpdir
+            assert os.environ.get("TMPDIR") == tmpdir_orig
+        assert os.environ.get("SQLITE_TMPDIR") == sqlite_tmpdir_orig
+
+
 def test_create_gfo_tmp_dir_env_invalid():
     """Test the creation of a temporary directory if GFO_TMPDIR is invalid."""
     # GFO_TMPDIR set to an empty string is not supported.
@@ -40,6 +58,20 @@ def test_create_gfo_tmp_dir_env_invalid():
         pytest.raises(
             ValueError,
             match="GFO_TMPDIR='' environment variable found which is not supported",
+        ),
+        _general_helper.create_gfo_tmp_dir("testje") as _tmp_dir,
+    ):
+        pass
+
+
+def test_create_gfo_tmp_dir_sqlite_tmpdir_invalid(tmp_path):
+    """Test that a non-existent SQLITE_TMPDIR is rejected."""
+    sqlite_tmpdir = tmp_path / "does_not_exist"
+    with (
+        _general_util.TempEnv({"SQLITE_TMPDIR": str(sqlite_tmpdir)}),
+        pytest.raises(
+            ValueError,
+            match=r"SQLITE_TMPDIR=.*path that does not exist",
         ),
         _general_helper.create_gfo_tmp_dir("testje") as _tmp_dir,
     ):
