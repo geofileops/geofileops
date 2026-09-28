@@ -10,6 +10,11 @@
   default behaviour is now that the file is moved without retaining them. This behaviour
   can be chosen using the new `on_keep_permissions_error` parameter. (#838)
 
+### Bugs fixed
+
+- Fix dissolve if a groupby column contains None values and agg_columns is being used
+  (#839).
+
 ## 0.11.4 (2026-07-15)
 
 ### Improvements
