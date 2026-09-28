@@ -583,7 +583,12 @@ def test_dissolve_invalid_params(
     ],
 )
 @pytest.mark.parametrize("mixed_none", [False, True])
-def test_dissolve_polygons_groupby_None(tmp_path, agg_columns, mixed_none):
+@pytest.mark.parametrize(
+    "groupby_columns", ["none_values", ["none_values", "GEWASGROEP"]]
+)
+def test_dissolve_polygons_groupby_None(
+    tmp_path, agg_columns, mixed_none, groupby_columns
+):
     """Test dissolve for polygons with a groupby column with None values.
 
     Issues covered:
@@ -614,14 +619,14 @@ def test_dissolve_polygons_groupby_None(tmp_path, agg_columns, mixed_none):
     gfo.dissolve(
         input_path=input_path,
         output_path=output_path,
-        groupby_columns="none_values",
+        groupby_columns=groupby_columns,
         agg_columns=agg_columns,
         explodecollections=True,
         nb_parallel=2,
         batchsize=batchsize,
     )
 
-    # Now check if the tmp file is correctly created
+    # Now check if the output file is correctly created
     assert output_path.exists()
     output_layerinfo = gfo.get_layerinfo(output_path)
     assert output_layerinfo.geometrytype == GeometryType.POLYGON
@@ -629,15 +634,27 @@ def test_dissolve_polygons_groupby_None(tmp_path, agg_columns, mixed_none):
         output_layerinfo.columns["none_values"].gdal_type
         == input_layerinfo.columns["none_values"].gdal_type
     )
+
+    # The total area of the output geometries should match the total area of the input.
+    output_gdf = gfo.read_file(output_path)
+    input_area = gfo.read_file(input_path).geometry.area.sum()
+    assert output_gdf.geometry.area.sum() == pytest.approx(input_area, rel=1e-9)
+
+    # Check if the columns and numbers of output rows are correct.
+    if isinstance(groupby_columns, list):
+        assert "GEWASGROEP" in output_layerinfo.columns
     if agg_columns is not None:
         assert "parcel_count" in output_layerinfo.columns
     if mixed_none:
-        output_gdf = gfo.read_file(output_path)
         assert output_gdf["none_values"].isna().any()
         assert (output_gdf["none_values"] == "Grasland").any()
-        assert output_layerinfo.featurecount == 25
+        assert output_layerinfo.featurecount == (
+            25 if groupby_columns == "none_values" else 26
+        )
     else:
-        assert output_layerinfo.featurecount == 24
+        assert output_layerinfo.featurecount == (
+            24 if groupby_columns == "none_values" else 26
+        )
 
 
 @pytest.mark.parametrize("worker_type", ["threads", "processes"])
