@@ -22,8 +22,9 @@ def create_gfo_tmp_dir(
     The directory and its contents are removed when the context is exited, unless
     `ConfigOptions.remove_temp_files` is set to False.
 
-    If GFO_TMPDIR has been set, SQLite will also use it for its
-    temporary files unless the SQLITE_TMPDIR environment variable exists.
+    If GFO_TMPDIR has been set and SQLITE_TMPDIR is unset, SQLite will use the
+    configured temporary directory (the parent of the per-operation directory) for
+    temporary files, so the location remains available after the operation ends.
     On Windows, this behaviour is accomplished by temporarily setting the TMP
     environment variable to the temporary directory (which can have side-effects).
     If SQLITE_TMPDIR is set to a non-empty value on windows, TMP will be temporarily
@@ -55,14 +56,14 @@ def create_gfo_tmp_dir(
 
     tmp_dir = _io_util.create_tempdir(base_dirname, parent_dir)
 
-    # When GFO_TMPDIR is set, use the custom temporary directory for SQLite temp files
-    # as well if SQLITE_TMPDIR is unset.
+    # Keep SQLite temp files in the stable custom temp directory, not the per-operation
+    # directory, when SQLITE_TMPDIR is unset.
     tmp_orig = os.environ.get("TMP")
     if os.environ.get("GFO_TMPDIR") and sqlite_tmpdir_orig != "":
         if os.name == "nt":
-            os.environ["TMP"] = sqlite_tmpdir_orig or str(tmp_dir)
+            os.environ["TMP"] = sqlite_tmpdir_orig or str(parent_dir)
         elif sqlite_tmpdir_orig is None:
-            os.environ["SQLITE_TMPDIR"] = str(tmp_dir)
+            os.environ["SQLITE_TMPDIR"] = str(parent_dir)
 
     try:
         yield tmp_dir

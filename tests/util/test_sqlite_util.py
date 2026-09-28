@@ -5,6 +5,7 @@ Tests for functionalities in ogr_util.
 import logging
 import os
 import sqlite3
+import subprocess
 import sys
 import warnings
 from pathlib import Path
@@ -204,13 +205,13 @@ def test_sqlite_temp_file_location(tmp_path, sqlite_tmpdir_mode, use_gfo_tmpdir)
         if sqlite_tmpdir_mode == "set" and use_gfo_tmpdir and sys.platform == "win32":
             expected_dir = sqlite_tmpdir
         elif sqlite_tmpdir_mode == "unset" and use_gfo_tmpdir:
-            expected_dir = operation_tmp_dir
+            expected_dir = Path(gfo_tmpdir)
         else:
             expected_dir = None
         assert os.environ.get("TMPDIR") == tmpdir_orig
         if sys.platform == "linux":
             if sqlite_tmpdir_mode == "unset" and use_gfo_tmpdir:
-                expected_sqlite_tmpdir = str(operation_tmp_dir)
+                expected_sqlite_tmpdir = gfo_tmpdir
             else:
                 expected_sqlite_tmpdir = {
                     "unset": None,
@@ -221,38 +222,99 @@ def test_sqlite_temp_file_location(tmp_path, sqlite_tmpdir_mode, use_gfo_tmpdir)
         elif sys.platform == "win32":
             expected_tmp = tmp_orig
             if use_gfo_tmpdir and sqlite_tmpdir_mode == "unset":
-                expected_tmp = str(operation_tmp_dir)
+                expected_tmp = gfo_tmpdir
             elif use_gfo_tmpdir and sqlite_tmpdir_mode == "set":
                 expected_tmp = str(sqlite_tmpdir)
             assert os.environ.get("TMP") == expected_tmp
 
-        conn = sqlite_util.connect(database_path, use_spatialite=False)
+        if sys.platform == "linux":
+            # Isolate each environment configuration from SQLite's process-global
+            # temp-directory state and any overrides installed by other tests.
+            subprocess_env = os.environ.copy()
+            subprocess_env["GFO_TEST_DATABASE"] = str(database_path)
+            subprocess_env["GFO_TEST_EXPECTED_DIR"] = (
+                str(expected_dir) if expected_dir is not None else ""
+            )
+            subprocess_env["GFO_TEST_OPERATION_DIR"] = str(operation_tmp_dir)
+            if use_gfo_tmpdir and sqlite_tmpdir_mode == "empty":
+                subprocess_env["GFO_TEST_GFO_DIR"] = gfo_tmpdir
+            subprocess_script = """
+import os
+import sqlite3
+from pathlib import Path
+
+def open_temp_file_paths():
+    paths = set()
+    for descriptor in Path("/proc/self/fd").iterdir():
         try:
-            conn.execute("PRAGMA temp_store=FILE")
-            assert conn.execute("PRAGMA temp_store").fetchone()[0] == 1
-            open_files_before = open_file_paths()
-            conn.execute("CREATE TEMP TABLE temp_data (payload BLOB)")
-            conn.execute("INSERT INTO temp_data VALUES (randomblob(16 * 1024 * 1024))")
-            temp_files = {
-                path
-                for path in open_file_paths() - open_files_before
-                if path.name.startswith("etilqs_")
-            }
-            assert temp_files, "SQLite did not create an observable disk TEMP file"
-            actual_dirs = {
-                os.path.normcase(str(path.parent.resolve())) for path in temp_files
-            }
-            if expected_dir is None:
-                # An explicit SQLITE_TMPDIR is external configuration; the SQLite
-                # runtime may apply a higher-priority temp-directory override.
-                operation_tmp_dir_normalized = os.path.normcase(
-                    str(operation_tmp_dir.resolve())
+            target = str(descriptor.readlink())
+        except OSError:
+            continue
+        if target.startswith("/"):
+            paths.add(Path(target.removesuffix(" (deleted)")))
+    return paths
+
+expected_dir = os.environ["GFO_TEST_EXPECTED_DIR"]
+operation_dir = Path(os.environ["GFO_TEST_OPERATION_DIR"]).resolve()
+conn = sqlite3.connect(os.environ["GFO_TEST_DATABASE"])
+try:
+    conn.execute("PRAGMA temp_store=FILE")
+    open_files_before = open_temp_file_paths()
+    conn.execute("CREATE TEMP TABLE temp_data (payload BLOB)")
+    conn.execute("INSERT INTO temp_data VALUES (randomblob(16 * 1024 * 1024))")
+    temp_files = {
+        path for path in open_temp_file_paths() - open_files_before
+        if path.name.startswith("etilqs_")
+    }
+    assert temp_files, "SQLite did not create an observable disk TEMP file"
+    actual_dirs = {path.parent.resolve() for path in temp_files}
+    if expected_dir:
+        assert actual_dirs == {Path(expected_dir).resolve()}
+    else:
+        assert operation_dir not in actual_dirs
+        gfo_dir = os.environ.get("GFO_TEST_GFO_DIR")
+        if gfo_dir:
+            assert Path(gfo_dir).resolve() not in actual_dirs
+finally:
+    conn.close()
+"""
+            subprocess.run(
+                [sys.executable, "-c", subprocess_script],
+                check=True,
+                env=subprocess_env,
+            )
+        elif sys.platform == "win32":
+            conn = sqlite_util.connect(database_path, use_spatialite=False)
+            try:
+                conn.execute("PRAGMA temp_store=FILE")
+                assert conn.execute("PRAGMA temp_store").fetchone()[0] == 1
+                open_files_before = open_file_paths()
+                conn.execute("CREATE TEMP TABLE temp_data (payload BLOB)")
+                conn.execute(
+                    "INSERT INTO temp_data VALUES (randomblob(16 * 1024 * 1024))"
                 )
-                assert operation_tmp_dir_normalized not in actual_dirs
-            else:
-                assert actual_dirs == {os.path.normcase(str(expected_dir.resolve()))}
-        finally:
-            conn.close()
+                temp_files = {
+                    path
+                    for path in open_file_paths() - open_files_before
+                    if path.name.startswith("etilqs_")
+                }
+                assert temp_files, "SQLite did not create an observable disk TEMP file"
+                actual_dirs = {
+                    os.path.normcase(str(path.parent.resolve())) for path in temp_files
+                }
+                if expected_dir is None:
+                    # An explicit SQLITE_TMPDIR is external configuration; the SQLite
+                    # runtime may apply a higher-priority temp-directory override.
+                    operation_tmp_dir_normalized = os.path.normcase(
+                        str(operation_tmp_dir.resolve())
+                    )
+                    assert operation_tmp_dir_normalized not in actual_dirs
+                else:
+                    assert actual_dirs == {
+                        os.path.normcase(str(expected_dir.resolve()))
+                    }
+            finally:
+                conn.close()
     if sys.platform == "win32":
         assert os.environ.get("TMP") == tmp_orig
     assert os.environ.get("TMPDIR") == tmpdir_orig
