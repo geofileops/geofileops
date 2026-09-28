@@ -1510,8 +1510,10 @@ def dissolve(  # noqa: D417
                         f"GROUP BY {', '.join(groupby_prefixed_list)}"
                     )
 
+                    # Using IS for comparison is equivalent to using = for non-null
+                    # values, but it also correctly handles nulls.
                     groupby_filter_list = [
-                        f' AND geo_data."{column}" = json_data."{column}"'
+                        f' AND geo_data."{column}" IS json_data."{column}"'
                         for column in groupby_columns
                     ]
                     groupby_filter_str = " ".join(groupby_filter_list)
