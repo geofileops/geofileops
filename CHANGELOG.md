@@ -14,7 +14,7 @@
 
 - Temporary files created by sqlite are now also placed in the temporary directories
   as used by geofileops. More infromation can be found in the documentation of
-  `set_tmp_dir` (#)
+  `set_tmp_dir` (#840)
 
 ### Bugs fixed
 
