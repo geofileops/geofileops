@@ -201,7 +201,7 @@ def test_sqlite_temp_file_location(tmp_path, sqlite_tmpdir_mode, use_gfo_tmpdir)
         ),
         _general_helper.create_gfo_tmp_dir("sqlite_tmpdir") as operation_tmp_dir,
     ):
-        if sqlite_tmpdir_mode == "set" and (sys.platform == "linux" or use_gfo_tmpdir):
+        if sqlite_tmpdir_mode == "set" and use_gfo_tmpdir and sys.platform == "win32":
             expected_dir = sqlite_tmpdir
         elif sqlite_tmpdir_mode == "unset" and use_gfo_tmpdir:
             expected_dir = operation_tmp_dir
@@ -243,6 +243,8 @@ def test_sqlite_temp_file_location(tmp_path, sqlite_tmpdir_mode, use_gfo_tmpdir)
                 os.path.normcase(str(path.parent.resolve())) for path in temp_files
             }
             if expected_dir is None:
+                # An explicit SQLITE_TMPDIR is external configuration; the SQLite
+                # runtime may apply a higher-priority temp-directory override.
                 operation_tmp_dir_normalized = os.path.normcase(
                     str(operation_tmp_dir.resolve())
                 )
