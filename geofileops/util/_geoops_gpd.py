@@ -1522,13 +1522,32 @@ def dissolve(  # noqa: D417
                     groupby_groupby_prefixed_str = ""
                     groupby_filter_str = ""
 
+                json_groupby_select_str = (
+                    groupby_select_prefixed_str.format(prefix="json_rows.").lstrip(", ")
+                    or "1"
+                )
+                json_rows_groupby_select_str = groupby_select_prefixed_str.format(
+                    prefix="layer_for_json."
+                )
+                json_rows_groupby_clause_str = groupby_groupby_prefixed_str.format(
+                    prefix="json_rows."
+                )
+                use_jsonb = (
+                    agg_columns is not None
+                    and "columns" in agg_columns
+                    and _ogr_util.supports_sqlite_jsonb(output_tmp_path)
+                )
+                json_each_function = "jsonb_each" if use_jsonb else "json_each"
+                json_extract_function = "jsonb_extract" if use_jsonb else "json_extract"
+
                 # Prepare strings to use in select based on agg_columns
                 agg_columns_str = ""
+                json_agg_columns_str = ""
                 if agg_columns is not None:
                     if "json" in agg_columns:
-                        # The aggregation is to a json column, so add
-                        agg_columns_str += (
-                            ",json_group_array(DISTINCT json_data.json_row) as json"
+                        agg_columns_str = ", json_data.json"
+                        json_agg_columns_str = (
+                            ", json_group_array(json_rows.json_row) AS json"
                         )
                     elif "columns" in agg_columns:
                         for agg_column in agg_columns["columns"]:
@@ -1563,15 +1582,16 @@ def dissolve(  # noqa: D417
                             ):
                                 distinct_str = "DISTINCT "
 
-                            # Prepare column name string.
+                            # Prepare column expressions for the outer and inner query.
                             column_str = (
-                                "json_extract(json_data.json_row, "
+                                f"{json_extract_function}(json_rows.json_row, "
                                 f"'$.{agg_column['column']}')"
                             )
 
-                            # Now put everything together
-                            agg_columns_str += (
-                                f", {aggregation_str}({distinct_str}{column_str}"
+                            agg_columns_str += f', json_data."{agg_column["as"]}"'
+                            json_agg_columns_str += (
+                                f", {aggregation_str}({distinct_str}"
+                                f"{column_str}"
                                 f'{extra_param_str}) AS "{agg_column["as"]}"'
                             )
 
@@ -1604,6 +1624,20 @@ def dissolve(  # noqa: D417
                 else:
                     # If agg_columns specified, postprocessing is a bit more
                     # complicated.
+                    json_agg_sql_stmt = f"""
+                        SELECT {json_groupby_select_str}
+                              {json_agg_columns_str}
+                          FROM (
+                            SELECT DISTINCT
+                                   json_rows_table.value AS json_row
+                                   {json_rows_groupby_select_str}
+                              FROM "{{input_layer}}" layer_for_json
+                             CROSS JOIN {json_each_function}(
+                                 layer_for_json.__DISSOLVE_TOJSON, '$'
+                             ) json_rows_table
+                           ) json_rows
+                          {json_rows_groupby_clause_str}
+                    """
                     sql_stmt = f"""
                         SELECT geo_data.{{geometrycolumn}}
                               {groupby_select_prefixed_str.format(prefix="geo_data.")}
@@ -1617,15 +1651,10 @@ def dissolve(  # noqa: D417
                               {groupby_groupby_prefixed_str.format(prefix="layer_geo.")}
                             ) geo_data
                           JOIN (
-                            SELECT DISTINCT json_rows_table.value as json_row
-                                {groupby_select_prefixed_str.format(prefix="layer_for_json.")}
-                              FROM "{{input_layer}}" layer_for_json
-                              CROSS JOIN json_each(
-                                  layer_for_json.__DISSOLVE_TOJSON, '$') json_rows_table
-                            ) json_data
+                            {json_agg_sql_stmt}
+                          ) json_data
                          WHERE 1=1
                             {groupby_filter_str}
-                          {groupby_groupby_prefixed_str.format(prefix="geo_data.")}
                           ORDER BY geo_data.{geoindex_column}
                     """
 
