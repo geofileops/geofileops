@@ -13,7 +13,7 @@
 ### Bugs fixed
 
 - Fix dissolve if a groupby column contains None values and agg_columns is being used
-  (#).
+  (#839).
 
 ## 0.11.4 (2026-07-15)
 
