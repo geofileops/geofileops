@@ -43,7 +43,7 @@ def test_create_gfo_tmp_dir_sqlite_tmpdir_linux(tmp_path, sqlite_tmpdir_orig):
         {"SQLITE_TMPDIR": sqlite_tmpdir_orig, "GFO_TMPDIR": str(tmp_path)}
     ):
         tmpdir_orig = os.environ.get("TMPDIR")
-        with _general_helper.create_gfo_tmp_dir("sqlite_tmpdir", tmp_path) as tmp_dir:
+        with _general_helper.create_gfo_tmp_dir("sqlite_tmpdir", tmp_path):
             expected_sqlite_tmpdir = str(tmp_path) if sqlite_tmpdir_orig is None else ""
             assert os.environ.get("SQLITE_TMPDIR") == expected_sqlite_tmpdir
             assert os.environ.get("TMPDIR") == tmpdir_orig
