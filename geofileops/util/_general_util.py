@@ -25,6 +25,18 @@ class MissingRuntimeDependencyError(RuntimeError):
         super().__init__(self.message)
 
 
+class LeaveTry(Exception):
+    """Exception that can be used to leave a try block.
+
+    Attributes:
+        message (str): Exception message
+    """
+
+    def __init__(self, message):
+        self.message = message
+        super().__init__(self.message)
+
+
 def align_casing(string_to_align: str, strings_to_align_to: Iterable) -> str:
     """Search a string case-insentive in a list of string to align its casing.
 
