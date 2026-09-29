@@ -16,6 +16,7 @@ from geofileops.helpers import _general_helper
 from geofileops.util import (
     _geofileinfo,
     _geoops_gpd,
+    _geoops_gpd_dissolve,
     _geoops_ogr,
     _geoops_sql,
     _io_util,
@@ -124,7 +125,7 @@ def dissolve_within_distance(
         step = 1
         logger.info(f"Step {step} of {nb_steps}")
         diss_path = tmp_dir / "100_diss.gpkg"
-        _geoops_gpd.dissolve(
+        _geoops_gpd_dissolve.dissolve(
             input_path=input_path,
             output_path=diss_path,
             explodecollections=True,
@@ -168,7 +169,7 @@ def dissolve_within_distance(
         step += 1
         logger.info(f"Step {step} of {nb_steps}")
         buff_diss_path = tmp_dir / "120_diss_bufp_diss.gpkg"
-        _geoops_gpd.dissolve(
+        _geoops_gpd_dissolve.dissolve(
             input_path=bufp_path,
             output_path=buff_diss_path,
             explodecollections=True,
@@ -381,7 +382,7 @@ def dissolve_within_distance(
         step += 1
         logger.info(f"Step {step} of {nb_steps}")
         # Apply gridsize for output
-        _geoops_gpd.dissolve(
+        _geoops_gpd_dissolve.dissolve(
             input_path=diss_path,
             output_path=output_path,
             explodecollections=True,
@@ -1241,7 +1242,7 @@ def dissolve(
 
     logger = logging.getLogger("geofileops.dissolve")
     logger.info(f"Start, on {input_path} to {output_path}")
-    return _geoops_gpd.dissolve(
+    return _geoops_gpd_dissolve.dissolve(
         input_path=Path(input_path),
         output_path=Path(output_path),
         explodecollections=explodecollections,
