@@ -964,3 +964,37 @@ def test_dissolve_polygons_aggcolumns_json(tmp_path, agg_columns):
     else:
         # fid_orig column is added in json
         assert len(grasland_json_firstrow) == len(agg_columns["json"]) + 1
+
+
+def test_dissolve_polygons_aggcolumns_json_multiple_tiles(tmp_path):
+    input_path = test_helper.get_testfile("polygon-parcel")
+    output_path = tmp_path / "polygon-parcel-json-multiple-tiles.gpkg"
+    attribute_column = _general_util.align_casing(
+        "lblhfdtlt", gfo.get_layerinfo(input_path).columns
+    )
+
+    gfo.dissolve(
+        input_path=input_path,
+        output_path=output_path,
+        groupby_columns=["GEWASgroep"],
+        agg_columns={"json": [attribute_column]},
+        explodecollections=False,
+        nb_squarish_tiles=2,
+        nb_parallel=2,
+    )
+
+    source_gdf = gfo.read_file(input_path, fid_as_index=True)
+    output_gdf = gfo.read_file(output_path)
+    assert "tile_id" in output_gdf.columns
+
+    for json_value in output_gdf["json"]:
+        json_rows = [json.loads(value) for value in json.loads(json_value)]
+        source_fids = [int(row["fid_orig"]) for row in json_rows]
+        assert len(source_fids) == len(set(source_fids))
+        for json_row in json_rows:
+            source_row = source_gdf.loc[int(json_row["fid_orig"])]
+            source_value = source_row[attribute_column]
+            if pd.isna(source_value):
+                assert json_row[attribute_column] is None
+            else:
+                assert json_row[attribute_column] == source_value

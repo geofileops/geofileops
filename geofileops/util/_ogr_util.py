@@ -112,35 +112,6 @@ def spatialite_version_info() -> dict[str, str]:
     return versions
 
 
-def supports_sqlite_jsonb(path: Path) -> bool:
-    """Check whether the SQLite dialect used by GDAL supports JSONB table functions.
-
-    Args:
-        path (Path): A datasource path that can be opened by GDAL.
-
-    Returns:
-        bool: True if the datasource's SQLite dialect supports ``jsonb_each``.
-    """
-    datasource = gdal.OpenEx(
-        str(path), nOpenFlags=gdal.OF_VECTOR | gdal.OF_READONLY | gdal.OF_SHARED
-    )
-    if datasource is None:
-        return False
-
-    result = None
-    try:
-        result = datasource.ExecuteSQL(
-            "SELECT count(*) FROM jsonb_each('[]')", dialect="SQLITE"
-        )
-        return result is not None
-    except Exception:
-        return False
-    finally:
-        if result is not None:
-            datasource.ReleaseResultSet(result)
-        datasource = None
-
-
 def ogrtype_to_name(ogrtype: int | None) -> str:
     if ogrtype is None:
         return "NONE"

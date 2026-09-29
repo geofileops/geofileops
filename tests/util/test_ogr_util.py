@@ -48,12 +48,6 @@ def test_get_drivers():
     assert "ESRI Shapefile" in drivers
 
 
-def test_supports_sqlite_jsonb():
-    path = test_helper.get_testfile("polygon-parcel")
-
-    assert isinstance(_ogr_util.supports_sqlite_jsonb(path), bool)
-
-
 def test_prepare_gdal_options():
     # Some basic variants that should all be OK
     options_ok = [
