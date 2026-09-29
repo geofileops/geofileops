@@ -15,7 +15,12 @@ import shapely.geometry as sh_geom
 import geofileops as gfo
 from geofileops import GeometryType
 from geofileops._compat import GDAL_GTE_311
-from geofileops.util import _general_util, _geofileinfo, _geoops_gpd, _geoops_sql
+from geofileops.util import (
+    _general_util,
+    _geofileinfo,
+    _geoops_gpd_dissolve,
+    _geoops_sql,
+)
 from geofileops.util._geofileinfo import GeofileInfo
 from geofileops.util._geopath_util import GeoPath
 from tests import test_helper
@@ -1016,24 +1021,26 @@ def test_dissolve_source_fid_relations(tmp_path):
     gfo.to_file(source_gdf, source_path, layer="data")
     gfo.to_file(destination_gdf, destination_path, layer="data")
 
-    _geoops_gpd._write_dissolve_source_fids(
+    _geoops_gpd_dissolve._write_dissolve_source_fids(
         source_path,
         source_gdf,
         relation_column,
         {"source-1": {10, 11}},
     )
-    _geoops_gpd._write_dissolve_source_fids(
+    _geoops_gpd_dissolve._write_dissolve_source_fids(
         destination_path,
         destination_gdf,
         relation_column,
         {"destination-1": {20}},
     )
 
-    assert _geoops_gpd._read_dissolve_source_fids(
+    assert _geoops_gpd_dissolve._read_dissolve_source_fids(
         source_path, ["source-1", "missing"]
     ) == {"source-1": {10, 11}}
 
-    _geoops_gpd._append_dissolve_source_fids(source_path, destination_path, "data")
+    _geoops_gpd_dissolve._append_dissolve_source_fids(
+        source_path, destination_path, "data"
+    )
     with sqlite3.connect(destination_path) as connection:
         relations = connection.execute(
             "SELECT dissolved_id, original_fid "
