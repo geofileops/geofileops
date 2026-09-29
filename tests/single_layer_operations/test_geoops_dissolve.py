@@ -2,6 +2,7 @@
 
 import json
 import math
+import sqlite3
 from pathlib import Path
 
 import geopandas as gpd
@@ -14,7 +15,7 @@ import shapely.geometry as sh_geom
 import geofileops as gfo
 from geofileops import GeometryType
 from geofileops._compat import GDAL_GTE_311
-from geofileops.util import _general_util, _geofileinfo, _geoops_sql
+from geofileops.util import _general_util, _geofileinfo, _geoops_gpd, _geoops_sql
 from geofileops.util._geofileinfo import GeofileInfo
 from geofileops.util._geopath_util import GeoPath
 from tests import test_helper
@@ -998,3 +999,45 @@ def test_dissolve_polygons_aggcolumns_json_multiple_tiles(tmp_path):
                 assert json_row[attribute_column] is None
             else:
                 assert json_row[attribute_column] == source_value
+
+
+def test_dissolve_source_fid_relations(tmp_path):
+    relation_column = "dissolved_id"
+    source_path = tmp_path / "source.gpkg"
+    destination_path = tmp_path / "destination.gpkg"
+    source_gdf = gpd.GeoDataFrame(
+        {relation_column: ["source-1"], "geometry": [shapely.Point(0, 0)]},
+        crs="EPSG:4326",
+    )
+    destination_gdf = gpd.GeoDataFrame(
+        {relation_column: ["destination-1"], "geometry": [shapely.Point(1, 1)]},
+        crs="EPSG:4326",
+    )
+    gfo.to_file(source_gdf, source_path, layer="data")
+    gfo.to_file(destination_gdf, destination_path, layer="data")
+
+    _geoops_gpd._write_dissolve_source_fids(
+        source_path,
+        source_gdf,
+        relation_column,
+        {"source-1": {10, 11}},
+    )
+    _geoops_gpd._write_dissolve_source_fids(
+        destination_path,
+        destination_gdf,
+        relation_column,
+        {"destination-1": {20}},
+    )
+
+    assert _geoops_gpd._read_dissolve_source_fids(
+        source_path, ["source-1", "missing"]
+    ) == {"source-1": {10, 11}}
+
+    _geoops_gpd._append_dissolve_source_fids(source_path, destination_path, "data")
+    with sqlite3.connect(destination_path) as connection:
+        relations = connection.execute(
+            "SELECT dissolved_id, original_fid "
+            "FROM __gfo_dissolve_source_fids "
+            "ORDER BY dissolved_id, original_fid"
+        ).fetchall()
+    assert relations == [("destination-1", 20), ("source-1", 10), ("source-1", 11)]

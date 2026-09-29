@@ -39,6 +39,7 @@ from geofileops.util import (
     _geoops_sql,
     _geoseries_util,
     _io_util,
+    _ogr_sql_util,
     _ogr_util,
     _processing_util,
 )
@@ -1332,7 +1333,7 @@ def dissolve(  # noqa: D417
             result_tiles_gdf["tile_id"] = result_tiles_gdf.reset_index().index
         if agg_columns is not None and len(result_tiles_gdf) > 1:
             existing_columns = set(input_layer.columns)
-            dissolved_id_column = _get_unique_columnname(
+            dissolved_id_column = _ogr_sql_util.get_unique_columnname(
                 "__gfo_dissolved_id", existing_columns
             )
 
@@ -1732,7 +1733,6 @@ def dissolve(  # noqa: D417
                     options["LAYER_CREATION.SPATIAL_INDEX"] = False
                 output_tmp_final_path = tmp_dir / name
 
-                start = datetime.now()
                 _ogr_util.vector_translate(
                     input_path=output_tmp_path,
                     output_path=output_tmp_final_path,
@@ -1743,11 +1743,9 @@ def dissolve(  # noqa: D417
                     explodecollections=explodecollections,
                     options=options,
                 )
-                logger.info(f"Attribute aggregations took {datetime.now() - start}")
 
                 # We still need to apply the where_post filter
                 if where_post is not None:
-                    start = datetime.now()
                     name = f"output_tmp3_where_{GeoPath(output_path).suffix_full}"
                     output_tmp_local_path = tmp_dir / name
                     tmp_info = gfo.get_layerinfo(output_tmp_final_path, output_layer)
@@ -1768,18 +1766,15 @@ def dissolve(  # noqa: D417
                         sql_dialect="SQLITE",
                     )
                     output_tmp_final_path = output_tmp_local_path
-                    logger.info(f"Where post filter took {datetime.now() - start}")
 
                 # Zip if needed
                 if (
                     output_path.suffix.lower() == ".zip"
                     and output_tmp_final_path.suffix.lower() != ".zip"
                 ):
-                    start = datetime.now()
                     zipped_path = Path(f"{output_tmp_final_path.as_posix()}.zip")
                     fileops.zip_geofile(output_tmp_final_path, zipped_path)
                     output_tmp_final_path = zipped_path
-                    logger.info(f"Zipping took {datetime.now() - start}")
 
                 # Now we are ready to move the result to the final spot...
                 gfo.move(output_tmp_final_path, output_path)
@@ -1804,18 +1799,6 @@ def _dissolve_group_key(row: pd.Series, groupby_columns: list[str] | None) -> tu
     return tuple(key)
 
 
-def _get_unique_columnname(column_name: str, existing_columns: Iterable[str]) -> str:
-    """Return a case-insensitively unique column name, adding a numeric suffix."""
-    existing_columns_lower = {column.lower() for column in existing_columns}
-    existing_columns_lower.add("fid")
-    candidate = column_name
-    suffix = 0
-    while candidate.lower() in existing_columns_lower:
-        suffix += 1
-        candidate = f"{column_name}_{suffix}"
-    return candidate
-
-
 def _copy_aggregation_attributes(
     input_path: Path,
     output_path: Path,
@@ -1824,7 +1807,6 @@ def _copy_aggregation_attributes(
     groupby_columns: list[str],
 ) -> None:
     """Copy source attributes once into the temporary dissolve GeoPackage."""
-    start = datetime.now()
     if "columns" in agg_columns:
         aggregation_columns = {
             agg_column["column"] for agg_column in agg_columns["columns"]
@@ -1879,7 +1861,6 @@ def _copy_aggregation_attributes(
             connection.commit()
         finally:
             connection.close()
-    logger.info(f"Created dissolve attribute table in {datetime.now() - start}")
 
 
 def _read_dissolve_source_fids(
