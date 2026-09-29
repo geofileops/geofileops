@@ -2323,14 +2323,16 @@ def _dissolve_polygons(
 
     perfinfo["time_dissolve"] = (datetime.now() - start_dissolve).total_seconds()
 
-    source_fids_by_dissolved_id: dict[str, set[int]] = {}
+    output_source_fids_by_dissolved_id: dict[str, set[int]] = {}
     if dissolved_id_column is not None:
         dissolved_ids = [uuid.uuid4().hex for _ in range(len(diss_gdf))]
         diss_gdf[dissolved_id_column] = dissolved_ids
         for _, row in diss_gdf.iterrows():
             dissolved_id = row[dissolved_id_column]
             group_key = _dissolve_group_key(row, groupby_columns)
-            source_fids_by_dissolved_id[dissolved_id] = source_fids_by_group[group_key]
+            output_source_fids_by_dissolved_id[dissolved_id] = source_fids_by_group[
+                group_key
+            ]
 
     if "index" in diss_gdf.columns and (
         groupby_columns is None or "index" not in groupby_columns
@@ -2420,7 +2422,7 @@ def _dissolve_polygons(
                 output_onborder_path,
                 onborder_gdf,
                 dissolved_id_column,
-                source_fids_by_dissolved_id,
+                output_source_fids_by_dissolved_id,
             )
 
     if len(notonborder_gdf) > 0:
@@ -2459,7 +2461,7 @@ def _dissolve_polygons(
                 output_notonborder_path,
                 notonborder_gdf,
                 dissolved_id_column,
-                source_fids_by_dissolved_id,
+                output_source_fids_by_dissolved_id,
             )
 
     perfinfo["time_to_file"] = (datetime.now() - start_to_file).total_seconds()
