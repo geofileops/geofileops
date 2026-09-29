@@ -5,13 +5,14 @@
 ### Deprecations and compatibility notes
 
 - In get_layerstyles, return a list of dataclasses instead of as dataframe (#833)
-- For `copy`, the default value of `keep_permissions` is now `False` (#838).
+- For `copy`, the default value of `keep_permissions` is now `False` (#838)
 - For `move`, if moving the file while keeping permissions and metadata fails, the
   default behaviour is now that the file is moved without retaining them. This behaviour
   can be chosen using the new `on_keep_permissions_error` parameter. (#838)
 
 ### Improvements
 
+- Make `dissolve` with `agg_columns` faster and more efficient (#841)
 - Temporary files created by sqlite are now also placed in the temporary directories
   as used by geofileops. More information can be found in the documentation of
   `set_tmp_dir` (#840)

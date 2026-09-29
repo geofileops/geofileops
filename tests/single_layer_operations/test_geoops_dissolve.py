@@ -2,6 +2,7 @@
 
 import json
 import math
+import sqlite3
 from pathlib import Path
 
 import geopandas as gpd
@@ -14,7 +15,7 @@ import shapely.geometry as sh_geom
 import geofileops as gfo
 from geofileops import GeometryType
 from geofileops._compat import GDAL_GTE_311
-from geofileops.util import _general_util, _geofileinfo, _geoops_sql
+from geofileops.util import _general_util, _geofileinfo, _geoops_gpd, _geoops_sql
 from geofileops.util._geofileinfo import GeofileInfo
 from geofileops.util._geopath_util import GeoPath
 from tests import test_helper
@@ -964,3 +965,79 @@ def test_dissolve_polygons_aggcolumns_json(tmp_path, agg_columns):
     else:
         # fid_orig column is added in json
         assert len(grasland_json_firstrow) == len(agg_columns["json"]) + 1
+
+
+def test_dissolve_polygons_aggcolumns_json_multiple_tiles(tmp_path):
+    input_path = test_helper.get_testfile("polygon-parcel")
+    output_path = tmp_path / "polygon-parcel-json-multiple-tiles.gpkg"
+    attribute_column = _general_util.align_casing(
+        "lblhfdtlt", gfo.get_layerinfo(input_path).columns
+    )
+
+    gfo.dissolve(
+        input_path=input_path,
+        output_path=output_path,
+        groupby_columns=["GEWASgroep"],
+        agg_columns={"json": [attribute_column]},
+        explodecollections=False,
+        nb_squarish_tiles=2,
+        nb_parallel=2,
+    )
+
+    source_gdf = gfo.read_file(input_path, fid_as_index=True)
+    output_gdf = gfo.read_file(output_path)
+    assert "tile_id" in output_gdf.columns
+
+    for json_value in output_gdf["json"]:
+        json_rows = [json.loads(value) for value in json.loads(json_value)]
+        source_fids = [int(row["fid_orig"]) for row in json_rows]
+        assert len(source_fids) == len(set(source_fids))
+        for json_row in json_rows:
+            source_row = source_gdf.loc[int(json_row["fid_orig"])]
+            source_value = source_row[attribute_column]
+            if pd.isna(source_value):
+                assert json_row[attribute_column] is None
+            else:
+                assert json_row[attribute_column] == source_value
+
+
+def test_dissolve_source_fid_relations(tmp_path):
+    relation_column = "dissolved_id"
+    source_path = tmp_path / "source.gpkg"
+    destination_path = tmp_path / "destination.gpkg"
+    source_gdf = gpd.GeoDataFrame(
+        {relation_column: ["source-1"], "geometry": [shapely.Point(0, 0)]},
+        crs="EPSG:4326",
+    )
+    destination_gdf = gpd.GeoDataFrame(
+        {relation_column: ["destination-1"], "geometry": [shapely.Point(1, 1)]},
+        crs="EPSG:4326",
+    )
+    gfo.to_file(source_gdf, source_path, layer="data")
+    gfo.to_file(destination_gdf, destination_path, layer="data")
+
+    _geoops_gpd._write_dissolve_source_fids(
+        source_path,
+        source_gdf,
+        relation_column,
+        {"source-1": {10, 11}},
+    )
+    _geoops_gpd._write_dissolve_source_fids(
+        destination_path,
+        destination_gdf,
+        relation_column,
+        {"destination-1": {20}},
+    )
+
+    assert _geoops_gpd._read_dissolve_source_fids(
+        source_path, ["source-1", "missing"]
+    ) == {"source-1": {10, 11}}
+
+    _geoops_gpd._append_dissolve_source_fids(source_path, destination_path, "data")
+    with sqlite3.connect(destination_path) as connection:
+        relations = connection.execute(
+            "SELECT dissolved_id, original_fid "
+            "FROM __gfo_dissolve_source_fids "
+            "ORDER BY dissolved_id, original_fid"
+        ).fetchall()
+    assert relations == [("destination-1", 20), ("source-1", 10), ("source-1", 11)]

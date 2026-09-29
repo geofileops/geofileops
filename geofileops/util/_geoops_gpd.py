@@ -8,7 +8,9 @@ import logging.config
 import math
 import multiprocessing
 import pickle
+import sqlite3
 import time
+import uuid
 import warnings
 from collections.abc import Callable, Iterable
 from concurrent import futures
@@ -30,7 +32,6 @@ from shapely.geometry.base import BaseGeometry
 
 import geofileops as gfo
 from geofileops import LayerInfo, fileops
-from geofileops._compat import PANDAS_GTE_22
 from geofileops.helpers import _general_helper, _parameter_helper
 from geofileops.helpers._options import ConfigOptions
 from geofileops.util import (
@@ -38,6 +39,7 @@ from geofileops.util import (
     _geoops_sql,
     _geoseries_util,
     _io_util,
+    _ogr_sql_util,
     _ogr_util,
     _processing_util,
 )
@@ -255,8 +257,8 @@ class ProcessingParams:
 
     def to_json(self, path: Path) -> None:
         prepared = _general_util.prepare_for_serialize(vars(self))
-        with path.open("w") as file:
-            file.write(json.dumps(prepared, indent=4, sort_keys=True))
+        with path.open("w", encoding="utf-8") as file:
+            json.dump(prepared, file, indent=4, sort_keys=True)
 
 
 def _prepare_processing_params(
@@ -1146,38 +1148,13 @@ def dissolve(  # noqa: D417
       - To be able to correctly perform attribute aggregations, they can only be
         determined after all tiles and passes have been finished, as the information
         from multiple tiles over multiple passes might have to be combined.
-      - Hence, all needed data (columns and values) is stored in intermediate/temporary
-        results so it can be all combined at the end.
-      - In practice, during the first calculation pass, all relevant columns and values
-        as well as the original fid of the geometries are serialized as a JSON string
-        for each input geometry. When a geometry is dissolved with another geometry in
-        this pass, their json strings are concatenated to a list. This way, all data is
-        retained. An example of a JSON string list for 2 dissolved geometries:
-            [{"fid_orig": 1, "area": 10.0}, {"fid_orig": 2, "area": 5.0}]
-      - When geometries are merged in a following dissolve pass, the lists of JSON
-        strings will be concatenated so all data is always retained. If a geometry was
-        on the border of 2 tiles, this can result in multiple identical JSON strings. In
-        the following example, fid_orig 1 was on the border of 2 tiles and was dissolved
-        again in a following pass, leading to the following JSON string list:
-            [
-                {"fid_orig": 1, "area": 10.0},
-                {"fid_orig": 1, "area": 10.0},
-                {"fid_orig": 2, "area": 5.0},
-            ]
-      - When all passes are done, meaning everything is glued together and all attribute
-        JSON strings are combined in one big list for each final geometry, the attribute
-        aggregations can be performed.
-      - When an original geometry was on the boundary of 2 (or more) tiles in the first
-        pass, like in the example above, the aggregation has to ignore the resulting
-        duplicate atttribute JSON strings. Otherwise a e.g. "SUM" aggregate will
-        double-count values.
-      - The `fid_orig` with the original `fid` from the source file is included for this
-        reason. The `fid_orig` and all attributes of such split geometries will be the
-        same. The `fid_orig` of other geometries that were actually dissolved will
-        always be different. Hence, a simple "distinct" on the JSON strings will result
-        in the correct list of JSON strings that should be used to base the agregations
-        on. The only caveat is that the order of the columns in the JSON strings always
-        needs to be the same.
+      - Polygon column and JSON aggregations copy source attributes once; geometry
+        passes carry FIDs rather than serialized attribute values.
+      - Multi-tile runs map temporary geometry IDs to source FIDs across workers
+        and passes.
+      - Finalization joins attributes by FID and groups by dissolve keys and tile.
+      - Distinct FIDs prevent recounting features split across processing tiles.
+      - JSON strings are built at finalization and include source FIDs.
 
     Only arguments specific to the internal dissolve operation are documented here.
     For the other arguments, check out the corresponding function in geoops.py.
@@ -1206,6 +1183,7 @@ def dissolve(  # noqa: D417
         elif len(groupby_columns) == 0:
             # If an empty list of geometry columns is passed, convert it to None
             groupby_columns = None
+    source_groupby_columns = list(groupby_columns or [])
 
     if input_path == output_path:
         raise ValueError("output_path must not equal input_path")
@@ -1240,8 +1218,8 @@ def dissolve(  # noqa: D417
             columns_available, groupby_columns, raise_on_missing=False
         )
 
-    # Check agg_columns param
     if agg_columns is not None:
+        # Check agg_columns param
         # Validate the dict structure, so we can assume everything is OK further on
         _parameter_helper.validate_agg_columns(agg_columns)
 
@@ -1265,6 +1243,8 @@ def dissolve(  # noqa: D417
                 agg_column["column"] = _general_util.align_casing(
                     agg_column["column"], columns_available
                 )
+
+    dissolved_id_column = None
 
     # Check what we need to do in an error occurs
     on_data_error = ConfigOptions.get_on_data_error
@@ -1351,6 +1331,11 @@ def dissolve(  # noqa: D417
         # If a tiled result is asked, add tile_id to group on for the result
         if len(result_tiles_gdf) > 1:
             result_tiles_gdf["tile_id"] = result_tiles_gdf.reset_index().index
+        if agg_columns is not None and len(result_tiles_gdf) > 1:
+            existing_columns = set(input_layer.columns)
+            dissolved_id_column = _ogr_sql_util.get_unique_columnname(
+                "__gfo_dissolved_id", existing_columns
+            )
 
         # The dissolve for polygons is done in several passes, and after the first
         # pass, only the 'onborder' features are further dissolved, as the
@@ -1450,7 +1435,6 @@ def dissolve(  # noqa: D417
                     output_onborder_path=output_tmp_onborder_path,
                     explodecollections=explodecollections,
                     groupby_columns=groupby_columns,
-                    agg_columns=agg_columns,
                     tiles_gdf=tiles_gdf,
                     input_layer=input_pass_layer,
                     output_layer=output_layer,
@@ -1458,6 +1442,7 @@ def dissolve(  # noqa: D417
                     keep_empty_geoms=False,
                     nb_parallel=nb_parallel,
                     geoindex_column=geoindex_column,
+                    dissolved_id_column=dissolved_id_column,
                     on_data_error=on_data_error,
                 )
                 logger.info(f"Pass {pass_id} ready, took {datetime.now() - pass_start}")
@@ -1490,8 +1475,20 @@ def dissolve(  # noqa: D417
 
             # If there is a result...
             if output_tmp_path.exists():
+                # If aggregation columns are specified, copy them to the temp output
+                # geopackage for easy joining later
+                if agg_columns is not None:
+                    _copy_aggregation_attributes(
+                        input_path=input_path,
+                        output_path=output_tmp_path,
+                        input_layer=input_layer,
+                        agg_columns=agg_columns,
+                        groupby_columns=source_groupby_columns,
+                    )
+
                 # If tiled output asked, add "tile_id" to groupby_columns
-                if len(result_tiles_gdf) > 1:
+                has_output_tile_id = len(result_tiles_gdf) > 1
+                if has_output_tile_id:
                     if groupby_columns is None:
                         groupby_columns = ["tile_id"]
                     else:
@@ -1524,11 +1521,68 @@ def dissolve(  # noqa: D417
 
                 # Prepare strings to use in select based on agg_columns
                 agg_columns_str = ""
+                json_agg_columns_str = ""
                 if agg_columns is not None:
+                    if dissolved_id_column is not None:
+                        json_rows_value_str = "source_fids.original_fid AS original_fid"
+                        if has_output_tile_id:
+                            json_rows_value_str += (
+                                ', layer_for_json."tile_id" AS tile_id'
+                            )
+                        quoted_id_column = dissolved_id_column.replace('"', '""')
+                        json_rows_join_str = (
+                            'JOIN "__gfo_dissolve_attributes" attributes '
+                            'ON attributes."original_fid" = json_rows.original_fid'
+                        )
+                        json_rows_expand_str = (
+                            'JOIN "__gfo_dissolve_source_fids" source_fids '
+                            f"ON source_fids.dissolved_id = "
+                            f'layer_for_json."{quoted_id_column}"'
+                        )
+                        attribute_groupby_columns = [
+                            f'attributes."{column}"'
+                            for column in source_groupby_columns
+                        ]
+                        if has_output_tile_id:
+                            attribute_groupby_columns.append('json_rows."tile_id"')
+                        json_rows_groupby_select_str = ""
+                    else:
+                        attribute_groupby_columns = [
+                            f'attributes."{column}"'
+                            for column in source_groupby_columns
+                        ]
+
+                    json_groupby_select_str = (
+                        ", ".join(attribute_groupby_columns) or "1"
+                    )
+                    json_rows_groupby_clause_str = (
+                        f"GROUP BY {', '.join(attribute_groupby_columns)}"
+                        if attribute_groupby_columns
+                        else ""
+                    )
+
                     if "json" in agg_columns:
-                        # The aggregation is to a json column, so add
-                        agg_columns_str += (
-                            ",json_group_array(DISTINCT json_data.json_row) as json"
+                        agg_columns_str = ", json_data.json"
+                        json_fid_key = "fid_orig"
+                        json_columns = agg_columns["json"]
+                        for suffix in range(1, 100000):
+                            if json_fid_key not in json_columns:
+                                break
+                            json_fid_key = f"fid_orig{suffix}"
+                        json_object_fields = [
+                            f"'{json_fid_key}', attributes.\"original_fid\""
+                        ]
+                        for column in json_columns:
+                            quoted_column = column.replace('"', '""')
+                            quoted_json_key = column.replace("'", "''")
+                            json_object_fields.append(
+                                f"'{quoted_json_key}', attributes.\"{quoted_column}\""
+                            )
+                        json_row_str = (
+                            f"(json_object({', '.join(json_object_fields)}) || '')"
+                        )
+                        json_agg_columns_str = (
+                            f", json_group_array({json_row_str}) AS json"
                         )
                     elif "columns" in agg_columns:
                         for agg_column in agg_columns["columns"]:
@@ -1563,15 +1617,14 @@ def dissolve(  # noqa: D417
                             ):
                                 distinct_str = "DISTINCT "
 
-                            # Prepare column name string.
-                            column_str = (
-                                "json_extract(json_data.json_row, "
-                                f"'$.{agg_column['column']}')"
-                            )
+                            # Prepare column expressions for the outer and inner query.
+                            quoted_column = agg_column["column"].replace('"', '""')
+                            column_str = f'attributes."{quoted_column}"'
 
-                            # Now put everything together
-                            agg_columns_str += (
-                                f", {aggregation_str}({distinct_str}{column_str}"
+                            agg_columns_str += f', json_data."{agg_column["as"]}"'
+                            json_agg_columns_str += (
+                                f", {aggregation_str}({distinct_str}"
+                                f"{column_str}"
                                 f'{extra_param_str}) AS "{agg_column["as"]}"'
                             )
 
@@ -1604,6 +1657,27 @@ def dissolve(  # noqa: D417
                 else:
                     # If agg_columns specified, postprocessing is a bit more
                     # complicated.
+                    if dissolved_id_column is None:
+                        json_agg_sql_stmt = f"""
+                            SELECT {json_groupby_select_str}
+                                  {json_agg_columns_str}
+                              FROM "__gfo_dissolve_attributes" attributes
+                              {json_rows_groupby_clause_str}
+                        """
+                    else:
+                        json_agg_sql_stmt = f"""
+                            SELECT {json_groupby_select_str}
+                                  {json_agg_columns_str}
+                              FROM (
+                                SELECT DISTINCT
+                                    {json_rows_value_str}
+                                       {json_rows_groupby_select_str}
+                                  FROM "{{input_layer}}" layer_for_json
+                                 {json_rows_expand_str}
+                               ) json_rows
+                                {json_rows_join_str}
+                              {json_rows_groupby_clause_str}
+                        """
                     sql_stmt = f"""
                         SELECT geo_data.{{geometrycolumn}}
                               {groupby_select_prefixed_str.format(prefix="geo_data.")}
@@ -1617,15 +1691,10 @@ def dissolve(  # noqa: D417
                               {groupby_groupby_prefixed_str.format(prefix="layer_geo.")}
                             ) geo_data
                           JOIN (
-                            SELECT DISTINCT json_rows_table.value as json_row
-                                {groupby_select_prefixed_str.format(prefix="layer_for_json.")}
-                              FROM "{{input_layer}}" layer_for_json
-                              CROSS JOIN json_each(
-                                  layer_for_json.__DISSOLVE_TOJSON, '$') json_rows_table
-                            ) json_data
+                            {json_agg_sql_stmt}
+                          ) json_data
                          WHERE 1=1
                             {groupby_filter_str}
-                          {groupby_groupby_prefixed_str.format(prefix="geo_data.")}
                           ORDER BY geo_data.{geoindex_column}
                     """
 
@@ -1718,13 +1787,206 @@ def dissolve(  # noqa: D417
         )
 
 
+def _dissolve_group_key(row: pd.Series, groupby_columns: list[str] | None) -> tuple:
+    key = []
+    for column in groupby_columns or []:
+        value = row[column]
+        if pd.isna(value):
+            value = None
+        elif isinstance(value, np.generic):
+            value = value.item()
+        key.append(value)
+    return tuple(key)
+
+
+def _copy_aggregation_attributes(
+    input_path: Path,
+    output_path: Path,
+    input_layer: LayerInfo,
+    agg_columns: dict,
+    groupby_columns: list[str],
+) -> None:
+    """Copy source attributes once into the temporary dissolve GeoPackage."""
+    if "columns" in agg_columns:
+        aggregation_columns = {
+            agg_column["column"] for agg_column in agg_columns["columns"]
+        }
+    else:
+        aggregation_columns = set(agg_columns["json"])
+    attribute_columns = sorted(aggregation_columns | set(groupby_columns))
+
+    def quote_identifier(identifier: str) -> str:
+        return f'"{identifier.replace(chr(34), chr(34) * 2)}"'
+
+    attributes_table = quote_identifier("__gfo_dissolve_attributes")
+    orig_fid_columns = quote_identifier("original_fid")
+    if input_path.suffix.lower() != ".gpkg":
+        attribute_columns_sql = ", ".join(
+            quote_identifier(column) for column in attribute_columns
+        )
+        sql_stmt = (
+            f"SELECT FID AS {orig_fid_columns}, {attribute_columns_sql} "
+            f"FROM {quote_identifier(input_layer.name)}"
+        )
+        gfo.copy_layer(
+            src=input_path,
+            dst=output_path,
+            dst_layer="__gfo_dissolve_attributes",
+            write_mode="add_layer",
+            sql_stmt=sql_stmt,
+            sql_dialect="OGRSQL",
+            force_output_geometrytype="NONE",
+            create_spatial_index=False,
+        )
+    else:
+        fid_column = quote_identifier(input_layer.fid_column)
+        source_table = quote_identifier(input_layer.name)
+        attribute_columns_sql = ", ".join(
+            quote_identifier(column) for column in attribute_columns
+        )
+
+        connection = sqlite3.connect(output_path)
+        try:
+            connection.execute("ATTACH DATABASE ? AS source_data", (str(input_path),))
+            connection.execute(
+                f"CREATE TABLE {attributes_table} AS "
+                f"SELECT {fid_column} AS {orig_fid_columns}, "
+                f"{attribute_columns_sql} "
+                f"FROM source_data.{source_table}"
+            )
+            connection.execute(
+                f'CREATE UNIQUE INDEX "idx_gfo_dissolve_attributes_original_fid" '
+                f"ON {attributes_table} ({orig_fid_columns})"
+            )
+            connection.commit()
+        finally:
+            connection.close()
+
+
+def _read_dissolve_source_fids(
+    input_path: Path, dissolved_ids: Iterable[str]
+) -> dict[str, set[int]]:
+    """Read source FIDs associated with dissolved geometry IDs."""
+    source_fids_by_dissolved_id: dict[str, set[int]] = {}
+    dissolved_ids = list(dissolved_ids)
+    if len(dissolved_ids) == 0:
+        return source_fids_by_dissolved_id
+
+    connection = sqlite3.connect(input_path)
+    try:
+        connection.execute(
+            "CREATE TEMP TABLE requested_dissolved_ids (dissolved_id TEXT)"
+        )
+        connection.executemany(
+            "INSERT INTO requested_dissolved_ids VALUES (?)",
+            ((dissolved_id,) for dissolved_id in dissolved_ids),
+        )
+        for dissolved_id, original_fid in connection.execute(
+            """
+            SELECT source_fids.dissolved_id, source_fids.original_fid
+              FROM __gfo_dissolve_source_fids source_fids
+              JOIN requested_dissolved_ids requested
+                ON requested.dissolved_id = source_fids.dissolved_id
+            """
+        ):
+            source_fids_by_dissolved_id.setdefault(dissolved_id, set()).add(
+                original_fid
+            )
+    finally:
+        connection.close()
+    return source_fids_by_dissolved_id
+
+
+def _write_dissolve_source_fids(
+    output_path: Path,
+    output_gdf: gpd.GeoDataFrame,
+    dissolved_id_column: str,
+    source_fids_by_dissolved_id: dict[str, set[int]],
+) -> None:
+    """Persist dissolved-ID-to-source-FID relations in a worker GeoPackage."""
+    dissolved_ids = output_gdf[dissolved_id_column].dropna().unique()
+    records = [
+        (dissolved_id, original_fid)
+        for dissolved_id in dissolved_ids
+        for original_fid in source_fids_by_dissolved_id[dissolved_id]
+    ]
+    if not records:
+        return
+
+    connection = sqlite3.connect(output_path)
+    try:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS __gfo_dissolve_source_fids (
+                dissolved_id TEXT NOT NULL,
+                original_fid INTEGER NOT NULL,
+                PRIMARY KEY (dissolved_id, original_fid)
+            )
+            """
+        )
+        connection.executemany(
+            "INSERT OR IGNORE INTO __gfo_dissolve_source_fids VALUES (?, ?)", records
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def _append_dissolve_source_fids(
+    source_path: Path, destination_path: Path, layer_name: str | None
+) -> None:
+    """Append a worker's dissolved-ID-to-source-FID relations to a shared GeoPackage."""
+    connection = sqlite3.connect(destination_path)
+    try:
+        connection.execute("ATTACH DATABASE ? AS source_data", (str(source_path),))
+        source_has_relation = connection.execute(
+            """
+            SELECT 1 FROM source_data.sqlite_master
+             WHERE type='table' AND name='__gfo_dissolve_source_fids'
+            """
+        ).fetchone()
+        if source_has_relation is None:
+            if layer_name is None:
+                raise RuntimeError(
+                    "Layer name required to validate an empty source-FID relation"
+                )
+            quoted_layer = layer_name.replace('"', '""')
+            row_count = connection.execute(
+                f'SELECT count(*) FROM source_data."{quoted_layer}"'
+            ).fetchone()[0]
+            if row_count > 0:
+                raise RuntimeError(
+                    f"Missing dissolve source-FID relation table in {source_path}"
+                )
+            return
+
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS __gfo_dissolve_source_fids (
+                dissolved_id TEXT NOT NULL,
+                original_fid INTEGER NOT NULL,
+                PRIMARY KEY (dissolved_id, original_fid)
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT OR IGNORE INTO __gfo_dissolve_source_fids
+            SELECT dissolved_id, original_fid
+              FROM source_data.__gfo_dissolve_source_fids
+            """
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
 def _dissolve_polygons_pass(
     input_path: Path,
     output_notonborder_path: Path,
     output_onborder_path: Path,
     explodecollections: bool,
     groupby_columns: Iterable[str] | None,
-    agg_columns: dict | None,
     tiles_gdf: gpd.GeoDataFrame,
     input_layer: str | LayerInfo | None,
     output_layer: str | None,
@@ -1732,6 +1994,7 @@ def _dissolve_polygons_pass(
     keep_empty_geoms: bool,
     nb_parallel: int,
     geoindex_column: str,
+    dissolved_id_column: str | None,
     on_data_error: str = "raise",
 ) -> None:
     start_time = datetime.now()
@@ -1794,7 +2057,6 @@ def _dissolve_polygons_pass(
                 output_onborder_path=output_onborder_tmp_partial_path,
                 explodecollections=explodecollections,
                 groupby_columns=groupby_columns,
-                agg_columns=agg_columns,
                 input_geometrytype=input_layer.geometrytype,
                 input_layer=input_layer,
                 output_layer=output_layer,
@@ -1803,6 +2065,7 @@ def _dissolve_polygons_pass(
                 gridsize=gridsize,
                 keep_empty_geoms=keep_empty_geoms,
                 geoindex_column=geoindex_column,
+                dissolved_id_column=dissolved_id_column,
                 on_data_error=on_data_error,
             )
             future_to_batch_id[future] = batch_id
@@ -1861,6 +2124,12 @@ def _dissolve_polygons_pass(
                                 create_spatial_index=False,
                                 preserve_fid=False,
                             )
+                            if dissolved_id_column is not None:
+                                _append_dissolve_source_fids(
+                                    output_notonborder_tmp_partial_path,
+                                    output_notonborder_path,
+                                    output_layer,
+                                )
                             gfo.remove(output_notonborder_tmp_partial_path)
 
                     # If calculate gave onborder results, append to output
@@ -1886,6 +2155,12 @@ def _dissolve_polygons_pass(
                                 create_spatial_index=False,
                                 preserve_fid=False,
                             )
+                            if dissolved_id_column is not None:
+                                _append_dissolve_source_fids(
+                                    output_onborder_tmp_partial_path,
+                                    output_onborder_path,
+                                    output_layer,
+                                )
                             gfo.remove(output_onborder_tmp_partial_path)
 
             except Exception as ex:  # pragma: no cover
@@ -1907,7 +2182,6 @@ def _dissolve_polygons(
     output_onborder_path: Path,
     explodecollections: bool,
     groupby_columns: Iterable[str] | None,
-    agg_columns: dict | None,
     input_geometrytype: GeometryType,
     input_layer: str | LayerInfo | None,
     output_layer: str | None,
@@ -1916,6 +2190,7 @@ def _dissolve_polygons(
     gridsize: float,
     keep_empty_geoms: bool,
     geoindex_column: str | None,
+    dissolved_id_column: str | None,
     on_data_error: str = "raise",
 ) -> dict:
     # Init
@@ -1936,7 +2211,7 @@ def _dissolve_polygons(
     # Read all records that are in the bbox
     retry_count = 0
     start_read = datetime.now()
-    agg_columns_needed = None
+    source_fids_by_group: dict[tuple, set[int]] = {}
     groupby_columns = list(groupby_columns) if groupby_columns is not None else None
     while True:
         try:
@@ -1945,30 +2220,13 @@ def _dissolve_polygons(
                 input_layer = gfo.get_layerinfo(input_path, input_layer)
             if groupby_columns is not None:
                 columns_to_read.update(groupby_columns)
-            fid_as_index = False
-            if agg_columns is not None:
-                fid_as_index = True
-                if "__DISSOLVE_TOJSON" in input_layer.columns:
-                    # If we are not in the first pass, the columns to be read
-                    # are already in the json column
-                    columns_to_read.add("__DISSOLVE_TOJSON")
-                else:
-                    # The first pass, so read all relevant columns to code them in json
-                    if "json" in agg_columns:
-                        agg_columns_needed = list(agg_columns["json"])
-                    elif "columns" in agg_columns:
-                        agg_columns_needed = [
-                            agg_column["column"]
-                            for agg_column in agg_columns["columns"]
-                        ]
-
-                        # Avoid reading/saving needed columns multiple times.
-                        # The order of the columns should always be the same in the json
-                        # to be able to filter distinct rows efficiently, so sort them,
-                        # as a set gives a different order from run to run.
-                        agg_columns_needed = sorted(set(agg_columns_needed))
-                    if agg_columns_needed is not None:
-                        columns_to_read.update(agg_columns_needed)
+            fid_as_index = dissolved_id_column is not None
+            has_dissolved_id = (
+                dissolved_id_column is not None
+                and dissolved_id_column in input_layer.columns
+            )
+            if dissolved_id_column is not None and has_dissolved_id:
+                columns_to_read.add(dissolved_id_column)
 
             input_gdf = gfo.read_file(
                 path=input_path,
@@ -1978,17 +2236,26 @@ def _dissolve_polygons(
                 fid_as_index=fid_as_index,
             )
 
-            if agg_columns is not None and agg_columns_needed is not None:
-                # The fid should be added as well, but make name unique
-                fid_orig_column = "fid_orig"
-                for idx in range(99999):
-                    if idx != 0:
-                        fid_orig_column = f"fid_orig{idx}"
-                    if fid_orig_column not in agg_columns_needed:
-                        break
-
-                input_gdf[fid_orig_column] = input_gdf.index
-                agg_columns_needed.insert(0, fid_orig_column)
+            if dissolved_id_column is not None:
+                if has_dissolved_id:
+                    source_fids_by_dissolved_id = _read_dissolve_source_fids(
+                        input_path,
+                        input_gdf[dissolved_id_column].dropna().astype(str).unique(),
+                    )
+                    for _, row in input_gdf.iterrows():
+                        group_key = _dissolve_group_key(row, groupby_columns)
+                        source_fids = source_fids_by_dissolved_id.get(
+                            str(row[dissolved_id_column]), set()
+                        )
+                        source_fids_by_group.setdefault(group_key, set()).update(
+                            source_fids
+                        )
+                else:
+                    for source_fid, row in input_gdf.iterrows():
+                        group_key = _dissolve_group_key(row, groupby_columns)
+                        source_fids_by_group.setdefault(group_key, set()).add(
+                            int(source_fid)
+                        )
 
             break
         except Exception as ex:  # pragma: no cover
@@ -2012,23 +2279,12 @@ def _dissolve_polygons(
         return return_info
 
     # Now the real processing
-    aggfunc: str | dict | None = None
-    if agg_columns is not None:
-        if "__DISSOLVE_TOJSON" not in input_gdf.columns:
-            # First pass -> put relevant columns in json field.
-            aggfunc = {"to_json": agg_columns_needed}
-        else:
-            # Columns already coded in a json column, so merge json lists
-            aggfunc = "merge_json_lists"
-    else:
-        aggfunc = "first"
-
     start_dissolve = datetime.now()
     try:
         diss_gdf = _dissolve(
             df=input_gdf,
             by=groupby_columns,
-            aggfunc=aggfunc,
+            aggfunc="first",
             as_index=False,
             dropna=False,
             grid_size=gridsize,
@@ -2047,6 +2303,17 @@ def _dissolve_polygons(
             raise ex
 
     perfinfo["time_dissolve"] = (datetime.now() - start_dissolve).total_seconds()
+
+    output_source_fids_by_dissolved_id: dict[str, set[int]] = {}
+    if dissolved_id_column is not None:
+        dissolved_ids = [uuid.uuid4().hex for _ in range(len(diss_gdf))]
+        diss_gdf[dissolved_id_column] = dissolved_ids
+        for _, row in diss_gdf.iterrows():
+            dissolved_id = row[dissolved_id_column]
+            group_key = _dissolve_group_key(row, groupby_columns)
+            output_source_fids_by_dissolved_id[dissolved_id] = source_fids_by_group[
+                group_key
+            ]
 
     if "index" in diss_gdf.columns and (
         groupby_columns is None or "index" not in groupby_columns
@@ -2130,6 +2397,14 @@ def _dissolve_polygons(
             force_multitype=force_multitype,
             create_spatial_index=False,
         )
+        if dissolved_id_column is not None:
+            assert dissolved_id_column is not None
+            _write_dissolve_source_fids(
+                output_onborder_path,
+                onborder_gdf,
+                dissolved_id_column,
+                output_source_fids_by_dissolved_id,
+            )
 
     if len(notonborder_gdf) > 0:
         # Add tile_id to the notonborder_gdf if relevant
@@ -2161,6 +2436,14 @@ def _dissolve_polygons(
             index=False,
             create_spatial_index=False,
         )
+        if dissolved_id_column is not None:
+            assert dissolved_id_column is not None
+            _write_dissolve_source_fids(
+                output_notonborder_path,
+                notonborder_gdf,
+                dissolved_id_column,
+                output_source_fids_by_dissolved_id,
+            )
 
     perfinfo["time_to_file"] = (datetime.now() - start_to_file).total_seconds()
 
@@ -2287,57 +2570,16 @@ def _dissolve(
     # Process non-spatial component
     data = pd.DataFrame(df.drop(columns=df.geometry.name))
 
-    if aggfunc is not None and isinstance(aggfunc, dict) and "to_json" in aggfunc:
-        agg_columns = list(aggfunc["to_json"])
-        agg_data = (
-            data.groupby(**groupby_kwargs)[agg_columns]  # type: ignore[call-overload]
-            .apply(lambda g: g[agg_columns].to_json(orient="records"))
-            .to_frame(name="__DISSOLVE_TOJSON")
+    agg_data = data.groupby(**groupby_kwargs).agg(aggfunc)  # type: ignore[call-overload]
+    # Check if all columns were properly aggregated
+    columns_to_agg = [column for column in data.columns if column not in by_local]
+    if len(columns_to_agg) != len(agg_data.columns):
+        dropped_columns = [
+            column for column in columns_to_agg if column not in agg_data.columns
+        ]
+        raise ValueError(
+            f"Column(s) {dropped_columns} are not supported for aggregation, stop"
         )
-    elif isinstance(aggfunc, str) and aggfunc == "merge_json_lists":
-        # Merge and flatten the json lists in the groups
-        def group_flatten_json_list(g) -> str:  # noqa: ANN001
-            # Evaluate all grouped rows to json objects. This results in a list of
-            # lists of json objects.
-            json_nested_lists = [
-                json.loads(json_values) for json_values in g["__DISSOLVE_TOJSON"]
-            ]
-
-            # Extract the rows from the nested lists + put in a flat list as strings
-            jsonstr_flat = [
-                json.dumps(json_value)
-                for json_values in json_nested_lists
-                for json_value in json_values
-            ]
-
-            # Remove duplicates
-            jsonsstr_distinct = set(jsonstr_flat)
-
-            # Convert the data again to a list of json objects
-            json_distinct = [json.loads(json_value) for json_value in jsonsstr_distinct]
-
-            # Return as json string
-            return json.dumps(json_distinct)
-
-        # Starting from pandas 2.2, include_groups=False should be passed to avoid
-        # warnings
-        kwargs = {"include_groups": False} if PANDAS_GTE_22 else {}
-        agg_data = (
-            data.groupby(**groupby_kwargs)  # type: ignore[call-overload]
-            .apply(group_flatten_json_list, **kwargs)
-            .to_frame(name="__DISSOLVE_TOJSON")
-        )
-    else:
-        agg_data = data.groupby(**groupby_kwargs).agg(aggfunc)  # type: ignore[call-overload]
-        # Check if all columns were properly aggregated
-        columns_to_agg = [column for column in data.columns if column not in by_local]
-        if len(columns_to_agg) != len(agg_data.columns):
-            dropped_columns = [
-                column for column in columns_to_agg if column not in agg_data.columns
-            ]
-            raise ValueError(
-                f"Column(s) {dropped_columns} are not supported for aggregation, stop"
-            )
 
     # Process spatial component
     def merge_geometries(block) -> BaseGeometry:  # noqa: ANN001
