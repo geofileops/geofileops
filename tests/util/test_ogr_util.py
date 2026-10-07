@@ -129,8 +129,9 @@ def test_vector_translate_disk_full_error_includes_disk_space_diagnostics(
     assert "Disk-space diagnostics" in error_text
     assert "Input path" in error_text
     assert "Output path" in error_text
-    assert str(input_path.parent) in error_text
-    assert str(tmp_path) in error_text
+    normalized_error_text = error_text.replace("\\", "/")
+    assert input_path.parent.as_posix() in normalized_error_text
+    assert tmp_path.as_posix() in normalized_error_text
     assert "GeofileOps temp directory" in error_text
     assert "free=12.34 GB" in error_text
     assert "bytes" not in error_text
