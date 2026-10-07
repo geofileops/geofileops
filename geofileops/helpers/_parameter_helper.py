@@ -146,6 +146,7 @@ def validate_params_single_layer(
 def validate_params_two_layers(
     input1_path: Path,
     input2_path: Path | None,
+    *,
     output_path: Path,
     input1_layer: str | LayerInfo | None,
     input2_layer: str | LayerInfo | None,

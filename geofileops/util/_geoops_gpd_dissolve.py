@@ -53,6 +53,7 @@ def dissolve(  # noqa: D417
     input_path: Path,
     output_path: Path,
     groupby_columns: list[str] | str | None = None,
+    *,
     agg_columns: dict | None = None,
     explodecollections: bool = True,
     tiles_path: Path | None = None,
@@ -917,6 +918,7 @@ def _append_dissolve_source_fids(
 
 
 def _dissolve_polygons_pass(
+    *,
     input_path: Path,
     output_notonborder_path: Path,
     output_onborder_path: Path,
@@ -1112,6 +1114,7 @@ def _dissolve_polygons_pass(
 
 
 def _dissolve_polygons(
+    *,
     input_path: Path,
     output_notonborder_path: Path,
     output_onborder_path: Path,
@@ -1410,6 +1413,7 @@ def _dissolve_polygons(
 def _dissolve(
     df: gpd.GeoDataFrame,
     by: str | Iterable[str] | None = None,
+    *,
     aggfunc: str | dict | None = "first",
     as_index: bool = True,
     level: int | Iterable[int] | str | Iterable[str] | None = None,
