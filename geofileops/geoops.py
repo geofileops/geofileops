@@ -1802,8 +1802,8 @@ def simplify(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
     tolerance: float,
-    *,
     algorithm: str | SimplifyAlgorithm = "rdp",
+    *,
     lookahead: int = 8,
     input_layer: str | None = None,
     output_layer: str | None = None,
@@ -3214,14 +3214,14 @@ def join_by_location(
     )
 
 
-def join_nearest(
+def join_nearest(  # noqa: PLR0917
     input1_path: Union[str, "os.PathLike[Any]"],
     input2_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
-    *,
     nb_nearest: int,
     distance: float | None = None,
     expand: bool | None = None,
+    *,
     input1_layer: str | None = None,
     input1_columns: list[str] | None = None,
     input1_columns_prefix: str = "l1_",

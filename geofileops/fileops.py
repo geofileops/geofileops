@@ -2238,9 +2238,9 @@ def read_file_sql(
 def to_file(
     gdf: pd.DataFrame | gpd.GeoDataFrame,
     path: Union[str, "os.PathLike[Any]"],
-    *,
     layer: str | None = None,
     force_output_geometrytype: GeometryType | str | None = None,
+    *,
     force_multitype: bool = False,
     append: bool = False,
     append_timeout_s: int = 600,
