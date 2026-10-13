@@ -252,13 +252,10 @@ def test_remove_spatial_index(tmp_path, with_datasource):
     rtree_shadow_tables = {
         f"{rtree_table}_{suffix}" for suffix in ("node", "parent", "rowid")
     }
+
+    sql_tables = "SELECT name FROM sqlite_master WHERE type = 'table'"
     with sqlite3.connect(src) as conn:
-        tables_before = {
-            row[0]
-            for row in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type = 'table'"
-            )
-        }
+        tables_before = {row[0] for row in conn.execute(sql_tables)}
     assert rtree_shadow_tables <= tables_before
 
     datasource = None
@@ -268,14 +265,11 @@ def test_remove_spatial_index(tmp_path, with_datasource):
     # Remove spatial index and check result
     gfo.remove_spatial_index(src, datasource=datasource)
     assert not gfo.has_spatial_index(src)
+
     with sqlite3.connect(src) as conn:
-        tables_after = {
-            row[0]
-            for row in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type = 'table'"
-            )
-        }
+        tables_after = {row[0] for row in conn.execute(sql_tables)}
     assert not rtree_shadow_tables & tables_after
+
     if with_datasource:
         # The datasource should remain open after removing the index.
         assert datasource is not None
