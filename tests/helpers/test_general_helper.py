@@ -86,7 +86,9 @@ def test_create_gfo_tmp_dir_leaves_compression_unchanged(monkeypatch, tmp_path, 
     monkeypatch.setattr(
         _io_util,
         "enable_directory_compression",
-        lambda *args, **kwargs: pytest.fail("compression helper should not be called"),
+        lambda *_args, **_kwargs: pytest.fail(
+            "compression helper should not be called"
+        ),
     )
 
     with (
