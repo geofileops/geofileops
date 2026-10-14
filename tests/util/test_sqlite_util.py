@@ -239,6 +239,9 @@ def test_sqlite_temp_file_location(tmp_path, sqlite_tmpdir_mode, use_gfo_tmpdir)
             subprocess_env["GFO_TEST_OPERATION_DIR"] = str(operation_tmp_dir)
             if use_gfo_tmpdir and sqlite_tmpdir_mode == "empty":
                 subprocess_env["GFO_TEST_GFO_DIR"] = gfo_tmpdir
+
+            # Starting from SQLite 3.54.0, sqlite uses an anonymous temporary file for
+            # TEMP storage by default instead of a file starting with "etilqs_".
             subprocess_script = """
 import os
 import sqlite3
