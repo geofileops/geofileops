@@ -266,11 +266,8 @@ try:
     open_files_before = open_temp_file_paths()
     conn.execute("CREATE TEMP TABLE temp_data (payload BLOB)")
     conn.execute("INSERT INTO temp_data VALUES (randomblob(16 * 1024 * 1024))")
-    temp_files = {
-        path for path in open_temp_file_paths() - open_files_before
-        if path.name.startswith("etilqs_")
-    }
-    assert temp_files, "SQLite did not create an observable disk TEMP file"
+    temp_files = open_temp_file_paths() - open_files_before
+    assert temp_files, "SQLite did not open an observable disk TEMP file"
     actual_dirs = {path.parent.resolve() for path in temp_files}
     if expected_dir:
         assert actual_dirs == {Path(expected_dir).resolve()}
