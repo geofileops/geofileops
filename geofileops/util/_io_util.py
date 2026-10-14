@@ -13,8 +13,6 @@ from typing import Any, Union
 
 import geofileops as gfo
 
-_DIRECTORY_COMPRESSION_SETTINGS: set[tuple[Path, bool | str]] = set()
-
 
 def enable_directory_compression(
     path: Path, compression: bool | str | None = True
@@ -24,9 +22,6 @@ def enable_directory_compression(
     Existing files are not explicitly processed. On Windows, NTFS uses its default
     compression algorithm. On Linux, Btrfs supports the ``zlib``, ``lzo``, and
     ``zstd`` algorithms; ``True`` selects ``zstd`` and ``False`` disables compression.
-
-    A successful command is cached per resolved path and setting, so it is not run
-    twice in the same process; failed commands are not cached and may be retried.
 
     Args:
         path (Path): The directory to configure for compression.
@@ -40,10 +35,6 @@ def enable_directory_compression(
         OSError or subprocess.CalledProcessError: if Windows compression setup fails.
     """
     if compression is None:
-        return True
-
-    cache_key = (path.resolve(), compression)
-    if cache_key in _DIRECTORY_COMPRESSION_SETTINGS:
         return True
 
     if sys.platform == "win32":
@@ -97,7 +88,6 @@ def enable_directory_compression(
         )
         return False
 
-    _DIRECTORY_COMPRESSION_SETTINGS.add(cache_key)
     return True
 
 

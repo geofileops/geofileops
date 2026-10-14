@@ -10,6 +10,8 @@ from typing import Any, Literal, Union
 
 from pyproj import CRS
 
+_TMP_DIR_COMPRESSION_ATTEMPTS: set[tuple[Path, bool | str]] = set()
+
 
 class classproperty(property):
     """Decorator to create class-level properties."""
@@ -904,11 +906,14 @@ class ConfigOptions:
 
         tmpdir.mkdir(parents=True, exist_ok=True)
         if compression is not None:
-            from geofileops.util._io_util import (  # noqa: PLC0415
-                enable_directory_compression,
-            )
+            cache_key = (tmpdir.resolve(), compression)
+            if cache_key not in _TMP_DIR_COMPRESSION_ATTEMPTS:
+                from geofileops.util._io_util import (  # noqa: PLC0415
+                    enable_directory_compression,
+                )
 
-            enable_directory_compression(tmpdir, compression)
+                enable_directory_compression(tmpdir, compression)
+                _TMP_DIR_COMPRESSION_ATTEMPTS.add(cache_key)
 
         return tmpdir
 

@@ -4,6 +4,7 @@ import multiprocessing
 import os
 import sys
 import tempfile
+import warnings
 from pathlib import Path
 from typing import Any, Union
 
@@ -13,6 +14,7 @@ from pyproj import CRS
 import geofileops as gfo
 from geofileops.helpers import _options
 from geofileops.helpers._options import ConfigOptions
+from geofileops.util import _io_util
 
 
 @pytest.mark.parametrize(
@@ -229,6 +231,34 @@ def test_get_tmp_dir(tmp_path):
         assert tmp_dir.name == "geofileops"
         tempdir = tempfile.gettempdir()
         assert str(tmp_dir).startswith(tempdir)
+
+
+def test_get_tmp_dir_caches_compression_attempts(monkeypatch, tmp_path):
+    calls = []
+
+    def warn_and_fail(path, compression):
+        calls.append((path, compression))
+        warnings.warn("compression unavailable", UserWarning, stacklevel=2)
+        return False
+
+    monkeypatch.setattr(_io_util, "enable_directory_compression", warn_and_fail)
+
+    with gfo.TempEnv({"GFO_TMPDIR": str(tmp_path), "GFO_TMPDIR_COMPRESS": "TRUE"}):
+        with pytest.warns(
+            UserWarning, match="compression unavailable"
+        ) as true_warnings:
+            _ = ConfigOptions.get_tmp_dir
+            _ = ConfigOptions.get_tmp_dir
+
+        with gfo.options.set_tmp_dir_compress(False):
+            with pytest.warns(
+                UserWarning, match="compression unavailable"
+            ) as false_warnings:
+                _ = ConfigOptions.get_tmp_dir
+
+    assert len(true_warnings) == 1
+    assert len(false_warnings) == 1
+    assert calls == [(tmp_path, True), (tmp_path, False)]
 
 
 def test_set_copy_layer_sqlite_direct() -> None:

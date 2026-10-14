@@ -124,7 +124,7 @@ def test_enable_directory_compression_btrfs_warns_on_failure(monkeypatch, tmp_pa
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Btrfs compression is Linux-only")
-def test_enable_directory_compression_caches_success(monkeypatch, tmp_path):
+def test_enable_directory_compression_runs_each_call(monkeypatch, tmp_path):
     commands = []
     monkeypatch.setattr(
         _io_util.subprocess,
@@ -135,7 +135,7 @@ def test_enable_directory_compression_caches_success(monkeypatch, tmp_path):
     _io_util.enable_directory_compression(tmp_path)
     _io_util.enable_directory_compression(tmp_path)
 
-    assert len(commands) == 1
+    assert len(commands) == 2
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="NTFS compression is Windows-only")
