@@ -19,7 +19,7 @@
   as used by geofileops. More information can be found in the documentation of
   `set_tmp_dir` (#840)
 - Add optional temporary-directory compression via `GFO_TMPDIR_COMPRESS`, supporting
-  NTFS on Windows and Btrfs on Linux (#).
+  NTFS on Windows and Btrfs on Linux (#846)
 
 ### Bugs fixed
 
