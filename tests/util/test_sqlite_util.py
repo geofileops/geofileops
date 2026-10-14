@@ -198,6 +198,7 @@ def test_sqlite_temp_file_location(tmp_path, sqlite_tmpdir_mode, use_gfo_tmpdir)
                     "set": str(sqlite_tmpdir),
                 }[sqlite_tmpdir_mode],
                 "GFO_TMPDIR": gfo_tmpdir,
+                "GFO_TMPDIR_COMPRESS": None,
             }
         ),
         _general_helper.create_gfo_tmp_dir("sqlite_tmpdir") as operation_tmp_dir,
