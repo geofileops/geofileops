@@ -238,6 +238,7 @@ class LayerInfo:
 
     def __init__(
         self,
+        *,
         name: str,
         featurecount: int,
         total_bounds: tuple[float, float, float, float],
@@ -621,6 +622,7 @@ def execute_sql(
 def create_spatial_index(
     path: Union[str, "os.PathLike[Any]"],
     layer: str | LayerInfo | None = None,
+    *,
     cache_size_mb: int | None = 128,
     exist_ok: bool = False,
     force_rebuild: bool = False,
@@ -1003,6 +1005,7 @@ def add_column(
     type: DataType | str,  # noqa: A002
     expression: str | float | None = None,
     expression_dialect: str | None = None,
+    *,
     layer: str | None = None,
     force_update: bool = False,
     width: int | None = None,
@@ -1622,6 +1625,7 @@ def read_file(
     path: Union[str, "os.PathLike[Any]"],
     layer: str | None = None,
     columns: Iterable[str] | None = None,
+    *,
     bbox: tuple[float, float, float, float] | None = None,
     rows: slice | None = None,
     where: str | None = None,
@@ -1747,6 +1751,7 @@ def read_file_nogeom(
     path: Union[str, "os.PathLike[Any]"],
     layer: str | None = None,
     columns: Iterable[str] | None = None,
+    *,
     bbox: tuple[float, float, float, float] | None = None,
     rows: slice | None = None,
     sql_stmt: str | None = None,
@@ -1778,6 +1783,7 @@ def _read_file_base(
     path: Union[str, "os.PathLike[Any]"],
     layer: str | None = None,
     columns: Iterable[str] | None = None,
+    *,
     bbox: tuple[float, float, float, float] | None = None,
     rows: slice | None = None,
     where: str | None = None,
@@ -1848,6 +1854,7 @@ def _read_file_base_fiona(
     path: Union[str, "os.PathLike[Any]"],
     layer: str | None = None,
     columns: Iterable[str] | None = None,
+    *,
     bbox: tuple[float, float, float, float] | None = None,
     rows: slice | None = None,
     where: str | None = None,
@@ -1987,6 +1994,7 @@ def _read_file_base_pyogrio(
     path: Union[str, "os.PathLike[Any]"],
     layer: str | LayerInfo | None = None,
     columns: Iterable[str] | None = None,
+    *,
     bbox: tuple[float, float, float, float] | None = None,
     rows: slice | None = None,
     where: str | None = None,
@@ -2232,6 +2240,7 @@ def to_file(
     path: Union[str, "os.PathLike[Any]"],
     layer: str | None = None,
     force_output_geometrytype: GeometryType | str | None = None,
+    *,
     force_multitype: bool = False,
     append: bool = False,
     append_timeout_s: int = 600,
@@ -2355,6 +2364,7 @@ def _to_file_fiona(
     gdf: pd.DataFrame | gpd.GeoDataFrame,
     path: Union[str, "os.PathLike[Any]"],
     layer: str,
+    *,
     force_output_geometrytype: GeometryType | str | None = None,
     force_multitype: bool = False,
     append: bool = False,
@@ -2428,6 +2438,7 @@ def _to_file_fiona(
         gdf: gpd.GeoDataFrame,
         path: Union[str, "os.PathLike[Any]"],
         layer: str,
+        *,
         index: bool | None = None,
         force_output_geometrytype: str | None = None,
         force_multitype: bool = False,
@@ -2527,6 +2538,7 @@ def _to_file_pyogrio(
     gdf: gpd.GeoDataFrame,
     path: Union[str, "os.PathLike[Any]"],
     layer: str,
+    *,
     force_output_geometrytype: GeometryType | str | None = None,
     force_multitype: bool = False,
     append: bool = False,
@@ -2788,7 +2800,7 @@ def cmp(
 def copy(
     src: Union[str, "os.PathLike[Any]"],
     dst: Union[str, "os.PathLike[Any]"],
-    keep_permissions: bool = True,
+    keep_permissions: bool = False,
 ) -> None:
     """Copies the geofile from src to dst.
 
@@ -2799,7 +2811,7 @@ def copy(
         src (PathLike): the file to copy. |GDAL_vsi| paths are not supported.
         dst (PathLike): the location to copy the file(s) to.
         keep_permissions (bool, optional): True to keep the file permissions of the
-            source file. Defaults to True.
+            source file. Defaults to False.
 
     .. |GDAL_vsi| raw:: html
 
@@ -2839,18 +2851,35 @@ def copy(
 
 
 def move(
-    src: Union[str, "os.PathLike[Any]"], dst: Union[str, "os.PathLike[Any]"]
+    src: Union[str, "os.PathLike[Any]"],
+    dst: Union[str, "os.PathLike[Any]"],
+    on_keep_permissions_error: str = "ignore",
 ) -> None:
     """Moves the geofile from src to dst.
 
     If the source file is a geofile containing of multiple files (eg. .shp) all files
     are moved.
 
+    If the file is on the same filesystem, the file is renamed. If it is on a different
+    filesystem, the file is copied and then deleted from the source location. The
+    function tries to keep the file permissions and metadata of the source file, but if
+    it fails, behaviour depends on the value of `on_keep_permissions_error`.
+
     Args:
         src (PathLike): the file to move
         dst (PathLike): the location to move the file(s) to
+        on_keep_permissions_error (str): What to do if keeping permissions fails.
+            Options are:
+
+                - "ignore" (default): silently try to move without retaining permissions
+                  and metadata.
+                - "warn": log a warning and try to move without retaining permissions
+                  and metadata.
+                - "raise": raise the exception and stop moving the file(s).
     """
     # Check input parameters
+    if on_keep_permissions_error not in ["warn", "ignore", "raise"]:
+        raise ValueError(f"Invalid value for {on_keep_permissions_error=}")
     src = Path(src)
     dst = Path(dst)
     src_info = _geofileinfo.get_geofileinfo(src)
@@ -2871,11 +2900,33 @@ def move(
             dst_tmp = dst.parent / f"{dst.stem}{suffix}"
 
         if srcfile.exists():
-            shutil.move(str(srcfile), dst_tmp)
+            try:
+                shutil.move(str(srcfile), dst_tmp)
+            except PermissionError as ex:
+                if on_keep_permissions_error == "raise":
+                    raise ex
+                elif on_keep_permissions_error == "warn":
+                    warnings.warn(
+                        f"PermissionError while moving {srcfile} to {dst_tmp}: {ex}, "
+                        "try to move without retaining permissions and metadata.",
+                        stacklevel=2,
+                    )
+                shutil.move(str(srcfile), dst_tmp, copy_function=shutil.copyfile)
 
     # Move the main file last, so that checks if the geofile exists are only
     # True once all files have been moved.
-    shutil.move(str(src), dst)
+    try:
+        shutil.move(str(src), dst)
+    except PermissionError as ex:
+        if on_keep_permissions_error == "raise":
+            raise ex
+        elif on_keep_permissions_error == "warn":
+            warnings.warn(
+                f"PermissionError while moving {src} to {dst}: {ex}, try to move "
+                "without retaining permissions and metadata.",
+                stacklevel=2,
+            )
+        shutil.move(str(src), dst, copy_function=shutil.copyfile)
 
 
 def remove(path: Union[str, "os.PathLike[Any]"], missing_ok: bool = False) -> None:
@@ -2909,6 +2960,7 @@ def remove(path: Union[str, "os.PathLike[Any]"], missing_ok: bool = False) -> No
 def append_to(
     src: Union[str, "os.PathLike[Any]"],
     dst: Union[str, "os.PathLike[Any]"],
+    *,
     src_layer: str | None = None,
     dst_layer: str | None = None,
     src_crs: int | str | None = None,
@@ -2999,6 +3051,7 @@ def append_to(
 def convert(
     src: Union[str, "os.PathLike[Any]"],
     dst: Union[str, "os.PathLike[Any]"],
+    *,
     src_layer: str | None = None,
     dst_layer: str | None = None,
     src_crs: str | int | None = None,
@@ -3043,6 +3096,7 @@ def convert(
 def copy_layer(
     src: Union[str, "os.PathLike[Any]"],
     dst: Union[str, "os.PathLike[Any]"],
+    *,
     src_layer: str | LayerInfo | None = None,
     dst_layer: str | None = None,
     write_mode: Literal[

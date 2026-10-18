@@ -16,6 +16,7 @@ from geofileops.helpers import _general_helper
 from geofileops.util import (
     _geofileinfo,
     _geoops_gpd,
+    _geoops_gpd_dissolve,
     _geoops_ogr,
     _geoops_sql,
     _io_util,
@@ -39,6 +40,7 @@ def dissolve_within_distance(
     output_path: Union[str, "os.PathLike[Any]"],
     distance: float,
     gridsize: float,
+    *,
     close_internal_gaps: bool = False,
     input_layer: str | None = None,
     output_layer: str | None = None,
@@ -124,7 +126,7 @@ def dissolve_within_distance(
         step = 1
         logger.info(f"Step {step} of {nb_steps}")
         diss_path = tmp_dir / "100_diss.gpkg"
-        _geoops_gpd.dissolve(
+        _geoops_gpd_dissolve.dissolve(
             input_path=input_path,
             output_path=diss_path,
             explodecollections=True,
@@ -168,7 +170,7 @@ def dissolve_within_distance(
         step += 1
         logger.info(f"Step {step} of {nb_steps}")
         buff_diss_path = tmp_dir / "120_diss_bufp_diss.gpkg"
-        _geoops_gpd.dissolve(
+        _geoops_gpd_dissolve.dissolve(
             input_path=bufp_path,
             output_path=buff_diss_path,
             explodecollections=True,
@@ -381,7 +383,7 @@ def dissolve_within_distance(
         step += 1
         logger.info(f"Step {step} of {nb_steps}")
         # Apply gridsize for output
-        _geoops_gpd.dissolve(
+        _geoops_gpd_dissolve.dissolve(
             input_path=diss_path,
             output_path=output_path,
             explodecollections=True,
@@ -400,6 +402,7 @@ def apply(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
     func: Callable[[Any], Any],
+    *,
     only_geom_input: bool = True,
     input_layer: str | None = None,
     output_layer: str | None = None,
@@ -525,6 +528,7 @@ def apply_vectorized(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
     func: Callable[[Any], Any],
+    *,
     input_layer: str | None = None,
     output_layer: str | None = None,
     columns: list[str] | None = None,
@@ -639,6 +643,7 @@ def buffer(
     output_path: Union[str, "os.PathLike[Any]"],
     distance: float,
     quadrantsegments: int = 5,
+    *,
     endcap_style: BufferEndCapStyle = BufferEndCapStyle.ROUND,
     join_style: BufferJoinStyle = BufferJoinStyle.ROUND,
     mitre_limit: float = 5.0,
@@ -858,6 +863,7 @@ def clip_by_geometry(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
     clip_geometry: tuple[float, float, float, float] | str,
+    *,
     input_layer: str | None = None,
     output_layer: str | None = None,
     columns: list[str] | None = None,
@@ -908,6 +914,7 @@ def clip_by_geometry(
 def convexhull(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
+    *,
     input_layer: str | None = None,
     output_layer: str | None = None,
     columns: list[str] | None = None,
@@ -985,6 +992,7 @@ def convexhull(
 def delete_duplicate_geometries(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
+    *,
     input_layer: str | None = None,
     output_layer: str | None = None,
     columns: list[str] | None = None,
@@ -1076,6 +1084,7 @@ def dissolve(
     output_path: Union[str, "os.PathLike[Any]"],
     explodecollections: bool,
     groupby_columns: list[str] | str | None = None,
+    *,
     agg_columns: dict | None = None,
     tiles_path: Union[str, "os.PathLike[Any]", None] = None,
     nb_squarish_tiles: int = 1,
@@ -1241,7 +1250,7 @@ def dissolve(
 
     logger = logging.getLogger("geofileops.dissolve")
     logger.info(f"Start, on {input_path} to {output_path}")
-    return _geoops_gpd.dissolve(
+    return _geoops_gpd_dissolve.dissolve(
         input_path=Path(input_path),
         output_path=Path(output_path),
         explodecollections=explodecollections,
@@ -1263,6 +1272,7 @@ def export_by_bounds(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
     bounds: tuple[float, float, float, float],
+    *,
     input_layer: str | None = None,
     output_layer: str | None = None,
     columns: list[str] | None = None,
@@ -1316,6 +1326,7 @@ def isvalid(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]", None] = None,
     only_invalid: bool = True,
+    *,
     input_layer: str | None = None,
     output_layer: str | None = None,
     columns: list[str] | None = None,
@@ -1420,11 +1431,12 @@ def isvalid(
 def makevalid(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
+    *,
     input_layer: str | None = None,
     output_layer: str | None = None,
     columns: list[str] | None = None,
     explodecollections: bool = False,
-    force_output_geometrytype: str | None | GeometryType = None,
+    force_output_geometrytype: str | GeometryType | None = None,
     gridsize: float = 0.0,
     keep_empty_geoms: bool = False,
     where_post: str | None = None,
@@ -1561,6 +1573,7 @@ def makevalid(
 def warp(
     input_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
+    *,
     gcps: list[tuple[float, float, float, float, float | None]],
     algorithm: str = "polynomial",
     order: int | None = None,
@@ -1622,6 +1635,7 @@ def select(
     output_path: Union[str, "os.PathLike[Any]"],
     sql_stmt: str,
     sql_dialect: Literal["SQLITE", "OGRSQL"] | None = "SQLITE",
+    *,
     input_layer: str | None = None,
     output_layer: str | None = None,
     columns: list[str] | None = None,
@@ -1789,6 +1803,7 @@ def simplify(
     output_path: Union[str, "os.PathLike[Any]"],
     tolerance: float,
     algorithm: str | SimplifyAlgorithm = "rdp",
+    *,
     lookahead: int = 8,
     input_layer: str | None = None,
     output_layer: str | None = None,
@@ -1909,6 +1924,7 @@ def clip(
     input_path: Union[str, "os.PathLike[Any]"],
     clip_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
+    *,
     input_layer: str | None = None,
     input_columns: list[str] | None = None,
     clip_layer: str | None = None,
@@ -2029,6 +2045,7 @@ def clip(
 def concat(
     input_paths: list[Union[str, "os.PathLike[Any]"]],
     output_path: Union[str, "os.PathLike[Any]"],
+    *,
     input_layers: list[str | None] | str | None = None,
     output_layer: str | None = None,
     columns: list[str] | None = None,
@@ -2139,6 +2156,7 @@ def difference(
     input1_path: Union[str, "os.PathLike[Any]"],
     input2_path: Union[str, "os.PathLike[Any]", None],
     output_path: Union[str, "os.PathLike[Any]"],
+    *,
     input1_layer: str | None = None,
     input1_columns: list[str] | None = None,
     input2_layer: str | None = None,
@@ -2268,6 +2286,7 @@ def erase(
     input_path: Union[str, "os.PathLike[Any]"],
     erase_path: Union[str, "os.PathLike[Any]", None],
     output_path: Union[str, "os.PathLike[Any]"],
+    *,
     input_layer: str | None = None,
     input_columns: list[str] | None = None,
     erase_layer: str | None = None,
@@ -2310,6 +2329,7 @@ def export_by_location(
     input_to_compare_with_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
     spatial_relations_query: str = "intersects is True",
+    *,
     min_area_intersect: float | None = None,
     area_inters_column_name: str | None = None,
     input1_layer: str | None = None,
@@ -2439,6 +2459,7 @@ def export_by_distance(
     input_to_compare_with_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
     max_distance: float,
+    *,
     input1_layer: str | None = None,
     input1_columns: list[str] | None = None,
     input2_layer: str | None = None,
@@ -2526,6 +2547,7 @@ def identity(
     input1_path: Union[str, "os.PathLike[Any]"],
     input2_path: Union[str, "os.PathLike[Any]", None],
     output_path: Union[str, "os.PathLike[Any]"],
+    *,
     input1_layer: str | None = None,
     input1_columns: list[str] | None = None,
     input1_columns_prefix: str = "l1_",
@@ -2684,6 +2706,7 @@ def split(
     input1_path: Union[str, "os.PathLike[Any]"],
     input2_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
+    *,
     input1_layer: str | None = None,
     input1_columns: list[str] | None = None,
     input1_columns_prefix: str = "l1_",
@@ -2735,6 +2758,7 @@ def intersect(
     input1_path: Union[str, "os.PathLike[Any]"],
     input2_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
+    *,
     input1_layer: str | None = None,
     input1_columns: list[str] | None = None,
     input1_columns_prefix: str = "l1_",
@@ -2778,6 +2802,7 @@ def intersection(
     input1_path: Union[str, "os.PathLike[Any]"],
     input2_path: Union[str, "os.PathLike[Any]", None],
     output_path: Union[str, "os.PathLike[Any]"],
+    *,
     input1_layer: str | None = None,
     input1_columns: list[str] | None = None,
     input1_columns_prefix: str = "l1_",
@@ -2943,6 +2968,7 @@ def join(
     output_path: Path,
     input1_on: list[str] | str,
     input2_on: list[str] | str,
+    *,
     join_type: str = "INNER",
     input1_layer: str | None = None,
     input1_columns: list[str] | None = None,
@@ -3054,6 +3080,7 @@ def join_by_location(
     output_path: Union[str, "os.PathLike[Any]"],
     spatial_relations_query: str = "intersects is True",
     discard_nonmatching: bool = True,
+    *,
     min_area_intersect: float | None = None,
     area_inters_column_name: str | None = None,
     input1_layer: str | None = None,
@@ -3187,13 +3214,14 @@ def join_by_location(
     )
 
 
-def join_nearest(
+def join_nearest(  # noqa: PLR0917
     input1_path: Union[str, "os.PathLike[Any]"],
     input2_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
     nb_nearest: int,
     distance: float | None = None,
     expand: bool | None = None,
+    *,
     input1_layer: str | None = None,
     input1_columns: list[str] | None = None,
     input1_columns_prefix: str = "l1_",
@@ -3399,6 +3427,7 @@ def select_two_layers(
     input2_path: Union[str, "os.PathLike[Any]"],
     output_path: Union[str, "os.PathLike[Any]"],
     sql_stmt: str,
+    *,
     input1_layer: str | None = None,
     input1_columns: list[str] | None = None,
     input1_columns_prefix: str = "l1_",
@@ -3640,6 +3669,7 @@ def symmetric_difference(
     input1_path: Union[str, "os.PathLike[Any]"],
     input2_path: Union[str, "os.PathLike[Any]", None],
     output_path: Union[str, "os.PathLike[Any]"],
+    *,
     input1_layer: str | None = None,
     input1_columns: list[str] | None = None,
     input1_columns_prefix: str = "l1_",
@@ -3791,6 +3821,7 @@ def union(
     input1_path: Union[str, "os.PathLike[Any]"],
     input2_path: Union[str, "os.PathLike[Any]", None],
     output_path: Union[str, "os.PathLike[Any]"],
+    *,
     input1_layer: str | None = None,
     input1_columns: list[str] | None = None,
     input1_columns_prefix: str = "l1_",
