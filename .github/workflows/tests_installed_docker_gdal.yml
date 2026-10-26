@@ -1,0 +1,74 @@
+name: Docker GDAL Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+# cancel running jobs on new commit to PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  TestLinux:
+    name: GDAL ${{ matrix.container }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        checkout_ref: ["v0.10.x"]
+        container:
+          - "ghcr.io/osgeo/gdal:ubuntu-small-3.12.0" # >= python 3.12.3
+          # - "ghcr.io/osgeo/gdal:ubuntu-small-3.9.3" # python 3.12.3
+          # - "ghcr.io/osgeo/gdal:ubuntu-small-3.8.5" # python 3.10.12
+          # - "ghcr.io/osgeo/gdal:ubuntu-small-3.7.3" # python 3.10.12
+
+    container:
+      image: ${{ matrix.container }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ matrix.checkout_ref }}
+          sparse-checkout: |
+            ci
+            tests
+      
+      - name: Install pip, spatialite
+      #   run: |
+      #     apt-get update && apt-get install -y build-essential git python3-dev
+      #  run: |
+      #    apt-get update && apt-get -y install python3-pip libsqlite3-mod-spatialite --fix-missing
+        run: |
+          apt-get update && apt-get -y install build-essential python3-dev sqlite3 libsqlite3-mod-spatialite
+
+
+      - name: Create virtual environment
+        # install uv and use it to create a virtual environment, then add it to
+        # environment variables so that it is automatically activated and can be
+        # used for tests below
+        run: |
+           curl -LsSf https://astral.sh/uv/install.sh | sh
+           . $HOME/.local/bin/env
+           uv venv .venv
+           echo "VIRTUAL_ENV=.venv" >> $GITHUB_ENV
+           echo "$PWD/.venv/bin" >> $GITHUB_PATH
+
+      - name: Install Python Dependencies
+        run: |
+          # Install dependencies, excluding gdal and pyogrio binaries
+          # uv pip install -e .[test,full]
+          # uv pip install cloudpickle "geopandas<1.1" numpy packaging pandas psutil pyarrow "pygeoops<0.5" pyogrio pyproj "shapely<2.1" pytest pytest-cov --no-binary pyogrio
+          uv pip install geofileops pytest pytest-cov --no-binary pyogrio
+          # python -m pip install --upgrade pip
+          # pip install cloudpickle "geopandas<1.1" numpy packaging pandas psutil pyarrow "pygeoops<0.5" pyogrio pyproj "shapely<2.1" pytest pytest-cov --no-binary pyogrio
+          # pip install geofileops pytest pytest-cov
+
+      - name: Test with pytest
+        # run: |  
+        #   pytest --cov=geofileops --cov-report term-missing tests
+        run: |
+          pytest --color=yes --cov=geofileops --cov-append --cov-report term-missing --cov-report xml tests/
