@@ -149,9 +149,8 @@ def run_benchmarks(
                         logger.info(
                             f"{benchmarks_subdir}.{module_name}.{function_name} start"
                         )
-                        with _AvailableMemorySampler() as memory_sampler:
+                        with _MemorySampler() as memory_sampler:
                             function_results = function(tmp_dir=tmp_dir)
-                        memory_samples = memory_sampler.samples
                         if isinstance(function_results, list) is False:
                             function_results = [function_results]
                         last_result_index = max(
@@ -166,17 +165,32 @@ def run_benchmarks(
                             function_results
                         ):
                             if isinstance(function_result, RunResult) is True:
-                                _record_result_memory(
-                                    function_result,
-                                    memory_samples,
-                                    include_final_sample=(
-                                        result_index == last_result_index
-                                    ),
+                                interval_end = function_result.run_datetime
+                                interval_start = interval_end - datetime.timedelta(
+                                    seconds=function_result.secs_taken
+                                )
+                                memory_increased_bytes = (
+                                    memory_sampler.memory_increased_bytes(
+                                        interval_start=interval_start,
+                                        interval_end=interval_end,
+                                        include_final_sample=(
+                                            result_index == last_result_index
+                                        ),
+                                    )
+                                )
+                                function_result.max_memory_bytes = max(
+                                    memory_increased_bytes
+                                )
+
+                                memory_increased_str = ", ".join(
+                                    memory_sampler.format_gb(memory_bytes)
+                                    for memory_bytes in memory_increased_bytes
                                 )
                                 logger.info(
                                     f"{benchmarks_subdir}.{module_name}."
                                     f"{function_name} ready in "
                                     f"{function_result.secs_taken:.2f} s"
+                                    f"\n\tMemory increased (GB): {memory_increased_str}"
                                 )
                                 results.append(function_result)
                             else:
@@ -198,7 +212,7 @@ def run_benchmarks(
         reporter.generate_reports(results_path, output_dir=results_dir)
 
 
-class _AvailableMemorySampler:
+class _MemorySampler:
     """Sample system-available memory while a benchmark function runs."""
 
     def __init__(
@@ -207,9 +221,10 @@ class _AvailableMemorySampler:
         self._interval_seconds = interval_seconds
         self._stop_event = Event()
         self._samples: list[tuple[datetime.datetime, int]] = []
+        self._total_memory_bytes: int | None = None
         self._thread: Thread | None = None
 
-    def __enter__(self) -> "_AvailableMemorySampler":
+    def __enter__(self) -> "_MemorySampler":
         """Take an initial sample and start periodic sampling."""
         gc.collect()
         self._record_sample()
@@ -230,9 +245,82 @@ class _AvailableMemorySampler:
         self._record_sample()
 
     @property
-    def samples(self) -> list[tuple[datetime.datetime, int]]:
+    def available_memory_samples(self) -> list[tuple[datetime.datetime, int]]:
         """Return timestamped available-memory samples."""
         return self._samples.copy()
+
+    @property
+    def memory_used_samples(self) -> list[tuple[datetime.datetime, int]]:
+        """Return estimated used physical memory (total minus available)."""
+        if self._total_memory_bytes is None:
+            return []
+        return [
+            (timestamp, self._total_memory_bytes - available_bytes)
+            for timestamp, available_bytes in self._samples
+        ]
+
+    def memory_increased_bytes(
+        self,
+        interval_start: datetime.datetime,
+        interval_end: datetime.datetime,
+        include_final_sample: bool = False,
+    ) -> list[int]:
+        """Return memory increases relative to the interval's starting sample."""
+        result_interval_end = interval_end + (
+            datetime.timedelta(seconds=_MEMORY_SAMPLE_INTERVAL_SECONDS)
+            if include_final_sample
+            else datetime.timedelta()
+        )
+        memory_used_samples = self.memory_used_samples
+        samples_at_start = [
+            sample for sample in memory_used_samples if sample[0] <= interval_start
+        ]
+        samples_during_interval = [
+            sample
+            for sample in memory_used_samples
+            if interval_start <= sample[0] <= result_interval_end
+        ]
+        if not samples_at_start or not samples_during_interval:
+            return []
+
+        memory_used_at_start_bytes = max(samples_at_start, key=lambda x: x[0])[1]
+        return [
+            memory_used_bytes - memory_used_at_start_bytes
+            for _timestamp, memory_used_bytes in samples_during_interval
+        ]
+
+    def memory_increased_max(
+        self,
+        interval_start: datetime.datetime,
+        interval_end: datetime.datetime,
+        include_final_sample: bool = False,
+    ) -> int | None:
+        """Return peak memory increase in bytes during a sampled interval.
+
+        Args:
+            interval_start: The start of the interval to consider.
+            interval_end: The end of the interval to consider.
+            include_final_sample: Whether to include the final sample in the interval.
+
+        Returns:
+            The peak memory increase in bytes during the interval, or None if no samples
+            are available.
+        """
+        memory_increased_bytes = self.memory_increased_bytes(
+            interval_start=interval_start,
+            interval_end=interval_end,
+            include_final_sample=include_final_sample,
+        )
+        if not memory_increased_bytes:
+            return None
+
+        max_memory_increase_bytes = max(memory_increased_bytes)
+        return max(0, max_memory_increase_bytes)
+
+    @staticmethod
+    def format_gb(memory_bytes: int) -> str:
+        """Format a byte count in decimal gigabytes."""
+        return f"{memory_bytes / 1_000_000_000:.2f}"
 
     def _sample_until_stopped(self) -> None:
         while not self._stop_event.wait(self._interval_seconds):
@@ -240,11 +328,13 @@ class _AvailableMemorySampler:
 
     def _record_sample(self) -> None:
         try:
-            available_bytes = psutil.virtual_memory().available
+            virtual_memory = psutil.virtual_memory()
         except (OSError, psutil.Error):
             logger.warning("Unable to sample system-available memory", exc_info=True)
             return
-        self._samples.append((datetime.datetime.now(), available_bytes))
+        if self._total_memory_bytes is None:
+            self._total_memory_bytes = virtual_memory.total
+        self._samples.append((datetime.datetime.now(), virtual_memory.available))
 
 
 class RunResult:
@@ -283,35 +373,6 @@ class RunResult:
     def __repr__(self) -> str:
         """Return a representation of the benchmark result."""
         return f"{self.__class__}({self.__dict__})"
-
-
-def _record_result_memory(
-    result: RunResult,
-    samples: list[tuple[datetime.datetime, int]],
-    include_final_sample: bool = False,
-) -> None:
-    interval_end = result.run_datetime
-    interval_start = interval_end - datetime.timedelta(seconds=result.secs_taken)
-    result_interval_end = interval_end + (
-        datetime.timedelta(seconds=_MEMORY_SAMPLE_INTERVAL_SECONDS)
-        if include_final_sample
-        else datetime.timedelta()
-    )
-    samples_at_start = [sample for sample in samples if sample[0] <= interval_start]
-    samples_during_result = [
-        sample
-        for sample in samples
-        if interval_start <= sample[0] <= result_interval_end
-    ]
-    if not samples_at_start or not samples_during_result:
-        return
-
-    available_memory_start_bytes = max(samples_at_start, key=lambda x: x[0])[1]
-    available_memory_min_bytes = min(sample[1] for sample in samples_during_result)
-    result.max_memory_bytes = max(
-        0,
-        available_memory_start_bytes - available_memory_min_bytes,
-    )
 
 
 def _append_results(results_path: Path, results: list[RunResult]) -> None:
