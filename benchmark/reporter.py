@@ -57,23 +57,35 @@ def generate_reports(results_path: Path, output_dir: Path) -> None:
                     f"{latest_run_datetime!r}, found {len(operation_descriptions)}."
                 )
             operation_descr = operation_descriptions.iloc[0]
-            package_operation_df = package_operation_df[
-                ["package_version", "run_details", "secs_taken"]
-            ]
+            detail_columns = ["package_version", "run_details", "secs_taken"]
+            if "max_memory_bytes" in package_operation_df.columns:
+                detail_columns.append("max_memory_bytes")
+            package_operation_df = package_operation_df[detail_columns]
             package_operation_df["run_details"] = package_operation_df[
                 "run_details"
             ].apply(format_run_details)
             package_operation_df = package_operation_df.set_index(
                 ["package_version", "run_details"]
             )
+            memory_df = None
+            if (
+                "max_memory_bytes" in package_operation_df.columns
+                and package_operation_df["max_memory_bytes"].notna().any()
+            ):
+                memory_df = (
+                    package_operation_df[["max_memory_bytes"]]
+                    .div(1_000_000_000)
+                    .rename(columns={"max_memory_bytes": "Max memory (GB)"})
+                )
             results_report_path = reports_package_dir / f"{package}_{operation}.png"
             save_chart(
-                df=package_operation_df,
+                df=package_operation_df[["secs_taken"]],
                 title=f"{package}-{operation}\n({operation_descr})",
                 size=(8, 6),
                 print_labels_on_points=True,
                 y_value_formatter="{0:.2f}",
                 output_path=results_report_path,
+                secondary_y_df=memory_df,
             )
 
     # Report for last version of each package+operation for comparison
@@ -173,6 +185,7 @@ def save_chart(
     title: str,
     output_path: Path,
     *,
+    secondary_y_df: pd.DataFrame | None = None,
     yscale: Literal["linear", "log", "symlog", "logit"] | None = None,
     y_value_formatter: str | None = None,
     print_labels_on_points: bool = False,
@@ -200,6 +213,7 @@ def save_chart(
 
     Args:
         df (pd.DataFrame): The data to plot. The index should be the x axis values.
+        secondary_y_df (pd.DataFrame, optional): Data to plot on a secondary y axis.
         title (str): The title of the chart.
         output_path (Path): _description_
         yscale (Literal["linear", "log", "symlog", "logit"], optional): y scale to use.
@@ -240,6 +254,19 @@ def save_chart(
         raise Exception(
             f"df has non-numeric columns, so cannot be plotted: {non_numeric_columns}"
         )
+    if secondary_y_df is not None and not secondary_y_df.index.equals(df.index):
+        raise ValueError("secondary_y_df must have the same index as df.")
+    if secondary_y_df is not None:
+        non_numeric_columns = [
+            column
+            for column in secondary_y_df.columns
+            if not pandas.api.types.is_numeric_dtype(secondary_y_df[column])
+        ]
+        if non_numeric_columns:
+            raise Exception(
+                "secondary_y_df has non-numeric columns, so cannot be plotted: "
+                f"{non_numeric_columns}"
+            )
     if y_value_limit is not None and (
         not math.isfinite(y_value_limit) or y_value_limit <= 0
     ):
@@ -259,7 +286,25 @@ def save_chart(
     plot_df = df
     if y_value_limit is not None:
         plot_df = df.where(df <= y_value_limit)
-    plot_df.plot(ax=axs, kind=plot_kind, rot=rot, title=title, linestyle=linestyle)
+    plot_df.plot(
+        ax=axs,
+        kind=plot_kind,
+        rot=rot,
+        title=title,
+        linestyle=linestyle,
+        legend=False,
+    )
+    secondary_ax = None
+    if secondary_y_df is not None:
+        secondary_ax = axs.twinx()
+        secondary_y_df.plot(
+            ax=secondary_ax,
+            kind=plot_kind,
+            rot=rot,
+            linestyle="--",
+            legend=False,
+        )
+        secondary_ax.set_ylabel("Max memory (GB)")
     tick_positions = axs.get_xticks()
     tick_labels = [tick.get_text().replace("_", "\n") for tick in axs.get_xticklabels()]
     axs.set_xticks(tick_positions)
@@ -272,6 +317,13 @@ def save_chart(
     if y_value_formatter is not None:
         axs.yaxis.set_major_formatter(plt.FuncFormatter(y_value_formatter.format))
         axs.yaxis.set_minor_formatter(plt.FuncFormatter(y_value_formatter.format))
+        if secondary_ax is not None:
+            secondary_ax.yaxis.set_major_formatter(
+                plt.FuncFormatter(y_value_formatter.format)
+            )
+            secondary_ax.yaxis.set_minor_formatter(
+                plt.FuncFormatter(y_value_formatter.format)
+            )
 
     # Show grid lines if specified
     if gridlines is not None:
@@ -322,6 +374,54 @@ def save_chart(
                     fontweight="normal",
                 )
 
+    if secondary_ax is not None:
+        secondary_max_y_value = None
+        for series_index, line in enumerate(secondary_ax.get_lines()):
+            marker_index = (len(axs.get_lines()) + series_index) % len(markers)
+            line.set_marker(markers[marker_index])
+            line.set_color("tab:orange")
+            label_above_line = True
+
+            for index, row_fieldvalue in enumerate(
+                secondary_y_df.iloc[:, series_index]
+            ):
+                if pd.isna(row_fieldvalue):
+                    continue
+                if (
+                    secondary_max_y_value is None
+                    or row_fieldvalue > secondary_max_y_value
+                ):
+                    secondary_max_y_value = row_fieldvalue
+                if print_labels_on_points:
+                    if y_value_formatter is not None:
+                        text = y_value_formatter.format(row_fieldvalue)
+                    else:
+                        text = str(row_fieldvalue)
+                    if point_labels_to_right:
+                        xytext = (5, 0)
+                        horizontalalignment = "left"
+                    elif label_above_line:
+                        xytext = (0, 5)
+                        horizontalalignment = "center"
+                        label_above_line = False
+                    else:
+                        xytext = (0, -15)
+                        horizontalalignment = "center"
+                        label_above_line = True
+                    secondary_ax.annotate(
+                        text=text,
+                        xy=(index, row_fieldvalue),
+                        xytext=xytext,
+                        textcoords="offset points",
+                        ha=horizontalalignment,
+                        fontweight="normal",
+                    )
+
+        if secondary_max_y_value is not None and secondary_max_y_value > 0:
+            secondary_ax.set_ylim(bottom=0, top=secondary_max_y_value * 1.1)
+        else:
+            secondary_ax.set_ylim(bottom=0, top=1)
+
     # Set bottom and top values for y axis
     has_overflow = y_value_limit is not None and bool(df.gt(y_value_limit).any().any())
     if max_y_value is not None:
@@ -330,11 +430,11 @@ def save_chart(
         max_y_value = y_value_limit
     if max_y_value is not None and math.isnan(max_y_value) is False:
         if yscale == "log":
-            plt.ylim(top=max_y_value)
+            axs.set_ylim(top=max_y_value)
         else:
-            plt.ylim(bottom=0, top=max_y_value)
+            axs.set_ylim(bottom=0, top=max_y_value)
     elif yscale != "log":
-        plt.ylim(bottom=0)
+        axs.set_ylim(bottom=0)
 
     if has_overflow:
         overflow_count_by_x: dict[int, int] = {}
@@ -385,21 +485,37 @@ def save_chart(
                         annotation_clip=False,
                     )
 
-    # Set legend to the right of the chart
-    plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
-    plt.tight_layout()
+    # Reserve room for one legend outside the plot area.
+    fig.tight_layout()
+    fig.subplots_adjust(right=0.72)
+    lines, labels = axs.get_legend_handles_labels()
+    if secondary_ax is not None:
+        secondary_lines, secondary_labels = secondary_ax.get_legend_handles_labels()
+        lines += secondary_lines
+        labels += secondary_labels
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    axes_right = max(axis.get_tightbbox(renderer).x1 for axis in fig.axes)
+    legend_left = fig.transFigure.inverted().transform((axes_right + 12, 0))[0]
+    axs.legend(
+        lines,
+        labels,
+        loc="center left",
+        bbox_to_anchor=(legend_left, 0.5),
+        bbox_transform=fig.transFigure,
+    )
     if has_overflow:
         fig.subplots_adjust(top=overflow_axes_top)
         axs.set_title(axs.get_title(), y=1.15, pad=3)
 
     # Save the file if it doesn't exist yet
     if not output_path.exists():
-        fig.savefig(str(output_path))
+        fig.savefig(str(output_path), bbox_inches="tight")
     else:
         # If it exists already, only save it if it has changed
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_output_path = Path(tmp_dir) / output_path.name
-            fig.savefig(tmp_output_path)
+            fig.savefig(tmp_output_path, bbox_inches="tight")
             img_new = np.asarray(Image.open(tmp_output_path))
             img_old = np.asarray(Image.open(output_path))
             if not np.array_equal(img_new, img_old):
