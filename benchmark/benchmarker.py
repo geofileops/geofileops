@@ -6,6 +6,7 @@ import gc
 import importlib
 import inspect
 import logging
+import platform
 import tempfile
 from contextlib import nullcontext
 from pathlib import Path
@@ -359,7 +360,7 @@ class RunResult:
             operation_descr (str): Description of the operation.
             secs_taken (float): Seconds the operation took.
             run_details (dict, optional): (Important) details of this specific
-                run with impact on performance. Eg. # CPU's used,...
+                run with impact on performance, including the operating system.
         """
         self.run_datetime = datetime.datetime.now()
         self.package = package
@@ -368,7 +369,7 @@ class RunResult:
         self.operation_descr = operation_descr
         self.secs_taken = secs_taken
         self.max_memory_bytes: int | None = None
-        self.run_details = run_details
+        self.run_details = {**(run_details or {}), "os": platform.system()}
 
     def __repr__(self) -> str:
         """Return a representation of the benchmark result."""
