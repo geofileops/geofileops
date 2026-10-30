@@ -380,7 +380,7 @@ def save_chart(
             marker_index = (len(axs.get_lines()) + series_index) % len(markers)
             line.set_marker(markers[marker_index])
             line.set_color("tab:orange")
-            label_above_line = True
+            label_above_line = False
 
             for index, row_fieldvalue in enumerate(
                 secondary_y_df.iloc[:, series_index]
