@@ -374,7 +374,7 @@ def save_chart(
                     fontweight="normal",
                 )
 
-    if secondary_ax is not None:
+    if secondary_ax is not None and secondary_y_df is not None:
         secondary_max_y_value = None
         for series_index, line in enumerate(secondary_ax.get_lines()):
             marker_index = (len(axs.get_lines()) + series_index) % len(markers)
