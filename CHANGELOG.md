@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 0.13.0 (????-??-??)
+
+### Improvements
+
+- Add function `remove_overlaps` (#831)
+
 ## 0.12.0 (2026-10-14)
 
 ### Deprecations and compatibility notes
