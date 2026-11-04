@@ -2,6 +2,7 @@
 
 import os
 import re
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from stat import S_IRGRP, S_IROTH, S_IRUSR, S_IRWXG, S_IRWXO, S_IRWXU
 
@@ -249,7 +250,17 @@ def _get_testfile(
 
             options = {}
             if fid_column is not None:
-                options["LAYER_CREATION.FID"] = fid_column
+                driver = gdal.GetDriverByName(dst_info.driver)
+                layer_creation_options = (
+                    None
+                    if driver is None
+                    else driver.GetMetadataItem("DS_LAYER_CREATIONOPTIONLIST")
+                )
+                if layer_creation_options is not None and any(
+                    option.attrib.get("name", "").upper() == "FID"
+                    for option in ET.fromstring(layer_creation_options).iter("Option")
+                ):
+                    options["LAYER_CREATION.FID"] = fid_column
             if geom_name is not None:
                 options["LAYER_CREATION.GEOMETRY_NAME"] = geom_name
             if force_utf8 and suffix in (".shp", ".shp.zip"):
