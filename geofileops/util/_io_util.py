@@ -319,6 +319,11 @@ def output_exists(path: Path, remove_if_exists: bool) -> bool:
 
 
 def _is_on_linux_network_location(path: Path) -> bool:
+    if sys.platform != "linux":
+        raise NotImplementedError(
+            f"This function is only meant for use on linux, not on {sys.platform}"
+        )
+
     best_mount_point: Path | None = None
     best_filesystem_type: str | None = None
 
@@ -341,6 +346,11 @@ def _is_on_linux_network_location(path: Path) -> bool:
 
 
 def _is_on_windows_network_location(path: Path) -> bool:
+    if sys.platform != "win32":
+        raise NotImplementedError(
+            f"This function is only meant for use on windows, not on {sys.platform}"
+        )
+
     if path.drive.startswith("\\\\"):
         return True
 

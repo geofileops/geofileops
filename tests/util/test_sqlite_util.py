@@ -1,6 +1,4 @@
-"""
-Tests for functionalities in ogr_util.
-"""
+"""Tests for functionalities in sqlite_util."""
 
 import logging
 import os
@@ -141,6 +139,25 @@ def test_connect(use_spatialite):
 
     finally:
         conn.close()
+
+
+def test_get_and_set_journal_mode(tmp_path):
+    """Get and change the journal mode of an SQLite database file."""
+    database_path = tmp_path / "test.sqlite"
+    sqlite3.connect(database_path).close()
+
+    assert sqlite_util.get_journal_mode(database_path) == "DELETE"
+    assert sqlite_util.set_journal_mode(database_path, "WAL") == "WAL"
+    assert sqlite_util.get_journal_mode(database_path) == "WAL"
+
+
+def test_set_journal_mode_rejects_invalid_mode(tmp_path):
+    """Reject journal modes that are not valid SQLite PRAGMA values."""
+    database_path = tmp_path / "test.sqlite"
+    sqlite3.connect(database_path).close()
+
+    with pytest.raises(ValueError, match="Invalid journal mode"):
+        sqlite_util.set_journal_mode(database_path, "wal; DROP TABLE test")
 
 
 @pytest.mark.parametrize(
