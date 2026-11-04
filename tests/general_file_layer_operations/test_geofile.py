@@ -161,6 +161,18 @@ def test_add_column(tmp_path, suffix):
         (".shp", "Invalid", True, "String"),
     ],
 )
+@pytest.mark.filterwarnings(
+    "ignore:Field format 'INVALID' not supported:RuntimeWarning"
+)
+@pytest.mark.filterwarnings(
+    "ignore:geometry column .* of type 'INVALID' ignored:RuntimeWarning"
+)
+@pytest.mark.filterwarnings(
+    "ignore:Unsupported column type 'BLOB'. Defaulting to VARCHAR:RuntimeWarning"
+)
+@pytest.mark.filterwarnings(
+    "ignore:Unsupported column type 'INVALID'. Defaulting to VARCHAR:RuntimeWarning"
+)
 def test_add_column_types(
     tmp_path, suffix, col_type, col_type_supported, exp_gdal_type
 ):
