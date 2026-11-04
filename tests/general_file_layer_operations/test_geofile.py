@@ -761,7 +761,9 @@ def test_copy_layer_add_layer_shp(tmp_path):
     "suffix, copy_layer_sqlite_direct",
     [(".gpkg", True), (".gpkg", False), (".shp", False)],
 )
-def test_copy_layer_append_bounds(tmp_path, suffix, copy_layer_sqlite_direct):
+def test_copy_layer_append_bounds(
+    tmp_path, monkeypatch, suffix, copy_layer_sqlite_direct
+):
     """Test appending rows and checking the total bounds of the result file."""
     if copy_layer_sqlite_direct and suffix != ".gpkg":
         raise ValueError("copy_layer_sqlite_direct can only be True for .gpkg files.")
@@ -785,14 +787,29 @@ def test_copy_layer_append_bounds(tmp_path, suffix, copy_layer_sqlite_direct):
     layer1_info = gfo.get_layerinfo(layer1_path, layer=layer1)
     layer2_info = gfo.get_layerinfo(layer2_path, layer=layer2)
 
-    # Append layer2 to layer1 file
-    gfo.copy_layer(
-        src=str(layer2_path),
-        dst=str(layer1_path),
-        src_layer=layer2,
-        dst_layer=layer1,
-        write_mode="append",
-    )
+    # Append layer2 to layer1 file. To be sure the direct sql path is used, we
+    # monkeypatch the copy_table function.
+    force_output_geometrytype = None if copy_layer_sqlite_direct else "MultiPolygon"
+    copy_table_orig = fileops._sqlite_util.copy_table
+    successful_direct_copies = 0
+
+    def copy_table_spy(*args, **kwargs):
+        nonlocal successful_direct_copies
+        result = copy_table_orig(*args, **kwargs)
+        successful_direct_copies += 1
+        return result
+
+    monkeypatch.setattr(fileops._sqlite_util, "copy_table", copy_table_spy)
+    with ConfigOptions.set_copy_layer_sqlite_direct(copy_layer_sqlite_direct):
+        gfo.copy_layer(
+            src=str(layer2_path),
+            dst=str(layer1_path),
+            src_layer=layer2,
+            dst_layer=layer1,
+            write_mode="append",
+            force_output_geometrytype=force_output_geometrytype,
+        )
+    assert successful_direct_copies == copy_layer_sqlite_direct
 
     # Check result
     result_layers = gfo.listlayers(layer1_path)
