@@ -1245,6 +1245,7 @@ def test_copy_layer_layer(tmp_path, layer):
         (".shp", ".sqlite", False, False),
     ],
 )
+@pytest.mark.filterwarnings("ignore:Feature id [0-9]+ not preserved:RuntimeWarning")
 def test_copy_layer_preserve_fid(
     tmp_path,
     src_suffix: str,
