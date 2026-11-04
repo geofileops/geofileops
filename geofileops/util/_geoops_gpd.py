@@ -1031,9 +1031,10 @@ def _apply_geooperation(
     # Run operation if data read
     if len(data_gdf) > 0:
         if operation is GeoOperation.BUFFER:
-            data_gdf.geometry = data_gdf.geometry.buffer(
+            data_gdf.geometry = shapely.buffer(
+                data_gdf.geometry.array,
                 distance=operation_params["distance"],
-                resolution=operation_params["quadrantsegments"],
+                quad_segs=operation_params["quadrantsegments"],
                 cap_style=operation_params["endcap_style"].value,
                 join_style=operation_params["join_style"].value,
                 mitre_limit=operation_params["mitre_limit"],

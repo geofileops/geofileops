@@ -3106,7 +3106,7 @@ def test_to_file_index(tmp_path, points_gdf, suffix, engine_setter):  # noqa: AR
     # named MultiIndex
     p_gdf = points_gdf.copy()
     p_gdf["value3"] = p_gdf["value2"] - p_gdf["value1"]
-    p_gdf.set_index(["value1", "value2"], inplace=True)
+    p_gdf = p_gdf.set_index(["value1", "value2"])
     gdf = gpd.GeoDataFrame(p_gdf, geometry=p_gdf.geometry)
     do_checks(gdf, index_is_used=True)
 
