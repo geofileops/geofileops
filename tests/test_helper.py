@@ -548,17 +548,17 @@ def plot(
 
         color = list(colors.keys())[geofile_idx % len(colors)]
         figure.axes[geofile_idx].set_aspect("equal")
-        # add hatch to the last axis
-        gdf.plot(
-            ax=figure.axes[geofile_idx],
-            color=colors[color],
-            alpha=0.5,
-        )
-        gdf.plot(
-            ax=figure.axes[len(geofiles)],
-            color=colors[color],
-            alpha=0.5,
-        )
+        if not gdf.empty:
+            gdf.plot(
+                ax=figure.axes[geofile_idx],
+                color=colors[color],
+                alpha=0.5,
+            )
+            gdf.plot(
+                ax=figure.axes[len(geofiles)],
+                color=colors[color],
+                alpha=0.5,
+            )
         figure.axes[geofile_idx].set_title(geofile.stem)
 
     if clean_name:

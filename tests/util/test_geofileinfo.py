@@ -92,7 +92,7 @@ def test_get_driver(tmp_path, test_type, suffix, path_prefix, exp_driver):
         test_path = f"{path_prefix}{test_path.as_posix()}"
 
     # Run the test
-    if suffix == ".kml" and test_type != "EXISTING_FILE_VALID" and path_prefix is None:
+    if suffix == ".kml" and path_prefix is None:
         # There are multiple drivers for .kml, so a warning is expected
         with pytest.warns(
             UserWarning, match="Multiple drivers found, using first one of"

@@ -1068,7 +1068,7 @@ def _apply_geooperation(
         for fid_number in range(1, 100):
             new_name = f"{fid_column}_{fid_number}"
             if new_name not in columns_lower_lookup:
-                data_gdf = data_gdf.rename(columns={fid_column: new_name}, copy=False)
+                data_gdf = data_gdf.rename(columns={fid_column: new_name})
 
     if gridsize != 0.0:
         data_gdf.geometry = _geoseries_util.set_precision(
