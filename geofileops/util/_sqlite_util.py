@@ -9,7 +9,7 @@ import warnings
 from collections.abc import Iterable
 from datetime import date, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Union
+from typing import TYPE_CHECKING, Any, Literal, Union, get_args
 
 import shapely
 from pygeoops import GeometryType
@@ -235,6 +235,55 @@ def connect(
         raise
 
     return conn
+
+
+def get_journal_mode(path: Union[Path, "os.PathLike[Any]"]) -> str:
+    """Return the journal mode of an existing SQLite database file.
+
+    Args:
+        path (PathLike): the path to the database file.
+
+    Returns:
+        str: the journal mode (always uppercase).
+    """
+    conn = connect(path, use_spatialite=False)
+    try:
+        result = conn.execute("PRAGMA journal_mode;").fetchone()
+        assert result is not None
+        return str(result[0]).upper()
+    finally:
+        conn.close()
+
+
+def set_journal_mode(
+    path: Union[Path, "os.PathLike[Any]"],
+    journal_mode: Literal["DELETE", "TRUNCATE", "PERSIST", "MEMORY", "WAL", "OFF"],
+) -> str:
+    """Set an existing SQLite database's journal mode and return the effective mode.
+
+    SQLite may keep the existing mode if it cannot apply the requested one.
+
+    Args:
+        path (PathLike): the path to the database file.
+        journal_mode (str): the requested journal mode (case insensitive).
+
+    Returns:
+        str: the effective journal mode after setting it (always uppercase).
+    """
+    valid_modes = get_args(set_journal_mode.__annotations__["journal_mode"])
+    if journal_mode.upper() not in valid_modes:
+        raise ValueError(
+            f"Invalid journal mode: {journal_mode}. "
+            f"Expected one of {', '.join(valid_modes)}."
+        )
+
+    conn = connect(path, use_spatialite=False)
+    try:
+        result = conn.execute(f"PRAGMA journal_mode={journal_mode};").fetchone()
+        assert result is not None
+        return str(result[0]).upper()
+    finally:
+        conn.close()
 
 
 def create_new_spatialdb(
