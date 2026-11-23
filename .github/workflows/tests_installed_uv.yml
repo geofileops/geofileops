@@ -31,11 +31,11 @@ jobs:
       fail-fast: false
       matrix:
         os: ["ubuntu-latest"]
-        python: ["3.12"]
+        python: ["3.13"]
         include:
-          - checkout_ref: "v0.11.0"
-            gfo_version: "0.11"
-            gdal_version: "3.8.4"
+          - checkout_ref: "v0.12.0"
+            gfo_version: "0.12"
+            gdal_version: "3.12.2"
 
     steps:
       - name: Checkout tests for label ${{ matrix.checkout_ref }}
