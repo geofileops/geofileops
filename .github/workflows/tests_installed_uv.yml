@@ -33,7 +33,9 @@ jobs:
         os: ["ubuntu-latest"]
         python: ["3.13"]
         include:
-          - checkout_ref: "v0.12.0"
+          # Use the maintenance branch (and not the tag) as checkout_ref, so test
+          # fixes can be cherry-picked to it
+          - checkout_ref: "v0.12.x"
             gfo_version: "0.12"
 
     steps:
