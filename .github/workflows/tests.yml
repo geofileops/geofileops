@@ -76,6 +76,16 @@ jobs:
             python=${{ matrix.python }}
             ${{ matrix.extra }}
 
+      # The gdal-master channel only provides gdal itself, so pyogrio is installed
+      # from conda-forge built against an older libgdal soname. Rebuild pyogrio from
+      # source so it is compiled against the gdal master version in the environment.
+      - name: Rebuild pyogrio from source against the installed GDAL
+        if: matrix.env == 'nightly-deps'
+        run: >-
+          python -m pip install
+          --force-reinstall --no-deps --no-binary :all:
+          pyogrio
+
       - name: Print versions
         run: >-
           python -c "import sys; print('Python version:', sys.version)"
