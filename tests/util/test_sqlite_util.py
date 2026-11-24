@@ -747,8 +747,8 @@ def test_create_table_as_sql_single_input(tmp_path):
 
     # Prepare expected result
     expected_gdf = fileops.read_file(input_path, columns=["HFDTLT"])
-    expected_gdf.geometry = expected_gdf.geometry.buffer(
-        distance, resolution=resolution
+    expected_gdf.geometry = shapely.buffer(
+        expected_gdf.geometry.array, distance, quad_segs=resolution
     )
 
     sql_stmt = f"""
