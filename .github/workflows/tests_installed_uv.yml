@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   TestsOnInstalled:    
-    name: ${{ matrix.checkout_ref }}, python ${{ matrix.python }}, gdal ${{ matrix.gdal_version }}, ${{ matrix.os }}
+    name: ${{ matrix.checkout_ref }}, python ${{ matrix.python }}, ${{ matrix.os }}
     timeout-minutes: 30
     runs-on: "ubuntu-latest"
     defaults:
@@ -35,11 +35,10 @@ jobs:
         include:
           - checkout_ref: "v0.12.0"
             gfo_version: "0.12"
-            gdal_version: "3.12.2"
 
     steps:
       - name: Checkout tests for label ${{ matrix.checkout_ref }}
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           ref: ${{ matrix.checkout_ref }}
           sparse-checkout: |
@@ -61,7 +60,9 @@ jobs:
       - name: Install geofileops via uv
         run: |
           uv venv --python ${{ matrix.python }}
-          uv pip install gdal==${{ matrix.gdal_version }} geofileops~=${{ matrix.gfo_version }} pytest
+          # Use ~=X.Y.0 (and not ~=X.Y) so geofileops stays within the same minor version
+          # as checkout_ref (PEP 440: ~=0.12 would also allow e.g. 0.13).
+          uv pip install "gdal==$(gdal-config --version)" "geofileops~=${{ matrix.gfo_version }}.0" pytest
 
       - name: Print installed versions
         run: |
