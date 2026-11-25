@@ -769,7 +769,7 @@ class ConfigOptions:
 
     @staticmethod
     def set_tmp_dir_compress(compress: bool | str | None) -> _RestoreOriginalHandler:
-        """Set compression for newly created files in the temporary directory.
+        """Set compression for files created in the geofileops temporary directory.
 
         If unset or set to an empty string, the filesystem's compression setting is
         left unchanged. Boolean True enables compression and False disables it.
@@ -777,6 +777,12 @@ class ConfigOptions:
         On Linux, a string can select the Btrfs algorithm: ``zlib``, ``lzo``, or
         ``zstd``. On Windows, algorithm strings are not supported and True enables
         default NTFS compression.
+
+        When benchmarked on windows, enabling NTFS compression reduced the size of
+        temporary files by approximately 50%. For I/O bound operations like ``buffer``,
+        processing time increased by up to 70%. For CPU-bound operations like
+        ``intersection`` or ``dissolve`` the increase in processing time was less than
+        5%.
 
         The value can also be set directly through the ``GFO_TMPDIR_COMPRESS``
         environment variable. If unset, compression is not changed.
