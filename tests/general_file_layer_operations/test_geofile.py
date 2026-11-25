@@ -10,6 +10,7 @@ from pathlib import Path
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import pyogrio
 import pytest
 from osgeo import gdal
 from pandas.testing import assert_frame_equal
@@ -48,6 +49,11 @@ except ImportError:
     ENGINES = ["pyogrio", "pyogrio-arrow"]
 
 gdal.UseExceptions()
+
+# if GDAL_GTE_38 and not GDAL_GTE_39:
+#     pytest.skip(
+#         "These tests crash with GDAL>=3.8 and GDAL<3.9", allow_module_level=True
+#     )
 
 
 @pytest.fixture(scope="module", params=ENGINES)
@@ -3195,6 +3201,14 @@ def test_to_file_nogeom(tmp_path, suffix):
 @pytest.mark.skipif(not PYOGRIO_GTE_010, reason="Requires pyogrio>=0.10")
 def test_to_file_vsi():
     """Test writing to a file in vsimem."""
+    # /vsimem is only shared between libraries using the same libgdal. If pyogrio
+    # is installed from a wheel it bundles its own GDAL, so a file written via
+    # pyogrio is not visible to the osgeo.gdal bindings (and vice versa).
+    if pyogrio.__gdal_version_string__ != gdal.__version__:
+        pytest.skip(
+            "pyogrio and osgeo use different GDAL libraries, so /vsimem is not shared"
+        )
+
     # Prepare test data
     src = test_helper.get_testfile("polygon-parcel")
     read_gdf = gfo.read_file(src)
