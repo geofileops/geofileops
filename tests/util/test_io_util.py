@@ -1,5 +1,6 @@
 """Tests for functionalities in _io_util."""
 
+import io
 import subprocess
 import sys
 import tempfile
@@ -7,6 +8,35 @@ import tempfile
 import pytest
 
 from geofileops.util import _io_util
+
+
+@pytest.mark.skipif(
+    sys.platform != "linux", reason="Linux mount detection is Linux-only"
+)
+@pytest.mark.parametrize(
+    "path, expected",
+    [
+        ("/data/remote/file.gpkg", True),
+        ("/data/local/file.gpkg", False),
+        ("/other/file.gpkg", False),
+    ],
+)
+def test_is_on_network_location_linux(monkeypatch, path, expected):
+    mountinfo = io.StringIO(
+        "1 0 0:1 / / rw - ext4 /dev/root rw\n"
+        "2 1 0:2 / /data rw - nfs server:/share rw\n"
+        "3 2 0:3 / /data/local rw - ext4 /dev/local rw\n"
+    )
+    monkeypatch.setattr(_io_util.Path, "open", lambda _path, **_kwargs: mountinfo)
+
+    assert _io_util.is_on_network_location(_io_util.Path(path)) is expected
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="UNC paths are Windows-only")
+def test_is_on_network_location_windows_unc():
+    path = _io_util.Path(r"\\server\share\file.gpkg")
+
+    assert _io_util.is_on_network_location(path)
 
 
 def test_create_tempdir():

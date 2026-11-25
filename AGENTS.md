@@ -7,23 +7,25 @@
 - Put shared runtime options and orchestration helpers in `helpers/`; keep
   lower-level I/O, GDAL/OGR, SQLite, and geometry utilities in `util/`.
   SQL-specific operations live in `geoops_sql/`.
+- In Python modules, keep public functions above private helpers.
 - When changing a public option or API, update its existing documentation and
   public exports as appropriate. See [API reference](docs/reference.rst) and
   [user guide](docs/user_guide.rst).
 
 ## Environment and Validation
-- Use the Conda-forge `geofileops-dev` environment from `environment-dev.yml`;
-  native GDAL and SpatiaLite dependencies are required. Setup details are in
-  [development docs](docs/development.rst) and
-  [installation docs](docs/installation.rst).
+- Use the Python environment selected for this workspace in the IDE. It must
+  include the development dependencies described in `environment-dev.yml`,
+  including native GDAL and SpatiaLite. Setup details are in [development
+  docs](docs/development.rst) and [installation docs](docs/installation.rst).
 - Before running tests, `pre-commit`, or other Python/GDAL-dependent commands,
-  ensure `geofileops-dev` is active in the shell. VS Code's selected interpreter
-  doesn't guarantee shell activation; if uncertain, run the command as
-  `conda run -n geofileops-dev --no-capture-output <command>`.
-- Run Python tests in that environment. On Windows, use an activated Conda
-  prompt or `conda run -n geofileops-dev --no-capture-output
-  python -m pytest <test-path>` so native GIS and SpatiaLite DLLs are
-  available; invoking `pytest.exe` directly can fail during extension loading.
+  use the IDE-selected environment. The selected interpreter doesn't guarantee
+  shell activation; on Windows with Conda, use
+  `conda run -p <selected-environment-prefix> --no-capture-output <command>`.
+- Run Python tests in the selected environment. On Windows with Conda, use an
+  activated Conda prompt or `conda run -p <selected-environment-prefix>
+  --no-capture-output python -m pytest <test-path>` so native GIS and SpatiaLite
+  DLLs are available; invoking `pytest.exe` directly can fail during extension
+  loading.
 - Prefer focused tests, for example
   `python -m pytest tests/util/test_io_util.py`. Run the configured hooks
   with `pre-commit run --files <changed-files>`; they apply Ruff formatting,

@@ -1,7 +1,9 @@
 """Module containing some utilities regarding io."""
 
+import ctypes
 import logging
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -12,6 +14,127 @@ from pathlib import Path
 from typing import Any, Union
 
 import geofileops as gfo
+
+_NETWORK_FILESYSTEM_TYPES = {
+    "9p",
+    "afs",
+    "cifs",
+    "ceph",
+    "davfs",
+    "fuse.ceph",
+    "fuse.curlftpfs",
+    "fuse.davfs",
+    "fuse.glusterfs",
+    "fuse.gcsfuse",
+    "fuse.rclone",
+    "fuse.s3fs",
+    "fuse.sshfs",
+    "glusterfs",
+    "gpfs",
+    "lustre",
+    "nfs",
+    "nfs4",
+    "panfs",
+    "smb2",
+    "smb3",
+    "smbfs",
+    "sshfs",
+}
+
+
+def create_file_atomic(path: Union[str, "os.PathLike[Any]"]) -> bool:
+    """Create a file in an atomic way.
+
+    Returns True if the file was created by this thread, False if the file existed
+    already.
+    """
+    try:
+        fd = os.open(path, os.O_CREAT | os.O_EXCL)
+        os.close(fd)
+        return True
+    except FileExistsError:
+        return False
+    except OSError as ex:  # pragma: no cover
+        if ex.errno == 13:
+            return False
+        else:
+            raise RuntimeError(f"Error creating file {path}") from ex
+
+
+def create_file_atomic_wait(
+    path: Union[str, "os.PathLike[Any]"],
+    time_between_attempts: float = 1,
+    timeout: float = 0,
+) -> None:
+    """Create a file in an atomic way.
+
+    If it already exists, wait till it can be created.
+
+    Returns once the file is created.
+
+    Args:
+        path (PathLike): path of the file to create.
+        time_between_attempts (float, optional): time to wait between attempts.
+            Defaults to 1.
+        timeout (float, optional): maximum time in seconds to wait to create the file.
+            Once the timeout has been reached, a RunTimeError is raised. If 0, there is
+            no timeout. Defaults to 0.
+    """
+    start_time = datetime.now()
+    while True:
+        if create_file_atomic(path):
+            return
+
+        if timeout > 0:
+            time_waiting = (datetime.now() - start_time).total_seconds()
+            if time_waiting > timeout:
+                raise RuntimeError(
+                    f"timeout of {timeout} secs reached, couldn't create {path}"
+                )
+
+        # Wait a bit and try again
+        time.sleep(time_between_attempts)
+
+
+def create_tempdir(base_dirname: str, parent_dir: Path | None = None) -> Path:
+    """Creates a new temporary directory.
+
+    Remark: the temp dir won't be cleaned up automatically!
+
+    Examples:
+        - base_dirname="foo" -> /tmp/foo_000001
+        - base_dirname="foo/bar" -> /tmp/foo/bar_000001
+
+    Args:
+        base_dirname (str): The name the tempdir will start with. The name will be
+            suffixed with a number to make the directory name unique. If a "/" is part
+            of the base_dirname a subdirectory will be created: e.g. "foo/bar".
+        parent_dir (Path, optional): The directory to create the tempdir in. If None,
+            the directory returned by :func:`tempfile.gettempdir` is used.
+            Defaults to None.
+
+    Raises:
+        RuntimeError: if it wasn't possible to create the temp dir because there
+            wasn't found a unique directory name.
+
+    Returns:
+        Path: the path to the temp dir created.
+    """
+    if parent_dir is None:
+        parent_dir = Path(tempfile.gettempdir())
+
+    for i in range(1, 999999):
+        try:
+            tempdir = parent_dir / f"{base_dirname}_{i:06d}"
+            tempdir.mkdir(parents=True)
+            return tempdir
+        except FileExistsError:
+            continue
+
+    raise RuntimeError(
+        f"Wasn't able to create a temporary dir with basedir: "
+        f"{parent_dir / base_dirname}"
+    )
 
 
 def enable_directory_compression(
@@ -91,47 +214,6 @@ def enable_directory_compression(
     return True
 
 
-def create_tempdir(base_dirname: str, parent_dir: Path | None = None) -> Path:
-    """Creates a new temporary directory.
-
-    Remark: the temp dir won't be cleaned up automatically!
-
-    Examples:
-        - base_dirname="foo" -> /tmp/foo_000001
-        - base_dirname="foo/bar" -> /tmp/foo/bar_000001
-
-    Args:
-        base_dirname (str): The name the tempdir will start with. The name will be
-            suffixed with a number to make the directory name unique. If a "/" is part
-            of the base_dirname a subdirectory will be created: e.g. "foo/bar".
-        parent_dir (Path, optional): The directory to create the tempdir in. If None,
-            the directory returned by :func:`tempfile.gettempdir` is used.
-            Defaults to None.
-
-    Raises:
-        RuntimeError: if it wasn't possible to create the temp dir because there
-            wasn't found a unique directory name.
-
-    Returns:
-        Path: the path to the temp dir created.
-    """
-    if parent_dir is None:
-        parent_dir = Path(tempfile.gettempdir())
-
-    for i in range(1, 999999):
-        try:
-            tempdir = parent_dir / f"{base_dirname}_{i:06d}"
-            tempdir.mkdir(parents=True)
-            return tempdir
-        except FileExistsError:
-            continue
-
-    raise RuntimeError(
-        f"Wasn't able to create a temporary dir with basedir: "
-        f"{parent_dir / base_dirname}"
-    )
-
-
 def get_tempfile_locked(
     base_filename: str,
     suffix: str = ".tmp",
@@ -188,58 +270,22 @@ def get_tempfile_locked(
     )
 
 
-def create_file_atomic_wait(
-    path: Union[str, "os.PathLike[Any]"],
-    time_between_attempts: float = 1,
-    timeout: float = 0,
-) -> None:
-    """Create a file in an atomic way.
+def is_on_network_location(path: Path | str) -> bool:
+    """Return whether ``path`` is on a network filesystem.
 
-    If it already exists, wait till it can be created.
-
-    Returns once the file is created.
-
-    Args:
-        path (PathLike): path of the file to create.
-        time_between_attempts (float, optional): time to wait between attempts.
-            Defaults to 1.
-        timeout (float, optional): maximum time in seconds to wait to create the file.
-            Once the timeout has been reached, a RunTimeError is raised. If 0, there is
-            no timeout. Defaults to 0.
+    Linux mount information is used to identify the filesystem containing the path.
+    On Windows, UNC paths and drives reported as remote are considered network paths.
     """
-    start_time = datetime.now()
-    while True:
-        if create_file_atomic(path):
-            return
+    if isinstance(path, str):
+        path = Path(path)
 
-        if timeout > 0:
-            time_waiting = (datetime.now() - start_time).total_seconds()
-            if time_waiting > timeout:
-                raise RuntimeError(
-                    f"timeout of {timeout} secs reached, couldn't create {path}"
-                )
-
-        # Wait a bit and try again
-        time.sleep(time_between_attempts)
-
-
-def create_file_atomic(path: Union[str, "os.PathLike[Any]"]) -> bool:
-    """Create a file in an atomic way.
-
-    Returns True if the file was created by this thread, False if the file existed
-    already.
-    """
-    try:
-        fd = os.open(path, os.O_CREAT | os.O_EXCL)
-        os.close(fd)
-        return True
-    except FileExistsError:
-        return False
-    except OSError as ex:  # pragma: no cover
-        if ex.errno == 13:
-            return False
-        else:
-            raise RuntimeError(f"Error creating file {path}") from ex
+    if os.name == "nt":
+        return _is_on_windows_network_location(path.absolute())
+    if sys.platform.startswith("linux"):
+        return _is_on_linux_network_location(path.resolve(strict=False))
+    raise NotImplementedError(
+        f"Network location detection is unsupported on {sys.platform}"
+    )
 
 
 def output_exists(path: Path, remove_if_exists: bool) -> bool:
@@ -270,3 +316,53 @@ def output_exists(path: Path, remove_if_exists: bool) -> bool:
             return True
 
     return False
+
+
+def _is_on_linux_network_location(path: Path) -> bool:
+    if sys.platform != "linux":
+        raise NotImplementedError(
+            f"This function is only meant for use on linux, not on {sys.platform}"
+        )
+
+    best_mount_point: Path | None = None
+    best_filesystem_type: str | None = None
+
+    with Path("/proc/self/mountinfo").open(encoding="utf-8") as mount_info_file:
+        for line in mount_info_file:
+            fields = line.split()
+            separator = fields.index("-")
+            mount_point = Path(_unescape_mount_field(fields[4]))
+            if not path.is_relative_to(mount_point):
+                continue
+            if best_mount_point is None or len(mount_point.parts) > len(
+                best_mount_point.parts
+            ):
+                best_mount_point = mount_point
+                best_filesystem_type = fields[separator + 1].lower()
+
+    if best_filesystem_type is None:
+        raise RuntimeError(f"No filesystem mount found for {path}")
+    return best_filesystem_type in _NETWORK_FILESYSTEM_TYPES
+
+
+def _is_on_windows_network_location(path: Path) -> bool:
+    if sys.platform != "win32":
+        raise NotImplementedError(
+            f"This function is only meant for use on windows, not on {sys.platform}"
+        )
+
+    if path.drive.startswith("\\\\"):
+        return True
+
+    get_drive_type = ctypes.windll.kernel32.GetDriveTypeW
+    get_drive_type.argtypes = [ctypes.c_wchar_p]
+    get_drive_type.restype = ctypes.c_uint
+    return get_drive_type(path.anchor) == 4
+
+
+def _unescape_mount_field(value: str) -> str:
+    return re.sub(
+        r"\\([0-7]{3})",
+        lambda match: chr(int(match.group(1), 8)),
+        value,
+    )
